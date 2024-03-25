@@ -38,6 +38,7 @@ impl FromEnv for PostgresConfig {
             .ok()
             .or_else(|| master_url.clone());
         let max_connections = parse_optional_var("DATABASE_POOL_SIZE")?;
+        let max_connections_master = parse_optional_var("DATABASE_POOL_SIZE_MASTER")?;
         let acquire_timeout_sec = parse_optional_var("DATABASE_ACQUIRE_TIMEOUT_SEC")?;
         let statement_timeout_sec = parse_optional_var("DATABASE_STATEMENT_TIMEOUT_SEC")?;
         let long_connection_threshold_ms =
@@ -49,6 +50,7 @@ impl FromEnv for PostgresConfig {
             replica_url,
             prover_url,
             max_connections,
+            max_connections_master,
             acquire_timeout_sec,
             statement_timeout_sec,
             long_connection_threshold_ms,

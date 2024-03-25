@@ -1,6 +1,7 @@
 //! (Largely) backend-agnostic logic for dealing with Web3 subscriptions.
 
-use anyhow::Context as _;
+use anyhow::{Context as _, Error};
+use chrono::NaiveDateTime;
 use futures::FutureExt;
 use tokio::{
     sync::{broadcast, mpsc, watch},
@@ -147,12 +148,15 @@ impl PubSubNotifier {
             timer.tick().await;
 
             let db_latency = PUB_SUB_METRICS.db_poll_latency[&SubscriptionType::Txs].start();
-            let (new_txs, new_last_time) = self.new_txs(last_time).await?;
+            let new_txs = self.new_txs(last_time).await?;
             db_latency.observe();
 
-            if let Some(new_last_time) = new_last_time {
-                last_time = new_last_time;
-                let new_txs = new_txs.into_iter().map(PubSubResult::TxHash).collect();
+            if let Some((new_last_time, _)) = new_txs.last() {
+                last_time = *new_last_time;
+                let new_txs = new_txs
+                    .into_iter()
+                    .map(|(_, tx_hash)| PubSubResult::TxHash(tx_hash))
+                    .collect();
                 self.send_pub_sub_results(new_txs, SubscriptionType::Txs);
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(SubscriptionType::Txs));
@@ -160,10 +164,7 @@ impl PubSubNotifier {
         Ok(())
     }
 
-    async fn new_txs(
-        &self,
-        last_time: chrono::NaiveDateTime,
-    ) -> anyhow::Result<(Vec<H256>, Option<chrono::NaiveDateTime>)> {
+    async fn new_txs(&self, last_time: NaiveDateTime) -> Result<Vec<(NaiveDateTime, H256)>, Error> {
         self.connection_pool
             .connection_tagged("api")
             .await

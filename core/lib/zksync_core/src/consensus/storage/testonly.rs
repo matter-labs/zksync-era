@@ -8,7 +8,7 @@ use zksync_dal::ConnectionPool;
 
 use super::Store;
 use crate::{
-    genesis::{ensure_genesis_state, insert_genesis_batch, GenesisParams},
+    genesis::{insert_genesis_batch, GenesisParams},
     utils::testonly::{recover, snapshot, Snapshot},
 };
 

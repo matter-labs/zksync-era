@@ -292,7 +292,8 @@ impl MiniblockSealCommand {
                     transaction
                         .transactions_dal()
                         .insert_transaction_l2(l2_tx, Default::default())
-                        .await;
+                        .await
+                        .unwrap();
                 }
                 ExecuteTransactionCommon::ProtocolUpgrade(_) => {
                     // `unwrap` is safe due to the check above

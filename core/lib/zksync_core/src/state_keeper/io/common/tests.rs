@@ -363,7 +363,8 @@ async fn store_pending_miniblocks(
         storage
             .transactions_dal()
             .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
-            .await;
+            .await
+            .unwrap();
         let mut new_miniblock = create_miniblock(miniblock_number);
         new_miniblock.base_system_contracts_hashes = contract_hashes;
         storage
