@@ -5,7 +5,8 @@ use zk_evm_1_5_0::{
     aux_structures::{LogQuery, PubdataCost, Timestamp},
     zkevm_opcode_defs::system_params::{
         INITIAL_STORAGE_WRITE_PUBDATA_BYTES, STORAGE_ACCESS_COLD_READ_COST,
-        STORAGE_ACCESS_COLD_WRITE_COST, STORAGE_AUX_BYTE, TRANSIENT_STORAGE_AUX_BYTE,
+        STORAGE_ACCESS_COLD_WRITE_COST, STORAGE_ACCESS_WARM_READ_COST,
+        STORAGE_ACCESS_WARM_WRITE_COST, STORAGE_AUX_BYTE, TRANSIENT_STORAGE_AUX_BYTE,
     },
 };
 use zksync_state::{StoragePtr, WriteStorage};
@@ -34,22 +35,18 @@ use crate::{
     },
 };
 
-/// We employ the followinf rules for cold/warm storage rules:
+/// We employ the following rules for cold/warm storage rules:
 /// - We price a single "I/O" access as 2k ergs. This means that reading a single storage slot
 /// would cost 2k ergs, while writing to it would 4k ergs (since it involves both reading during execution and writing at the end of it).
 /// - Thereafter, "warm" reads cosst 30 ergs, while "warm" writes cost 60 ergs. Warm writes to account for the fact that they may be reverted
 /// and so require more RAM to store them.
-///
-/// FIXME: in zkevm_opcode_defs, ensure that the explanation above fits the code.
-const WARM_READ_COST_ERGS: u32 = 30;
-const WARM_WRITE_COST_ERGS: u32 = 60;
 
 /// If a write is after a read, we do not take into account the cost for reading the initial value from storage.
 const COLD_WRITE_AFTER_WARM_READ_COST: u32 =
     STORAGE_ACCESS_COLD_WRITE_COST - STORAGE_ACCESS_COLD_READ_COST;
 
-const WARM_READ_REFUND: u32 = STORAGE_ACCESS_COLD_READ_COST - WARM_READ_COST_ERGS;
-const WARM_WRITE_REFUND: u32 = STORAGE_ACCESS_COLD_WRITE_COST - WARM_WRITE_COST_ERGS;
+const WARM_READ_REFUND: u32 = STORAGE_ACCESS_COLD_READ_COST - STORAGE_ACCESS_WARM_READ_COST;
+const WARM_WRITE_REFUND: u32 = STORAGE_ACCESS_COLD_WRITE_COST - STORAGE_ACCESS_WARM_WRITE_COST;
 const COLD_WRITE_AFTER_WARM_READ_REFUND: u32 =
     STORAGE_ACCESS_COLD_WRITE_COST - COLD_WRITE_AFTER_WARM_READ_COST;
 
