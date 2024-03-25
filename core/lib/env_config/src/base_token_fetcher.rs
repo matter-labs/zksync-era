@@ -4,6 +4,6 @@ use crate::{envy_load, FromEnv};
 
 impl FromEnv for BaseTokenFetcherConfig {
     fn from_env() -> anyhow::Result<Self> {
-        envy_load("base_token_fetcher", "base_token_fetcher_")
+        envy_load("base_token_fetcher", "BASE_TOKEN_FETCHER_")
     }
 }
