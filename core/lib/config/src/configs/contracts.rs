@@ -88,7 +88,7 @@ impl ContractsConfig {
             state_transition_proxy_addr: Some(Address::repeat_byte(0x16)),
             state_transition_impl_addr: Some(Address::repeat_byte(0x17)),
             genesis_batch_commitment: Some(H256::repeat_byte(0x17)),
-            genesis_protocol_version: Some(21),
+            genesis_protocol_version: Some(22),
         }
     }
 }
