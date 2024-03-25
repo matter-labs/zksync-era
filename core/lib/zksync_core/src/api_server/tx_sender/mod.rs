@@ -714,27 +714,38 @@ impl TxSender {
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
 
-        // We already know how many gas is needed to cover for the publishing of the bytecodes.
-        // For L1->L2 transactions all the bytecodes have been made available on L1, so no funds need to be
-        // spent on re-publishing those.
-        let gas_for_bytecodes_pubdata = if tx.is_l1() {
-            0
+        // When the pubdata cost grows very high, the total gas limit required may become very high as well. If
+        // we do binary search over any possible gas limit naively, we may end up with a very high number of iterations,
+        // which affects performance.
+        //
+        // To optimize for this case, we first calculate the amount of gas needed to cover for the pubdata. After that, we
+        // need to do a smaller binary search that is focused on computational gas limit only.
+        let additional_gas_for_pubdata = if tx.is_l1() {
+            // For L1 transactions the pubdata priced in such a way that the maximal computational
+            // gas limit should be enough to cover for the pubdata as well, so no additional gas is provided there.
+            0u64
         } else {
-            let pubdata_for_factory_deps = get_pubdata_for_factory_deps(
-                &vm_permit,
-                &self.0.replica_connection_pool,
-                tx.execute.factory_deps.as_deref().unwrap_or_default(),
-                self.storage_caches(),
-            )
-            .await?;
+            // For L2 transactions, we estimate the amount of gas needed to cover for the pubdata by creating a transaction with infinite gas limit.
+            // And getting how much pubdata it used.
 
-            if pubdata_for_factory_deps as u64 > self.0.sender_config.max_pubdata_per_batch {
-                return Err(SubmitTxError::Unexecutable(
-                    "exceeds limit for published pubdata".to_string(),
-                ));
-            }
+            // In theory, if the transaction has failed with such large gas limit, we could've returned an API error here rightaway,
+            // but doing it later on keeps the code more lean.
+            let (result, _) = self
+                .estimate_gas_step(
+                    vm_permit.clone(),
+                    tx.clone(),
+                    u64::MAX,
+                    gas_per_pubdata_byte as u32,
+                    fee_input,
+                    block_args,
+                    base_fee,
+                    protocol_version.into(),
+                )
+                .await
+                .context("estimate_gas step failed")?;
 
-            (pubdata_for_factory_deps as u64) * gas_per_pubdata_byte
+            // It is assumed that there is no overflow here
+            (result.statistics.pubdata_published as u64) * gas_per_pubdata_byte
         };
 
         // We are using binary search to find the minimal values of gas_limit under which
@@ -759,7 +770,7 @@ impl TxSender {
             // or normal execution errors, so we just hope that increasing the
             // gas limit will make the transaction successful
             let iteration_started_at = Instant::now();
-            let try_gas_limit = gas_for_bytecodes_pubdata + mid;
+            let try_gas_limit = additional_gas_for_pubdata + mid;
             let (result, _) = self
                 .estimate_gas_step(
                     vm_permit.clone(),
@@ -799,7 +810,7 @@ impl TxSender {
             ((upper_bound as f64) * estimated_fee_scale_factor) as u64,
         );
 
-        let suggested_gas_limit = tx_body_gas_limit + gas_for_bytecodes_pubdata;
+        let suggested_gas_limit = tx_body_gas_limit + additional_gas_for_pubdata;
         let (result, tx_metrics) = self
             .estimate_gas_step(
                 vm_permit,
@@ -842,7 +853,7 @@ impl TxSender {
         };
 
         let full_gas_limit =
-            match tx_body_gas_limit.overflowing_add(gas_for_bytecodes_pubdata + overhead) {
+            match tx_body_gas_limit.overflowing_add(additional_gas_for_pubdata + overhead) {
                 (value, false) => value,
                 (_, true) => {
                     return Err(SubmitTxError::ExecutionReverted(
