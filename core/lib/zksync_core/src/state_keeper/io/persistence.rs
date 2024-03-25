@@ -29,7 +29,7 @@ struct Completable<T> {
 #[derive(Debug)]
 pub struct StateKeeperPersistence {
     pool: ConnectionPool<Core>,
-    object_store: Option<Arc<dyn ObjectStore>>, // FIXME: split off?
+    object_store: Option<Arc<dyn ObjectStore>>, // FIXME (PLA-857): remove from the state keeper
     l2_erc20_bridge_addr: Address,
     pre_insert_txs: bool,
     commands_sender: mpsc::Sender<Completable<MiniblockSealCommand>>,
