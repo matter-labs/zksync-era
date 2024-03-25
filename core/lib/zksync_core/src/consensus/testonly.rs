@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 use anyhow::Context as _;
 use rand::Rng;
 use zksync_concurrency::{ctx, error::Wrap as _, limiter, scope, sync, time};
-use zksync_config::configs;
+use zksync_config::{configs, GenesisConfig};
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::CoreDal;
@@ -20,7 +20,7 @@ use zksync_web3_decl::{
 use crate::{
     api_server::web3::{state::InternalApiConfig, tests::spawn_http_server},
     consensus::{fetcher::P2PConfig, Fetcher, Store},
-    genesis::GenesisParams,
+    genesis::{mock_genesis_config, GenesisParams},
     state_keeper::{
         io::common::IoCursor, seal_criteria::NoopSealer, tests::MockBatchExecutor, MiniblockSealer,
         ZkSyncStateKeeper,
@@ -103,13 +103,6 @@ impl MainNodeClient for MockMainNodeClient {
         Ok(self.protocol_versions.get(&protocol_version).cloned())
     }
 
-    async fn fetch_genesis_l1_batch_hash(&self) -> EnrichedClientResult<H256> {
-        Err(EnrichedClientError::custom(
-            "not implemented",
-            "fetch_genesis_l1_batch_hash",
-        ))
-    }
-
     async fn fetch_l2_block_number(&self) -> EnrichedClientResult<MiniblockNumber> {
         if let Some(number) = self.l2_blocks.len().checked_sub(1) {
             Ok(MiniblockNumber(number as u32))
@@ -142,6 +135,10 @@ impl MainNodeClient for MockMainNodeClient {
         &self,
     ) -> EnrichedClientResult<Option<api::en::ConsensusGenesis>> {
         unimplemented!()
+    }
+
+    async fn fetch_genesis_config(&self) -> EnrichedClientResult<GenesisConfig> {
+        Ok(mock_genesis_config())
     }
 }
 
@@ -232,7 +229,7 @@ impl StateKeeper {
                 l1_gas_price: 2,
                 l2_fair_gas_price: 3,
                 fair_pubdata_price: Some(24),
-                operator_address: GenesisParams::mock().first_validator,
+                operator_address: GenesisParams::mock().config().fee_account,
                 protocol_version: ProtocolVersionId::latest(),
                 first_miniblock_info: (self.last_block, 1),
             }

@@ -15,10 +15,10 @@ use zksync_config::{
         PrometheusConfig, ProofDataHandlerConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
-    GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
+    GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_core::{
-    genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
+    genesis, genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
     temp_config_store::{decode_yaml, Secrets, TempConfigStore},
     Component, Components,
 };
@@ -38,8 +38,7 @@ struct Cli {
     /// Generate genesis block for the first contract deployment using temporary DB.
     #[arg(long)]
     genesis: bool,
-    /// Wait for the `setChainId` event during genesis.
-    /// If `--genesis` is not set, this flag is ignored.
+    /// Set chain id (temporary will be moved to genesis config)
     #[arg(long)]
     set_chain_id: bool,
     /// Rebuild tree.
@@ -156,22 +155,27 @@ async fn main() -> anyhow::Result<()> {
     let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;
 
     if opt.genesis || is_genesis_needed(&postgres_config).await {
-        let network = NetworkConfig::from_env().context("NetworkConfig")?;
-        let eth_sender = ETHSenderConfig::from_env().context("ETHSenderConfig")?;
-        let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
-        let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
-        genesis_init(
-            &postgres_config,
-            &eth_sender,
-            &network,
-            &contracts,
-            &eth_client.web3_url,
-            opt.set_chain_id,
-        )
-        .await
-        .context("genesis_init")?;
+        let genesis = GenesisConfig::from_env().context("Genesis config")?;
+        genesis_init(genesis, &postgres_config)
+            .await
+            .context("genesis_init")?;
         if opt.genesis {
             return Ok(());
+        }
+    }
+
+    if opt.set_chain_id {
+        let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
+        let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
+        if let Some(state_transition_proxy_addr) = contracts.state_transition_proxy_addr {
+            genesis::save_set_chain_id_tx(
+                &eth_client.web3_url,
+                contracts.diamond_proxy_addr,
+                state_transition_proxy_addr,
+                &postgres_config,
+            )
+            .await
+            .context("Failed to save SetChainId upgrade transaction")?;
         }
     }
 

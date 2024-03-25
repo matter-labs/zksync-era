@@ -2,8 +2,7 @@ use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
-    block::DeployedContract, protocol_version::L1VerifierConfig,
-    system_contracts::get_system_smart_contracts, AccountTreeId, L1BatchNumber, L2ChainId, H256,
+    block::DeployedContract, system_contracts::get_system_smart_contracts, AccountTreeId, L2ChainId,
 };
 
 use super::client::MainNodeClient;
@@ -17,32 +16,29 @@ pub async fn perform_genesis_if_needed(
     let mut transaction = storage.start_transaction().await?;
     // We want to check whether the genesis is needed before we create genesis params to not
     // make the node startup slower.
-    let genesis_block_hash = if transaction.blocks_dal().is_genesis_needed().await? {
-        let genesis_params = create_genesis_params(client).await?;
-        ensure_genesis_state(&mut transaction, zksync_chain_id, &genesis_params)
+    if transaction.blocks_dal().is_genesis_needed().await? {
+        let genesis_params = create_genesis_params(client, zksync_chain_id).await?;
+        ensure_genesis_state(&mut transaction, &genesis_params)
             .await
-            .context("ensure_genesis_state")?
-    } else {
-        transaction
-            .blocks_dal()
-            .get_l1_batch_state_root(L1BatchNumber(0))
-            .await?
-            .context("genesis block hash is empty")?
-    };
-
-    validate_genesis_state(client, genesis_block_hash).await?;
+            .context("ensure_genesis_state")?;
+    }
     transaction.commit().await?;
     Ok(())
 }
 
-async fn create_genesis_params(client: &dyn MainNodeClient) -> anyhow::Result<GenesisParams> {
-    let genesis_miniblock = client
-        .fetch_l2_block(zksync_types::MiniblockNumber(0), false)
-        .await?
-        .context("No genesis block on the main node")?;
-    let first_validator = genesis_miniblock.operator_address;
-    let base_system_contracts_hashes = genesis_miniblock.base_system_contracts_hashes;
-    let protocol_version = genesis_miniblock.protocol_version;
+async fn create_genesis_params(
+    client: &dyn MainNodeClient,
+    zksync_chain_id: L2ChainId,
+) -> anyhow::Result<GenesisParams> {
+    let config = client.fetch_genesis_config().await?;
+    let base_system_contracts_hashes = BaseSystemContractsHashes {
+        bootloader: config.bootloader_hash,
+        default_aa: config.default_aa_hash,
+    };
+
+    if zksync_chain_id != config.l2_chain_id {
+        anyhow::bail!("L2 chain id from server and locally doesn't match");
+    }
 
     // Load the list of addresses that are known to contain system contracts at any point in time.
     // Not every of these addresses is guaranteed to be present in the genesis state, but we'll iterate through
@@ -84,15 +80,11 @@ async fn create_genesis_params(client: &dyn MainNodeClient) -> anyhow::Result<Ge
         "No system contracts were fetched: this is a bug"
     );
 
-    // Use default L1 verifier config and verifier address for genesis as they are not used by EN.
-    let first_l1_verifier_config = L1VerifierConfig::default();
-    Ok(GenesisParams {
-        protocol_version,
+    Ok(GenesisParams::from_genesis_config(
+        config,
         base_system_contracts,
         system_contracts,
-        first_validator,
-        first_l1_verifier_config,
-    })
+    )?)
 }
 
 async fn fetch_base_system_contracts(
@@ -117,18 +109,4 @@ async fn fetch_base_system_contracts(
             hash: contract_hashes.default_aa,
         },
     })
-}
-
-// When running an external node, we want to make sure we have the same
-// genesis root hash as the main node.
-async fn validate_genesis_state(
-    client: &dyn MainNodeClient,
-    root_hash: H256,
-) -> anyhow::Result<()> {
-    let genesis_l1_batch_hash = client.fetch_genesis_l1_batch_hash().await?;
-    anyhow::ensure!(
-        genesis_l1_batch_hash == root_hash,
-        "Genesis L1 batch root hash mismatch with main node: expected {root_hash}, got {genesis_l1_batch_hash}"
-    );
-    Ok(())
 }

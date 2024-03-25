@@ -10,10 +10,13 @@ use async_trait::async_trait;
 use jsonrpsee::core::{client::ClientT, params::BatchRequestBuilder, ClientError};
 use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::sync::watch;
-use zksync_config::configs::{
-    api::Web3JsonRpcConfig,
-    chain::{NetworkConfig, StateKeeperConfig},
-    ContractsConfig,
+use zksync_config::{
+    configs::{
+        api::Web3JsonRpcConfig,
+        chain::{NetworkConfig, StateKeeperConfig},
+        ContractsConfig,
+    },
+    GenesisConfig,
 };
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, CoreDal};
 use zksync_health_check::CheckHealth;
@@ -35,7 +38,7 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
     jsonrpsee::{http_client::HttpClient, types::error::ErrorCode},
-    namespaces::{EthNamespaceClient, ZksNamespaceClient},
+    namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
 
 use super::{metrics::ApiTransportLabel, *};
@@ -44,7 +47,7 @@ use crate::{
         execution_sandbox::testonly::MockTransactionExecutor,
         tx_sender::tests::create_test_tx_sender,
     },
-    genesis::{ensure_genesis_state, GenesisParams},
+    genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams},
     utils::testonly::{
         create_l1_batch, create_l1_batch_metadata, create_l2_transaction, create_miniblock,
         l1_batch_metadata_to_commitment_artifacts, prepare_recovery_snapshot,
@@ -237,13 +240,13 @@ impl StorageInitialization {
     ) -> anyhow::Result<()> {
         match self {
             Self::Genesis => {
+                let params = GenesisParams::load_genesis_params(GenesisConfig {
+                    l2_chain_id: network_config.zksync_network_id,
+                    ..mock_genesis_config()
+                })
+                .unwrap();
                 if storage.blocks_dal().is_genesis_needed().await? {
-                    ensure_genesis_state(
-                        storage,
-                        network_config.zksync_network_id,
-                        &GenesisParams::mock(),
-                    )
-                    .await?;
+                    insert_genesis_batch(storage, &params).await?;
                 }
             }
             Self::Recovery { logs, factory_deps } => {
@@ -1076,4 +1079,22 @@ impl HttpTest for RpcCallsTracingTest {
 #[tokio::test]
 async fn tracing_rpc_calls() {
     test_http_server(RpcCallsTracingTest::default()).await;
+}
+
+#[derive(Debug, Default)]
+struct GenesisConfigTest;
+
+#[async_trait]
+impl HttpTest for GenesisConfigTest {
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+        // It's enough to check that we fill all fields and deserialization is correct.
+        // Mocking values is not suitable since they will always change
+        client.genesis_config().await.unwrap();
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn tracing_genesis_config() {
+    test_http_server(GenesisConfigTest).await;
 }

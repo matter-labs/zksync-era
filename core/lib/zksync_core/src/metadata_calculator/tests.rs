@@ -16,14 +16,14 @@ use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
 use zksync_types::{
-    block::L1BatchHeader, AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
-    StorageKey, StorageLog, H256,
+    block::L1BatchHeader, AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey,
+    StorageLog, H256,
 };
 use zksync_utils::u32_to_h256;
 
 use super::{GenericAsyncTree, L1BatchWithLogs, MetadataCalculator, MetadataCalculatorConfig};
 use crate::{
-    genesis::{ensure_genesis_state, GenesisParams},
+    genesis::{insert_genesis_batch, GenesisParams},
     utils::testonly::{create_l1_batch, create_miniblock},
 };
 
@@ -403,7 +403,7 @@ async fn setup_calculator_with_options(
 
     let mut storage = pool.connection().await.unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
-        ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
     }
@@ -634,7 +634,7 @@ async fn remove_l1_batches(
 async fn deduplication_works_as_expected() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
 

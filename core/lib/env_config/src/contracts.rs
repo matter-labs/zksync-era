@@ -10,8 +10,6 @@ impl FromEnv for ContractsConfig {
 
 #[cfg(test)]
 mod tests {
-    use zksync_config::configs::contracts::ProverAtGenesis;
-
     use super::*;
     use crate::test_utils::{addr, hash, EnvMutex};
 
@@ -19,6 +17,13 @@ mod tests {
 
     fn expected_config() -> ContractsConfig {
         ContractsConfig {
+            genesis_root: Some(hash(
+                "0x436cf80dd02a7e1a1df65be6ec9ea231ccec97c44f4c8c9cd2aa26c2feb074cd",
+            )),
+            genesis_rollup_leaf_index: Some(26),
+            genesis_batch_commitment: Some(hash(
+                "0x938016208176c5a49d47c8aa582b5d18afc4f159dfa099087770e0796948fd1a",
+            )),
             bridgehub_proxy_addr: Some(addr("35ea7f92f4c5f433efe15284e99c040110cf6297")),
             bridgehub_impl_addr: Some(addr("87d456da9ed212eb49d80d96afb44afddf36adf8")),
             state_transition_proxy_addr: Some(addr("d90f1c081c6117241624e97cb6147257c3cb2097")),
@@ -66,10 +71,10 @@ mod tests {
             fri_recursion_leaf_level_vk_hash: hash(
                 "0x72167c43a46cf38875b267d67716edc4563861364a3c03ab7aee73498421e828",
             ),
-            prover_at_genesis: ProverAtGenesis::Fri,
             snark_wrapper_vk_hash: hash(
                 "0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bece83612563f2",
             ),
+            genesis_protocol_version: Some(22),
         }
     }
 
@@ -110,6 +115,9 @@ CONTRACTS_BRIDGEHUB_IMPL_ADDR="0x87d456da9ed212eb49d80d96afb44afddf36adf8"
 CONTRACTS_STATE_TRANSITION_PROXY_ADDR="0xd90f1c081c6117241624e97cb6147257c3cb2097"
 CONTRACTS_STATE_TRANSITION_IMPL_ADDR="0xc957c0e82d3bafb5ad46ffbcc66900648784eb05"
 CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"
+CONTRACTS_GENESIS_ROOT=0x436cf80dd02a7e1a1df65be6ec9ea231ccec97c44f4c8c9cd2aa26c2feb074cd
+CONTRACTS_GENESIS_BATCH_COMMITMENT=0x938016208176c5a49d47c8aa582b5d18afc4f159dfa099087770e0796948fd1a
+CONTRACTS_GENESIS_ROLLUP_LEAF_INDEX=26
         "#;
         lock.set_env(config);
 
