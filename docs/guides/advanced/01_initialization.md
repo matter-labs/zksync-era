@@ -2,7 +2,7 @@
 
 The goal of this doc is to show you some more details on how zkSync works internally.
 
-Please do the dev_setup.md and development.md (these commands do all the heavy lifting on starting the components of the
+Please do the setup-dev.md and development.md (these commands do all the heavy lifting on starting the components of the
 system).
 
 Now let's take a look at what's inside:
