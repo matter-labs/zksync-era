@@ -1,27 +1,32 @@
 [package]
 name = "zksync_prover_fri_gateway"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
+vise.workspace = true
+zksync_types.workspace = true
+prover_dal.workspace = true
+zksync_config.workspace = true
+zksync_env_config.workspace = true
+zksync_object_store.workspace = true
+zksync_prover_interface.workspace = true
+zksync_utils.workspace = true
+prometheus_exporter.workspace = true
+vlog.workspace = true
 
-zksync_types = { path = "../../core/lib/types" }
-prover_dal = { path = "../prover_dal" }
-zksync_config = { path = "../../core/lib/config" }
-zksync_env_config = { path = "../../core/lib/env_config" }
-zksync_object_store = { path = "../../core/lib/object_store" }
-zksync_prover_interface = { path = "../../core/lib/prover_interface" }
-zksync_utils = { path = "../../core/lib/utils" }
-prometheus_exporter = { path = "../../core/lib/prometheus_exporter" }
-vlog = { path = "../../core/lib/vlog" }
-
-anyhow = "1.0"
-tracing = "0.1"
-reqwest = { version = "0.11", features = ["blocking"] }
-tokio = { version = "1", features = ["time", "macros"] }
-ctrlc = { version = "3.1", features = ["termination"] }
-async-trait = "0.1"
-futures = { version = "0.3", features = ["compat"] }
-serde = { version = "1.0", features = ["derive"] }
-log = "0.4.20"
+anyhow.workspace = true
+tracing.workspace = true
+reqwest = { workspace = true, features = ["blocking"] }
+tokio = { workspace = true, features = ["time", "macros"] }
+ctrlc = { workspace = true, features = ["termination"] }
+async-trait.workspace = true
+futures = { workspace = true, features = ["compat"] }
+serde = { workspace = true, features = ["derive"] }
+log.workspace = true
