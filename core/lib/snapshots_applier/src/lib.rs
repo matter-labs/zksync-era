@@ -419,7 +419,8 @@ impl<'a> SnapshotsApplier<'a> {
         })?;
         anyhow::ensure!(
             matches!(version, SnapshotVersion::Version0),
-            "Cannot recover from a snapshot with version {version:?}"
+            "Cannot recover from a snapshot with version {version:?}; the only supported version is {:?}",
+            SnapshotVersion::Version0
         );
         Ok(())
     }
