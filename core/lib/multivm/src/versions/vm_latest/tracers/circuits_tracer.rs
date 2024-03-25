@@ -70,12 +70,15 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
                 self.statistics.log_demuxer_cycles += EVENT_LOG_DEMUXER_CYCLES;
                 self.statistics.events_sorter_cycles += EVENT_EVENTS_SORTER_CYCLES;
             }
-            Opcode::Log(LogOpcode::PrecompileCall | LogOpcode::Decommit) => {
+            Opcode::Log(LogOpcode::PrecompileCall) => {
                 self.statistics.ram_permutation_cycles += PRECOMPILE_RAM_CYCLES;
                 self.statistics.log_demuxer_cycles += PRECOMPILE_LOG_DEMUXER_CYCLES;
-
-                // FIXME: this is a reminder to add a tracer that would add cycles for decommitting proportional
-                // to the code that is being decommitted.
+            }
+            Opcode::Log(LogOpcode::Decommit) => {
+                // Note, that for decommit log demuxer is not used.
+                self.statistics.ram_permutation_cycles += PRECOMPILE_RAM_CYCLES;
+                self.statistics.code_decommitter_sorter_cycles +=
+                    LOG_DECOMMIT_DECOMMITTER_SORTER_CYCLES;
             }
             Opcode::FarCall(_) => {
                 self.statistics.ram_permutation_cycles += FAR_CALL_RAM_CYCLES;
