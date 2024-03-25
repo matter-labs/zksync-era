@@ -396,9 +396,9 @@ mod tests {
             .with_state(Arc::new(state));
 
         for i in 9000..9999 {
-            let new_url = format!("127.0.0.1:{}", i);
-            if let Ok(listener) = tokio::net::TcpListener::bind(&new_url).await {
-                server = Some(axum::serve(listener, app));
+            let new_url = format!("127.0.0.1:{}", i).parse().unwrap();
+            if let Ok(axum_server) = axum::Server::try_bind(&new_url) {
+                server = Some(axum_server.serve(app.into_make_service()));
                 url = Some(new_url);
                 break;
             }

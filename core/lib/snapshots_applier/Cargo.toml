@@ -1,31 +1,31 @@
 [package]
 name = "zksync_snapshots_applier"
 version = "0.1.0"
-edition = "2021"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-zksync_db_connection = { path = "../../lib/db_connection" }
-zksync_dal = { path = "../../lib/dal" }
-zksync_health_check = { path = "../../lib/health_check" }
-zksync_types = { path = "../../lib/types" }
-zksync_object_store = { path = "../../lib/object_store" }
-zksync_web3_decl = { path = "../../lib/web3_decl" }
-zksync_utils = { path = "../../lib/utils" }
+zksync_db_connection.workspace = true
+zksync_dal.workspace = true
+zksync_health_check.workspace = true
+zksync_types.workspace = true
+zksync_object_store.workspace = true
+zksync_web3_decl.workspace = true
+zksync_utils.workspace = true
 
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
+vise.workspace = true
 
-anyhow = "1.0"
-async-trait = "0.1"
-tokio = { version = "1", features = ["time"] }
-tracing = "0.1"
-thiserror = "1.0"
-serde = { version = "1.0.189", features = ["derive"] }
+anyhow.workspace = true
+async-trait.workspace = true
+tokio = { workspace = true, features = ["time"] }
+tracing.workspace = true
+thiserror.workspace = true
+serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
-test-casing = "0.1.2"
+test-casing.workspace = true
