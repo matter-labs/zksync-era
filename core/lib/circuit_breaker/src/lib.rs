@@ -8,7 +8,7 @@ pub mod replication_lag;
 pub mod utils;
 
 #[derive(Default, Debug)]
-pub struct CircuitBreakers(pub Mutex<Vec<Box<dyn CircuitBreaker>>>);
+pub struct CircuitBreakers(Mutex<Vec<Box<dyn CircuitBreaker>>>);
 
 impl CircuitBreakers {
     pub async fn insert(&self, circuit_breaker: Box<dyn CircuitBreaker>) {
@@ -19,6 +19,13 @@ impl CircuitBreakers {
         {
             guard.push(circuit_breaker);
         }
+    }
+
+    pub async fn check(&self) -> Result<(), CircuitBreakerError> {
+        for circuit_breaker in self.0.lock().await.iter() {
+            circuit_breaker.check().await?;
+        }
+        Ok(())
     }
 }
 
@@ -53,9 +60,8 @@ impl CircuitBreakerChecker {
     }
 
     pub async fn check(&self) -> Result<(), CircuitBreakerError> {
-        for circuit_breaker in self.circuit_breakers.0.lock().await.iter() {
-            circuit_breaker.check().await?;
-        }
+        self.circuit_breakers.check().await?;
+
         Ok(())
     }
 
@@ -65,7 +71,7 @@ impl CircuitBreakerChecker {
             if *stop_receiver.borrow() {
                 break;
             }
-            if let Err(error) = self.check().await {
+            if let Err(error) = self.circuit_breakers.check().await {
                 return Err(anyhow::format_err!(
                     "Circuit breaker error. Reason: {error}"
                 ));

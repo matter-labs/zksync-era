@@ -26,6 +26,8 @@ pub struct Web3ServerOptionalConfig {
     pub batch_request_size_limit: Option<usize>,
     pub response_body_size_limit: Option<usize>,
     pub websocket_requests_per_minute_limit: Option<NonZeroU32>,
+    // used by circuit breaker.
+    pub replication_lag_limit_sec: Option<u32>,
 }
 
 impl Web3ServerOptionalConfig {
@@ -142,6 +144,7 @@ impl WiringLayer for Web3ServerLayer {
         if let Some(sync_state) = sync_state {
             api_builder = api_builder.with_sync_state(sync_state);
         }
+        let replication_lag_limit_sec = self.optional_config.replication_lag_limit_sec;
         api_builder = self.optional_config.apply(api_builder);
         let server = api_builder.build()?;
 
@@ -158,7 +161,7 @@ impl WiringLayer for Web3ServerLayer {
             .breakers
             .insert(Box::new(ReplicationLagChecker {
                 pool: replica_pool,
-                replication_lag_limit_sec: circuit_breaker_resource.replication_lag_limit_sec,
+                replication_lag_limit_sec,
             }))
             .await;
 

@@ -19,12 +19,9 @@ impl WiringLayer for CircuitBreakerCheckerLayer {
 
     async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get resources.
-        let mut circuit_breaker_resource = node
+        let circuit_breaker_resource = node
             .get_resource_or_default::<CircuitBreakersResource>()
             .await;
-        if let Some(lag_limit) = self.0.replication_lag_limit_sec {
-            circuit_breaker_resource.set_replication_lag_limit_sec(lag_limit);
-        }
 
         let circuit_breaker_checker =
             CircuitBreakerChecker::new(circuit_breaker_resource.breakers, self.0.sync_interval());

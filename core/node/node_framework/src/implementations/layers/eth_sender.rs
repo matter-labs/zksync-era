@@ -111,10 +111,7 @@ impl WiringLayer for EthSenderLayer {
         }));
 
         // Insert circuit breaker.
-        let CircuitBreakersResource {
-            replication_lag_limit_sec: _,
-            breakers,
-        } = context.get_resource_or_default().await;
+        let CircuitBreakersResource { breakers } = context.get_resource_or_default().await;
         breakers
             .insert(Box::new(FailedL1TransactionChecker { pool: replica_pool }))
             .await;
