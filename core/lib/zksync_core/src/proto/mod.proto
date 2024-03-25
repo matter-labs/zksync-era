@@ -25,7 +25,7 @@ import "zksync/config/snapshots_creator.proto";
 import "zksync/config/utils.proto";
 import "zksync/config/witness_generator.proto";
 import "zksync/core/consensus.proto";
-import "zksync/config/native_token_fetcher.proto";
+import "zksync/config/base_token_fetcher.proto";
 
 message TempConfigStore {
   optional config.database.Postgres postgres = 1;
@@ -54,7 +54,7 @@ message TempConfigStore {
   optional config.eth_sender.GasAdjuster gas_adjuster = 24;
   optional config.object_store.ObjectStore object_store = 25;
   optional consensus.Config consensus = 26;
-  optional config.native_token_fetcher.NativeTokenFetcher native_token_fetcher = 27;
+  optional config.base_token_fetcher.BaseTokenFetcher base_token_fetcher = 27;
 }
 
 message Secrets {

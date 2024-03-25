@@ -2,6 +2,7 @@
 pub use self::{
     alerts::AlertsConfig,
     api::ApiConfig,
+    base_token_fetcher::BaseTokenFetcherConfig,
     contract_verifier::ContractVerifierConfig,
     contracts::ContractsConfig,
     database::{DBConfig, PostgresConfig},
@@ -13,7 +14,6 @@ pub use self::{
     fri_prover_gateway::FriProverGatewayConfig,
     fri_witness_generator::FriWitnessGeneratorConfig,
     fri_witness_vector_generator::FriWitnessVectorGeneratorConfig,
-    native_token_fetcher::NativeTokenFetcherConfig,
     object_store::ObjectStoreConfig,
     observability::ObservabilityConfig,
     proof_data_handler::ProofDataHandlerConfig,
@@ -24,6 +24,7 @@ pub use self::{
 
 pub mod alerts;
 pub mod api;
+pub mod base_token_fetcher;
 pub mod chain;
 pub mod contract_verifier;
 pub mod contracts;
@@ -38,7 +39,6 @@ pub mod fri_prover_group;
 pub mod fri_witness_generator;
 pub mod fri_witness_vector_generator;
 pub mod house_keeper;
-pub mod native_token_fetcher;
 pub mod object_store;
 pub mod observability;
 pub mod proof_data_handler;

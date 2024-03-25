@@ -1,10 +1,10 @@
 use axum::{extract, extract::Json, routing::get, Router};
 use tokio::sync::watch;
-use zksync_config::configs::native_token_fetcher::NativeTokenFetcherConfig;
+use zksync_config::configs::base_token_fetcher::BaseTokenFetcherConfig;
 
 pub(crate) async fn run_server(
     mut stop_receiver: watch::Receiver<bool>,
-    server_configs: &NativeTokenFetcherConfig,
+    server_configs: &BaseTokenFetcherConfig,
 ) -> anyhow::Result<()> {
     let app = Router::new().route("/conversion_rate/:token_address", get(get_conversion_rate));
 

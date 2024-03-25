@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use hex::ToHex;
 use metrics::atomics::AtomicU64;
 use tokio::sync::Mutex;
-use zksync_config::configs::native_token_fetcher::NativeTokenFetcherConfig;
+use zksync_config::configs::base_token_fetcher::BaseTokenFetcherConfig;
 
 /// Trait used to query the stack's native token conversion rate. Used to properly
 /// determine gas prices, as they partially depend on L1 gas prices, denominated in `eth`.
@@ -38,15 +38,15 @@ impl ConversionRateFetcher for NoOpConversionRateFetcher {
 /// Struct in charge of periodically querying and caching the native token's conversion rate
 /// to `eth`.
 #[derive(Debug)]
-pub(crate) struct NativeTokenFetcher {
-    pub config: NativeTokenFetcherConfig,
+pub(crate) struct BaseTokenFetcher {
+    pub config: BaseTokenFetcherConfig,
     pub latest_to_eth_conversion_rate: AtomicU64,
     http_client: reqwest::Client,
     error_reporter: Arc<Mutex<ErrorReporter>>,
 }
 
-impl NativeTokenFetcher {
-    pub(crate) async fn new(config: NativeTokenFetcherConfig) -> anyhow::Result<Self> {
+impl BaseTokenFetcher {
+    pub(crate) async fn new(config: BaseTokenFetcherConfig) -> anyhow::Result<Self> {
         let http_client = reqwest::Client::new();
 
         let conversion_rate = http_client
@@ -73,7 +73,7 @@ impl NativeTokenFetcher {
 }
 
 #[async_trait]
-impl ConversionRateFetcher for NativeTokenFetcher {
+impl ConversionRateFetcher for BaseTokenFetcher {
     fn conversion_rate(&self) -> anyhow::Result<u64> {
         anyhow::Ok(
             self.latest_to_eth_conversion_rate

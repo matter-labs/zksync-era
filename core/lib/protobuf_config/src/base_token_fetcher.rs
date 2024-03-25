@@ -2,10 +2,10 @@ use anyhow::{Context as _, Ok};
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::{parse_h160, proto::native_token_fetcher as proto};
+use crate::{parse_h160, proto::base_token_fetcher as proto};
 
-impl ProtoRepr for proto::NativeTokenFetcher {
-    type Type = configs::NativeTokenFetcherConfig;
+impl ProtoRepr for proto::BaseTokenFetcher {
+    type Type = configs::BaseTokenFetcherConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             poll_interval: *required(&self.poll_interval).context("poll_interval")?,

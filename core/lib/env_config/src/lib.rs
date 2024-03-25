@@ -3,6 +3,7 @@ use serde::de::DeserializeOwned;
 
 mod alerts;
 mod api;
+pub mod base_token_fetcher;
 mod chain;
 mod contract_verifier;
 mod contracts;
@@ -17,7 +18,6 @@ mod fri_prover_group;
 mod fri_witness_generator;
 mod fri_witness_vector_generator;
 mod house_keeper;
-pub mod native_token_fetcher;
 pub mod object_store;
 mod observability;
 mod proof_data_handler;

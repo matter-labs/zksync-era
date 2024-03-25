@@ -58,6 +58,7 @@ use crate::{
         tx_sender::{ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
         web3::{self, state::InternalApiConfig, Namespace},
     },
+    base_token_fetcher::{BaseTokenFetcher, ConversionRateFetcher, NoOpConversionRateFetcher},
     basic_witness_input_producer::BasicWitnessInputProducer,
     commitment_generator::CommitmentGenerator,
     eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
@@ -77,13 +78,13 @@ use crate::{
     l1_gas_price::GasAdjusterSingleton,
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     metrics::{InitStage, APP_METRICS},
-    native_token_fetcher::{ConversionRateFetcher, NativeTokenFetcher, NoOpConversionRateFetcher},
     state_keeper::{
         create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer, SequencerSealer,
     },
 };
 
 pub mod api_server;
+pub mod base_token_fetcher;
 pub mod basic_witness_input_producer;
 pub mod block_reverter;
 pub mod commitment_generator;
@@ -99,7 +100,6 @@ pub mod house_keeper;
 pub mod l1_gas_price;
 pub mod metadata_calculator;
 mod metrics;
-pub mod native_token_fetcher;
 pub mod proof_data_handler;
 pub mod proto;
 pub mod reorg_detector;
@@ -258,8 +258,8 @@ pub enum Component {
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
-    /// Native Token fetcher
-    NativeTokenFetcher,
+    /// Base Token fetcher
+    BaseTokenFetcher,
     /// Conversion rate API, for local development.
     DevConversionRateApi,
     /// Component generating BFT consensus certificates for miniblocks.
@@ -300,7 +300,7 @@ impl FromStr for Components {
             "eth_tx_aggregator" => Ok(Components(vec![Component::EthTxAggregator])),
             "eth_tx_manager" => Ok(Components(vec![Component::EthTxManager])),
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
-            "native_token_fetcher" => Ok(Components(vec![Component::NativeTokenFetcher])),
+            "base_token_fetcher" => Ok(Components(vec![Component::BaseTokenFetcher])),
             "dev_conversion_rate_api" => Ok(Components(vec![Component::DevConversionRateApi])),
             "consensus" => Ok(Components(vec![Component::Consensus])),
             "commitment_generator" => Ok(Components(vec![Component::CommitmentGenerator])),
@@ -382,25 +382,25 @@ pub async fn initialize_components(
 
     // spawn the conversion rate API if it is enabled
     if components.contains(&Component::DevConversionRateApi) {
-        let native_token_fetcher_config = configs
-            .native_token_fetcher_config
+        let base_token_fetcher_config = configs
+            .base_token_fetcher_config
             .clone()
-            .context("native_token_fetcher_config")?;
+            .context("base_token_fetcher_config")?;
 
         let stop_receiver = stop_receiver.clone();
         let conversion_rate_task = tokio::spawn(async move {
-            dev_api_conversion_rate::run_server(stop_receiver, &native_token_fetcher_config).await
+            dev_api_conversion_rate::run_server(stop_receiver, &base_token_fetcher_config).await
         });
         task_futures.push(conversion_rate_task);
     };
 
-    let native_token_fetcher = if components.contains(&Component::NativeTokenFetcher) {
+    let base_token_fetcher = if components.contains(&Component::BaseTokenFetcher) {
         Arc::new(
-            NativeTokenFetcher::new(
+            BaseTokenFetcher::new(
                 configs
-                    .native_token_fetcher_config
+                    .base_token_fetcher_config
                     .clone()
-                    .context("native_token_fetcher_config")?,
+                    .context("base_token_fetcher_config")?,
             )
             .await?,
         ) as Arc<dyn ConversionRateFetcher>
@@ -419,7 +419,7 @@ pub async fn initialize_components(
         eth_client_config.web3_url.clone(),
         gas_adjuster_config,
         eth_sender_config.sender.pubdata_sending_mode,
-        native_token_fetcher,
+        base_token_fetcher,
     );
 
     let (cb_sender, cb_receiver) = oneshot::channel();
