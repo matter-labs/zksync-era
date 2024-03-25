@@ -2,74 +2,74 @@
 
 [chain.eth]
 # Name of the used Ethereum network
-network="localhost"
+network = "localhost"
 # Name of current zkSync network
 # Used for Sentry environment
-zksync_network="localhost"
+zksync_network = "localhost"
 # ID of current zkSync network treated as ETH network ID.
 # Used to distinguish zkSync from other Web3-capable networks.
-zksync_network_id=270
+zksync_network_id = 270
 
 [chain.state_keeper]
-fee_account_addr="0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7"
+fee_account_addr = "0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7"
 
 # Denotes the amount of slots for transactions in the block.
-transaction_slots=250
+transaction_slots = 250
 
-max_allowed_l2_tx_gas_limit=4000000000
-block_commit_deadline_ms=2500
-miniblock_commit_deadline_ms=1000
-miniblock_seal_queue_capacity=10
+max_allowed_l2_tx_gas_limit = 4000000000
+block_commit_deadline_ms = 2500
+miniblock_commit_deadline_ms = 1000
+miniblock_seal_queue_capacity = 10
 # Max gas that can used to include single block in aggregated operation
-max_single_tx_gas=6000000
+max_single_tx_gas = 6000000
 
 # Configuration option for block to be sealed in case
 # it takes more percentage of the max block capacity than this value.
-close_block_at_geometry_percentage=0.95
+close_block_at_geometry_percentage = 0.95
 # Configuration option for block to be sealed in case
 # it takes more percentage of the max block capacity than this value.
-close_block_at_eth_params_percentage=0.95
+close_block_at_eth_params_percentage = 0.95
 
 # Configuration option for block to be sealed in case
 # it takes more percentage of the max block capacity than this value.
-close_block_at_gas_percentage=0.95
+close_block_at_gas_percentage = 0.95
 
 # Configuration option for tx to be rejected in case
 # it takes more percentage of the block capacity than this value.
-reject_tx_at_geometry_percentage=0.95
+reject_tx_at_geometry_percentage = 0.95
 # Configuration option for block to be sealed in case
 # it takes more percentage of the max block capacity than this value.
-reject_tx_at_eth_params_percentage=0.95
+reject_tx_at_eth_params_percentage = 0.95
 
 # Configuration option for block to be sealed in case
 # it takes more percentage of the max block gas capacity than this value.
-reject_tx_at_gas_percentage=0.95
+reject_tx_at_gas_percentage = 0.95
 
 # The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
 # as potentially premium for congestion.
-minimal_l2_gas_price=100000000
+minimal_l2_gas_price = 100000000
 
 # The constant that represents the possibility that a batch can be sealed because of overuse of computation resources.
 # It has range from 0 to 1. If it is 0, the compute will not depend on the cost for closing the batch.
 # If it is 1, the gas limit per batch will have to cover the entire cost of closing the batch.
-compute_overhead_part=0.0
+compute_overhead_part = 0.0
 
 # The constant that represents the possibility that a batch can be sealed because of overuse of pubdata.
 # It has range from 0 to 1. If it is 0, the pubdata will not depend on the cost for closing the batch.
 # If it is 1, the pubdata limit per batch will have to cover the entire cost of closing the batch.
-pubdata_overhead_part=1.0
+pubdata_overhead_part = 1.0
 
 # The constant amount of L1 gas that is used as the overhead for the batch. It includes the price for batch verification, etc.
-batch_overhead_l1_gas=800000
+batch_overhead_l1_gas = 800000
 
 # The maximum amount of gas that can be used by the batch. This value is derived from the circuits limitation per batch.
-max_gas_per_batch=200000000
+max_gas_per_batch = 200000000
 
 # This will also determine how many blobs are used, when enabled.
 # If the value is less than 126 kb -> Calldata or 1 Blob
 # If the value is > 126 kb and < 252 kb then 2 blobs are used.
 # Note, the max at this moment is 252 kb
-max_pubdata_per_batch=100000
+max_pubdata_per_batch = 100000
 
 # The version of the fee model to use. 
 # - `V1`, the first model that was used in zkSync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
@@ -78,33 +78,36 @@ max_pubdata_per_batch=100000
 # - `V2`, the second model that was used in zkSync Era. There the pubdata price might be independent from the L1 gas price. Also,
 # The fair L2 gas price is expected to both the proving/computation price for the operator and the costs that come from
 # processing the batch on L1.
-fee_model_version="V1"
+fee_model_version = "V1"
 
 # Max number of computational gas that validation step is allowed to take.
-validation_computational_gas_limit=300000
-save_call_traces=true
+validation_computational_gas_limit = 300000
+save_call_traces = true
 
-virtual_blocks_interval=1
-virtual_blocks_per_miniblock=1
+virtual_blocks_interval = 1
+virtual_blocks_per_miniblock = 1
 
 # WARNING! This slows down the statekeeper, forcing mempool to upload to GCS
 # It is meant as a validation flag to be used in STAGING only.
 # This variable should not be set to true in any customer facing environment.
-upload_witness_inputs_to_gcs=false
+upload_witness_inputs_to_gcs = false
+
+bootloader_hash = "0x010007ede999d096c84553fb514d3d6ca76fbf39789dda76bfeda9f3ae06236e"
+default_aa_hash = "0x0100055b041eb28aff6e3a6e0f37c31fd053fc9ef142683b05e5f0aee6934066"
 
 [chain.operations_manager]
 # Sleep time when there is no new input data
-delay_interval=100
+delay_interval = 100
 
 [chain.mempool]
-delay_interval=100
-sync_interval_ms=10
+delay_interval = 100
+sync_interval_ms = 10
 sync_batch_size = 1000
-capacity=10_000_000
-stuck_tx_timeout=86400 # 1 day in seconds
-remove_stuck_txs=true
+capacity = 10_000_000
+stuck_tx_timeout = 86400 # 1 day in seconds
+remove_stuck_txs = true
 
 [chain.circuit_breaker]
-sync_interval_ms=30000
-http_req_max_retry_number=5
-http_req_retry_interval_sec=2
+sync_interval_ms = 30000
+http_req_max_retry_number = 5
+http_req_retry_interval_sec = 2

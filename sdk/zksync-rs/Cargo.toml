@@ -6,25 +6,25 @@ edition = "2018"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-zksync_types = { path = "../../core/lib/types" }
-zksync_utils = { path = "../../core/lib/utils" }
-zksync_eth_client = { path = "../../core/lib/eth_client" }
-zksync_eth_signer = { path = "../../core/lib/eth_signer" }
-zksync_web3_decl = { path = "../../core/lib/web3_decl", default-features = false, features = [
+zksync_types.workspace = true
+zksync_utils.workspace = true
+zksync_eth_client.workspace = true
+zksync_eth_signer.workspace = true
+zksync_web3_decl = { workspace = true, features = [
     "client",
 ] }
 
-tokio = { version = "1", features = ["time"] }
+tokio = { workspace = true, features = ["time"] }
 
-serde_json = "1.0"
-num = { version = "0.3.1", features = ["serde"] }
-thiserror = "1.0"
+serde_json.workspace = true
+num = { workspace = true, features = ["serde"] }
+thiserror.workspace = true
 
 [dev-dependencies]
-zksync_config = { path = "../../core/lib/config" }
-tokio = { version = "1", features = ["full"] }
-anyhow = "1.0"
-hex = "0.4"
+zksync_config.workspace = true
+tokio = { workspace = true, features = ["full"] }
+anyhow.workspace = true
+hex.workspace = true
 
 [features]
 integration-tests = []

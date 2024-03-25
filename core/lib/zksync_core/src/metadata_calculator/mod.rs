@@ -12,7 +12,7 @@ use zksync_config::configs::{
     chain::OperationsManagerConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_object_store::ObjectStore;
 
@@ -143,7 +143,7 @@ impl MetadataCalculator {
 
     pub async fn run(
         self,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         let tree = self.create_tree().await?;

@@ -38,8 +38,19 @@ impl ZkStackServiceBuilder {
     /// Adds a wiring layer.
     /// During the [`run`](ZkStackService::run) call the service will invoke
     /// `wire` method of every layer in the order they were added.
+    ///
+    /// This method may be invoked multiple times with the same layer type, but the
+    /// layer will only be stored once (meaning that 2nd attempt to add the same layer will be ignored).
+    /// This may be useful if the same layer is a prerequisite for multiple other layers: it is safe
+    /// to add it multiple times, and it will only be wired once.
     pub fn add_layer<T: WiringLayer>(&mut self, layer: T) -> &mut Self {
-        self.layers.push(Box::new(layer));
+        if !self
+            .layers
+            .iter()
+            .any(|existing_layer| existing_layer.layer_name() == layer.layer_name())
+        {
+            self.layers.push(Box::new(layer));
+        }
         self
     }
 

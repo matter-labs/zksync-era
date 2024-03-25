@@ -1,5 +1,6 @@
+use prover_dal::Prover;
 use zksync_config::configs::PostgresConfig;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core};
 
 use crate::{
     implementations::resources::pools::{
@@ -74,22 +75,28 @@ impl WiringLayer for PoolsLayer {
         }
 
         if self.with_master {
-            let mut master_pool =
-                ConnectionPool::builder(self.config.master_url()?, self.config.max_connections()?);
+            let mut master_pool = ConnectionPool::<Core>::builder(
+                self.config.master_url()?,
+                self.config.max_connections()?,
+            );
             master_pool.set_statement_timeout(self.config.statement_timeout());
             context.insert_resource(MasterPoolResource::new(master_pool))?;
         }
 
         if self.with_replica {
-            let mut replica_pool =
-                ConnectionPool::builder(self.config.replica_url()?, self.config.max_connections()?);
+            let mut replica_pool = ConnectionPool::<Core>::builder(
+                self.config.replica_url()?,
+                self.config.max_connections()?,
+            );
             replica_pool.set_statement_timeout(self.config.statement_timeout());
             context.insert_resource(ReplicaPoolResource::new(replica_pool))?;
         }
 
         if self.with_prover {
-            let mut prover_pool =
-                ConnectionPool::builder(self.config.prover_url()?, self.config.max_connections()?);
+            let mut prover_pool = ConnectionPool::<Prover>::builder(
+                self.config.prover_url()?,
+                self.config.max_connections()?,
+            );
             prover_pool.set_statement_timeout(self.config.statement_timeout());
             context.insert_resource(ProverPoolResource::new(prover_pool))?;
         }

@@ -1,24 +1,24 @@
 [package]
 name = "zksync_health_check"
 version = "0.1.0"
-edition = "2021"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
+vise.workspace = true
 
-async-trait = "0.1"
-futures = "0.3"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-tokio = { version = "1", features = ["sync", "time"] }
-tracing = "0.1"
+async-trait.workspace = true
+futures.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tokio = { workspace = true, features = ["sync", "time"] }
+tracing.workspace = true
 
 [dev-dependencies]
-assert_matches = "1.5.0"
-tokio = { version = "1", features = ["macros", "rt"] }
+assert_matches.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }

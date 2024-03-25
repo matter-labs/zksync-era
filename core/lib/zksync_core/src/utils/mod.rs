@@ -9,7 +9,7 @@ use std::{
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::watch;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
 #[cfg(test)]
@@ -58,7 +58,7 @@ pub(crate) async fn binary_search_with<P: BinarySearchPredicate>(
 ///
 /// Returns the number of the *earliest* L1 batch, or `None` if the stop signal is received.
 pub(crate) async fn wait_for_l1_batch(
-    pool: &ConnectionPool,
+    pool: &ConnectionPool<Core>,
     poll_interval: Duration,
     stop_receiver: &mut watch::Receiver<bool>,
 ) -> anyhow::Result<Option<L1BatchNumber>> {
@@ -67,7 +67,7 @@ pub(crate) async fn wait_for_l1_batch(
             return Ok(None);
         }
 
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.connection().await?;
         let sealed_l1_batch_number = storage.blocks_dal().get_earliest_l1_batch_number().await?;
         drop(storage);
 
@@ -89,7 +89,7 @@ pub(crate) async fn wait_for_l1_batch(
 ///
 /// Returns the number of the *earliest* L1 batch with metadata, or `None` if the stop signal is received.
 pub(crate) async fn wait_for_l1_batch_with_metadata(
-    pool: &ConnectionPool,
+    pool: &ConnectionPool<Core>,
     poll_interval: Duration,
     stop_receiver: &mut watch::Receiver<bool>,
 ) -> anyhow::Result<Option<L1BatchNumber>> {
@@ -98,7 +98,7 @@ pub(crate) async fn wait_for_l1_batch_with_metadata(
             return Ok(None);
         }
 
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.connection().await?;
         let sealed_l1_batch_number = storage
             .blocks_dal()
             .get_earliest_l1_batch_number_with_metadata()
@@ -120,7 +120,7 @@ pub(crate) async fn wait_for_l1_batch_with_metadata(
 /// Returns the projected number of the first locally available L1 batch. The L1 batch is **not**
 /// guaranteed to be present in the storage!
 pub(crate) async fn projected_first_l1_batch(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
 ) -> anyhow::Result<L1BatchNumber> {
     let snapshot_recovery = storage
         .snapshot_recovery_dal()
@@ -133,7 +133,7 @@ pub(crate) async fn projected_first_l1_batch(
 /// Obtains a protocol version projected to be applied for the next miniblock. This is either the version used by the last
 /// sealed miniblock, or (if there are no miniblocks), one referenced in the snapshot recovery record.
 pub(crate) async fn pending_protocol_version(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
 ) -> anyhow::Result<ProtocolVersionId> {
     static WARNED_ABOUT_NO_VERSION: AtomicBool = AtomicBool::new(false);
 
@@ -165,10 +165,9 @@ pub(crate) async fn pending_protocol_version(
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::L2ChainId;
 
     use super::*;
-    use crate::genesis::{ensure_genesis_state, GenesisParams};
+    use crate::genesis::{insert_genesis_batch, GenesisParams};
 
     #[tokio::test]
     async fn test_binary_search() {
@@ -181,14 +180,14 @@ mod tests {
 
     #[tokio::test]
     async fn waiting_for_l1_batch_success() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Core>::test_pool().await;
         let (_stop_sender, mut stop_receiver) = watch::channel(false);
 
         let pool_copy = pool.clone();
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(25)).await;
-            let mut storage = pool_copy.access_storage().await.unwrap();
-            ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+            let mut storage = pool_copy.connection().await.unwrap();
+            insert_genesis_batch(&mut storage, &GenesisParams::mock())
                 .await
                 .unwrap();
         });
@@ -201,7 +200,7 @@ mod tests {
 
     #[tokio::test]
     async fn waiting_for_l1_batch_cancellation() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Core>::test_pool().await;
         let (stop_sender, mut stop_receiver) = watch::channel(false);
 
         tokio::spawn(async move {

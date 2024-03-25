@@ -13,12 +13,15 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 use super::OracleWithHistory;
-use crate::vm_virtual_blocks::{
-    old_vm::history_recorder::{
-        AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
-        HistoryRecorder, StorageWrapper, WithHistory,
+use crate::{
+    glue::GlueInto,
+    vm_virtual_blocks::{
+        old_vm::history_recorder::{
+            AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
+            HistoryRecorder, StorageWrapper, WithHistory,
+        },
+        utils::logs::StorageLogQuery,
     },
-    utils::logs::StorageLogQuery,
 };
 
 // While the storage does not support different shards, it was decided to write the
@@ -83,7 +86,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
 
         self.frames_stack.push_forward(
             Box::new(StorageLogQuery {
-                log_query: query,
+                log_query: query.glue_into(),
                 log_type: StorageLogQueryType::Read,
             }),
             query.timestamp,

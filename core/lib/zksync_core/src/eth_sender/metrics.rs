@@ -3,7 +3,7 @@
 use std::{fmt, time::Duration};
 
 use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{aggregated_operations::AggregatedActionType, eth_sender::EthTx};
 use zksync_utils::time::seconds_since_epoch;
 
@@ -113,7 +113,7 @@ impl EthSenderMetrics {
 
     pub async fn track_eth_tx_metrics(
         &self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut Connection<'_, Core>,
         l1_stage: BlockL1Stage,
         tx: &EthTx,
     ) {

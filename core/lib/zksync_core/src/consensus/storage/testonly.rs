@@ -5,11 +5,10 @@ use zksync_consensus_roles::validator;
 use zksync_consensus_storage as storage;
 use zksync_consensus_storage::PersistentBlockStore as _;
 use zksync_dal::ConnectionPool;
-use zksync_types::L2ChainId;
 
 use super::Store;
 use crate::{
-    genesis::{ensure_genesis_state, GenesisParams},
+    genesis::{insert_genesis_batch, GenesisParams},
     utils::testonly::{recover, snapshot, Snapshot},
 };
 
@@ -64,8 +63,8 @@ impl Store {
     pub(crate) async fn from_genesis() -> Self {
         let pool = ConnectionPool::test_pool().await;
         {
-            let mut storage = pool.access_storage().await.unwrap();
-            ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+            let mut storage = pool.connection().await.unwrap();
+            insert_genesis_batch(&mut storage, &GenesisParams::mock())
                 .await
                 .unwrap();
         }
@@ -76,7 +75,7 @@ impl Store {
     pub(crate) async fn from_snapshot(snapshot: Snapshot) -> Self {
         let pool = ConnectionPool::test_pool().await;
         {
-            let mut storage = pool.access_storage().await.unwrap();
+            let mut storage = pool.connection().await.unwrap();
             recover(&mut storage, snapshot).await;
         }
         Self(pool)
