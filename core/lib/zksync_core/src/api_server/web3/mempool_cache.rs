@@ -3,18 +3,16 @@ use std::{future::Future, sync::Arc, time::Duration};
 use chrono::NaiveDateTime;
 use tokio::sync::{watch, RwLock};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_state::SequentialCache;
 use zksync_types::H256;
 
-use self::metrics::METRICS;
-use crate::cache::sequential_cache::SequentialCache;
-
-mod metrics;
+use super::metrics::MEMPOOL_CACHE_METRICS;
 
 /// Used for `eth_newPendingTransactionFilter` requests on API servers
 /// Stores all transactions accepted by the mempool and provides a way to query all that are newer than a given timestamp.
 /// Updates the cache based on interval passed in the constructor
 #[derive(Debug, Clone)]
-pub struct MempoolCache(Arc<RwLock<SequentialCache<NaiveDateTime, H256>>>);
+pub(crate) struct MempoolCache(Arc<RwLock<SequentialCache<NaiveDateTime, H256>>>);
 
 /// `INITIAL_LOOKBEHIND` is the period of time for which the cache is initially populated.
 const INITIAL_LOOKBEHIND: Duration = Duration::from_secs(120);
@@ -45,7 +43,7 @@ impl MempoolCache {
                     .get_last_key()
                     .unwrap_or_else(|| chrono::Utc::now().naive_utc() - INITIAL_LOOKBEHIND);
 
-                let latency = METRICS.db_poll_latency.start();
+                let latency = MEMPOOL_CACHE_METRICS.db_poll_latency.start();
                 let mut connection = connection_pool.connection_tagged("api").await?;
                 let txs = connection
                     .transactions_web3_dal()
@@ -53,7 +51,7 @@ impl MempoolCache {
                     .await?;
                 drop(connection);
                 latency.observe();
-                METRICS.tx_batch_size.observe(txs.len());
+                MEMPOOL_CACHE_METRICS.tx_batch_size.observe(txs.len());
 
                 cache_for_task.write().await.insert(txs)?;
                 tokio::time::sleep(update_interval).await;

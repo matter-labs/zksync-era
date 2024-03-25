@@ -21,6 +21,10 @@ pub struct SequentialCache<K, V> {
 
 impl<K: Ord + Copy, V: Clone> SequentialCache<K, V> {
     /// Creates a new `SequentialCache` with the specified maximum capacity.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `capacity` is 0.
     pub fn new(name: &'static str, capacity: usize) -> Self {
         assert!(capacity > 0, "Cache capacity must be greater than 0");
         SequentialCache {
@@ -32,8 +36,11 @@ impl<K: Ord + Copy, V: Clone> SequentialCache<K, V> {
 
     /// Inserts multiple key-value pairs into the cache from an iterator. If adding these
     /// items exceeds the cache's capacity, the oldest entries are removed. Keys can be non-unique.
-    /// Returns `Err` when keys order is incorrect (a smaller key is inserted after a larger one)
-    pub(crate) fn insert(&mut self, items: Vec<(K, V)>) -> anyhow::Result<()> {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when keys order is incorrect (a smaller key is inserted after a larger one).
+    pub fn insert(&mut self, items: Vec<(K, V)>) -> anyhow::Result<()> {
         for (key, value) in items {
             let latency = METRICS.latency[&(self.name, Method::Insert)].start();
             anyhow::ensure!(
@@ -57,7 +64,7 @@ impl<K: Ord + Copy, V: Clone> SequentialCache<K, V> {
     /// Otherwise returns `Some(results)`
     ///     with the cache tail starting from the requested key - but not including it.
     ///     Can be empty if the requested key is the largest in the cache.
-    pub(crate) fn query(&self, after: K) -> Option<Vec<(K, V)>> {
+    pub fn query(&self, after: K) -> Option<Vec<(K, V)>> {
         let latency = METRICS.latency[&(self.name, Method::Get)].start();
         let result = match self.data.partition_point(|&(key, _)| key <= after) {
             // All the cache elements are greater than the key provided - cannot use the cache
@@ -72,8 +79,8 @@ impl<K: Ord + Copy, V: Clone> SequentialCache<K, V> {
         result
     }
 
-    /// Returns the last key in the cache
-    pub(crate) fn get_last_key(&self) -> Option<K> {
+    /// Returns the last key in the cache.
+    pub fn get_last_key(&self) -> Option<K> {
         self.data.back().map(|&(key, _)| key)
     }
 
