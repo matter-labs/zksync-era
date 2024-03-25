@@ -9,7 +9,7 @@ use zksync_types::{
     fee::Fee,
     fee_model::FeeParams,
     transaction_request::CallRequest,
-    Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
+    Address, Bytes, L1BatchNumber, MiniblockNumber, H256, U256, U64,
 };
 
 use crate::types::Token;
@@ -118,4 +118,7 @@ pub trait ZksNamespace {
         keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
     ) -> RpcResult<Proof>;
+
+    #[method(name = "getBatchPubdata")]
+    async fn get_batch_pubdata(&self, l1_batch_number: L1BatchNumber) -> RpcResult<Option<Bytes>>;
 }
