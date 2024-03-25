@@ -1,30 +1,30 @@
 [package]
 name = "zksync_object_store"
 version = "0.1.0"
-edition = "2021"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
-zksync_config = { path = "../config" }
-zksync_types = { path = "../types" }
-zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5329a809cfc06d4939fb5ece26c9ad1e1741c50a" }
-anyhow = "1.0"
-async-trait = "0.1"
-bincode = "1"
-google-cloud-storage = "0.15.0"
-google-cloud-auth = "0.13.0"
-http = "0.2.9"
-serde_json = "1.0"
-flate2 = "1.0.28"
-tokio = { version = "1.21.2", features = ["full"] }
-tracing = "0.1"
-prost = "0.12.1"
+vise.workspace = true
+zksync_config.workspace = true
+zksync_types.workspace = true
+zksync_protobuf.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+bincode.workspace = true
+google-cloud-storage.workspace = true
+google-cloud-auth.workspace = true
+http.workspace = true
+serde_json.workspace = true
+flate2.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+prost.workspace = true
 
 [dev-dependencies]
-tempdir = "0.3.7"
+tempdir.workspace = true

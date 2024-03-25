@@ -1,27 +1,27 @@
 [package]
 name = "zksync_web3_decl"
 version = "0.1.0"
-edition = "2018"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-anyhow = "1.0"
-serde = "1.0"
-rlp = "0.5.0"
-thiserror = "1.0"
-jsonrpsee = { version = "0.21.0", default-features = false, features = [
+anyhow.workspace = true
+serde.workspace = true
+rlp.workspace = true
+thiserror.workspace = true
+jsonrpsee = { workspace = true, features = [
     "macros",
 ] }
-pin-project-lite = "0.2.13"
-zksync_types = { path = "../../lib/types" }
+pin-project-lite.workspace = true
+zksync_types.workspace = true
 
 [dev-dependencies]
-serde_json = "1.0"
+serde_json.workspace = true
 
 [features]
 default = ["server", "client"]

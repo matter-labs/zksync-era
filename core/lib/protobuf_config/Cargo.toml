@@ -1,29 +1,28 @@
 [package]
 name = "zksync_protobuf_config"
 version = "0.1.0"
-edition = "2021"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 links = "zksync_protobuf_config_proto"
 
 [dependencies]
-serde_json = "1.0"
-serde_yaml = "0.9"
-zksync_basic_types = { path = "../basic_types" }
-zksync_config = { path = "../config" }
-zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5329a809cfc06d4939fb5ece26c9ad1e1741c50a" }
-zksync_types = { path = "../types" }
+serde_json.workspace = true
+serde_yaml.workspace = true
+zksync_basic_types.workspace = true
+zksync_config.workspace = true
+zksync_protobuf.workspace = true
+zksync_types.workspace = true
 
-anyhow = "1.0"
-pretty_assertions = "1.4.0"
-prost = "0.12.1"
-rand = "0.8"
+anyhow.workspace = true
+pretty_assertions.workspace = true
+prost.workspace = true
+rand.workspace = true
 
 [build-dependencies]
-zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5329a809cfc06d4939fb5ece26c9ad1e1741c50a" }
-
+zksync_protobuf_build.workspace = true

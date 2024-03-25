@@ -863,7 +863,8 @@ mod tests {
         for (i, tx) in transactions.into_iter().enumerate() {
             conn.transactions_dal()
                 .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
-                .await;
+                .await
+                .unwrap();
             let mut tx_result = mock_execution_result(tx);
             tx_result.call_traces.push(Call {
                 from: Address::from_low_u64_be(i as u64),

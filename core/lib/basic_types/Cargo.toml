@@ -1,18 +1,22 @@
 [package]
 name = "zksync_basic_types"
 version = "0.1.0"
-edition = "2018"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-web3 = { version = "0.19.0", default-features = false, features = ["http-rustls-tls", "test", "signing"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-chrono = "0.4"
-strum = { version = "0.24", features = ["derive"] }
-num_enum = "0.7.2"
+web3 = { workspace = true, features = [
+    "http-rustls-tls",
+    "test",
+    "signing",
+] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+chrono.workspace = true
+strum = { workspace = true, features = ["derive"] }
+num_enum.workspace = true

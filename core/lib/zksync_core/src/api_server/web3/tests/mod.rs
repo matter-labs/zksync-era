@@ -349,7 +349,8 @@ async fn store_miniblock(
         let tx_submission_result = storage
             .transactions_dal()
             .insert_transaction_l2(l2_tx, TransactionExecutionMetrics::default())
-            .await;
+            .await
+            .unwrap();
         assert_matches!(tx_submission_result, L2TxSubmissionResult::Added);
     }
 
@@ -720,7 +721,8 @@ impl HttpTest for TransactionCountTest {
         storage
             .transactions_dal()
             .insert_transaction_l2(pending_tx, TransactionExecutionMetrics::default())
-            .await;
+            .await
+            .unwrap();
 
         let pending_count = client.get_transaction_count(test_address, None).await?;
         assert_eq!(pending_count, 3.into());
@@ -795,7 +797,8 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
         storage
             .transactions_dal()
             .insert_transaction_l2(pending_tx, TransactionExecutionMetrics::default())
-            .await;
+            .await
+            .unwrap();
 
         let pending_count = client.get_transaction_count(test_address, None).await?;
         assert_eq!(pending_count, 4.into());

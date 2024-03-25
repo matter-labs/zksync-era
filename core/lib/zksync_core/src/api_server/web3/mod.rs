@@ -11,6 +11,7 @@ use tokio::{
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
+use zksync_state::MempoolCache;
 use zksync_types::MiniblockNumber;
 use zksync_web3_decl::{
     jsonrpsee::{
@@ -25,7 +26,9 @@ use zksync_web3_decl::{
 };
 
 use self::{
-    backend_jsonrpsee::{LimitMiddleware, MetadataMiddleware, MethodTracer},
+    backend_jsonrpsee::{
+        LimitMiddleware, MetadataMiddleware, MethodTracer, ShutdownMiddleware, TrafficTracker,
+    },
     metrics::API_METRICS,
     namespaces::{
         DebugNamespace, EnNamespace, EthNamespace, NetNamespace, SnapshotsNamespace, Web3Namespace,
@@ -45,7 +48,7 @@ use crate::{
 };
 
 pub mod backend_jsonrpsee;
-mod metrics;
+pub(super) mod metrics;
 pub mod namespaces;
 mod pubsub;
 pub mod state;
@@ -54,6 +57,14 @@ pub(crate) mod tests;
 
 /// Timeout for graceful shutdown logic within API servers.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Interval to wait for the traffic to be stopped to the API server (e.g., by a load balancer) before
+/// the server will cease processing any further traffic. If this interval is exceeded, the server will start
+/// shutting down anyway.
+const NO_REQUESTS_WAIT_TIMEOUT: Duration = Duration::from_secs(30);
+/// Time interval with no requests sent to the API server to declare that traffic to the server is ceased,
+/// and start gracefully shutting down the server.
+const SHUTDOWN_INTERVAL_WITHOUT_REQUESTS: Duration = Duration::from_millis(500);
 
 /// Represents all kinds of `Filter`.
 #[derive(Debug, Clone)]
@@ -297,6 +308,7 @@ impl ApiServer {
     async fn build_rpc_state(
         self,
         last_sealed_miniblock: SealedMiniblockNumber,
+        mempool_cache: MempoolCache,
     ) -> anyhow::Result<RpcState> {
         let mut storage = self.updaters_pool.connection_tagged("api").await?;
         let start_info = BlockStartInfo::new(&mut storage).await?;
@@ -318,6 +330,7 @@ impl ApiServer {
             sync_state: self.optional.sync_state,
             api_config: self.config,
             start_info,
+            mempool_cache,
             last_sealed_miniblock,
             tree_api: self.optional.tree_api,
         })
@@ -327,10 +340,13 @@ impl ApiServer {
         self,
         pub_sub: Option<EthSubscribe>,
         last_sealed_miniblock: SealedMiniblockNumber,
+        mempool_cache: MempoolCache,
     ) -> anyhow::Result<RpcModule<()>> {
         let namespaces = self.namespaces.clone();
         let zksync_network_id = self.config.l2_chain_id;
-        let rpc_state = self.build_rpc_state(last_sealed_miniblock).await?;
+        let rpc_state = self
+            .build_rpc_state(last_sealed_miniblock, mempool_cache)
+            .await?;
 
         // Collect all the methods into a single RPC module.
         let mut rpc = RpcModule::new(());
@@ -432,13 +448,23 @@ impl ApiServer {
 
         let transport = self.transport;
 
-        let (last_sealed_miniblock, update_task) = SealedMiniblockNumber::new(
+        let (last_sealed_miniblock, sealed_miniblock_update_task) = SealedMiniblockNumber::new(
             self.updaters_pool.clone(),
             SEALED_MINIBLOCK_UPDATE_INTERVAL,
             stop_receiver.clone(),
         );
 
-        let mut tasks = vec![tokio::spawn(update_task)];
+        let mut tasks = vec![tokio::spawn(sealed_miniblock_update_task)];
+
+        let (mempool_cache, mempool_cache_update_task) = MempoolCache::new(
+            self.updaters_pool.clone(),
+            self.config.mempool_cache_update_interval,
+            self.config.mempool_cache_size,
+            stop_receiver.clone(),
+        );
+
+        tasks.push(tokio::spawn(mempool_cache_update_task));
+
         let pub_sub = if matches!(transport, ApiTransport::WebSocket(_))
             && self.namespaces.contains(&Namespace::Pubsub)
         {
@@ -464,6 +490,7 @@ impl ApiServer {
         let server_task = tokio::spawn(self.run_jsonrpsee_server(
             stop_receiver,
             pub_sub,
+            mempool_cache,
             last_sealed_miniblock,
             local_addr_sender,
         ));
@@ -480,6 +507,7 @@ impl ApiServer {
         self,
         mut stop_receiver: watch::Receiver<bool>,
         pub_sub: Option<EthSubscribe>,
+        mempool_cache: MempoolCache,
         last_sealed_miniblock: SealedMiniblockNumber,
         local_addr_sender: oneshot::Sender<SocketAddr>,
     ) -> anyhow::Result<()> {
@@ -524,7 +552,7 @@ impl ApiServer {
         let method_tracer = self.method_tracer.clone();
 
         let rpc = self
-            .build_rpc_module(pub_sub, last_sealed_miniblock)
+            .build_rpc_module(pub_sub, last_sealed_miniblock, mempool_cache)
             .await?;
         let registered_method_names = Arc::new(rpc.method_names().collect::<HashSet<_>>());
         tracing::debug!(
@@ -560,8 +588,12 @@ impl ApiServer {
             .flatten()
             .unwrap_or(5_000);
 
-        #[allow(clippy::let_and_return)] // simplifies conditional compilation
+        let traffic_tracker = TrafficTracker::default();
+        let traffic_tracker_for_middleware = traffic_tracker.clone();
         let rpc_middleware = RpcServiceBuilder::new()
+            .layer_fn(move |svc| {
+                ShutdownMiddleware::new(svc, traffic_tracker_for_middleware.clone())
+            })
             .layer_fn(move |svc| {
                 MetadataMiddleware::new(svc, registered_method_names.clone(), method_tracer.clone())
             })
@@ -623,6 +655,27 @@ impl ApiServer {
             tracing::info!(
                 "Stop signal received, {transport_str} JSON-RPC server is shutting down"
             );
+
+            // Wait some time until the traffic to the server stops. This may be necessary if the API server
+            // is behind a load balancer which is not immediately aware of API server termination. In this case,
+            // the load balancer will continue directing traffic to the server for some time until it reads
+            // the server health (which *is* changed to "shutting down" immediately). Starting graceful server shutdown immediately
+            // would lead to all this traffic to get dropped.
+            //
+            // If the load balancer *is* aware of the API server termination, we'll wait for `SHUTDOWN_INTERVAL_WITHOUT_REQUESTS`,
+            // which is fairly short.
+            let wait_result = tokio::time::timeout(
+                NO_REQUESTS_WAIT_TIMEOUT,
+                traffic_tracker.wait_for_no_requests(SHUTDOWN_INTERVAL_WITHOUT_REQUESTS),
+            )
+            .await;
+
+            if wait_result.is_err() {
+                tracing::warn!(
+                    "Timed out waiting {NO_REQUESTS_WAIT_TIMEOUT:?} for traffic to be stopped by load balancer"
+                );
+            }
+            tracing::info!("Stopping serving new {transport_str} traffic");
             if let Some(closing_vm_barrier) = closing_vm_barrier {
                 closing_vm_barrier.close();
             }
