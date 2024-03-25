@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, time::Duration};
 
 use anyhow::Context as _;
 use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
@@ -11,7 +11,7 @@ use zksync_config::{
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_utils::wait_for_tasks::wait_for_tasks;
+use zksync_utils::wait_for_tasks::ManagedTasks;
 
 use crate::verifier::ContractVerifier;
 
@@ -189,18 +189,16 @@ async fn main() -> anyhow::Result<()> {
         ),
     ];
 
-    let particular_crypto_alerts = None;
-    let graceful_shutdown = None::<futures::future::Ready<()>>;
-    let tasks_allowed_to_finish = false;
+    let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {
-        _ = wait_for_tasks(tasks, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
+        () = tasks.wait_single() => {},
         _ = stop_signal_receiver.next() => {
             tracing::info!("Stop signal received, shutting down");
         },
     };
-    let _ = stop_sender.send(true);
+    stop_sender.send_replace(true);
 
     // Sleep for some time to let verifier gracefully stop.
-    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+    tasks.complete(Duration::from_secs(5)).await;
     Ok(())
 }
