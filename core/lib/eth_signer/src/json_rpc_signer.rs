@@ -323,10 +323,12 @@ mod messages {
 
 #[cfg(test)]
 mod tests {
-    use actix_web::{
-        post,
-        web::{self, Data},
-        App, HttpResponse, HttpServer, Responder,
+    use std::{future::IntoFuture, sync::Arc};
+
+    use axum::{
+        extract::{Json, State},
+        routing::post,
+        Router,
     };
     use futures::future::{AbortHandle, Abortable};
     use jsonrpc_core::{Failure, Id, Output, Success, Version};
@@ -336,8 +338,10 @@ mod tests {
     use super::messages::JsonRpcRequest;
     use crate::{raw_ethereum_tx::TransactionParameters, EthereumSigner, JsonRpcSigner};
 
-    #[post("/")]
-    async fn index(req: web::Json<JsonRpcRequest>, state: web::Data<State>) -> impl Responder {
+    async fn index(
+        State(state): State<Arc<ServerState>>,
+        Json(req): Json<JsonRpcRequest>,
+    ) -> Json<serde_json::Value> {
         let resp = match req.method.as_str() {
             "eth_accounts" => {
                 let mut addresses = vec![];
@@ -357,7 +361,7 @@ mod tests {
             }
             _ => create_fail(req.method.clone()),
         };
-        HttpResponse::Ok().json(json!(resp))
+        Json(json!(resp))
     }
 
     fn create_fail(method: String) -> Output {
@@ -380,25 +384,21 @@ mod tests {
         })
     }
     #[derive(Clone)]
-    struct State {
+    struct ServerState {
         private_keys: Vec<H256>,
     }
 
-    fn run_server(state: State) -> (String, AbortHandle) {
+    async fn run_server(state: ServerState) -> (String, AbortHandle) {
         let mut url = None;
         let mut server = None;
+        let app = Router::new()
+            .route("/", post(index))
+            .with_state(Arc::new(state));
+
         for i in 9000..9999 {
-            let new_url = format!("127.0.0.1:{}", i);
-            // Try to bind to some port, hope that 999 variants will be enough
-            let tmp_state = state.clone();
-            if let Ok(ser) = HttpServer::new(move || {
-                App::new()
-                    .app_data(Data::new(tmp_state.clone()))
-                    .service(index)
-            })
-            .bind(new_url.clone())
-            {
-                server = Some(ser);
+            let new_url = format!("127.0.0.1:{}", i).parse().unwrap();
+            if let Ok(axum_server) = axum::Server::try_bind(&new_url) {
+                server = Some(axum_server.serve(app.into_make_service()));
                 url = Some(new_url);
                 break;
             }
@@ -406,17 +406,18 @@ mod tests {
 
         let server = server.expect("Could not bind to port from 9000 to 9999");
         let (abort_handle, abort_registration) = AbortHandle::new_pair();
-        let future = Abortable::new(server.run(), abort_registration);
+        let future = Abortable::new(server.into_future(), abort_registration);
         tokio::spawn(future);
         let address = format!("http://{}/", &url.unwrap());
         (address, abort_handle)
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn run_client() {
-        let (address, abort_handle) = run_server(State {
+        let (address, abort_handle) = run_server(ServerState {
             private_keys: vec![H256::repeat_byte(0x17)],
-        });
+        })
+        .await;
         // Get address is ok,  unlock address is ok, recover address from signature is also ok
         let client = JsonRpcSigner::new(address, None, None).await.unwrap();
 

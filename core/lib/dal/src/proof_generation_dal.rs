@@ -1,13 +1,15 @@
+#![doc = include_str!("../doc/ProofGenerationDal.md")]
 use std::time::Duration;
 
 use strum::{Display, EnumString};
+use zksync_db_connection::{connection::Connection, utils::pg_interval_from_duration};
 use zksync_types::L1BatchNumber;
 
-use crate::{time_utils::pg_interval_from_duration, SqlxError, StorageProcessor};
+use crate::{Core, SqlxError};
 
 #[derive(Debug)]
 pub struct ProofGenerationDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 #[derive(Debug, EnumString, Display)]

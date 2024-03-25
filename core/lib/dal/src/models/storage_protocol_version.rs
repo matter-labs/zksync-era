@@ -4,8 +4,9 @@ use sqlx::types::chrono::NaiveDateTime;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,
-    protocol_version::{self, L1VerifierConfig, ProtocolUpgradeTx, VerifierParams},
-    Address, H256,
+    protocol_upgrade::{self, ProtocolUpgradeTx},
+    protocol_version::{L1VerifierConfig, VerifierParams},
+    H256,
 };
 
 #[derive(sqlx::FromRow)]
@@ -18,7 +19,8 @@ pub struct StorageProtocolVersion {
     pub recursion_circuits_set_vks_hash: Vec<u8>,
     pub bootloader_code_hash: Vec<u8>,
     pub default_account_code_hash: Vec<u8>,
-    pub verifier_address: Vec<u8>,
+    // deprecated
+    pub verifier_address: Option<Vec<u8>>,
     pub created_at: NaiveDateTime,
     pub upgrade_tx_hash: Option<Vec<u8>>,
 }
@@ -26,8 +28,8 @@ pub struct StorageProtocolVersion {
 pub(crate) fn protocol_version_from_storage(
     storage_version: StorageProtocolVersion,
     tx: Option<ProtocolUpgradeTx>,
-) -> protocol_version::ProtocolVersion {
-    protocol_version::ProtocolVersion {
+) -> protocol_upgrade::ProtocolVersion {
+    protocol_upgrade::ProtocolVersion {
         id: (storage_version.id as u16).try_into().unwrap(),
         timestamp: storage_version.timestamp as u64,
         l1_verifier_config: L1VerifierConfig {
@@ -50,7 +52,6 @@ pub(crate) fn protocol_version_from_storage(
             bootloader: H256::from_slice(&storage_version.bootloader_code_hash),
             default_aa: H256::from_slice(&storage_version.default_account_code_hash),
         },
-        verifier_address: Address::from_slice(&storage_version.verifier_address),
         tx,
     }
 }

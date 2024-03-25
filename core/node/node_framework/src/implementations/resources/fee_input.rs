@@ -4,7 +4,7 @@ use zksync_core::fee_model::BatchFeeModelInputProvider;
 
 use crate::resource::{Resource, ResourceId};
 
-/// Wrapper for the object store.
+/// Wrapper for the batch fee model input provider.
 #[derive(Debug, Clone)]
 pub struct FeeInputResource(pub Arc<dyn BatchFeeModelInputProvider>);
 

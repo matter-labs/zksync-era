@@ -16,7 +16,7 @@ use multivm::{
 };
 use tokio::sync::{mpsc, watch};
 use zksync_types::{
-    block::MiniblockExecutionData, fee_model::BatchFeeInput, protocol_version::ProtocolUpgradeTx,
+    block::MiniblockExecutionData, fee_model::BatchFeeInput, protocol_upgrade::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
     ProtocolVersionId, Transaction, H256,
 };
@@ -259,16 +259,6 @@ pub(crate) fn successful_exec() -> TxExecutionResult {
             l1_gas: Default::default(),
             execution_metrics: Default::default(),
         }),
-        bootloader_dry_run_metrics: Box::new(ExecutionMetricsForCriteria {
-            l1_gas: Default::default(),
-            execution_metrics: Default::default(),
-        }),
-        bootloader_dry_run_result: Box::new(VmExecutionResultAndLogs {
-            result: ExecutionResult::Success { output: vec![] },
-            logs: Default::default(),
-            statistics: Default::default(),
-            refunds: Default::default(),
-        }),
         compressed_bytecodes: vec![],
         call_tracer_result: vec![],
         gas_remaining: Default::default(),
@@ -287,16 +277,6 @@ pub(crate) fn successful_exec_with_metrics(
             refunds: Default::default(),
         }),
         tx_metrics: Box::new(tx_metrics),
-        bootloader_dry_run_metrics: Box::new(ExecutionMetricsForCriteria {
-            l1_gas: Default::default(),
-            execution_metrics: Default::default(),
-        }),
-        bootloader_dry_run_result: Box::new(VmExecutionResultAndLogs {
-            result: ExecutionResult::Success { output: vec![] },
-            logs: Default::default(),
-            statistics: Default::default(),
-            refunds: Default::default(),
-        }),
         compressed_bytecodes: vec![],
         call_tracer_result: vec![],
         gas_remaining: Default::default(),
@@ -308,12 +288,6 @@ pub(crate) fn rejected_exec() -> TxExecutionResult {
     TxExecutionResult::RejectedByVm {
         reason: multivm::interface::Halt::InnerTxError,
     }
-}
-
-/// Creates a `TxExecutionResult` object denoting a transaction that was executed, but caused a bootloader tip out of
-/// gas error.
-pub(crate) fn bootloader_tip_out_of_gas() -> TxExecutionResult {
-    TxExecutionResult::BootloaderOutOfGasForBlockTip
 }
 
 /// Creates a mock `PendingBatchData` object containing the provided sequence of miniblocks.
