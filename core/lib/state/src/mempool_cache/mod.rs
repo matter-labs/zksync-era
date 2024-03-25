@@ -1,5 +1,3 @@
-mod metrics;
-
 use std::{future::Future, sync::Arc, time::Duration};
 
 use chrono::NaiveDateTime;
@@ -7,7 +5,10 @@ use tokio::sync::{watch, RwLock};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::H256;
 
-use crate::{cache::sequential_cache::SequentialCache, mempool_cache::metrics::METRICS};
+use self::metrics::METRICS;
+use crate::cache::sequential_cache::SequentialCache;
+
+mod metrics;
 
 /// Used for `eth_newPendingTransactionFilter` requests on API servers
 /// Stores all transactions accepted by the mempool and provides a way to query all that are newer than a given timestamp.
@@ -20,21 +21,15 @@ const INITIAL_LOOKBEHIND: Duration = Duration::from_secs(120);
 
 impl MempoolCache {
     /// Initializes the mempool cache with the parameters provided.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `dal` returns a non-ordered list of transactions.
-
     pub fn new(
         connection_pool: ConnectionPool<Core>,
         update_interval: Duration,
         capacity: usize,
         stop_receiver: watch::Receiver<bool>,
     ) -> (Self, impl Future<Output = anyhow::Result<()>>) {
-        let result: Self = Self(Arc::new(RwLock::new(SequentialCache::new(
-            "mempool", capacity,
-        ))));
-        let this = result.clone();
+        let cache = SequentialCache::new("mempool", capacity);
+        let cache = Arc::new(RwLock::new(cache));
+        let cache_for_task = cache.clone();
         let update_task = async move {
             loop {
                 if *stop_receiver.borrow() {
@@ -44,8 +39,7 @@ impl MempoolCache {
 
                 // Get the timestamp that will be used as the lower bound for the next update
                 // If cache is non-empty - this is the last tx time, otherwise it's `INITIAL_LOOKBEHIND` seconds ago
-                let last_timestamp = this
-                    .0
+                let last_timestamp = cache_for_task
                     .read()
                     .await
                     .get_last_key()
@@ -53,26 +47,20 @@ impl MempoolCache {
 
                 let latency = METRICS.db_poll_latency.start();
                 let mut connection = connection_pool.connection_tagged("api").await?;
-
                 let txs = connection
                     .transactions_web3_dal()
                     .get_pending_txs_hashes_after(last_timestamp, None)
                     .await?;
-
+                drop(connection);
                 latency.observe();
                 METRICS.tx_batch_size.observe(txs.len());
 
-                this.0
-                    .write()
-                    .await
-                    .insert(txs)
-                    .expect("DAL guarantees keys to be ordered");
-
+                cache_for_task.write().await.insert(txs)?;
                 tokio::time::sleep(update_interval).await;
             }
         };
 
-        (result, update_task)
+        (Self(cache), update_task)
     }
 
     /// Returns all transaction hashes that are newer than the given timestamp.

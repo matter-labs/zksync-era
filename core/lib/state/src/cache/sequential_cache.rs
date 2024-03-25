@@ -33,10 +33,7 @@ impl<K: Ord + Copy, V: Clone> SequentialCache<K, V> {
     /// Inserts multiple key-value pairs into the cache from an iterator. If adding these
     /// items exceeds the cache's capacity, the oldest entries are removed. Keys can be non-unique.
     /// Returns `Err` when keys order is incorrect (a smaller key is inserted after a larger one)
-    pub(crate) fn insert<I>(&mut self, items: I) -> anyhow::Result<()>
-    where
-        I: IntoIterator<Item = (K, V)>,
-    {
+    pub(crate) fn insert(&mut self, items: Vec<(K, V)>) -> anyhow::Result<()> {
         for (key, value) in items {
             let latency = METRICS.latency[&(self.name, Method::Insert)].start();
             anyhow::ensure!(
@@ -88,18 +85,23 @@ impl<K: Ord + Copy, V: Clone> SequentialCache<K, V> {
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::sequential_cache::SequentialCache;
+    use super::*;
+
     #[test]
-    #[should_panic(expected = "Keys must be inserted in sequential order")]
     fn non_sequential_insertion() {
         let mut cache = SequentialCache::<u32, u32>::new("non_sequential_insertion", 3);
-        cache
+        let err = cache
             .insert(vec![
                 (1, 1),
                 (3, 3), // note: 3 is inserted before 2, test should panic
                 (2, 2),
             ])
-            .unwrap();
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("Keys must be inserted in sequential order"),
+            "{err}"
+        );
     }
 
     #[test]
