@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_config::configs::database::MerkleTreeMode;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Connection, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus};
 use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
@@ -100,6 +100,7 @@ fn create_db_sync(
             block_cache_capacity: Some(block_cache_capacity),
             large_memtable_capacity: Some(memtable_capacity),
             stalled_writes_retries: StalledWritesRetries::new(stalled_writes_timeout),
+            max_open_files: None,
         },
     )?;
     if cfg!(test) {
@@ -398,7 +399,7 @@ pub(crate) struct L1BatchWithLogs {
 
 impl L1BatchWithLogs {
     pub async fn new(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
     ) -> Option<Self> {
         tracing::debug!("Loading storage logs data for L1 batch #{l1_batch_number}");
@@ -477,7 +478,7 @@ impl L1BatchWithLogs {
 #[cfg(test)]
 mod tests {
     use tempfile::TempDir;
-    use zksync_dal::ConnectionPool;
+    use zksync_dal::{ConnectionPool, Core};
     use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
     use zksync_types::{L2ChainId, StorageKey, StorageLog};
 
@@ -490,7 +491,7 @@ mod tests {
     impl L1BatchWithLogs {
         /// Old, slower method of loading storage logs. We want to test its equivalence to the new implementation.
         async fn slow(
-            storage: &mut StorageProcessor<'_>,
+            storage: &mut Connection<'_, Core>,
             l1_batch_number: L1BatchNumber,
         ) -> Option<Self> {
             let header = storage
@@ -559,9 +560,9 @@ mod tests {
 
     #[tokio::test]
     async fn loaded_logs_equivalence_basics() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Core>::test_pool().await;
         ensure_genesis_state(
-            &mut pool.access_storage().await.unwrap(),
+            &mut pool.connection().await.unwrap(),
             L2ChainId::from(270),
             &GenesisParams::mock(),
         )
@@ -569,7 +570,7 @@ mod tests {
         .unwrap();
         reset_db_state(&pool, 5).await;
 
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         for l1_batch_number in 0..=5 {
             let l1_batch_number = L1BatchNumber(l1_batch_number);
             let batch_with_logs = L1BatchWithLogs::new(&mut storage, l1_batch_number)
@@ -584,8 +585,8 @@ mod tests {
 
     #[tokio::test]
     async fn loaded_logs_equivalence_with_zero_no_op_logs() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut storage = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
             .await
             .unwrap();
@@ -620,7 +621,7 @@ mod tests {
     }
 
     async fn assert_log_equivalence(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         tree: &mut AsyncTree,
         l1_batch_number: L1BatchNumber,
     ) {
@@ -675,8 +676,8 @@ mod tests {
 
     #[tokio::test]
     async fn loaded_logs_equivalence_with_non_zero_no_op_logs() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut storage = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
             .await
             .unwrap();
@@ -722,8 +723,8 @@ mod tests {
 
     #[tokio::test]
     async fn loaded_logs_equivalence_with_protective_reads() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut storage = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
             .await
             .unwrap();

@@ -1,11 +1,11 @@
 use anyhow::Context as _;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 
 use crate::{CircuitBreaker, CircuitBreakerError};
 
 #[derive(Debug)]
 pub struct FailedL1TransactionChecker {
-    pub pool: ConnectionPool,
+    pub pool: ConnectionPool<Core>,
 }
 
 #[async_trait::async_trait]
@@ -13,7 +13,7 @@ impl CircuitBreaker for FailedL1TransactionChecker {
     async fn check(&self) -> Result<(), CircuitBreakerError> {
         let number_of_failed_transactions = self
             .pool
-            .access_storage_tagged("circuit_breaker")
+            .connection_tagged("circuit_breaker")
             .await?
             .eth_sender_dal()
             .get_number_of_failed_transactions()

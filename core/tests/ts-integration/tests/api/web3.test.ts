@@ -242,6 +242,42 @@ describe('web3 API compatibility tests', () => {
         expect(eip1559ApiReceipt.maxPriorityFeePerGas).bnToBeEq(eip1559Tx.maxPriorityFeePerGas!);
     });
 
+    test('Should test getFilterChanges for pending transactions', async () => {
+        if (process.env.EN_MAIN_NODE_URL) {
+            // Pending transactions logic doesn't work on EN since we don't have proper mempool -
+            // transactions only appear in the DB after they are included in the block.
+            return;
+        }
+
+        // We will need to wait until the mempool cache on the server is updated.
+        // The default update period is 50 ms, so we will wait for 75 ms to be sure.
+        const mempoolCacheWait = 50 + 25;
+
+        let filterId = await alice.provider.send('eth_newPendingTransactionFilter', []);
+        let changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
+        const tx1 = await alice.sendTransaction({
+            to: alice.address
+        });
+        await zksync.utils.sleep(mempoolCacheWait);
+        changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
+        expect(changes).toContain(tx1.hash);
+        const tx2 = await alice.sendTransaction({
+            to: alice.address
+        });
+        const tx3 = await alice.sendTransaction({
+            to: alice.address
+        });
+        const tx4 = await alice.sendTransaction({
+            to: alice.address
+        });
+        await zksync.utils.sleep(mempoolCacheWait);
+        changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
+        expect(changes).not.toContain(tx1.hash);
+        expect(changes).toContain(tx2.hash);
+        expect(changes).toContain(tx3.hash);
+        expect(changes).toContain(tx4.hash);
+    });
+
     test('Should test pub-sub API: blocks', async () => {
         // Checks that we can receive an event for new block being created.
         let wsProvider = new ethers.providers.WebSocketProvider(testMaster.environment().wsL2NodeUrl);

@@ -2,10 +2,10 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
+use prover_dal::{ConnectionPool, Prover};
 use reqwest::Client;
 use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{FriProverGatewayConfig, ObservabilityConfig, PostgresConfig};
-use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
@@ -39,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
     let config =
         FriProverGatewayConfig::from_env().context("FriProverGatewayConfig::from_env()")?;
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ConnectionPool::builder(
+    let pool = ConnectionPool::<Prover>::builder(
         postgres_config.prover_url()?,
         postgres_config.max_connections()?,
     )

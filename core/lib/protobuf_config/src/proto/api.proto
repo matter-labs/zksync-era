@@ -36,6 +36,8 @@ message Web3JsonRpc {
   optional uint32 websocket_requests_per_minute_limit = 25; // optional
   optional string tree_api_url = 26; // optional
   optional bool filters_disabled = 27; // optional
+  optional uint64 mempool_cache_update_interval = 28; // optional
+  optional uint64 mempool_cache_size = 29; // optional
 }
 
 message ContractVerificationApi {

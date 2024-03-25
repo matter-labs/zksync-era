@@ -4,13 +4,13 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
+use prover_dal::ConnectionPool;
 use structopt::StructOpt;
 use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{
     fri_prover_group::FriProverGroupConfig, FriProverConfig, FriWitnessVectorGeneratorConfig,
     ObservabilityConfig, PostgresConfig,
 };
-use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
