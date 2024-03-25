@@ -12,7 +12,7 @@ import { extractFee } from '../src/modifiers/balance-checker';
 import { TestMessage } from '../src/matchers/matcher-helpers';
 import { Address } from 'zksync-ethers/build/src/types';
 import * as hre from 'hardhat';
-import { Deployer } from 'matterlabs/hardhat-zksync-deploy';
+import { Deployer } from '@matterlabs/hardhat-zksync-deploy';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-deploy/dist/types';
 
 const contracts = {
@@ -179,8 +179,6 @@ describe('Paymaster tests', () => {
         });
         const txPromise = alice.sendTransaction({
             ...tx,
-            maxFeePerGas: gasPrice,
-            maxPriorityFeePerGas: gasPrice,
             gasLimit,
             customData: {
                 gasPerPubdata: utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
@@ -229,7 +227,7 @@ describe('Paymaster tests', () => {
     });
 
     it('Should deploy nonce-check paymaster and not fail validation', async function () {
-        const deployer = new Deployer(hre, alice);
+        const deployer = new Deployer(hre as any, alice as any);
         const paymaster = await deployPaymaster(deployer);
         const token = testMaster.environment().erc20Token;
 
