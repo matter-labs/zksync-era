@@ -324,10 +324,15 @@ pub async fn initialize_components(
     }
 
     let pool_size = postgres_config.max_connections()?;
-    let connection_pool = ConnectionPool::<Core>::builder(postgres_config.master_url()?, pool_size)
-        .build()
-        .await
-        .context("failed to build connection_pool")?;
+    let pool_size_master = postgres_config
+        .max_connections_master()
+        .unwrap_or(pool_size);
+
+    let connection_pool =
+        ConnectionPool::<Core>::builder(postgres_config.master_url()?, pool_size_master)
+            .build()
+            .await
+            .context("failed to build connection_pool")?;
     // We're most interested in setting acquire / statement timeouts for the API server, which puts the most load
     // on Postgres.
     let replica_connection_pool =
@@ -533,12 +538,12 @@ pub async fn initialize_components(
         if components.contains(&Component::ContractVerificationApi) {
             let started_at = Instant::now();
             tracing::info!("initializing contract verification REST API");
-            task_futures.push(contract_verification::start_server_thread_detached(
+            task_futures.push(tokio::spawn(contract_verification::start_server(
                 connection_pool.clone(),
                 replica_connection_pool.clone(),
                 api_config.contract_verification.clone(),
                 stop_receiver.clone(),
-            ));
+            )));
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::ContractVerificationApi].set(elapsed);
             tracing::info!("initialized contract verification REST API in {elapsed:?}");

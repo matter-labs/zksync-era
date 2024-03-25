@@ -1,45 +1,45 @@
 [package]
 name = "zksync_external_node"
 version = "0.1.0"
-edition = "2021"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
-publish = false # We don't want to publish our binaries.
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
 
 [dependencies]
-zksync_core = { path = "../../lib/zksync_core" }
-zksync_dal = { path = "../../lib/dal" }
-zksync_db_connection = { path = "../../lib/db_connection" }
-zksync_config = { path = "../../lib/config" }
-zksync_storage = { path = "../../lib/storage" }
-zksync_utils = { path = "../../lib/utils" }
-zksync_state = { path = "../../lib/state" }
-zksync_basic_types = { path = "../../lib/basic_types" }
-zksync_contracts = { path = "../../lib/contracts" }
-zksync_l1_contract_interface = { path = "../../lib/l1_contract_interface" }
-zksync_snapshots_applier = { path = "../../lib/snapshots_applier" }
-zksync_object_store = { path = "../../lib/object_store" }
-prometheus_exporter = { path = "../../lib/prometheus_exporter" }
-zksync_health_check = { path = "../../lib/health_check" }
-zksync_web3_decl = { path = "../../lib/web3_decl" }
-zksync_types = { path = "../../lib/types" }
-vlog = { path = "../../lib/vlog" }
+zksync_core.workspace = true
+zksync_dal.workspace = true
+zksync_db_connection.workspace = true
+zksync_config.workspace = true
+zksync_storage.workspace = true
+zksync_utils.workspace = true
+zksync_state.workspace = true
+zksync_basic_types.workspace = true
+zksync_contracts.workspace = true
+zksync_l1_contract_interface.workspace = true
+zksync_snapshots_applier.workspace = true
+zksync_object_store.workspace = true
+prometheus_exporter.workspace = true
+zksync_health_check.workspace = true
+zksync_web3_decl.workspace = true
+zksync_types.workspace = true
+vlog.workspace = true
 
-zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5329a809cfc06d4939fb5ece26c9ad1e1741c50a" }
-zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5329a809cfc06d4939fb5ece26c9ad1e1741c50a" }
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
+zksync_concurrency.workspace = true
+zksync_consensus_roles.workspace = true
+vise.workspace = true
 
-anyhow = "1.0"
-tokio = { version = "1", features = ["full"] }
-futures = "0.3"
-serde = { version = "1.0", features = ["derive"] }
-envy = "0.4"
-url = "2.4"
-clap = { version = "4.2.4", features = ["derive"] }
-serde_json = "1"
-semver = "1"
-tracing = "0.1"
+anyhow.workspace = true
+tokio = { workspace = true, features = ["full"] }
+futures.workspace = true
+serde = { workspace = true, features = ["derive"] }
+envy.workspace = true
+url.workspace = true
+clap = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+semver.workspace = true
+tracing.workspace = true
