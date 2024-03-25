@@ -1,32 +1,32 @@
 [package]
 name = "zksync_utils"
 version = "0.1.0"
-edition = "2018"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-zksync_basic_types = { path = "../../lib/basic_types" }
-zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", tag = "v1.3.3-rc2" }
-vlog = { path = "../../lib/vlog" }
+zksync_basic_types.workspace = true
+zk_evm.workspace = true
+vlog.workspace = true
 
-bigdecimal = { version = "0.3.0", features = ["serde"] }
-num = { version = "0.4.0", features = ["serde"] }
-serde = { version = "1.0", features = ["derive"] }
-tokio = { version = "1", features = ["time"] }
-tracing = "0.1"
-anyhow = "1.0"
-thiserror = "1.0"
-futures = "0.3"
-hex = "0.4"
-reqwest = { version = "0.11", features = ["blocking"] }
-itertools = "0.10.5"
-metrics = "0.21"
+bigdecimal.workspace = true
+num = { workspace = true, features = ["serde"] }
+serde = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["time"] }
+tracing.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+futures.workspace = true
+hex.workspace = true
+reqwest = { workspace = true, features = ["blocking"] }
+itertools.workspace = true
+metrics.workspace = true
 
 [dev-dependencies]
-serde_json = "1.0.0"
-rand = "0.8"
+serde_json.workspace = true
+rand.workspace = true

@@ -1,18 +1,23 @@
 [package]
 name = "vlog"
-version="0.1.0"
-edition = "2018"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
-publish = false # This is an utility crate, not to be used by libraries.
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
 
 [dependencies]
-chrono = "0.4"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter", "time", "json"] }
-sentry = "0.31"
-serde_json = "1.0"
+chrono.workspace = true
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = [
+    "fmt",
+    "env-filter",
+    "time",
+    "json",
+] }
+sentry.workspace = true
+serde_json.workspace = true
