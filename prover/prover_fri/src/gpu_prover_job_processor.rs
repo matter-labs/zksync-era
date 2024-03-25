@@ -259,6 +259,7 @@ pub mod gpu_prover {
 
         async fn process_job(
             &self,
+            _job_id: &Self::JobId,
             job: Self::Job,
             _started_at: Instant,
         ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
@@ -269,6 +270,8 @@ pub mod gpu_prover {
                     .clone(),
             );
             tokio::task::spawn_blocking(move || {
+                let block_number = job.witness_vector_artifacts.prover_job.block_number;
+                let _span = tracing::info_span!("gpu_prove", %block_number).entered();
                 Ok(Self::prove(job, setup_data.context("get_setup_data()")?))
             })
         }

@@ -46,6 +46,15 @@ async fn main() -> anyhow::Result<()> {
             .expect("Invalid Sentry URL")
             .with_sentry_environment(observability_config.sentry_environment);
     }
+    if let Some(opentelemetry) = observability_config.opentelemetry {
+        builder = builder
+            .with_opentelemetry(
+                &opentelemetry.level,
+                opentelemetry.endpoint,
+                "zksync-prover-fri-compressor".into(),
+            )
+            .expect("Invalid OpenTelemetry config");
+    }
     let _guard = builder.build();
 
     let opt = Opt::from_args();

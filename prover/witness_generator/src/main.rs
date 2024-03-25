@@ -77,6 +77,15 @@ async fn main() -> anyhow::Result<()> {
             .expect("Invalid Sentry URL")
             .with_sentry_environment(observability_config.sentry_environment);
     }
+    if let Some(opentelemetry) = observability_config.opentelemetry {
+        builder = builder
+            .with_opentelemetry(
+                &opentelemetry.level,
+                opentelemetry.endpoint,
+                "zksync-witness-generator".into(),
+            )
+            .expect("Invalid OpenTelemetry config");
+    }
     let _guard = builder.build();
 
     // Report whether sentry is running after the logging subsystem was initialized.

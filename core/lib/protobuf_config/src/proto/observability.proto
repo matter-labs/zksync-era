@@ -6,4 +6,10 @@ message Observability {
   optional string sentry_url = 1; // optional
   optional string sentry_environment = 2; // optional
   optional string log_format = 3; // required
+  optional Opentelemetry opentelemetry = 4; // optional
+}
+
+message Opentelemetry {
+  optional string level = 1; // required
+  optional string endpoint = 2; // required
 }

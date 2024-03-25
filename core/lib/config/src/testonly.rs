@@ -754,6 +754,16 @@ impl RandomConfig for configs::ObservabilityConfig {
             sentry_url: g.gen(),
             sentry_environment: g.gen(),
             log_format: g.gen(),
+            opentelemetry: g.gen(),
+        }
+    }
+}
+
+impl RandomConfig for configs::OpentelemetryConfig {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        Self {
+            level: g.gen(),
+            endpoint: g.gen(),
         }
     }
 }
