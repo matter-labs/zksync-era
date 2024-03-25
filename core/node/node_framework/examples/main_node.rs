@@ -237,6 +237,7 @@ impl MainNodeBuilder {
         let contracts_config = ContractsConfig::from_env()?;
         let network_config = NetworkConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
+        let circuit_breaker_config = CircuitBreakerConfig::from_env()?;
         let with_debug_namespace = state_keeper_config.save_call_traces;
 
         let mut namespaces = Namespace::DEFAULT.to_vec();
@@ -254,6 +255,7 @@ impl MainNodeBuilder {
             websocket_requests_per_minute_limit: Some(
                 rpc_config.websocket_requests_per_minute_limit(),
             ),
+            replication_lag_limit_sec: circuit_breaker_config.replication_lag_limit_sec,
         };
         self.node.add_layer(Web3ServerLayer::ws(
             rpc_config.ws_port,
