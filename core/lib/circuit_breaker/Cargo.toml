@@ -1,28 +1,28 @@
 [package]
 name = "zksync_circuit_breaker"
 version = "0.1.0"
-edition = "2018"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-zksync_types = { path = "../types" }
-zksync_config = { path = "../config" }
-zksync_contracts = { path = "../contracts" }
-zksync_dal = { path = "../dal" }
-thiserror = "1.0"
-serde_json = "1.0"
-futures = { version = "0.3", features = ["compat"] }
-tokio = { version = "1", features = ["time"] }
-anyhow = "1.0"
-async-trait = "0.1"
-hex = "0.4"
-metrics = "0.21"
-tracing = "0.1.26"
+zksync_types.workspace = true
+zksync_config.workspace = true
+zksync_contracts.workspace = true
+zksync_dal.workspace = true
+thiserror.workspace = true
+serde_json.workspace = true
+futures.workspace = true
+tokio = { workspace = true, features = ["time"] }
+anyhow.workspace = true
+async-trait.workspace = true
+hex.workspace = true
+metrics.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
-assert_matches = "1.5.0"
+assert_matches.workspace = true
