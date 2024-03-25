@@ -118,6 +118,7 @@ pub struct StateKeeperConfig {
     pub enum_index_migration_chunk_size: Option<usize>,
 
     // Base system contract hash, required only for genesis file, it's temporary solution
+    // #PLA-811
     pub bootloader_hash: Option<H256>,
     pub default_aa_hash: Option<H256>,
 }
