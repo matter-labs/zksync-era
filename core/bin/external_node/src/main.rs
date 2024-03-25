@@ -1,4 +1,4 @@
-use std::{future, net::Ipv4Addr, str::FromStr, sync::Arc, time::Duration};
+use std::{collections::HashSet, future, net::Ipv4Addr, str::FromStr, sync::Arc, time::Duration};
 
 use anyhow::{anyhow, Context as _};
 use clap::Parser;
@@ -329,7 +329,7 @@ async fn run_api(
     main_node_client: HttpClient,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
     fee_params_fetcher: Arc<MainNodeFeeParamsFetcher>,
-    components: &[Component],
+    components: &HashSet<Component>,
 ) -> anyhow::Result<()> {
     let (tx_sender, vm_barrier, cache_update_handle, proxy_cache_updater_handle) = {
         let tx_proxy = TxProxy::new(main_node_client);
@@ -401,6 +401,11 @@ async fn run_api(
         if let Some(sync_state) = &sync_state {
             builder = builder.with_sync_state(sync_state.clone());
         }
+
+        if let Some(ask_sync_state_from) = &ask_sync_state_from {
+            builder = builder.with_ask_sync_state(ask_sync_state_from.clone());
+        }
+
         let http_server_handles = builder
             .build()
             .context("failed to build HTTP JSON-RPC server")?
@@ -456,17 +461,17 @@ async fn init_tasks(
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
-    components: &[Component],
+    components: &HashSet<Component>,
 ) -> anyhow::Result<()> {
-    let mut components = components.to_vec();
+    let mut components = components.clone();
     let release_manifest: serde_json::Value = serde_json::from_str(RELEASE_MANIFEST)
-        .expect("releuse manifest is a valid json document; qed");
-    let release_manifest_version = release_manifest["core"].as_str().expect(
-        "a release-please manifest with \"core\" version field was specified at build time; qed.",
-    );
+        .context("releuse manifest is a valid json document")?;
+    let release_manifest_version = release_manifest["core"].as_str().context(
+        "a release-please manifest with \"core\" version field was specified at build time",
+    )?;
 
     let version = semver::Version::parse(release_manifest_version)
-        .expect("version in manifest is a correct semver format; qed");
+        .context("version in manifest is a correct semver format")?;
     let pool = connection_pool.clone();
     task_handles.push(tokio::spawn(async move {
         loop {
@@ -502,8 +507,7 @@ async fn init_tasks(
     // Create a tree reader. If the list of requested components has the tree itself, then
     // we can get this tree's reader and use it right away. Otherwise, if configuration has
     // specified address of another instance hosting tree API, create a tree reader to that
-    // remote API. A tree reader is necessary in the case this instance is running API component
-    // because API needs some kind of tree reader to read proofs from.
+    // remote API. A tree reader is necessary for `zks_getProof` method to work.
     let tree_reader: Option<Arc<dyn TreeApiClient>> = if components.contains(&Component::Tree) {
         let tree_api_config = if components.contains(&Component::TreeApi) {
             Some(MerkleTreeApiConfig {
@@ -552,7 +556,7 @@ async fn init_tasks(
         // if we are running core component in any case launch a
         // HTTP API in order to answer to `eth_syncing` calls.
         if !components.contains(&Component::HttpApi) {
-            components.push(Component::HttpApi)
+            components.insert(Component::HttpApi);
         }
     }
 
@@ -636,7 +640,7 @@ struct Cli {
     components: ComponentsToRun,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
 pub enum Component {
     HttpApi,
     WsApi,
@@ -645,43 +649,40 @@ pub enum Component {
     Core,
 }
 
-#[derive(Debug)]
-pub struct Components(pub Vec<Component>);
-
-impl FromStr for Components {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+impl Component {
+    fn components_from_str(s: &str) -> Result<&[Component], String> {
         match s {
-            "api" => Ok(Components(vec![Component::HttpApi, Component::WsApi])),
-            "http_api" => Ok(Components(vec![Component::HttpApi])),
-            "ws_api" => Ok(Components(vec![Component::WsApi])),
-            "tree" => Ok(Components(vec![Component::Tree])),
-            "tree_api" => Ok(Components(vec![Component::TreeApi])),
-            "core" => Ok(Components(vec![Component::Core])),
-            "all" => Ok(Components(vec![
+            "api" => Ok(&[Component::HttpApi, Component::WsApi]),
+            "http_api" => Ok(&[Component::HttpApi]),
+            "ws_api" => Ok(&[Component::WsApi]),
+            "tree" => Ok(&[Component::Tree]),
+            "tree_api" => Ok(&[Component::TreeApi]),
+            "core" => Ok(&[Component::Core]),
+            "all" => Ok(&[
                 Component::HttpApi,
                 Component::WsApi,
                 Component::Tree,
                 Component::Core,
-            ])),
+            ]),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
 }
 
 #[derive(Debug, Clone)]
-struct ComponentsToRun(Vec<Component>);
+struct ComponentsToRun(HashSet<Component>);
 
 impl FromStr for ComponentsToRun {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let components = s.split(',').try_fold(vec![], |mut acc, component_str| {
-            let components = Components::from_str(component_str.trim())?;
-            acc.extend(components.0);
-            Ok::<_, String>(acc)
-        })?;
+        let components = s
+            .split(',')
+            .try_fold(HashSet::new(), |mut acc, component_str| {
+                let components = Component::components_from_str(component_str.trim())?;
+                acc.extend(components);
+                Ok::<_, String>(acc)
+            })?;
         Ok(Self(components))
     }
 }

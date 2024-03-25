@@ -257,7 +257,6 @@ pub struct ApiComponentConfig {
     /// local tree component running and in this case needs to send requests
     /// to some external tree API.
     pub tree_api_url: Option<String>,
-    pub tree_api_port: Option<u16>,
     /// Proxy requests to `eth_syncing` to this node.
     /// Used in case of running an API component of the EN together with a separate
     /// instance of EN running `core` component. In that case it is the `core` component
