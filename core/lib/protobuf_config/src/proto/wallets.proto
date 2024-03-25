@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package zksync.config.wallets;
+
+
+message Wallet {
+  optional bytes private_key = 1; // required
+  optional bytes address = 2; // required
+}
+
+message Wallets {
+  optional Wallet operator = 1; // Private key is required
+  optional Wallet blob_operator = 2; // Private key is required
+  optional Wallet fee_account = 3; // Only address required for server
+}

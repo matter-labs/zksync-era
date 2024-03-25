@@ -44,6 +44,7 @@ pub mod observability;
 pub mod proof_data_handler;
 pub mod snapshots_creator;
 pub mod utils;
+pub mod wallets;
 pub mod witness_generator;
 
 const BYTES_IN_MEGABYTE: usize = 1_024 * 1_024;

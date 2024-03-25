@@ -32,6 +32,7 @@ pub mod testonly;
 #[cfg(test)]
 mod tests;
 mod utils;
+mod wallets;
 
 use anyhow::Context as _;
 use zksync_types::{H160, H256};
