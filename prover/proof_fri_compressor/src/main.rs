@@ -9,7 +9,7 @@ use zksync_config::configs::{FriProofCompressorConfig, ObservabilityConfig, Post
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_utils::wait_for_tasks::wait_for_tasks;
+use zksync_utils::wait_for_tasks::ManagedTasks;
 
 use crate::{
     compressor::ProofCompressor, initial_setup_keys::download_initial_setup_keys_if_not_present,
@@ -96,14 +96,14 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(proof_compressor.run(stop_receiver, opt.number_of_iterations)),
     ];
 
-    let graceful_shutdown = None::<futures::future::Ready<()>>;
-    let tasks_allowed_to_finish = true;
+    let mut tasks = ManagedTasks::new(tasks).allow_tasks_to_finish();
     tokio::select! {
-        _ = wait_for_tasks(tasks, None, graceful_shutdown, tasks_allowed_to_finish) => {},
+        _ = tasks.wait_single() => {},
         _ = stop_signal_receiver => {
             tracing::info!("Stop signal received, shutting down");
         }
     };
-    stop_sender.send(true).ok();
+    stop_sender.send_replace(true);
+    tasks.complete(Duration::from_secs(5)).await;
     Ok(())
 }

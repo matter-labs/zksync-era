@@ -7517,7 +7517,6 @@ dependencies = [
  "futures 0.3.30",
  "hex",
  "itertools 0.10.5",
- "metrics",
  "num",
  "reqwest",
  "serde",

@@ -10,18 +10,13 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_types.workspace = true
+vise.workspace = true
 zksync_config.workspace = true
-zksync_contracts.workspace = true
 zksync_dal.workspace = true
 thiserror.workspace = true
-serde_json.workspace = true
-futures.workspace = true
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
 async-trait.workspace = true
-hex.workspace = true
-metrics.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]

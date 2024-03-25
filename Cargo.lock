@@ -7748,17 +7748,12 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "async-trait",
- "futures 0.3.28",
- "hex",
- "metrics",
- "serde_json",
  "thiserror",
  "tokio",
  "tracing",
+ "vise",
  "zksync_config",
- "zksync_contracts",
  "zksync_dal",
- "zksync_types",
 ]
 
 [[package]]
@@ -8570,7 +8565,6 @@ dependencies = [
  "futures 0.3.28",
  "hex",
  "itertools 0.10.5",
- "metrics",
  "num",
  "rand 0.8.5",
  "reqwest",
