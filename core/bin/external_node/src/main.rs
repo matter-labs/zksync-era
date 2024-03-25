@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use clap::Parser;
 use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
-use tokio::{sync::watch, task, time::sleep};
+use tokio::{sync::watch, task};
 use zksync_basic_types::L2ChainId;
 use zksync_concurrency::{ctx, limiter, scope, time};
 use zksync_config::configs::database::MerkleTreeMode;
@@ -38,7 +38,7 @@ use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
-use zksync_utils::wait_for_tasks::wait_for_tasks;
+use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
 
 use crate::{
@@ -420,15 +420,17 @@ async fn init_tasks(
 
 async fn shutdown_components(
     stop_sender: watch::Sender<bool>,
+    tasks: ManagedTasks,
     healthcheck_handle: HealthCheckHandle,
-) {
+) -> anyhow::Result<()> {
     stop_sender.send(true).ok();
     task::spawn_blocking(RocksDB::await_rocksdb_termination)
         .await
-        .unwrap();
-    // Sleep for some time to let components gracefully stop.
-    sleep(Duration::from_secs(10)).await;
+        .context("error waiting for RocksDB instances to drop")?;
+    // Increase timeout because of complicated graceful shutdown procedure for API servers.
+    tasks.complete(Duration::from_secs(30)).await;
     healthcheck_handle.stop().await;
+    Ok(())
 }
 
 /// External node for zkSync Era.
@@ -617,12 +619,9 @@ async fn main() -> anyhow::Result<()> {
     .await
     .context("init_tasks")?;
 
-    let particular_crypto_alerts = None;
-    let graceful_shutdown = None::<futures::future::Ready<()>>;
-    let tasks_allowed_to_finish = false;
-
+    let mut tasks = ManagedTasks::new(task_handles);
     tokio::select! {
-        _ = wait_for_tasks(task_handles, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
+        _ = tasks.wait_single() => {},
         _ = sigint_receiver => {
             tracing::info!("Stop signal received, shutting down");
         },
@@ -630,7 +629,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Reaching this point means that either some actor exited unexpectedly or we received a stop signal.
     // Broadcast the stop signal to all actors and exit.
-    shutdown_components(stop_sender, healthcheck_handle).await;
+    shutdown_components(stop_sender, tasks, healthcheck_handle).await?;
     tracing::info!("Stopped");
     Ok(())
 }

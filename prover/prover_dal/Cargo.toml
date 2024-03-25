@@ -1,20 +1,20 @@
 [package]
 name = "prover_dal"
-version = "0.1.0"
-edition = "2021"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-zksync_db_connection = { path = "../../core/lib/db_connection" }
-zksync_basic_types = { path = "../../core/lib/basic_types" }
+zksync_db_connection.workspace = true
+zksync_basic_types.workspace = true
 
-strum = { version = "0.24", features = ["derive"] }
-sqlx = { version = "0.7.3", default-features = false, features = [
+strum = { workspace = true, features = ["derive"] }
+sqlx = { workspace = true, features = [
     "runtime-tokio",
     "tls-native-tls",
     "macros",

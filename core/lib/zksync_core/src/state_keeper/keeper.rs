@@ -1,6 +1,6 @@
 use std::{
     convert::Infallible,
-    future::{self, Future},
+    future::Future,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -91,12 +91,13 @@ impl ZkSyncStateKeeper {
         &self,
         pool: ConnectionPool<Core>,
     ) -> impl Future<Output = anyhow::Result<()>> {
-        let stop_receiver = self.stop_receiver.clone();
+        let mut stop_receiver = self.stop_receiver.clone();
         async move {
-            fee_address_migration::migrate_miniblocks(pool, stop_receiver).await?;
-            future::pending::<()>().await;
-            // ^ Since this is run as a task, we don't want it to exit on success (this would shut down the node).
-            anyhow::Ok(())
+            fee_address_migration::migrate_miniblocks(pool, stop_receiver.clone()).await?;
+            // Since this is run as a task, we don't want it to exit on success (this would shut down the node).
+            // We still want for the task to be cancellation-aware, so we just wait until a stop signal is sent.
+            stop_receiver.changed().await.ok();
+            Ok(())
         }
     }
 

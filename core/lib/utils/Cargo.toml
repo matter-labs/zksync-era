@@ -25,8 +25,8 @@ futures.workspace = true
 hex.workspace = true
 reqwest = { workspace = true, features = ["blocking"] }
 itertools.workspace = true
-metrics.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
 rand.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }

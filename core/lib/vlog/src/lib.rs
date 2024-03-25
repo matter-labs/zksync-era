@@ -5,9 +5,30 @@ use std::{backtrace::Backtrace, borrow::Cow, panic::PanicInfo, str::FromStr};
 
 // Temporary re-export of `sentry::capture_message` aiming to simplify the transition from `vlog` to using
 // crates directly.
+use opentelemetry::{
+    sdk::{
+        propagation::TraceContextPropagator,
+        trace::{self, RandomIdGenerator, Sampler, Tracer},
+        Resource,
+    },
+    KeyValue,
+};
+use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_semantic_conventions::resource::SERVICE_NAME;
 pub use sentry::{capture_message, Level as AlertLevel};
 use sentry::{types::Dsn, ClientInitGuard};
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_opentelemetry::OpenTelemetryLayer;
+use tracing_subscriber::{
+    filter::Filtered,
+    fmt,
+    layer::{Layered, SubscriberExt},
+    registry::LookupSpan,
+    util::SubscriberInitExt,
+    EnvFilter, Layer,
+};
+
+type TracingLayer<Inner> =
+    Layered<Filtered<OpenTelemetryLayer<Inner, Tracer>, EnvFilter, Inner>, Inner>;
 
 /// Specifies the format of the logs in stdout.
 #[derive(Debug, Clone, Copy, Default)]
@@ -40,6 +61,63 @@ impl FromStr for LogFormat {
     }
 }
 
+// Doesn't define WARN and ERROR, because the highest verbosity of spans is INFO.
+#[derive(Copy, Clone, Debug, Default)]
+pub enum OpenTelemetryLevel {
+    #[default]
+    OFF,
+    INFO,
+    DEBUG,
+    TRACE,
+}
+
+#[derive(Debug)]
+pub struct OpenTelemetryLevelFormatError;
+
+impl std::fmt::Display for OpenTelemetryLevelFormatError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Invalid OpenTelemetry level format")
+    }
+}
+
+impl std::error::Error for OpenTelemetryLevelFormatError {}
+
+impl FromStr for OpenTelemetryLevel {
+    type Err = OpenTelemetryLevelFormatError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "off" => Ok(OpenTelemetryLevel::OFF),
+            "info" => Ok(OpenTelemetryLevel::INFO),
+            "debug" => Ok(OpenTelemetryLevel::DEBUG),
+            "trace" => Ok(OpenTelemetryLevel::TRACE),
+            _ => Err(OpenTelemetryLevelFormatError),
+        }
+    }
+}
+
+impl std::fmt::Display for OpenTelemetryLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
+            OpenTelemetryLevel::OFF => "off",
+            OpenTelemetryLevel::INFO => "info",
+            OpenTelemetryLevel::DEBUG => "debug",
+            OpenTelemetryLevel::TRACE => "trace",
+        };
+        write!(f, "{}", str)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct OpenTelemetryOptions {
+    /// Enables export of span data of specified level (and above) using opentelemetry exporters.
+    pub opentelemetry_level: OpenTelemetryLevel,
+    /// Opentelemetry HTTP collector endpoint.
+    pub otlp_endpoint: String,
+    /// Logical service name to be used for exported events. See [`SERVICE_NAME`].
+    pub service_name: String,
+}
+
 /// Builder for the observability subsystem.
 /// Currently capable of configuring logging output and sentry integration.
 #[derive(Debug, Default)]
@@ -47,6 +125,7 @@ pub struct ObservabilityBuilder {
     log_format: LogFormat,
     sentry_url: Option<Dsn>,
     sentry_environment: Option<String>,
+    opentelemetry_options: Option<OpenTelemetryOptions>,
 }
 
 /// Guard for the observability subsystem.
@@ -92,19 +171,89 @@ impl ObservabilityBuilder {
         self
     }
 
+    pub fn with_opentelemetry(
+        mut self,
+        opentelemetry_level: &str,
+        otlp_endpoint: String,
+        service_name: String,
+    ) -> Result<Self, OpenTelemetryLevelFormatError> {
+        self.opentelemetry_options = Some(OpenTelemetryOptions {
+            opentelemetry_level: opentelemetry_level.parse()?,
+            otlp_endpoint,
+            service_name,
+        });
+        Ok(self)
+    }
+
+    fn add_opentelemetry_layer<S>(
+        opentelemetry_level: OpenTelemetryLevel,
+        otlp_endpoint: String,
+        service_name: String,
+        subscriber: S,
+    ) -> TracingLayer<S>
+    where
+        S: tracing::Subscriber + for<'span> LookupSpan<'span> + Send + Sync,
+    {
+        let filter = match opentelemetry_level {
+            OpenTelemetryLevel::OFF => EnvFilter::new("off"),
+            OpenTelemetryLevel::INFO => EnvFilter::new("info"),
+            OpenTelemetryLevel::DEBUG => EnvFilter::new("debug"),
+            OpenTelemetryLevel::TRACE => EnvFilter::new("trace"),
+        };
+        // `otel::tracing` should be a level info to emit opentelemetry trace & span
+        // `otel` set to debug to log detected resources, configuration read and inferred
+        let filter = filter
+            .add_directive("otel::tracing=trace".parse().unwrap())
+            .add_directive("otel=debug".parse().unwrap());
+
+        let resource = vec![KeyValue::new(SERVICE_NAME, service_name)];
+
+        let tracer = opentelemetry_otlp::new_pipeline()
+            .tracing()
+            .with_exporter(
+                opentelemetry_otlp::new_exporter()
+                    .http()
+                    .with_endpoint(otlp_endpoint),
+            )
+            .with_trace_config(
+                trace::config()
+                    .with_sampler(Sampler::AlwaysOn)
+                    .with_id_generator(RandomIdGenerator::default())
+                    .with_resource(Resource::new(resource)),
+            )
+            .install_batch(opentelemetry::runtime::Tokio)
+            .unwrap();
+
+        opentelemetry::global::set_text_map_propagator(TraceContextPropagator::new());
+        let layer = tracing_opentelemetry::layer()
+            .with_tracer(tracer)
+            .with_filter(filter);
+        subscriber.with(layer)
+    }
+
     /// Initializes the observability subsystem.
     pub fn build(self) -> ObservabilityGuard {
         // Initialize logs.
         match self.log_format {
             LogFormat::Plain => {
-                tracing_subscriber::registry()
+                let subscriber = tracing_subscriber::registry()
                     .with(tracing_subscriber::EnvFilter::from_default_env())
-                    .with(fmt::Layer::default())
-                    .init();
+                    .with(fmt::Layer::default());
+                if let Some(opts) = self.opentelemetry_options {
+                    let subscriber = Self::add_opentelemetry_layer(
+                        opts.opentelemetry_level,
+                        opts.otlp_endpoint,
+                        opts.service_name,
+                        subscriber,
+                    );
+                    subscriber.init()
+                } else {
+                    subscriber.init()
+                }
             }
             LogFormat::Json => {
                 let timer = tracing_subscriber::fmt::time::UtcTime::rfc_3339();
-                tracing_subscriber::registry()
+                let subscriber = tracing_subscriber::registry()
                     .with(tracing_subscriber::EnvFilter::from_default_env())
                     .with(
                         fmt::Layer::default()
@@ -112,8 +261,18 @@ impl ObservabilityBuilder {
                             .with_line_number(true)
                             .with_timer(timer)
                             .json(),
-                    )
-                    .init();
+                    );
+                if let Some(opts) = self.opentelemetry_options {
+                    let subscriber = Self::add_opentelemetry_layer(
+                        opts.opentelemetry_level,
+                        opts.otlp_endpoint,
+                        opts.service_name,
+                        subscriber,
+                    );
+                    subscriber.init()
+                } else {
+                    subscriber.init()
+                }
             }
         };
 
