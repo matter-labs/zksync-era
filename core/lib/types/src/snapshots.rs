@@ -21,12 +21,11 @@ pub struct AllSnapshots {
 }
 
 /// Version of snapshot influencing the format of data stored in GCS.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[derive(TryFromPrimitive, IntoPrimitive)]
 #[repr(u16)]
 pub enum SnapshotVersion {
     /// Initial snapshot version. Keys in storage logs are stored as `(address, key)` pairs.
-    #[default]
     Version0 = 0,
 }
 
