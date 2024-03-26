@@ -266,12 +266,12 @@ mod tests {
     use multivm::zk_evm_latest::ethereum_types::H256;
     use zksync_dal::CoreDal;
     use zksync_types::{
-        block::BlockGasCount, tx::ExecutionMetrics, L1BatchNumber, L2ChainId, MiniblockNumber,
+        block::BlockGasCount, tx::ExecutionMetrics, L1BatchNumber, MiniblockNumber,
     };
 
     use super::*;
     use crate::{
-        genesis::{ensure_genesis_state, GenesisParams},
+        genesis::{insert_genesis_batch, GenesisParams},
         state_keeper::{
             io::MiniblockParams,
             tests::{
@@ -286,7 +286,7 @@ mod tests {
         miniblock_sealer_capacity: usize,
     ) {
         let mut storage = pool.connection().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
         // Save metadata for the genesis L1 batch so that we don't hang in `seal_l1_batch`.

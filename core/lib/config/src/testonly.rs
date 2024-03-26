@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use rand::{distributions::Alphanumeric, Rng};
 use zksync_basic_types::{
-    basic_fri_types::CircuitIdRoundTuple, network::Network, Address, L2ChainId, H256,
+    basic_fri_types::CircuitIdRoundTuple, network::Network, Address, L1ChainId, L2ChainId, H256,
 };
 
 use crate::configs::{self, eth_sender::PubdataSendingMode};
@@ -290,6 +290,8 @@ impl RandomConfig for configs::chain::StateKeeperConfig {
             virtual_blocks_per_miniblock: g.gen(),
             upload_witness_inputs_to_gcs: g.gen(),
             enum_index_migration_chunk_size: g.gen(),
+            bootloader_hash: g.gen(),
+            default_aa_hash: g.gen(),
         }
     }
 }
@@ -336,15 +338,6 @@ impl RandomConfig for configs::ContractVerifierConfig {
     }
 }
 
-impl RandomConfig for configs::contracts::ProverAtGenesis {
-    fn sample(g: &mut Gen<impl Rng>) -> Self {
-        match g.rng.gen_range(0..2) {
-            0 => Self::Fri,
-            _ => Self::Old,
-        }
-    }
-}
-
 impl RandomConfig for configs::ContractsConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
@@ -374,13 +367,16 @@ impl RandomConfig for configs::ContractsConfig {
             fri_recursion_scheduler_level_vk_hash: g.gen(),
             fri_recursion_node_level_vk_hash: g.gen(),
             fri_recursion_leaf_level_vk_hash: g.gen(),
-            prover_at_genesis: g.gen(),
             snark_wrapper_vk_hash: g.gen(),
             bridgehub_impl_addr: g.gen(),
             bridgehub_proxy_addr: g.gen(),
             state_transition_proxy_addr: g.gen(),
             state_transition_impl_addr: g.gen(),
             transparent_proxy_admin_addr: g.gen(),
+            genesis_batch_commitment: g.gen(),
+            genesis_rollup_leaf_index: g.gen(),
+            genesis_root: g.gen(),
+            genesis_protocol_version: g.gen(),
         }
     }
 }
@@ -764,6 +760,25 @@ impl RandomConfig for configs::OpentelemetryConfig {
         Self {
             level: g.gen(),
             endpoint: g.gen(),
+        }
+    }
+}
+
+impl RandomConfig for configs::GenesisConfig {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        Self {
+            protocol_version: g.gen(),
+            genesis_root_hash: g.gen(),
+            rollup_last_leaf_index: g.gen(),
+            genesis_commitment: g.gen(),
+            bootloader_hash: g.gen(),
+            default_aa_hash: g.gen(),
+            fee_account: g.gen(),
+            l1_chain_id: L1ChainId(g.gen()),
+            l2_chain_id: L2ChainId::default(),
+            recursion_node_level_vk_hash: g.gen(),
+            recursion_leaf_level_vk_hash: g.gen(),
+            recursion_scheduler_level_vk_hash: g.gen(),
         }
     }
 }

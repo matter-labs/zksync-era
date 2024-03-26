@@ -164,12 +164,12 @@ impl Snapshot {
         storage_logs: &[StorageLog],
     ) -> Self {
         let genesis_params = GenesisParams::mock();
-        let contracts = &genesis_params.base_system_contracts;
+        let contracts = genesis_params.base_system_contracts();
         let l1_batch = L1BatchHeader::new(
             l1_batch,
             l1_batch.0.into(),
             contracts.hashes(),
-            genesis_params.protocol_version,
+            genesis_params.protocol_version(),
         );
         let miniblock = MiniblockHeader {
             number: miniblock,
@@ -181,10 +181,10 @@ impl Snapshot {
             batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
             fee_account_address: Address::zero(),
             gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(
-                genesis_params.protocol_version.into(),
+                genesis_params.protocol_version().into(),
             ),
             base_system_contracts_hashes: contracts.hashes(),
-            protocol_version: Some(genesis_params.protocol_version),
+            protocol_version: Some(genesis_params.protocol_version()),
             virtual_blocks: 1,
         };
         Snapshot {
@@ -272,7 +272,6 @@ pub(crate) async fn recover(
         .collect();
     let l1_batch_root_hash = ZkSyncTree::process_genesis_batch(&tree_instructions).root_hash;
 
-    // Store factory deps for the base system contracts.
     let protocol_version = storage
         .protocol_versions_dal()
         .get_protocol_version(snapshot.l1_batch.protocol_version.unwrap())

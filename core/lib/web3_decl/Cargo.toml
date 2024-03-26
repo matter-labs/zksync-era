@@ -19,6 +19,7 @@ jsonrpsee = { workspace = true, features = [
 ] }
 pin-project-lite.workspace = true
 zksync_types.workspace = true
+zksync_config.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
