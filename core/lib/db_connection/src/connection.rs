@@ -254,11 +254,5 @@ mod tests {
             let traced = traced.connections.lock().unwrap();
             assert!(traced.is_empty());
         }
-
-        let _connection = pool.connection_tagged("test").await.unwrap();
-        let err = format!("{:?}", pool.connection().await.unwrap_err());
-        // Matching strings in error messages is an anti-pattern, but we really want to test DevEx here.
-        assert!(err.contains("Active connections"), "{err}");
-        assert!(err.contains("requested by `test`"), "{err}");
     }
 }

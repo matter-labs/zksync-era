@@ -13,7 +13,7 @@ use zksync_types::{
     api::en::SyncBlock,
     snapshots::{
         SnapshotFactoryDependencies, SnapshotHeader, SnapshotRecoveryStatus, SnapshotStorageLog,
-        SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
+        SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey, SnapshotVersion,
     },
     tokens::TokenInfo,
     web3::futures,
@@ -381,9 +381,11 @@ impl<'a> SnapshotsApplier<'a> {
         let l1_batch_number = snapshot.l1_batch_number;
         let miniblock_number = snapshot.miniblock_number;
         tracing::info!(
-            "Found snapshot with data up to L1 batch #{l1_batch_number}, storage_logs are divided into {} chunk(s)",
+            "Found snapshot with data up to L1 batch #{l1_batch_number}, version {}, storage_logs are divided into {} chunk(s)",
+            snapshot.version,
             snapshot.storage_logs_chunks.len()
         );
+        Self::check_snapshot_version(snapshot.version)?;
 
         let miniblock = main_node_client
             .fetch_l2_block(miniblock_number)
@@ -407,6 +409,20 @@ impl<'a> SnapshotsApplier<'a> {
                 .unwrap(),
             storage_logs_chunks_processed: vec![false; snapshot.storage_logs_chunks.len()],
         })
+    }
+
+    fn check_snapshot_version(raw_version: u16) -> anyhow::Result<()> {
+        let version = SnapshotVersion::try_from(raw_version).with_context(|| {
+            format!(
+                "Unrecognized snapshot version: {raw_version}; make sure you're running the latest version of the node"
+            )
+        })?;
+        anyhow::ensure!(
+            matches!(version, SnapshotVersion::Version0),
+            "Cannot recover from a snapshot with version {version:?}; the only supported version is {:?}",
+            SnapshotVersion::Version0
+        );
+        Ok(())
     }
 
     fn update_health(&self) {

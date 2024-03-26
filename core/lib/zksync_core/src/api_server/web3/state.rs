@@ -13,7 +13,6 @@ use tokio::sync::{watch, Mutex};
 use vise::GaugeGuard;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_state::MempoolCache;
 use zksync_types::{
     api,
     l2::L2Tx,
@@ -25,6 +24,7 @@ use zksync_web3_decl::{error::Web3Error, types::Filter};
 
 use super::{
     backend_jsonrpsee::MethodTracer,
+    mempool_cache::MempoolCache,
     metrics::{FilterType, FILTER_METRICS},
     TypedFilter,
 };
@@ -397,7 +397,7 @@ impl RpcState {
     }
 }
 
-/// Contains mapping from index to `Filter`x with optional location.
+/// Contains mapping from index to `Filter`s with optional location.
 #[derive(Debug)]
 pub(crate) struct Filters(LruCache<U256, InstalledFilter>);
 
