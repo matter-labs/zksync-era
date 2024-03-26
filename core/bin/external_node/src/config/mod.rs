@@ -79,9 +79,9 @@ impl RemoteENConfig {
             bridgehub_proxy_addr,
             diamond_proxy_addr,
             l2_testnet_paymaster_addr,
-            l1_erc20_bridge_proxy_addr: bridges.l1_erc20_bridge,
+            l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
             l1_shared_bridge_proxy_addr: bridges.l1_shared_default_bridge,
-            l2_shared_bridge_addr: bridges.l2_shared_default_bridge,
+            l2_shared_bridge_addr: bridges.l2_erc20_default_bridge,
             l2_chain_id,
             l1_chain_id,
             max_pubdata_per_batch,
@@ -606,9 +606,9 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
                 .optional
                 .estimate_gas_acceptable_overestimation,
             bridge_addresses: BridgeAddresses {
-                l1_erc20_bridge: config.remote.l1_erc20_bridge_proxy_addr,
+                l1_erc20_default_bridge: config.remote.l1_erc20_bridge_proxy_addr,
                 l1_shared_default_bridge: config.remote.l1_shared_bridge_proxy_addr,
-                l2_shared_default_bridge: config.remote.l2_shared_bridge_addr,
+                l2_erc20_default_bridge: config.remote.l2_shared_bridge_addr,
             },
             bridgehub_proxy_addr: config.remote.bridgehub_proxy_addr,
             diamond_proxy_addr: config.remote.diamond_proxy_addr,
