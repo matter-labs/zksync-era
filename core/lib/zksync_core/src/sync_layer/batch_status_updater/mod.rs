@@ -9,7 +9,7 @@ use serde::Serialize;
 #[cfg(test)]
 use tokio::sync::mpsc;
 use tokio::sync::watch;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, api, L1BatchNumber, MiniblockNumber, H256,
@@ -126,7 +126,7 @@ struct UpdaterCursor {
 }
 
 impl UpdaterCursor {
-    async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
+    async fn new(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
         let first_l1_batch_number = projected_first_l1_batch(storage).await?;
         // Use the snapshot L1 batch, or the genesis batch if we are not using a snapshot. Technically, the snapshot L1 batch
         // is not necessarily proven / executed yet, but since it and earlier batches are not stored, it serves
@@ -243,7 +243,7 @@ impl UpdaterCursor {
 #[derive(Debug)]
 pub struct BatchStatusUpdater {
     client: Box<dyn MainNodeClient>,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
     sleep_interval: Duration,
     /// Test-only sender of status changes each time they are produced and applied to the storage.
@@ -254,13 +254,13 @@ pub struct BatchStatusUpdater {
 impl BatchStatusUpdater {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(client: HttpClient, pool: ConnectionPool) -> Self {
+    pub fn new(client: HttpClient, pool: ConnectionPool<Core>) -> Self {
         Self::from_parts(Box::new(client), pool, Self::DEFAULT_SLEEP_INTERVAL)
     }
 
     fn from_parts(
         client: Box<dyn MainNodeClient>,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
         sleep_interval: Duration,
     ) -> Self {
         Self {
@@ -278,7 +278,7 @@ impl BatchStatusUpdater {
     }
 
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await?;
+        let mut storage = self.pool.connection_tagged("sync_layer").await?;
         let mut cursor = UpdaterCursor::new(&mut storage).await?;
         drop(storage);
         tracing::info!("Initialized batch status updater cursor: {cursor:?}");
@@ -327,7 +327,7 @@ impl BatchStatusUpdater {
         let total_latency = EN_METRICS.update_batch_statuses.start();
         let Some(last_sealed_batch) = self
             .pool
-            .access_storage_tagged("sync_layer")
+            .connection_tagged("sync_layer")
             .await?
             .blocks_dal()
             .get_sealed_l1_batch_number()
@@ -390,7 +390,7 @@ impl BatchStatusUpdater {
         changes: StatusChanges,
     ) -> anyhow::Result<()> {
         let total_latency = EN_METRICS.batch_status_updater_loop_iteration.start();
-        let mut connection = self.pool.access_storage_tagged("sync_layer").await?;
+        let mut connection = self.pool.connection_tagged("sync_layer").await?;
         let mut transaction = connection.start_transaction().await?;
         let last_sealed_batch = transaction
             .blocks_dal()

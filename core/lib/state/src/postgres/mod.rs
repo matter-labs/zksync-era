@@ -11,12 +11,12 @@ use tokio::{
         watch,
     },
 };
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{L1BatchNumber, MiniblockNumber, StorageKey, StorageValue, H256};
 
 use self::metrics::{Method, ValuesUpdateStage, CACHE_METRICS, STORAGE_METRICS};
 use crate::{
-    cache::{Cache, CacheValue},
+    cache::{lru_cache::LruCache, CacheValue},
     ReadStorage,
 };
 
@@ -25,7 +25,7 @@ mod metrics;
 mod tests;
 
 /// Type alias for smart contract source code cache.
-type FactoryDepsCache = Cache<H256, Vec<u8>>;
+type FactoryDepsCache = LruCache<H256, Vec<u8>>;
 
 impl CacheValue<H256> for Vec<u8> {
     fn cache_weight(&self) -> u32 {
@@ -34,7 +34,7 @@ impl CacheValue<H256> for Vec<u8> {
 }
 
 /// Type alias for initial writes caches.
-type InitialWritesCache = Cache<StorageKey, L1BatchNumber>;
+type InitialWritesCache = LruCache<StorageKey, L1BatchNumber>;
 
 impl CacheValue<StorageKey> for L1BatchNumber {
     #[allow(clippy::cast_possible_truncation)] // doesn't happen in practice
@@ -76,7 +76,7 @@ struct ValuesCacheInner {
     /// in `PostgresStorage` (i.e., the latest sealed miniblock for which storage logs should
     /// be taken into account).
     valid_for: MiniblockNumber,
-    values: Cache<H256, TimestampedStorageValue>,
+    values: LruCache<H256, TimestampedStorageValue>,
 }
 
 /// Cache for the VM storage. Only caches values for a single VM storage snapshot, which logically
@@ -101,7 +101,7 @@ impl ValuesCache {
     fn new(capacity: u64) -> Self {
         let inner = ValuesCacheInner {
             valid_for: MiniblockNumber(0),
-            values: Cache::new("values_cache", capacity),
+            values: LruCache::new("values_cache", capacity),
         };
         Self(Arc::new(RwLock::new(inner)))
     }
@@ -150,7 +150,7 @@ impl ValuesCache {
         &self,
         from_miniblock: MiniblockNumber,
         to_miniblock: MiniblockNumber,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
         const MAX_MINIBLOCKS_LAG: u32 = 5;
 
@@ -295,7 +295,7 @@ impl PostgresStorageCaches {
     pub fn configure_storage_values_cache(
         &mut self,
         capacity: u64,
-        connection_pool: ConnectionPool,
+        connection_pool: ConnectionPool<Core>,
     ) -> PostgresStorageCachesTask {
         assert!(
             capacity > 0,
@@ -344,7 +344,7 @@ impl PostgresStorageCaches {
 /// An asynchronous task that updates the VM storage values cache.
 #[derive(Debug)]
 pub struct PostgresStorageCachesTask {
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Core>,
     values_cache: ValuesCache,
     command_receiver: UnboundedReceiver<MiniblockNumber>,
 }
@@ -369,7 +369,7 @@ impl PostgresStorageCachesTask {
                     }
                     let mut connection = self
                         .connection_pool
-                        .access_storage_tagged("values_cache_updater")
+                        .connection_tagged("values_cache_updater")
                         .await?;
                     self.values_cache
                         .update(current_miniblock, to_miniblock, &mut connection)
@@ -391,7 +391,7 @@ impl PostgresStorageCachesTask {
 #[derive(Debug)]
 pub struct PostgresStorage<'a> {
     rt_handle: Handle,
-    connection: StorageProcessor<'a>,
+    connection: Connection<'a, Core>,
     miniblock_number: MiniblockNumber,
     l1_batch_number_for_miniblock: L1BatchNumber,
     pending_l1_batch_number: L1BatchNumber,
@@ -407,7 +407,7 @@ impl<'a> PostgresStorage<'a> {
     /// Panics on Postgres errors.
     pub fn new(
         rt_handle: Handle,
-        connection: StorageProcessor<'a>,
+        connection: Connection<'a, Core>,
         block_number: MiniblockNumber,
         consider_new_l1_batch: bool,
     ) -> Self {
@@ -429,7 +429,7 @@ impl<'a> PostgresStorage<'a> {
     /// Propagates Postgres errors.
     pub async fn new_async(
         rt_handle: Handle,
-        mut connection: StorageProcessor<'a>,
+        mut connection: Connection<'a, Core>,
         block_number: MiniblockNumber,
         consider_new_l1_batch: bool,
     ) -> anyhow::Result<PostgresStorage<'a>> {

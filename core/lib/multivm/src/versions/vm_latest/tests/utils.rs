@@ -81,6 +81,12 @@ pub(crate) fn read_error_contract() -> Vec<u8> {
     )
 }
 
+pub(crate) fn read_simple_transfer_contract() -> Vec<u8> {
+    read_bytecode(
+        "etc/contracts-test-data/artifacts-zk/contracts/simple-transfer/simple-transfer.sol/SimpleTransfer.json",
+    )
+}
+
 pub(crate) fn get_execute_error_calldata() -> Vec<u8> {
     let test_contract = load_contract(
         "etc/contracts-test-data/artifacts-zk/contracts/error/error.sol/SimpleRequire.json",

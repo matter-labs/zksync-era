@@ -5,7 +5,7 @@ use zksync_test_account::TxType;
 use zksync_types::{
     ethabi::{Contract, Token},
     get_code_key, get_known_code_key,
-    protocol_version::ProtocolUpgradeTxCommonData,
+    protocol_upgrade::ProtocolUpgradeTxCommonData,
     Address, Execute, ExecuteTransactionCommon, Transaction, COMPLEX_UPGRADER_ADDRESS,
     CONTRACT_DEPLOYER_ADDRESS, CONTRACT_FORCE_DEPLOYER_ADDRESS, H160, H256,
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,

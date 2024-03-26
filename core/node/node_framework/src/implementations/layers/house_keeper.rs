@@ -16,7 +16,7 @@ use zksync_core::house_keeper::{
     periodic_job::PeriodicJob,
     waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
 };
-use zksync_dal::ConnectionPool;
+use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core};
 
 use crate::{
     implementations::resources::pools::{ProverPoolResource, ReplicaPoolResource},
@@ -163,11 +163,9 @@ impl WiringLayer for HouseKeeperLayer {
     }
 }
 
-// TODO (QIT-29): Support stop receivers for house keeper related tasks.
-
 #[derive(Debug)]
 struct PoolForMetricsTask {
-    pool_for_metrics: ConnectionPool,
+    pool_for_metrics: ConnectionPool<Core>,
 }
 
 #[async_trait::async_trait]
@@ -177,10 +175,7 @@ impl Task for PoolForMetricsTask {
     }
 
     async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.pool_for_metrics
-            .run_postgres_metrics_scraping(SCRAPE_INTERVAL)
-            .await;
-
+        PostgresMetrics::run_scraping(self.pool_for_metrics, SCRAPE_INTERVAL).await;
         Ok(())
     }
 }
@@ -196,8 +191,8 @@ impl Task for L1BatchMetricsReporterTask {
         "l1_batch_metrics_reporter"
     }
 
-    async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.l1_batch_metrics_reporter.run().await
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.l1_batch_metrics_reporter.run(stop_receiver.0).await
     }
 }
 
@@ -212,8 +207,8 @@ impl Task for FriProverJobRetryManagerTask {
         "fri_prover_job_retry_manager"
     }
 
-    async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.fri_prover_job_retry_manager.run().await
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.fri_prover_job_retry_manager.run(stop_receiver.0).await
     }
 }
 
@@ -228,8 +223,10 @@ impl Task for FriWitnessGeneratorJobRetryManagerTask {
         "fri_witness_generator_job_retry_manager"
     }
 
-    async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.fri_witness_gen_job_retry_manager.run().await
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.fri_witness_gen_job_retry_manager
+            .run(stop_receiver.0)
+            .await
     }
 }
 
@@ -244,8 +241,10 @@ impl Task for WaitingToQueuedFriWitnessJobMoverTask {
         "waiting_to_queued_fri_witness_job_mover"
     }
 
-    async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.waiting_to_queued_fri_witness_job_mover.run().await
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.waiting_to_queued_fri_witness_job_mover
+            .run(stop_receiver.0)
+            .await
     }
 }
 
@@ -260,8 +259,8 @@ impl Task for SchedulerCircuitQueuerTask {
         "scheduler_circuit_queuer"
     }
 
-    async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.scheduler_circuit_queuer.run().await
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.scheduler_circuit_queuer.run(stop_receiver.0).await
     }
 }
 
@@ -276,8 +275,10 @@ impl Task for FriWitnessGeneratorStatsReporterTask {
         "fri_witness_generator_stats_reporter"
     }
 
-    async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.fri_witness_generator_stats_reporter.run().await
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.fri_witness_generator_stats_reporter
+            .run(stop_receiver.0)
+            .await
     }
 }
 
@@ -292,8 +293,8 @@ impl Task for FriProverStatsReporterTask {
         "fri_prover_stats_reporter"
     }
 
-    async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.fri_prover_stats_reporter.run().await
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.fri_prover_stats_reporter.run(stop_receiver.0).await
     }
 }
 
@@ -308,8 +309,10 @@ impl Task for FriProofCompressorStatsReporterTask {
         "fri_proof_compressor_stats_reporter"
     }
 
-    async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.fri_proof_compressor_stats_reporter.run().await
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.fri_proof_compressor_stats_reporter
+            .run(stop_receiver.0)
+            .await
     }
 }
 
@@ -324,7 +327,9 @@ impl Task for FriProofCompressorJobRetryManagerTask {
         "fri_proof_compressor_job_retry_manager"
     }
 
-    async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.fri_proof_compressor_retry_manager.run().await
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.fri_proof_compressor_retry_manager
+            .run(stop_receiver.0)
+            .await
     }
 }

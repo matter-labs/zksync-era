@@ -7,7 +7,7 @@ use multivm::{
     zk_evm_latest::ethereum_types::H256,
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
     block::MiniblockHeader, fee_model::BatchFeeInput, snapshots::SnapshotRecoveryStatus, Address,
     L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, ZKPORTER_IS_AVAILABLE,
@@ -89,7 +89,7 @@ pub struct L1BatchParamsProvider {
 }
 
 impl L1BatchParamsProvider {
-    pub async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
+    pub async fn new(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
         let snapshot = storage
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
@@ -101,7 +101,7 @@ impl L1BatchParamsProvider {
     /// if necessary.
     pub async fn wait_for_l1_batch_params(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         number: L1BatchNumber,
     ) -> anyhow::Result<(H256, u64)> {
         let first_l1_batch = if let Some(snapshot) = &self.snapshot {
@@ -122,7 +122,7 @@ impl L1BatchParamsProvider {
     }
 
     async fn wait_for_l1_batch_params_unchecked(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         number: L1BatchNumber,
     ) -> anyhow::Result<(H256, u64)> {
         // If the state root is not known yet, this duration will be used to back off in the while loops
@@ -148,7 +148,7 @@ impl L1BatchParamsProvider {
 
     pub async fn load_l1_batch_protocol_version(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<ProtocolVersionId>> {
         if let Some(snapshot) = &self.snapshot {
@@ -172,7 +172,7 @@ impl L1BatchParamsProvider {
     /// Returns a header of the first miniblock in the specified L1 batch regardless of whether the batch is sealed or not.
     pub async fn load_first_miniblock_in_batch(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<FirstMiniblockInBatch>> {
         let miniblock_number = self
@@ -196,7 +196,7 @@ impl L1BatchParamsProvider {
     #[doc(hidden)] // public for testing purposes
     pub async fn load_number_of_first_miniblock_in_batch(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<MiniblockNumber>> {
         if l1_batch_number == L1BatchNumber(0) {
@@ -232,7 +232,7 @@ impl L1BatchParamsProvider {
     /// Loads VM-related L1 batch parameters for the specified batch.
     pub async fn load_l1_batch_params(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         first_miniblock_in_batch: &FirstMiniblockInBatch,
         validation_computational_gas_limit: u32,
         chain_id: L2ChainId,

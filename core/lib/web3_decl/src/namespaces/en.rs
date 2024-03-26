@@ -1,4 +1,5 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use zksync_config::GenesisConfig;
 use zksync_types::{api::en, tokens::TokenInfo, MiniblockNumber};
 
 #[cfg_attr(
@@ -30,4 +31,8 @@ pub trait EnNamespace {
     #[method(name = "syncTokens")]
     async fn sync_tokens(&self, block_number: Option<MiniblockNumber>)
         -> RpcResult<Vec<TokenInfo>>;
+
+    /// Get genesis configuration
+    #[method(name = "genesisConfig")]
+    async fn genesis_config(&self) -> RpcResult<GenesisConfig>;
 }
