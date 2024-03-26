@@ -1,12 +1,33 @@
-use std::{fmt, time::Duration};
+use std::{fmt, sync::Arc, time::Duration};
 
 use thiserror::Error;
-use tokio::sync::{oneshot, watch};
-use zksync_config::configs::chain::CircuitBreakerConfig;
+use tokio::sync::{watch, Mutex};
 
 pub mod l1_txs;
 mod metrics;
 pub mod replication_lag;
+
+#[derive(Default, Debug)]
+pub struct CircuitBreakers(Mutex<Vec<Box<dyn CircuitBreaker>>>);
+
+impl CircuitBreakers {
+    pub async fn insert(&self, circuit_breaker: Box<dyn CircuitBreaker>) {
+        let mut guard = self.0.lock().await;
+        if !guard
+            .iter()
+            .any(|existing_breaker| existing_breaker.name() == circuit_breaker.name())
+        {
+            guard.push(circuit_breaker);
+        }
+    }
+
+    pub async fn check(&self) -> Result<(), CircuitBreakerError> {
+        for circuit_breaker in self.0.lock().await.iter() {
+            circuit_breaker.check().await?;
+        }
+        Ok(())
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum CircuitBreakerError {
@@ -21,34 +42,28 @@ pub enum CircuitBreakerError {
 /// Checks circuit breakers
 #[derive(Debug)]
 pub struct CircuitBreakerChecker {
-    circuit_breakers: Vec<Box<dyn CircuitBreaker>>,
+    circuit_breakers: Arc<CircuitBreakers>,
     sync_interval: Duration,
-    sender: oneshot::Sender<CircuitBreakerError>,
 }
 
 #[async_trait::async_trait]
 pub trait CircuitBreaker: fmt::Debug + Send + Sync {
+    fn name(&self) -> &'static str;
+
     async fn check(&self) -> Result<(), CircuitBreakerError>;
 }
 
 impl CircuitBreakerChecker {
-    pub fn new(
-        circuit_breakers: Vec<Box<dyn CircuitBreaker>>,
-        config: &CircuitBreakerConfig,
-    ) -> (Self, oneshot::Receiver<CircuitBreakerError>) {
-        let (sender, receiver) = oneshot::channel();
-        let this = Self {
+    pub fn new(circuit_breakers: Arc<CircuitBreakers>, sync_interval: Duration) -> Self {
+        Self {
             circuit_breakers,
-            sync_interval: config.sync_interval(),
-            sender,
-        };
-        (this, receiver)
+            sync_interval,
+        }
     }
 
     pub async fn check(&self) -> Result<(), CircuitBreakerError> {
-        for circuit_breaker in &self.circuit_breakers {
-            circuit_breaker.check().await?;
-        }
+        self.circuit_breakers.check().await?;
+
         Ok(())
     }
 
@@ -56,10 +71,9 @@ impl CircuitBreakerChecker {
         tracing::info!("running circuit breaker checker...");
         while !*stop_receiver.borrow_and_update() {
             if let Err(error) = self.check().await {
-                return self
-                    .sender
-                    .send(error)
-                    .map_err(|_| anyhow::anyhow!("failed to send circuit breaker message"));
+                return Err(anyhow::format_err!(
+                    "Circuit breaker error. Reason: {error}"
+                ));
             }
             // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
             tokio::time::timeout(self.sync_interval, stop_receiver.changed())

@@ -18,8 +18,8 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_circuit_breaker::{
-    l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker, CircuitBreaker,
-    CircuitBreakerChecker, CircuitBreakerError,
+    l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker,
+    CircuitBreakerChecker, CircuitBreakers,
 };
 use zksync_concurrency::{ctx, scope};
 use zksync_config::{
@@ -76,7 +76,8 @@ use crate::{
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     metrics::{InitStage, APP_METRICS},
     state_keeper::{
-        create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer, SequencerSealer,
+        create_state_keeper, MempoolFetcher, MempoolGuard, OutputHandler, SequencerSealer,
+        StateKeeperPersistence,
     },
 };
 
@@ -227,7 +228,6 @@ pub async fn initialize_components(
 ) -> anyhow::Result<(
     Vec<JoinHandle<anyhow::Result<()>>>,
     watch::Sender<bool>,
-    oneshot::Receiver<CircuitBreakerError>,
     HealthCheckHandle,
 )> {
     tracing::info!("Starting the components: {components:?}");
@@ -284,12 +284,14 @@ pub async fn initialize_components(
         .clone()
         .context("circuit_breaker_config")?;
 
-    let circuit_breakers =
-        circuit_breakers_for_components(components, &postgres_config, &circuit_breaker_config)
-            .await
-            .context("circuit_breakers_for_components")?;
-    let (circuit_breaker_checker, circuit_breaker_error) =
-        CircuitBreakerChecker::new(circuit_breakers, &circuit_breaker_config);
+    let circuit_breaker_checker = CircuitBreakerChecker::new(
+        Arc::new(
+            circuit_breakers_for_components(components, &postgres_config, &circuit_breaker_config)
+                .await
+                .context("circuit_breakers_for_components")?,
+        ),
+        circuit_breaker_config.sync_interval(),
+    );
     circuit_breaker_checker.check().await.unwrap_or_else(|err| {
         panic!("Circuit breaker triggered: {}", err);
     });
@@ -700,10 +702,6 @@ pub async fn initialize_components(
                 .proof_data_handler_config
                 .clone()
                 .context("proof_data_handler_config")?,
-            configs
-                .contracts_config
-                .clone()
-                .context("contracts_config")?,
             store_factory.create_store().await,
             connection_pool.clone(),
             stop_receiver.clone(),
@@ -732,12 +730,8 @@ pub async fn initialize_components(
     if let Some(task) = gas_adjuster.run_if_initialized(stop_receiver.clone()) {
         task_futures.push(task);
     }
-    Ok((
-        task_futures,
-        stop_sender,
-        circuit_breaker_error,
-        health_check_handle,
-    ))
+
+    Ok((task_futures, stop_sender, health_check_handle))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -772,14 +766,15 @@ async fn add_state_keeper_to_task_futures(
         .build()
         .await
         .context("failed to build miniblock_sealer_pool")?;
-    let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(
+    let (persistence, miniblock_sealer) = StateKeeperPersistence::new(
         miniblock_sealer_pool,
+        contracts_config.l2_erc20_bridge_addr,
         state_keeper_config.miniblock_seal_queue_capacity,
     );
+    let persistence = persistence.with_object_store(object_store);
     task_futures.push(tokio::spawn(miniblock_sealer.run()));
 
     let state_keeper = create_state_keeper(
-        contracts_config,
         state_keeper_config,
         db_config,
         network_config,
@@ -787,8 +782,7 @@ async fn add_state_keeper_to_task_futures(
         state_keeper_pool.clone(),
         mempool.clone(),
         batch_fee_input_provider.clone(),
-        miniblock_sealer_handle,
-        object_store,
+        OutputHandler::new(Box::new(persistence)),
         stop_receiver.clone(),
     )
     .await;
@@ -1263,8 +1257,8 @@ async fn circuit_breakers_for_components(
     components: &[Component],
     postgres_config: &PostgresConfig,
     circuit_breaker_config: &CircuitBreakerConfig,
-) -> anyhow::Result<Vec<Box<dyn CircuitBreaker>>> {
-    let mut circuit_breakers: Vec<Box<dyn CircuitBreaker>> = Vec::new();
+) -> anyhow::Result<CircuitBreakers> {
+    let circuit_breakers = CircuitBreakers::default();
 
     if components
         .iter()
@@ -1274,7 +1268,9 @@ async fn circuit_breakers_for_components(
             .build()
             .await
             .context("failed to build a connection pool")?;
-        circuit_breakers.push(Box::new(FailedL1TransactionChecker { pool }));
+        circuit_breakers
+            .insert(Box::new(FailedL1TransactionChecker { pool }))
+            .await;
     }
 
     if components.iter().any(|c| {
@@ -1286,10 +1282,12 @@ async fn circuit_breakers_for_components(
         let pool = ConnectionPool::<Core>::singleton(postgres_config.replica_url()?)
             .build()
             .await?;
-        circuit_breakers.push(Box::new(ReplicationLagChecker {
-            pool,
-            replication_lag_limit_sec: circuit_breaker_config.replication_lag_limit_sec,
-        }));
+        circuit_breakers
+            .insert(Box::new(ReplicationLagChecker {
+                pool,
+                replication_lag_limit_sec: circuit_breaker_config.replication_lag_limit_sec,
+            }))
+            .await;
     }
     Ok(circuit_breakers)
 }

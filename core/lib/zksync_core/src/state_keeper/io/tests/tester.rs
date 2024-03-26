@@ -10,7 +10,6 @@ use zksync_config::{
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::clients::MockEthereum;
-use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
     block::MiniblockHeader,
     fee::TransactionExecutionMetrics,
@@ -26,7 +25,7 @@ use crate::{
     fee_model::MainNodeFeeInputProvider,
     genesis::create_genesis_l1_batch,
     l1_gas_price::GasAdjuster,
-    state_keeper::{io::MiniblockSealer, MempoolGuard, MempoolIO},
+    state_keeper::{MempoolGuard, MempoolIO},
     utils::testonly::{
         create_l1_batch, create_l2_transaction, create_miniblock, execute_l2_transaction,
     },
@@ -92,7 +91,6 @@ impl Tester {
     pub(super) async fn create_test_mempool_io(
         &self,
         pool: ConnectionPool<Core>,
-        miniblock_sealer_capacity: usize,
     ) -> (MempoolIO, MempoolGuard) {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
         let batch_fee_input_provider = MainNodeFeeInputProvider::new(
@@ -103,29 +101,20 @@ impl Tester {
         );
 
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
-        let (miniblock_sealer, miniblock_sealer_handle) =
-            MiniblockSealer::new(pool.clone(), miniblock_sealer_capacity);
-        tokio::spawn(miniblock_sealer.run());
-
         let config = StateKeeperConfig {
             minimal_l2_gas_price: self.minimal_l2_gas_price(),
             virtual_blocks_interval: 1,
             virtual_blocks_per_miniblock: 1,
             fee_account_addr: Address::repeat_byte(0x11), // Maintain implicit invariant: fee address is never `Address::zero()`
-            ..StateKeeperConfig::default()
+            validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+            ..StateKeeperConfig::for_tests()
         };
-        let object_store = ObjectStoreFactory::mock().create_store().await;
-        let l2_erc20_bridge_addr = Address::repeat_byte(0x5a); // Isn't relevant.
         let io = MempoolIO::new(
             mempool.clone(),
-            object_store,
-            miniblock_sealer_handle,
             Arc::new(batch_fee_input_provider),
             pool,
             &config,
             Duration::from_secs(1),
-            l2_erc20_bridge_addr,
-            BLOCK_GAS_LIMIT,
             L2ChainId::from(270),
         )
         .await
