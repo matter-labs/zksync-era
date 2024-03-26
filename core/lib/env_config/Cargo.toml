@@ -12,6 +12,7 @@ categories = ["cryptography"]
 [dependencies]
 zksync_basic_types = { path = "../../lib/basic_types" }
 zksync_config = { path = "../../lib/config" }
+zksync_system_constants = { path = "../../lib/constants" }
 
 anyhow = "1.0"
 serde = "1.0"

@@ -378,6 +378,7 @@ impl RandomConfig for configs::ContractsConfig {
             state_transition_proxy_addr: g.gen(),
             state_transition_impl_addr: g.gen(),
             transparent_proxy_admin_addr: g.gen(),
+            base_token_addr: g.gen(),
         }
     }
 }

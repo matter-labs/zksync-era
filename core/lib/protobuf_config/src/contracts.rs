@@ -143,6 +143,12 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("transparent_proxy_admin_addr")?,
+            base_token_addr: self
+                .base_token_address
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("base_token_addr")?,
         })
     }
 
@@ -208,6 +214,10 @@ impl ProtoRepr for proto::Contracts {
                 .transparent_proxy_admin_addr
                 .as_ref()
                 .map(|x| x.as_bytes().into()),
+            base_token_address: this
+                .base_token_addr
+                .as_ref()
+                .map(|x| x.as_bytes().into())
         }
     }
 }

@@ -118,4 +118,7 @@ pub trait ZksNamespace {
         keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
     ) -> RpcResult<Option<Proof>>;
+
+    #[method(name = "getBaseTokenL1Address")]
+    async fn get_base_token_l1_address(&self) -> RpcResult<Address>;
 }
