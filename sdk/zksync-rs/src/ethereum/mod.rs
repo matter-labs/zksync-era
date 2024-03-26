@@ -180,7 +180,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         bridge: Option<Address>,
     ) -> Result<Address, ClientError> {
         // kl todo. This should be moved to the shared bridge, which does not have l2_token_address on L1. Use L2 contracts instead.
-        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_bridge);
+        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge);
         let args = CallFunctionArgs::new("l2TokenAddress", l1_token_address)
             .for_contract(bridge, self.l1_bridge_abi.clone());
         let res = self
@@ -199,7 +199,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         bridge: Option<Address>,
     ) -> Result<bool, ClientError> {
         // kl todo. This should be moved to the shared bridge,
-        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_bridge);
+        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge);
         let current_allowance = self
             .client()
             .allowance_on_account(token_address, bridge, self.erc20_abi.clone())
@@ -227,7 +227,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         bridge: Option<Address>,
     ) -> Result<H256, ClientError> {
         // kl todo. This should be moved to the shared bridge,
-        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_bridge);
+        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge);
         let contract_function = self
             .erc20_abi
             .function("approve")
@@ -528,7 +528,8 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .await?
         } else {
             // kl todo. This should be moved to the shared bridge, and the requestL2Transaction method
-            let bridge_address = bridge_address.unwrap_or(self.default_bridges.l1_erc20_bridge);
+            let bridge_address =
+                bridge_address.unwrap_or(self.default_bridges.l1_erc20_default_bridge);
             let contract_function = self
                 .l1_bridge_abi
                 .function("deposit")
