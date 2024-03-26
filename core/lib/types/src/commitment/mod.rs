@@ -468,7 +468,7 @@ impl L1BatchAuxiliaryOutput {
                     // TODO: make it version dependent.
                     const MAX_BLOBS: usize = 16;
 
-                    for i in 0..(MAX_BLOBS - 2) {
+                    for _ in 0..(MAX_BLOBS - 2) {
                         result.extend(H256::zero().as_bytes());
                         result.extend(H256::zero().as_bytes());
                     }
