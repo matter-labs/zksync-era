@@ -88,8 +88,8 @@ impl ProtoRepr for proto::Postgres {
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            master_url: self.master_url.clone(),
-            replica_url: self.replica_url.clone(),
+            master_url: self.server_url.clone(),
+            replica_url: self.server_replica_url.clone(),
             prover_url: self.prover_url.clone(),
             max_connections: self.max_connections,
             max_connections_master: self.max_connections_master,
@@ -102,8 +102,8 @@ impl ProtoRepr for proto::Postgres {
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            master_url: this.master_url.clone(),
-            replica_url: this.replica_url.clone(),
+            server_url: this.master_url.clone(),
+            server_replica_url: this.replica_url.clone(),
             prover_url: this.prover_url.clone(),
             max_connections: this.max_connections,
             max_connections_master: this.max_connections_master,
@@ -111,6 +111,8 @@ impl ProtoRepr for proto::Postgres {
             statement_timeout_sec: this.statement_timeout_sec,
             long_connection_threshold_ms: this.long_connection_threshold_ms,
             slow_query_threshold_ms: this.slow_query_threshold_ms,
+            // Fill with test data
+            test: None,
         }
     }
 }

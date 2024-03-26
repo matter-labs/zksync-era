@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use zksync_config::configs::{
-    chain::NetworkConfig, eth_sender::ETHSenderConfig, ContractsConfigReduced, ETHClientConfig,
+    chain::NetworkConfig, eth_sender::ETHConfig, ContractsConfigReduced, ETHClientConfig,
 };
 use zksync_core::eth_sender::{Aggregator, EthTxAggregator, EthTxManager};
 use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface};
@@ -18,7 +18,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct EthSenderLayer {
-    eth_sender_config: ETHSenderConfig,
+    eth_sender_config: ETHConfig,
     contracts_config: ContractsConfigReduced,
     eth_client_config: ETHClientConfig,
     network_config: NetworkConfig,
@@ -26,7 +26,7 @@ pub struct EthSenderLayer {
 
 impl EthSenderLayer {
     pub fn new(
-        eth_sender_config: ETHSenderConfig,
+        eth_sender_config: ETHConfig,
         contracts_config: ContractsConfigReduced,
         eth_client_config: ETHClientConfig,
         network_config: NetworkConfig,

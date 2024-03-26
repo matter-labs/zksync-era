@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_config::configs::{self};
 use zksync_protobuf::{read_required_repr, required, ProtoRepr};
 
-use crate::proto::eth_sender as proto;
+use crate::proto::eth as proto;
 
 impl proto::ProofSendingMode {
     fn new(x: &configs::eth_sender::ProofSendingMode) -> Self {
@@ -60,12 +60,14 @@ impl proto::PubdataSendingMode {
     }
 }
 
-impl ProtoRepr for proto::EthSender {
-    type Type = configs::eth_sender::ETHSenderConfig;
+impl ProtoRepr for proto::Eth {
+    type Type = configs::eth_sender::ETHConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             sender: read_required_repr(&self.sender).context("sender")?,
             gas_adjuster: read_required_repr(&self.gas_adjuster).context("gas_adjuster")?,
+            watcher: read_required_repr(&self.watcher).context("watcher")?,
+            web3_url: required(&self.web3_url).context("web3_url")?.clone(),
         })
     }
 
@@ -73,6 +75,8 @@ impl ProtoRepr for proto::EthSender {
         Self {
             sender: Some(ProtoRepr::build(&this.sender)),
             gas_adjuster: Some(ProtoRepr::build(&this.gas_adjuster)),
+            watcher: Some(ProtoRepr::build(&this.watcher)),
+            web3_url: Some(this.web3_url.clone()),
         }
     }
 }
@@ -120,13 +124,13 @@ impl ProtoRepr for proto::Sender {
                 &self.max_acceptable_priority_fee_in_gwei,
             )
             .context("max_acceptable_priority_fee_in_gwei")?,
-            proof_loading_mode: required(&self.proof_loading_mode)
-                .and_then(|x| Ok(proto::ProofLoadingMode::try_from(*x)?))
-                .context("proof_loading_mode")?
-                .parse(),
             pubdata_sending_mode: required(&self.pubdata_sending_mode)
                 .and_then(|x| Ok(proto::PubdataSendingMode::try_from(*x)?))
                 .context("pubdata_sending_mode")?
+                .parse(),
+            proof_loading_mode: required(&self.proof_loading_mode)
+                .and_then(|x| Ok(proto::ProofLoadingMode::try_from(*x)?))
+                .context("proof_loading_mode")?
                 .parse(),
         })
     }
@@ -155,10 +159,10 @@ impl ProtoRepr for proto::Sender {
             ),
             l1_batch_min_age_before_execute_seconds: this.l1_batch_min_age_before_execute_seconds,
             max_acceptable_priority_fee_in_gwei: Some(this.max_acceptable_priority_fee_in_gwei),
-            proof_loading_mode: Some(proto::ProofLoadingMode::new(&this.proof_loading_mode).into()),
             pubdata_sending_mode: Some(
                 proto::PubdataSendingMode::new(&this.pubdata_sending_mode).into(),
             ),
+            proof_loading_mode: Some(proto::ProofLoadingMode::new(&this.proof_loading_mode).into()),
         }
     }
 }
@@ -211,6 +215,24 @@ impl ProtoRepr for proto::GasAdjuster {
             ),
             internal_pubdata_pricing_multiplier: Some(this.internal_pubdata_pricing_multiplier),
             max_blob_base_fee: this.max_blob_base_fee,
+        }
+    }
+}
+
+impl ProtoRepr for proto::EthWatch {
+    type Type = configs::ETHWatchConfig;
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(Self::Type {
+            confirmations_for_eth_event: self.confirmations_for_eth_event,
+            eth_node_poll_interval: *required(&self.eth_node_poll_interval)
+                .context("eth_node_poll_interval")?,
+        })
+    }
+
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            confirmations_for_eth_event: this.confirmations_for_eth_event,
+            eth_node_poll_interval: Some(this.eth_node_poll_interval),
         }
     }
 }

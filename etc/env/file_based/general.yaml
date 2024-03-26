@@ -102,6 +102,7 @@ circuit_breaker:
   - sync_interval_ms: 30000
   - http_req_max_retry_number: 5
   - http_req_retry_interval_sec: 2
+  - replication_lag_limit_sec: 100
 eth:
   - web3_url: http://127.0.0.1:8545
   - sender_wait_confirmations: 1
@@ -123,14 +124,16 @@ eth:
   - max_acceptable_priority_fee_in_gwei: 100000000000
   - proof_loading_mode: OldProofFromDb
   - pubdata_sending_mode: Blobs
-  - gas_adjuster_default_priority_fee_per_gas: 1000000000
-  - gas_adjuster_max_base_fee_samples: 10000
-  - gas_adjuster_pricing_formula_parameter_a: 1.5
-  - gas_adjuster_pricing_formula_parameter_b: 1.0005
-  - gas_adjuster_internal_l1_pricing_multiplier: 0.8
-  - gas_adjuster_poll_period: 5
-  - eth_watch_confirmations_for_eth_event: 0
-  - eth_watch_eth_node_poll_interval: 300
+  - gas_adjuster:
+      - default_priority_fee_per_gas: 1000000000
+      - max_base_fee_samples: 10000
+      - pricing_formula_parameter_a: 1.5
+      - pricing_formula_parameter_b: 1.0005
+      - internal_l1_pricing_multiplier: 0.8
+      - poll_period: 5
+  - eth_watch:
+      - confirmations_for_eth_event: 0
+      - eth_node_poll_interval: 300
 
 
 object_store:
@@ -195,8 +198,6 @@ prover:
   - data_handler:
       - http_port: 3320
       - proof_generation_timeout_in_secs: 18000
-      - protocol_version_loading_mode: FromEnvVar
-      - fri_protocol_version_id: 2
   - group:
       - GROUP_0_0_CIRCUIT_ID: 1
       - GROUP_0_0_AGGREGATION_ROUND: 3

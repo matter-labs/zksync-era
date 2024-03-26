@@ -40,7 +40,7 @@ impl FromEnv for GenesisConfig {
             recursion_leaf_level_vk_hash: contracts_config.fri_recursion_leaf_level_vk_hash,
             recursion_circuits_set_vks_hash: H256::zero(),
             recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
-            snark_wrapper_vk_hash: contracts_config.snark_wrapper_vk_hash,
+            fee_account: state_keeper.fee_account_addr,
             shared_bridge: None,
             dummy_prover: false,
         })

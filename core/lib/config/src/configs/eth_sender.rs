@@ -3,16 +3,20 @@ use std::time::Duration;
 use serde::Deserialize;
 use zksync_basic_types::H256;
 
+use crate::ETHWatchConfig;
+
 /// Configuration for the Ethereum sender crate.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct ETHSenderConfig {
+pub struct ETHConfig {
     /// Options related to the Ethereum sender directly.
     pub sender: SenderConfig,
     /// Options related to the `GasAdjuster` submodule.
     pub gas_adjuster: GasAdjusterConfig,
+    pub watcher: ETHWatchConfig,
+    pub web3_url: String,
 }
 
-impl ETHSenderConfig {
+impl ETHConfig {
     /// Creates a mock configuration object suitable for unit tests.
     /// Values inside match the config used for localhost development.
     pub fn for_tests() -> Self {
@@ -50,6 +54,11 @@ impl ETHSenderConfig {
                 internal_pubdata_pricing_multiplier: 1.0,
                 max_blob_base_fee: None,
             },
+            watcher: ETHWatchConfig {
+                confirmations_for_eth_event: None,
+                eth_node_poll_interval: 0,
+            },
+            web3_url: "localhost:8545".to_string(),
         }
     }
 }

@@ -60,9 +60,9 @@ impl ProtoRepr for proto::Genesis {
             recursion_scheduler_level_vk_hash: required(&prover.recursion_scheduler_level_vk_hash)
                 .and_then(|x| parse_h256(x))
                 .context("recursion_node_level_vk_hash")?,
-            snark_wrapper_vk_hash: required(&prover.snark_wrapper_vk_hash)
-                .and_then(|x| parse_h256(x))
-                .context("recursion_node_level_vk_hash")?,
+            fee_account: required(&self.fee_account)
+                .and_then(|x| parse_h160(x))
+                .context("fee_account")?,
             shared_bridge,
             dummy_prover: *required(&prover.dummy_verifier).context("dummy_prover")?,
         })
@@ -90,6 +90,7 @@ impl ProtoRepr for proto::Genesis {
             genesis_protocol_version: Some(this.protocol_version as u32),
             default_aa_hash: Some(this.genesis_root_hash.as_bytes().into()),
             bootloader_hash: Some(this.genesis_root_hash.as_bytes().into()),
+            fee_account: Some(this.fee_account.as_bytes().into()),
             l1_chain_id: Some(this.l1_chain_id.0),
             l2_chain_id: Some(this.l2_chain_id.as_u64()),
             prover: Some(proto::Prover {
@@ -105,7 +106,6 @@ impl ProtoRepr for proto::Genesis {
                 recursion_circuits_set_vks_hash: Some(
                     this.recursion_circuits_set_vks_hash.as_bytes().into(),
                 ),
-                snark_wrapper_vk_hash: Some(this.snark_wrapper_vk_hash.as_bytes().into()),
                 dummy_verifier: Some(this.dummy_prover),
             }),
             shared_bridge,

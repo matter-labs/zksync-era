@@ -24,7 +24,7 @@ pub struct GenesisConfig {
     pub recursion_leaf_level_vk_hash: H256,
     pub recursion_circuits_set_vks_hash: H256,
     pub recursion_scheduler_level_vk_hash: H256,
-    pub snark_wrapper_vk_hash: H256,
+    pub fee_account: Address,
     pub shared_bridge: Option<SharedBridge>,
     pub dummy_prover: bool,
 }

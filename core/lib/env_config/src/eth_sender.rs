@@ -1,9 +1,9 @@
 use anyhow::Context as _;
-use zksync_config::{configs::eth_sender::SenderConfig, ETHSenderConfig, GasAdjusterConfig};
+use zksync_config::{configs::eth_sender::SenderConfig, ETHConfig, GasAdjusterConfig};
 
 use crate::{envy_load, FromEnv};
 
-impl FromEnv for ETHSenderConfig {
+impl FromEnv for ETHConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             sender: SenderConfig::from_env().context("SenderConfig")?,
@@ -35,8 +35,8 @@ mod tests {
 
     static MUTEX: EnvMutex = EnvMutex::new();
 
-    fn expected_config() -> ETHSenderConfig {
-        ETHSenderConfig {
+    fn expected_config() -> ETHConfig {
+        ETHConfig {
             sender: SenderConfig {
                 aggregated_proof_sizes: vec![1, 5],
                 aggregated_block_commit_deadline: 30,
@@ -110,7 +110,7 @@ mod tests {
         "#;
         lock.set_env(config);
 
-        let actual = ETHSenderConfig::from_env().unwrap();
+        let actual = ETHConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
         assert_eq!(
             actual.sender.private_key().unwrap(),

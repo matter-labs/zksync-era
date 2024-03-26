@@ -40,10 +40,7 @@ message Web3JsonRpc {
   optional uint64 mempool_cache_size = 29; // optional
 }
 
-message ContractVerificationApi {
-  optional uint32 port = 1; // required; u16
-  optional string url = 2; // required
-}
+
 
 message HealthCheck {
   optional uint32 port = 1; // required; u16
@@ -57,7 +54,6 @@ message MerkleTreeApi {
 
 message Api {
   optional Web3JsonRpc web3_json_rpc = 1; // required
-  optional ContractVerificationApi contract_verification = 2; // required
   optional utils.Prometheus prometheus = 3; // required
   optional HealthCheck healthcheck = 4; // required
   optional MerkleTreeApi merkle_tree = 5; // required

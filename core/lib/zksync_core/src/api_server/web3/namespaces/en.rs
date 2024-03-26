@@ -121,8 +121,8 @@ impl EnNamespace {
             recursion_leaf_level_vk_hash: verifier_config.params.recursion_leaf_level_vk_hash,
             recursion_circuits_set_vks_hash: Default::default(),
             recursion_scheduler_level_vk_hash: verifier_config.recursion_scheduler_level_vk_hash,
-            // TODO set proper values
-            snark_wrapper_vk_hash: Default::default(),
+            fee_account,
+            // TODO Set proper values
             shared_bridge: None,
             dummy_prover: false,
         };

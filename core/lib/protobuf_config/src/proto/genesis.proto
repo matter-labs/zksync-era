@@ -7,8 +7,7 @@ message Prover {
   optional bytes recursion_node_level_vk_hash = 2; // required; H256
   optional bytes recursion_leaf_level_vk_hash = 3; // required; H256
   optional bytes recursion_circuits_set_vks_hash = 4; // required; H256
-  optional bytes snark_wrapper_vk_hash = 5; // required; H256
-  optional bool dummy_verifier = 6;
+  optional bool dummy_verifier = 5;
 }
 
 message SharedBridge {
@@ -26,6 +25,7 @@ message Genesis {
   optional bytes bootloader_hash = 6; // optional; h256
   optional uint64 l1_chain_id = 7; // optional;
   optional uint64 l2_chain_id = 8; // optional;
-  optional Prover prover = 9;
-  optional SharedBridge shared_bridge = 10;
+  optional bytes fee_account = 9; // h160
+  optional Prover prover = 10;
+  optional SharedBridge shared_bridge = 11;
 }

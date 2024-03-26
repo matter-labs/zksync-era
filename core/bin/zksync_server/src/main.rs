@@ -15,7 +15,7 @@ use zksync_config::{
         FriWitnessGeneratorConfig, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
         WitnessGeneratorConfig,
     },
-    ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
+    ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHConfig, ETHWatchConfig,
     GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_core::{
@@ -137,7 +137,7 @@ async fn main() -> anyhow::Result<()> {
             api_config: ApiConfig::from_env().ok(),
             db_config: DBConfig::from_env().ok(),
             eth_client_config: ETHClientConfig::from_env().ok(),
-            eth_sender_config: ETHSenderConfig::from_env().ok(),
+            eth_sender_config: ETHConfig::from_env().ok(),
             eth_watch_config: ETHWatchConfig::from_env().ok(),
             gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
             object_store_config: ObjectStoreConfig::from_env().ok(),

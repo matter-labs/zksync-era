@@ -14,13 +14,18 @@ impl ProtoRepr for proto::ContractVerifier {
             prometheus_port: required(&self.prometheus_port)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("prometheus_port")?,
+            url: required(&self.url).cloned().context("url")?,
+            port: *required(&self.port).context("port")?,
         })
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
+            port: Some(this.port),
+            url: Some(this.url.clone()),
             compilation_timeout: Some(this.compilation_timeout),
             polling_interval: this.polling_interval,
+            threads_per_server: None,
             prometheus_port: Some(this.prometheus_port.into()),
         }
     }

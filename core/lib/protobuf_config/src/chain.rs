@@ -1,37 +1,8 @@
 use anyhow::Context as _;
-use zksync_basic_types::network::Network;
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::{parse_h160, parse_h256, proto::chain as proto};
-
-impl proto::Network {
-    fn new(n: &Network) -> Self {
-        match n {
-            Network::Mainnet => Self::Mainnet,
-            Network::Rinkeby => Self::Rinkeby,
-            Network::Ropsten => Self::Ropsten,
-            Network::Goerli => Self::Goerli,
-            Network::Sepolia => Self::Sepolia,
-            Network::Localhost => Self::Localhost,
-            Network::Unknown => Self::Unknown,
-            Network::Test => Self::Test,
-        }
-    }
-
-    fn parse(&self) -> Network {
-        match self {
-            Self::Mainnet => Network::Mainnet,
-            Self::Rinkeby => Network::Rinkeby,
-            Self::Ropsten => Network::Ropsten,
-            Self::Goerli => Network::Goerli,
-            Self::Sepolia => Network::Sepolia,
-            Self::Localhost => Network::Localhost,
-            Self::Unknown => Network::Unknown,
-            Self::Test => Network::Test,
-        }
-    }
-}
+use crate::{parse_h160, proto::chain as proto};
 
 impl proto::FeeModelVersion {
     fn new(n: &configs::chain::FeeModelVersion) -> Self {
@@ -47,32 +18,6 @@ impl proto::FeeModelVersion {
         match self {
             Self::V1 => To::V1,
             Self::V2 => To::V2,
-        }
-    }
-}
-
-impl ProtoRepr for proto::EthNetwork {
-    type Type = configs::chain::NetworkConfig;
-    fn read(&self) -> anyhow::Result<Self::Type> {
-        Ok(Self::Type {
-            network: required(&self.network)
-                .and_then(|x| Ok(proto::Network::try_from(*x)?))
-                .context("network")?
-                .parse(),
-            zksync_network: required(&self.zksync_network)
-                .context("zksync_network")?
-                .clone(),
-            zksync_network_id: required(&self.zksync_network_id)
-                .and_then(|x| (*x).try_into().map_err(anyhow::Error::msg))
-                .context("zksync_network_id")?,
-        })
-    }
-
-    fn build(this: &Self::Type) -> Self {
-        Self {
-            network: Some(proto::Network::new(&this.network).into()),
-            zksync_network: Some(this.zksync_network.clone()),
-            zksync_network_id: Some(this.zksync_network_id.as_u64()),
         }
     }
 }
@@ -140,18 +85,10 @@ impl ProtoRepr for proto::StateKeeper {
                 .map(|x| x.try_into())
                 .transpose()
                 .context("enum_index_migration_chunk_size")?,
-            bootloader_hash: self
-                .bootloader_hash
-                .as_ref()
-                .map(|a| parse_h256(a))
-                .transpose()
-                .context("bootloader_hash")?,
-            default_aa_hash: self
-                .default_aa_hash
-                .as_ref()
-                .map(|a| parse_h256(a))
-                .transpose()
-                .context("default_aa_hash")?,
+            // We need this values only for genesis file, so it's not
+            // needed during the initialization from files
+            bootloader_hash: None,
+            default_aa_hash: None,
         })
     }
 
@@ -188,8 +125,6 @@ impl ProtoRepr for proto::StateKeeper {
                 .enum_index_migration_chunk_size
                 .as_ref()
                 .map(|x| (*x).try_into().unwrap()),
-            bootloader_hash: this.bootloader_hash.map(|a| a.as_bytes().into()),
-            default_aa_hash: this.default_aa_hash.map(|a| a.as_bytes().into()),
         }
     }
 }
@@ -232,31 +167,6 @@ impl ProtoRepr for proto::Mempool {
             stuck_tx_timeout: Some(this.stuck_tx_timeout),
             remove_stuck_txs: Some(this.remove_stuck_txs),
             delay_interval: Some(this.delay_interval),
-        }
-    }
-}
-
-impl ProtoRepr for proto::CircuitBreaker {
-    type Type = configs::chain::CircuitBreakerConfig;
-    fn read(&self) -> anyhow::Result<Self::Type> {
-        Ok(Self::Type {
-            sync_interval_ms: *required(&self.sync_interval_ms).context("sync_interval_ms")?,
-            http_req_max_retry_number: required(&self.http_req_max_retry_number)
-                .and_then(|x| Ok((*x).try_into()?))
-                .context("http_req_max_retry_number")?,
-            http_req_retry_interval_sec: required(&self.http_req_retry_interval_sec)
-                .and_then(|x| Ok((*x).try_into()?))
-                .context("http_req_retry_interval_sec")?,
-            replication_lag_limit_sec: self.replication_lag_limit_sec,
-        })
-    }
-
-    fn build(this: &Self::Type) -> Self {
-        Self {
-            sync_interval_ms: Some(this.sync_interval_ms),
-            http_req_max_retry_number: Some(this.http_req_max_retry_number.try_into().unwrap()),
-            http_req_retry_interval_sec: Some(this.http_req_retry_interval_sec.into()),
-            replication_lag_limit_sec: this.replication_lag_limit_sec,
         }
     }
 }

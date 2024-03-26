@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
 use zksync_config::{
-    configs::ObservabilityConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig,
+    configs::ObservabilityConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHConfig,
     PostgresConfig,
 };
 use zksync_core::block_reverter::{
@@ -87,7 +87,7 @@ async fn main() -> anyhow::Result<()> {
     }
     let _guard = builder.build();
 
-    let eth_sender = ETHSenderConfig::from_env().context("ETHSenderConfig::from_env()")?;
+    let eth_sender = ETHConfig::from_env().context("ETHSenderConfig::from_env()")?;
     let db_config = DBConfig::from_env().context("DBConfig::from_env()")?;
     let eth_client = ETHClientConfig::from_env().context("ETHClientConfig::from_env()")?;
     let default_priority_fee_per_gas =

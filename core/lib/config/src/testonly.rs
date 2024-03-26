@@ -172,7 +172,6 @@ impl RandomConfig for configs::ApiConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
             web3_json_rpc: g.gen(),
-            contract_verification: g.gen(),
             prometheus: g.gen(),
             healthcheck: g.gen(),
             merkle_tree: g.gen(),
@@ -334,6 +333,8 @@ impl RandomConfig for configs::ContractVerifierConfig {
             compilation_timeout: g.gen(),
             polling_interval: g.gen(),
             prometheus_port: g.gen(),
+            port: g.gen(),
+            url: g.gen(),
         }
     }
 }
@@ -438,11 +439,13 @@ impl RandomConfig for configs::ETHClientConfig {
     }
 }
 
-impl RandomConfig for configs::ETHSenderConfig {
+impl RandomConfig for configs::ETHConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
             sender: g.gen(),
             gas_adjuster: g.gen(),
+            watcher: g.gen(),
+            web3_url: g.gen(),
         }
     }
 }
@@ -568,6 +571,7 @@ impl RandomConfig for configs::FriProverConfig {
             witness_vector_receiver_port: g.gen(),
             zone_read_url: g.gen(),
             shall_save_to_public_bucket: g.gen(),
+            object_store: g.gen(),
         }
     }
 }
@@ -650,13 +654,10 @@ impl RandomConfig for configs::house_keeper::HouseKeeperConfig {
             prover_stats_reporting_interval_ms: g.gen(),
             witness_job_moving_interval_ms: g.gen(),
             witness_generator_stats_reporting_interval_ms: g.gen(),
-            fri_witness_job_moving_interval_ms: g.gen(),
-            fri_prover_job_retrying_interval_ms: g.gen(),
-            fri_witness_generator_job_retrying_interval_ms: g.gen(),
+            witness_generator_job_retrying_interval_ms: g.gen(),
             prover_db_pool_size: g.gen(),
-            fri_prover_stats_reporting_interval_ms: g.gen(),
-            fri_proof_compressor_job_retrying_interval_ms: g.gen(),
-            fri_proof_compressor_stats_reporting_interval_ms: g.gen(),
+            proof_compressor_job_retrying_interval_ms: g.gen(),
+            proof_compressor_stats_reporting_interval_ms: g.gen(),
         }
     }
 }
@@ -704,8 +705,6 @@ impl RandomConfig for configs::ProofDataHandlerConfig {
         Self {
             http_port: g.gen(),
             proof_generation_timeout_in_secs: g.gen(),
-            protocol_version_loading_mode: g.gen(),
-            fri_protocol_version_id: g.gen(),
         }
     }
 }
@@ -715,6 +714,7 @@ impl RandomConfig for configs::SnapshotsCreatorConfig {
         Self {
             storage_logs_chunk_size: g.gen(),
             concurrent_queries_count: g.gen(),
+            object_store: g.gen(),
         }
     }
 }
@@ -751,6 +751,7 @@ impl RandomConfig for configs::ObservabilityConfig {
             sentry_environment: g.gen(),
             log_format: g.gen(),
             opentelemetry: g.gen(),
+            sporadic_crypto_errors_substrs: g.gen(),
         }
     }
 }
@@ -779,7 +780,7 @@ impl RandomConfig for configs::GenesisConfig {
             recursion_leaf_level_vk_hash: g.gen(),
             recursion_circuits_set_vks_hash: g.gen(),
             recursion_scheduler_level_vk_hash: g.gen(),
-            snark_wrapper_vk_hash: g.gen(),
+            fee_account: g.gen(),
             shared_bridge: g.gen(),
             dummy_prover: g.gen(),
         }

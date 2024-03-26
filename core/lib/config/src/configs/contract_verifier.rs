@@ -10,6 +10,8 @@ pub struct ContractVerifierConfig {
     pub polling_interval: Option<u64>,
     /// Port to which the Prometheus exporter server is listening.
     pub prometheus_port: u16,
+    pub port: u32,
+    pub url: String,
 }
 
 impl ContractVerifierConfig {
