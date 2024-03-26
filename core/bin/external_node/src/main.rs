@@ -515,7 +515,10 @@ async fn main() -> anyhow::Result<()> {
         .expect("Main node URL is incorrect");
     tracing::info!("Main node URL is: {main_node_url}");
     let main_node_client = L2Client::builder()
-        .with_rate_limit(10, Duration::from_millis(30))
+        .with_rate_limit(
+            config.optional.main_node_client_rate_limit_count,
+            config.optional.main_node_client_rate_limit_window(),
+        )
         .build(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
 

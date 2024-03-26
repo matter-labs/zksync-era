@@ -29,7 +29,7 @@ const BYTES_IN_MEGABYTE: usize = 1_024 * 1_024;
 
 /// This part of the external node config is fetched directly from the main node.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct RemoteENConfig {
+pub(crate) struct RemoteENConfig {
     pub bridgehub_proxy_addr: Option<Address>,
     pub diamond_proxy_addr: Address,
     pub l1_erc20_bridge_proxy_addr: Address,
@@ -93,7 +93,7 @@ impl RemoteENConfig {
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub enum BlockFetcher {
+pub(crate) enum BlockFetcher {
     ServerAPI,
     Consensus,
 }
@@ -102,7 +102,7 @@ pub enum BlockFetcher {
 /// It can tweak limits of the API, delay intervals of certain components, etc.
 /// If any of the fields are not provided, the default values will be used.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct OptionalENConfig {
+pub(crate) struct OptionalENConfig {
     // User-facing API limits
     /// Max possible limit of filters to be in the API state at once.
     #[serde(default = "OptionalENConfig::default_filters_limit")]
@@ -250,6 +250,12 @@ pub struct OptionalENConfig {
     // This is intentionally not a part of `RemoteENConfig` because fetching this info from the main node would defeat
     // its purpose; the consistency checker assumes that the main node may provide false information.
     pub contracts_diamond_proxy_addr: Option<Address>,
+    /// Number of permits in each rate limiting window applied to the main node HTTP client. Default is 10 permits.
+    #[serde(default = "OptionalENConfig::default_main_node_client_rate_limit_count")]
+    pub main_node_client_rate_limit_count: usize,
+    /// Duration of a rate limiting window applied to the main node HTTP client. Default is 50ms.
+    #[serde(default = "OptionalENConfig::default_main_node_client_rate_limit_window_ms")]
+    main_node_client_rate_limit_window_ms: u64,
 }
 
 impl OptionalENConfig {
@@ -364,6 +370,14 @@ impl OptionalENConfig {
         10_000
     }
 
+    const fn default_main_node_client_rate_limit_count() -> usize {
+        10
+    }
+
+    const fn default_main_node_client_rate_limit_window_ms() -> u64 {
+        50
+    }
+
     pub fn polling_interval(&self) -> Duration {
         Duration::from_millis(self.polling_interval)
     }
@@ -435,11 +449,15 @@ impl OptionalENConfig {
     pub fn mempool_cache_update_interval(&self) -> Duration {
         Duration::from_millis(self.mempool_cache_update_interval)
     }
+
+    pub fn main_node_client_rate_limit_window(&self) -> Duration {
+        Duration::from_millis(self.main_node_client_rate_limit_window_ms)
+    }
 }
 
 /// This part of the external node config is required for its operation.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct RequiredENConfig {
+pub(crate) struct RequiredENConfig {
     /// Port on which the HTTP RPC server is listening.
     pub http_port: u16,
     /// Port on which the WebSocket RPC server is listening.
@@ -478,7 +496,7 @@ impl RequiredENConfig {
 /// environment variables.
 /// Thus it is kept separately for backward compatibility and ease of deserialization.
 #[derive(Debug, Clone, Deserialize, PartialEq)]
-pub struct PostgresConfig {
+pub(crate) struct PostgresConfig {
     pub database_url: String,
     pub max_connections: u32,
 }
@@ -515,7 +533,7 @@ pub(crate) fn read_consensus_config() -> anyhow::Result<Option<consensus::Config
 /// Configuration for snapshot recovery. Loaded optionally, only if the corresponding command-line argument
 /// is supplied to the EN binary.
 #[derive(Debug, Clone)]
-pub struct SnapshotsRecoveryConfig {
+pub(crate) struct SnapshotsRecoveryConfig {
     pub snapshots_object_store: ObjectStoreConfig,
 }
 
@@ -531,7 +549,7 @@ pub(crate) fn read_snapshots_recovery_config() -> anyhow::Result<SnapshotsRecove
 /// External Node Config contains all the configuration required for the EN operation.
 /// It is split into three parts: required, optional and remote for easier navigation.
 #[derive(Debug, Clone)]
-pub struct ExternalNodeConfig {
+pub(crate) struct ExternalNodeConfig {
     pub required: RequiredENConfig,
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,

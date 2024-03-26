@@ -48,6 +48,10 @@ mode = "FileBacked"
 file_backed_base_path = "artifacts"
 # ^ Intentionally set to coincide with main node's in order to read locally produced snapshots
 
+[en.main_node_client.rate_limit]
+count = 10
+window_ms = 30
+
 [rust]
 # `RUST_LOG` environment variable for `env_logger`
 # Here we use TOML multiline strings: newlines will be trimmed.
