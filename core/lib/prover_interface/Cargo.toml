@@ -1,27 +1,26 @@
 [package]
 name = "zksync_prover_interface"
 version = "0.1.0"
-edition = "2018"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
-readme = "README.md"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-zksync_types = { path = "../types" }
-zksync_object_store = { path = "../object_store" }
+zksync_types.workspace = true
+zksync_object_store.workspace = true
 
 # We can use the newest api to send proofs to L1.
-circuit_sequencer_api = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.2" }
+circuit_sequencer_api.workspace = true
 
-serde = "1.0.90"
-strum = { version = "0.24", features = ["derive"] }
-serde_with = { version = "1", features = ["base64"] }
-chrono = { version = "0.4", features = ["serde"] }
+serde.workspace = true
+strum = { workspace = true, features = ["derive"] }
+serde_with = { workspace = true, features = ["base64"] }
+chrono = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
-tokio = { version = "1.21.2", features = ["full"] }
-bincode = "1"
+tokio = { workspace = true, features = ["full"] }
+bincode.workspace = true

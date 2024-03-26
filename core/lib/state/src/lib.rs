@@ -28,6 +28,7 @@ mod test_utils;
 mod witness;
 
 pub use self::{
+    cache::sequential_cache::SequentialCache,
     in_memory::{InMemoryStorage, IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID},
     postgres::{PostgresStorage, PostgresStorageCaches, PostgresStorageCachesTask},
     rocksdb::{RocksbStorageBuilder, RocksdbStorage},

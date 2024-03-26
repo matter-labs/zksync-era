@@ -123,10 +123,13 @@ impl JobProcessor for WitnessVectorGenerator {
 
     async fn process_job(
         &self,
+        _job_id: &Self::JobId,
         job: ProverJob,
         _started_at: Instant,
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
         tokio::task::spawn_blocking(move || {
+            let block_number = job.block_number;
+            let _span = tracing::info_span!("witness_vector_generator", %block_number).entered();
             Self::generate_witness_vector(job, &Keystore::default())
         })
     }

@@ -1,7 +1,7 @@
 use std::{str::FromStr, time::Duration};
 
 use serde::Deserialize;
-use zksync_basic_types::{network::Network, Address, L2ChainId};
+use zksync_basic_types::{network::Network, Address, L2ChainId, H256};
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct NetworkConfig {
@@ -116,6 +116,11 @@ pub struct StateKeeperConfig {
 
     /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
     pub enum_index_migration_chunk_size: Option<usize>,
+
+    // Base system contract hash, required only for genesis file, it's temporary solution
+    // #PLA-811
+    pub bootloader_hash: Option<H256>,
+    pub default_aa_hash: Option<H256>,
 }
 
 impl StateKeeperConfig {
@@ -150,6 +155,8 @@ impl StateKeeperConfig {
             virtual_blocks_per_miniblock: 1,
             upload_witness_inputs_to_gcs: false,
             enum_index_migration_chunk_size: None,
+            bootloader_hash: None,
+            default_aa_hash: None,
         }
     }
 

@@ -1,34 +1,34 @@
 [package]
 name = "zksync_dal"
 version = "0.1.0"
-edition = "2021"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 links = "zksync_dal_proto"
 
 [dependencies]
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
-zksync_utils = { path = "../utils" }
-zksync_system_constants = { path = "../constants" }
-zksync_contracts = { path = "../contracts" }
-zksync_types = { path = "../types" }
-zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5329a809cfc06d4939fb5ece26c9ad1e1741c50a" }
-zksync_consensus_storage = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5329a809cfc06d4939fb5ece26c9ad1e1741c50a" }
-zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5329a809cfc06d4939fb5ece26c9ad1e1741c50a" }
-zksync_db_connection = { path = "../db_connection" }
+vise.workspace = true
+zksync_utils.workspace = true
+zksync_system_constants.workspace = true
+zksync_contracts.workspace = true
+zksync_types.workspace = true
+zksync_consensus_roles.workspace = true
+zksync_consensus_storage.workspace = true
+zksync_protobuf.workspace = true
+zksync_db_connection.workspace = true
 
-itertools = "0.10.1"
-thiserror = "1.0"
-anyhow = "1.0"
-prost = "0.12.1"
-rand = "0.8"
-tokio = { version = "1", features = ["full"] }
-sqlx = { version = "0.7.3", default-features = false, features = [
+itertools.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+prost.workspace = true
+rand.workspace = true
+tokio = { workspace = true, features = ["full"] }
+sqlx = { workspace = true, features = [
     "runtime-tokio",
     "tls-native-tls",
     "macros",
@@ -40,14 +40,14 @@ sqlx = { version = "0.7.3", default-features = false, features = [
     "migrate",
     "ipnetwork",
 ] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-bigdecimal = "0.3.0"
-bincode = "1"
-hex = "0.4"
-strum = { version = "0.24", features = ["derive"] }
-tracing = "0.1"
-chrono = { version = "0.4", features = ["serde"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+bigdecimal.workspace = true
+bincode.workspace = true
+hex.workspace = true
+strum = { workspace = true, features = ["derive"] }
+tracing.workspace = true
+chrono = { workspace = true, features = ["serde"] }
 
 [build-dependencies]
-zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5329a809cfc06d4939fb5ece26c9ad1e1741c50a" }
+zksync_protobuf_build.workspace = true
