@@ -7,7 +7,7 @@ use zksync_types::{utils::deployed_address_create, Execute, U256};
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     tracers::PrestateTracer,
-    vm_latest::{
+    vm_1_4_2::{
         constants::BLOCK_GAS_LIMIT,
         tests::{tester::VmTesterBuilder, utils::read_simple_transfer_contract},
         HistoryEnabled, ToTracerPointer,
@@ -16,7 +16,7 @@ use crate::{
 
 #[test]
 fn test_prestate_tracer() {
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()
@@ -52,7 +52,7 @@ fn test_prestate_tracer() {
 
 #[test]
 fn test_prestate_tracer_diff_mode() {
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()

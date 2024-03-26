@@ -5,7 +5,7 @@ use zksync_types::{l2_to_l1_log::L2ToL1Log, StorageLogQueryType, VmEvent};
 use crate::{
     glue::GlueInto,
     interface::L1BatchEnv,
-    vm_latest::{
+    vm_1_4_2::{
         old_vm::{events::merge_events, history_recorder::HistoryMode},
         types::internals::ZkSyncVmState,
     },

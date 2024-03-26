@@ -42,7 +42,6 @@ const CHAIN_ID: u32 = 270;
 pub(super) struct TestConfig {
     pub(super) save_call_traces: bool,
     pub(super) vm_gas_limit: Option<u32>,
-    pub(super) max_allowed_tx_gas_limit: u32,
     pub(super) validation_computational_gas_limit: u32,
     pub(super) upload_witness_inputs_to_gcs: bool,
 }
@@ -54,7 +53,6 @@ impl TestConfig {
         Self {
             vm_gas_limit: None,
             save_call_traces: false,
-            max_allowed_tx_gas_limit: config.max_allowed_l2_tx_gas_limit,
             validation_computational_gas_limit: config.validation_computational_gas_limit,
             upload_witness_inputs_to_gcs: false,
         }
@@ -106,7 +104,6 @@ impl Tester {
         let mut builder = MainBatchExecutor::new(
             self.db_dir.path().to_str().unwrap().to_owned(),
             self.pool.clone(),
-            self.config.max_allowed_tx_gas_limit.into(),
             self.config.save_call_traces,
             self.config.upload_witness_inputs_to_gcs,
             100,

@@ -5,13 +5,12 @@ use crate::{
         ExecutionResult, Halt, TxExecutionMode, TxRevertReason, VmExecutionMode, VmInterface,
         VmRevertReason,
     },
-    vm_latest::{
+    vm_1_4_2::{
         tests::{
             tester::{Account, VmTesterBuilder},
             utils::read_nonce_holder_tester,
         },
         types::internals::TransactionData,
-        HistoryEnabled,
     },
 };
 
@@ -41,7 +40,7 @@ impl From<NonceHolderTestMode> for u8 {
 fn test_nonce_holder() {
     let mut account = Account::random();
 
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_deployer()

@@ -9,7 +9,7 @@ use zksync_types::{
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
-use crate::vm_latest::{
+use crate::vm_1_4_2::{
     tests::tester::InMemoryStorageView, types::internals::ZkSyncVmState, HistoryMode,
 };
 
@@ -78,12 +78,6 @@ pub(crate) fn read_nonce_holder_tester() -> Vec<u8> {
 pub(crate) fn read_error_contract() -> Vec<u8> {
     read_bytecode(
         "etc/contracts-test-data/artifacts-zk/contracts/error/error.sol/SimpleRequire.json",
-    )
-}
-
-pub(crate) fn read_simple_transfer_contract() -> Vec<u8> {
-    read_bytecode(
-        "etc/contracts-test-data/artifacts-zk/contracts/simple-transfer/simple-transfer.sol/SimpleTransfer.json",
     )
 }
 

@@ -2,17 +2,16 @@ use zksync_types::{fee::Fee, Execute};
 
 use crate::{
     interface::{TxExecutionMode, VmInterface},
-    vm_latest::{
+    vm_1_4_2::{
         constants::{BOOTLOADER_HEAP_PAGE, TX_DESCRIPTION_OFFSET, TX_GAS_LIMIT_OFFSET},
         tests::tester::VmTesterBuilder,
-        HistoryDisabled,
     },
 };
 
 /// Checks that `TX_GAS_LIMIT_OFFSET` constant is correct.
 #[test]
 fn test_tx_gas_limit_offset() {
-    let mut vm = VmTesterBuilder::new(HistoryDisabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryDisabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)

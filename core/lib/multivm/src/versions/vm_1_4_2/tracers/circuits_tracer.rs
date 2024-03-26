@@ -11,7 +11,7 @@ use zksync_types::circuit::CircuitCycleStatistic;
 use super::circuits_capacity::*;
 use crate::{
     interface::{dyn_tracers::vm_1_4_1::DynTracer, tracer::TracerExecutionStatus},
-    vm_latest::{
+    vm_1_4_2::{
         bootloader_state::BootloaderState,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::traits::VmTracer,
