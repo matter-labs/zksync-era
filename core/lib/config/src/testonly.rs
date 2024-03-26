@@ -690,22 +690,11 @@ impl RandomConfig for configs::ObjectStoreConfig {
     }
 }
 
-impl RandomConfig for configs::proof_data_handler::ProtocolVersionLoadingMode {
-    fn sample(g: &mut Gen<impl Rng>) -> Self {
-        match g.rng.gen_range(0..2) {
-            0 => Self::FromDb,
-            _ => Self::FromEnvVar,
-        }
-    }
-}
-
 impl RandomConfig for configs::ProofDataHandlerConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
             http_port: g.gen(),
             proof_generation_timeout_in_secs: g.gen(),
-            protocol_version_loading_mode: g.gen(),
-            fri_protocol_version_id: g.gen(),
         }
     }
 }

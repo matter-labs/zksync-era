@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, sync::Arc};
+use std::sync::Arc;
 
 use axum::{
     extract::Path,
@@ -6,9 +6,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use zksync_config::configs::{
-    proof_data_handler::ProtocolVersionLoadingMode, ProofDataHandlerConfig,
-};
+use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal, SqlxError};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::api::{
@@ -16,11 +14,8 @@ use zksync_prover_interface::api::{
     SubmitProofRequest, SubmitProofResponse,
 };
 use zksync_types::{
-    basic_fri_types::Eip4844Blobs,
-    commitment::serialize_commitments,
-    protocol_version::{FriProtocolVersionId, L1VerifierConfig},
-    web3::signing::keccak256,
-    L1BatchNumber, H256,
+    basic_fri_types::Eip4844Blobs, commitment::serialize_commitments,
+    protocol_version::FriProtocolVersionId, web3::signing::keccak256, L1BatchNumber, H256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -29,7 +24,6 @@ pub(crate) struct RequestProcessor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
     config: ProofDataHandlerConfig,
-    l1_verifier_config: Option<L1VerifierConfig>,
 }
 
 pub(crate) enum RequestProcessorError {
@@ -69,13 +63,11 @@ impl RequestProcessor {
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Core>,
         config: ProofDataHandlerConfig,
-        l1_verifier_config: Option<L1VerifierConfig>,
     ) -> Self {
         Self {
             blob_store,
             pool,
             config,
-            l1_verifier_config,
         }
     }
 
@@ -105,44 +97,31 @@ impl RequestProcessor {
             .await
             .map_err(RequestProcessorError::ObjectStore)?;
 
-        let (l1_verifier_config, fri_protocol_version_id) = match self.config.protocol_version_loading_mode {
-            ProtocolVersionLoadingMode::FromDb => {
+        let header = self
+            .pool
+            .connection()
+            .await
+            .unwrap()
+            .blocks_dal()
+            .get_l1_batch_header(l1_batch_number)
+            .await
+            .unwrap()
+            .expect(&format!("Missing header for {}", l1_batch_number));
 
-                let header = self
-                .pool
-                .connection()
-                .await
-                .unwrap()
-                .blocks_dal()
-                .get_l1_batch_header(l1_batch_number)
-                .await
-                .unwrap()
-                .expect(&format!("Missing header for {}", l1_batch_number));
-
-            let protocol_version = header.protocol_version.unwrap();
-            // TODO: What invariants have to hold such that protocol version = fri protocol version?
-            let fri_protocol_version = FriProtocolVersionId::from(protocol_version);
-            (self
-                .pool
-                .connection()
-                .await
-                .unwrap()
-                .protocol_versions_dal()
-                .l1_verifier_config_for_version(protocol_version)
-                .await
-                .expect(&format!(
-                    "Missing l1 verifier info for protocol version {protocol_version:?}",
-                )), fri_protocol_version)
-
-            }
-            ProtocolVersionLoadingMode::FromEnvVar => {
-                (self.l1_verifier_config
-                    .expect("l1_verifier_config must be set while running ProtocolVersionLoadingMode::FromEnvVar mode"),
-                    FriProtocolVersionId::try_from(self.config.fri_protocol_version_id)
-                .expect("Invalid FRI protocol version id"))
-
-            }
-        };
+        let protocol_version = header.protocol_version.unwrap();
+        // TODO: What invariants have to hold such that protocol version = fri protocol version?
+        let fri_protocol_version_id = FriProtocolVersionId::from(protocol_version);
+        let l1_verifier_config = self
+            .pool
+            .connection()
+            .await
+            .unwrap()
+            .protocol_versions_dal()
+            .l1_verifier_config_for_version(protocol_version)
+            .await
+            .expect(&format!(
+                "Missing l1 verifier info for protocol version {protocol_version:?}",
+            ));
 
         let storage_batch = self
             .pool
