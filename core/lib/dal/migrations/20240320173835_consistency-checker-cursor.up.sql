@@ -6,4 +6,4 @@ CREATE TABLE consistency_checker_info
 );
 
 INSERT INTO consistency_checker_info(last_processed_l1_batch, created_at, updated_at)
-VALUES (1, NOW(), NOW());
+VALUES (0, NOW(), NOW());

@@ -517,8 +517,7 @@ impl ConsistencyChecker {
         // it's not committed on L1.
         let first_batch_to_check = first_batch_to_check
             .max(earliest_l1_batch_number)
-            .max(L1BatchNumber(1))
-            .max(last_processed_batch);
+            .max(L1BatchNumber(last_processed_batch.0 + 1));
         tracing::info!(
             "Last committed L1 batch is #{last_committed_batch}; starting checks from L1 batch #{first_batch_to_check}"
         );
