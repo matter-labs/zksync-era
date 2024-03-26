@@ -12,7 +12,7 @@ use crate::{
             tester::VmTesterBuilder,
             utils::{read_max_depth_contract, read_test_contract},
         },
-        HistoryEnabled, ToTracerPointer,
+        ToTracerPointer,
     },
 };
 

@@ -1,9 +1,6 @@
 use crate::{
     interface::{ExecutionResult, VmExecutionMode, VmInterface},
-    vm_1_4_2::{
-        tests::tester::{TxType, VmTesterBuilder},
-        HistoryDisabled,
-    },
+    vm_1_4_2::tests::tester::{TxType, VmTesterBuilder},
 };
 
 #[test]

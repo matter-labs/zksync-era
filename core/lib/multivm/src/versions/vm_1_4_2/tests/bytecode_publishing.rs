@@ -3,12 +3,9 @@ use zksync_utils::bytecode::compress_bytecode;
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_1_4_2::{
-        tests::{
-            tester::{DeployContractsTx, TxType, VmTesterBuilder},
-            utils::read_test_contract,
-        },
-        HistoryEnabled,
+    vm_1_4_2::tests::{
+        tester::{DeployContractsTx, TxType, VmTesterBuilder},
+        utils::read_test_contract,
     },
 };
 

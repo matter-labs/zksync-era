@@ -11,12 +11,9 @@ use zksync_types::{
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_1_4_2::{
-        tests::{
-            tester::{Account, VmTester, VmTesterBuilder},
-            utils::read_many_owners_custom_account_contract,
-        },
-        HistoryDisabled,
+    vm_1_4_2::tests::{
+        tester::{Account, VmTester, VmTesterBuilder},
+        utils::read_many_owners_custom_account_contract,
     },
 };
 

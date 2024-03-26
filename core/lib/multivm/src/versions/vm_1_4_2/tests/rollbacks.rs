@@ -15,7 +15,7 @@ use crate::{
             utils::read_test_contract,
         },
         types::internals::ZkSyncVmState,
-        BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, VmTracer,
+        BootloaderState, HistoryMode, SimpleMemory, ToTracerPointer, VmTracer,
     },
 };
 

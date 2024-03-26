@@ -18,12 +18,9 @@ use crate::{
         ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface,
         VmInterfaceHistoryEnabled,
     },
-    vm_1_4_2::{
-        tests::{
-            tester::VmTesterBuilder,
-            utils::{read_complex_upgrade, verify_required_storage},
-        },
-        HistoryEnabled,
+    vm_1_4_2::tests::{
+        tester::VmTesterBuilder,
+        utils::{read_complex_upgrade, verify_required_storage},
     },
 };
 

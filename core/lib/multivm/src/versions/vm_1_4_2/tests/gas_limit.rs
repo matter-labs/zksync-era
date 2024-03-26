@@ -5,7 +5,6 @@ use crate::{
     vm_1_4_2::{
         constants::{BOOTLOADER_HEAP_PAGE, TX_DESCRIPTION_OFFSET, TX_GAS_LIMIT_OFFSET},
         tests::tester::VmTesterBuilder,
-        HistoryDisabled,
     },
 };
 

@@ -6,7 +6,6 @@ use crate::{
     vm_1_4_2::{
         constants::BLOCK_GAS_LIMIT,
         tests::{tester::VmTesterBuilder, utils::read_precompiles_contract},
-        HistoryEnabled,
     },
 };
 

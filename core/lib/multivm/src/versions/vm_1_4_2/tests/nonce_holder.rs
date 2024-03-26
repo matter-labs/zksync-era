@@ -11,7 +11,6 @@ use crate::{
             utils::read_nonce_holder_tester,
         },
         types::internals::TransactionData,
-        HistoryEnabled,
     },
 };
 

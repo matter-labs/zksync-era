@@ -2,12 +2,9 @@ use zksync_types::{Execute, H160};
 
 use crate::{
     interface::{TxExecutionMode, TxRevertReason, VmRevertReason},
-    vm_1_4_2::{
-        tests::{
-            tester::{ExpectedError, TransactionTestInfo, VmTesterBuilder},
-            utils::{get_execute_error_calldata, read_error_contract, BASE_SYSTEM_CONTRACTS},
-        },
-        HistoryEnabled,
+    vm_1_4_2::tests::{
+        tester::{ExpectedError, TransactionTestInfo, VmTesterBuilder},
+        utils::{get_execute_error_calldata, read_error_contract, BASE_SYSTEM_CONTRACTS},
     },
 };
 

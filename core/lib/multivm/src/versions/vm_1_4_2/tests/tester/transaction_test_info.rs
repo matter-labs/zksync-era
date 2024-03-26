@@ -5,7 +5,7 @@ use crate::{
         CurrentExecutionState, ExecutionResult, Halt, TxRevertReason, VmExecutionMode,
         VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
     },
-    vm_1_4_2::{tests::tester::vm_tester::VmTester, HistoryEnabled},
+    vm_1_4_2::tests::tester::vm_tester::VmTester,
 };
 
 #[derive(Debug, Clone)]

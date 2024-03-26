@@ -23,7 +23,7 @@ use crate::{
         },
         tests::tester::{get_empty_storage, InMemoryStorageView, VmTesterBuilder},
         tracers::PubdataTracer,
-        HistoryEnabled, TracerDispatcher,
+        TracerDispatcher,
     },
 };
 

@@ -4,11 +4,7 @@ use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics
 use zk_evm_1_4_1::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
-use crate::vm_1_4_2::{
-    old_vm::{history_recorder::HistoryEnabled, oracles::OracleWithHistory},
-    types::internals::VmSnapshot,
-    vm::Vm,
-};
+use crate::vm_1_4_2::{old_vm::oracles::OracleWithHistory, types::internals::VmSnapshot, vm::Vm};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "stage", rename_all = "snake_case")]
@@ -22,7 +18,7 @@ enum RollbackStage {
 }
 
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "server_vm")]
+#[metrics(prefix = "server_vm_1_4_2")]
 struct VmMetrics {
     #[metrics(buckets = Buckets::LATENCIES)]
     rollback_time: Family<RollbackStage, Histogram<Duration>>,

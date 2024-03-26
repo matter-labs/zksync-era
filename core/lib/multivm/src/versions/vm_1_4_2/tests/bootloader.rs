@@ -8,7 +8,6 @@ use crate::{
             tester::VmTesterBuilder,
             utils::{get_bootloader, verify_required_memory, BASE_SYSTEM_CONTRACTS},
         },
-        HistoryEnabled,
     },
 };
 

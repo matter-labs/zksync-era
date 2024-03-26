@@ -3,12 +3,9 @@ use zksync_types::get_nonce_key;
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_1_4_2::{
-        tests::{
-            tester::{Account, TxType, VmTesterBuilder},
-            utils::read_test_contract,
-        },
-        HistoryDisabled,
+    vm_1_4_2::tests::{
+        tester::{Account, TxType, VmTesterBuilder},
+        utils::read_test_contract,
     },
 };
 

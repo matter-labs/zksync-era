@@ -6,7 +6,6 @@ use crate::{
             utils::read_test_contract,
         },
         types::internals::TransactionData,
-        HistoryEnabled,
     },
 };
 

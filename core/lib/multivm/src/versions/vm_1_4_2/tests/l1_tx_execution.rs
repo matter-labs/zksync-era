@@ -17,7 +17,6 @@ use crate::{
             utils::{read_test_contract, verify_required_storage, BASE_SYSTEM_CONTRACTS},
         },
         types::internals::TransactionData,
-        HistoryEnabled,
     },
 };
 

@@ -25,7 +25,7 @@ use crate::{
         },
         tests::tester::{default_l1_batch, VmTesterBuilder},
         utils::l2_blocks::get_l2_block_hash_key,
-        HistoryEnabled, Vm,
+        Vm,
     },
     HistoryMode,
 };

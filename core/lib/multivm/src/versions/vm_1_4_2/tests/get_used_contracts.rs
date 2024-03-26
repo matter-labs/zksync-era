@@ -14,7 +14,7 @@ use crate::{
             tester::{TxType, VmTesterBuilder},
             utils::{read_test_contract, BASE_SYSTEM_CONTRACTS},
         },
-        HistoryDisabled, Vm,
+        Vm,
     },
     HistoryMode,
 };

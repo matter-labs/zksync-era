@@ -2,7 +2,7 @@ use zksync_types::{Address, Execute, U256};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_1_4_2::{constants::BLOCK_GAS_LIMIT, tests::tester::VmTesterBuilder, HistoryEnabled},
+    vm_1_4_2::{constants::BLOCK_GAS_LIMIT, tests::tester::VmTesterBuilder},
 };
 
 // Checks that estimated number of circuits for simple transfer doesn't differ much

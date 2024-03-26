@@ -14,7 +14,6 @@ use crate::{
             utils::{get_balance, read_test_contract, verify_required_storage},
         },
         utils::fee::get_batch_base_fee,
-        HistoryEnabled,
     },
 };
 
