@@ -1,4 +1,4 @@
-use std::{future, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
@@ -136,22 +136,27 @@ async fn init_tasks(
         config.optional.miniblock_seal_queue_capacity,
     );
     task_handles.push(tokio::spawn(miniblock_sealer.run()));
+
     let pool = connection_pool.clone();
+    let mut stop_receiver_for_task = stop_receiver.clone();
     task_handles.push(tokio::spawn(async move {
-        loop {
+        while !*stop_receiver_for_task.borrow_and_update() {
             let protocol_version = pool
                 .connection()
-                .await
-                .unwrap()
+                .await?
                 .protocol_versions_dal()
                 .last_used_version_id()
                 .await
                 .map(|version| version as u16);
 
-            EN_METRICS.version[&(format!("{}", version), protocol_version)].set(1);
+            EN_METRICS.version[&(version.to_string(), protocol_version)].set(1);
 
-            tokio::time::sleep(Duration::from_secs(10)).await;
+            // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
+            tokio::time::timeout(Duration::from_secs(10), stop_receiver_for_task.changed())
+                .await
+                .ok();
         }
+        Ok(())
     }));
 
     let state_keeper = build_state_keeper(
@@ -516,6 +521,7 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");
+    let (stop_sender, stop_receiver) = watch::channel(false);
 
     let app_health = Arc::new(AppHealthCheck::new(
         config.optional.healthcheck_slow_time_limit(),
@@ -534,25 +540,34 @@ async fn main() -> anyhow::Result<()> {
         app_health.clone(),
     );
     // Start scraping Postgres metrics before store initialization as well.
-    let metrics_pool = connection_pool.clone();
+    let pool_for_metrics = connection_pool.clone();
+    let mut stop_receiver_for_metrics = stop_receiver.clone();
+    let metrics_task = tokio::spawn(async move {
+        tokio::select! {
+            () = PostgresMetrics::run_scraping(pool_for_metrics, Duration::from_secs(60)) => {
+                tracing::warn!("Postgres metrics scraping unexpectedly stopped");
+            }
+            _ = stop_receiver_for_metrics.changed() => {
+                tracing::info!("Stop signal received, Postgres metrics scraping is shutting down");
+            }
+        }
+        Ok(())
+    });
+
     let version_sync_task_pool = connection_pool.clone();
     let version_sync_task_main_node_client = main_node_client.clone();
-    let mut task_handles = vec![
-        tokio::spawn(async move {
-            PostgresMetrics::run_scraping(metrics_pool, Duration::from_secs(60)).await;
-            Ok(())
-        }),
-        tokio::spawn(async move {
-            version_sync_task::sync_versions(
-                version_sync_task_pool,
-                version_sync_task_main_node_client,
-            )
-            .await?;
-            future::pending::<()>().await;
-            // ^ Since this is run as a task, we don't want it to exit on success (this would shut down the node).
-            Ok(())
-        }),
-    ];
+    let mut stop_receiver_for_version_sync = stop_receiver.clone();
+    let version_sync_task = tokio::spawn(async move {
+        version_sync_task::sync_versions(
+            version_sync_task_pool,
+            version_sync_task_main_node_client,
+        )
+        .await?;
+
+        stop_receiver_for_version_sync.changed().await.ok();
+        Ok(())
+    });
+    let mut task_handles = vec![metrics_task, version_sync_task];
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(
@@ -611,7 +626,6 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("Rollback successfully completed");
     }
 
-    let (stop_sender, stop_receiver) = watch::channel(false);
     init_tasks(
         &config,
         connection_pool.clone(),

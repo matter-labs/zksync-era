@@ -387,9 +387,9 @@ impl ReorgDetector {
         .map(L1BatchNumber)
     }
 
-    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> Result<(), Error> {
+    pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> Result<(), Error> {
         self.event_handler.initialize();
-        while !*stop_receiver.borrow() {
+        while !*stop_receiver.borrow_and_update() {
             match self.check_consistency().await {
                 Err(err) if err.is_transient() => {
                     tracing::warn!("Following transient error occurred: {err}");
@@ -398,7 +398,10 @@ impl ReorgDetector {
                 Err(err) => return Err(err),
                 Ok(()) => {}
             }
-            tokio::time::sleep(self.sleep_interval).await;
+            // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
+            tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
+                .await
+                .ok();
         }
         self.event_handler.start_shutting_down();
         tracing::info!("Shutting down reorg detector");
