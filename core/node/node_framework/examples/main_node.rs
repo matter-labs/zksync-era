@@ -25,6 +25,7 @@ use zksync_env_config::FromEnv;
 use zksync_node_framework::{
     implementations::layers::{
         commitment_generator::CommitmentGeneratorLayer,
+        contract_verification_api::ContractVerificationApiLayer,
         eth_sender::EthSenderLayer,
         eth_watch::EthWatchLayer,
         healtcheck_server::HealthCheckLayer,
@@ -32,9 +33,11 @@ use zksync_node_framework::{
         l1_gas::SequencerL1GasLayer,
         metadata_calculator::MetadataCalculatorLayer,
         object_store::ObjectStoreLayer,
+        pk_signing_eth_client::PKSigningEthClientLayer,
         pools_layer::PoolsLayerBuilder,
         proof_data_handler::ProofDataHandlerLayer,
         query_eth_client::QueryEthClientLayer,
+        sigint::SigintHandlerLayer,
         state_keeper::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
             StateKeeperLayer,
@@ -60,6 +63,11 @@ impl MainNodeBuilder {
         }
     }
 
+    fn add_sigint_handler_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(SigintHandlerLayer);
+        Ok(self)
+    }
+
     fn add_pools_layer(mut self) -> anyhow::Result<Self> {
         let config = PostgresConfig::from_env()?;
         let pools_layer = PoolsLayerBuilder::empty(config)
@@ -68,6 +76,15 @@ impl MainNodeBuilder {
             .with_prover(true)
             .build();
         self.node.add_layer(pools_layer);
+        Ok(self)
+    }
+
+    fn add_pk_signing_client_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(PKSigningEthClientLayer::new(
+            ETHSenderConfig::from_env()?,
+            ContractsConfig::from_env()?,
+            ETHClientConfig::from_env()?,
+        ));
         Ok(self)
     }
 
@@ -282,6 +299,12 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_contract_verification_api_layer(mut self) -> anyhow::Result<Self> {
+        let config = ApiConfig::from_env()?.contract_verification;
+        self.node.add_layer(ContractVerificationApiLayer(config));
+        Ok(self)
+    }
+
     fn build(mut self) -> Result<ZkStackService, ZkStackServiceError> {
         self.node.build()
     }
@@ -299,6 +322,7 @@ fn main() -> anyhow::Result<()> {
         .build();
 
     MainNodeBuilder::new()
+        .add_sigint_handler_layer()?
         .add_pools_layer()?
         .add_query_eth_client_layer()?
         .add_sequencer_l1_gas_layer()?
@@ -306,6 +330,7 @@ fn main() -> anyhow::Result<()> {
         .add_metadata_calculator_layer()?
         .add_state_keeper_layer()?
         .add_eth_watch_layer()?
+        .add_pk_signing_client_layer()?
         .add_eth_sender_layer()?
         .add_proof_data_handler_layer()?
         .add_healthcheck_layer()?
@@ -315,6 +340,7 @@ fn main() -> anyhow::Result<()> {
         .add_ws_web3_api_layer()?
         .add_house_keeper_layer()?
         .add_commitment_generator_layer()?
+        .add_contract_verification_api_layer()?
         .build()?
         .run()?;
 

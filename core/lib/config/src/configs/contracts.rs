@@ -2,16 +2,14 @@
 use serde::Deserialize;
 // Workspace uses
 use zksync_basic_types::{Address, H256};
-#[derive(Debug, Deserialize, Clone, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum ProverAtGenesis {
-    Fri,
-    Old,
-}
 
 /// Data about deployed contracts.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ContractsConfig {
+    pub genesis_root: Option<H256>,
+    pub genesis_rollup_leaf_index: Option<u64>,
+    pub genesis_batch_commitment: Option<H256>,
+    pub genesis_protocol_version: Option<u16>,
     pub governance_addr: Address,
     pub mailbox_facet_addr: Address,
     pub executor_facet_addr: Address,
@@ -38,7 +36,6 @@ pub struct ContractsConfig {
     pub fri_recursion_scheduler_level_vk_hash: H256,
     pub fri_recursion_node_level_vk_hash: H256,
     pub fri_recursion_leaf_level_vk_hash: H256,
-    pub prover_at_genesis: ProverAtGenesis,
     pub snark_wrapper_vk_hash: H256,
 
     // These contracts will be used after shared bridge integration.
@@ -56,6 +53,8 @@ impl ContractsConfig {
     /// Same goes for hashes.
     pub fn for_tests() -> Self {
         Self {
+            genesis_root: Some(H256::repeat_byte(0x01)),
+            genesis_rollup_leaf_index: Some(26),
             mailbox_facet_addr: Address::repeat_byte(0x01),
             executor_facet_addr: Address::repeat_byte(0x02),
             admin_facet_addr: Address::repeat_byte(0x03),
@@ -83,12 +82,13 @@ impl ContractsConfig {
             fri_recursion_node_level_vk_hash: H256::repeat_byte(0x07),
             fri_recursion_leaf_level_vk_hash: H256::repeat_byte(0x08),
             governance_addr: Address::repeat_byte(0x13),
-            prover_at_genesis: ProverAtGenesis::Fri,
             snark_wrapper_vk_hash: H256::repeat_byte(0x09),
             bridgehub_proxy_addr: Some(Address::repeat_byte(0x14)),
             bridgehub_impl_addr: Some(Address::repeat_byte(0x15)),
             state_transition_proxy_addr: Some(Address::repeat_byte(0x16)),
             state_transition_impl_addr: Some(Address::repeat_byte(0x17)),
+            genesis_batch_commitment: Some(H256::repeat_byte(0x17)),
+            genesis_protocol_version: Some(22),
         }
     }
 }

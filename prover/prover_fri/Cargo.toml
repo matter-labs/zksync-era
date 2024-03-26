@@ -1,45 +1,46 @@
 [package]
 name = "zksync_prover_fri"
-version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
-
-zksync_types = { path = "../../core/lib/types" }
-prover_dal = { path = "../prover_dal" }
-zksync_config = { path = "../../core/lib/config" }
-zksync_env_config = { path = "../../core/lib/env_config" }
-prometheus_exporter = { path = "../../core/lib/prometheus_exporter" }
-vlog = { path = "../../core/lib/vlog" }
-zksync_object_store = { path = "../../core/lib/object_store" }
-zksync_queued_job_processor = { path = "../../core/lib/queued_job_processor" }
-zksync_prover_fri_utils = { path = "../prover_fri_utils" }
-zksync_prover_fri_types = { path = "../prover_fri_types" }
-zksync_utils = { path = "../../core/lib/utils" }
-vk_setup_data_generator_server_fri = { path = "../vk_setup_data_generator_server_fri" }
-shivini = { git = "https://github.com/matter-labs/era-shivini.git", branch = "v1.4.2", optional = true, features = [
+vise.workspace = true
+zksync_types.workspace = true
+prover_dal.workspace = true
+zksync_config.workspace = true
+zksync_env_config.workspace = true
+prometheus_exporter.workspace = true
+vlog.workspace = true
+zksync_object_store.workspace = true
+zksync_queued_job_processor.workspace = true
+zksync_prover_fri_utils.workspace = true
+zksync_prover_fri_types.workspace = true
+zksync_utils.workspace = true
+vk_setup_data_generator_server_fri.workspace = true
+shivini = { workspace = true, optional = true, features = [
     "circuit_definitions",
     "zksync",
 ] }
 
-zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.2" }
-circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.2", features = [
-    "log_tracing",
-] }
+zkevm_test_harness.workspace = true
+circuit_definitions = { workspace = true, features = [ "log_tracing" ] }
 
-anyhow = "1.0"
-tracing = "0.1"
-tokio = { version = "1", features = ["time", "macros"] }
-futures = { version = "0.3", features = ["compat"] }
-ctrlc = { version = "3.1", features = ["termination"] }
-serde = { version = "1.0", features = ["derive"] }
-async-trait = "0.1"
-local-ip-address = "0.5.0"
-reqwest = { version = "0.11", features = ["blocking"] }
-regex = "1.7.2"
+anyhow.workspace = true
+tracing.workspace = true
+tokio = { workspace = true, features = ["time", "macros"] }
+futures = { workspace = true, features = ["compat"] }
+ctrlc = { workspace = true, features = ["termination"] }
+serde = { workspace = true, features = ["derive"] }
+async-trait.workspace = true
+local-ip-address.workspace = true
+reqwest = { workspace = true, features = ["blocking"] }
+regex.workspace = true
 
 [features]
 default = []

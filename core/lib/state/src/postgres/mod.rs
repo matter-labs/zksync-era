@@ -16,7 +16,7 @@ use zksync_types::{L1BatchNumber, MiniblockNumber, StorageKey, StorageValue, H25
 
 use self::metrics::{Method, ValuesUpdateStage, CACHE_METRICS, STORAGE_METRICS};
 use crate::{
-    cache::{Cache, CacheValue},
+    cache::{lru_cache::LruCache, CacheValue},
     ReadStorage,
 };
 
@@ -25,7 +25,7 @@ mod metrics;
 mod tests;
 
 /// Type alias for smart contract source code cache.
-type FactoryDepsCache = Cache<H256, Vec<u8>>;
+type FactoryDepsCache = LruCache<H256, Vec<u8>>;
 
 impl CacheValue<H256> for Vec<u8> {
     fn cache_weight(&self) -> u32 {
@@ -34,7 +34,7 @@ impl CacheValue<H256> for Vec<u8> {
 }
 
 /// Type alias for initial writes caches.
-type InitialWritesCache = Cache<StorageKey, L1BatchNumber>;
+type InitialWritesCache = LruCache<StorageKey, L1BatchNumber>;
 
 impl CacheValue<StorageKey> for L1BatchNumber {
     #[allow(clippy::cast_possible_truncation)] // doesn't happen in practice
@@ -76,7 +76,7 @@ struct ValuesCacheInner {
     /// in `PostgresStorage` (i.e., the latest sealed miniblock for which storage logs should
     /// be taken into account).
     valid_for: MiniblockNumber,
-    values: Cache<H256, TimestampedStorageValue>,
+    values: LruCache<H256, TimestampedStorageValue>,
 }
 
 /// Cache for the VM storage. Only caches values for a single VM storage snapshot, which logically
@@ -101,7 +101,7 @@ impl ValuesCache {
     fn new(capacity: u64) -> Self {
         let inner = ValuesCacheInner {
             valid_for: MiniblockNumber(0),
-            values: Cache::new("values_cache", capacity),
+            values: LruCache::new("values_cache", capacity),
         };
         Self(Arc::new(RwLock::new(inner)))
     }

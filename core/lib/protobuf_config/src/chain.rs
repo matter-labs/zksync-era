@@ -3,7 +3,7 @@ use zksync_basic_types::network::Network;
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::{parse_h160, proto::chain as proto};
+use crate::{parse_h160, parse_h256, proto::chain as proto};
 
 impl proto::Network {
     fn new(n: &Network) -> Self {
@@ -140,6 +140,18 @@ impl ProtoRepr for proto::StateKeeper {
                 .map(|x| x.try_into())
                 .transpose()
                 .context("enum_index_migration_chunk_size")?,
+            bootloader_hash: self
+                .bootloader_hash
+                .as_ref()
+                .map(|a| parse_h256(a))
+                .transpose()
+                .context("bootloader_hash")?,
+            default_aa_hash: self
+                .default_aa_hash
+                .as_ref()
+                .map(|a| parse_h256(a))
+                .transpose()
+                .context("default_aa_hash")?,
         })
     }
 
@@ -176,6 +188,8 @@ impl ProtoRepr for proto::StateKeeper {
                 .enum_index_migration_chunk_size
                 .as_ref()
                 .map(|x| (*x).try_into().unwrap()),
+            bootloader_hash: this.bootloader_hash.map(|a| a.as_bytes().into()),
+            default_aa_hash: this.default_aa_hash.map(|a| a.as_bytes().into()),
         }
     }
 }
