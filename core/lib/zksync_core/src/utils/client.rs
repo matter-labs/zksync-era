@@ -1,29 +1,101 @@
 use std::{
-    future::Future,
-    pin::Pin,
+    fmt::Debug,
     sync::{Arc, Mutex},
-    task::{ready, Context, Poll},
     time::Duration,
 };
 
-use axum::{
-    body::Body,
-    http::{Request, Response},
+use async_trait::async_trait;
+use serde::de::DeserializeOwned;
+use tokio::time::Instant;
+use zksync_web3_decl::jsonrpsee::{
+    core::{
+        client::{BatchResponse, ClientT, Error, Subscription, SubscriptionClientT},
+        params::BatchRequestBuilder,
+        traits::ToRpcParams,
+    },
+    http_client::{HttpClient, HttpClientBuilder},
 };
-use tokio::time::{Instant, Sleep};
-use tower::{util::BoxCloneService, Layer, Service};
-use zksync_web3_decl::jsonrpsee::http_client::{
-    transport::Error as TransportError, HttpClient, HttpClientBuilder,
-};
-
-type HttpClientLayers = BoxCloneService<Request<Body>, Response<Body>, TransportError>;
 
 #[derive(Debug, Clone)]
-pub struct L2Client(HttpClient<HttpClientLayers>);
+pub struct L2Client {
+    inner: HttpClient,
+    rate_limit: Option<SharedRateLimit>,
+}
 
 impl L2Client {
     pub fn builder() -> L2ClientBuilder {
         L2ClientBuilder::default()
+    }
+}
+
+#[async_trait]
+impl ClientT for L2Client {
+    async fn notification<Params>(&self, method: &str, params: Params) -> Result<(), Error>
+    where
+        Params: ToRpcParams + Send,
+    {
+        if let Some(rate_limit) = &self.rate_limit {
+            rate_limit.ready(1).await;
+        }
+        self.inner.notification(method, params).await
+    }
+
+    async fn request<R, Params>(&self, method: &str, params: Params) -> Result<R, Error>
+    where
+        R: DeserializeOwned,
+        Params: ToRpcParams + Send,
+    {
+        if let Some(rate_limit) = &self.rate_limit {
+            rate_limit.ready(1).await;
+        }
+        self.inner.request(method, params).await
+    }
+
+    async fn batch_request<'a, R>(
+        &self,
+        batch: BatchRequestBuilder<'a>,
+    ) -> Result<BatchResponse<'a, R>, Error>
+    where
+        R: DeserializeOwned + Debug + 'a,
+    {
+        if let Some(rate_limit) = &self.rate_limit {
+            rate_limit.ready(batch.iter().count()).await;
+        }
+        self.inner.batch_request(batch).await
+    }
+}
+
+#[async_trait]
+impl SubscriptionClientT for L2Client {
+    async fn subscribe<'a, Notif, Params>(
+        &self,
+        subscribe_method: &'a str,
+        params: Params,
+        unsubscribe_method: &'a str,
+    ) -> Result<Subscription<Notif>, Error>
+    where
+        Params: ToRpcParams + Send,
+        Notif: DeserializeOwned,
+    {
+        if let Some(rate_limit) = &self.rate_limit {
+            rate_limit.ready(1).await;
+        }
+        self.inner
+            .subscribe(subscribe_method, params, unsubscribe_method)
+            .await
+    }
+
+    async fn subscribe_to_method<'a, Notif>(
+        &self,
+        method: &'a str,
+    ) -> Result<Subscription<Notif>, Error>
+    where
+        Notif: DeserializeOwned,
+    {
+        if let Some(rate_limit) = &self.rate_limit {
+            rate_limit.ready(1).await;
+        }
+        self.inner.subscribe_to_method(method).await
     }
 }
 
@@ -45,69 +117,13 @@ impl L2ClientBuilder {
 
     /// Builds the client.
     pub fn build(self, url: &str) -> anyhow::Result<L2Client> {
-        let rate_limit_layer = self.rate_limit.map(|(count, per)| {
-            tower::layer::layer_fn(move |svc| SharedRateLimit::new(svc, count, per))
-        });
-        let service_builder = tower::ServiceBuilder::new()
-            .boxed_clone()
-            .layer(OptionServiceLayer(rate_limit_layer));
-        let inner = HttpClientBuilder::default()
-            .set_http_middleware(service_builder)
-            .build(url)?;
-        Ok(L2Client(inner))
-    }
-}
-
-/// Service wrapper produced by [`OptionServiceLayer`]. This is required because the optional layer wrapper provided
-/// by `tower` boxes the error type, which allows supporting more use cases, but is detrimental in our case
-/// (since our layers don't change the response / error / future types).
-#[derive(Debug, Clone)]
-enum OptionService<S, L: Layer<S>> {
-    Base(S),
-    Wrapped(L::Service),
-}
-
-impl<Req, S, L> Service<Req> for OptionService<S, L>
-where
-    S: Service<Req>,
-    L: Layer<S>,
-    L::Service: Service<Req, Response = S::Response, Error = S::Error, Future = S::Future>,
-{
-    type Response = S::Response;
-    type Error = S::Error;
-    type Future = S::Future;
-
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        match self {
-            Self::Base(service) => service.poll_ready(cx),
-            Self::Wrapped(wrapped) => wrapped.poll_ready(cx),
-        }
-    }
-
-    fn call(&mut self, req: Req) -> Self::Future {
-        match self {
-            Self::Base(service) => service.call(req),
-            Self::Wrapped(wrapped) => wrapped.call(req),
-        }
-    }
-}
-
-/// Optional layer wrapper that works if the underlying layer doesn't change the response / error / future types
-/// of the service.
-#[derive(Debug, Clone)]
-struct OptionServiceLayer<L>(Option<L>);
-
-impl<S, L> Layer<S> for OptionServiceLayer<L>
-where
-    L: Layer<S>,
-{
-    type Service = OptionService<S, L>;
-
-    fn layer(&self, inner: S) -> Self::Service {
-        match &self.0 {
-            Some(layer) => OptionService::Wrapped(layer.layer(inner)),
-            None => OptionService::Base(inner),
-        }
+        let inner = HttpClientBuilder::default().build(url)?;
+        Ok(L2Client {
+            inner,
+            rate_limit: self
+                .rate_limit
+                .map(|(count, per)| SharedRateLimit::new(count, per)),
+        })
     }
 }
 
@@ -118,100 +134,79 @@ enum SharedRateLimitState {
 }
 
 #[derive(Debug)]
-struct SharedRateLimit<S> {
-    inner: S,
+struct SharedRateLimit {
     rate_limit: usize,
     rate_limit_window: Duration,
     state: Arc<Mutex<SharedRateLimitState>>,
-    sleep: Pin<Box<Sleep>>,
 }
 
-impl<S: Clone> Clone for SharedRateLimit<S> {
+impl Clone for SharedRateLimit {
     fn clone(&self) -> Self {
-        let now = Instant::now();
         Self {
-            inner: self.inner.clone(),
             rate_limit: self.rate_limit,
             rate_limit_window: self.rate_limit_window,
             state: self.state.clone(),
-            sleep: Box::pin(tokio::time::sleep_until(now)),
         }
     }
 }
 
-impl<S> SharedRateLimit<S> {
-    fn new(service: S, rate_limit: usize, rate_limit_window: Duration) -> Self {
-        let now = Instant::now();
+impl SharedRateLimit {
+    fn new(rate_limit: usize, rate_limit_window: Duration) -> Self {
         let state = Arc::new(Mutex::new(SharedRateLimitState::Ready {
-            until: now,
+            until: Instant::now(),
             permits: rate_limit,
         }));
         Self {
-            inner: service,
             rate_limit,
             rate_limit_window,
             state,
-            sleep: Box::pin(tokio::time::sleep_until(now)),
         }
     }
-}
 
-impl<Req, S: Service<Req>> Service<Req> for SharedRateLimit<S> {
-    type Response = S::Response;
-    type Error = S::Error;
-    type Future = S::Future;
-
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        let mut state = self.state.lock().expect("state is poisoned");
-        match &*state {
-            SharedRateLimitState::Ready { .. } => {
-                return Poll::Ready(ready!(self.inner.poll_ready(cx)))
-            }
-            SharedRateLimitState::Limited { until } => {
-                self.sleep.as_mut().reset(*until);
-                ready!(self.sleep.as_mut().poll(cx));
-                // At this point, local time is `>= until`; thus, the state should be reset.
-                *state = SharedRateLimitState::Ready {
-                    until: Instant::now() + self.rate_limit_window,
-                    permits: self.rate_limit,
-                };
-            }
-        }
-
-        drop(state);
-        Poll::Ready(ready!(self.inner.poll_ready(cx)))
-    }
-
-    fn call(&mut self, req: Req) -> Self::Future {
-        let mut state = self.state.lock().expect("state is poisoned");
-        let SharedRateLimitState::Ready { until, permits } = &mut *state else {
-            panic!("service is not ready; Service::poll_ready should have been called first");
+    async fn ready(&self, permit_count: usize) {
+        let mut state = loop {
+            // A separate scope is required to not hold a mutex guard across the `await` point,
+            // which is not only semantically incorrect, but also makes the future `!Send`.
+            let until = {
+                let mut state = self.state.lock().expect("state is poisoned");
+                let now = Instant::now();
+                match &*state {
+                    SharedRateLimitState::Ready { .. } => break state,
+                    SharedRateLimitState::Limited { until }
+                        if until.duration_since(now) == Duration::ZERO =>
+                    {
+                        // At this point, local time is `>= until`; thus, the state should be reset.
+                        // Because we hold an exclusive lock on `state`, there's no risk of a data race.
+                        *state = SharedRateLimitState::Ready {
+                            until: now + self.rate_limit_window,
+                            permits: self.rate_limit,
+                        };
+                        break state;
+                    }
+                    SharedRateLimitState::Limited { until } => *until,
+                }
+            };
+            tokio::time::sleep_until(until).await;
         };
+        let SharedRateLimitState::Ready { until, permits } = &mut *state else {
+            unreachable!();
+        };
+
         let now = Instant::now();
         // Reset the period if it has elapsed.
         if now >= *until {
             *until = now + self.rate_limit_window;
             *permits = self.rate_limit;
         }
-
-        if *permits > 1 {
-            *permits -= 1;
-        } else {
+        *permits = permits.saturating_sub(permit_count);
+        if *permits == 0 {
             *state = SharedRateLimitState::Limited { until: *until };
         }
-        drop(state);
-
-        self.inner.call(req)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        convert::Infallible,
-        future::{ready, Ready},
-    };
-
     use futures::future;
     use rand::{thread_rng, Rng};
     use test_casing::test_casing;
@@ -221,24 +216,9 @@ mod tests {
     #[derive(Debug, Clone, Default)]
     struct MockService(Arc<Mutex<Vec<Instant>>>);
 
-    impl Service<()> for MockService {
-        type Response = ();
-        type Error = Infallible;
-        type Future = Ready<Result<(), Infallible>>;
-
-        fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-            Poll::Ready(Ok(()))
-        }
-
-        fn call(&mut self, _req: ()) -> Self::Future {
-            self.0.lock().expect("poisoned").push(Instant::now());
-            ready(Ok(()))
-        }
-    }
-
-    async fn poll_service(service: &mut SharedRateLimit<MockService>) {
-        future::poll_fn(|cx| service.poll_ready(cx)).await.unwrap();
-        service.call(()).await.unwrap();
+    async fn poll_service(limiter: &SharedRateLimit, service: &MockService) {
+        limiter.ready(1).await;
+        service.0.lock().unwrap().push(Instant::now());
     }
 
     #[test_casing(3, [1, 2, 3])]
@@ -247,12 +227,12 @@ mod tests {
         tokio::time::pause();
 
         let service = MockService::default();
-        let mut service = SharedRateLimit::new(service, rate_limit, Duration::from_secs(1));
+        let limiter = SharedRateLimit::new(rate_limit, Duration::from_secs(1));
         for _ in 0..10 {
-            poll_service(&mut service).await;
+            poll_service(&limiter, &service).await;
         }
 
-        let timestamps = service.inner.0.lock().unwrap().clone();
+        let timestamps = service.0.lock().unwrap().clone();
         assert_eq!(timestamps.len(), 10);
         assert_timestamps_spacing_with_mock_clock(&timestamps, rate_limit);
     }
@@ -262,14 +242,14 @@ mod tests {
         tokio::time::pause();
 
         let service = MockService::default();
-        let mut service = SharedRateLimit::new(service, 2, Duration::from_secs(1));
-        poll_service(&mut service).await;
+        let limiter = SharedRateLimit::new(2, Duration::from_secs(1));
+        poll_service(&limiter, &service).await;
         tokio::time::sleep(Duration::from_millis(300)).await;
-        poll_service(&mut service).await;
-        poll_service(&mut service).await; // should wait for the rate limit window to reset
-        poll_service(&mut service).await;
+        poll_service(&limiter, &service).await;
+        poll_service(&limiter, &service).await; // should wait for the rate limit window to reset
+        poll_service(&limiter, &service).await;
 
-        let timestamps = service.inner.0.lock().unwrap().clone();
+        let timestamps = service.0.lock().unwrap().clone();
         assert_eq!(timestamps.len(), 4);
         let diffs = timestamp_diffs(&timestamps);
         assert_eq!(
@@ -309,16 +289,17 @@ mod tests {
         tokio::time::pause();
 
         let service = MockService::default();
-        let service = SharedRateLimit::new(service, rate_limit, Duration::from_secs(1));
+        let limiter = SharedRateLimit::new(rate_limit, Duration::from_secs(1));
         let calls = (0..50).map(|_| {
-            let mut service = service.clone();
+            let service = service.clone();
+            let limiter = limiter.clone();
             async move {
-                poll_service(&mut service).await;
+                poll_service(&limiter, &service).await;
             }
         });
         future::join_all(calls).await;
 
-        let timestamps = service.inner.0.lock().unwrap().clone();
+        let timestamps = service.0.lock().unwrap().clone();
         assert_eq!(timestamps.len(), 50);
         assert_timestamps_spacing_with_mock_clock(&timestamps, rate_limit);
     }
@@ -328,18 +309,19 @@ mod tests {
     async fn rate_limiting_with_multiple_instances_and_threads(rate_limit: usize) {
         let rate_limit_window = Duration::from_millis(50);
         let service = MockService::default();
-        let service = SharedRateLimit::new(service, rate_limit, rate_limit_window);
+        let limiter = SharedRateLimit::new(rate_limit, rate_limit_window);
         let calls = (0..50).map(|_| {
-            let mut service = service.clone();
+            let service = service.clone();
+            let limiter = limiter.clone();
             tokio::spawn(async move {
                 let sleep_duration = thread_rng().gen_range(0..20);
                 tokio::time::sleep(Duration::from_millis(sleep_duration)).await;
-                poll_service(&mut service).await;
+                poll_service(&limiter, &service).await;
             })
         });
         future::try_join_all(calls).await.unwrap();
 
-        let timestamps = service.inner.0.lock().unwrap().clone();
+        let timestamps = service.0.lock().unwrap().clone();
         assert_eq!(timestamps.len(), 50);
         for window in timestamps.windows(rate_limit + 1) {
             let first_timestamp = *window.first().unwrap();
