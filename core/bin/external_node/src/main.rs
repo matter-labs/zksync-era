@@ -148,6 +148,11 @@ async fn run_tree(
     stop_receiver: watch::Receiver<bool>,
     tree_pool: ConnectionPool<Core>,
 ) -> anyhow::Result<Arc<dyn TreeApiClient>> {
+    if config.api_component_config.tree_api_url.is_some() {
+        tracing::warn!(
+            "it is a misconfiguration to run both tree api and have EN_TREE_API_URL specified"
+        );
+    }
     let metadata_calculator_config = MetadataCalculatorConfig {
         db_path: config.required.merkle_tree_path.clone(),
         mode: MerkleTreeMode::Lightweight,
@@ -347,13 +352,25 @@ async fn run_api(
     connection_pool: ConnectionPool<Core>,
     stop_receiver: watch::Receiver<bool>,
     sync_state: SyncState,
-    tree_reader: Arc<dyn TreeApiClient>,
+    tree_reader: Option<Arc<dyn TreeApiClient>>,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     main_node_client: HttpClient,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
     fee_params_fetcher: Arc<MainNodeFeeParamsFetcher>,
     components: &HashSet<Component>,
 ) -> anyhow::Result<()> {
+    let tree_reader = match tree_reader {
+        Some(tree_reader) => tree_reader,
+        None => {
+            let tree_api_url = &config
+                .api_component_config
+                .tree_api_url
+                .as_ref()
+                .context("Need to have a configured tree api url")?;
+            Arc::new(TreeApiHttpClient::new(tree_api_url))
+        }
+    };
+
     let (tx_sender, vm_barrier, cache_update_handle, proxy_cache_updater_handle) = {
         let tx_proxy = TxProxy::new(main_node_client);
         let proxy_cache_updater_pool = singleton_pool_builder
@@ -536,8 +553,6 @@ async fn init_tasks(
             )
             .await?,
         )
-    } else if let Some(tree_api_url) = &config.api_component_config.tree_api_url {
-        Some(Arc::new(TreeApiHttpClient::new(tree_api_url)))
     } else {
         None
     };
@@ -569,8 +584,6 @@ async fn init_tasks(
     };
 
     if components.contains(&Component::HttpApi) || components.contains(&Component::WsApi) {
-        let tree_reader = tree_reader.ok_or(anyhow!("Must have a tree API"))?;
-
         run_api(
             config,
             app_health,
