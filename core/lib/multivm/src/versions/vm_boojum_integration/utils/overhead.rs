@@ -9,14 +9,14 @@ use crate::vm_boojum_integration::constants::{
 
 /// Derives the overhead for processing transactions in a block.
 pub(crate) fn derive_overhead(
-    gas_limit: u64,
+    gas_limit: u32,
     gas_price_per_pubdata: u32,
     encoded_len: usize,
     coefficients: OverheadCoefficients,
 ) -> u32 {
     // Even if the gas limit is greater than the `MAX_TX_ERGS_LIMIT`, we assume that everything beyond `MAX_TX_ERGS_LIMIT`
     // will be spent entirely on publishing bytecodes and so we derive the overhead solely based on the capped value
-    let gas_limit = std::cmp::min(MAX_TX_ERGS_LIMIT as u64, gas_limit);
+    let gas_limit = std::cmp::min(MAX_TX_ERGS_LIMIT, gas_limit);
 
     // Using large `U256` type to avoid overflow
     let max_block_overhead = U256::from(block_overhead_gas(gas_price_per_pubdata));
@@ -241,7 +241,7 @@ pub(crate) fn get_amortized_overhead(
     if limit_after_deducting_overhead.as_u64() > MAX_L2_TX_GAS_LIMIT {
         // We derive the same overhead that would exist for the MAX_L2_TX_GAS_LIMIT ergs
         derive_overhead(
-            MAX_L2_TX_GAS_LIMIT,
+            MAX_L2_TX_GAS_LIMIT as u32,
             gas_per_pubdata_byte_limit,
             encoded_len.as_usize(),
             coefficients,
@@ -262,15 +262,15 @@ mod tests {
 
     // This method returns the maximum block overhead that can be charged from the user based on the binary search approach
     pub(crate) fn get_maximal_allowed_overhead_bin_search(
-        total_gas_limit: u64,
+        total_gas_limit: u32,
         gas_per_pubdata_byte_limit: u32,
         encoded_len: usize,
         coefficients: OverheadCoefficients,
     ) -> u32 {
-        let mut left_bound = if (MAX_TX_ERGS_LIMIT as u64) < total_gas_limit {
-            total_gas_limit - (MAX_TX_ERGS_LIMIT as u64)
+        let mut left_bound = if MAX_TX_ERGS_LIMIT < total_gas_limit {
+            total_gas_limit - MAX_TX_ERGS_LIMIT
         } else {
-            0u64
+            0u32
         };
         // Safe cast: the gas_limit for a transaction can not be larger than 2^32
         let mut right_bound = total_gas_limit;
@@ -278,13 +278,13 @@ mod tests {
         // The closure returns whether a certain overhead would be accepted by the bootloader.
         // It is accepted if the derived overhead (i.e. the actual overhead that the user has to pay)
         // is >= than the overhead proposed by the operator.
-        let is_overhead_accepted = |suggested_overhead: u64| {
+        let is_overhead_accepted = |suggested_overhead: u32| {
             let derived_overhead = derive_overhead(
                 total_gas_limit - suggested_overhead,
                 gas_per_pubdata_byte_limit,
                 encoded_len,
                 coefficients,
-            ) as u64;
+            );
 
             derived_overhead >= suggested_overhead
         };
@@ -317,7 +317,7 @@ mod tests {
                 get_amortized_overhead(total_gas_limit, gas_per_pubdata, encoded_len, coefficients);
 
             let result_by_binary_search = get_maximal_allowed_overhead_bin_search(
-                total_gas_limit as u64,
+                total_gas_limit,
                 gas_per_pubdata,
                 encoded_len,
                 coefficients,
@@ -334,7 +334,7 @@ mod tests {
 
         // Relatively big parameters
         let max_tx_overhead = derive_overhead(
-            MAX_TX_ERGS_LIMIT as u64,
+            MAX_TX_ERGS_LIMIT,
             5000,
             10000,
             OverheadCoefficients::new_l2(),

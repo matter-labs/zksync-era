@@ -558,7 +558,7 @@ impl TxSender {
         &self,
         vm_permit: VmPermit,
         mut tx: Transaction,
-        tx_gas_limit: u64,
+        tx_gas_limit: u32,
         gas_price_per_pubdata: u32,
         fee_model_params: BatchFeeInput,
         block_args: BlockArgs,
@@ -633,7 +633,7 @@ impl TxSender {
         &self,
         mut tx: Transaction,
         estimated_fee_scale_factor: f64,
-        acceptable_overestimation: u64,
+        acceptable_overestimation: u32,
     ) -> Result<Fee, SubmitTxError> {
         let estimation_started_at = Instant::now();
 
@@ -728,7 +728,7 @@ impl TxSender {
         let additional_gas_for_pubdata = if tx.is_l1() {
             // For L1 transactions the pubdata priced in such a way that the maximal computational
             // gas limit should be enough to cover for the pubdata as well, so no additional gas is provided there.
-            0u64
+            0u32
         } else {
             // For L2 transactions, we estimate the amount of gas needed to cover for the pubdata by creating a transaction with infinite gas limit.
             // And getting how much pubdata it used.
@@ -739,7 +739,7 @@ impl TxSender {
                 .estimate_gas_step(
                     vm_permit.clone(),
                     tx.clone(),
-                    u64::MAX,
+                    u32::MAX,
                     gas_per_pubdata_byte as u32,
                     fee_input,
                     block_args,
@@ -750,13 +750,13 @@ impl TxSender {
                 .context("estimate_gas step failed")?;
 
             // It is assumed that there is no overflow here
-            (result.statistics.pubdata_published as u64) * gas_per_pubdata_byte
+            (result.statistics.pubdata_published) * (gas_per_pubdata_byte as u32)
         };
 
         // We are using binary search to find the minimal values of gas_limit under which
         // the transaction succeeds
-        let mut lower_bound = 0u64;
-        let mut upper_bound = MAX_L2_TX_GAS_LIMIT;
+        let mut lower_bound = 0u32;
+        let mut upper_bound = MAX_L2_TX_GAS_LIMIT as u32;
         let tx_id = format!(
             "{:?}-{}",
             tx.initiator_account(),
@@ -811,8 +811,8 @@ impl TxSender {
             .observe(number_of_iterations);
 
         let tx_body_gas_limit = cmp::min(
-            MAX_L2_TX_GAS_LIMIT,
-            ((upper_bound as f64) * estimated_fee_scale_factor) as u64,
+            MAX_L2_TX_GAS_LIMIT as u32,
+            ((upper_bound as f64) * estimated_fee_scale_factor) as u32,
         );
 
         let suggested_gas_limit = tx_body_gas_limit + additional_gas_for_pubdata;
@@ -964,12 +964,12 @@ impl TxSender {
 /// but they won't even make it there, but the protection mechanisms for L1->L2 transactions will reject them on L1.
 /// TODO(X): remove this function after the upgrade is complete
 fn derive_pessimistic_overhead(
-    gas_limit: u64,
+    gas_limit: u32,
     gas_price_per_pubdata: u32,
     encoded_len: usize,
     tx_type: u8,
     vm_version: VmVersion,
-) -> u64 {
+) -> u32 {
     let current_overhead = derive_overhead(
         gas_limit,
         gas_price_per_pubdata,

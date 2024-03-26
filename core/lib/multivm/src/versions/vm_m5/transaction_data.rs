@@ -229,12 +229,12 @@ impl TransactionData {
 }
 
 pub(crate) fn derive_overhead(
-    gas_limit: u64,
+    gas_limit: u32,
     gas_price_per_pubdata: u32,
     encoded_len: usize,
 ) -> u32 {
     assert!(
-        gas_limit <= MAX_TX_ERGS_LIMIT as u64,
+        gas_limit <= MAX_TX_ERGS_LIMIT,
         "gas limit is larger than the maximal one"
     );
 
@@ -418,7 +418,7 @@ mod tests {
         // is >= than the overhead proposed by the operator.
         let is_overhead_accepted = |suggested_overhead: u32| {
             let derived_overhead = derive_overhead(
-                total_gas_limit as u64 - suggested_overhead as u64,
+                total_gas_limit - suggested_overhead,
                 gas_per_pubdata_byte_limit,
                 encoded_len,
             );
@@ -471,7 +471,7 @@ mod tests {
         test_params(0, 1, 12);
 
         // Relatively big parameters
-        let max_tx_overhead = derive_overhead(MAX_TX_ERGS_LIMIT as u64, 5000, 10000);
+        let max_tx_overhead = derive_overhead(MAX_TX_ERGS_LIMIT, 5000, 10000);
         test_params(MAX_TX_ERGS_LIMIT + max_tx_overhead, 5000, 10000);
     }
 
