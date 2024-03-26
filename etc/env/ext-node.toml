@@ -65,6 +65,7 @@ zksync_merkle_tree=info,\
 zksync_state=debug,\
 zksync_utils=debug,\
 zksync_types=info,\
+zksync_web3_decl=debug,\
 loadnext=info,\
 vm=info,\
 zksync_external_node=info,\
