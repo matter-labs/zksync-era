@@ -6,28 +6,108 @@ use std::{
     time::Duration,
 };
 
+use axum::{
+    body::Body,
+    http::{Request, Response},
+};
 use tokio::time::{Instant, Sleep};
-use tower::Service;
+use tower::{util::BoxCloneService, Layer, Service};
 use zksync_web3_decl::jsonrpsee::http_client::{
-    transport::HttpBackend, HttpClient, HttpClientBuilder,
+    transport::Error as TransportError, HttpClient, HttpClientBuilder,
 };
 
-type HttpClientLayers = SharedRateLimit<HttpBackend>;
+type HttpClientLayers = BoxCloneService<Request<Body>, Response<Body>, TransportError>;
 
 #[derive(Debug, Clone)]
 pub struct L2Client(HttpClient<HttpClientLayers>);
 
 impl L2Client {
-    pub async fn new(url: &str, rate_limit_per_second: usize) -> anyhow::Result<Self> {
-        assert!(rate_limit_per_second > 0);
+    pub fn builder() -> L2ClientBuilder {
+        L2ClientBuilder::default()
+    }
+}
 
-        let service_builder = tower::ServiceBuilder::new().layer_fn(move |service| {
-            SharedRateLimit::new(service, rate_limit_per_second, Duration::from_secs(1))
+/// Builder for the [`L2Client`].
+#[derive(Debug, Default)]
+pub struct L2ClientBuilder {
+    rate_limit: Option<(usize, Duration)>,
+}
+
+impl L2ClientBuilder {
+    /// Sets the rate limit for the client. The rate limit is applied across all client instances,
+    /// including cloned ones.
+    pub fn with_rate_limit(mut self, count: usize, per: Duration) -> Self {
+        assert!(count > 0, "Rate limit count must be positive");
+        assert!(per > Duration::ZERO, "Rate limit window must be positive");
+        self.rate_limit = Some((count, per));
+        self
+    }
+
+    /// Builds the client.
+    pub fn build(self, url: &str) -> anyhow::Result<L2Client> {
+        let rate_limit_layer = self.rate_limit.map(|(count, per)| {
+            tower::layer::layer_fn(move |svc| SharedRateLimit::new(svc, count, per))
         });
+        let service_builder = tower::ServiceBuilder::new()
+            .boxed_clone()
+            .layer(OptionServiceLayer(rate_limit_layer));
         let inner = HttpClientBuilder::default()
             .set_http_middleware(service_builder)
             .build(url)?;
-        Ok(Self(inner))
+        Ok(L2Client(inner))
+    }
+}
+
+/// Service wrapper produced by [`OptionServiceLayer`]. This is required because the optional layer wrapper provided
+/// by `tower` boxes the error type, which allows supporting more use cases, but is detrimental in our case
+/// (since our layers don't change the response / error / future types).
+#[derive(Debug, Clone)]
+enum OptionService<S, L: Layer<S>> {
+    Base(S),
+    Wrapped(L::Service),
+}
+
+impl<Req, S, L> Service<Req> for OptionService<S, L>
+where
+    S: Service<Req>,
+    L: Layer<S>,
+    L::Service: Service<Req, Response = S::Response, Error = S::Error, Future = S::Future>,
+{
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = S::Future;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        match self {
+            Self::Base(service) => service.poll_ready(cx),
+            Self::Wrapped(wrapped) => wrapped.poll_ready(cx),
+        }
+    }
+
+    fn call(&mut self, req: Req) -> Self::Future {
+        match self {
+            Self::Base(service) => service.call(req),
+            Self::Wrapped(wrapped) => wrapped.call(req),
+        }
+    }
+}
+
+/// Optional layer wrapper that works if the underlying layer doesn't change the response / error / future types
+/// of the service.
+#[derive(Debug, Clone)]
+struct OptionServiceLayer<L>(Option<L>);
+
+impl<S, L> Layer<S> for OptionServiceLayer<L>
+where
+    L: Layer<S>,
+{
+    type Service = OptionService<S, L>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        match &self.0 {
+            Some(layer) => OptionService::Wrapped(layer.layer(inner)),
+            None => OptionService::Base(inner),
+        }
     }
 }
 
@@ -38,7 +118,7 @@ enum SharedRateLimitState {
 }
 
 #[derive(Debug)]
-pub struct SharedRateLimit<S> {
+struct SharedRateLimit<S> {
     inner: S,
     rate_limit: usize,
     rate_limit_window: Duration,
