@@ -11,7 +11,7 @@ use zksync_utils::u256_to_h256;
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
+    vm_1_4_2::{
         tests::{
             tester::{TxType, VmTesterBuilder},
             utils::{read_test_contract, verify_required_storage, BASE_SYSTEM_CONTRACTS},
@@ -39,7 +39,7 @@ fn test_l1_tx_execution() {
     // TODO(PLA-537): right now we are using 4 slots instead of 7 due to 0 fee for transaction.
     let basic_initial_writes = 4;
 
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
         .with_execution_mode(TxExecutionMode::VerifyExecute)
@@ -146,7 +146,7 @@ fn test_l1_tx_execution_high_gas_limit() {
     // Usually priority transactions with dangerously gas limit should even pass the checks on the L1,
     // however, they might pass during the transition period to the new fee model, so we check that we can safely process those.
 
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
         .with_execution_mode(TxExecutionMode::VerifyExecute)

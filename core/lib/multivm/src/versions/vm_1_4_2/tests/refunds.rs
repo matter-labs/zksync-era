@@ -1,6 +1,6 @@
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
+    vm_1_4_2::{
         tests::{
             tester::{DeployContractsTx, TxType, VmTesterBuilder},
             utils::read_test_contract,
@@ -15,7 +15,7 @@ fn test_predetermined_refunded_gas() {
     // In this test, we compare the execution of the bootloader with the predefined
     // refunded gas and without them
 
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -52,7 +52,7 @@ fn test_predetermined_refunded_gas() {
     // We execute the whole block without refund tracer, because refund tracer will eventually override the provided refund.
     // But the overall result should be the same
 
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_l1_batch_env(l1_batch.clone())
         .with_execution_mode(TxExecutionMode::VerifyExecute)
@@ -105,7 +105,7 @@ fn test_predetermined_refunded_gas() {
     // In this test we put the different refund from the operator.
     // We still can't use the refund tracer, because it will override the refund.
     // But we can check that the logs and events have changed.
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_l1_batch_env(l1_batch)
         .with_execution_mode(TxExecutionMode::VerifyExecute)

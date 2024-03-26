@@ -5,7 +5,7 @@ use crate::{
         CurrentExecutionState, ExecutionResult, Halt, TxRevertReason, VmExecutionMode,
         VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
     },
-    vm_latest::{tests::tester::vm_tester::VmTester, HistoryEnabled},
+    vm_1_4_2::{tests::tester::vm_tester::VmTester, HistoryEnabled},
 };
 
 #[derive(Debug, Clone)]
@@ -181,7 +181,7 @@ impl TransactionTestInfo {
     }
 }
 
-impl VmTester<HistoryEnabled> {
+impl VmTester<crate::vm_latest::HistoryEnabled> {
     pub(crate) fn execute_and_verify_txs(
         &mut self,
         txs: &[TransactionTestInfo],

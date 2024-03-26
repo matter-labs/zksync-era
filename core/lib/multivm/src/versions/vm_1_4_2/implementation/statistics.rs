@@ -4,7 +4,7 @@ use zksync_types::{circuit::CircuitStatistic, U256};
 
 use crate::{
     interface::{VmExecutionStatistics, VmMemoryMetrics},
-    vm_latest::{tracers::DefaultExecutionTracer, vm::Vm},
+    vm_1_4_2::{tracers::DefaultExecutionTracer, vm::Vm},
     HistoryMode,
 };
 

@@ -2,14 +2,14 @@ use zksync_types::{Address, Execute, U256};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{constants::BLOCK_GAS_LIMIT, tests::tester::VmTesterBuilder, HistoryEnabled},
+    vm_1_4_2::{constants::BLOCK_GAS_LIMIT, tests::tester::VmTesterBuilder, HistoryEnabled},
 };
 
 // Checks that estimated number of circuits for simple transfer doesn't differ much
 // from hardcoded expected value.
 #[test]
 fn test_circuits() {
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()

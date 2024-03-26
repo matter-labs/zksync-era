@@ -7,7 +7,7 @@ use zk_evm_1_4_1::{
 };
 
 use super::OracleWithHistory;
-use crate::vm_latest::old_vm::history_recorder::{HistoryEnabled, HistoryMode, HistoryRecorder};
+use crate::vm_1_4_2::old_vm::history_recorder::{HistoryEnabled, HistoryMode, HistoryRecorder};
 
 /// Wrap of DefaultPrecompilesProcessor that store queue
 /// of timestamp when precompiles are called to be executed.

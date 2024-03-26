@@ -18,7 +18,7 @@ use crate::{
         ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface,
         VmInterfaceHistoryEnabled,
     },
-    vm_latest::{
+    vm_1_4_2::{
         tests::{
             tester::VmTesterBuilder,
             utils::{read_complex_upgrade, verify_required_storage},
@@ -32,7 +32,7 @@ use crate::{
 /// - If present, this transaction must be the first one in block
 #[test]
 fn test_protocol_upgrade_is_first() {
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -123,7 +123,7 @@ fn test_protocol_upgrade_is_first() {
 /// In this test we try to test how force deployments could be done via protocol upgrade transactions.
 #[test]
 fn test_force_deploy_upgrade() {
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -171,7 +171,7 @@ fn test_force_deploy_upgrade() {
 /// Here we show how the work with the complex upgrader could be done
 #[test]
 fn test_complex_upgrader() {
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)

@@ -11,7 +11,7 @@ use zksync_types::{
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
+    vm_1_4_2::{
         tests::{
             tester::{Account, VmTester, VmTesterBuilder},
             utils::read_many_owners_custom_account_contract,
@@ -20,7 +20,7 @@ use crate::{
     },
 };
 
-impl VmTester<HistoryDisabled> {
+impl VmTester<crate::vm_latest::HistoryDisabled> {
     pub(crate) fn get_eth_balance(&mut self, address: Address) -> U256 {
         let key = storage_key_for_standard_token_balance(
             AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
@@ -45,7 +45,7 @@ async fn test_require_eip712() {
     let beneficiary = Account::random();
 
     let (bytecode, contract) = read_many_owners_custom_account_contract();
-    let mut vm = VmTesterBuilder::new(HistoryDisabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryDisabled)
         .with_empty_in_memory_storage()
         .with_custom_contracts(vec![(bytecode, account_abstraction.address, true)])
         .with_execution_mode(TxExecutionMode::VerifyExecute)

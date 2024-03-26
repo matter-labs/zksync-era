@@ -6,7 +6,7 @@ use zksync_types::{Address, Execute};
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     tracers::CallTracer,
-    vm_latest::{
+    vm_1_4_2::{
         constants::BLOCK_GAS_LIMIT,
         tests::{
             tester::VmTesterBuilder,
@@ -22,7 +22,7 @@ use crate::{
 fn test_max_depth() {
     let contarct = read_max_depth_contract();
     let address = Address::random();
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()
@@ -54,7 +54,7 @@ fn test_max_depth() {
 fn test_basic_behavior() {
     let contarct = read_test_contract();
     let address = Address::random();
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()

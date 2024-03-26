@@ -2,7 +2,7 @@ use zksync_types::{Execute, H160};
 
 use crate::{
     interface::{TxExecutionMode, TxRevertReason, VmRevertReason},
-    vm_latest::{
+    vm_1_4_2::{
         tests::{
             tester::{ExpectedError, TransactionTestInfo, VmTesterBuilder},
             utils::{get_execute_error_calldata, read_error_contract, BASE_SYSTEM_CONTRACTS},
@@ -14,7 +14,7 @@ use crate::{
 #[test]
 fn test_tracing_of_execution_errors() {
     let contract_address = H160::random();
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
         .with_custom_contracts(vec![(read_error_contract(), contract_address, false)])

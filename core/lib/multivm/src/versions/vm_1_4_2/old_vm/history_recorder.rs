@@ -782,7 +782,7 @@ mod tests {
     use zk_evm_1_4_1::{aux_structures::Timestamp, vm_state::PrimitiveValue};
     use zksync_types::U256;
 
-    use crate::vm_latest::{
+    use crate::vm_1_4_2::{
         old_vm::history_recorder::{HistoryRecorder, MemoryWrapper},
         HistoryDisabled,
     };

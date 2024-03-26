@@ -9,7 +9,7 @@ use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
+    vm_1_4_2::{
         tests::{
             tester::{TxType, VmTesterBuilder},
             utils::{read_test_contract, BASE_SYSTEM_CONTRACTS},
@@ -21,7 +21,7 @@ use crate::{
 
 #[test]
 fn test_get_used_contracts() {
-    let mut vm = VmTesterBuilder::new(HistoryDisabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryDisabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build();

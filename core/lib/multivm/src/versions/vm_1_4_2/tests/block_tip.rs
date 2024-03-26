@@ -15,7 +15,7 @@ use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u25
 use super::utils::{get_complex_upgrade_abi, read_complex_upgrade};
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
+    vm_1_4_2::{
         constants::{
             BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
             BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD, BOOTLOADER_BATCH_TIP_OVERHEAD,
@@ -120,7 +120,7 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
         .borrow_mut()
         .store_factory_dep(hash_bytecode(&complex_upgrade_code), complex_upgrade_code);
 
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_storage(storage)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
