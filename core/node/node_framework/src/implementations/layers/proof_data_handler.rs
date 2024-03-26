@@ -22,17 +22,12 @@ use crate::{
 #[derive(Debug)]
 pub struct ProofDataHandlerLayer {
     proof_data_handler_config: ProofDataHandlerConfig,
-    contracts_config: ContractsConfig,
 }
 
 impl ProofDataHandlerLayer {
-    pub fn new(
-        proof_data_handler_config: ProofDataHandlerConfig,
-        contracts_config: ContractsConfig,
-    ) -> Self {
+    pub fn new(proof_data_handler_config: ProofDataHandlerConfig) -> Self {
         Self {
             proof_data_handler_config,
-            contracts_config,
         }
     }
 }
@@ -51,7 +46,6 @@ impl WiringLayer for ProofDataHandlerLayer {
 
         context.add_task(Box::new(ProofDataHandlerTask {
             proof_data_handler_config: self.proof_data_handler_config,
-            contracts_config: self.contracts_config,
             blob_store: object_store.0,
             main_pool,
         }));
@@ -63,7 +57,6 @@ impl WiringLayer for ProofDataHandlerLayer {
 #[derive(Debug)]
 struct ProofDataHandlerTask {
     proof_data_handler_config: ProofDataHandlerConfig,
-    contracts_config: ContractsConfig,
     blob_store: Arc<dyn ObjectStore>,
     main_pool: ConnectionPool<Core>,
 }
@@ -77,7 +70,6 @@ impl Task for ProofDataHandlerTask {
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         proof_data_handler::run_server(
             self.proof_data_handler_config,
-            self.contracts_config,
             self.blob_store,
             self.main_pool,
             stop_receiver.0,
