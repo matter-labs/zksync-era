@@ -100,7 +100,7 @@ impl Tester {
     /// This function intentionally uses sensible defaults to not introduce boilerplate.
     pub(super) async fn create_batch_executor(
         &mut self,
-        storage_type: &StorageType,
+        storage_type: StorageType,
     ) -> BatchExecutorHandle {
         let (l1_batch_env, system_env) = self.default_batch_params();
         match storage_type {
@@ -513,7 +513,7 @@ impl StorageSnapshot {
         drop(storage);
 
         let executor = tester
-            .create_batch_executor(&StorageType::AsyncRocksdbCache)
+            .create_batch_executor(StorageType::AsyncRocksdbCache)
             .await;
         let mut l2_block_env = L2BlockEnv {
             number: 1,

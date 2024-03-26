@@ -221,7 +221,7 @@ impl BlockReverter {
         tracing::info!("opening DB with state keeper cache...");
         let sk_cache = RocksdbStorage::builder(self.state_keeper_cache_path.as_ref())
             .await
-            .expect("Failed initializing state keeper");
+            .expect("Failed initializing state keeper cache");
 
         if sk_cache.l1_batch_number().await > Some(last_l1_batch_to_keep + 1) {
             let mut storage = self.connection_pool.connection().await.unwrap();

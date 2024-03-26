@@ -30,7 +30,7 @@ fn assert_reverted(execution_result: &TxExecutionResult) {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 enum StorageType {
     AsyncRocksdbCache,
     Rocksdb,
@@ -50,7 +50,7 @@ async fn execute_l2_tx(storage_type: StorageType) {
     let mut tester = Tester::new(connection_pool);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
-    let executor = tester.create_batch_executor(&storage_type).await;
+    let executor = tester.create_batch_executor(storage_type).await;
 
     let res = executor.execute_tx(alice.execute()).await;
     assert_executed(&res);
@@ -130,7 +130,7 @@ async fn execute_l1_tx() {
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     let executor = tester
-        .create_batch_executor(&StorageType::AsyncRocksdbCache)
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
     let res = executor.execute_tx(alice.l1_execute(PriorityOpId(1))).await;
@@ -148,7 +148,7 @@ async fn execute_l2_and_l1_txs() {
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     let executor = tester
-        .create_batch_executor(&StorageType::AsyncRocksdbCache)
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
     let res = executor.execute_tx(alice.execute()).await;
@@ -171,7 +171,7 @@ async fn rollback() {
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     let executor = tester
-        .create_batch_executor(&StorageType::AsyncRocksdbCache)
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
     let tx = alice.execute();
@@ -216,7 +216,7 @@ async fn reject_tx() {
 
     tester.genesis().await;
     let executor = tester
-        .create_batch_executor(&StorageType::AsyncRocksdbCache)
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
     // Wallet is not funded, it can't pay for fees.
@@ -234,7 +234,7 @@ async fn too_big_gas_limit() {
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     let executor = tester
-        .create_batch_executor(&StorageType::AsyncRocksdbCache)
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
     let bad_tx = alice.execute_with_gas_limit(u32::MAX);
@@ -283,7 +283,7 @@ async fn tx_cant_be_reexecuted() {
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     let executor = tester
-        .create_batch_executor(&StorageType::AsyncRocksdbCache)
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
     let tx = alice.execute();
@@ -305,7 +305,7 @@ async fn deploy_and_call_loadtest() {
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     let executor = tester
-        .create_batch_executor(&StorageType::AsyncRocksdbCache)
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
     let tx = alice.deploy_loadnext_tx();
@@ -334,7 +334,7 @@ async fn execute_reverted_tx() {
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     let executor = tester
-        .create_batch_executor(&StorageType::AsyncRocksdbCache)
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
     let tx = alice.deploy_loadnext_tx();
@@ -365,7 +365,7 @@ async fn execute_realistic_scenario() {
     tester.fund(&[alice.address()]).await;
     tester.fund(&[bob.address()]).await;
     let executor = tester
-        .create_batch_executor(&StorageType::AsyncRocksdbCache)
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
     // A good tx should be executed successfully.
@@ -424,7 +424,7 @@ async fn bootloader_out_of_gas_for_any_tx() {
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     let executor = tester
-        .create_batch_executor(&StorageType::AsyncRocksdbCache)
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
     let res = executor.execute_tx(alice.execute()).await;
@@ -443,7 +443,7 @@ async fn bootloader_tip_out_of_gas() {
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     let executor = tester
-        .create_batch_executor(&StorageType::AsyncRocksdbCache)
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
     let res = executor.execute_tx(alice.execute()).await;
@@ -462,7 +462,7 @@ async fn bootloader_tip_out_of_gas() {
     });
 
     let second_executor = tester
-        .create_batch_executor(&StorageType::AsyncRocksdbCache)
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
     let res = second_executor.execute_tx(alice.execute()).await;
@@ -481,7 +481,7 @@ async fn catchup_rocksdb_cache() {
     tester.fund(&[alice.address(), bob.address()]).await;
 
     // Execute a bunch of transactions to populate Postgres-based storage (note that RocksDB stays empty)
-    let executor = tester.create_batch_executor(&StorageType::Postgres).await;
+    let executor = tester.create_batch_executor(StorageType::Postgres).await;
     for _ in 0..10 {
         let res = executor.execute_tx(alice.execute()).await;
         assert_executed(&res);
@@ -495,7 +495,7 @@ async fn catchup_rocksdb_cache() {
 
     // Async RocksDB cache should be aware of the tx and should reject it
     let executor = tester
-        .create_batch_executor(&StorageType::AsyncRocksdbCache)
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
     let res = executor.execute_tx(tx.clone()).await;
     assert_rejected(&res);
@@ -508,7 +508,7 @@ async fn catchup_rocksdb_cache() {
     tester.wait_for_tasks().await;
 
     // Sync RocksDB storage should be aware of the tx and should reject it
-    let executor = tester.create_batch_executor(&StorageType::Rocksdb).await;
+    let executor = tester.create_batch_executor(StorageType::Rocksdb).await;
     let res = executor.execute_tx(tx).await;
     assert_rejected(&res);
 }
