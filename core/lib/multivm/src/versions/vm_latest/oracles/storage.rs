@@ -4,9 +4,9 @@ use zk_evm_1_5_0::{
     abstractions::{Storage as VmStorageOracle, StorageAccessRefund},
     aux_structures::{LogQuery, PubdataCost, Timestamp},
     zkevm_opcode_defs::system_params::{
-        INITIAL_STORAGE_WRITE_PUBDATA_BYTES, STORAGE_ACCESS_COLD_READ_COST,
-        STORAGE_ACCESS_COLD_WRITE_COST, STORAGE_ACCESS_WARM_READ_COST,
-        STORAGE_ACCESS_WARM_WRITE_COST, STORAGE_AUX_BYTE, TRANSIENT_STORAGE_AUX_BYTE,
+        STORAGE_ACCESS_COLD_READ_COST, STORAGE_ACCESS_COLD_WRITE_COST,
+        STORAGE_ACCESS_WARM_READ_COST, STORAGE_ACCESS_WARM_WRITE_COST, STORAGE_AUX_BYTE,
+        TRANSIENT_STORAGE_AUX_BYTE,
     },
 };
 use zksync_state::{StoragePtr, WriteStorage};
@@ -153,7 +153,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
     }
 
     fn record_storage_read(&mut self, query: LogQuery) {
-        let mut storage_log_query = StorageLogQuery {
+        let storage_log_query = StorageLogQuery {
             log_query: query,
             log_type: StorageLogQueryType::Read,
         };
@@ -413,7 +413,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
     // before actually executing query
     fn get_access_refund(
         &mut self, // to avoid any hacks inside, like prefetch
-        monotonic_cycle_counter: u32,
+        _monotonic_cycle_counter: u32,
         partial_query: &LogQuery,
     ) -> StorageAccessRefund {
         let refund = if partial_query.aux_byte == TRANSIENT_STORAGE_AUX_BYTE {

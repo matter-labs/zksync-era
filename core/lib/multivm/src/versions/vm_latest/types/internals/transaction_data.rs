@@ -12,7 +12,7 @@ use zksync_types::{
 use zksync_utils::{address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
 
 use crate::vm_latest::{
-    constants::{L1_TX_TYPE, MAX_GAS_PER_PUBDATA_BYTE, TX_MAX_COMPUTE_GAS_LIMIT},
+    constants::{MAX_GAS_PER_PUBDATA_BYTE, TX_MAX_COMPUTE_GAS_LIMIT},
     utils::overhead::derive_overhead,
 };
 

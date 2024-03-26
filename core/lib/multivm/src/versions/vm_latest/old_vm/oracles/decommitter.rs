@@ -9,9 +9,7 @@ use zk_evm_1_5_0::{
 };
 use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{H256, U256};
-use zksync_utils::{
-    bytecode::bytecode_len_in_words, bytes_to_be_words, h256_to_u256, u256_to_h256,
-};
+use zksync_utils::{bytes_to_be_words, h256_to_u256, u256_to_h256};
 
 use super::OracleWithHistory;
 use crate::vm_latest::old_vm::history_recorder::{
@@ -176,8 +174,8 @@ impl VersionedCodeHash {
         };
 
         let mut hash = [0u8; 32];
-        &mut hash[0..4].copy_from_slice(&header.0);
-        &mut hash[4..32].copy_from_slice(&preimage.0);
+        let _ = &mut hash[0..4].copy_from_slice(&header.0);
+        let _ = &mut hash[4..32].copy_from_slice(&preimage.0);
 
         // Hash[1] is used in both of the versions to denote whether the bytecode is being constructed.
         // We ignore this param.
@@ -207,7 +205,7 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
     /// or not.
     fn prepare_to_decommit(
         &mut self,
-        monotonic_cycle_counter: u32,
+        _monotonic_cycle_counter: u32,
         mut partial_query: DecommittmentQuery,
     ) -> anyhow::Result<DecommittmentQuery> {
         let versioned_hash = VersionedCodeHash::from_query(&partial_query);

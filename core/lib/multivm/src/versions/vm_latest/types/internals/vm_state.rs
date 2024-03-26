@@ -12,7 +12,7 @@ use zk_evm_1_5_0::{
 };
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::BOOTLOADER_ADDRESS;
-use zksync_types::{block::MiniblockHasher, Address, MiniblockNumber, U256};
+use zksync_types::{block::MiniblockHasher, Address, MiniblockNumber};
 use zksync_utils::h256_to_u256;
 
 use crate::{

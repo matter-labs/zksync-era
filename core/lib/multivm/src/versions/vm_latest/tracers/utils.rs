@@ -2,13 +2,11 @@ use zk_evm_1_5_0::{
     aux_structures::MemoryPage,
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{
-        FarCallABI, FarCallForwardPageType, FatPointer, LogOpcode, Opcode, PrecompileAuxData,
-        UMAOpcode,
+        FarCallABI, FarCallForwardPageType, FatPointer, LogOpcode, Opcode, UMAOpcode,
     },
 };
 use zksync_system_constants::{
-    ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS,
-    L1_MESSENGER_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
+    ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
 };
 use zksync_types::U256;
 use zksync_utils::u256_to_h256;

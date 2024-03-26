@@ -4,7 +4,7 @@ use circuit_sequencer_api_1_4_2::sort_storage_access::sort_storage_access_querie
 use itertools::Itertools;
 use zk_evm_1_4_1::aux_structures::LogQuery as LogQuery_1_4_1;
 use zk_evm_1_5_0::{
-    aux_structures::{LogQuery, Timestamp},
+    aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
 use zksync_state::{StoragePtr, WriteStorage};

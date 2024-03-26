@@ -162,6 +162,7 @@ async fn get_pending_state(
 }
 
 /// Returns the number of the pubdata that the transaction will spend on factory deps.
+#[allow(dead_code)]
 pub(super) async fn get_pubdata_for_factory_deps(
     _vm_permit: &VmPermit,
     connection_pool: &ConnectionPool,

@@ -4,7 +4,6 @@ use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics
 use zk_evm_1_5_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
-    vm_state::VmLocalState,
     zkevm_opcode_defs::system_params::L1_MESSAGE_PUBDATA_BYTES,
 };
 use zksync_state::{StoragePtr, WriteStorage};
@@ -316,6 +315,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
 }
 
 /// Returns the given transactions' gas limit - by reading it directly from the VM memory.
+#[allow(dead_code)]
 pub(crate) fn pubdata_published<S: WriteStorage, H: HistoryMode>(
     state: &ZkSyncVmState<S, H>,
     storage_writes_pubdata_published: u32,

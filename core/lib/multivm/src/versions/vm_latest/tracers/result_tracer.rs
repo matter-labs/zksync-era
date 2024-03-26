@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-use zk_evm_1_3_1::zkevm_opcode_defs::FarCallOpcode;
 use zk_evm_1_5_0::{
     tracing::{AfterDecodingData, BeforeExecutionData, VmLocalStateData},
     vm_state::{ErrorFlags, VmLocalState},
