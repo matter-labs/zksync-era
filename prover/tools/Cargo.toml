@@ -1,17 +1,20 @@
 [package]
 name = "tools"
-version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-
-clap = { version = "4.4.6", features = ["derive"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-zksync_prover_fri_types = {path = "../prover_fri_types"}
-bincode = "1.0"
-colored = "2.0"
-zksync_prover_interface = { path = "../../core/lib/prover_interface" }
-hex = "0.4"
+clap = { workspace = true, features = ["derive"] }
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+zksync_prover_fri_types.workspace = true
+bincode.workspace = true
+colored.workspace = true
+zksync_prover_interface.workspace = true
+hex.workspace = true

@@ -257,12 +257,15 @@ impl JobProcessor for Prover {
 
     async fn process_job(
         &self,
+        _job_id: &Self::JobId,
         job: Self::Job,
         _started_at: Instant,
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
         let config = Arc::clone(&self.config);
         let setup_data = self.get_setup_data(job.setup_data_key.clone());
         tokio::task::spawn_blocking(move || {
+            let block_number = job.block_number;
+            let _span = tracing::info_span!("cpu_prove", %block_number).entered();
             Ok(Self::prove(
                 job,
                 config,

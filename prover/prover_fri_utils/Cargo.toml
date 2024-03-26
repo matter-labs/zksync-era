@@ -1,22 +1,27 @@
 [package]
 name = "zksync_prover_fri_utils"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
+vise.workspace = true
+zksync_object_store.workspace = true
+zksync_config.workspace = true
+zksync_types.workspace = true
+zksync_prover_fri_types.workspace = true
+prover_dal.workspace = true
+zksync_utils.workspace = true
 
-zksync_object_store = { path = "../../core/lib/object_store" }
-zksync_config = { path = "../../core/lib/config" }
-zksync_types = { path = "../../core/lib/types" }
-zksync_prover_fri_types = { path = "../prover_fri_types" }
-prover_dal = { path = "../prover_dal" }
-zksync_utils = { path = "../../core/lib/utils" }
-
-tracing = "0.1"
-serde = { version = "1.0", features = ["derive"] }
-reqwest = { version = "0.11", features = ["blocking"] }
-regex = "1.7.2"
-anyhow = "1.0"
+tracing.workspace = true
+serde = { workspace = true, features = ["derive"] }
+reqwest = { workspace = true, features = ["blocking"] }
+regex.workspace = true
+anyhow.workspace = true

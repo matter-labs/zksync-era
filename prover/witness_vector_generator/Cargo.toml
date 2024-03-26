@@ -1,33 +1,36 @@
 [package]
 name = "zksync_witness_vector_generator"
-version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
+vise.workspace = true
+zksync_types.workspace = true
+prover_dal.workspace = true
+zksync_config.workspace = true
+zksync_env_config.workspace = true
+zksync_object_store.workspace = true
+zksync_prover_fri_utils.workspace = true
+zksync_utils.workspace = true
+prometheus_exporter.workspace = true
+zksync_prover_fri_types.workspace = true
+zksync_queued_job_processor.workspace = true
+vk_setup_data_generator_server_fri.workspace = true
+vlog.workspace = true
 
-zksync_types = { path = "../../core/lib/types" }
-prover_dal = { path = "../prover_dal" }
-zksync_config = { path = "../../core/lib/config" }
-zksync_env_config = { path = "../../core/lib/env_config" }
-zksync_object_store = { path = "../../core/lib/object_store" }
-zksync_prover_fri_utils = { path = "../prover_fri_utils" }
-zksync_utils = { path = "../../core/lib/utils" }
-prometheus_exporter = { path = "../../core/lib/prometheus_exporter" }
-zksync_prover_fri_types = { path = "../prover_fri_types" }
-zksync_queued_job_processor = { path = "../../core/lib/queued_job_processor" }
-vk_setup_data_generator_server_fri = { path = "../vk_setup_data_generator_server_fri" }
-vlog = { path = "../../core/lib/vlog" }
-
-anyhow = "1.0"
-tracing = "0.1"
-structopt = "0.3.26"
-tokio = { version = "1", features = ["time", "macros"] }
-futures = { version = "0.3", features = ["compat"] }
-ctrlc = { version = "3.1", features = ["termination"] }
-serde = { version = "1.0", features = ["derive"] }
-async-trait = "0.1"
-queues = "1.1.0"
-bincode = "1.0"
+anyhow.workspace = true
+tracing.workspace = true
+structopt.workspace = true
+tokio = { workspace = true, features = ["time", "macros"] }
+futures = { workspace = true, features = ["compat"] }
+ctrlc = { workspace = true, features = ["termination"] }
+serde = { workspace = true, features = ["derive"] }
+async-trait.workspace = true
+queues.workspace = true
+bincode.workspace = true

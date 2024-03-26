@@ -24,6 +24,7 @@ mod snapshots_creator;
 mod utils;
 mod witness_generator;
 
+mod genesis;
 #[cfg(test)]
 mod test_utils;
 

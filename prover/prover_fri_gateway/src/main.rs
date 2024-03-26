@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::{ConnectionPool, Prover};
@@ -7,7 +9,7 @@ use zksync_config::configs::{FriProverGatewayConfig, ObservabilityConfig, Postgr
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
-use zksync_utils::wait_for_tasks::wait_for_tasks;
+use zksync_utils::wait_for_tasks::ManagedTasks;
 
 use crate::api_data_fetcher::{PeriodicApiStruct, PROOF_GENERATION_DATA_PATH, SUBMIT_PROOF_PATH};
 
@@ -87,14 +89,14 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(proof_submitter.run::<SubmitProofRequest>(stop_receiver)),
     ];
 
-    let graceful_shutdown = None::<futures::future::Ready<()>>;
-    let tasks_allowed_to_finish = false;
+    let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {
-        _ = wait_for_tasks(tasks, None, graceful_shutdown, tasks_allowed_to_finish) => {},
+        _ = tasks.wait_single() => {},
         _ = stop_signal_receiver => {
             tracing::info!("Stop signal received, shutting down");
         }
-    };
+    }
     stop_sender.send(true).ok();
+    tasks.complete(Duration::from_secs(5)).await;
     Ok(())
 }

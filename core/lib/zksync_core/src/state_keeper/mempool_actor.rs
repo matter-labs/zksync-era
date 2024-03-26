@@ -161,14 +161,14 @@ async fn get_transaction_nonces(
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        fee::TransactionExecutionMetrics, L2ChainId, MiniblockNumber, PriorityOpId,
-        ProtocolVersionId, StorageLog, H256,
+        fee::TransactionExecutionMetrics, MiniblockNumber, PriorityOpId, ProtocolVersionId,
+        StorageLog, H256,
     };
     use zksync_utils::u256_to_h256;
 
     use super::*;
     use crate::{
-        genesis::{ensure_genesis_state, GenesisParams},
+        genesis::{insert_genesis_batch, GenesisParams},
         utils::testonly::{create_l2_transaction, MockBatchFeeParamsProvider},
     };
 
@@ -219,7 +219,7 @@ mod tests {
     async fn syncing_mempool_basics() {
         let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
         let mut storage = pool.connection().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
         drop(storage);
@@ -277,7 +277,7 @@ mod tests {
     async fn ignoring_transaction_with_insufficient_fee() {
         let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
         let mut storage = pool.connection().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
         drop(storage);
@@ -318,7 +318,7 @@ mod tests {
     async fn ignoring_transaction_with_old_nonce() {
         let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
         let mut storage = pool.connection().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
         drop(storage);

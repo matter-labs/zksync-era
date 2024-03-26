@@ -6,17 +6,18 @@ use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
+use zksync_config::GenesisConfig;
 use zksync_dal::Connection;
 use zksync_eth_client::{clients::MockEthereum, Options};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, L2ChainId, Log,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, Log,
     ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use super::*;
 use crate::{
-    genesis::{ensure_genesis_state, GenesisParams},
+    genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams},
     utils::testonly::{
         create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
     },
@@ -363,7 +364,7 @@ async fn normal_checker_function(
 
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
 
@@ -433,11 +434,12 @@ async fn checker_processes_pre_boojum_batches(
 
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    let genesis_params = GenesisParams {
-        protocol_version: PRE_BOOJUM_PROTOCOL_VERSION,
-        ..GenesisParams::mock()
-    };
-    ensure_genesis_state(&mut storage, L2ChainId::default(), &genesis_params)
+    let genesis_params = GenesisParams::load_genesis_params(GenesisConfig {
+        protocol_version: PRE_BOOJUM_PROTOCOL_VERSION as u16,
+        ..mock_genesis_config()
+    })
+    .unwrap();
+    insert_genesis_batch(&mut storage, &genesis_params)
         .await
         .unwrap();
     storage
@@ -685,7 +687,7 @@ async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind, snapshot_rec
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
     } else {
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
     }

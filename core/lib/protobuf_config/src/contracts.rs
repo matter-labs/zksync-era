@@ -4,24 +4,6 @@ use zksync_protobuf::{repr::ProtoRepr, required};
 
 use crate::{parse_h160, parse_h256, proto::contracts as proto};
 
-impl proto::ProverAtGenesis {
-    fn new(x: &configs::contracts::ProverAtGenesis) -> Self {
-        use configs::contracts::ProverAtGenesis as From;
-        match x {
-            From::Fri => Self::Fri,
-            From::Old => Self::Old,
-        }
-    }
-
-    fn parse(&self) -> configs::contracts::ProverAtGenesis {
-        use configs::contracts::ProverAtGenesis as To;
-        match self {
-            Self::Fri => To::Fri,
-            Self::Old => To::Old,
-        }
-    }
-}
-
 impl ProtoRepr for proto::Contracts {
     type Type = configs::ContractsConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
@@ -115,10 +97,6 @@ impl ProtoRepr for proto::Contracts {
             fri_recursion_leaf_level_vk_hash: required(&self.fri_recursion_leaf_level_vk_hash)
                 .and_then(|x| parse_h256(x))
                 .context("fri_recursion_leaf_level_vk_hash")?,
-            prover_at_genesis: required(&self.prover_at_genesis)
-                .and_then(|x| Ok(proto::ProverAtGenesis::try_from(*x)?))
-                .context("prover_at_genesis")?
-                .parse(),
             snark_wrapper_vk_hash: required(&self.snark_wrapper_vk_hash)
                 .and_then(|x| parse_h256(x))
                 .context("snark_wrapper_vk_hash")?,
@@ -152,6 +130,20 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("transparent_proxy_admin_addr")?,
+            genesis_batch_commitment: self
+                .genesis_batch_commitment
+                .as_ref()
+                .map(|x| parse_h256(x))
+                .transpose()
+                .context("genesis_batch_commitment")?,
+            genesis_rollup_leaf_index: self.genesis_rollup_leaf_index,
+            genesis_root: self
+                .genesis_root
+                .as_ref()
+                .map(|x| parse_h256(x))
+                .transpose()
+                .context("genesis_root")?,
+            genesis_protocol_version: self.genesis_protocol_version.map(|a| a as u16),
         })
     }
 
@@ -202,7 +194,6 @@ impl ProtoRepr for proto::Contracts {
             fri_recursion_leaf_level_vk_hash: Some(
                 this.fri_recursion_leaf_level_vk_hash.as_bytes().into(),
             ),
-            prover_at_genesis: Some(proto::ProverAtGenesis::new(&this.prover_at_genesis).into()),
             snark_wrapper_vk_hash: Some(this.snark_wrapper_vk_hash.as_bytes().into()),
             bridgehub_proxy_addr: this
                 .bridgehub_proxy_addr
@@ -224,6 +215,13 @@ impl ProtoRepr for proto::Contracts {
                 .transparent_proxy_admin_addr
                 .as_ref()
                 .map(|x| x.as_bytes().into()),
+            genesis_root: this.genesis_root.as_ref().map(|x| x.as_bytes().into()),
+            genesis_batch_commitment: this
+                .genesis_batch_commitment
+                .as_ref()
+                .map(|x| x.as_bytes().into()),
+            genesis_rollup_leaf_index: this.genesis_rollup_leaf_index,
+            genesis_protocol_version: this.genesis_protocol_version.map(|a| a as u32),
         }
     }
 }

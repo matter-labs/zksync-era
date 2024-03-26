@@ -10,11 +10,13 @@ use std::{
 use anyhow::Context as _;
 use api_server::tx_sender::master_pool_sink::MasterPoolSink;
 use fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInputProvider};
-use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::Prover;
 use temp_config_store::{Secrets, TempConfigStore};
-use tokio::{sync::watch, task::JoinHandle};
+use tokio::{
+    sync::{oneshot, watch},
+    task::JoinHandle,
+};
 use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker,
     CircuitBreakerChecker, CircuitBreakers,
@@ -27,29 +29,22 @@ use zksync_config::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
             StateKeeperConfig,
         },
-        contracts::ProverAtGenesis,
         database::{MerkleTreeConfig, MerkleTreeMode},
     },
-    ApiConfig, ContractsConfig, DBConfig, ETHSenderConfig, PostgresConfig,
+    ApiConfig, ContractsConfig, DBConfig, GenesisConfig, PostgresConfig,
 };
-use zksync_contracts::{governance_contract, BaseSystemContracts};
+use zksync_contracts::governance_contract;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
 use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},
-    BoundEthInterface, CallFunctionArgs, EthInterface,
+    BoundEthInterface,
 };
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
-use zksync_types::{
-    fee_model::FeeModelConfig,
-    protocol_version::{L1VerifierConfig, VerifierParams},
-    system_contracts::get_system_smart_contracts,
-    web3::contract::tokens::Detokenize,
-    L2ChainId, PackedEthSignature, ProtocolVersionId,
-};
+use zksync_types::{fee_model::FeeModelConfig, L2ChainId};
 
 use crate::{
     api_server::{
@@ -64,6 +59,7 @@ use crate::{
     commitment_generator::CommitmentGenerator,
     eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
     eth_watch::start_eth_watch,
+    genesis::GenesisParams,
     house_keeper::{
         blocks_state_reporter::L1BatchMetricsReporter,
         fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
@@ -109,12 +105,8 @@ mod utils;
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
+    genesis_config: GenesisConfig,
     postgres_config: &PostgresConfig,
-    eth_sender: &ETHSenderConfig,
-    network_config: &NetworkConfig,
-    contracts_config: &ContractsConfig,
-    eth_client_url: &str,
-    wait_for_set_chain_id: bool,
 ) -> anyhow::Result<()> {
     let db_url = postgres_config.master_url()?;
     let pool = ConnectionPool::<Core>::singleton(db_url)
@@ -122,82 +114,9 @@ pub async fn genesis_init(
         .await
         .context("failed to build connection_pool")?;
     let mut storage = pool.connection().await.context("connection()")?;
-    let operator_address = PackedEthSignature::address_from_private_key(
-        &eth_sender
-            .sender
-            .private_key()
-            .context("Private key is required for genesis init")?,
-    )
-    .context("Failed to restore operator address from private key")?;
 
-    // Select the first prover to be used during genesis.
-    // Later we can change provers using the system upgrades, but for genesis
-    // we should select one using the environment config.
-    let first_l1_verifier_config =
-        if matches!(contracts_config.prover_at_genesis, ProverAtGenesis::Fri) {
-            let l1_verifier_config = L1VerifierConfig {
-                params: VerifierParams {
-                    recursion_node_level_vk_hash: contracts_config.fri_recursion_node_level_vk_hash,
-                    recursion_leaf_level_vk_hash: contracts_config.fri_recursion_leaf_level_vk_hash,
-                    recursion_circuits_set_vks_hash: zksync_types::H256::zero(),
-                },
-                recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
-            };
-
-            let eth_client = QueryClient::new(eth_client_url)?;
-            let args = CallFunctionArgs::new("verificationKeyHash", ()).for_contract(
-                contracts_config.verifier_addr,
-                zksync_contracts::verifier_contract(),
-            );
-
-            let vk_hash = eth_client.call_contract_function(args).await?;
-            let vk_hash = zksync_types::H256::from_tokens(vk_hash)?;
-
-            assert_eq!(
-                vk_hash, l1_verifier_config.recursion_scheduler_level_vk_hash,
-                "L1 verifier key does not match the one in the config"
-            );
-
-            l1_verifier_config
-        } else {
-            L1VerifierConfig {
-                params: VerifierParams {
-                    recursion_node_level_vk_hash: contracts_config.recursion_node_level_vk_hash,
-                    recursion_leaf_level_vk_hash: contracts_config.recursion_leaf_level_vk_hash,
-                    recursion_circuits_set_vks_hash: contracts_config
-                        .recursion_circuits_set_vks_hash,
-                },
-                recursion_scheduler_level_vk_hash: contracts_config
-                    .recursion_scheduler_level_vk_hash,
-            }
-        };
-
-    genesis::ensure_genesis_state(
-        &mut storage,
-        network_config.zksync_network_id,
-        &genesis::GenesisParams {
-            // We consider the operator to be the first validator for now.
-            first_validator: operator_address,
-            protocol_version: ProtocolVersionId::latest(),
-            base_system_contracts: BaseSystemContracts::load_from_disk(),
-            system_contracts: get_system_smart_contracts(),
-            first_l1_verifier_config,
-        },
-    )
-    .await?;
-
-    if wait_for_set_chain_id {
-        genesis::save_set_chain_id_tx(
-            eth_client_url,
-            contracts_config.diamond_proxy_addr,
-            contracts_config
-                .state_transition_proxy_addr
-                .context("state_transition_proxy_addr is not set, but needed for genesis")?,
-            &mut storage,
-        )
-        .await
-        .context("Failed to save SetChainId upgrade transaction")?;
-    }
+    let params = GenesisParams::load_genesis_params(genesis_config)?;
+    genesis::ensure_genesis_state(&mut storage, &params).await?;
 
     Ok(())
 }
@@ -303,7 +222,7 @@ impl FromStr for Components {
 
 pub async fn initialize_components(
     configs: &TempConfigStore,
-    components: Vec<Component>,
+    components: &[Component],
     secrets: &Secrets,
 ) -> anyhow::Result<(
     Vec<JoinHandle<anyhow::Result<()>>>,
@@ -745,7 +664,7 @@ pub async fn initialize_components(
         configs,
         &mut task_futures,
         &app_health,
-        &components,
+        components,
         &store_factory,
         stop_receiver.clone(),
     )
@@ -771,7 +690,7 @@ pub async fn initialize_components(
     }
 
     if components.contains(&Component::Housekeeper) {
-        add_house_keeper_to_task_futures(configs, &mut task_futures)
+        add_house_keeper_to_task_futures(configs, &mut task_futures, stop_receiver.clone())
             .await
             .context("add_house_keeper_to_task_futures()")?;
     }
@@ -814,6 +733,7 @@ pub async fn initialize_components(
     if let Some(task) = gas_adjuster.run_if_initialized(stop_receiver.clone()) {
         task_futures.push(task);
     }
+
     Ok((task_futures, stop_sender, health_check_handle))
 }
 
@@ -1020,6 +940,7 @@ async fn add_basic_witness_input_producer_to_task_futures(
 async fn add_house_keeper_to_task_futures(
     configs: &TempConfigStore,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let house_keeper_config = configs
         .house_keeper_config
@@ -1035,8 +956,16 @@ async fn add_house_keeper_to_task_futures(
     .context("failed to build a connection pool")?;
 
     let pool_for_metrics = connection_pool.clone();
+    let mut stop_receiver_for_metrics = stop_receiver.clone();
     task_futures.push(tokio::spawn(async move {
-        PostgresMetrics::run_scraping(pool_for_metrics, Duration::from_secs(60)).await;
+        tokio::select! {
+            () = PostgresMetrics::run_scraping(pool_for_metrics, Duration::from_secs(60)) => {
+                tracing::warn!("Postgres metrics scraping unexpectedly stopped");
+            }
+            _ = stop_receiver_for_metrics.changed() => {
+                tracing::info!("Stop signal received, Postgres metrics scraping is shutting down");
+            }
+        }
         Ok(())
     }));
 
@@ -1052,7 +981,8 @@ async fn add_house_keeper_to_task_futures(
     .build()
     .await
     .context("failed to build a prover_connection_pool")?;
-    task_futures.push(tokio::spawn(l1_batch_metrics_reporter.run()));
+    let task = l1_batch_metrics_reporter.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     // All FRI Prover related components are configured below.
     let fri_prover_config = configs
@@ -1065,7 +995,8 @@ async fn add_house_keeper_to_task_futures(
         house_keeper_config.fri_prover_job_retrying_interval_ms,
         prover_connection_pool.clone(),
     );
-    task_futures.push(tokio::spawn(fri_prover_job_retry_manager.run()));
+    let task = fri_prover_job_retry_manager.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let fri_witness_gen_config = configs
         .fri_witness_generator_config
@@ -1077,25 +1008,29 @@ async fn add_house_keeper_to_task_futures(
         house_keeper_config.fri_witness_generator_job_retrying_interval_ms,
         prover_connection_pool.clone(),
     );
-    task_futures.push(tokio::spawn(fri_witness_gen_job_retry_manager.run()));
+    let task = fri_witness_gen_job_retry_manager.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let waiting_to_queued_fri_witness_job_mover = WaitingToQueuedFriWitnessJobMover::new(
         house_keeper_config.fri_witness_job_moving_interval_ms,
         prover_connection_pool.clone(),
     );
-    task_futures.push(tokio::spawn(waiting_to_queued_fri_witness_job_mover.run()));
+    let task = waiting_to_queued_fri_witness_job_mover.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let scheduler_circuit_queuer = SchedulerCircuitQueuer::new(
         house_keeper_config.fri_witness_job_moving_interval_ms,
         prover_connection_pool.clone(),
     );
-    task_futures.push(tokio::spawn(scheduler_circuit_queuer.run()));
+    let task = scheduler_circuit_queuer.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let fri_witness_generator_stats_reporter = FriWitnessGeneratorStatsReporter::new(
         prover_connection_pool.clone(),
         house_keeper_config.witness_generator_stats_reporting_interval_ms,
     );
-    task_futures.push(tokio::spawn(fri_witness_generator_stats_reporter.run()));
+    let task = fri_witness_generator_stats_reporter.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let fri_prover_group_config = configs
         .fri_prover_group_config
@@ -1107,7 +1042,8 @@ async fn add_house_keeper_to_task_futures(
         connection_pool.clone(),
         fri_prover_group_config,
     );
-    task_futures.push(tokio::spawn(fri_prover_stats_reporter.run()));
+    let task = fri_prover_stats_reporter.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let proof_compressor_config = configs
         .fri_proof_compressor_config
@@ -1117,7 +1053,8 @@ async fn add_house_keeper_to_task_futures(
         house_keeper_config.fri_proof_compressor_stats_reporting_interval_ms,
         prover_connection_pool.clone(),
     );
-    task_futures.push(tokio::spawn(fri_proof_compressor_stats_reporter.run()));
+    let task = fri_proof_compressor_stats_reporter.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let fri_proof_compressor_retry_manager = FriProofCompressorJobRetryManager::new(
         proof_compressor_config.max_attempts,
@@ -1125,7 +1062,8 @@ async fn add_house_keeper_to_task_futures(
         house_keeper_config.fri_proof_compressor_job_retrying_interval_ms,
         prover_connection_pool.clone(),
     );
-    task_futures.push(tokio::spawn(fri_proof_compressor_retry_manager.run()));
+    let task = fri_proof_compressor_retry_manager.run(stop_receiver);
+    task_futures.push(tokio::spawn(task));
     Ok(())
 }
 
