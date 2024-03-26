@@ -2,6 +2,7 @@
 
 use std::{
     fmt,
+    num::NonZeroUsize,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -25,7 +26,7 @@ use tokio::time::Instant;
 #[derive(Debug, Clone)]
 pub struct L2Client {
     inner: HttpClient,
-    rate_limit: Option<SharedRateLimit>,
+    rate_limit: SharedRateLimit,
 }
 
 impl L2Client {
@@ -40,9 +41,7 @@ impl ClientT for L2Client {
     where
         Params: ToRpcParams + Send,
     {
-        if let Some(rate_limit) = &self.rate_limit {
-            rate_limit.acquire(1).await;
-        }
+        self.rate_limit.acquire(1).await;
         self.inner.notification(method, params).await
     }
 
@@ -51,15 +50,13 @@ impl ClientT for L2Client {
         R: DeserializeOwned,
         Params: ToRpcParams + Send,
     {
-        if let Some(rate_limit) = &self.rate_limit {
-            let stats = rate_limit.acquire(1).await;
-            if stats.was_waiting {
-                tracing::debug!(
-                    "Request to method `{method}` was rate-limited using policy {} reqs/{:?}: {stats:?}",
-                    rate_limit.rate_limit,
-                    rate_limit.rate_limit_window
-                );
-            }
+        let stats = self.rate_limit.acquire(1).await;
+        if stats.was_waiting {
+            tracing::debug!(
+                "Request to method `{method}` was rate-limited using policy {} reqs/{:?}: {stats:?}",
+                self.rate_limit.rate_limit,
+                self.rate_limit.rate_limit_window
+            );
         }
         self.inner.request(method, params).await
     }
@@ -71,9 +68,7 @@ impl ClientT for L2Client {
     where
         R: DeserializeOwned + fmt::Debug + 'a,
     {
-        if let Some(rate_limit) = &self.rate_limit {
-            rate_limit.acquire(batch.iter().count()).await;
-        }
+        self.rate_limit.acquire(batch.iter().count()).await;
         self.inner.batch_request(batch).await
     }
 }
@@ -90,9 +85,7 @@ impl SubscriptionClientT for L2Client {
         Params: ToRpcParams + Send,
         Notif: DeserializeOwned,
     {
-        if let Some(rate_limit) = &self.rate_limit {
-            rate_limit.acquire(1).await;
-        }
+        self.rate_limit.acquire(1).await;
         self.inner
             .subscribe(subscribe_method, params, unsubscribe_method)
             .await
@@ -105,26 +98,30 @@ impl SubscriptionClientT for L2Client {
     where
         Notif: DeserializeOwned,
     {
-        if let Some(rate_limit) = &self.rate_limit {
-            rate_limit.acquire(1).await;
-        }
+        self.rate_limit.acquire(1).await;
         self.inner.subscribe_to_method(method).await
     }
 }
 
 /// Builder for the [`L2Client`].
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct L2ClientBuilder {
-    rate_limit: Option<(usize, Duration)>,
+    rate_limit: (usize, Duration),
+}
+
+impl Default for L2ClientBuilder {
+    fn default() -> Self {
+        Self {
+            rate_limit: (1, Duration::ZERO),
+        }
+    }
 }
 
 impl L2ClientBuilder {
     /// Sets the rate limit for the client. The rate limit is applied across all client instances,
     /// including cloned ones.
-    pub fn with_rate_limit(mut self, count: usize, per: Duration) -> Self {
-        assert!(count > 0, "Rate limit count must be positive");
-        assert!(per > Duration::ZERO, "Rate limit window must be positive");
-        self.rate_limit = Some((count, per));
+    pub fn with_rate_limit(mut self, count: NonZeroUsize, per: Duration) -> Self {
+        self.rate_limit = (count.into(), per);
         self
     }
 
@@ -132,14 +129,12 @@ impl L2ClientBuilder {
     pub fn build(self, url: &str) -> anyhow::Result<L2Client> {
         tracing::info!(
             "Creating HTTP JSON-RPC client with URL: {url} and rate limit: {:?}",
-            self.rate_limit.as_ref()
+            self.rate_limit
         );
         let inner = HttpClientBuilder::default().build(url)?;
         Ok(L2Client {
             inner,
-            rate_limit: self
-                .rate_limit
-                .map(|(count, per)| SharedRateLimit::new(count, per)),
+            rate_limit: SharedRateLimit::new(self.rate_limit.0, self.rate_limit.1),
         })
     }
 }
@@ -292,6 +287,22 @@ mod tests {
                 Duration::ZERO
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn no_op_rate_limiting() {
+        tokio::time::pause();
+
+        let service = MockService::default();
+        let limiter = SharedRateLimit::new(1, Duration::ZERO);
+        for _ in 0..10 {
+            poll_service(&limiter, &service).await;
+        }
+
+        let timestamps = service.0.lock().unwrap().clone();
+        assert_eq!(timestamps.len(), 10);
+        let diffs = timestamp_diffs(&timestamps);
+        assert_eq!(diffs, [Duration::ZERO; 9]);
     }
 
     fn timestamp_diffs(timestamps: &[Instant]) -> Vec<Duration> {
