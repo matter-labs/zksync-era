@@ -341,10 +341,9 @@ pub async fn initialize_components(
         let tx_sender_config =
             TxSenderConfig::new(&state_keeper_config, &api_config.web3_json_rpc, l2_chain_id);
         let internal_api_config = InternalApiConfig::new(
-            genesis_config.l1_chain_id,
-            genesis_config.l2_chain_id,
             &api_config.web3_json_rpc,
             &contracts_config,
+            &genesis_config,
         );
 
         // Lazily initialize storage caches only when they are needed (e.g., skip their initialization
@@ -610,7 +609,7 @@ pub async fn initialize_components(
             web3_url,
         );
 
-        let operator_blobs_address = Some(eth_sender_wallets.blob_operator.address());
+        let operator_blobs_address = eth_sender_wallets.blob_operator.map(|x| x.address());
 
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             eth_sender_pool,
@@ -667,18 +666,18 @@ pub async fn initialize_components(
             web3_url,
         );
 
-        let operator_blob_private_key = eth_sender_wallets
-            .blob_operator
-            .private_key()
-            .context("Private_key")?;
-
-        let eth_client_blobs = Some(PKSigningClient::new_raw(
-            operator_blob_private_key,
-            diamond_proxy_addr,
-            default_priority_fee_per_gas,
-            l1_chain_id,
-            &web3_url,
-        ));
+        let eth_client_blobs = if let Some(blob_operator) = eth_sender_wallets.blob_operator {
+            let operator_blob_private_key = blob_operator.private_key().context("Private_key")?;
+            Some(PKSigningClient::new_raw(
+                operator_blob_private_key,
+                diamond_proxy_addr,
+                default_priority_fee_per_gas,
+                l1_chain_id,
+                &web3_url,
+            ))
+        } else {
+            None
+        };
 
         let eth_tx_manager_actor = EthTxManager::new(
             eth_manager_pool,

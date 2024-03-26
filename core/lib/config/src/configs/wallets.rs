@@ -36,7 +36,7 @@ impl Wallet {
 #[derive(Debug, Clone)]
 pub struct EthSender {
     pub operator: Wallet,
-    pub blob_operator: Wallet,
+    pub blob_operator: Option<Wallet>,
 }
 
 #[derive(Debug, Clone)]

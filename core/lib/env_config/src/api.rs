@@ -89,10 +89,6 @@ mod tests {
                 mempool_cache_update_interval: Some(50),
                 mempool_cache_size: Some(10000),
             },
-            contract_verification: ContractVerificationApiConfig {
-                port: 3070,
-                url: "http://127.0.0.1:3070".into(),
-            },
             prometheus: PrometheusConfig {
                 listener_port: 3312,
                 pushgateway_url: "http://127.0.0.1:9091".into(),

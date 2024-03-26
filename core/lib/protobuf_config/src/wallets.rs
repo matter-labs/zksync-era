@@ -1,4 +1,7 @@
+use anyhow::Context;
+use zksync_basic_types::web3::signing::Key;
 use zksync_config::configs::{
+    eth_sender,
     wallets::{EthSender, StateKeeper, Wallet},
     {self},
 };
@@ -10,13 +13,22 @@ impl ProtoRepr for proto::Wallets {
     type Type = configs::wallets::Wallets;
     fn read(&self) -> anyhow::Result<Self::Type> {
         let eth_sender = if self.operator.is_some() && self.blob_operator.is_some() {
+            let blob_operator = if let Some(blob_operator) = &self.blob_operator {
+                Some(Wallet::from_private_key(parse_h256(
+                    required(&blob_operator.private_key).context("blob operator")?,
+                )?))
+            } else {
+                None
+            };
             Some(EthSender {
                 operator: Wallet::from_private_key(parse_h256(required(
-                    &self.operator.clone().unwrap().private_key,
+                    &self
+                        .operator
+                        .clone()
+                        .context("Operator private key")?
+                        .private_key,
                 )?)?),
-                blob_operator: Wallet::from_private_key(parse_h256(required(
-                    &self.blob_operator.clone().unwrap().private_key,
-                )?)?),
+                blob_operator,
             })
         } else {
             None
@@ -39,6 +51,10 @@ impl ProtoRepr for proto::Wallets {
 
     fn build(this: &Self::Type) -> Self {
         let (operator, blob_operator) = if let Some(eth_sender) = &this.eth_sender {
+            let blob = eth_sender.blob_operator.as_ref().map(|blob| proto::Wallet {
+                address: Some(blob.address().as_bytes().to_vec()),
+                private_key: blob.private_key().map(|a| a.as_bytes().to_vec()),
+            });
             (
                 Some(proto::Wallet {
                     address: Some(eth_sender.operator.address().as_bytes().to_vec()),
@@ -47,13 +63,7 @@ impl ProtoRepr for proto::Wallets {
                         .private_key()
                         .map(|a| a.as_bytes().to_vec()),
                 }),
-                Some(proto::Wallet {
-                    address: Some(eth_sender.blob_operator.address().as_bytes().to_vec()),
-                    private_key: eth_sender
-                        .blob_operator
-                        .private_key()
-                        .map(|a| a.as_bytes().to_vec()),
-                }),
+                blob,
             )
         } else {
             (None, None)

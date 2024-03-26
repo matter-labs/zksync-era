@@ -28,3 +28,9 @@ pub struct GenesisConfig {
     pub shared_bridge: Option<SharedBridge>,
     pub dummy_prover: bool,
 }
+
+impl GenesisConfig {
+    pub fn for_tests() -> Self {
+        todo!()
+    }
+}

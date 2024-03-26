@@ -41,7 +41,7 @@ impl FromEnv for ObservabilityConfig {
         };
         let sporadic_crypto_errors_substrs = std::env::var("ALERTS_SPORADIC_CRYPTO_ERRORS_SUBSTRS")
             .ok()
-            .map(|a| a.split(",").map(|a| a.to_string()).collect())
+            .map(|a| a.split(',').map(|a| a.to_string()).collect())
             .unwrap_or_default();
 
         Ok(ObservabilityConfig {

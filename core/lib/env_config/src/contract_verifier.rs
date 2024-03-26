@@ -20,6 +20,8 @@ mod tests {
             compilation_timeout: 30,
             polling_interval: Some(1000),
             prometheus_port: 3314,
+            port: 9454,
+            url: "127.0.0.1:9454".to_string(),
         }
     }
 

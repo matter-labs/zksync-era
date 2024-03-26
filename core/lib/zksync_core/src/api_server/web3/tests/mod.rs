@@ -14,7 +14,7 @@ use zksync_config::{
     configs::{
         api::Web3JsonRpcConfig,
         chain::{NetworkConfig, StateKeeperConfig},
-        ContractsConfig,
+        ContractsConfig, GeneralConfig,
     },
     GenesisConfig,
 };
@@ -282,9 +282,10 @@ async fn test_http_server(test: impl HttpTest) {
     drop(storage);
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let contracts_config = ContractsConfig::for_tests();
+    let contracts_config = ContractsConfig::for_tests().into();
     let web3_config = Web3JsonRpcConfig::for_tests();
-    let mut api_config = InternalApiConfig::new(&network_config, &web3_config, &contracts_config);
+    let genesis = GenesisConfig::for_tests();
+    let mut api_config = InternalApiConfig::new(&web3_config, &contracts_config, &genesis);
     api_config.filters_disabled = test.filters_disabled();
     let mut server_handles = spawn_http_server(
         api_config,

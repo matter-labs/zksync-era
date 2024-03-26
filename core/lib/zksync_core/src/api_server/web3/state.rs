@@ -11,8 +11,11 @@ use anyhow::Context as _;
 use lru::LruCache;
 use tokio::sync::{watch, Mutex};
 use vise::GaugeGuard;
-use zksync_config::configs::{
-    api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfigReduced,
+use zksync_config::{
+    configs::{
+        api::Web3JsonRpcConfig, chain::NetworkConfig, genesis::SharedBridge, ContractsConfigReduced,
+    },
+    GenesisConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_state::MempoolCache;
@@ -100,14 +103,13 @@ pub struct InternalApiConfig {
 
 impl InternalApiConfig {
     pub fn new(
-        l1_chain_id: L1ChainId,
-        l2_chain_id: L2ChainId,
         web3_config: &Web3JsonRpcConfig,
         contracts_config: &ContractsConfigReduced,
+        genesis_config: &GenesisConfig,
     ) -> Self {
         Self {
-            l1_chain_id,
-            l2_chain_id,
+            l1_chain_id: genesis_config.l1_chain_id,
+            l2_chain_id: genesis_config.l2_chain_id,
             max_tx_size: web3_config.max_tx_size,
             estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: web3_config
@@ -118,8 +120,10 @@ impl InternalApiConfig {
                 l1_weth_bridge: contracts_config.l1_weth_bridge_proxy_addr,
                 l2_weth_bridge: contracts_config.l2_weth_bridge_addr,
             },
-            // TODO move bridgehub proxy
-            bridgehub_proxy_addr: None,
+            bridgehub_proxy_addr: genesis_config
+                .shared_bridge
+                .as_ref()
+                .map(|a| a.bridgehub_proxy_addr),
             diamond_proxy_addr: contracts_config.diamond_proxy_addr,
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
