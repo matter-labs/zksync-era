@@ -285,7 +285,7 @@ pub async fn initialize_components(
 
     let circuit_breaker_checker = CircuitBreakerChecker::new(
         Arc::new(
-            circuit_breakers_for_components(&components, &postgres_config, &circuit_breaker_config)
+            circuit_breakers_for_components(components, &postgres_config, &circuit_breaker_config)
                 .await
                 .context("circuit_breakers_for_components")?,
         ),
