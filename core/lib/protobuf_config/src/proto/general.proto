@@ -17,6 +17,7 @@ import "zksync/config/utils.proto";
 message GeneralConfig {
   optional config.database.Postgres postgres = 1;
   optional config.api.Api api = 2;
+  optional config.contract_verifier.ContractVerifier contract_verifier = 3;
   optional config.circuit_breaker.CircuitBreaker circuit_breaker = 5;
   optional config.chain.Mempool mempool = 6;
   optional config.chain.OperationsManager operations_manager = 8;

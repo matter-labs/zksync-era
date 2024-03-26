@@ -3,9 +3,7 @@ use std::{net::SocketAddr, sync::Arc};
 use anyhow::Context as _;
 use axum::{extract::Path, routing::post, Json, Router};
 use tokio::sync::watch;
-use zksync_config::configs::{
-    proof_data_handler::ProtocolVersionLoadingMode, ProofDataHandlerConfig,
-};
+use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
@@ -23,12 +21,7 @@ pub async fn run_server(
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
     tracing::debug!("Starting proof data handler server on {bind_address}");
-    let l1_verifier_config: Option<L1VerifierConfig> = match config.protocol_version_loading_mode {
-        ProtocolVersionLoadingMode::FromDb => None,
-        ProtocolVersionLoadingMode::FromEnvVar => panic!("From Env var is deprecated"),
-    };
-    let get_proof_gen_processor =
-        RequestProcessor::new(blob_store, pool, config, l1_verifier_config);
+    let get_proof_gen_processor = RequestProcessor::new(blob_store, pool, config);
     let submit_proof_processor = get_proof_gen_processor.clone();
     let app = Router::new()
         .route(

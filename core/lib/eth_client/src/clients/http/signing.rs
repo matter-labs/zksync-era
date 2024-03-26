@@ -67,6 +67,30 @@ impl PKSigningClient {
         ))
     }
 
+    pub fn new_raw(
+        operator_private_key: H256,
+        diamond_proxy_addr: Address,
+        default_priority_fee_per_gas: u64,
+        l1_chain_id: L1ChainId,
+        web3_url: &str,
+    ) -> Self {
+        let transport = Http::new(web3_url).expect("Failed to create transport");
+        let operator_address = PackedEthSignature::address_from_private_key(&operator_private_key)
+            .expect("Failed to get address from private key");
+
+        let signer = PrivateKeySigner::new(operator_private_key);
+        tracing::info!("Operator address: {:?}", operator_address);
+        SigningClient::new(
+            transport,
+            zksync_contract(),
+            operator_address,
+            signer,
+            diamond_proxy_addr,
+            default_priority_fee_per_gas.into(),
+            l1_chain_id,
+        )
+    }
+
     fn from_config_inner(
         eth_sender: &ETHConfig,
         contracts_config: &ContractsConfigReduced,
@@ -78,20 +102,12 @@ impl PKSigningClient {
         let default_priority_fee_per_gas = eth_sender.gas_adjuster.default_priority_fee_per_gas;
         let l1_chain_id = eth_client.chain_id;
 
-        let transport = Http::new(main_node_url).expect("Failed to create transport");
-        let operator_address = PackedEthSignature::address_from_private_key(&operator_private_key)
-            .expect("Failed to get address from private key");
-
-        tracing::info!("Operator address: {:?}", operator_address);
-
-        SigningClient::new(
-            transport,
-            zksync_contract(),
-            operator_address,
-            PrivateKeySigner::new(operator_private_key),
+        SigningClient::new_raw(
+            operator_private_key,
             diamond_proxy_addr,
             default_priority_fee_per_gas.into(),
             L1ChainId(l1_chain_id),
+            main_node_url,
         )
     }
 }

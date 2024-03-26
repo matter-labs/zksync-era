@@ -10,6 +10,7 @@ use zksync_config::{
 };
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
+use zksync_types::L2ChainId;
 
 pub use self::{
     batch_executor::{main_executor::MainBatchExecutor, BatchExecutor},
@@ -38,7 +39,7 @@ pub(crate) async fn create_state_keeper(
     contracts_config: &ContractsConfigReduced,
     state_keeper_config: StateKeeperConfig,
     db_config: &DBConfig,
-    network_config: &NetworkConfig,
+    l2chain_id: L2ChainId,
     mempool_config: &MempoolConfig,
     pool: ConnectionPool<Core>,
     mempool: MempoolGuard,
@@ -67,7 +68,7 @@ pub(crate) async fn create_state_keeper(
         mempool_config.delay_interval(),
         contracts_config.l2_erc20_bridge_addr,
         state_keeper_config.validation_computational_gas_limit,
-        network_config.zksync_network_id,
+        l2chain_id,
     )
     .await
     .expect("Failed initializing main node I/O for state keeper");

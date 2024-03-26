@@ -7,13 +7,14 @@ use crate::{
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, PrometheusConfig,
         ProofDataHandlerConfig,
     },
-    ApiConfig, DBConfig, ETHConfig, PostgresConfig,
+    ApiConfig, ContractVerifierConfig, DBConfig, ETHConfig, PostgresConfig,
 };
 
 #[derive(Debug, PartialEq)]
-pub struct General {
+pub struct GeneralConfig {
     pub postgres_config: Option<PostgresConfig>,
     pub api_config: Option<ApiConfig>,
+    pub contract_verifier: Option<ContractVerifierConfig>,
     pub circuit_breaker_config: Option<CircuitBreakerConfig>,
     pub mempool_config: Option<MempoolConfig>,
     pub operations_manager_config: Option<OperationsManagerConfig>,

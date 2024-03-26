@@ -1,5 +1,6 @@
 use zksync_basic_types::{Address, H256};
 
+#[derive(Debug, Clone)]
 pub struct Wallet {
     address: Address,
     private_key: Option<H256>,
@@ -32,15 +33,18 @@ impl Wallet {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct EthSender {
     pub operator: Wallet,
     pub blob_operator: Wallet,
 }
 
+#[derive(Debug, Clone)]
 pub struct StateKeeper {
     pub fee_account: Wallet,
 }
 
+#[derive(Debug, Clone)]
 pub struct Wallets {
     pub eth_sender: Option<EthSender>,
     pub state_keeper: Option<StateKeeper>,

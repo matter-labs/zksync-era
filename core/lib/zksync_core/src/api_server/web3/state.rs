@@ -100,13 +100,14 @@ pub struct InternalApiConfig {
 
 impl InternalApiConfig {
     pub fn new(
-        eth_config: &NetworkConfig,
+        l1_chain_id: L1ChainId,
+        l2_chain_id: L2ChainId,
         web3_config: &Web3JsonRpcConfig,
         contracts_config: &ContractsConfigReduced,
     ) -> Self {
         Self {
-            l1_chain_id: eth_config.network.chain_id(),
-            l2_chain_id: eth_config.zksync_network_id,
+            l1_chain_id,
+            l2_chain_id,
             max_tx_size: web3_config.max_tx_size,
             estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: web3_config

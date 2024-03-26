@@ -1,25 +1,16 @@
-use crate::proto::general as proto;
 use anyhow::Context as _;
+use zksync_config::configs::GeneralConfig;
+use zksync_protobuf::ProtoRepr;
 
-use crate::read_optional_repr;
-use zksync_config::configs::chain::{
-    CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig,
-};
-use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
-use zksync_config::configs::house_keeper::HouseKeeperConfig;
-use zksync_config::configs::{
-    FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig, FriWitnessGeneratorConfig,
-    FriWitnessVectorGeneratorConfig, General, PrometheusConfig, ProofDataHandlerConfig,
-};
-use zksync_config::{ApiConfig, DBConfig, ETHConfig, PostgresConfig};
-use zksync_protobuf::{ProtoFmt, ProtoRepr};
+use crate::{proto::general as proto, read_optional_repr};
 
 impl ProtoRepr for proto::GeneralConfig {
-    type Type = General;
+    type Type = GeneralConfig;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             postgres_config: read_optional_repr(&self.postgres).context("postgres")?,
+            contract_verifier: read_optional_repr(&self.contract_verifier).context("postgres")?,
             circuit_breaker_config: read_optional_repr(&self.circuit_breaker)
                 .context("circuit_breaker")?,
             mempool_config: read_optional_repr(&self.mempool).context("mempool")?,
@@ -51,6 +42,7 @@ impl ProtoRepr for proto::GeneralConfig {
             postgres: this.postgres_config.as_ref().map(ProtoRepr::build),
             circuit_breaker: this.circuit_breaker_config.as_ref().map(ProtoRepr::build),
             mempool: this.mempool_config.as_ref().map(ProtoRepr::build),
+            contract_verifier: this.contract_verifier.as_ref().map(ProtoRepr::build),
             operations_manager: this
                 .operations_manager_config
                 .as_ref()

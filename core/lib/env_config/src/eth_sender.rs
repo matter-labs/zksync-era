@@ -1,5 +1,7 @@
 use anyhow::Context as _;
-use zksync_config::{configs::eth_sender::SenderConfig, ETHConfig, GasAdjusterConfig};
+use zksync_config::{
+    configs::eth_sender::SenderConfig, ETHConfig, ETHWatchConfig, GasAdjusterConfig,
+};
 
 use crate::{envy_load, FromEnv};
 
@@ -8,6 +10,8 @@ impl FromEnv for ETHConfig {
         Ok(Self {
             sender: SenderConfig::from_env().context("SenderConfig")?,
             gas_adjuster: GasAdjusterConfig::from_env().context("GasAdjusterConfig")?,
+            watcher: ETHWatchConfig::from_env().context("ETHWatchConfig")?,
+            web3_url: std::env::var("ETH_CLIENT_WEB3_URL").context("ETH_CLIENT_WEB3_URL")?,
         })
     }
 }
@@ -71,6 +75,11 @@ mod tests {
                 internal_pubdata_pricing_multiplier: 1.0,
                 max_blob_base_fee: None,
             },
+            watcher: ETHWatchConfig {
+                confirmations_for_eth_event: None,
+                eth_node_poll_interval: 0,
+            },
+            web3_url: "".to_string(),
         }
     }
 
