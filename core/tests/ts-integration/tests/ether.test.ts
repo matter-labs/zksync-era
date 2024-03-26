@@ -27,7 +27,7 @@ describe('ETH token checks', () => {
     });
 
     test('Can perform a deposit', async () => {
-        const amount = 7_000_000_000; // 1 wei is enough.
+        const amount = 1; // 1 wei is enough.
         const gasPrice = scaledGasPrice(alice);
 
         // Unfortunately, since fee is taken in ETH, we must calculate the L1 ETH balance diff explicitly.
@@ -51,15 +51,15 @@ describe('ETH token checks', () => {
             gasPrice: await gasPrice
         });
 
-        console.log('balances before deposit: ');
-        console.log('alice.getBalance(): ', await alice.getBalance());
-        console.log('alice.getBalanceL1(): ', await alice.getBalanceL1());
-        console.log('base token address: ', process.env.CONTRACTS_BASE_TOKEN_ADDR);
-        console.log('alice.getBalance(NATIVE TOKEN): ', await alice.getBalance(process.env.CONTRACTS_BASE_TOKEN_ADDR));
-        console.log(
-            'alice.getBalanceL1(NATIVE TOKEN): ',
-            await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR)
-        );
+        // console.log('balances before deposit: ');
+        // console.log('alice.getBalance(): ', await alice.getBalance());
+        // console.log('alice.getBalanceL1(): ', await alice.getBalanceL1());
+        // console.log('base token address: ', process.env.CONTRACTS_BASE_TOKEN_ADDR);
+        // console.log('alice.getBalance(NATIVE TOKEN): ', await alice.getBalance(process.env.CONTRACTS_BASE_TOKEN_ADDR));
+        // console.log(
+        //     'alice.getBalanceL1(NATIVE TOKEN): ',
+        //     await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR)
+        // );
         const depositOp = alice.deposit({
             token: ETH_ADDRESS,
             amount,
@@ -75,16 +75,17 @@ describe('ETH token checks', () => {
             }
         });
 
-        // await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
+        await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
+
         await sleep(8);
-        console.log('balances after deposit: ');
-        console.log('alice.getBalance(): ', await alice.getBalance());
-        console.log('alice.getBalanceL1(): ', await alice.getBalanceL1());
-        console.log('alice.getBalance(NATIVE TOKEN): ', await alice.getBalance(process.env.CONTRACTS_BASE_TOKEN_ADDR));
-        console.log(
-            'alice.getBalanceL1(NATIVE TOKEN): ',
-            await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR)
-        );
+        // console.log('balances after deposit: ');
+        // console.log('alice.getBalance(): ', await alice.getBalance());
+        // console.log('alice.getBalanceL1(): ', await alice.getBalanceL1());
+        // console.log('alice.getBalance(NATIVE TOKEN): ', await alice.getBalance(process.env.CONTRACTS_BASE_TOKEN_ADDR));
+        // console.log(
+        //     'alice.getBalanceL1(NATIVE TOKEN): ',
+        //     await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR)
+        // );
 
         const depositFee = await depositOp
             .then((op) => op.waitL1Commit())
