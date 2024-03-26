@@ -1,6 +1,7 @@
 use std::{convert::TryFrom, ops};
 
 use anyhow::Context;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{AccountTreeId, L1BatchNumber, MiniblockNumber, H256};
 use zksync_protobuf::{required, ProtoFmt};
@@ -19,9 +20,19 @@ pub struct AllSnapshots {
     pub snapshots_l1_batch_numbers: Vec<L1BatchNumber>,
 }
 
+/// Version of snapshot influencing the format of data stored in GCS.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(TryFromPrimitive, IntoPrimitive)]
+#[repr(u16)]
+pub enum SnapshotVersion {
+    /// Initial snapshot version. Keys in storage logs are stored as `(address, key)` pairs.
+    Version0 = 0,
+}
+
 /// Storage snapshot metadata. Used in DAL to fetch certain snapshot data.
 #[derive(Debug, Clone)]
 pub struct SnapshotMetadata {
+    pub version: SnapshotVersion,
     /// L1 batch for the snapshot. The data in the snapshot captures node storage at the end of this batch.
     pub l1_batch_number: L1BatchNumber,
     /// Path to the factory dependencies blob.
@@ -43,6 +54,9 @@ impl SnapshotMetadata {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotHeader {
+    // Not a `SnapshotVersion` to have controllable error handling in case of deserializing a header on an outdated node.
+    #[serde(default)]
+    pub version: u16,
     pub l1_batch_number: L1BatchNumber,
     pub miniblock_number: MiniblockNumber,
     /// Ordered by chunk IDs.
