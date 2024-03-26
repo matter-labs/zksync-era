@@ -1,4 +1,4 @@
-use std::{env, time::Duration};
+use std::{env, num::NonZeroUsize, time::Duration};
 
 use anyhow::Context;
 use serde::Deserialize;
@@ -251,11 +251,12 @@ pub(crate) struct OptionalENConfig {
     // its purpose; the consistency checker assumes that the main node may provide false information.
     pub contracts_diamond_proxy_addr: Option<Address>,
     /// Number of permits in each rate limiting window applied to the main node HTTP client. Default is 10 permits.
-    #[serde(default = "OptionalENConfig::default_main_node_client_rate_limit_count")]
-    pub main_node_client_rate_limit_count: usize,
-    /// Duration of a rate limiting window applied to the main node HTTP client. Default is 50ms.
-    #[serde(default = "OptionalENConfig::default_main_node_client_rate_limit_window_ms")]
-    main_node_client_rate_limit_window_ms: u64,
+    #[serde(default = "OptionalENConfig::default_main_node_rate_limit_count")]
+    pub main_node_rate_limit_count: NonZeroUsize,
+    /// Duration of a rate limiting window applied to the main node HTTP client. Default is 50 ms.
+    /// Setting this duration to 0 will effectively disable rate limiting.
+    #[serde(default = "OptionalENConfig::default_main_node_rate_limit_window_ms")]
+    main_node_rate_limit_window_ms: u64,
 }
 
 impl OptionalENConfig {
@@ -370,11 +371,14 @@ impl OptionalENConfig {
         10_000
     }
 
-    const fn default_main_node_client_rate_limit_count() -> usize {
-        10
+    const fn default_main_node_rate_limit_count() -> NonZeroUsize {
+        match NonZeroUsize::new(10) {
+            Some(value) => value,
+            None => unreachable!(),
+        }
     }
 
-    const fn default_main_node_client_rate_limit_window_ms() -> u64 {
+    const fn default_main_node_rate_limit_window_ms() -> u64 {
         50
     }
 
@@ -450,8 +454,8 @@ impl OptionalENConfig {
         Duration::from_millis(self.mempool_cache_update_interval)
     }
 
-    pub fn main_node_client_rate_limit_window(&self) -> Duration {
-        Duration::from_millis(self.main_node_client_rate_limit_window_ms)
+    pub fn main_node_rate_limit_window(&self) -> Duration {
+        Duration::from_millis(self.main_node_rate_limit_window_ms)
     }
 }
 
