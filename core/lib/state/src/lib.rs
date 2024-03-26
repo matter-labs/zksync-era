@@ -19,7 +19,6 @@ use zksync_types::{
 
 mod cache;
 mod in_memory;
-mod mempool_cache;
 mod postgres;
 mod rocksdb;
 mod shadow_storage;
@@ -29,8 +28,8 @@ mod test_utils;
 mod witness;
 
 pub use self::{
+    cache::sequential_cache::SequentialCache,
     in_memory::{InMemoryStorage, IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID},
-    mempool_cache::MempoolCache,
     postgres::{PostgresStorage, PostgresStorageCaches, PostgresStorageCachesTask},
     rocksdb::{RocksbStorageBuilder, RocksdbStorage},
     shadow_storage::ShadowStorage,

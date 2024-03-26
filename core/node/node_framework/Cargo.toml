@@ -25,6 +25,7 @@ zksync_eth_client.workspace = true
 zksync_contracts.workspace = true
 zksync_web3_decl.workspace = true
 zksync_utils.workspace = true
+zksync_circuit_breaker.workspace = true
 
 tracing.workspace = true
 thiserror.workspace = true

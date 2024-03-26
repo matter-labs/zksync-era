@@ -5,7 +5,7 @@ use assert_matches::assert_matches;
 use super::*;
 use crate::{
     api_server::{execution_sandbox::apply::apply_vm_in_sandbox, tx_sender::ApiContracts},
-    genesis::{ensure_genesis_state, GenesisParams},
+    genesis::{insert_genesis_batch, GenesisParams},
     utils::testonly::{create_l2_transaction, create_miniblock, prepare_recovery_snapshot},
 };
 
@@ -13,7 +13,7 @@ use crate::{
 async fn creating_block_args() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
     let miniblock = create_miniblock(1);
@@ -160,7 +160,7 @@ async fn creating_block_args_after_snapshot_recovery() {
 async fn instantiating_vm() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
 

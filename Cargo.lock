@@ -8515,6 +8515,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vlog",
+ "zksync_circuit_breaker",
  "zksync_config",
  "zksync_contracts",
  "zksync_core",
@@ -8801,6 +8802,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "zksync_config",
  "zksync_types",
 ]
 

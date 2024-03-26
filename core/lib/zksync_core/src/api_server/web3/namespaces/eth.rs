@@ -709,10 +709,10 @@ impl EthNamespace {
                     .get_tx_hashes_after(*from_timestamp_excluded)
                     .await;
                 let tx_hashes = match tx_hashes_from_cache {
-                    Some(result) => result
-                        .into_iter()
-                        .take(self.state.api_config.req_entities_limit)
-                        .collect(),
+                    Some(mut result) => {
+                        result.truncate(self.state.api_config.req_entities_limit);
+                        result
+                    }
                     None => {
                         // On cache miss, query the database.
                         let mut conn = self.state.connection_pool.connection_tagged("api").await?;
@@ -729,7 +729,6 @@ impl EthNamespace {
                 // It's possible the `tx_hashes` vector is empty,
                 // meaning there are no transactions in cache that are newer than `from_timestamp_excluded`.
                 // In this case we should return empty result and don't update `from_timestamp_excluded`.
-
                 if let Some((last_timestamp, _)) = tx_hashes.last() {
                     *from_timestamp_excluded = *last_timestamp;
                 }
