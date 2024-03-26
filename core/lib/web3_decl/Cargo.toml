@@ -21,6 +21,7 @@ pin-project-lite.workspace = true
 zksync_types.workspace = true
 async-trait.workspace = true
 tokio = { workspace = true, features = ["time"] }
+tracing.workspace = true
 
 [dev-dependencies]
 futures.workspace = true

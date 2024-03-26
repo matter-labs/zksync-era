@@ -8800,6 +8800,7 @@ dependencies = [
  "test-casing",
  "thiserror",
  "tokio",
+ "tracing",
  "zksync_types",
 ]
 

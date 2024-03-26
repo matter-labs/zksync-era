@@ -1,7 +1,7 @@
 //! L2 HTTP client.
 
 use std::{
-    fmt::Debug,
+    fmt,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -52,7 +52,14 @@ impl ClientT for L2Client {
         Params: ToRpcParams + Send,
     {
         if let Some(rate_limit) = &self.rate_limit {
-            rate_limit.acquire(1).await;
+            let stats = rate_limit.acquire(1).await;
+            if stats.was_waiting {
+                tracing::debug!(
+                    "Request to method `{method}` was rate-limited using policy {} reqs/{:?}: {stats:?}",
+                    rate_limit.rate_limit,
+                    rate_limit.rate_limit_window
+                );
+            }
         }
         self.inner.request(method, params).await
     }
@@ -62,7 +69,7 @@ impl ClientT for L2Client {
         batch: BatchRequestBuilder<'a>,
     ) -> Result<BatchResponse<'a, R>, Error>
     where
-        R: DeserializeOwned + Debug + 'a,
+        R: DeserializeOwned + fmt::Debug + 'a,
     {
         if let Some(rate_limit) = &self.rate_limit {
             rate_limit.acquire(batch.iter().count()).await;
@@ -123,6 +130,10 @@ impl L2ClientBuilder {
 
     /// Builds the client.
     pub fn build(self, url: &str) -> anyhow::Result<L2Client> {
+        tracing::info!(
+            "Creating HTTP JSON-RPC client with URL: {url} and rate limit: {:?}",
+            self.rate_limit.as_ref()
+        );
         let inner = HttpClientBuilder::default().build(url)?;
         Ok(L2Client {
             inner,
@@ -131,6 +142,12 @@ impl L2ClientBuilder {
                 .map(|(count, per)| SharedRateLimit::new(count, per)),
         })
     }
+}
+
+#[derive(Debug, Default)]
+struct AcquireStats {
+    was_waiting: bool,
+    total_sleep_time: Duration,
 }
 
 #[derive(Debug)]
@@ -174,19 +191,18 @@ impl SharedRateLimit {
     /// in this case).
     ///
     /// This implementation is similar to `RateLimit` middleware in Tower, but is shared among client instances.
-    async fn acquire(&self, permit_count: usize) {
+    async fn acquire(&self, permit_count: usize) -> AcquireStats {
+        let mut stats = AcquireStats::default();
         let mut state = loop {
             // A separate scope is required to not hold a mutex guard across the `await` point,
             // which is not only semantically incorrect, but also makes the future `!Send` (unfortunately,
             // async Rust doesn't seem to understand non-lexical lifetimes).
+            let now = Instant::now();
             let until = {
                 let mut state = self.state.lock().expect("state is poisoned");
-                let now = Instant::now();
                 match &*state {
                     SharedRateLimitState::Ready { .. } => break state,
-                    SharedRateLimitState::Limited { until }
-                        if until.duration_since(now) == Duration::ZERO =>
-                    {
+                    SharedRateLimitState::Limited { until } if *until <= now => {
                         // At this point, local time is `>= until`; thus, the state should be reset.
                         // Because we hold an exclusive lock on `state`, there's no risk of a data race.
                         *state = SharedRateLimitState::Ready {
@@ -198,6 +214,9 @@ impl SharedRateLimit {
                     SharedRateLimitState::Limited { until } => *until,
                 }
             };
+
+            stats.was_waiting = true;
+            stats.total_sleep_time += until.duration_since(now);
             tokio::time::sleep_until(until).await;
         };
         let SharedRateLimitState::Ready { until, permits } = &mut *state else {
@@ -214,6 +233,7 @@ impl SharedRateLimit {
         if *permits == 0 {
             *state = SharedRateLimitState::Limited { until: *until };
         }
+        stats
     }
 }
 
