@@ -5,9 +5,7 @@ use std::{
 
 use tokio::sync::watch::Receiver;
 use zksync_types::fee_model::FeeParams;
-use zksync_web3_decl::{
-    error::ClientRpcContext, jsonrpsee::http_client::HttpClient, namespaces::ZksNamespaceClient,
-};
+use zksync_web3_decl::{client::L2Client, error::ClientRpcContext, namespaces::ZksNamespaceClient};
 
 use crate::fee_model::BatchFeeModelInputProvider;
 
@@ -21,12 +19,12 @@ const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 /// since it relies on the configuration, which may change.
 #[derive(Debug)]
 pub struct MainNodeFeeParamsFetcher {
-    client: HttpClient,
+    client: L2Client,
     main_node_fee_params: RwLock<FeeParams>,
 }
 
 impl MainNodeFeeParamsFetcher {
-    pub fn new(client: HttpClient) -> Self {
+    pub fn new(client: L2Client) -> Self {
         Self {
             client,
             main_node_fee_params: RwLock::new(FeeParams::sensible_v1_default()),

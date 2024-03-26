@@ -7,7 +7,7 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::AppHealthCheck;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
-use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
+use zksync_web3_decl::client::L2Client;
 
 use crate::config::read_snapshots_recovery_config;
 
@@ -21,7 +21,7 @@ enum InitDecision {
 
 pub(crate) async fn ensure_storage_initialized(
     pool: &ConnectionPool<Core>,
-    main_node_client: &HttpClient,
+    main_node_client: &L2Client,
     app_health: &AppHealthCheck,
     l2_chain_id: L2ChainId,
     consider_snapshot_recovery: bool,

@@ -14,8 +14,8 @@ use zksync_types::{
     Address, Nonce, H256,
 };
 use zksync_web3_decl::{
+    client::L2Client,
     error::{ClientRpcContext, EnrichedClientResult, Web3Error},
-    jsonrpsee::http_client::HttpClient,
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
@@ -109,11 +109,11 @@ impl TxCache {
 #[derive(Debug)]
 pub struct TxProxy {
     tx_cache: TxCache,
-    client: HttpClient,
+    client: L2Client,
 }
 
 impl TxProxy {
-    pub fn new(client: HttpClient) -> Self {
+    pub fn new(client: L2Client) -> Self {
         Self {
             client,
             tx_cache: TxCache::default(),

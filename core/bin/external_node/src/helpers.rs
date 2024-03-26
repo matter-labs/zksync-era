@@ -1,14 +1,14 @@
 //! Miscellaneous helpers for the EN.
 
 use zksync_health_check::{async_trait, CheckHealth, Health, HealthStatus};
-use zksync_web3_decl::{jsonrpsee::http_client::HttpClient, namespaces::EthNamespaceClient};
+use zksync_web3_decl::{client::L2Client, namespaces::EthNamespaceClient};
 
 /// Main node health check.
 #[derive(Debug)]
-pub(crate) struct MainNodeHealthCheck(HttpClient);
+pub(crate) struct MainNodeHealthCheck(L2Client);
 
-impl From<HttpClient> for MainNodeHealthCheck {
-    fn from(client: HttpClient) -> Self {
+impl From<L2Client> for MainNodeHealthCheck {
+    fn from(client: L2Client) -> Self {
         Self(client)
     }
 }

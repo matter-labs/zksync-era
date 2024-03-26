@@ -7,8 +7,8 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::{
+    client::L2Client,
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
-    jsonrpsee::http_client::HttpClient,
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
@@ -93,7 +93,7 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
 }
 
 #[async_trait]
-impl MainNodeClient for HttpClient {
+impl MainNodeClient for L2Client {
     async fn sealed_miniblock_number(&self) -> EnrichedClientResult<MiniblockNumber> {
         let number = self
             .get_block_number()
@@ -223,7 +223,7 @@ pub struct ReorgDetector {
 impl ReorgDetector {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(client: HttpClient, pool: ConnectionPool<Core>) -> Self {
+    pub fn new(client: L2Client, pool: ConnectionPool<Core>) -> Self {
         let (health_check, health_updater) = ReactiveHealthCheck::new("reorg_detector");
         Self {
             client: Box::new(client),

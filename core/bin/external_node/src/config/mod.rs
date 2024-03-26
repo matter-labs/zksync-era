@@ -15,8 +15,9 @@ use zksync_core::{
 };
 use zksync_types::{api::BridgeAddresses, fee_model::FeeParams};
 use zksync_web3_decl::{
+    client::L2Client,
     error::ClientRpcContext,
-    jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
+    jsonrpsee::http_client::HttpClientBuilder,
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
@@ -42,7 +43,7 @@ pub struct RemoteENConfig {
 }
 
 impl RemoteENConfig {
-    pub async fn fetch(client: &HttpClient) -> anyhow::Result<Self> {
+    pub async fn fetch(client: &L2Client) -> anyhow::Result<Self> {
         let bridges = client
             .get_bridge_contracts()
             .rpc_context("get_bridge_contracts")
@@ -550,9 +551,9 @@ impl ExternalNodeConfig {
             .from_env::<OptionalENConfig>()
             .context("could not load external node config")?;
 
-        let client = HttpClientBuilder::default()
-            .build(required.main_node_url()?)
-            .expect("Unable to build HTTP client for main node");
+        let client = L2Client::builder()
+            .build(&required.main_node_url()?)
+            .context("Unable to build HTTP client for main node")?;
         let remote = RemoteENConfig::fetch(&client)
             .await
             .context("Unable to fetch required config values from the main node")?;

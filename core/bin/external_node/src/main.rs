@@ -6,7 +6,7 @@ use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task};
 use zksync_basic_types::{Address, L2ChainId};
-use zksync_concurrency::{ctx, limiter, scope, time};
+use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_core::{
     api_server::{
@@ -29,8 +29,7 @@ use zksync_core::{
         MiniblockSealerHandle, ZkSyncStateKeeper,
     },
     sync_layer::{
-        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue,
-        MainNodeClient, SyncState,
+        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue, SyncState,
     },
 };
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
@@ -39,7 +38,7 @@ use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::ManagedTasks;
-use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
+use zksync_web3_decl::client::L2Client;
 
 use crate::{
     config::{observability::observability_config_from_env, ExternalNodeConfig},
@@ -62,6 +61,7 @@ async fn build_state_keeper(
     state_keeper_db_path: String,
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
+    main_node_client: L2Client,
     sync_state: SyncState,
     l2_erc20_bridge_addr: Address,
     miniblock_sealer_handle: MiniblockSealerHandle,
@@ -87,9 +87,6 @@ async fn build_state_keeper(
         true,
     ));
 
-    let main_node_url = config.required.main_node_url()?;
-    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
-        .context("Failed creating JSON-RPC client for main node")?;
     let io = ExternalIO::new(
         miniblock_sealer_handle,
         connection_pool,
@@ -114,7 +111,7 @@ async fn build_state_keeper(
 async fn init_tasks(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
-    main_node_client: HttpClient,
+    main_node_client: L2Client,
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
@@ -162,6 +159,7 @@ async fn init_tasks(
         config.required.state_cache_path.clone(),
         config,
         connection_pool.clone(),
+        main_node_client.clone(),
         sync_state.clone(),
         config.remote.l2_erc20_bridge_addr,
         miniblock_sealer_handle,
@@ -178,13 +176,6 @@ async fn init_tasks(
             store: consensus::Store(connection_pool.clone()),
             sync_state: sync_state.clone(),
             client: Box::new(main_node_client.clone()),
-            limiter: limiter::Limiter::new(
-                &ctx,
-                limiter::Rate {
-                    burst: 10,
-                    refresh: time::Duration::milliseconds(30),
-                },
-            ),
         };
         let actions = action_queue_sender;
         async move {
@@ -518,7 +509,9 @@ async fn main() -> anyhow::Result<()> {
         .main_node_url()
         .expect("Main node URL is incorrect");
     tracing::info!("Main node URL is: {main_node_url}");
-    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
+    // FIXME: rate-limiting
+    let main_node_client = L2Client::builder()
+        .build(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
 
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");

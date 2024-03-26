@@ -18,6 +18,10 @@ use jsonrpsee::{
 use serde::de::DeserializeOwned;
 use tokio::time::Instant;
 
+/// JSON-RPC client for the main node with built-in middleware support.
+///
+/// The client should be used instead of `HttpClient` etc. A single instance of the client should be built
+/// and shared among all tasks run by the node in order to correctly rate-limit requests.
 #[derive(Debug, Clone)]
 pub struct L2Client {
     inner: HttpClient,
@@ -37,7 +41,7 @@ impl ClientT for L2Client {
         Params: ToRpcParams + Send,
     {
         if let Some(rate_limit) = &self.rate_limit {
-            rate_limit.ready(1).await;
+            rate_limit.acquire(1).await;
         }
         self.inner.notification(method, params).await
     }
@@ -48,7 +52,7 @@ impl ClientT for L2Client {
         Params: ToRpcParams + Send,
     {
         if let Some(rate_limit) = &self.rate_limit {
-            rate_limit.ready(1).await;
+            rate_limit.acquire(1).await;
         }
         self.inner.request(method, params).await
     }
@@ -61,7 +65,7 @@ impl ClientT for L2Client {
         R: DeserializeOwned + Debug + 'a,
     {
         if let Some(rate_limit) = &self.rate_limit {
-            rate_limit.ready(batch.iter().count()).await;
+            rate_limit.acquire(batch.iter().count()).await;
         }
         self.inner.batch_request(batch).await
     }
@@ -80,7 +84,7 @@ impl SubscriptionClientT for L2Client {
         Notif: DeserializeOwned,
     {
         if let Some(rate_limit) = &self.rate_limit {
-            rate_limit.ready(1).await;
+            rate_limit.acquire(1).await;
         }
         self.inner
             .subscribe(subscribe_method, params, unsubscribe_method)
@@ -95,7 +99,7 @@ impl SubscriptionClientT for L2Client {
         Notif: DeserializeOwned,
     {
         if let Some(rate_limit) = &self.rate_limit {
-            rate_limit.ready(1).await;
+            rate_limit.acquire(1).await;
         }
         self.inner.subscribe_to_method(method).await
     }
@@ -165,10 +169,16 @@ impl SharedRateLimit {
         }
     }
 
-    async fn ready(&self, permit_count: usize) {
+    /// Acquires the specified number of permits waiting if necessary. If the number of permits exceeds
+    /// the capacity of the limiter, it is saturated (i.e., this method cannot hang indefinitely or panic
+    /// in this case).
+    ///
+    /// This implementation is similar to `RateLimit` middleware in Tower, but is shared among client instances.
+    async fn acquire(&self, permit_count: usize) {
         let mut state = loop {
             // A separate scope is required to not hold a mutex guard across the `await` point,
-            // which is not only semantically incorrect, but also makes the future `!Send`.
+            // which is not only semantically incorrect, but also makes the future `!Send` (unfortunately,
+            // async Rust doesn't seem to understand non-lexical lifetimes).
             let until = {
                 let mut state = self.state.lock().expect("state is poisoned");
                 let now = Instant::now();
@@ -219,7 +229,7 @@ mod tests {
     struct MockService(Arc<Mutex<Vec<Instant>>>);
 
     async fn poll_service(limiter: &SharedRateLimit, service: &MockService) {
-        limiter.ready(1).await;
+        limiter.acquire(1).await;
         service.0.lock().unwrap().push(Instant::now());
     }
 

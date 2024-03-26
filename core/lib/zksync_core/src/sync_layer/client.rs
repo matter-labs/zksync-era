@@ -9,8 +9,8 @@ use zksync_types::{
     get_code_key, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, U64,
 };
 use zksync_web3_decl::{
+    client::L2Client,
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
-    jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
 
@@ -45,15 +45,8 @@ pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
     async fn fetch_consensus_genesis(&self) -> EnrichedClientResult<Option<en::ConsensusGenesis>>;
 }
 
-impl dyn MainNodeClient {
-    /// Creates a client based on JSON-RPC.
-    pub fn json_rpc(url: &str) -> anyhow::Result<HttpClient> {
-        HttpClientBuilder::default().build(url).map_err(Into::into)
-    }
-}
-
 #[async_trait]
-impl MainNodeClient for HttpClient {
+impl MainNodeClient for L2Client {
     async fn fetch_system_contract_by_hash(
         &self,
         hash: H256,
