@@ -42,7 +42,6 @@ impl WiringLayer for MainBatchExecutorLayer {
         );
         let builder = MainBatchExecutor::new(
             Arc::new(storage_factory),
-            self.state_keeper_config.max_allowed_l2_tx_gas_limit.into(),
             self.state_keeper_config.save_call_traces,
             self.state_keeper_config.upload_witness_inputs_to_gcs,
             false,

@@ -16,7 +16,7 @@ use tokio::{
     sync::{mpsc, watch},
 };
 use zksync_state::{ReadStorage, StorageView, WriteStorage};
-use zksync_types::{vm_trace::Call, Transaction, U256};
+use zksync_types::{vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
@@ -35,7 +35,6 @@ use crate::{
 pub struct MainBatchExecutor {
     storage_factory: Arc<dyn ReadStorageFactory>,
     save_call_traces: bool,
-    max_allowed_tx_gas_limit: U256,
     upload_witness_inputs_to_gcs: bool,
     optional_bytecode_compression: bool,
 }
@@ -43,7 +42,6 @@ pub struct MainBatchExecutor {
 impl MainBatchExecutor {
     pub fn new(
         storage_factory: Arc<dyn ReadStorageFactory>,
-        max_allowed_tx_gas_limit: U256,
         save_call_traces: bool,
         upload_witness_inputs_to_gcs: bool,
         optional_bytecode_compression: bool,
@@ -51,7 +49,6 @@ impl MainBatchExecutor {
         Self {
             storage_factory,
             save_call_traces,
-            max_allowed_tx_gas_limit,
             upload_witness_inputs_to_gcs,
             optional_bytecode_compression,
         }
@@ -71,7 +68,6 @@ impl BatchExecutor for MainBatchExecutor {
         let (commands_sender, commands_receiver) = mpsc::channel(1);
         let executor = CommandReceiver {
             save_call_traces: self.save_call_traces,
-            max_allowed_tx_gas_limit: self.max_allowed_tx_gas_limit,
             optional_bytecode_compression: self.optional_bytecode_compression,
             commands: commands_receiver,
         };
@@ -110,7 +106,6 @@ impl BatchExecutor for MainBatchExecutor {
 #[derive(Debug)]
 struct CommandReceiver {
     save_call_traces: bool,
-    max_allowed_tx_gas_limit: U256,
     optional_bytecode_compression: bool,
     commands: mpsc::Receiver<Command>,
 }
@@ -174,20 +169,6 @@ impl CommandReceiver {
     ) -> TxExecutionResult {
         // Save pre-`execute_next_tx` VM snapshot.
         vm.make_snapshot();
-
-        // Reject transactions with too big gas limit.
-        // They are also rejected on the API level, but
-        // we need to secure ourselves in case some tx will somehow get into mempool.
-        if tx.gas_limit() > self.max_allowed_tx_gas_limit {
-            tracing::warn!(
-                "Found tx with too big gas limit in state keeper, hash: {:?}, gas_limit: {}",
-                tx.hash(),
-                tx.gas_limit()
-            );
-            return TxExecutionResult::RejectedByVm {
-                reason: Halt::TooBigGasLimit,
-            };
-        }
 
         // Execute the transaction.
         let latency = KEEPER_METRICS.tx_execution_time[&TxExecutionStage::Execution].start();

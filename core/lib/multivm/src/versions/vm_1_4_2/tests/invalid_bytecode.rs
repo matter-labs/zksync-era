@@ -1,16 +1,16 @@
 use zksync_types::H256;
 use zksync_utils::h256_to_u256;
 
-use crate::vm_latest::tests::tester::VmTesterBuilder;
-use crate::vm_latest::types::inputs::system_env::TxExecutionMode;
-use crate::vm_latest::{HistoryEnabled, TxRevertReason};
+use crate::vm_1_4_2::tests::tester::VmTesterBuilder;
+use crate::vm_1_4_2::types::inputs::system_env::TxExecutionMode;
+use crate::vm_1_4_2::{HistoryEnabled, TxRevertReason};
 
 // TODO this test requires a lot of hacks for bypassing the bytecode checks in the VM.
 // Port it later, it's not significant. for now
 
 #[test]
 fn test_invalid_bytecode() {
-    let mut vm_builder = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm_builder = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1);

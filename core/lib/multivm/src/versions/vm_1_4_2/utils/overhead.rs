@@ -1,4 +1,4 @@
-use crate::vm_latest::constants::{TX_MEMORY_OVERHEAD_GAS, TX_SLOT_OVERHEAD_GAS};
+use crate::vm_1_4_2::constants::{TX_MEMORY_OVERHEAD_GAS, TX_SLOT_OVERHEAD_GAS};
 
 /// In the past, the overhead for transaction depended also on the effective gas per pubdata limit for the transaction.
 /// Currently, the approach is more similar to EVM, where only the calldata length and the transaction overhead are taken

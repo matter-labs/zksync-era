@@ -16,7 +16,7 @@ use crate::{
     interface::{
         L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
     },
-    vm_latest::{
+    vm_1_4_2::{
         constants::BLOCK_GAS_LIMIT,
         tests::{
             tester::{Account, TxType},

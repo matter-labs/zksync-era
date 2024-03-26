@@ -6,7 +6,7 @@ use crate::{
         types::tracer::{TracerExecutionStatus, VmExecutionStopReason},
         VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
     },
-    vm_latest::{
+    vm_1_4_2::{
         old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
         tracers::{
             circuits_capacity::circuit_statistic_from_cycles, dispatcher::TracerDispatcher,

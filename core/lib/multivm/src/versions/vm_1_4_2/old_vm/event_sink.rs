@@ -11,7 +11,7 @@ use zk_evm_1_4_1::{
 };
 use zksync_types::U256;
 
-use crate::vm_latest::old_vm::{
+use crate::vm_1_4_2::old_vm::{
     history_recorder::{AppDataFrameManagerWithHistory, HistoryEnabled, HistoryMode},
     oracles::OracleWithHistory,
 };

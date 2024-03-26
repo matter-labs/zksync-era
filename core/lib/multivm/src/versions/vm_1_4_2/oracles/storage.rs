@@ -18,7 +18,7 @@ use zksync_utils::u256_to_h256;
 
 use crate::{
     glue::GlueInto,
-    vm_latest::{
+    vm_1_4_2::{
         old_vm::{
             history_recorder::{
                 AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,

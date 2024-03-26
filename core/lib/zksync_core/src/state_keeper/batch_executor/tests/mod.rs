@@ -415,7 +415,6 @@ async fn bootloader_out_of_gas_for_any_tx() {
         TestConfig {
             save_call_traces: false,
             vm_gas_limit: Some(10),
-            max_allowed_tx_gas_limit: u32::MAX,
             validation_computational_gas_limit: u32::MAX,
             upload_witness_inputs_to_gcs: false,
         },
@@ -456,7 +455,6 @@ async fn bootloader_tip_out_of_gas() {
     tester.set_config(TestConfig {
         save_call_traces: false,
         vm_gas_limit: Some(vm_block_res.block_tip_execution_result.statistics.gas_used - 10),
-        max_allowed_tx_gas_limit: u32::MAX,
         validation_computational_gas_limit: u32::MAX,
         upload_witness_inputs_to_gcs: false,
     });

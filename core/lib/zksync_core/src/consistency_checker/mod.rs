@@ -504,11 +504,20 @@ impl ConsistencyChecker {
             .0
             .saturating_sub(self.max_batches_to_recheck)
             .into();
+
+        let last_processed_batch = self
+            .pool
+            .connection()
+            .await?
+            .blocks_dal()
+            .get_consistency_checker_last_processed_l1_batch()
+            .await?;
+
         // We shouldn't check batches not present in the storage, and skip the genesis batch since
         // it's not committed on L1.
         let first_batch_to_check = first_batch_to_check
             .max(earliest_l1_batch_number)
-            .max(L1BatchNumber(1));
+            .max(L1BatchNumber(last_processed_batch.0 + 1));
         tracing::info!(
             "Last committed L1 batch is #{last_committed_batch}; starting checks from L1 batch #{first_batch_to_check}"
         );
@@ -534,6 +543,11 @@ impl ConsistencyChecker {
 
             match self.check_commitments(batch_number, &local).await {
                 Ok(()) => {
+                    let mut storage = self.pool.connection().await?;
+                    storage
+                        .blocks_dal()
+                        .set_consistency_checker_last_processed_l1_batch(batch_number)
+                        .await?;
                     self.event_handler.update_checked_batch(batch_number);
                     batch_number += 1;
                 }
