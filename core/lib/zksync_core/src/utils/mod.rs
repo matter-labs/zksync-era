@@ -12,6 +12,7 @@ use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
+pub(crate) mod client;
 #[cfg(test)]
 pub(crate) mod testonly;
 
