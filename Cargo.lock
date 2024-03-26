@@ -8789,12 +8789,17 @@ name = "zksync_web3_decl"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
+ "futures 0.3.28",
  "jsonrpsee",
  "pin-project-lite",
+ "rand 0.8.5",
  "rlp",
  "serde",
  "serde_json",
+ "test-casing",
  "thiserror",
+ "tokio",
  "zksync_types",
 ]
 

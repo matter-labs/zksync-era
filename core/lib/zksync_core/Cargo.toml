@@ -99,7 +99,6 @@ assert_matches.workspace = true
 jsonrpsee.workspace = true
 tempfile.workspace = true
 test-casing.workspace = true
-tokio = { workspace = true, features = ["test-util"] }
 
 [build-dependencies]
 zksync_protobuf_build.workspace = true

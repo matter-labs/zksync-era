@@ -19,9 +19,15 @@ jsonrpsee = { workspace = true, features = [
 ] }
 pin-project-lite.workspace = true
 zksync_types.workspace = true
+async-trait.workspace = true
+tokio = { workspace = true, features = ["time"] }
 
 [dev-dependencies]
+futures.workspace = true
+rand.workspace = true
 serde_json.workspace = true
+test-casing.workspace = true
+tokio = { workspace = true, features = ["rt", "test-util"] }
 
 [features]
 default = ["server", "client"]
