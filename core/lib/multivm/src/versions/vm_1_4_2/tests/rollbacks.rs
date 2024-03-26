@@ -9,19 +9,19 @@ use crate::{
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled,
     },
-    vm_latest::{
+    vm_1_4_2::{
         tests::{
             tester::{DeployContractsTx, TransactionTestInfo, TxModifier, TxType, VmTesterBuilder},
             utils::read_test_contract,
         },
         types::internals::ZkSyncVmState,
-        BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, VmTracer,
+        BootloaderState, HistoryMode, SimpleMemory, ToTracerPointer, VmTracer,
     },
 };
 
 #[test]
 fn test_vm_rollbacks() {
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -70,7 +70,7 @@ fn test_vm_rollbacks() {
 
 #[test]
 fn test_vm_loadnext_rollbacks() {
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -182,7 +182,7 @@ fn test_layered_rollback() {
     // This test checks that the layered rollbacks work correctly, i.e.
     // the rollback by the operator will always revert all the changes
 
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)

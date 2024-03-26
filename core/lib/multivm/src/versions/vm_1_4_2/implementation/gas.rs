@@ -2,7 +2,7 @@ use zksync_state::WriteStorage;
 
 use crate::{
     interface::VmInterface,
-    vm_latest::{tracers::DefaultExecutionTracer, vm::Vm},
+    vm_1_4_2::{tracers::DefaultExecutionTracer, vm::Vm},
     HistoryMode,
 };
 

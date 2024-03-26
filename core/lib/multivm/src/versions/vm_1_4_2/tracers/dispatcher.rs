@@ -8,7 +8,7 @@ use crate::{
         dyn_tracers::vm_1_4_1::DynTracer,
         tracer::{TracerExecutionStatus, VmExecutionStopReason},
     },
-    vm_latest::{
+    vm_1_4_2::{
         BootloaderState, HistoryMode, SimpleMemory, TracerPointer, VmTracer, ZkSyncVmState,
     },
 };

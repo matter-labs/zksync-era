@@ -9,7 +9,7 @@ use zksync_types::{
 use crate::{
     glue::GlueInto,
     interface::types::outputs::VmExecutionLogs,
-    vm_latest::{old_vm::utils::precompile_calls_count_after_timestamp, utils::logs, vm::Vm},
+    vm_1_4_2::{old_vm::utils::precompile_calls_count_after_timestamp, utils::logs, vm::Vm},
     HistoryMode,
 };
 
