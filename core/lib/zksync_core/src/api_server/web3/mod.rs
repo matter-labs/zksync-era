@@ -11,10 +11,7 @@ use tokio::{
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_types::{
-    web3::{transports::Http, Web3},
-    MiniblockNumber,
-};
+use zksync_types::MiniblockNumber;
 use zksync_web3_decl::{
     jsonrpsee::{
         server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder},
@@ -131,7 +128,6 @@ struct OptionalApiParams {
     response_body_size_limit: Option<usize>,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
     tree_api: Option<Arc<dyn TreeApiClient>>,
-    ask_sync_state_from: Option<Arc<Web3<Http>>>,
     pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
 
@@ -263,11 +259,6 @@ impl ApiBuilder {
         self
     }
 
-    pub fn with_ask_sync_state(mut self, ask_sync_state_from: Arc<Web3<Http>>) -> Self {
-        self.optional.ask_sync_state_from = Some(ask_sync_state_from);
-        self
-    }
-
     #[cfg(test)]
     fn with_pub_sub_events(mut self, sender: mpsc::UnboundedSender<PubSubEvent>) -> Self {
         self.optional.pub_sub_events_sender = Some(sender);
@@ -338,7 +329,6 @@ impl ApiServer {
             connection_pool: self.pool,
             tx_sender: self.tx_sender,
             sync_state: self.optional.sync_state,
-            ask_sync_state_from: self.optional.ask_sync_state_from,
             api_config: self.config,
             start_info,
             mempool_cache,

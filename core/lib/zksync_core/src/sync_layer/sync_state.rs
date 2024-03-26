@@ -50,11 +50,11 @@ impl SyncState {
         Ok(())
     }
 
-    pub(crate) fn set_main_node_block(&self, block: MiniblockNumber) {
+    pub fn set_main_node_block(&self, block: MiniblockNumber) {
         self.0.send_modify(|inner| inner.set_main_node_block(block));
     }
 
-    pub(super) fn set_local_block(&self, block: MiniblockNumber) {
+    pub fn set_local_block(&self, block: MiniblockNumber) {
         self.0.send_modify(|inner| inner.set_local_block(block));
     }
 

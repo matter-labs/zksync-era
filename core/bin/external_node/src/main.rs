@@ -43,9 +43,8 @@ use zksync_db_connection::{
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
-use zksync_types::web3::{transports::Http, Web3};
 use zksync_utils::wait_for_tasks::ManagedTasks;
-use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
+use zksync_web3_decl::{jsonrpsee::http_client::HttpClient, namespaces::EthNamespaceClient};
 
 use crate::{
     config::{observability::observability_config_from_env, ExternalNodeConfig},
@@ -60,6 +59,42 @@ mod metrics;
 mod version_sync_task;
 
 const RELEASE_MANIFEST: &str = include_str!("../../../../.github/release-please/manifest.json");
+
+async fn sync_state_updater(
+    sync_state: SyncState,
+    tree_pool: ConnectionPool<Core>,
+    main_node_client: HttpClient,
+    stop_receiver: watch::Receiver<bool>,
+) -> anyhow::Result<()> {
+    const UPDATE_INTERVAL: Duration = Duration::from_secs(60);
+
+    loop {
+        if *stop_receiver.borrow() {
+            return Ok(());
+        }
+
+        let local_block = tree_pool
+            .connection()
+            .await
+            .context("Failed to get a connection from the pool in sync state updater")?
+            .blocks_dal()
+            .get_sealed_miniblock_number()
+            .await
+            .context("Failed to get the miniblock number from DB")?;
+
+        let main_node_block = main_node_client
+            .get_block_number()
+            .await
+            .context("Failed to request last miniblock number from main node")?;
+
+        if let Some(local_block) = local_block {
+            sync_state.set_local_block(local_block);
+            sync_state.set_main_node_block(main_node_block.as_u32().into());
+        }
+
+        tokio::time::sleep(UPDATE_INTERVAL).await;
+    }
+}
 
 /// Creates the state keeper configured to work in the external node mode.
 #[allow(clippy::too_many_arguments)]
@@ -322,8 +357,7 @@ async fn run_api(
     app_health: &AppHealthCheck,
     connection_pool: ConnectionPool<Core>,
     stop_receiver: watch::Receiver<bool>,
-    sync_state: Option<SyncState>,
-    ask_sync_state_from: Option<Arc<Web3<Http>>>,
+    sync_state: SyncState,
     tree_reader: Arc<dyn TreeApiClient>,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     main_node_client: HttpClient,
@@ -387,24 +421,16 @@ async fn run_api(
     };
 
     if components.contains(&Component::HttpApi) {
-        let mut builder =
-            ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
-                .http(config.required.http_port)
-                .with_filter_limit(config.optional.filters_limit)
-                .with_batch_request_size_limit(config.optional.max_batch_request_size)
-                .with_response_body_size_limit(config.optional.max_response_body_size())
-                .with_tx_sender(tx_sender.clone())
-                .with_vm_barrier(vm_barrier.clone())
-                .with_tree_api(tree_reader.clone())
-                .enable_api_namespaces(config.optional.api_namespaces());
-
-        if let Some(sync_state) = &sync_state {
-            builder = builder.with_sync_state(sync_state.clone());
-        }
-
-        if let Some(ask_sync_state_from) = &ask_sync_state_from {
-            builder = builder.with_ask_sync_state(ask_sync_state_from.clone());
-        }
+        let builder = ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
+            .http(config.required.http_port)
+            .with_filter_limit(config.optional.filters_limit)
+            .with_batch_request_size_limit(config.optional.max_batch_request_size)
+            .with_response_body_size_limit(config.optional.max_response_body_size())
+            .with_tx_sender(tx_sender.clone())
+            .with_vm_barrier(vm_barrier.clone())
+            .with_tree_api(tree_reader.clone())
+            .with_sync_state(sync_state.clone())
+            .enable_api_namespaces(config.optional.api_namespaces());
 
         let http_server_handles = builder
             .build()
@@ -417,26 +443,18 @@ async fn run_api(
     }
 
     if components.contains(&Component::WsApi) {
-        let mut builder =
-            ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
-                .ws(config.required.ws_port)
-                .with_filter_limit(config.optional.filters_limit)
-                .with_subscriptions_limit(config.optional.subscriptions_limit)
-                .with_batch_request_size_limit(config.optional.max_batch_request_size)
-                .with_response_body_size_limit(config.optional.max_response_body_size())
-                .with_polling_interval(config.optional.polling_interval())
-                .with_tx_sender(tx_sender)
-                .with_vm_barrier(vm_barrier)
-                .with_tree_api(tree_reader)
-                .enable_api_namespaces(config.optional.api_namespaces());
-
-        if let Some(sync_state) = sync_state {
-            builder = builder.with_sync_state(sync_state);
-        }
-
-        if let Some(ask_sync_state_from) = ask_sync_state_from {
-            builder = builder.with_ask_sync_state(ask_sync_state_from);
-        }
+        let builder = ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
+            .ws(config.required.ws_port)
+            .with_filter_limit(config.optional.filters_limit)
+            .with_subscriptions_limit(config.optional.subscriptions_limit)
+            .with_batch_request_size_limit(config.optional.max_batch_request_size)
+            .with_response_body_size_limit(config.optional.max_response_body_size())
+            .with_polling_interval(config.optional.polling_interval())
+            .with_tx_sender(tx_sender)
+            .with_vm_barrier(vm_barrier)
+            .with_tree_api(tree_reader)
+            .with_sync_state(sync_state)
+            .enable_api_namespaces(config.optional.api_namespaces());
 
         let ws_server_handles = builder
             .build()
@@ -463,7 +481,6 @@ async fn init_tasks(
     stop_receiver: watch::Receiver<bool>,
     components: &HashSet<Component>,
 ) -> anyhow::Result<()> {
-    let mut components = components.clone();
     let release_manifest: serde_json::Value = serde_json::from_str(RELEASE_MANIFEST)
         .context("releuse manifest is a valid json document")?;
     let release_manifest_version = release_manifest["core"].as_str().context(
@@ -537,36 +554,33 @@ async fn init_tasks(
     };
 
     let fee_params_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(main_node_client.clone()));
-    let mut sync_state = None;
 
-    if components.contains(&Component::Core) {
-        sync_state = Some(
-            run_core(
-                config,
-                connection_pool.clone(),
-                main_node_client.clone(),
-                task_handles,
-                app_health,
-                stop_receiver.clone(),
-                fee_params_fetcher.clone(),
-                &singleton_pool_builder,
-            )
-            .await?,
-        );
-        // if we are running core component in any case launch a
-        // HTTP API in order to answer to `eth_syncing` calls.
-        if !components.contains(&Component::HttpApi) {
-            components.insert(Component::HttpApi);
-        }
-    }
+    let sync_state = if components.contains(&Component::Core) {
+        run_core(
+            config,
+            connection_pool.clone(),
+            main_node_client.clone(),
+            task_handles,
+            app_health,
+            stop_receiver.clone(),
+            fee_params_fetcher.clone(),
+            &singleton_pool_builder,
+        )
+        .await?
+    } else {
+        let sync_state = SyncState::default();
+
+        task_handles.push(tokio::spawn(sync_state_updater(
+            sync_state.clone(),
+            connection_pool.clone(),
+            main_node_client.clone(),
+            stop_receiver.clone(),
+        )));
+        sync_state
+    };
 
     if components.contains(&Component::HttpApi) || components.contains(&Component::WsApi) {
         let tree_reader = tree_reader.ok_or(anyhow!("Must have a tree API"))?;
-        let ask_sync_state_from = config
-            .api_component_config
-            .ask_syncing_status_from
-            .as_ref()
-            .map(|url| Arc::new(Web3::new(Http::new(url).unwrap())));
 
         run_api(
             config,
@@ -574,13 +588,12 @@ async fn init_tasks(
             connection_pool,
             stop_receiver.clone(),
             sync_state,
-            ask_sync_state_from,
             tree_reader,
             task_handles,
             main_node_client,
             singleton_pool_builder,
             fee_params_fetcher.clone(),
-            &components,
+            components,
         )
         .await?;
     }

@@ -622,13 +622,6 @@ impl EthNamespace {
                     highest_block: state.get_main_node_block().0.into(),
                 }))
             }
-        } else if let Some(ask_sync_state_from) = &self.state.ask_sync_state_from {
-            Ok(ask_sync_state_from
-                .as_ref()
-                .eth()
-                .syncing()
-                .await
-                .map_err(|e| Web3Error::InternalError(anyhow::anyhow!(e)))?)
         } else {
             // If there is no sync state, then the node is the main node and it's always synced.
             Ok(SyncState::NotSyncing)
