@@ -42,6 +42,7 @@ fn test_default_aa_interaction() {
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
     vm.vm.execute(VmExecutionMode::Batch);
+
     vm.vm.get_current_execution_state();
 
     // Both deployment and ordinary nonce should be incremented by one.

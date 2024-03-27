@@ -1,4 +1,4 @@
-use zk_evm_1_4_1::tracing::{BeforeExecutionData, VmLocalStateData};
+use zk_evm_1_5_0::tracing::{BeforeExecutionData, VmLocalStateData};
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::StorageKey;
 
@@ -7,7 +7,7 @@ use super::{
     StorageAccess,
 };
 use crate::{
-    interface::dyn_tracers::vm_1_4_1::DynTracer,
+    interface::dyn_tracers::vm_1_5_0::DynTracer,
     tracers::prestate_tracer::U256,
     vm_latest::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
 };
@@ -41,8 +41,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
                 .map(|k| get_account_data(k.0, state, &modified_storage_keys))
                 .collect::<State>();
         } else {
-            let read_keys = &state.storage.read_keys;
-            let map = read_keys.inner().clone();
+            let read_storage_keys = &state.storage.read_storage_keys;
+            let map = read_storage_keys.inner().clone();
             let res = map
                 .iter()
                 .map(|k| get_account_data(k.0, state, &modified_storage_keys))

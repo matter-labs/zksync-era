@@ -12,7 +12,7 @@ use zksync_types::{
 use zksync_utils::{address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
 
 use crate::vm_latest::{
-    constants::{L1_TX_TYPE, MAX_GAS_PER_PUBDATA_BYTE, PRIORITY_TX_MAX_GAS_LIMIT},
+    constants::{MAX_GAS_PER_PUBDATA_BYTE, TX_MAX_COMPUTE_GAS_LIMIT},
     utils::overhead::derive_overhead,
 };
 
@@ -215,14 +215,8 @@ impl TransactionData {
     }
 
     pub(crate) fn trusted_ergs_limit(&self) -> U256 {
-        if self.tx_type == L1_TX_TYPE {
-            // In case we get a users' transactions with unexpected gas limit, we do not let it have more than
-            // a certain limit
-            return U256::from(PRIORITY_TX_MAX_GAS_LIMIT).min(self.gas_limit);
-        }
-
-        // TODO (EVM-66): correctly calculate the trusted gas limit for a transaction
-        self.gas_limit
+        // No transaction is allowed to spend more than `TX_MAX_COMPUTE_GAS_LIMIT` gas on compute.
+        U256::from(TX_MAX_COMPUTE_GAS_LIMIT).min(self.gas_limit)
     }
 
     pub(crate) fn tx_hash(&self, chain_id: L2ChainId) -> H256 {

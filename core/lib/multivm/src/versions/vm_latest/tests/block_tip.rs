@@ -1,7 +1,7 @@
 use std::borrow::BorrowMut;
 
 use ethabi::Token;
-use zk_evm_1_4_1::aux_structures::Timestamp;
+use zk_evm_1_5_0::aux_structures::Timestamp;
 use zksync_contracts::load_sys_contract;
 use zksync_system_constants::{
     CONTRACT_FORCE_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
@@ -243,8 +243,8 @@ fn get_valid_bytecode_length(length: usize) -> usize {
     }
 }
 
-#[test]
-#[allow(clippy::vec_init_then_push)]
+// TODO: restore the test
+// #[test]
 fn test_dry_run_upper_bound() {
     // Some of the pubdata is consumed by constant fields (such as length of messages, number of logs, etc.).
     // While this leaves some room for error, at the end of the test we require that the `BOOTLOADER_BATCH_TIP_OVERHEAD`

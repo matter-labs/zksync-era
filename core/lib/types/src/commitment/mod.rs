@@ -464,6 +464,14 @@ impl L1BatchAuxiliaryOutput {
                     result.extend(blob_commitments[0].as_bytes());
                     result.extend(blob_linear_hashes[1].as_bytes());
                     result.extend(blob_commitments[1].as_bytes());
+
+                    // TODO: make it version dependent.
+                    const MAX_BLOBS: usize = 16;
+
+                    for _i in 0..(MAX_BLOBS - 2) {
+                        result.extend(H256::zero().as_bytes());
+                        result.extend(H256::zero().as_bytes());
+                    }
                 }
             }
         }
@@ -493,10 +501,12 @@ pub struct L1BatchMetaParameters {
 
 impl L1BatchMetaParameters {
     pub fn to_bytes(&self) -> Vec<u8> {
-        const SERIALIZED_SIZE: usize = 4 + 1 + 32 + 32;
+        const SERIALIZED_SIZE: usize = 4 + 1 + 32 + 32 + 32;
         let mut result = Vec::with_capacity(SERIALIZED_SIZE);
         result.push(self.zkporter_is_available as u8);
         result.extend(self.bootloader_code_hash.as_bytes());
+        result.extend(self.default_aa_code_hash.as_bytes());
+        // EVM simulator hash for now is the same as the default AA hash.
         result.extend(self.default_aa_code_hash.as_bytes());
         result
     }

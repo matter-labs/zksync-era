@@ -1,4 +1,4 @@
-use zk_evm_1_4_1::{
+use zk_evm_1_5_0::{
     aux_structures::MemoryPage,
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{
@@ -6,8 +6,7 @@ use zk_evm_1_4_1::{
     },
 };
 use zksync_system_constants::{
-    ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS,
-    L1_MESSENGER_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
+    ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
 };
 use zksync_types::U256;
 use zksync_utils::u256_to_h256;
@@ -138,10 +137,15 @@ pub(crate) fn read_pointer<H: HistoryMode>(
 
 /// Outputs the returndata for the latest call.
 /// This is usually used to output the revert reason.
-pub(crate) fn get_debug_returndata<H: HistoryMode>(memory: &SimpleMemory<H>) -> String {
-    let vm_hook_params: Vec<_> = get_vm_hook_params(memory);
-    let returndata_ptr = FatPointer::from_u256(vm_hook_params[0]);
-    let returndata = read_pointer(memory, returndata_ptr);
+pub(crate) fn get_debug_returndata<H: HistoryMode>(
+    memory: &SimpleMemory<H>,
+    latest_returndata_ptr: Option<FatPointer>,
+) -> String {
+    let returndata = if let Some(ptr) = latest_returndata_ptr {
+        read_pointer(memory, ptr)
+    } else {
+        vec![]
+    };
 
     format!("0x{}", hex::encode(returndata))
 }
@@ -151,10 +155,11 @@ pub(crate) fn print_debug_if_needed<H: HistoryMode>(
     hook: &VmHook,
     state: &VmLocalStateData<'_>,
     memory: &SimpleMemory<H>,
+    latest_returndata_ptr: Option<FatPointer>,
 ) {
     let log = match hook {
         VmHook::DebugLog => get_debug_log(state, memory),
-        VmHook::DebugReturnData => get_debug_returndata(memory),
+        VmHook::DebugReturnData => get_debug_returndata(memory, latest_returndata_ptr),
         _ => return,
     };
 
@@ -186,26 +191,6 @@ pub(crate) fn computational_gas_price(
         _ => 0,
     };
     base_price + precompile_price
-}
-
-pub(crate) fn gas_spent_on_bytecodes_and_long_messages_this_opcode(
-    state: &VmLocalStateData<'_>,
-    data: &BeforeExecutionData,
-) -> u32 {
-    if data.opcode.variant.opcode == Opcode::Log(LogOpcode::PrecompileCall) {
-        let current_stack = state.vm_local_state.callstack.get_current_stack();
-        // Trace for precompile calls from `KNOWN_CODES_STORAGE_ADDRESS` and `L1_MESSENGER_ADDRESS` that burn some gas.
-        // Note, that if there is less gas left than requested to burn it will be burnt anyway.
-        if current_stack.this_address == KNOWN_CODES_STORAGE_ADDRESS
-            || current_stack.this_address == L1_MESSENGER_ADDRESS
-        {
-            std::cmp::min(data.src1_value.value.as_u32(), current_stack.ergs_remaining)
-        } else {
-            0
-        }
-    } else {
-        0
-    }
 }
 
 pub(crate) fn get_calldata_page_via_abi(far_call_abi: &FarCallABI, base_page: MemoryPage) -> u32 {

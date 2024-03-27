@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use zk_evm_1_4_1::{
+use zk_evm_1_5_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zk_evm_abstractions::precompiles::PrecompileAddress,
     zkevm_opcode_defs::{LogOpcode, Opcode, UMAOpcode},
@@ -10,7 +10,7 @@ use zksync_types::circuit::CircuitCycleStatistic;
 
 use super::circuits_capacity::*;
 use crate::{
-    interface::{dyn_tracers::vm_1_4_1::DynTracer, tracer::TracerExecutionStatus},
+    interface::{dyn_tracers::vm_1_5_0::DynTracer, tracer::TracerExecutionStatus},
     vm_latest::{
         bootloader_state::BootloaderState,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
@@ -55,12 +55,12 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
             Opcode::Context(_) | Opcode::Ret(_) | Opcode::NearCall(_) => {
                 self.statistics.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
             }
-            Opcode::Log(LogOpcode::StorageRead) => {
+            Opcode::Log(LogOpcode::StorageRead | LogOpcode::TransientStorageRead) => {
                 self.statistics.ram_permutation_cycles += STORAGE_READ_RAM_CYCLES;
                 self.statistics.log_demuxer_cycles += STORAGE_READ_LOG_DEMUXER_CYCLES;
                 self.statistics.storage_sorter_cycles += STORAGE_READ_STORAGE_SORTER_CYCLES;
             }
-            Opcode::Log(LogOpcode::StorageWrite) => {
+            Opcode::Log(LogOpcode::StorageWrite | LogOpcode::TransientStorageWrite) => {
                 self.statistics.ram_permutation_cycles += STORAGE_WRITE_RAM_CYCLES;
                 self.statistics.log_demuxer_cycles += STORAGE_WRITE_LOG_DEMUXER_CYCLES;
                 self.statistics.storage_sorter_cycles += STORAGE_WRITE_STORAGE_SORTER_CYCLES;
@@ -74,17 +74,28 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
                 self.statistics.ram_permutation_cycles += PRECOMPILE_RAM_CYCLES;
                 self.statistics.log_demuxer_cycles += PRECOMPILE_LOG_DEMUXER_CYCLES;
             }
+            Opcode::Log(LogOpcode::Decommit) => {
+                // Note, that for decommit log demuxer is not used.
+                self.statistics.ram_permutation_cycles += PRECOMPILE_RAM_CYCLES;
+                self.statistics.code_decommitter_sorter_cycles +=
+                    LOG_DECOMMIT_DECOMMITTER_SORTER_CYCLES;
+            }
             Opcode::FarCall(_) => {
                 self.statistics.ram_permutation_cycles += FAR_CALL_RAM_CYCLES;
                 self.statistics.code_decommitter_sorter_cycles +=
                     FAR_CALL_CODE_DECOMMITTER_SORTER_CYCLES;
                 self.statistics.storage_sorter_cycles += FAR_CALL_STORAGE_SORTER_CYCLES;
             }
-            Opcode::UMA(UMAOpcode::AuxHeapWrite | UMAOpcode::HeapWrite) => {
+            Opcode::UMA(
+                UMAOpcode::AuxHeapWrite | UMAOpcode::HeapWrite | UMAOpcode::StaticMemoryWrite,
+            ) => {
                 self.statistics.ram_permutation_cycles += UMA_WRITE_RAM_CYCLES;
             }
             Opcode::UMA(
-                UMAOpcode::AuxHeapRead | UMAOpcode::HeapRead | UMAOpcode::FatPointerRead,
+                UMAOpcode::AuxHeapRead
+                | UMAOpcode::HeapRead
+                | UMAOpcode::FatPointerRead
+                | UMAOpcode::StaticMemoryRead,
             ) => {
                 self.statistics.ram_permutation_cycles += UMA_READ_RAM_CYCLES;
             }
@@ -104,9 +115,10 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S, H> {
         );
 
         self.last_written_keys_history_entry_checked =
-            Some(state.storage.written_keys.history().len());
+            Some(state.storage.written_storage_keys.history().len());
 
-        self.last_read_keys_history_entry_checked = Some(state.storage.read_keys.history().len());
+        self.last_read_keys_history_entry_checked =
+            Some(state.storage.read_storage_keys.history().len());
 
         self.last_precompile_inner_entry_checked = Some(
             state
@@ -174,7 +186,7 @@ impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
         let last_writes_history_entry_checked = self
             .last_written_keys_history_entry_checked
             .expect("Value must be set during init");
-        let history = state.storage.written_keys.history();
+        let history = state.storage.written_storage_keys.history();
         for (_, history_event) in &history[last_writes_history_entry_checked..] {
             // We assume that only insertions may happen during a single VM inspection.
             assert!(history_event.value.is_none());
@@ -188,7 +200,7 @@ impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
         let last_reads_history_entry_checked = self
             .last_read_keys_history_entry_checked
             .expect("Value must be set during init");
-        let history = state.storage.read_keys.history();
+        let history = state.storage.read_storage_keys.history();
         for (_, history_event) in &history[last_reads_history_entry_checked..] {
             // We assume that only insertions may happen during a single VM inspection.
             assert!(history_event.value.is_none());
@@ -196,7 +208,7 @@ impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
             // If the slot is already written to, then we've already taken 2 cycles into account.
             if !state
                 .storage
-                .written_keys
+                .written_storage_keys
                 .inner()
                 .contains_key(&history_event.key)
             {
@@ -225,6 +237,9 @@ impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
                 }
                 PrecompileAddress::Keccak256 => {
                     self.statistics.keccak256_cycles += *cycles as u32;
+                }
+                PrecompileAddress::Secp256r1Verify => {
+                    self.statistics.secp256k1_verify_cycles += *cycles as u32;
                 }
             };
         }
