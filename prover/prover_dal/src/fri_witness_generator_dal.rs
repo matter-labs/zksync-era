@@ -4,7 +4,7 @@ use std::{collections::HashMap, convert::TryFrom, time::Duration};
 use sqlx::Row;
 use zksync_basic_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
-    protocol_version::FriProtocolVersionId,
+    protocol_version::ProtocolVersionId,
     prover_dal::{
         JobCountStatistics, LeafAggregationJobMetadata, NodeAggregationJobMetadata, StuckJobs,
     },
@@ -38,7 +38,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         &mut self,
         block_number: L1BatchNumber,
         object_key: &str,
-        protocol_version_id: FriProtocolVersionId,
+        protocol_version_id: ProtocolVersionId,
         eip_4844_blobs: Eip4844Blobs,
     ) {
         let blobs_raw: Vec<u8> = eip_4844_blobs.into();
@@ -73,7 +73,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn get_next_basic_circuit_witness_job(
         &mut self,
         last_l1_batch_to_process: u32,
-        protocol_versions: &[FriProtocolVersionId],
+        protocol_versions: &[ProtocolVersionId],
         picked_by: &str,
     ) -> Option<(L1BatchNumber, Eip4844Blobs)> {
         let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
@@ -301,7 +301,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         closed_form_inputs_and_urls: &Vec<(u8, String, usize)>,
         scheduler_partial_input_blob_url: &str,
         base_layer_to_recursive_layer_circuit_id: fn(u8) -> u8,
-        protocol_version_id: FriProtocolVersionId,
+        protocol_version_id: ProtocolVersionId,
     ) {
         {
             let latency = MethodLatency::new("create_aggregation_jobs_fri");
@@ -398,7 +398,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn get_next_leaf_aggregation_job(
         &mut self,
-        protocol_versions: &[FriProtocolVersionId],
+        protocol_versions: &[ProtocolVersionId],
         picked_by: &str,
     ) -> Option<LeafAggregationJobMetadata> {
         let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
@@ -585,7 +585,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn get_next_node_aggregation_job(
         &mut self,
-        protocol_versions: &[FriProtocolVersionId],
+        protocol_versions: &[ProtocolVersionId],
         picked_by: &str,
     ) -> Option<NodeAggregationJobMetadata> {
         let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
@@ -715,7 +715,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         number_of_dependent_jobs: Option<i32>,
         depth: u16,
         aggregations_url: &str,
-        protocol_version_id: FriProtocolVersionId,
+        protocol_version_id: ProtocolVersionId,
     ) {
         sqlx::query!(
             r#"
@@ -986,7 +986,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn get_next_scheduler_witness_job(
         &mut self,
-        protocol_versions: &[FriProtocolVersionId],
+        protocol_versions: &[ProtocolVersionId],
         picked_by: &str,
     ) -> Option<L1BatchNumber> {
         let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
@@ -1132,7 +1132,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn protocol_version_for_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> FriProtocolVersionId {
+    ) -> ProtocolVersionId {
         sqlx::query!(
             r#"
             SELECT
@@ -1148,7 +1148,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .protocol_version
-        .map(|id| FriProtocolVersionId::try_from(id as u16).unwrap())
+        .map(|id| ProtocolVersionId::try_from(id as u16).unwrap())
         .unwrap()
     }
 }
