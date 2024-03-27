@@ -12,7 +12,7 @@ use zksync_config::{
 use crate::{envy_load, FromEnv};
 
 // For initializing genesis file from  env it's required to have an additional struct,
-// because these data is not required as part of the current Conract Config
+// because these data is not required as part of the current Contract Config
 #[derive(Deserialize, Serialize, Debug, Clone)]
 struct ContractsForGenesis {
     pub genesis_root: Option<H256>,

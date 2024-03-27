@@ -76,8 +76,8 @@ mod tests {
                 max_blob_base_fee: None,
             },
             watcher: ETHWatchConfig {
-                confirmations_for_eth_event: Some(4),
-                eth_node_poll_interval: 2,
+                confirmations_for_eth_event: Some(0),
+                eth_node_poll_interval: 300,
             },
             web3_url: "http://127.0.0.1:8545".to_string(),
         }
@@ -87,8 +87,8 @@ mod tests {
     fn from_env() {
         let mut lock = MUTEX.lock();
         let config = r#"
-            ETH_WATCH_CONFIRMATIONS_FOR_ETH_EVENT = "4"
-            ETH_WATCH_ETH_NODE_POLL_INTERVAL = "2"
+            ETH_WATCH_CONFIRMATIONS_FOR_ETH_EVENT = "0"
+            ETH_WATCH_ETH_NODE_POLL_INTERVAL = "30"
             ETH_SENDER_SENDER_WAIT_CONFIRMATIONS="1"
             ETH_SENDER_SENDER_TX_POLL_PERIOD="3"
             ETH_SENDER_SENDER_AGGREGATE_TX_POLL_PERIOD="3"

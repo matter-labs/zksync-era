@@ -19,7 +19,7 @@ mod tests {
         HouseKeeperConfig {
             l1_batch_metrics_reporting_interval_ms: 10_000,
             gpu_prover_queue_reporting_interval_ms: 10_000,
-            prover_job_retrying_interval_ms: 300_000,
+            prover_job_retrying_interval_ms: 10000,
             prover_stats_reporting_interval_ms: 5_000,
             witness_job_moving_interval_ms: 30_000,
             witness_generator_stats_reporting_interval_ms: 10_000,
@@ -36,7 +36,7 @@ mod tests {
         let config = r#"
             HOUSE_KEEPER_L1_BATCH_METRICS_REPORTING_INTERVAL_MS="10000"
             HOUSE_KEEPER_GPU_PROVER_QUEUE_REPORTING_INTERVAL_MS="10000"
-            HOUSE_KEEPER_PROVER_JOB_RETRYING_INTERVAL_MS="300000"
+            HOUSE_KEEPER_PROVER_JOB_RETRYING_INTERVAL_MS="10000"
             HOUSE_KEEPER_PROVER_STATS_REPORTING_INTERVAL_MS="5000"
             HOUSE_KEEPER_WITNESS_JOB_MOVING_INTERVAL_MS="30000"
             HOUSE_KEEPER_WITNESS_GENERATOR_STATS_REPORTING_INTERVAL_MS="10000"

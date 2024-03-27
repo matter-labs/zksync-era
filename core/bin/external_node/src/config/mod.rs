@@ -54,7 +54,7 @@ impl RemoteENConfig {
             .rpc_context("get_testnet_paymaster")
             .await?;
         let genesis = client.genesis_config().rpc_context("genesis").await.ok();
-        let shared_bridge = genesis.map(|a| a.shared_bridge).flatten();
+        let shared_bridge = genesis.and_then(|a| a.shared_bridge);
         let diamond_proxy_addr = client
             .get_main_contract()
             .rpc_context("get_main_contract")
