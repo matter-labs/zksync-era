@@ -11,7 +11,7 @@ use zksync_types::{
     snapshots::{
         SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotHeader,
         SnapshotRecoveryStatus, SnapshotStorageLog, SnapshotStorageLogsChunk,
-        SnapshotStorageLogsChunkMetadata, SnapshotStorageLogsStorageKey,
+        SnapshotStorageLogsChunkMetadata, SnapshotStorageLogsStorageKey, SnapshotVersion,
     },
     tokens::{TokenInfo, TokenMetadata},
     AccountTreeId, Address, Bytes, L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey,
@@ -206,6 +206,29 @@ pub(super) fn mock_tokens() -> Vec<TokenInfo> {
     ]
 }
 
+pub(super) fn mock_snapshot_header(status: &SnapshotRecoveryStatus) -> SnapshotHeader {
+    SnapshotHeader {
+        version: SnapshotVersion::Version0.into(),
+        l1_batch_number: status.l1_batch_number,
+        miniblock_number: status.miniblock_number,
+        last_l1_batch_with_metadata: l1_block_metadata(
+            status.l1_batch_number,
+            status.l1_batch_root_hash,
+        ),
+        storage_logs_chunks: vec![
+            SnapshotStorageLogsChunkMetadata {
+                chunk_id: 0,
+                filepath: "file0".to_string(),
+            },
+            SnapshotStorageLogsChunkMetadata {
+                chunk_id: 1,
+                filepath: "file1".to_string(),
+            },
+        ],
+        factory_deps_filepath: "some_filepath".to_string(),
+    }
+}
+
 pub(super) async fn prepare_clients(
     status: &SnapshotRecoveryStatus,
     logs: &[SnapshotStorageLog],
@@ -243,26 +266,7 @@ pub(super) async fn prepare_clients(
             .unwrap();
     }
 
-    let snapshot_header = SnapshotHeader {
-        l1_batch_number: status.l1_batch_number,
-        miniblock_number: status.miniblock_number,
-        last_l1_batch_with_metadata: l1_block_metadata(
-            status.l1_batch_number,
-            status.l1_batch_root_hash,
-        ),
-        storage_logs_chunks: vec![
-            SnapshotStorageLogsChunkMetadata {
-                chunk_id: 0,
-                filepath: "file0".to_string(),
-            },
-            SnapshotStorageLogsChunkMetadata {
-                chunk_id: 1,
-                filepath: "file1".to_string(),
-            },
-        ],
-        factory_deps_filepath: "some_filepath".to_string(),
-    };
-    client.fetch_newest_snapshot_response = Some(snapshot_header);
+    client.fetch_newest_snapshot_response = Some(mock_snapshot_header(status));
     client.fetch_l2_block_responses.insert(
         status.miniblock_number,
         miniblock_metadata(

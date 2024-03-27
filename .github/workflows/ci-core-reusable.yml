@@ -209,7 +209,6 @@ jobs:
         run: ci_run zk test i server
 
       - name: Snapshot recovery test
-        if: ${{ ! matrix.consensus }}
         # We use `yarn` directly because the test launches `zk` commands in both server and EN envs.
         # An empty topmost environment helps avoid a mess when redefining env vars shared between both envs
         # (e.g., DATABASE_URL).
@@ -218,7 +217,7 @@ jobs:
             ci_run zk config compile ext-node-validium
             ci_run zk config compile ext-node-validium-docker
           fi
-          ci_run yarn snapshot-recovery-test snapshot-recovery-test
+          ENABLE_CONSENSUS=${{ matrix.consensus }} PASSED_ENV_VARS=ENABLE_CONSENSUS ci_run yarn snapshot-recovery-test snapshot-recovery-test
 
       - name: Fee projection tests
         run: ci_run zk test i fees

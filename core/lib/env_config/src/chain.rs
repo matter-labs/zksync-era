@@ -40,7 +40,7 @@ mod tests {
     use zksync_config::configs::chain::{FeeModelVersion, L1BatchCommitDataGeneratorMode};
 
     use super::*;
-    use crate::test_utils::{addr, EnvMutex};
+    use crate::test_utils::{addr, hash, EnvMutex};
 
     static MUTEX: EnvMutex = EnvMutex::new();
     const VALIDIUM_L1_BATCH_COMMIT_DATA_GENERATOR_MODE: &str = "Validium";
@@ -98,6 +98,12 @@ mod tests {
             virtual_blocks_per_miniblock: 1,
             upload_witness_inputs_to_gcs: false,
             enum_index_migration_chunk_size: Some(2_000),
+            bootloader_hash: Some(hash(
+                "0x010007ede999d096c84553fb514d3d6ca76fbf39789dda76bfeda9f3ae06236e",
+            )),
+            default_aa_hash: Some(hash(
+                "0x0100055b041eb28aff6e3a6e0f37c31fd053fc9ef142683b05e5f0aee6934066",
+            )),
             l1_batch_commit_data_generator_mode,
         }
     }
@@ -131,6 +137,8 @@ mod tests {
             CHAIN_STATE_KEEPER_ENUM_INDEX_MIGRATION_CHUNK_SIZE="2000"
             CHAIN_STATE_KEEPER_VIRTUAL_BLOCKS_PER_MINIBLOCK="1"
             CHAIN_STATE_KEEPER_VIRTUAL_BLOCKS_INTERVAL="1"
+            CHAIN_STATE_KEEPER_BOOTLOADER_HASH=0x010007ede999d096c84553fb514d3d6ca76fbf39789dda76bfeda9f3ae06236e
+            CHAIN_STATE_KEEPER_DEFAULT_AA_HASH=0x0100055b041eb28aff6e3a6e0f37c31fd053fc9ef142683b05e5f0aee6934066
             CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE="{l1_batch_commit_data_generator_mode}"
         "#
         )

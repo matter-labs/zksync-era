@@ -1,11 +1,11 @@
-use std::{sync::Arc, time::Duration};
+use std::{future, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
 use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
-use tokio::{sync::watch, task, time::sleep};
-use zksync_basic_types::{Address, L2ChainId};
+use tokio::{sync::watch, task};
+use zksync_basic_types::L2ChainId;
 use zksync_concurrency::{ctx, limiter, scope, time};
 use zksync_config::configs::{chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode};
 use zksync_core::{
@@ -29,8 +29,8 @@ use zksync_core::{
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
     state_keeper::{
-        seal_criteria::NoopSealer, BatchExecutor, MainBatchExecutor, MiniblockSealer,
-        MiniblockSealerHandle, ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, BatchExecutor, MainBatchExecutor, OutputHandler,
+        StateKeeperPersistence, ZkSyncStateKeeper,
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue,
@@ -38,12 +38,14 @@ use zksync_core::{
     },
     utils::ensure_l1_batch_commit_data_generation_mode,
 };
-use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
+use zksync_dal::{
+    healthcheck::ConnectionPoolHealthCheck, metrics::PostgresMetrics, ConnectionPool, Core, CoreDal,
+};
 use zksync_eth_client::clients::QueryClient;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
-use zksync_utils::wait_for_tasks::wait_for_tasks;
+use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
 
 use crate::{
@@ -56,6 +58,7 @@ mod config;
 mod helpers;
 mod init;
 mod metrics;
+mod version_sync_task;
 
 const RELEASE_MANIFEST: &str = include_str!("../../../../.github/release-please/manifest.json");
 
@@ -65,26 +68,17 @@ async fn build_state_keeper(
     action_queue: ActionQueue,
     state_keeper_db_path: String,
     config: &ExternalNodeConfig,
-    connection_pool: ConnectionPool,
-    sync_state: SyncState,
-    l2_erc20_bridge_addr: Address,
-    miniblock_sealer_handle: MiniblockSealerHandle,
+    connection_pool: ConnectionPool<Core>,
+    output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
 ) -> anyhow::Result<ZkSyncStateKeeper> {
-    // These config values are used on the main node, and depending on these values certain transactions can
-    // be *rejected* (that is, not included into the block). However, external node only mirrors what the main
-    // node has already executed, so we can safely set these values to the maximum possible values - if the main
-    // node has already executed the transaction, then the external node must execute it too.
-    let max_allowed_l2_tx_gas_limit = u32::MAX.into();
-    let validation_computational_gas_limit = u32::MAX;
     // We only need call traces on the external node if the `debug_` namespace is enabled.
     let save_call_traces = config.optional.api_namespaces().contains(&Namespace::Debug);
 
     let batch_executor_base: Box<dyn BatchExecutor> = Box::new(MainBatchExecutor::new(
         state_keeper_db_path,
         connection_pool.clone(),
-        max_allowed_l2_tx_gas_limit,
         save_call_traces,
         false,
         config.optional.enum_index_migration_chunk_size,
@@ -95,13 +89,9 @@ async fn build_state_keeper(
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
     let io = ExternalIO::new(
-        miniblock_sealer_handle,
         connection_pool,
         action_queue,
-        sync_state,
         Box::new(main_node_client),
-        l2_erc20_bridge_addr,
-        validation_computational_gas_limit,
         chain_id,
     )
     .await
@@ -111,13 +101,14 @@ async fn build_state_keeper(
         stop_receiver,
         Box::new(io),
         batch_executor_base,
+        output_handler,
         Arc::new(NoopSealer),
     ))
 }
 
 async fn init_tasks(
     config: &ExternalNodeConfig,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Core>,
     main_node_client: HttpClient,
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
@@ -138,8 +129,9 @@ async fn init_tasks(
     app_health.insert_custom_component(Arc::new(sync_state.clone()));
     let (action_queue_sender, action_queue) = ActionQueue::new();
 
-    let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(
+    let (persistence, miniblock_sealer) = StateKeeperPersistence::new(
         connection_pool.clone(),
+        config.remote.l2_erc20_bridge_addr,
         config.optional.miniblock_seal_queue_capacity,
     );
     task_handles.push(tokio::spawn(miniblock_sealer.run()));
@@ -147,7 +139,7 @@ async fn init_tasks(
     task_handles.push(tokio::spawn(async move {
         loop {
             let protocol_version = pool
-                .access_storage()
+                .connection()
                 .await
                 .unwrap()
                 .protocol_versions_dal()
@@ -161,14 +153,14 @@ async fn init_tasks(
         }
     }));
 
+    let output_handler = OutputHandler::new(Box::new(persistence.with_tx_insertion()))
+        .with_handler(Box::new(sync_state.clone()));
     let state_keeper = build_state_keeper(
         action_queue,
         config.required.state_cache_path.clone(),
         config,
         connection_pool.clone(),
-        sync_state.clone(),
-        config.remote.l2_erc20_bridge_addr,
-        miniblock_sealer_handle,
+        output_handler,
         stop_receiver.clone(),
         config.remote.l2_chain_id,
     )
@@ -226,7 +218,7 @@ async fn init_tasks(
         }
     }));
 
-    let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
+    let singleton_pool_builder = ConnectionPool::<Core>::singleton(&config.postgres.database_url);
 
     let metadata_calculator_config = MetadataCalculatorConfig {
         db_path: config.required.merkle_tree_path.clone(),
@@ -358,11 +350,14 @@ async fn init_tasks(
         );
         let latest_values_cache_size = config.optional.latest_values_cache_size() as u64;
         let cache_update_handle = (latest_values_cache_size > 0).then(|| {
-            task::spawn_blocking(storage_caches.configure_storage_values_cache(
-                latest_values_cache_size,
-                connection_pool.clone(),
-                tokio::runtime::Handle::current(),
-            ))
+            task::spawn(
+                storage_caches
+                    .configure_storage_values_cache(
+                        latest_values_cache_size,
+                        connection_pool.clone(),
+                    )
+                    .run(stop_receiver.clone()),
+            )
         });
 
         let tx_sender = tx_sender_builder
@@ -453,15 +448,17 @@ async fn init_tasks(
 
 async fn shutdown_components(
     stop_sender: watch::Sender<bool>,
+    tasks: ManagedTasks,
     healthcheck_handle: HealthCheckHandle,
-) {
+) -> anyhow::Result<()> {
     stop_sender.send(true).ok();
     task::spawn_blocking(RocksDB::await_rocksdb_termination)
         .await
-        .unwrap();
-    // Sleep for some time to let components gracefully stop.
-    sleep(Duration::from_secs(10)).await;
+        .context("error waiting for RocksDB instances to drop")?;
+    // Increase timeout because of complicated graceful shutdown procedure for API servers.
+    tasks.complete(Duration::from_secs(30)).await;
     healthcheck_handle.stop().await;
+    Ok(())
 }
 
 /// External node for zkSync Era.
@@ -480,7 +477,7 @@ struct Cli {
     /// or was synced from genesis.
     ///
     /// This is an experimental and incomplete feature; do not use unless you know what you're doing.
-    #[arg(long, conflicts_with = "enable_consensus")]
+    #[arg(long)]
     enable_snapshots_recovery: bool,
 }
 
@@ -515,25 +512,17 @@ async fn main() -> anyhow::Result<()> {
     let mut config = ExternalNodeConfig::collect()
         .await
         .context("Failed to load external node config")?;
-    if opt.enable_consensus {
-        // This is more of a sanity check; the mutual exclusion of `enable_consensus` and `enable_snapshots_recovery`
-        // should be ensured by `clap`.
-        anyhow::ensure!(
-            !opt.enable_snapshots_recovery,
-            "Consensus logic does not support snapshot recovery yet"
-        );
-    } else {
+    if !opt.enable_consensus {
         config.consensus = None;
     }
-
     if let Some(threshold) = config.optional.slow_query_threshold() {
-        ConnectionPool::global_config().set_slow_query_threshold(threshold)?;
+        ConnectionPool::<Core>::global_config().set_slow_query_threshold(threshold)?;
     }
     if let Some(threshold) = config.optional.long_connection_threshold() {
-        ConnectionPool::global_config().set_long_connection_threshold(threshold)?;
+        ConnectionPool::<Core>::global_config().set_long_connection_threshold(threshold)?;
     }
 
-    let connection_pool = ConnectionPool::builder(
+    let connection_pool = ConnectionPool::<Core>::builder(
         &config.postgres.database_url,
         config.postgres.max_connections,
     )
@@ -549,7 +538,6 @@ async fn main() -> anyhow::Result<()> {
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
 
-    let sigint_receiver = setup_sigint_handler();
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");
 
@@ -571,12 +559,24 @@ async fn main() -> anyhow::Result<()> {
     );
     // Start scraping Postgres metrics before store initialization as well.
     let metrics_pool = connection_pool.clone();
-    let mut task_handles = vec![tokio::spawn(async move {
-        metrics_pool
-            .run_postgres_metrics_scraping(Duration::from_secs(60))
-            .await;
-        Ok(())
-    })];
+    let version_sync_task_pool = connection_pool.clone();
+    let version_sync_task_main_node_client = main_node_client.clone();
+    let mut task_handles = vec![
+        tokio::spawn(async move {
+            PostgresMetrics::run_scraping(metrics_pool, Duration::from_secs(60)).await;
+            Ok(())
+        }),
+        tokio::spawn(async move {
+            version_sync_task::sync_versions(
+                version_sync_task_pool,
+                version_sync_task_main_node_client,
+            )
+            .await?;
+            future::pending::<()>().await;
+            // ^ Since this is run as a task, we don't want it to exit on success (this would shut down the node).
+            Ok(())
+        }),
+    ];
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(
@@ -587,6 +587,7 @@ async fn main() -> anyhow::Result<()> {
         opt.enable_snapshots_recovery,
     )
     .await?;
+    let sigint_receiver = setup_sigint_handler();
 
     // Revert the storage if needed.
     let reverter = BlockReverter::new(
@@ -616,7 +617,7 @@ async fn main() -> anyhow::Result<()> {
     }
     if opt.revert_pending_l1_batch {
         tracing::info!("Rolling pending L1 batch back..");
-        let mut connection = connection_pool.access_storage().await?;
+        let mut connection = connection_pool.connection().await?;
         let sealed_l1_batch_number = connection
             .blocks_dal()
             .get_sealed_l1_batch_number()
@@ -646,12 +647,9 @@ async fn main() -> anyhow::Result<()> {
     .await
     .context("init_tasks")?;
 
-    let particular_crypto_alerts = None;
-    let graceful_shutdown = None::<futures::future::Ready<()>>;
-    let tasks_allowed_to_finish = false;
-
+    let mut tasks = ManagedTasks::new(task_handles);
     tokio::select! {
-        _ = wait_for_tasks(task_handles, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
+        _ = tasks.wait_single() => {},
         _ = sigint_receiver => {
             tracing::info!("Stop signal received, shutting down");
         },
@@ -659,7 +657,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Reaching this point means that either some actor exited unexpectedly or we received a stop signal.
     // Broadcast the stop signal to all actors and exit.
-    shutdown_components(stop_sender, healthcheck_handle).await;
+    shutdown_components(stop_sender, tasks, healthcheck_handle).await?;
     tracing::info!("Stopped");
     Ok(())
 }

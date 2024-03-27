@@ -3,7 +3,7 @@ use std::{convert::TryInto, sync::Arc};
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_l1_contract_interface::{
     i_executor::commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
@@ -63,6 +63,7 @@ pub struct EthTxAggregator {
     /// transactions. The `Some` then contains the address of this custom operator
     /// address.
     custom_commit_sender_addr: Option<Address>,
+    pool: ConnectionPool<Core>,
     l1_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
@@ -74,6 +75,7 @@ struct TxData {
 impl EthTxAggregator {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
+        pool: ConnectionPool<Core>,
         config: SenderConfig,
         aggregator: Aggregator,
         eth_client: Arc<dyn BoundEthInterface>,
@@ -113,17 +115,15 @@ impl EthTxAggregator {
             base_nonce_custom_commit_sender,
             rollup_chain_id,
             custom_commit_sender_addr,
+            pool,
             l1_commit_data_generator,
         }
     }
 
-    pub async fn run(
-        mut self,
-        pool: ConnectionPool,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
+    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let pool = self.pool.clone();
         loop {
-            let mut storage = pool.access_storage_tagged("eth_sender").await.unwrap();
+            let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, eth_tx_aggregator is shutting down");
@@ -346,7 +346,7 @@ impl EthTxAggregator {
     #[tracing::instrument(skip(self, storage))]
     async fn loop_iteration(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
     ) -> Result<(), ETHSenderError> {
         let MulticallData {
             base_system_contracts_hashes,
@@ -389,7 +389,7 @@ impl EthTxAggregator {
     }
 
     async fn report_eth_tx_saving(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         aggregated_op: AggregatedOperation,
         tx: &EthTx,
     ) {
@@ -528,7 +528,7 @@ impl EthTxAggregator {
 
     pub(super) async fn save_eth_tx(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         aggregated_op: &AggregatedOperation,
         contracts_are_pre_shared_bridge: bool,
     ) -> Result<EthTx, ETHSenderError> {
@@ -578,7 +578,7 @@ impl EthTxAggregator {
 
     async fn get_next_nonce(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         from_addr: Option<Address>,
     ) -> Result<u64, ETHSenderError> {
         let db_nonce = storage

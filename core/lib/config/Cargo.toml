@@ -1,17 +1,17 @@
 [package]
 name = "zksync_config"
 version = "0.1.0"
-edition = "2018"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-zksync_basic_types = { path = "../../lib/basic_types" }
+zksync_basic_types.workspace = true
 
-anyhow = "1.0"
-rand = "0.8"
-serde = { version = "1.0", features = ["derive"] }
+anyhow.workspace = true
+rand.workspace = true
+serde = { workspace = true, features = ["derive"] }

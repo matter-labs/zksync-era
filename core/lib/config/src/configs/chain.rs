@@ -7,7 +7,7 @@ use zksync_basic_types::{
         contract::{tokens::Detokenize, Error as Web3ContractError},
         ethabi, Error as Web3ApiError,
     },
-    Address, L2ChainId, U256,
+    Address, L2ChainId, H256, U256,
 };
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -158,6 +158,12 @@ pub struct StateKeeperConfig {
 
     /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
     pub enum_index_migration_chunk_size: Option<usize>,
+
+    // Base system contract hash, required only for genesis file, it's temporary solution
+    // #PLA-811
+    pub bootloader_hash: Option<H256>,
+    pub default_aa_hash: Option<H256>,
+
     #[serde(default)]
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
@@ -194,6 +200,8 @@ impl StateKeeperConfig {
             virtual_blocks_per_miniblock: 1,
             upload_witness_inputs_to_gcs: false,
             enum_index_migration_chunk_size: None,
+            bootloader_hash: None,
+            default_aa_hash: None,
             l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
         }
     }
