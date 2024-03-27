@@ -375,7 +375,6 @@ async fn bootloader_out_of_gas_for_any_tx() {
             save_call_traces: false,
             vm_gas_limit: Some(10),
             validation_computational_gas_limit: u32::MAX,
-            upload_witness_inputs_to_gcs: false,
         },
     );
 
@@ -403,15 +402,20 @@ async fn bootloader_tip_out_of_gas() {
     let res = executor.execute_tx(alice.execute()).await;
     assert_executed(&res);
 
-    let (vm_block_res, _witness_block_state) = executor.finish_batch().await;
+    let finished_batch = executor.finish_batch().await;
 
     // Just a bit below the gas used for the previous batch execution should be fine to execute the tx
     // but not enough to execute the block tip.
     tester.set_config(TestConfig {
         save_call_traces: false,
-        vm_gas_limit: Some(vm_block_res.block_tip_execution_result.statistics.gas_used - 10),
+        vm_gas_limit: Some(
+            finished_batch
+                .block_tip_execution_result
+                .statistics
+                .gas_used
+                - 10,
+        ),
         validation_computational_gas_limit: u32::MAX,
-        upload_witness_inputs_to_gcs: false,
     });
 
     let second_executor = tester.create_batch_executor().await;

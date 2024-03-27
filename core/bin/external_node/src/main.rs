@@ -73,7 +73,6 @@ async fn build_state_keeper(
         state_keeper_db_path,
         connection_pool.clone(),
         save_call_traces,
-        false,
         config.optional.enum_index_migration_chunk_size,
         true,
     ));

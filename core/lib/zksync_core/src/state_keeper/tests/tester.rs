@@ -527,7 +527,7 @@ impl TestBatchExecutor {
                 }
                 Command::FinishBatch(resp) => {
                     // Blanket result, it doesn't really matter.
-                    resp.send((default_vm_block_result(), None)).unwrap();
+                    resp.send(default_vm_block_result()).unwrap();
                     return;
                 }
             }
@@ -857,7 +857,7 @@ impl BatchExecutor for MockBatchExecutor {
                     Command::RollbackLastTx(_) => panic!("unexpected rollback"),
                     Command::FinishBatch(resp) => {
                         // Blanket result, it doesn't really matter.
-                        resp.send((default_vm_block_result(), None)).unwrap();
+                        resp.send(default_vm_block_result()).unwrap();
                         return;
                     }
                 }

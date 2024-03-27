@@ -43,7 +43,6 @@ pub(super) struct TestConfig {
     pub(super) save_call_traces: bool,
     pub(super) vm_gas_limit: Option<u32>,
     pub(super) validation_computational_gas_limit: u32,
-    pub(super) upload_witness_inputs_to_gcs: bool,
 }
 
 impl TestConfig {
@@ -54,7 +53,6 @@ impl TestConfig {
             vm_gas_limit: None,
             save_call_traces: false,
             validation_computational_gas_limit: config.validation_computational_gas_limit,
-            upload_witness_inputs_to_gcs: false,
         }
     }
 }
@@ -105,7 +103,6 @@ impl Tester {
             self.db_dir.path().to_str().unwrap().to_owned(),
             self.pool.clone(),
             self.config.save_call_traces,
-            self.config.upload_witness_inputs_to_gcs,
             100,
             false,
         );
@@ -428,7 +425,7 @@ impl StorageSnapshot {
             executor.start_next_miniblock(l2_block_env).await;
         }
 
-        let (finished_batch, _) = executor.finish_batch().await;
+        let finished_batch = executor.finish_batch().await;
         let storage_logs = &finished_batch.block_tip_execution_result.logs.storage_logs;
         storage_writes_deduplicator.apply(storage_logs.iter().filter(|log| log.log_query.rw_flag));
         let modified_entries = storage_writes_deduplicator.into_modified_key_values();

@@ -36,7 +36,6 @@ impl WiringLayer for MainBatchExecutorLayer {
             self.db_config.state_keeper_db_path,
             master_pool.get_singleton().await?,
             self.state_keeper_config.save_call_traces,
-            self.state_keeper_config.upload_witness_inputs_to_gcs,
             self.state_keeper_config.enum_index_migration_chunk_size(),
             false,
         );

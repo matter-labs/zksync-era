@@ -195,7 +195,7 @@ impl ZkSyncStateKeeper {
                 .await;
             }
 
-            let (finished_batch, _) = batch_executor.finish_batch().await;
+            let finished_batch = batch_executor.finish_batch().await;
             let sealed_batch_protocol_version = updates_manager.protocol_version();
             updates_manager.finish_batch(finished_batch);
             self.output_handler
