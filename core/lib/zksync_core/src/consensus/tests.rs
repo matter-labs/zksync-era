@@ -1,19 +1,16 @@
 use anyhow::Context as _;
-use rand::{
-    distributions::{Distribution, Standard},
-    Rng,
-};
+use rand::{distributions::Distribution, Rng};
 use test_casing::test_casing;
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, scope};
-use zksync_config::testonly::{Gen, RandomConfig};
 use zksync_consensus_executor as executor;
 use zksync_consensus_network as network;
 use zksync_consensus_network::testonly::{new_configs, new_fullnode};
-use zksync_consensus_roles::{node, validator::testonly::Setup};
+use zksync_consensus_roles::validator::testonly::Setup;
 use zksync_consensus_storage as storage;
 use zksync_consensus_storage::PersistentBlockStore as _;
-use zksync_protobuf_config::testonly::{encode_decode, FmtConv};
+use zksync_consensus_utils::EncodeDist;
+use zksync_protobuf::testonly::{test_encode_all_formats, FmtConv};
 use zksync_types::{L1BatchNumber, MiniblockNumber};
 
 use super::*;
@@ -78,7 +75,7 @@ async fn test_validator_block_store() {
 fn executor_config(cfg: &network::Config) -> executor::Config {
     executor::Config {
         server_addr: *cfg.server_addr,
-        public_addr: cfg.public_addr,
+        public_addr: cfg.public_addr.clone(),
         max_payload_size: usize::MAX,
         node_key: cfg.gossip.key.clone(),
         gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
@@ -442,44 +439,28 @@ async fn test_centralized_fetcher(from_snapshot: bool) {
     .unwrap();
 }
 
-struct Random<T>(T);
-
-impl<T> RandomConfig for Random<T>
-where
-    Standard: Distribution<T>,
-{
-    fn sample(g: &mut Gen<impl Rng>) -> Self {
-        Self(g.rng.gen())
-    }
-}
-
-impl RandomConfig for Config {
-    fn sample(g: &mut Gen<impl Rng>) -> Self {
-        Self {
-            server_addr: g.gen(),
-            public_addr: g.gen(),
-            validators: g.rng.gen(),
-            max_payload_size: g.gen(),
-            gossip_dynamic_inbound_limit: g.gen(),
-            gossip_static_inbound: g
-                .gen::<Vec<Random<node::PublicKey>>>()
-                .into_iter()
-                .map(|x| x.0)
-                .collect(),
-            gossip_static_outbound: g
-                .gen::<Vec<Random<node::PublicKey>>>()
-                .into_iter()
-                .map(|x| (x.0, g.gen()))
+impl Distribution<Config> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Config {
+        Config {
+            server_addr: self.sample(rng),
+            public_addr: self.sample(rng),
+            validators: rng.gen(),
+            max_payload_size: self.sample(rng),
+            gossip_dynamic_inbound_limit: self.sample(rng),
+            gossip_static_inbound: self.sample_range(rng).map(|_| rng.gen()).collect(),
+            gossip_static_outbound: self
+                .sample_range(rng)
+                .map(|_| (rng.gen(), self.sample(rng)))
                 .collect(),
         }
     }
 }
 
-impl RandomConfig for Secrets {
-    fn sample(g: &mut Gen<impl Rng>) -> Self {
-        Self {
-            validator_key: g.gen::<Option<Random<validator::SecretKey>>>().map(|x| x.0),
-            node_key: g.gen::<Option<Random<node::SecretKey>>>().map(|x| x.0),
+impl Distribution<Secrets> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Secrets {
+        Secrets {
+            validator_key: self.sample_opt(|| rng.gen()),
+            node_key: self.sample_opt(|| rng.gen()),
         }
     }
 }
@@ -488,5 +469,5 @@ impl RandomConfig for Secrets {
 fn test_schema_encoding() {
     let ctx = ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
-    encode_decode::<FmtConv<config::Config>>(rng);
+    test_encode_all_formats::<FmtConv<config::Config>>(rng);
 }

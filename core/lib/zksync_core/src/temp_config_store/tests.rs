@@ -1,38 +1,38 @@
-use rand::Rng;
-use zksync_config::testonly;
-use zksync_protobuf_config::testonly::{encode_decode, FmtConv};
+use rand::{distributions::Distribution, Rng};
+use zksync_consensus_utils::EncodeDist;
+use zksync_protobuf::testonly::{test_encode_all_formats, FmtConv};
 
 use super::*;
 
-impl testonly::RandomConfig for TempConfigStore {
-    fn sample(g: &mut testonly::Gen<impl Rng>) -> Self {
-        Self {
-            postgres_config: g.gen(),
-            health_check_config: g.gen(),
-            merkle_tree_api_config: g.gen(),
-            web3_json_rpc_config: g.gen(),
-            circuit_breaker_config: g.gen(),
-            mempool_config: g.gen(),
-            network_config: g.gen(),
-            operations_manager_config: g.gen(),
-            state_keeper_config: g.gen(),
-            house_keeper_config: g.gen(),
-            fri_proof_compressor_config: g.gen(),
-            fri_prover_config: g.gen(),
-            fri_prover_group_config: g.gen(),
-            fri_witness_generator_config: g.gen(),
-            prometheus_config: g.gen(),
-            proof_data_handler_config: g.gen(),
-            witness_generator_config: g.gen(),
-            api_config: g.gen(),
-            contracts_config: g.gen(),
-            db_config: g.gen(),
-            eth_client_config: g.gen(),
-            eth_sender_config: g.gen(),
-            eth_watch_config: g.gen(),
-            gas_adjuster_config: g.gen(),
-            object_store_config: g.gen(),
-            consensus_config: g.gen(),
+impl Distribution<TempConfigStore> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> TempConfigStore {
+        TempConfigStore {
+            postgres_config: self.sample(rng),
+            health_check_config: self.sample(rng),
+            merkle_tree_api_config: self.sample(rng),
+            web3_json_rpc_config: self.sample(rng),
+            circuit_breaker_config: self.sample(rng),
+            mempool_config: self.sample(rng),
+            network_config: self.sample(rng),
+            operations_manager_config: self.sample(rng),
+            state_keeper_config: self.sample(rng),
+            house_keeper_config: self.sample(rng),
+            fri_proof_compressor_config: self.sample(rng),
+            fri_prover_config: self.sample(rng),
+            fri_prover_group_config: self.sample(rng),
+            fri_witness_generator_config: self.sample(rng),
+            prometheus_config: self.sample(rng),
+            proof_data_handler_config: self.sample(rng),
+            witness_generator_config: self.sample(rng),
+            api_config: self.sample(rng),
+            contracts_config: self.sample(rng),
+            db_config: self.sample(rng),
+            eth_client_config: self.sample(rng),
+            eth_sender_config: self.sample(rng),
+            eth_watch_config: self.sample(rng),
+            gas_adjuster_config: self.sample(rng),
+            object_store_config: self.sample(rng),
+            consensus_config: self.sample(rng),
         }
     }
 }
@@ -40,5 +40,5 @@ impl testonly::RandomConfig for TempConfigStore {
 #[test]
 fn test_encoding() {
     let rng = &mut rand::thread_rng();
-    encode_decode::<FmtConv<TempConfigStore>>(rng);
+    test_encode_all_formats::<FmtConv<TempConfigStore>>(rng);
 }
