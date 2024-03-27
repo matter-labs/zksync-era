@@ -1,6 +1,6 @@
 use std::{collections::HashSet, future, net::Ipv4Addr, str::FromStr, sync::Arc, time::Duration};
 
-use anyhow::{anyhow, Context as _};
+use anyhow::Context as _;
 use clap::Parser;
 use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
@@ -548,7 +548,7 @@ async fn init_tasks(
                 port: config
                     .tree_component_config
                     .api_port
-                    .ok_or(anyhow!("should contain tree api port"))?,
+                    .context("should contain tree api port")?,
             })
         } else {
             None
