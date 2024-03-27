@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
 
-use circuit_sequencer_api_1_4_2::sort_storage_access::sort_storage_access_queries;
+use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
 use itertools::Itertools;
-use zk_evm_1_4_1::aux_structures::LogQuery as LogQuery_1_4_1;
+use zk_evm_1_4_1::aux_structures::LogQuery;
 use zk_evm_1_5_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
@@ -147,39 +147,34 @@ impl<S: WriteStorage> PubdataTracer<S> {
             return enforced_state_diffs.clone();
         }
 
-        // FIXME: do not do this once harness 1.5.0 is available
-        let queries: Vec<LogQuery_1_4_1> = storage
-            .storage_log_queries_after_timestamp(Timestamp(0))
-            .iter()
-            .map(|log| log.log_query)
-            .collect_vec()
-            .into_iter()
-            .map(GlueInto::glue_into)
-            .collect();
-
-        sort_storage_access_queries(&queries)
-            .1
-            .into_iter()
-            .filter(|log| log.rw_flag)
-            .filter(|log| log.read_value != log.written_value)
-            .filter(|log| log.address != L1_MESSENGER_ADDRESS)
-            .map(|log| StateDiffRecord {
-                address: log.address,
-                key: log.key,
-                derived_key: log.derive_final_address(),
-                enumeration_index: storage
-                    .storage
-                    .get_ptr()
-                    .borrow_mut()
-                    .get_enumeration_index(&StorageKey::new(
-                        AccountTreeId::new(log.address),
-                        u256_to_h256(log.key),
-                    ))
-                    .unwrap_or_default(),
-                initial_value: log.read_value,
-                final_value: log.written_value,
-            })
-            .collect()
+        sort_storage_access_queries(
+            storage
+                .storage_log_queries_after_timestamp(Timestamp(0))
+                .iter()
+                .map(|log| &log.log_query),
+        )
+        .1
+        .into_iter()
+        .filter(|log| log.rw_flag)
+        .filter(|log| log.read_value != log.written_value)
+        .filter(|log| log.address != L1_MESSENGER_ADDRESS)
+        .map(|log| StateDiffRecord {
+            address: log.address,
+            key: log.key,
+            derived_key: log.derive_final_address(),
+            enumeration_index: storage
+                .storage
+                .get_ptr()
+                .borrow_mut()
+                .get_enumeration_index(&StorageKey::new(
+                    AccountTreeId::new(log.address),
+                    u256_to_h256(log.key),
+                ))
+                .unwrap_or_default(),
+            initial_value: log.read_value,
+            final_value: log.written_value,
+        })
+        .collect()
     }
 
     fn build_pubdata_input<H: HistoryMode>(&self, state: &ZkSyncVmState<S, H>) -> PubdataInput {
