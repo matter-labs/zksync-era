@@ -25,8 +25,8 @@ use zksync_core::{
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
     state_keeper::{
-        seal_criteria::NoopSealer, BatchExecutor, MainBatchExecutor, OutputHandler,
-        StateKeeperPersistence, ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, AsyncRocksdbCache, BatchExecutor, MainBatchExecutor,
+        OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue,
@@ -65,15 +65,25 @@ async fn build_state_keeper(
     output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
+    task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
 ) -> anyhow::Result<ZkSyncStateKeeper> {
     // We only need call traces on the external node if the `debug_` namespace is enabled.
     let save_call_traces = config.optional.api_namespaces().contains(&Namespace::Debug);
 
-    let batch_executor_base: Box<dyn BatchExecutor> = Box::new(MainBatchExecutor::new(
-        state_keeper_db_path,
+    let (storage_factory, task) = AsyncRocksdbCache::new(
         connection_pool.clone(),
-        save_call_traces,
+        state_keeper_db_path,
         config.optional.enum_index_migration_chunk_size,
+    );
+    let mut stop_receiver_clone = stop_receiver.clone();
+    task_handles.push(tokio::task::spawn(async move {
+        let result = task.run(stop_receiver_clone.clone()).await;
+        stop_receiver_clone.changed().await?;
+        result
+    }));
+    let batch_executor_base: Box<dyn BatchExecutor> = Box::new(MainBatchExecutor::new(
+        Arc::new(storage_factory),
+        save_call_traces,
         true,
     ));
 
@@ -155,6 +165,7 @@ async fn init_tasks(
         output_handler,
         stop_receiver.clone(),
         config.remote.l2_chain_id,
+        task_handles,
     )
     .await?;
 
