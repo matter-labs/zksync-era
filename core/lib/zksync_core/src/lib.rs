@@ -21,6 +21,7 @@ use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker,
     CircuitBreakerChecker, CircuitBreakers,
 };
+use zksync_concurrency::{ctx, scope};
 use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -44,6 +45,7 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{fee_model::FeeModelConfig, L2ChainId};
 
+use crate::consensus::MainNodeConfig;
 use crate::{
     api_server::{
         contract_verification,
@@ -221,11 +223,12 @@ impl FromStr for Components {
 
 pub async fn initialize_components(
     configs: &GeneralConfig,
-    wallets: Option<Wallets>,
+    wallets: Wallets,
     genesis_config: &GenesisConfig,
     contracts_config: &ContractsConfig,
     components: &[Component],
-    _secrets: &Secrets,
+    secrets: &Secrets,
+    consensus_config: Option<consensus::Config>,
 ) -> anyhow::Result<(
     Vec<JoinHandle<anyhow::Result<()>>>,
     watch::Sender<bool>,
@@ -504,43 +507,37 @@ pub async fn initialize_components(
     }
 
     if components.contains(&Component::Consensus) {
-        todo!()
-        // let cfg = configs
-        //     .consensus_config
-        //     .as_ref()
-        //     .context("consensus component's config is missing")?
-        //     .main_node(
-        //         secrets
-        //             .consensus
-        //             .as_ref()
-        //             .context("consensus secrets are missing")?,
-        //     )?;
-        // let started_at = Instant::now();
-        // tracing::info!("initializing Consensus");
-        // let pool = connection_pool.clone();
-        // let mut stop_receiver = stop_receiver.clone();
-        // task_futures.push(tokio::spawn(async move {
-        //     scope::run!(&ctx::root(), |ctx, s| async {
-        //         s.spawn_bg(async {
-        //             // Consensus is a new component.
-        //             // For now in case of error we just log it and allow the server
-        //             // to continue running.
-        //             if let Err(err) = cfg.run(ctx, consensus::Store(pool)).await {
-        //                 tracing::error!(%err, "Consensus actor failed");
-        //             } else {
-        //                 tracing::info!("Consensus actor stopped");
-        //             }
-        //             Ok(())
-        //         });
-        //         let _ = stop_receiver.wait_for(|stop| *stop).await?;
-        //         Ok(())
-        //     })
-        //     .await
-        // }));
-        //
-        // let elapsed = started_at.elapsed();
-        // APP_METRICS.init_latency[&InitStage::Consensus].set(elapsed);
-        // tracing::info!("initialized Consensus in {elapsed:?}");
+        let secrets = secrets.consensus.as_ref().context("Secrets are missing")?;
+        let cfg = consensus_config
+            .clone()
+            .context("consensus component's config is missing")?
+            .main_node(secrets)?;
+        let started_at = Instant::now();
+        tracing::info!("initializing Consensus");
+        let pool = connection_pool.clone();
+        let mut stop_receiver = stop_receiver.clone();
+        task_futures.push(tokio::spawn(async move {
+            scope::run!(&ctx::root(), |ctx, s| async {
+                s.spawn_bg(async {
+                    // Consensus is a new component.
+                    // For now in case of error we just log it and allow the server
+                    // to continue running.
+                    if let Err(err) = cfg.run(ctx, consensus::Store(pool)).await {
+                        tracing::error!(%err, "Consensus actor failed");
+                    } else {
+                        tracing::info!("Consensus actor stopped");
+                    }
+                    Ok(())
+                });
+                let _ = stop_receiver.wait_for(|stop| *stop).await?;
+                Ok(())
+            })
+            .await
+        }));
+
+        let elapsed = started_at.elapsed();
+        APP_METRICS.init_latency[&InitStage::Consensus].set(elapsed);
+        tracing::info!("initialized Consensus in {elapsed:?}");
     }
 
     let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
@@ -579,13 +576,8 @@ pub async fn initialize_components(
             .await
             .context("failed to build eth_sender_pool")?;
 
-        let eth_sender = configs.eth.clone().context("eth_sender_config")?;
-        let eth_sender_wallets = wallets
-            .clone()
-            .context("wallets")?
-            .eth_sender
-            .clone()
-            .context("eth_sender")?;
+        let eth_sender = configs.eth.as_ref().context("eth_sender_config")?;
+        let eth_sender_wallets = wallets.eth_sender.clone().context("eth_sender")?;
         let operator_private_key = eth_sender_wallets
             .operator
             .private_key()
@@ -638,11 +630,7 @@ pub async fn initialize_components(
             .await
             .context("failed to build eth_manager_pool")?;
         let eth_sender = configs.eth.clone().context("eth_sender_config")?;
-        let eth_sender_wallets = wallets
-            .context("wallets")?
-            .clone()
-            .eth_sender
-            .context("eth_sender")?;
+        let eth_sender_wallets = wallets.eth_sender.context("eth_sender")?;
         let operator_private_key = eth_sender_wallets
             .operator
             .private_key()

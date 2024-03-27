@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use zksync_config::configs::wallets::{EthSender, StateKeeper, Wallet};
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -110,7 +111,36 @@ impl TempConfigStore {
         }
     }
 
-    pub fn wallets(&self) -> Option<Wallets> {
-        todo!()
+    pub fn wallets(&self) -> Wallets {
+        let eth_sender = self
+            .eth_sender_config
+            .as_ref()
+            .map(|x| {
+                let operator = x
+                    .sender
+                    .private_key()
+                    .map(|operator| Wallet::from_private_key(operator, None).ok())
+                    .flatten();
+                let blob_operator = x
+                    .sender
+                    .private_key_blobs()
+                    .map(|operator| Wallet::from_private_key(operator, None).ok())
+                    .flatten();
+                operator.map(|operator| EthSender {
+                    operator,
+                    blob_operator,
+                })
+            })
+            .flatten();
+        let state_keeper = self
+            .state_keeper_config
+            .as_ref()
+            .map(|state_keeper| StateKeeper {
+                fee_account: Wallet::from_address(state_keeper.fee_account_addr),
+            });
+        Wallets {
+            eth_sender,
+            state_keeper,
+        }
     }
 }

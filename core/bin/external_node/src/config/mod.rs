@@ -633,6 +633,9 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
                 l2_weth_bridge: config.remote.l2_weth_bridge_addr,
             },
             bridgehub_proxy_addr: config.remote.bridgehub_proxy_addr,
+            // TODO set values
+            state_transition_proxy_addr: None,
+            transparent_proxy_admin_addr: None,
             diamond_proxy_addr: config.remote.diamond_proxy_addr,
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,

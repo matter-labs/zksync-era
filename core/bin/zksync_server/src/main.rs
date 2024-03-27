@@ -159,6 +159,8 @@ async fn main() -> anyhow::Result<()> {
         },
     };
 
+    let consensus = config::read_consensus_config().context("read_consensus_config()")?;
+
     let contracts_config: ContractsConfig = match opt.contracts_config_path {
         None => ContractsConfig::from_env()
             .context("contracts_config")?
@@ -214,6 +216,7 @@ async fn main() -> anyhow::Result<()> {
         &contracts_config,
         &components,
         &secrets,
+        consensus,
     )
     .await
     .context("Unable to start Core actors")?;
