@@ -214,9 +214,7 @@ impl EthNamespaceServer for EthNamespace {
     }
 
     async fn syncing(&self) -> RpcResult<SyncState> {
-        self.syncing_impl()
-            .await
-            .map_err(|err| self.current_method().map_err(err))
+        Ok(self.syncing_impl())
     }
 
     async fn accounts(&self) -> RpcResult<Vec<Address>> {

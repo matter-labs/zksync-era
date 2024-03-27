@@ -610,21 +610,21 @@ impl EthNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn syncing_impl(&self) -> Result<SyncState, Web3Error> {
+    pub fn syncing_impl(&self) -> SyncState {
         if let Some(state) = &self.state.sync_state {
             // Node supports syncing process (i.e. not the main node).
             if state.is_synced() {
-                Ok(SyncState::NotSyncing)
+                SyncState::NotSyncing
             } else {
-                Ok(SyncState::Syncing(SyncInfo {
+                SyncState::Syncing(SyncInfo {
                     starting_block: 0u64.into(), // We always start syncing from genesis right now.
                     current_block: state.get_local_block().0.into(),
                     highest_block: state.get_main_node_block().0.into(),
-                }))
+                })
             }
         } else {
             // If there is no sync state, then the node is the main node and it's always synced.
-            Ok(SyncState::NotSyncing)
+            SyncState::NotSyncing
         }
     }
 
@@ -709,10 +709,10 @@ impl EthNamespace {
                     .get_tx_hashes_after(*from_timestamp_excluded)
                     .await;
                 let tx_hashes = match tx_hashes_from_cache {
-                    Some(mut result) => {
-                        result.truncate(self.state.api_config.req_entities_limit);
-                        result
-                    }
+                    Some(result) => result
+                        .into_iter()
+                        .take(self.state.api_config.req_entities_limit)
+                        .collect(),
                     None => {
                         // On cache miss, query the database.
                         let mut conn = self.state.connection_pool.connection_tagged("api").await?;
@@ -729,6 +729,7 @@ impl EthNamespace {
                 // It's possible the `tx_hashes` vector is empty,
                 // meaning there are no transactions in cache that are newer than `from_timestamp_excluded`.
                 // In this case we should return empty result and don't update `from_timestamp_excluded`.
+
                 if let Some((last_timestamp, _)) = tx_hashes.last() {
                     *from_timestamp_excluded = *last_timestamp;
                 }
