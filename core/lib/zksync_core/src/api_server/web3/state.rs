@@ -18,7 +18,6 @@ use zksync_config::{
     GenesisConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_state::MempoolCache;
 use zksync_types::{
     api, l2::L2Tx, transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2ChainId,
     MiniblockNumber, H256, U256, U64,
@@ -27,6 +26,7 @@ use zksync_web3_decl::{error::Web3Error, types::Filter};
 
 use super::{
     backend_jsonrpsee::MethodTracer,
+    mempool_cache::MempoolCache,
     metrics::{FilterType, FILTER_METRICS},
     TypedFilter,
 };
@@ -401,7 +401,7 @@ impl RpcState {
     }
 }
 
-/// Contains mapping from index to `Filter`x with optional location.
+/// Contains mapping from index to `Filter`s with optional location.
 #[derive(Debug)]
 pub(crate) struct Filters(LruCache<U256, InstalledFilter>);
 

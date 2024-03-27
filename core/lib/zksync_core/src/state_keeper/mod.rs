@@ -14,7 +14,10 @@ use zksync_types::L2ChainId;
 
 pub use self::{
     batch_executor::{main_executor::MainBatchExecutor, BatchExecutor},
-    io::{mempool::MempoolIO, MiniblockSealer, MiniblockSealerHandle, StateKeeperIO},
+    io::{
+        mempool::MempoolIO, MiniblockSealerTask, OutputHandler, StateKeeperIO,
+        StateKeeperOutputHandler, StateKeeperPersistence,
+    },
     keeper::ZkSyncStateKeeper,
     mempool_actor::MempoolFetcher,
     seal_criteria::SequencerSealer,
@@ -44,14 +47,12 @@ pub(crate) async fn create_state_keeper(
     pool: ConnectionPool<Core>,
     mempool: MempoolGuard,
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
-    miniblock_sealer_handle: MiniblockSealerHandle,
-    object_store: Arc<dyn ObjectStore>,
+    output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
 ) -> ZkSyncStateKeeper {
     let batch_executor_base = MainBatchExecutor::new(
         db_config.state_keeper_db_path.clone(),
         pool.clone(),
-        state_keeper_config.max_allowed_l2_tx_gas_limit.into(),
         state_keeper_config.save_call_traces,
         state_keeper_config.upload_witness_inputs_to_gcs,
         state_keeper_config.enum_index_migration_chunk_size(),
@@ -60,14 +61,10 @@ pub(crate) async fn create_state_keeper(
 
     let io = MempoolIO::new(
         mempool,
-        object_store,
-        miniblock_sealer_handle,
         batch_fee_input_provider,
         pool,
         &state_keeper_config,
         mempool_config.delay_interval(),
-        contracts_config.l2_erc20_bridge_addr,
-        state_keeper_config.validation_computational_gas_limit,
         l2chain_id,
     )
     .await
@@ -78,6 +75,7 @@ pub(crate) async fn create_state_keeper(
         stop_receiver,
         Box::new(io),
         Box::new(batch_executor_base),
+        output_handler,
         Arc::new(sealer),
     )
 }

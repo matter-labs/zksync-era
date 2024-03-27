@@ -11,7 +11,6 @@ use tokio::{
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_state::MempoolCache;
 use zksync_types::MiniblockNumber;
 use zksync_web3_decl::{
     jsonrpsee::{
@@ -29,6 +28,7 @@ use self::{
     backend_jsonrpsee::{
         LimitMiddleware, MetadataMiddleware, MethodTracer, ShutdownMiddleware, TrafficTracker,
     },
+    mempool_cache::MempoolCache,
     metrics::API_METRICS,
     namespaces::{
         DebugNamespace, EnNamespace, EthNamespace, NetNamespace, SnapshotsNamespace, Web3Namespace,
@@ -48,6 +48,7 @@ use crate::{
 };
 
 pub mod backend_jsonrpsee;
+mod mempool_cache;
 pub(super) mod metrics;
 pub mod namespaces;
 mod pubsub;

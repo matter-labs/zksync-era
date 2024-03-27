@@ -1,10 +1,12 @@
 use std::num::NonZeroU32;
 
 use tokio::{sync::oneshot, task::JoinHandle};
+use zksync_circuit_breaker::replication_lag::ReplicationLagChecker;
 use zksync_core::api_server::web3::{state::InternalApiConfig, ApiBuilder, ApiServer, Namespace};
 
 use crate::{
     implementations::resources::{
+        circuit_breakers::CircuitBreakersResource,
         healthcheck::AppHealthCheckResource,
         pools::ReplicaPoolResource,
         sync_state::SyncStateResource,
@@ -24,6 +26,8 @@ pub struct Web3ServerOptionalConfig {
     pub batch_request_size_limit: Option<usize>,
     pub response_body_size_limit: Option<usize>,
     pub websocket_requests_per_minute_limit: Option<NonZeroU32>,
+    // used by circuit breaker.
+    pub replication_lag_limit_sec: Option<u32>,
 }
 
 impl Web3ServerOptionalConfig {
@@ -122,9 +126,10 @@ impl WiringLayer for Web3ServerLayer {
         };
 
         // Build server.
-        let mut api_builder = ApiBuilder::jsonrpsee_backend(self.internal_api_config, replica_pool)
-            .with_updaters_pool(updaters_pool)
-            .with_tx_sender(tx_sender);
+        let mut api_builder =
+            ApiBuilder::jsonrpsee_backend(self.internal_api_config, replica_pool.clone())
+                .with_updaters_pool(updaters_pool)
+                .with_tx_sender(tx_sender);
         if let Some(client) = tree_api_client {
             api_builder = api_builder.with_tree_api(client);
         }
@@ -139,6 +144,7 @@ impl WiringLayer for Web3ServerLayer {
         if let Some(sync_state) = sync_state {
             api_builder = api_builder.with_sync_state(sync_state);
         }
+        let replication_lag_limit_sec = self.optional_config.replication_lag_limit_sec;
         api_builder = self.optional_config.apply(api_builder);
         let server = api_builder.build()?;
 
@@ -146,6 +152,18 @@ impl WiringLayer for Web3ServerLayer {
         let api_health_check = server.health_check();
         let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
         app_health.insert_component(api_health_check);
+
+        // Insert circuit breaker.
+        let circuit_breaker_resource = context
+            .get_resource_or_default::<CircuitBreakersResource>()
+            .await;
+        circuit_breaker_resource
+            .breakers
+            .insert(Box::new(ReplicationLagChecker {
+                pool: replica_pool,
+                replication_lag_limit_sec,
+            }))
+            .await;
 
         // Add tasks.
         let (task_sender, task_receiver) = oneshot::channel();

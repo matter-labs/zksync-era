@@ -14,11 +14,8 @@ use zksync_prover_interface::api::{
     SubmitProofRequest, SubmitProofResponse,
 };
 use zksync_types::{
-    basic_fri_types::Eip4844Blobs,
-    commitment::serialize_commitments,
-    protocol_version::{FriProtocolVersionId, L1VerifierConfig},
-    web3::signing::keccak256,
-    L1BatchNumber, H256,
+    basic_fri_types::Eip4844Blobs, commitment::serialize_commitments,
+    protocol_version::FriProtocolVersionId, web3::signing::keccak256, L1BatchNumber, H256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -100,35 +97,31 @@ impl RequestProcessor {
             .await
             .map_err(RequestProcessorError::ObjectStore)?;
 
-        let (l1_verifier_config, fri_protocol_version_id) = {
-            let header = self
-                .pool
-                .connection()
-                .await
-                .unwrap()
-                .blocks_dal()
-                .get_l1_batch_header(l1_batch_number)
-                .await
-                .unwrap()
-                .expect(&format!("Missing header for {}", l1_batch_number));
+        let header = self
+            .pool
+            .connection()
+            .await
+            .unwrap()
+            .blocks_dal()
+            .get_l1_batch_header(l1_batch_number)
+            .await
+            .unwrap()
+            .expect(&format!("Missing header for {}", l1_batch_number));
 
-            let protocol_version = header.protocol_version.unwrap();
-            // TODO: What invariants have to hold such that protocol version = fri protocol version?
-            let fri_protocol_version = FriProtocolVersionId::from(protocol_version);
-            (
-                self.pool
-                    .connection()
-                    .await
-                    .unwrap()
-                    .protocol_versions_dal()
-                    .l1_verifier_config_for_version(protocol_version)
-                    .await
-                    .expect(&format!(
-                        "Missing l1 verifier info for protocol version {protocol_version:?}",
-                    )),
-                fri_protocol_version,
-            )
-        };
+        let protocol_version = header.protocol_version.unwrap();
+        // TODO: What invariants have to hold such that protocol version = fri protocol version?
+        let fri_protocol_version_id = FriProtocolVersionId::from(protocol_version);
+        let l1_verifier_config = self
+            .pool
+            .connection()
+            .await
+            .unwrap()
+            .protocol_versions_dal()
+            .l1_verifier_config_for_version(protocol_version)
+            .await
+            .expect(&format!(
+                "Missing l1 verifier info for protocol version {protocol_version:?}",
+            ));
 
         let storage_batch = self
             .pool

@@ -2,12 +2,6 @@ use std::time::Duration;
 
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
-pub enum ProtocolVersionLoadingMode {
-    FromDb,
-    FromEnvVar,
-}
-
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ProofDataHandlerConfig {
     pub http_port: u16,

@@ -1,7 +1,5 @@
 use anyhow::Context;
-use zksync_basic_types::web3::signing::Key;
 use zksync_config::configs::{
-    eth_sender,
     wallets::{EthSender, StateKeeper, Wallet},
     {self},
 };

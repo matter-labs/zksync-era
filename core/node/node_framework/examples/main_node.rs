@@ -5,7 +5,10 @@
 use anyhow::Context;
 use zksync_config::{
     configs::{
-        chain::{MempoolConfig, NetworkConfig, OperationsManagerConfig, StateKeeperConfig},
+        chain::{
+            CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
+            StateKeeperConfig,
+        },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, ObservabilityConfig,
@@ -24,6 +27,7 @@ use zksync_core::{
 use zksync_env_config::FromEnv;
 use zksync_node_framework::{
     implementations::layers::{
+        circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
         contract_verification_api::ContractVerificationApiLayer,
         eth_sender::EthSenderLayer,
@@ -232,6 +236,7 @@ impl MainNodeBuilder {
         let contracts_config = ContractsConfig::from_env()?;
         let network_config = NetworkConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
+        let circuit_breaker_config = CircuitBreakerConfig::from_env()?;
         let with_debug_namespace = state_keeper_config.save_call_traces;
 
         let mut namespaces = Namespace::DEFAULT.to_vec();
@@ -249,6 +254,7 @@ impl MainNodeBuilder {
             websocket_requests_per_minute_limit: Some(
                 rpc_config.websocket_requests_per_minute_limit(),
             ),
+            replication_lag_limit_sec: circuit_breaker_config.replication_lag_limit_sec,
         };
         self.node.add_layer(Web3ServerLayer::ws(
             rpc_config.ws_port,
@@ -298,6 +304,14 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_circuit_breaker_checker_layer(mut self) -> anyhow::Result<Self> {
+        let circuit_breaker_config = CircuitBreakerConfig::from_env()?;
+        self.node
+            .add_layer(CircuitBreakerCheckerLayer(circuit_breaker_config));
+
+        Ok(self)
+    }
+
     fn add_contract_verification_api_layer(mut self) -> anyhow::Result<Self> {
         let config = ApiConfig::from_env()?.contract_verification;
         self.node.add_layer(ContractVerificationApiLayer(config));
@@ -323,6 +337,7 @@ fn main() -> anyhow::Result<()> {
     MainNodeBuilder::new()
         .add_sigint_handler_layer()?
         .add_pools_layer()?
+        .add_circuit_breaker_checker_layer()?
         .add_query_eth_client_layer()?
         .add_sequencer_l1_gas_layer()?
         .add_object_store_layer()?

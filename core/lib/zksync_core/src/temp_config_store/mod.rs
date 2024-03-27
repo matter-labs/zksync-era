@@ -14,7 +14,7 @@ use zksync_config::{
         PrometheusConfig, ProofDataHandlerConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, ETHClientConfig, ETHConfig, ETHWatchConfig,
-    GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
+    GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_protobuf::{read_optional, repr::ProtoRepr, ProtoFmt};
 

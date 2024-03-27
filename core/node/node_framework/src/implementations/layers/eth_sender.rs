@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::{
     chain::NetworkConfig, eth_sender::ETHConfig, ContractsConfigReduced, ETHClientConfig,
 };
@@ -8,8 +9,11 @@ use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface};
 
 use crate::{
     implementations::resources::{
-        eth_interface::BoundEthInterfaceResource, l1_tx_params::L1TxParamsResource,
-        object_store::ObjectStoreResource, pools::MasterPoolResource,
+        circuit_breakers::CircuitBreakersResource,
+        eth_interface::BoundEthInterfaceResource,
+        l1_tx_params::L1TxParamsResource,
+        object_store::ObjectStoreResource,
+        pools::{MasterPoolResource, ReplicaPoolResource},
     },
     service::{ServiceContext, StopReceiver},
     task::Task,
@@ -47,15 +51,18 @@ impl WiringLayer for EthSenderLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        // Get resources
-        let pool_resource = context.get_resource::<MasterPoolResource>().await?;
-        let pool = pool_resource.get().await.unwrap();
+        // Get resources.
+        let master_pool_resource = context.get_resource::<MasterPoolResource>().await?;
+        let master_pool = master_pool_resource.get().await.unwrap();
+
+        let replica_pool_resource = context.get_resource::<ReplicaPoolResource>().await?;
+        let replica_pool = replica_pool_resource.get().await.unwrap();
 
         let eth_client = context.get_resource::<BoundEthInterfaceResource>().await?.0;
 
         let object_store = context.get_resource::<ObjectStoreResource>().await?.0;
 
-        // Create and add tasks
+        // Create and add tasks.
         let eth_client_blobs = PKSigningClient::from_config_blobs(
             &self.eth_sender_config,
             &self.contracts_config,
@@ -73,7 +80,7 @@ impl WiringLayer for EthSenderLayer {
         let config = self.eth_sender_config.sender;
 
         let eth_tx_aggregator_actor = EthTxAggregator::new(
-            pool.clone(),
+            master_pool.clone(),
             config.clone(),
             aggregator,
             eth_client.clone(),
@@ -92,7 +99,7 @@ impl WiringLayer for EthSenderLayer {
         let gas_adjuster = context.get_resource::<L1TxParamsResource>().await?.0;
 
         let eth_tx_manager_actor = EthTxManager::new(
-            pool,
+            master_pool,
             config,
             gas_adjuster,
             eth_client,
@@ -102,6 +109,12 @@ impl WiringLayer for EthSenderLayer {
         context.add_task(Box::new(EthTxManagerTask {
             eth_tx_manager_actor,
         }));
+
+        // Insert circuit breaker.
+        let CircuitBreakersResource { breakers } = context.get_resource_or_default().await;
+        breakers
+            .insert(Box::new(FailedL1TransactionChecker { pool: replica_pool }))
+            .await;
 
         Ok(())
     }

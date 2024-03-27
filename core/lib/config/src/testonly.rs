@@ -691,15 +691,6 @@ impl RandomConfig for configs::ObjectStoreConfig {
     }
 }
 
-impl RandomConfig for configs::proof_data_handler::ProtocolVersionLoadingMode {
-    fn sample(g: &mut Gen<impl Rng>) -> Self {
-        match g.rng.gen_range(0..2) {
-            0 => Self::FromDb,
-            _ => Self::FromEnvVar,
-        }
-    }
-}
-
 impl RandomConfig for configs::ProofDataHandlerConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {

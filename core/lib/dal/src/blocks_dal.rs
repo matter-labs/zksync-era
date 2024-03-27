@@ -30,6 +30,45 @@ pub struct BlocksDal<'a, 'c> {
 }
 
 impl BlocksDal<'_, '_> {
+    pub async fn get_consistency_checker_last_processed_l1_batch(
+        &mut self,
+    ) -> sqlx::Result<L1BatchNumber> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                last_processed_l1_batch AS "last_processed_l1_batch!"
+            FROM
+                consistency_checker_info
+            "#
+        )
+        .instrument("get_consistency_checker_last_processed_l1_batch")
+        .report_latency()
+        .fetch_one(self.storage)
+        .await?;
+        Ok(L1BatchNumber(row.last_processed_l1_batch as u32))
+    }
+
+    pub async fn set_consistency_checker_last_processed_l1_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE consistency_checker_info
+            SET
+                last_processed_l1_batch = $1,
+                updated_at = NOW()
+            "#,
+            l1_batch_number.0 as i32,
+        )
+        .instrument("set_consistency_checker_last_processed_l1_batch")
+        .report_latency()
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
     pub async fn is_genesis_needed(&mut self) -> sqlx::Result<bool> {
         let count = sqlx::query!(
             r#"
