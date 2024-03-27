@@ -301,9 +301,9 @@ mod tests {
         }
 
         if is_overhead_accepted(right_bound) {
-            right_bound as u32
+            right_bound
         } else {
-            left_bound as u32
+            left_bound
         }
     }
 

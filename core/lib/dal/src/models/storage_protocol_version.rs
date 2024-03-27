@@ -19,7 +19,6 @@ pub struct StorageProtocolVersion {
     pub recursion_circuits_set_vks_hash: Vec<u8>,
     pub bootloader_code_hash: Vec<u8>,
     pub default_account_code_hash: Vec<u8>,
-    pub evm_simulator_code_hash: Option<Vec<u8>>,
     // deprecated
     pub verifier_address: Option<Vec<u8>>,
     pub created_at: NaiveDateTime,

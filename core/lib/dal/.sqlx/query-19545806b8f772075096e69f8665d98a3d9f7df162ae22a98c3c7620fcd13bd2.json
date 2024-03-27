@@ -57,11 +57,6 @@
         "ordinal": 10,
         "name": "created_at",
         "type_info": "Timestamp"
-      },
-      {
-        "ordinal": 11,
-        "name": "evm_simulator_code_hash",
-        "type_info": "Bytea"
       }
     ],
     "parameters": {
@@ -78,8 +73,7 @@
       false,
       true,
       true,
-      false,
-      true
+      false
     ]
   },
   "hash": "19545806b8f772075096e69f8665d98a3d9f7df162ae22a98c3c7620fcd13bd2"
