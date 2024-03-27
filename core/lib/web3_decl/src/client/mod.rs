@@ -1,6 +1,7 @@
 //! L2 HTTP client.
 
 use std::{
+    collections::HashSet,
     fmt,
     num::NonZeroUsize,
     sync::{Arc, Mutex},
@@ -19,6 +20,9 @@ use jsonrpsee::{
 use serde::de::DeserializeOwned;
 use tokio::time::Instant;
 
+use self::metrics::{RequestLabels, METRICS};
+
+mod metrics;
 #[cfg(test)]
 mod tests;
 
@@ -30,11 +34,20 @@ enum RateLimitOrigin<'a> {
     Subscription(&'a str),
 }
 
-impl RateLimitOrigin<'_> {
+impl<'a> RateLimitOrigin<'a> {
     fn request_count(self) -> usize {
         match self {
             Self::BatchRequest(batch) => batch.iter().count(),
             _ => 1,
+        }
+    }
+
+    fn distinct_method_names(self) -> HashSet<&'a str> {
+        match self {
+            Self::Notification(name) | Self::Request(name) | Self::Subscription(name) => {
+                HashSet::from([name])
+            }
+            Self::BatchRequest(batch) => batch.iter().map(|(name, _)| name).collect(),
         }
     }
 }
@@ -81,7 +94,15 @@ impl L2Client {
             return;
         }
 
-        tracing::debug!(
+        for method in origin.distinct_method_names() {
+            let request_labels = RequestLabels {
+                component: self.component_name,
+                method: method.to_owned(),
+            };
+            METRICS.rate_limit_latency[&request_labels].observe(stats.total_sleep_time);
+        }
+
+        tracing::warn!(
             component = self.component_name,
             %origin,
             "Request to {origin} by component `{}` was rate-limited using policy {} reqs/{:?}: {stats:?}",

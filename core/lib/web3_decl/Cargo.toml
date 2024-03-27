@@ -23,6 +23,7 @@ zksync_config.workspace = true
 async-trait.workspace = true
 tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
+vise.workspace = true
 
 [dev-dependencies]
 futures.workspace = true
