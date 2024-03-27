@@ -82,9 +82,19 @@ describe('snapshot recovery', () => {
     const STORAGE_LOG_SAMPLE_PROBABILITY = 0.1;
 
     const homeDir = process.env.ZKSYNC_HOME!!;
+
+    let zkscynEnv: string;
+    if (process.env.DEPLOYMENT_MODE == 'Validium') {
+        zkscynEnv = process.env.IN_DOCKER ? 'ext-node-validium-docker' : 'ext-node-validium';
+    } else if (process.env.DEPLOYMENT_MODE == 'Rollup') {
+        zkscynEnv = process.env.IN_DOCKER ? 'ext-node-docker' : 'ext-node';
+    } else {
+        throw new Error(`Unknown deployment mode: ${process.env.DEPLOYMENT_MODE}`);
+    }
+
     const externalNodeEnv = {
         ...process.env,
-        ZKSYNC_ENV: process.env.IN_DOCKER ? 'ext-node-docker' : 'ext-node'
+        ZKSYNC_ENV: zkscynEnv
     };
 
     let snapshotMetadata: GetSnapshotResponse;
@@ -216,12 +226,6 @@ describe('snapshot recovery', () => {
     step('initialize external node', async () => {
         externalNodeLogs = await fs.open('snapshot-recovery.log', 'w');
 
-        const externalNodeEnvValidium = {
-            ...process.env,
-            ZKSYNC_ENV: process.env.IN_DOCKER ? 'ext-node-validium-docker' : 'ext-node-validium'
-        };
-        dotenv.config({ path: `${homeDir}/.env` });
-
         const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
         let args = ['external-node', '--', '--enable-snapshots-recovery'];
         if (enableConsensus) {
@@ -231,7 +235,7 @@ describe('snapshot recovery', () => {
             cwd: homeDir,
             stdio: [null, externalNodeLogs.fd, externalNodeLogs.fd],
             shell: true,
-            env: process.env.IS_VALIDIUM ? externalNodeEnvValidium : externalNodeEnv
+            env: externalNodeEnv
         });
 
         let recoveryFinished = false;

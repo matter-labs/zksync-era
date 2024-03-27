@@ -13,8 +13,17 @@ import fs from 'fs';
 import * as child_process from 'child_process';
 import * as dotenv from 'dotenv';
 
-const mainEnv: string = process.env.IN_DOCKER ? 'docker' : 'dev';
-const extEnv: string = process.env.IN_DOCKER ? 'ext-node-docker' : 'ext-node';
+let mainEnv: string;
+let extEnv: string;
+if (process.env.DEPLOYMENT_MODE == 'Validium') {
+    mainEnv = process.env.IN_DOCKER ? 'dev_validium_docker' : 'dev_validium';
+    extEnv = process.env.IN_DOCKER ? 'ext-node-validium-docker' : 'ext-node-validium';
+} else if (process.env.DEPLOYMENT_MODE == 'Rollup') {
+    mainEnv = process.env.IN_DOCKER ? 'docker' : 'dev';
+    extEnv = process.env.IN_DOCKER ? 'ext-node-docker' : 'ext-node';
+} else {
+    throw new Error(`Unknown deployment mode: ${process.env.DEPLOYMENT_MODE}`);
+}
 const mainLogsPath: string = 'revert_main.log';
 const extLogsPath: string = 'revert_ext.log';
 
