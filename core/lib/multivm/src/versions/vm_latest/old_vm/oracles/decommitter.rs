@@ -6,8 +6,7 @@ use zk_evm_1_5_0::{
         DecommittmentQuery, MemoryIndex, MemoryLocation, MemoryPage, MemoryQuery, Timestamp,
     },
     zkevm_opcode_defs::{
-        BlobSha256Storage, ContractCodeSha256, ContractCodeSha256Storage, VersionedHashDef,
-        VersionedHashHeader, VersionedHashNormalizedPreimage,
+        ContractCodeSha256, VersionedHashDef, VersionedHashHeader, VersionedHashNormalizedPreimage,
     },
 };
 use zksync_state::{ReadStorage, StoragePtr};

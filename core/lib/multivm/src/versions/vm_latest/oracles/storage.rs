@@ -235,7 +235,10 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
     fn get_storage_access_refund(&self, query: &LogQuery) -> StorageAccessRefund {
         let key = storage_key_of_log(query);
         if query.rw_flag {
+            // It is a write
+
             if self.written_storage_keys.inner().contains_key(&key) {
+                // It is a warm write
                 StorageAccessRefund::Warm {
                     ergs: WARM_WRITE_REFUND,
                 }
@@ -246,16 +249,17 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
                     ergs: COLD_WRITE_AFTER_WARM_READ_REFUND,
                 }
             } else {
+                // It is a cold write
                 StorageAccessRefund::Cold
+            }
+        } else if self.read_storage_keys.inner().contains_key(&key) {
+            // It is a warm read
+            StorageAccessRefund::Warm {
+                ergs: WARM_READ_REFUND,
             }
         } else {
-            if self.read_storage_keys.inner().contains_key(&key) {
-                StorageAccessRefund::Warm {
-                    ergs: WARM_READ_REFUND,
-                }
-            } else {
-                StorageAccessRefund::Cold
-            }
+            // It is a cold read
+            StorageAccessRefund::Cold
         }
     }
 

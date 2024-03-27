@@ -1,8 +1,6 @@
 use std::marker::PhantomData;
 
 use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
-use itertools::Itertools;
-use zk_evm_1_4_1::aux_structures::LogQuery;
 use zk_evm_1_5_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
@@ -19,7 +17,6 @@ use zksync_types::{
 use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
 use crate::{
-    glue::GlueInto,
     interface::{
         dyn_tracers::vm_1_5_0::DynTracer,
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
