@@ -90,6 +90,8 @@ pub struct InternalApiConfig {
     pub estimate_gas_acceptable_overestimation: u32,
     pub bridge_addresses: api::BridgeAddresses,
     pub bridgehub_proxy_addr: Option<Address>,
+    pub state_transition_proxy_addr: Option<Address>,
+    pub transparent_proxy_admin_addr: Option<Address>,
     pub diamond_proxy_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
@@ -122,6 +124,14 @@ impl InternalApiConfig {
                 .shared_bridge
                 .as_ref()
                 .map(|a| a.bridgehub_proxy_addr),
+            state_transition_proxy_addr: genesis_config
+                .shared_bridge
+                .as_ref()
+                .map(|a| a.state_transition_proxy_addr),
+            transparent_proxy_admin_addr: genesis_config
+                .shared_bridge
+                .as_ref()
+                .map(|a| a.transparent_proxy_admin_addr),
             diamond_proxy_addr: contracts_config.diamond_proxy_addr,
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),

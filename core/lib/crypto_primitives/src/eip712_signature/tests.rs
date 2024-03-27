@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use serde::Serialize;
+use web3::signing::keccak256;
 use zksync_basic_types::{Address, H256, U256};
 
 use crate::{
@@ -11,7 +12,6 @@ use crate::{
     },
     PackedEthSignature,
 };
-use web3::signing::keccak256;
 
 #[derive(Clone, Serialize)]
 struct Person {

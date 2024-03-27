@@ -18,11 +18,10 @@ use zksync_web3_decl::{
     jsonrpsee::http_client::HttpClient,
 };
 
-use crate::genesis::mock_genesis_config;
 use crate::{
     api_server::web3::{state::InternalApiConfig, tests::spawn_http_server},
     consensus::{fetcher::P2PConfig, Fetcher, Store},
-    genesis::GenesisParams,
+    genesis::{mock_genesis_config, GenesisParams},
     state_keeper::{
         io::{IoCursor, L1BatchParams, MiniblockParams},
         seal_criteria::NoopSealer,

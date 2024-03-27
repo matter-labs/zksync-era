@@ -1,5 +1,4 @@
-use zksync_config::configs::FriProverConfig;
-use zksync_config::ObjectStoreConfig;
+use zksync_config::{configs::FriProverConfig, ObjectStoreConfig};
 
 use crate::{envy_load, FromEnv};
 
@@ -13,9 +12,10 @@ impl FromEnv for FriProverConfig {
 
 #[cfg(test)]
 mod tests {
-    use zksync_config::configs::fri_prover::SetupLoadMode;
-    use zksync_config::configs::object_store::ObjectStoreMode;
-    use zksync_config::ObjectStoreConfig;
+    use zksync_config::{
+        configs::{fri_prover::SetupLoadMode, object_store::ObjectStoreMode},
+        ObjectStoreConfig,
+    };
 
     use super::*;
     use crate::test_utils::EnvMutex;

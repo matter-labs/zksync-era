@@ -76,10 +76,10 @@ mod tests {
                 max_blob_base_fee: None,
             },
             watcher: ETHWatchConfig {
-                confirmations_for_eth_event: None,
-                eth_node_poll_interval: 0,
+                confirmations_for_eth_event: Some(4),
+                eth_node_poll_interval: 2,
             },
-            web3_url: "".to_string(),
+            web3_url: "http://127.0.0.1:8545".to_string(),
         }
     }
 
@@ -87,6 +87,8 @@ mod tests {
     fn from_env() {
         let mut lock = MUTEX.lock();
         let config = r#"
+            ETH_WATCH_CONFIRMATIONS_FOR_ETH_EVENT = "4"
+            ETH_WATCH_ETH_NODE_POLL_INTERVAL = "2"
             ETH_SENDER_SENDER_WAIT_CONFIRMATIONS="1"
             ETH_SENDER_SENDER_TX_POLL_PERIOD="3"
             ETH_SENDER_SENDER_AGGREGATE_TX_POLL_PERIOD="3"
@@ -116,6 +118,8 @@ mod tests {
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
             ETH_SENDER_SENDER_PROOF_LOADING_MODE="OldProofFromDb"
             ETH_SENDER_SENDER_PUBDATA_SENDING_MODE="Calldata"
+            ETH_CLIENT_WEB3_URL="http://127.0.0.1:8545"
+
         "#;
         lock.set_env(config);
 

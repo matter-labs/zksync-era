@@ -31,6 +31,26 @@ pub struct GenesisConfig {
 
 impl GenesisConfig {
     pub fn for_tests() -> Self {
-        todo!()
+        GenesisConfig {
+            genesis_root_hash: H256::repeat_byte(0x01),
+            rollup_last_leaf_index: 26,
+            recursion_scheduler_level_vk_hash: H256::repeat_byte(0x02),
+            fee_account: Default::default(),
+            shared_bridge: Some(SharedBridge {
+                bridgehub_proxy_addr: Address::repeat_byte(0x14),
+                state_transition_proxy_addr: Address::repeat_byte(0x16),
+                transparent_proxy_admin_addr: Address::repeat_byte(0x16),
+            }),
+            recursion_node_level_vk_hash: H256::repeat_byte(0x03),
+            recursion_leaf_level_vk_hash: H256::repeat_byte(0x04),
+            recursion_circuits_set_vks_hash: H256::repeat_byte(0x05),
+            genesis_commitment: H256::repeat_byte(0x17),
+            bootloader_hash: Default::default(),
+            default_aa_hash: Default::default(),
+            l1_chain_id: L1ChainId(9),
+            protocol_version: 22,
+            l2_chain_id: L2ChainId::default(),
+            dummy_prover: false,
+        }
     }
 }

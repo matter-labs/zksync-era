@@ -401,6 +401,8 @@ impl RandomConfig for configs::database::PostgresConfig {
             statement_timeout_sec: g.gen(),
             long_connection_threshold_ms: g.gen(),
             slow_query_threshold_ms: g.gen(),
+            test_server_url: g.gen(),
+            test_prover_url: g.gen(),
         }
     }
 }

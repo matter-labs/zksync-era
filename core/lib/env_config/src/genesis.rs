@@ -1,8 +1,11 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{Address, H256};
 use zksync_config::{
-    configs::chain::{NetworkConfig, StateKeeperConfig},
+    configs::{
+        chain::{NetworkConfig, StateKeeperConfig},
+        genesis::SharedBridge,
+    },
     GenesisConfig,
 };
 
@@ -42,6 +45,22 @@ impl FromEnv for GenesisConfig {
         let network_config = &NetworkConfig::from_env()?;
         let contracts_config = &ContractsForGenesis::from_env()?;
         let state_keeper = StateKeeperConfig::from_env()?;
+        let shared_bridge = if let Some(state_transition_proxy_addr) =
+            contracts_config.state_transition_proxy_addr
+        {
+            Some(SharedBridge {
+                bridgehub_proxy_addr: contracts_config
+                    .bridgehub_proxy_addr
+                    .context("Must be specified with state_transition_proxy_addr")?,
+                state_transition_proxy_addr,
+                transparent_proxy_admin_addr: contracts_config
+                    .transparent_proxy_admin_addr
+                    .context("Must be specified with state_transition_proxy_addr")?,
+            })
+        } else {
+            None
+        };
+
         Ok(GenesisConfig {
             protocol_version: contracts_config
                 .genesis_protocol_version
@@ -68,7 +87,7 @@ impl FromEnv for GenesisConfig {
             recursion_circuits_set_vks_hash: H256::zero(),
             recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
             fee_account: state_keeper.fee_account_addr,
-            shared_bridge: None,
+            shared_bridge,
             dummy_prover: false,
         })
     }
