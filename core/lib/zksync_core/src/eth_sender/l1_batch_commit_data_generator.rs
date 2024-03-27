@@ -50,7 +50,7 @@ impl L1BatchCommitDataGenerator for RollupModeL1BatchCommitDataGenerator {
         CommitBatchesRollup {
             last_committed_l1_batch: last_committed_l1_batch.clone(),
             l1_batches: l1_batches.to_vec(),
-            pubdata_da: pubdata_da.clone(),
+            pubdata_da: *pubdata_da,
         }
         .into_tokens()
     }
@@ -58,7 +58,7 @@ impl L1BatchCommitDataGenerator for RollupModeL1BatchCommitDataGenerator {
     fn l1_commit_batch(&self, l1_batch: &L1BatchWithMetadata, pubdata_da: &PubdataDA) -> Token {
         CommitBatchInfoRollup {
             l1_batch_with_metadata: l1_batch,
-            pubdata_da: pubdata_da.clone(),
+            pubdata_da: *pubdata_da,
         }
         .into_token()
     }
@@ -74,7 +74,7 @@ impl L1BatchCommitDataGenerator for ValidiumModeL1BatchCommitDataGenerator {
         CommitBatchesValidium {
             last_committed_l1_batch: last_committed_l1_batch.clone(),
             l1_batches: l1_batches.to_vec(),
-            pubdata_da: pubdata_da.clone(),
+            pubdata_da: *pubdata_da,
         }
         .into_tokens()
     }
@@ -82,7 +82,7 @@ impl L1BatchCommitDataGenerator for ValidiumModeL1BatchCommitDataGenerator {
     fn l1_commit_batch(&self, l1_batch: &L1BatchWithMetadata, pubdata_da: &PubdataDA) -> Token {
         CommitBatchInfoValidium {
             l1_batch_with_metadata: l1_batch,
-            pubdata_da: pubdata_da.clone(),
+            pubdata_da: *pubdata_da,
         }
         .into_token()
     }
