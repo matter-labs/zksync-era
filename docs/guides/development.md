@@ -25,7 +25,7 @@ zk init
 This command will do the following:
 
 - Generate `$ZKSYNC_HOME/etc/env/dev.env` file with settings for the applications.
-- Initialize docker containers with `geth` Ethereum node for local development.
+- Initialize docker containers with `reth` Ethereum node for local development.
 - Download and unpack files for cryptographical backend.
 - Generate required smart contracts.
 - Compile all the smart contracts.
@@ -59,7 +59,7 @@ commands:
 
 ```
 zk up   # Set up `reth` container
-zk down # Shut down `geth` container
+zk down # Shut down `reth` container
 ```
 
 ## Reinitializing
