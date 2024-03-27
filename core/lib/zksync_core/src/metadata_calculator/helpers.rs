@@ -129,7 +129,7 @@ pub(super) struct AsyncTree {
 
 impl AsyncTree {
     const INCONSISTENT_MSG: &'static str =
-        "`AsyncTree` is in inconsistent state, which could occur after one of its async methods was cancelled";
+        "`AsyncTree` is in inconsistent state, which could occur after one of its async methods was cancelled or returned an error";
 
     pub fn new(db: RocksDBWrapper, mode: MerkleTreeMode) -> Self {
         let tree = match mode {
@@ -170,32 +170,35 @@ impl AsyncTree {
         self.as_ref().root_hash()
     }
 
+    /// Returned errors are unrecoverable; the tree must not be used after an error is returned.
     pub async fn process_l1_batch(
         &mut self,
         storage_logs: Vec<TreeInstruction<StorageKey>>,
-    ) -> TreeMetadata {
-        let mut tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
+    ) -> anyhow::Result<TreeMetadata> {
+        let mut tree = self.inner.take().context(Self::INCONSISTENT_MSG)?;
         let (tree, metadata) = tokio::task::spawn_blocking(move || {
             let metadata = tree.process_l1_batch(&storage_logs);
             (tree, metadata)
         })
         .await
-        .unwrap();
+        .context("Merkle tree panicked when processing L1 batch")?;
 
         self.inner = Some(tree);
-        metadata
+        Ok(metadata)
     }
 
-    pub async fn save(&mut self) {
-        let mut tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
+    /// Returned errors are unrecoverable; the tree must not be used after an error is returned.
+    pub async fn save(&mut self) -> anyhow::Result<()> {
+        let mut tree = self.inner.take().context(Self::INCONSISTENT_MSG)?;
         self.inner = Some(
             tokio::task::spawn_blocking(|| {
                 tree.save();
                 tree
             })
             .await
-            .unwrap(),
+            .context("Merkle tree panicked during saving")?,
         );
+        Ok(())
     }
 
     pub fn revert_logs(&mut self, last_l1_batch_to_keep: L1BatchNumber) {
@@ -282,7 +285,7 @@ impl AsyncTreeRecovery {
             .recovered_version()
     }
 
-    /// Returns an entry for the specified key.
+    /// Returns an entry for the specified keys.
     pub async fn entries(&mut self, keys: Vec<Key>) -> Vec<TreeEntry> {
         let tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
         let (entry, tree) = tokio::task::spawn_blocking(move || (tree.entries(&keys), tree))
@@ -401,16 +404,19 @@ impl L1BatchWithLogs {
     pub async fn new(
         storage: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
-    ) -> Option<Self> {
+    ) -> anyhow::Result<Option<Self>> {
         tracing::debug!("Loading storage logs data for L1 batch #{l1_batch_number}");
         let load_changes_latency = METRICS.start_stage(TreeUpdateStage::LoadChanges);
 
         let header_latency = METRICS.start_load_stage(LoadChangesStage::LoadL1BatchHeader);
-        let header = storage
+        let Some(header) = storage
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
             .await
-            .unwrap()?;
+            .context("cannot fetch L1 batch header")?
+        else {
+            return Ok(None);
+        };
         header_latency.observe();
 
         let protective_reads_latency =
@@ -418,7 +424,8 @@ impl L1BatchWithLogs {
         let protective_reads = storage
             .storage_logs_dedup_dal()
             .get_protective_reads_for_l1_batch(l1_batch_number)
-            .await;
+            .await
+            .context("cannot fetch protective reads")?;
         protective_reads_latency.observe_with_count(protective_reads.len());
 
         let touched_slots_latency = METRICS.start_load_stage(LoadChangesStage::LoadTouchedSlots);
@@ -426,7 +433,7 @@ impl L1BatchWithLogs {
             .storage_logs_dal()
             .get_touched_slots_for_l1_batch(l1_batch_number)
             .await
-            .unwrap();
+            .context("cannot fetch touched slots")?;
         touched_slots_latency.observe_with_count(touched_slots.len());
 
         let leaf_indices_latency = METRICS.start_load_stage(LoadChangesStage::LoadLeafIndices);
@@ -436,7 +443,7 @@ impl L1BatchWithLogs {
             .storage_logs_dal()
             .get_l1_batches_and_indices_for_initial_writes(&hashed_keys_for_writes)
             .await
-            .unwrap();
+            .context("cannot fetch initial writes batch numbers and indices")?;
         leaf_indices_latency.observe_with_count(hashed_keys_for_writes.len());
 
         let mut storage_logs = BTreeMap::new();
@@ -468,10 +475,10 @@ impl L1BatchWithLogs {
         }
 
         load_changes_latency.observe();
-        Some(Self {
+        Ok(Some(Self {
             header,
             storage_logs: storage_logs.into_values().collect(),
-        })
+        }))
     }
 }
 
@@ -502,7 +509,8 @@ mod tests {
             let protective_reads = storage
                 .storage_logs_dedup_dal()
                 .get_protective_reads_for_l1_batch(l1_batch_number)
-                .await;
+                .await
+                .unwrap();
             let touched_slots = storage
                 .storage_logs_dal()
                 .get_touched_slots_for_l1_batch(l1_batch_number)
@@ -574,7 +582,8 @@ mod tests {
             let l1_batch_number = L1BatchNumber(l1_batch_number);
             let batch_with_logs = L1BatchWithLogs::new(&mut storage, l1_batch_number)
                 .await
-                .unwrap();
+                .unwrap()
+                .expect("no L1 batch");
             let slow_batch_with_logs = L1BatchWithLogs::slow(&mut storage, l1_batch_number)
                 .await
                 .unwrap();
@@ -626,7 +635,8 @@ mod tests {
     ) {
         let l1_batch_with_logs = L1BatchWithLogs::new(storage, l1_batch_number)
             .await
-            .unwrap();
+            .unwrap()
+            .expect("no L1 batch");
         let slow_l1_batch_with_logs = L1BatchWithLogs::slow(storage, l1_batch_number)
             .await
             .unwrap();
@@ -634,12 +644,16 @@ mod tests {
         // Sanity check: L1 batch headers must be identical
         assert_eq!(l1_batch_with_logs.header, slow_l1_batch_with_logs.header);
 
-        tree.save().await; // Necessary for `reset()` below to work properly
-        let tree_metadata = tree.process_l1_batch(l1_batch_with_logs.storage_logs).await;
+        tree.save().await.unwrap(); // Necessary for `reset()` below to work properly
+        let tree_metadata = tree
+            .process_l1_batch(l1_batch_with_logs.storage_logs)
+            .await
+            .unwrap();
         tree.as_mut().reset();
         let slow_tree_metadata = tree
             .process_l1_batch(slow_l1_batch_with_logs.storage_logs)
-            .await;
+            .await
+            .unwrap();
         assert_eq!(tree_metadata.root_hash, slow_tree_metadata.root_hash);
         assert_eq!(
             tree_metadata.rollup_last_leaf_index,
@@ -745,7 +759,8 @@ mod tests {
 
         let l1_batch_with_logs = L1BatchWithLogs::new(&mut storage, L1BatchNumber(2))
             .await
-            .unwrap();
+            .unwrap()
+            .expect("no L1 batch");
         // Check that we have protective reads transformed into read logs
         let read_logs_count = l1_batch_with_logs
             .storage_logs

@@ -201,10 +201,11 @@ pub async fn insert_genesis_batch(
     .await?;
     tracing::info!("chain_schema_genesis is complete");
 
-    let storage_logs = L1BatchWithLogs::new(&mut transaction, L1BatchNumber(0)).await;
-    let storage_logs = storage_logs
-        .context("genesis L1 batch disappeared from Postgres")?
-        .storage_logs;
+    let storage_logs = L1BatchWithLogs::new(&mut transaction, L1BatchNumber(0))
+        .await
+        .context("failed fetching tree input for genesis L1 batch")?
+        .context("genesis L1 batch disappeared from Postgres")?;
+    let storage_logs = storage_logs.storage_logs;
     let metadata = ZkSyncTree::process_genesis_batch(&storage_logs);
     let genesis_root_hash = metadata.root_hash;
     let rollup_last_leaf_index = metadata.leaf_count + 1;
