@@ -29,6 +29,7 @@ zksync_external_node=info,\
 zksync_witness_generator=info,\
 zksync_prover_fri=info,\
 zksync_witness_vector_generator=info,\
+zksync_web3_decl=debug,\
 zksync_health_check=debug,\
 zksync_proof_fri_compressor=info,\
 vise_exporter=debug,\

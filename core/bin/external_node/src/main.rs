@@ -1,4 +1,4 @@
-use std::{future, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
@@ -6,7 +6,7 @@ use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task};
 use zksync_basic_types::L2ChainId;
-use zksync_concurrency::{ctx, limiter, scope, time};
+use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_core::{
     api_server::{
@@ -29,8 +29,7 @@ use zksync_core::{
         OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
     },
     sync_layer::{
-        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue,
-        MainNodeClient, SyncState,
+        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue, SyncState,
     },
 };
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
@@ -39,7 +38,7 @@ use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::ManagedTasks;
-use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
+use zksync_web3_decl::client::L2Client;
 
 use crate::{
     config::{observability::observability_config_from_env, ExternalNodeConfig},
@@ -62,6 +61,7 @@ async fn build_state_keeper(
     state_keeper_db_path: String,
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
+    main_node_client: L2Client,
     output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
@@ -88,13 +88,10 @@ async fn build_state_keeper(
         true,
     ));
 
-    let main_node_url = config.required.main_node_url()?;
-    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
-        .context("Failed creating JSON-RPC client for main node")?;
     let io = ExternalIO::new(
         connection_pool,
         action_queue,
-        Box::new(main_node_client),
+        Box::new(main_node_client.for_component("external_io")),
         chain_id,
     )
     .await
@@ -112,7 +109,7 @@ async fn build_state_keeper(
 async fn init_tasks(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
-    main_node_client: HttpClient,
+    main_node_client: L2Client,
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
@@ -138,22 +135,27 @@ async fn init_tasks(
         config.optional.miniblock_seal_queue_capacity,
     );
     task_handles.push(tokio::spawn(miniblock_sealer.run()));
+
     let pool = connection_pool.clone();
+    let mut stop_receiver_for_task = stop_receiver.clone();
     task_handles.push(tokio::spawn(async move {
-        loop {
+        while !*stop_receiver_for_task.borrow_and_update() {
             let protocol_version = pool
                 .connection()
-                .await
-                .unwrap()
+                .await?
                 .protocol_versions_dal()
                 .last_used_version_id()
                 .await
                 .map(|version| version as u16);
 
-            EN_METRICS.version[&(format!("{}", version), protocol_version)].set(1);
+            EN_METRICS.version[&(version.to_string(), protocol_version)].set(1);
 
-            tokio::time::sleep(Duration::from_secs(10)).await;
+            // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
+            tokio::time::timeout(Duration::from_secs(10), stop_receiver_for_task.changed())
+                .await
+                .ok();
         }
+        Ok(())
     }));
 
     let output_handler = OutputHandler::new(Box::new(persistence.with_tx_insertion()))
@@ -163,6 +165,7 @@ async fn init_tasks(
         config.required.state_cache_path.clone(),
         config,
         connection_pool.clone(),
+        main_node_client.clone(),
         output_handler,
         stop_receiver.clone(),
         config.remote.l2_chain_id,
@@ -177,14 +180,7 @@ async fn init_tasks(
         let fetcher = consensus::Fetcher {
             store: consensus::Store(connection_pool.clone()),
             sync_state: sync_state.clone(),
-            client: Box::new(main_node_client.clone()),
-            limiter: limiter::Limiter::new(
-                &ctx,
-                limiter::Rate {
-                    burst: 10,
-                    refresh: time::Duration::milliseconds(30),
-                },
-            ),
+            client: Box::new(main_node_client.clone().for_component("fetcher")),
         };
         let actions = action_queue_sender;
         async move {
@@ -518,11 +514,14 @@ async fn main() -> anyhow::Result<()> {
         .main_node_url()
         .expect("Main node URL is incorrect");
     tracing::info!("Main node URL is: {main_node_url}");
-    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
+    let main_node_client = L2Client::builder()
+        .with_allowed_requests_per_second(config.optional.main_node_rate_limit_rps)
+        .build(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
 
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");
+    let (stop_sender, stop_receiver) = watch::channel(false);
 
     let app_health = Arc::new(AppHealthCheck::new(
         config.optional.healthcheck_slow_time_limit(),
@@ -541,30 +540,39 @@ async fn main() -> anyhow::Result<()> {
         app_health.clone(),
     );
     // Start scraping Postgres metrics before store initialization as well.
-    let metrics_pool = connection_pool.clone();
+    let pool_for_metrics = connection_pool.clone();
+    let mut stop_receiver_for_metrics = stop_receiver.clone();
+    let metrics_task = tokio::spawn(async move {
+        tokio::select! {
+            () = PostgresMetrics::run_scraping(pool_for_metrics, Duration::from_secs(60)) => {
+                tracing::warn!("Postgres metrics scraping unexpectedly stopped");
+            }
+            _ = stop_receiver_for_metrics.changed() => {
+                tracing::info!("Stop signal received, Postgres metrics scraping is shutting down");
+            }
+        }
+        Ok(())
+    });
+
     let version_sync_task_pool = connection_pool.clone();
     let version_sync_task_main_node_client = main_node_client.clone();
-    let mut task_handles = vec![
-        tokio::spawn(async move {
-            PostgresMetrics::run_scraping(metrics_pool, Duration::from_secs(60)).await;
-            Ok(())
-        }),
-        tokio::spawn(async move {
-            version_sync_task::sync_versions(
-                version_sync_task_pool,
-                version_sync_task_main_node_client,
-            )
-            .await?;
-            future::pending::<()>().await;
-            // ^ Since this is run as a task, we don't want it to exit on success (this would shut down the node).
-            Ok(())
-        }),
-    ];
+    let mut stop_receiver_for_version_sync = stop_receiver.clone();
+    let version_sync_task = tokio::spawn(async move {
+        version_sync_task::sync_versions(
+            version_sync_task_pool,
+            version_sync_task_main_node_client,
+        )
+        .await?;
+
+        stop_receiver_for_version_sync.changed().await.ok();
+        Ok(())
+    });
+    let mut task_handles = vec![metrics_task, version_sync_task];
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(
         &connection_pool,
-        &main_node_client,
+        main_node_client.clone(),
         &app_health,
         config.remote.l2_chain_id,
         opt.enable_snapshots_recovery,
@@ -618,7 +626,6 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("Rollback successfully completed");
     }
 
-    let (stop_sender, stop_receiver) = watch::channel(false);
     init_tasks(
         &config,
         connection_pool.clone(),

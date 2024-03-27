@@ -5,12 +5,12 @@ use zksync_basic_types::{L1BatchNumber, MiniblockNumber};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::ProtocolVersionId;
 use zksync_web3_decl::{
-    jsonrpsee::http_client::HttpClient,
+    client::L2Client,
     namespaces::{EnNamespaceClient, ZksNamespaceClient},
 };
 
 pub async fn get_l1_batch_remote_protocol_version(
-    main_node_client: &HttpClient,
+    main_node_client: &L2Client,
     l1_batch_number: L1BatchNumber,
 ) -> anyhow::Result<Option<ProtocolVersionId>> {
     let Some((miniblock, _)) = main_node_client
@@ -28,7 +28,7 @@ pub async fn get_l1_batch_remote_protocol_version(
 // Synchronizes protocol version in `l1_batches` and `miniblocks` tables between EN and main node.
 pub async fn sync_versions(
     connection_pool: ConnectionPool<Core>,
-    main_node_client: HttpClient,
+    main_node_client: L2Client,
 ) -> anyhow::Result<()> {
     tracing::info!("Starting syncing protocol version of blocks");
 
@@ -44,9 +44,8 @@ pub async fn sync_versions(
     };
     tracing::info!("First local v22 batch is #{local_first_v22_l1_batch}");
 
-    // Find the first remote batch with version 22, assuming it's less then or equal than local one.
+    // Find the first remote batch with version 22, assuming it's less than or equal than local one.
     // Uses binary search.
-
     let mut left_bound = L1BatchNumber(0);
     let mut right_bound = local_first_v22_l1_batch;
 
