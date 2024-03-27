@@ -1,0 +1,53 @@
+name: Feature request
+description: Suggest an idea for this project
+title: "[Feature][Module Name] Feature title"
+labels: [ "feature" ]
+body:
+
+  - type: textarea
+    attributes:
+      label: Description
+      description: A short description of your feature
+
+  - type: textarea
+    attributes:
+      label: Use case
+      description: What do you want to happen?
+      placeholder: >
+        Rather than telling us how you might implement this feature, try to take a
+        step back and describe what you are trying to achieve.
+
+  - type: textarea
+    attributes:
+      label: Rationale
+      description: Explain why this feature is important and how it benefits the project.
+      placeholder: >
+
+  - type: textarea
+    attributes:
+      label: Additional Context
+      description: Add any other context or information about the feature request here.
+      placeholder: >
+
+  - type: checkboxes
+    attributes:
+      label: Are you willing to submit a PR?
+      description: >
+        This is absolutely not required, but we are happy to guide you in the contribution process
+        especially if you already have a good understanding of how to implement the feature.
+      options:
+        - label: Yes I am willing to submit a PR!
+
+  - type: checkboxes
+    attributes:
+      label: Code of Conduct
+      description: |
+        The Code of Conduct helps create a safe space for everyone. We require that everyone agrees to it.
+      options:
+        - label: |
+            I agree to follow this project's [Code of Conduct](https://www.apache.org/foundation/policies/conduct)
+          required: true
+
+  - type: markdown
+    attributes:
+      value: "Thanks for completing our form!"
