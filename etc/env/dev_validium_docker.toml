@@ -4,7 +4,7 @@ test_database_url = "postgres://postgres:notsecurepassword@host:5433/zksync_loca
 test_database_prover_url = "postgres://postgres:notsecurepassword@host:5433/prover_local_test"
 
 # for loadtest
-l1_rpc_address = "http://geth:8545"
+l1_rpc_address = "http://reth:8545"
 
 [chain.state_keeper]
 compute_overhead_part = 1.0
@@ -18,7 +18,7 @@ l1_batch_commit_data_generator_mode = "Validium"
 miniblock_iteration_interval = 50
 
 [eth_client]
-web3_url = "http://geth:8545"
+web3_url = "http://reth:8545"
 
 [_metadata]
 base = ["dev.toml"]
