@@ -8,10 +8,11 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct FriWitnessGeneratorConfig {
     /// Max time for witness to be generated
-    pub basic_generation_timeout_in_secs: u16,
-    pub leaf_generation_timeout_in_secs: u16,
-    pub node_generation_timeout_in_secs: u16,
-    pub scheduler_generation_timeout_in_secs: u16,
+    pub generation_timeout_in_secs: u16,
+    pub basic_generation_timeout_in_secs: Option<u16>,
+    pub leaf_generation_timeout_in_secs: Option<u16>,
+    pub node_generation_timeout_in_secs: Option<u16>,
+    pub scheduler_generation_timeout_in_secs: Option<u16>,
     /// Max attempts for generating witness
     pub max_attempts: u32,
     // Percentage of the blocks that gets proven in the range [0.0, 1.0]
@@ -67,10 +68,14 @@ impl WitnessGenerationTimeouts {
 impl FriWitnessGeneratorConfig {
     pub fn witness_generation_timeouts(&self) -> WitnessGenerationTimeouts {
         WitnessGenerationTimeouts::new(
-            self.basic_generation_timeout_in_secs,
-            self.leaf_generation_timeout_in_secs,
-            self.node_generation_timeout_in_secs,
-            self.scheduler_generation_timeout_in_secs,
+            self.basic_generation_timeout_in_secs
+                .unwrap_or(self.generation_timeout_in_secs),
+            self.leaf_generation_timeout_in_secs
+                .unwrap_or(self.generation_timeout_in_secs),
+            self.node_generation_timeout_in_secs
+                .unwrap_or(self.generation_timeout_in_secs),
+            self.scheduler_generation_timeout_in_secs
+                .unwrap_or(self.generation_timeout_in_secs),
         )
     }
 

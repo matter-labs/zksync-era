@@ -8,6 +8,9 @@ impl ProtoRepr for proto::FriWitnessGenerator {
     type Type = configs::FriWitnessGeneratorConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
+            generation_timeout_in_secs: required(&self.generation_timeout_in_secs)
+                .and_then(|x| Ok((*x).try_into()?))
+                .context("basic_generation_timeout_in_secs")?,
             basic_generation_timeout_in_secs: required(&self.basic_generation_timeout_in_secs)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("basic_generation_timeout_in_secs")?,
@@ -38,6 +41,7 @@ impl ProtoRepr for proto::FriWitnessGenerator {
 
     fn build(this: &Self::Type) -> Self {
         Self {
+            generation_timeout_in_secs: Some(this.generation_timeout_in_secs.into()),
             basic_generation_timeout_in_secs: Some(this.basic_generation_timeout_in_secs.into()),
             leaf_generation_timeout_in_secs: Some(this.leaf_generation_timeout_in_secs.into()),
             node_generation_timeout_in_secs: Some(this.node_generation_timeout_in_secs.into()),
