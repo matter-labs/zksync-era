@@ -151,7 +151,6 @@ async fn main() -> anyhow::Result<()> {
                 .context("failed decoding YAML config")?
         }
     };
-    // let contracts_config: ContractsConfigReduced = contracts_config.into();
     let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;
 
     let genesis = GenesisConfig::from_env().context("Genesis config")?;
