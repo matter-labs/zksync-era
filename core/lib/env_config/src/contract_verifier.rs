@@ -20,8 +20,8 @@ mod tests {
             compilation_timeout: 30,
             polling_interval: Some(1000),
             prometheus_port: 3314,
-            port: 9454,
-            url: "127.0.0.1:9454".to_string(),
+            port: 3070,
+            url: "127.0.0.1:3070".to_string(),
         }
     }
 
@@ -32,6 +32,10 @@ mod tests {
             CONTRACT_VERIFIER_COMPILATION_TIMEOUT=30
             CONTRACT_VERIFIER_POLLING_INTERVAL=1000
             CONTRACT_VERIFIER_PROMETHEUS_PORT=3314
+            CONTRACT_VERIFIER_PORT=3070
+            CONTRACT_VERIFIER_URL=127.0.0.1:3070
+
+            
         "#;
         lock.set_env(config);
 

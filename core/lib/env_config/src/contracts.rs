@@ -19,7 +19,7 @@ mod tests {
         ContractsConfig {
             governance_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
             verifier_addr: addr("34782eE00206EAB6478F2692caa800e4A581687b"),
-            default_upgrade_addr: addr("0xFFC35A5e767BE36057c34586303498e3de7C62Ba"),
+            default_upgrade_addr: addr("0x5e6d086f5ec079adff4fb3774cdf3e8d6a34f7e9"),
             diamond_proxy_addr: addr("F00B988a98Ca742e7958DeF9F7823b5908715f4a"),
             validator_timelock_addr: addr("F00B988a98Ca742e7958DeF9F7823b5908715f4a"),
             l1_erc20_bridge_proxy_addr: addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888"),
