@@ -66,7 +66,7 @@ async fn sync_state_updater(
     main_node_client: HttpClient,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
-    const UPDATE_INTERVAL: Duration = Duration::from_secs(60);
+    const UPDATE_INTERVAL: Duration = Duration::from_secs(10);
 
     loop {
         if *stop_receiver.borrow() {
