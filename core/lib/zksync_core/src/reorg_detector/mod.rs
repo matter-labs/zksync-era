@@ -226,7 +226,7 @@ impl ReorgDetector {
     pub fn new(client: L2Client, pool: ConnectionPool<Core>) -> Self {
         let (health_check, health_updater) = ReactiveHealthCheck::new("reorg_detector");
         Self {
-            client: Box::new(client),
+            client: Box::new(client.for_component("reorg_detector")),
             event_handler: Box::new(health_updater),
             pool,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,

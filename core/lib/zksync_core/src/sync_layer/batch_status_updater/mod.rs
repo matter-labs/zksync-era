@@ -255,7 +255,11 @@ impl BatchStatusUpdater {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
     pub fn new(client: L2Client, pool: ConnectionPool<Core>) -> Self {
-        Self::from_parts(Box::new(client), pool, Self::DEFAULT_SLEEP_INTERVAL)
+        Self::from_parts(
+            Box::new(client.for_component("batch_status_updater")),
+            pool,
+            Self::DEFAULT_SLEEP_INTERVAL,
+        )
     }
 
     fn from_parts(

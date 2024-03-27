@@ -9,7 +9,7 @@ pub(crate) struct MainNodeHealthCheck(L2Client);
 
 impl From<L2Client> for MainNodeHealthCheck {
     fn from(client: L2Client) -> Self {
-        Self(client)
+        Self(client.for_component("main_node_health_check"))
     }
 }
 

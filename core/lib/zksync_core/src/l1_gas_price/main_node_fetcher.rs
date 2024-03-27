@@ -26,7 +26,7 @@ pub struct MainNodeFeeParamsFetcher {
 impl MainNodeFeeParamsFetcher {
     pub fn new(client: L2Client) -> Self {
         Self {
-            client,
+            client: client.for_component("fee_params_fetcher"),
             main_node_fee_params: RwLock::new(FeeParams::sensible_v1_default()),
         }
     }

@@ -19,6 +19,28 @@ use jsonrpsee::{
 use serde::de::DeserializeOwned;
 use tokio::time::Instant;
 
+#[derive(Debug, Clone, Copy)]
+enum RateLimitOrigin<'a> {
+    Notification(&'a str),
+    Request(&'a str),
+    BatchRequest(&'a BatchRequestBuilder<'a>),
+    Subscription(&'a str),
+}
+
+impl fmt::Display for RateLimitOrigin<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Notification(name) => write!(formatter, "notification `{name}`"),
+            Self::Request(name) => write!(formatter, "request `{name}`"),
+            Self::BatchRequest(req) => {
+                let method_names: Vec<_> = req.iter().map(|(name, _)| name).collect();
+                write!(formatter, "batch request {method_names:?}")
+            }
+            Self::Subscription(name) => write!(formatter, "subscription `{name}`"),
+        }
+    }
+}
+
 /// JSON-RPC client for the main node with built-in middleware support.
 ///
 /// The client should be used instead of `HttpClient` etc. A single instance of the client should be built
@@ -27,11 +49,33 @@ use tokio::time::Instant;
 pub struct L2Client {
     inner: HttpClient,
     rate_limit: SharedRateLimit,
+    component_name: &'static str,
 }
 
 impl L2Client {
     pub fn builder() -> L2ClientBuilder {
         L2ClientBuilder::default()
+    }
+
+    /// Sets the component operating this client. This is used in logging etc.
+    pub fn for_component(mut self, component_name: &'static str) -> Self {
+        self.component_name = component_name;
+        self
+    }
+
+    fn report_waiting(&self, origin: RateLimitOrigin, stats: &AcquireStats) {
+        if !stats.was_waiting {
+            return;
+        }
+
+        tracing::debug!(
+            component = self.component_name,
+            %origin,
+            "Request to {origin} by component `{}` was rate-limited using policy {} reqs/{:?}: {stats:?}",
+            self.component_name,
+            self.rate_limit.rate_limit,
+            self.rate_limit.rate_limit_window
+        );
     }
 }
 
@@ -41,7 +85,8 @@ impl ClientT for L2Client {
     where
         Params: ToRpcParams + Send,
     {
-        self.rate_limit.acquire(1).await;
+        let stats = self.rate_limit.acquire(1).await;
+        self.report_waiting(RateLimitOrigin::Notification(method), &stats);
         self.inner.notification(method, params).await
     }
 
@@ -51,13 +96,7 @@ impl ClientT for L2Client {
         Params: ToRpcParams + Send,
     {
         let stats = self.rate_limit.acquire(1).await;
-        if stats.was_waiting {
-            tracing::debug!(
-                "Request to method `{method}` was rate-limited using policy {} reqs/{:?}: {stats:?}",
-                self.rate_limit.rate_limit,
-                self.rate_limit.rate_limit_window
-            );
-        }
+        self.report_waiting(RateLimitOrigin::Request(method), &stats);
         self.inner.request(method, params).await
     }
 
@@ -68,7 +107,8 @@ impl ClientT for L2Client {
     where
         R: DeserializeOwned + fmt::Debug + 'a,
     {
-        self.rate_limit.acquire(batch.iter().count()).await;
+        let stats = self.rate_limit.acquire(batch.iter().count()).await;
+        self.report_waiting(RateLimitOrigin::BatchRequest(&batch), &stats);
         self.inner.batch_request(batch).await
     }
 }
@@ -85,7 +125,8 @@ impl SubscriptionClientT for L2Client {
         Params: ToRpcParams + Send,
         Notif: DeserializeOwned,
     {
-        self.rate_limit.acquire(1).await;
+        let stats = self.rate_limit.acquire(1).await;
+        self.report_waiting(RateLimitOrigin::Subscription(subscribe_method), &stats);
         self.inner
             .subscribe(subscribe_method, params, unsubscribe_method)
             .await
@@ -98,7 +139,8 @@ impl SubscriptionClientT for L2Client {
     where
         Notif: DeserializeOwned,
     {
-        self.rate_limit.acquire(1).await;
+        let stats = self.rate_limit.acquire(1).await;
+        self.report_waiting(RateLimitOrigin::Subscription(method), &stats);
         self.inner.subscribe_to_method(method).await
     }
 }
@@ -135,11 +177,13 @@ impl L2ClientBuilder {
         Ok(L2Client {
             inner,
             rate_limit: SharedRateLimit::new(self.rate_limit.0, self.rate_limit.1),
+            component_name: "",
         })
     }
 }
 
 #[derive(Debug, Default)]
+#[must_use = "stats should be reported"]
 struct AcquireStats {
     was_waiting: bool,
     total_sleep_time: Duration,
@@ -244,7 +288,7 @@ mod tests {
     struct MockService(Arc<Mutex<Vec<Instant>>>);
 
     async fn poll_service(limiter: &SharedRateLimit, service: &MockService) {
-        limiter.acquire(1).await;
+        let _ = limiter.acquire(1).await;
         service.0.lock().unwrap().push(Instant::now());
     }
 

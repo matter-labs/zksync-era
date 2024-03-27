@@ -21,7 +21,7 @@ enum InitDecision {
 
 pub(crate) async fn ensure_storage_initialized(
     pool: &ConnectionPool<Core>,
-    main_node_client: &L2Client,
+    main_node_client: L2Client,
     app_health: &AppHealthCheck,
     l2_chain_id: L2ChainId,
     consider_snapshot_recovery: bool,
@@ -68,9 +68,13 @@ pub(crate) async fn ensure_storage_initialized(
     match decision {
         InitDecision::Genesis => {
             let mut storage = pool.connection_tagged("en").await?;
-            perform_genesis_if_needed(&mut storage, l2_chain_id, main_node_client)
-                .await
-                .context("performing genesis failed")?;
+            perform_genesis_if_needed(
+                &mut storage,
+                l2_chain_id,
+                &main_node_client.for_component("genesis"),
+            )
+            .await
+            .context("performing genesis failed")?;
         }
         InitDecision::SnapshotRecovery => {
             anyhow::ensure!(
@@ -89,7 +93,11 @@ pub(crate) async fn ensure_storage_initialized(
             let config = SnapshotsApplierConfig::default();
             app_health.insert_component(config.health_check());
             config
-                .run(pool, main_node_client, &blob_store)
+                .run(
+                    pool,
+                    &main_node_client.for_component("snapshot_recovery"),
+                    &blob_store,
+                )
                 .await
                 .context("snapshot recovery failed")?;
             tracing::info!("Snapshot recovery is complete");

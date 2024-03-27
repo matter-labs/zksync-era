@@ -115,7 +115,7 @@ pub struct TxProxy {
 impl TxProxy {
     pub fn new(client: L2Client) -> Self {
         Self {
-            client,
+            client: client.for_component("tx_proxy"),
             tx_cache: TxCache::default(),
         }
     }

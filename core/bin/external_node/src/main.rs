@@ -180,7 +180,7 @@ async fn init_tasks(
         let fetcher = consensus::Fetcher {
             store: consensus::Store(connection_pool.clone()),
             sync_state: sync_state.clone(),
-            client: Box::new(main_node_client.clone()),
+            client: Box::new(main_node_client.clone().for_component("fetcher")),
         };
         let actions = action_queue_sender;
         async move {
@@ -575,7 +575,7 @@ async fn main() -> anyhow::Result<()> {
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(
         &connection_pool,
-        &main_node_client,
+        main_node_client.clone(),
         &app_health,
         config.remote.l2_chain_id,
         opt.enable_snapshots_recovery,
