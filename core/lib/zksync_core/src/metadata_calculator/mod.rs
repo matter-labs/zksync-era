@@ -83,6 +83,7 @@ pub struct MetadataCalculator {
 
 impl MetadataCalculator {
     /// Creates a calculator with the specified `config`.
+    // FIXME: sanity-check: if tree is lightweight, object_store must be None
     pub async fn new(
         config: MetadataCalculatorConfig,
         object_store: Option<Arc<dyn ObjectStore>>,

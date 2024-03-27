@@ -5,6 +5,7 @@ use std::{ops, sync::Arc, time::Instant};
 use anyhow::Context as _;
 use futures::{future, FutureExt};
 use tokio::sync::watch;
+use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::domain::TreeMetadata;
@@ -89,11 +90,12 @@ impl TreeUpdater {
         storage: &mut Connection<'_, Core>,
         l1_batch_numbers: ops::RangeInclusive<u32>,
     ) -> anyhow::Result<L1BatchNumber> {
+        let tree_mode = self.tree.mode();
         let start = Instant::now();
-        tracing::info!("Processing L1 batches #{l1_batch_numbers:?}");
+        tracing::info!("Processing L1 batches #{l1_batch_numbers:?} in {tree_mode:?} mode");
         let first_l1_batch_number = L1BatchNumber(*l1_batch_numbers.start());
         let last_l1_batch_number = L1BatchNumber(*l1_batch_numbers.end());
-        let mut l1_batch_data = L1BatchWithLogs::new(storage, first_l1_batch_number)
+        let mut l1_batch_data = L1BatchWithLogs::new(storage, first_l1_batch_number, tree_mode)
             .await
             .with_context(|| {
                 format!("failed fetching tree input for L1 batch #{first_l1_batch_number}")
@@ -112,7 +114,7 @@ impl TreeUpdater {
             let load_next_l1_batch_task = async {
                 if l1_batch_number < last_l1_batch_number {
                     let next_l1_batch_number = l1_batch_number + 1;
-                    L1BatchWithLogs::new(storage, next_l1_batch_number)
+                    L1BatchWithLogs::new(storage, next_l1_batch_number, tree_mode)
                         .await
                         .with_context(|| {
                             format!(
@@ -225,17 +227,17 @@ impl TreeUpdater {
         // Ensure genesis creation
         let tree = &mut self.tree;
         if tree.is_empty() {
-            assert_eq!(
-                earliest_l1_batch,
-                L1BatchNumber(0),
-                "Non-zero earliest L1 batch is not supported without previous tree recovery"
+            anyhow::ensure!(
+                earliest_l1_batch == L1BatchNumber(0),
+                "Non-zero earliest L1 batch #{earliest_l1_batch} is not supported without previous tree recovery"
             );
-            let logs = L1BatchWithLogs::new(&mut storage, earliest_l1_batch)
-                .await
-                .with_context(|| {
-                    format!("failed fetching tree input for L1 batch #{earliest_l1_batch}")
-                })?
-                .context("Missing storage logs for the genesis L1 batch")?;
+            let logs =
+                L1BatchWithLogs::new(&mut storage, earliest_l1_batch, MerkleTreeMode::Lightweight)
+                    .await
+                    .with_context(|| {
+                        format!("failed fetching tree input for L1 batch #{earliest_l1_batch}")
+                    })?
+                    .context("Missing storage logs for the genesis L1 batch")?;
             tree.process_l1_batch(logs.storage_logs).await?;
             tree.save().await?;
         }
