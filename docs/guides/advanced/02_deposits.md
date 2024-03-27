@@ -84,7 +84,7 @@ Transaction submitted 💸💸💸
 Let's use the web3 tool and see the details:
 
 ```shell
-./web3 --rpc-url http://localhost:8545 tx --input hex 0xe27dc466c36ad2046766e191017e7acf29e84356465feef76e821708ff18e179 
+./web3 --rpc-url http://localhost:8545 tx --input hex 0xe27dc466c36ad2046766e191017e7acf29e84356465feef76e821708ff18e179
 ```
 
 returns
@@ -102,8 +102,8 @@ Block Hash: 0x5219e6fef442b4cfd38515ea7119dd6d2e12df82b4d95b1f75fd3650c012f133
 Input: 0xeb672419000000000000000000000000618263ce921f7dd5f4f40c29f6c524aaf97b9bbd00000000000000000000000000000000000000000000000029a2241af62c000000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000006d0b100000000000000000000000000000000000000000000000000000000000003200000000000000000000000000000000000000000000000000000000000000100000000000000000000000000618263ce921f7dd5f4f40c29f6c524aaf97b9bbd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 ```
 
-The deposit command has called the contract on address `0xa6B` (which is exactly the `CONTRACTS_DIAMOND_PROXY_ADDR`
-from `deployL1.log`), and it has called the method `0xeb672419` - which is the `requestL2Transaction` from
+The deposit command has called the contract on address `0xa6B` (which is exactly the `CONTRACTS_DIAMOND_PROXY_ADDR` from
+`deployL1.log`), and it has called the method `0xeb672419` - which is the `requestL2Transaction` from
 [Mailbox.sol](https://github.com/matter-labs/era-contracts/blob/f06a58360a2b8e7129f64413998767ac169d1efd/ethereum/contracts/zksync/facets/Mailbox.sol#L220)
 
 #### Quick note on our L1 contracts
@@ -155,9 +155,9 @@ transactions that are received by the server directly are not marked as priority
 You can verify that this is your transaction, by looking at the `l1_block_number` column (it should match the
 `block_number` from the `web3 tx` call above).
 
-Notice that the hash of the transaction in the postgres will be different from the one returned by
-`web3 tx`. This is because the postgres keeps the hash of the 'L2' transaction (which was 'inside' the
-L1 transaction that `web3 tx` returned).
+Notice that the hash of the transaction in the postgres will be different from the one returned by `web3 tx`. This is
+because the postgres keeps the hash of the 'L2' transaction (which was 'inside' the L1 transaction that `web3 tx`
+returned).
 
 ## Summary
 

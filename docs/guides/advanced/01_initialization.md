@@ -105,12 +105,12 @@ select * from miniblocks;
 Let's finish this article, by taking a look at our L1:
 
 We will use the `web3` tool to communicate with the L1, have a look at [02_deposits.md](02_deposits.md) for installation
-instructions.
-You can check that you're a (localnet) crypto trillionaire, by running:
+instructions. You can check that you're a (localnet) crypto trillionaire, by running:
 
 ```shell
 ./web3 --rpc-url http://localhost:8545 balance 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049
 ```
+
 This is one of the "rich wallets" we predefined for local L1.
 
 **Note:** This reth shell is running official Ethereum JSON RPC with Reth-specific extensions documented at
