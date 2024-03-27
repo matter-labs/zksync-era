@@ -168,8 +168,17 @@ impl Default for L2ClientBuilder {
 impl L2ClientBuilder {
     /// Sets the rate limit for the client. The rate limit is applied across all client instances,
     /// including cloned ones.
-    pub fn with_rate_limit(mut self, count: NonZeroUsize, per: Duration) -> Self {
-        self.rate_limit = (count.into(), per);
+    pub fn with_allowed_requests_per_second(mut self, rps: NonZeroUsize) -> Self {
+        let rps = usize::from(rps);
+        // Define the rate limiting window to be sufficiently small so that we don't get stampeding requests.
+        self.rate_limit = match rps {
+            1..=24 => (1, Duration::from_secs(1) / rps as u32),
+            // Round requests per window up if necessary. The relative error of this rounding is selected to be <20%
+            // in all cases.
+            25..=49 => (rps.div_ceil(5), Duration::from_millis(200)),
+            50..=99 => (rps.div_ceil(10), Duration::from_millis(100)),
+            _ => (rps.div_ceil(20), Duration::from_millis(50)),
+        };
         self
     }
 

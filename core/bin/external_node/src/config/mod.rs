@@ -250,13 +250,9 @@ pub(crate) struct OptionalENConfig {
     // This is intentionally not a part of `RemoteENConfig` because fetching this info from the main node would defeat
     // its purpose; the consistency checker assumes that the main node may provide false information.
     pub contracts_diamond_proxy_addr: Option<Address>,
-    /// Number of requests in each rate limiting window allocated for the main node HTTP client. Default is 10 requests.
-    #[serde(default = "OptionalENConfig::default_main_node_rate_limit_count")]
-    pub main_node_rate_limit_count: NonZeroUsize,
-    /// Duration of a rate limiting window applied to the main node HTTP client. Default is 50 ms.
-    /// Setting this duration to 0 will effectively disable rate limiting.
-    #[serde(default = "OptionalENConfig::default_main_node_rate_limit_window_ms")]
-    main_node_rate_limit_window_ms: u64,
+    /// Number of requests per second allocated for the main node HTTP client. Default is 100 requests.
+    #[serde(default = "OptionalENConfig::default_main_node_rate_limit_rps")]
+    pub main_node_rate_limit_rps: NonZeroUsize,
 }
 
 impl OptionalENConfig {
@@ -371,15 +367,11 @@ impl OptionalENConfig {
         10_000
     }
 
-    const fn default_main_node_rate_limit_count() -> NonZeroUsize {
-        match NonZeroUsize::new(10) {
+    const fn default_main_node_rate_limit_rps() -> NonZeroUsize {
+        match NonZeroUsize::new(100) {
             Some(value) => value,
             None => unreachable!(),
         }
-    }
-
-    const fn default_main_node_rate_limit_window_ms() -> u64 {
-        50
     }
 
     pub fn polling_interval(&self) -> Duration {
@@ -452,10 +444,6 @@ impl OptionalENConfig {
 
     pub fn mempool_cache_update_interval(&self) -> Duration {
         Duration::from_millis(self.mempool_cache_update_interval)
-    }
-
-    pub fn main_node_rate_limit_window(&self) -> Duration {
-        Duration::from_millis(self.main_node_rate_limit_window_ms)
     }
 }
 

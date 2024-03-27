@@ -49,7 +49,6 @@ file_backed_base_path = "artifacts"
 
 [en.main_node]
 url = "http://127.0.0.1:3050"
-rate_limit = { count = 10, window_ms = 30 }
 
 [rust]
 # `RUST_LOG` environment variable for `env_logger`
