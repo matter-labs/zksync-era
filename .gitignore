@@ -42,8 +42,6 @@ Cargo.lock
 !/etc/env/ext-node-validium.toml
 !/etc/env/*.yaml
 !/etc/env/ext-node-validium-docker.toml
-!/etc/env/consensus_config.json
-!/etc/env/en_consensus_config.json
 /etc/tokens/localhost.json
 /etc/zksolc-bin/*
 /etc/zkvyper-bin/*
