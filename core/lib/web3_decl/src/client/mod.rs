@@ -27,14 +27,14 @@ mod metrics;
 mod tests;
 
 #[derive(Debug, Clone, Copy)]
-enum RateLimitOrigin<'a> {
+enum CallOrigin<'a> {
     Notification(&'a str),
     Request(&'a str),
     BatchRequest(&'a BatchRequestBuilder<'a>),
     Subscription(&'a str),
 }
 
-impl<'a> RateLimitOrigin<'a> {
+impl<'a> CallOrigin<'a> {
     fn request_count(self) -> usize {
         match self {
             Self::BatchRequest(batch) => batch.iter().count(),
@@ -52,7 +52,7 @@ impl<'a> RateLimitOrigin<'a> {
     }
 }
 
-impl fmt::Display for RateLimitOrigin<'_> {
+impl fmt::Display for CallOrigin<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Notification(name) => write!(formatter, "notification `{name}`"),
@@ -88,7 +88,7 @@ impl L2Client {
         self
     }
 
-    async fn limit_rate(&self, origin: RateLimitOrigin<'_>) -> Result<(), Error> {
+    async fn limit_rate(&self, origin: CallOrigin<'_>) -> Result<(), Error> {
         const RATE_LIMIT_TIMEOUT: Duration = Duration::from_secs(10);
 
         let rate_limit_result = tokio::time::timeout(
@@ -124,6 +124,17 @@ impl L2Client {
         );
         Ok(())
     }
+
+    fn inspect_call_result<T>(
+        &self,
+        origin: CallOrigin<'_>,
+        call_result: Result<T, Error>,
+    ) -> Result<T, Error> {
+        if let Err(err) = &call_result {
+            METRICS.observe_error(self.component_name, origin, err);
+        }
+        call_result
+    }
 }
 
 #[async_trait]
@@ -132,9 +143,9 @@ impl ClientT for L2Client {
     where
         Params: ToRpcParams + Send,
     {
-        self.limit_rate(RateLimitOrigin::Notification(method))
-            .await?;
-        self.inner.notification(method, params).await
+        let origin = CallOrigin::Notification(method);
+        self.limit_rate(origin).await?;
+        self.inspect_call_result(origin, self.inner.notification(method, params).await)
     }
 
     async fn request<R, Params>(&self, method: &str, params: Params) -> Result<R, Error>
@@ -142,8 +153,9 @@ impl ClientT for L2Client {
         R: DeserializeOwned,
         Params: ToRpcParams + Send,
     {
-        self.limit_rate(RateLimitOrigin::Request(method)).await?;
-        self.inner.request(method, params).await
+        let origin = CallOrigin::Request(method);
+        self.limit_rate(origin).await?;
+        self.inspect_call_result(origin, self.inner.request(method, params).await)
     }
 
     async fn batch_request<'a, R>(
@@ -153,8 +165,8 @@ impl ClientT for L2Client {
     where
         R: DeserializeOwned + fmt::Debug + 'a,
     {
-        self.limit_rate(RateLimitOrigin::BatchRequest(&batch))
-            .await?;
+        let origin = CallOrigin::BatchRequest(&batch);
+        self.limit_rate(origin).await?;
         self.inner.batch_request(batch).await
     }
 }
@@ -171,11 +183,13 @@ impl SubscriptionClientT for L2Client {
         Params: ToRpcParams + Send,
         Notif: DeserializeOwned,
     {
-        self.limit_rate(RateLimitOrigin::Subscription(subscribe_method))
-            .await?;
-        self.inner
+        let origin = CallOrigin::Subscription(subscribe_method);
+        self.limit_rate(origin).await?;
+        let call_result = self
+            .inner
             .subscribe(subscribe_method, params, unsubscribe_method)
-            .await
+            .await;
+        self.inspect_call_result(origin, call_result)
     }
 
     async fn subscribe_to_method<'a, Notif>(
@@ -185,9 +199,9 @@ impl SubscriptionClientT for L2Client {
     where
         Notif: DeserializeOwned,
     {
-        self.limit_rate(RateLimitOrigin::Subscription(method))
-            .await?;
-        self.inner.subscribe_to_method(method).await
+        let origin = CallOrigin::Subscription(method);
+        self.limit_rate(origin).await?;
+        self.inspect_call_result(origin, self.inner.subscribe_to_method(method).await)
     }
 }
 
