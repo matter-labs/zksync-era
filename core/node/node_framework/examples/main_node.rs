@@ -269,12 +269,14 @@ impl MainNodeBuilder {
         let contracts_config = ContractsConfig::from_env()?;
         let eth_client_config = ETHClientConfig::from_env()?;
         let network_config = NetworkConfig::from_env()?;
+        let state_keeper_config = StateKeeperConfig::from_env()?;
 
         self.node.add_layer(EthSenderLayer::new(
             eth_sender_config,
             contracts_config,
             eth_client_config,
             network_config,
+            state_keeper_config,
         ));
 
         Ok(self)

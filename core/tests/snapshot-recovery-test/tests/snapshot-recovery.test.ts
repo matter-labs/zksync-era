@@ -7,6 +7,7 @@ import fs, { FileHandle } from 'node:fs/promises';
 import { ChildProcess, spawn, exec } from 'node:child_process';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import dotenv from 'dotenv';
 
 interface AllSnapshotsResponse {
     readonly snapshotsL1BatchNumbers: number[];
@@ -215,6 +216,12 @@ describe('snapshot recovery', () => {
     step('initialize external node', async () => {
         externalNodeLogs = await fs.open('snapshot-recovery.log', 'w');
 
+        const externalNodeEnvValidium = {
+            ...process.env,
+            ZKSYNC_ENV: process.env.IN_DOCKER ? 'ext-node-validium-docker' : 'ext-node-validium'
+        };
+        dotenv.config({ path: `${homeDir}/.env` });
+
         const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
         let args = ['external-node', '--', '--enable-snapshots-recovery'];
         if (enableConsensus) {
@@ -224,7 +231,7 @@ describe('snapshot recovery', () => {
             cwd: homeDir,
             stdio: [null, externalNodeLogs.fd, externalNodeLogs.fd],
             shell: true,
-            env: externalNodeEnv
+            env: process.env.IS_VALIDIUM ? externalNodeEnvValidium : externalNodeEnv
         });
 
         let recoveryFinished = false;

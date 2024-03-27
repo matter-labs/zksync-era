@@ -57,4 +57,3 @@ TRANSPARENT_PROXY_ADMIN_ADDR = "0x0000000000000000000000000000000000000000"
 [contracts.test]
 dummy_verifier = true
 easy_priority_mode = false
-
