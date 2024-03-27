@@ -32,7 +32,7 @@ use self::tx_sink::TxSink;
 use crate::{
     api_server::{
         execution_sandbox::{
-            get_pubdata_for_factory_deps, BlockArgs, BlockStartInfo, SubmitTxStage,
+            BlockArgs, BlockStartInfo, SubmitTxStage,
             TransactionExecutor, TxExecutionArgs, TxSharedArgs, VmConcurrencyLimiter, VmPermit,
             SANDBOX_METRICS,
         },
