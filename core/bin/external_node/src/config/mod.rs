@@ -251,6 +251,19 @@ pub struct OptionalENConfig {
     pub contracts_diamond_proxy_addr: Option<Address>,
 }
 
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct ApiComponentConfig {
+    /// Address of the tree API used by this EN in case it does not have a
+    /// local tree component running and in this case needs to send requests
+    /// to some external tree API.
+    pub tree_api_url: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct TreeComponentConfig {
+    pub api_port: Option<u16>,
+}
+
 impl OptionalENConfig {
     const fn default_filters_limit() -> usize {
         10_000
@@ -536,6 +549,8 @@ pub struct ExternalNodeConfig {
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
     pub consensus: Option<consensus::Config>,
+    pub api_component_config: ApiComponentConfig,
+    pub tree_component_config: TreeComponentConfig,
 }
 
 impl ExternalNodeConfig {
@@ -548,6 +563,14 @@ impl ExternalNodeConfig {
 
         let optional = envy::prefixed("EN_")
             .from_env::<OptionalENConfig>()
+            .context("could not load external node config")?;
+
+        let api_component_config = envy::prefixed("EN_API")
+            .from_env::<ApiComponentConfig>()
+            .context("could not load external node config")?;
+
+        let tree_component_config = envy::prefixed("EN_TREE")
+            .from_env::<TreeComponentConfig>()
             .context("could not load external node config")?;
 
         let client = HttpClientBuilder::default()
@@ -601,6 +624,8 @@ impl ExternalNodeConfig {
             required,
             optional,
             consensus: read_consensus_config().context("read_consensus_config()")?,
+            tree_component_config,
+            api_component_config,
         })
     }
 }
