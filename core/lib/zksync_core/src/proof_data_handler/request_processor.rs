@@ -14,8 +14,8 @@ use zksync_prover_interface::api::{
     SubmitProofRequest, SubmitProofResponse,
 };
 use zksync_types::{
-    basic_fri_types::Eip4844Blobs, commitment::serialize_commitments,
-    protocol_version::FriProtocolVersionId, web3::signing::keccak256, L1BatchNumber, H256,
+    basic_fri_types::Eip4844Blobs, commitment::serialize_commitments, web3::signing::keccak256,
+    L1BatchNumber, H256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -108,19 +108,17 @@ impl RequestProcessor {
             .unwrap()
             .expect(&format!("Missing header for {}", l1_batch_number));
 
-        let protocol_version = header.protocol_version.unwrap();
-        // TODO: What invariants have to hold such that protocol version = fri protocol version?
-        let fri_protocol_version_id = FriProtocolVersionId::from(protocol_version);
+        let protocol_version_id = header.protocol_version.unwrap();
         let l1_verifier_config = self
             .pool
             .connection()
             .await
             .unwrap()
             .protocol_versions_dal()
-            .l1_verifier_config_for_version(protocol_version)
+            .l1_verifier_config_for_version(protocol_version_id)
             .await
             .expect(&format!(
-                "Missing l1 verifier info for protocol version {protocol_version:?}",
+                "Missing l1 verifier info for protocol version {protocol_version_id:?}",
             ));
 
         let storage_batch = self
@@ -144,7 +142,7 @@ impl RequestProcessor {
         let proof_gen_data = ProofGenerationData {
             l1_batch_number,
             data: blob,
-            fri_protocol_version_id,
+            protocol_version_id,
             l1_verifier_config,
             eip_4844_blobs,
         };
