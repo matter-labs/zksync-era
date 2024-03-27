@@ -127,7 +127,7 @@ jobs:
       fail-fast: false
       matrix:
         consensus: [false, true]
-        mode: ["Rollup", "Validium"]
+        deployment_mode: ["Rollup", "Validium"]
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
 
@@ -226,7 +226,7 @@ jobs:
         run: |
           ci_run pkill zksync_server || true
           ci_run sleep 2
-          ENABLE_CONSENSUS=${{ matrix.consensus }} PASSED_ENV_VARS=ENABLE_CONSENSUS ci_run zk test i revert
+          ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=${{ matrix.deployment_mode }} PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert
 
         # This test should be the last one as soon as it
         # finished bootloader will be different
@@ -271,7 +271,7 @@ jobs:
       fail-fast: false
       matrix:
         consensus: [false, true]
-        mode: ["Rollup", "Validium"]
+        deployment_mode: ["Rollup", "Validium"]
     runs-on: [matterlabs-ci-runner]
 
     env:
