@@ -18,7 +18,7 @@ export async function verifyL1Contracts(): Promise<void> {
     await utils.spawn('yarn l1-contracts verify');
 }
 
-function updateContractsEnv(initEnv: string, deployLog: String, envVars: Array<string>): string {
+export function updateContractsEnv(initEnv: string, deployLog: String, envVars: Array<string>): string {
     let updatedContracts = '';
     for (const envVar of envVars) {
         const pattern = new RegExp(`${envVar}=.*`, 'g');
