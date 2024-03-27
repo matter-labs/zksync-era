@@ -4,7 +4,6 @@ use std::fmt;
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use zksync_types::witness_block_state::WitnessBlockState;
 
 use crate::state_keeper::{io::IoCursor, updates::UpdatesManager};
 
@@ -21,11 +20,7 @@ pub trait StateKeeperOutputHandler: 'static + Send + fmt::Debug {
     async fn handle_miniblock(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()>;
 
     /// Handles an L1 batch produced by the state keeper.
-    async fn handle_l1_batch(
-        &mut self,
-        _witness_block_state: Option<&WitnessBlockState>,
-        _updates_manager: &UpdatesManager,
-    ) -> anyhow::Result<()> {
+    async fn handle_l1_batch(&mut self, _updates_manager: &UpdatesManager) -> anyhow::Result<()> {
         Ok(())
     }
 }
@@ -86,12 +81,11 @@ impl OutputHandler {
 
     pub(crate) async fn handle_l1_batch(
         &mut self,
-        witness_block_state: Option<&WitnessBlockState>,
         updates_manager: &UpdatesManager,
     ) -> anyhow::Result<()> {
         for handler in &mut self.inner {
             handler
-                .handle_l1_batch(witness_block_state, updates_manager)
+                .handle_l1_batch(updates_manager)
                 .await
                 .with_context(|| {
                     format!(

@@ -84,7 +84,6 @@ async fn build_state_keeper(
     let batch_executor_base: Box<dyn BatchExecutor> = Box::new(MainBatchExecutor::new(
         Arc::new(storage_factory),
         save_call_traces,
-        false,
         true,
     ));
 

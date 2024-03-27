@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use serde::Serialize;
 use zksync_concurrency::{ctx, sync};
 use zksync_health_check::{CheckHealth, Health, HealthStatus};
-use zksync_types::{witness_block_state::WitnessBlockState, MiniblockNumber};
+use zksync_types::MiniblockNumber;
 
 use crate::{
     metrics::EN_METRICS,
@@ -89,11 +89,7 @@ impl StateKeeperOutputHandler for SyncState {
         Ok(())
     }
 
-    async fn handle_l1_batch(
-        &mut self,
-        _witness_block_state: Option<&WitnessBlockState>,
-        updates_manager: &UpdatesManager,
-    ) -> anyhow::Result<()> {
+    async fn handle_l1_batch(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
         let sealed_block_number = updates_manager.miniblock.number;
         self.set_local_block(sealed_block_number);
         Ok(())

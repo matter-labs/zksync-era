@@ -195,11 +195,11 @@ impl ZkSyncStateKeeper {
                 .await;
             }
 
-            let (finished_batch, witness_block_state) = batch_executor.finish_batch().await;
+            let finished_batch = batch_executor.finish_batch().await;
             let sealed_batch_protocol_version = updates_manager.protocol_version();
             updates_manager.finish_batch(finished_batch);
             self.output_handler
-                .handle_l1_batch(witness_block_state.as_ref(), &updates_manager)
+                .handle_l1_batch(&updates_manager)
                 .await
                 .with_context(|| format!("failed sealing L1 batch {l1_batch_env:?}"))?;
 
