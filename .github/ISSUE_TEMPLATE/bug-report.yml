@@ -52,7 +52,6 @@ body:
     attributes:
       label: Environment
       description: Any relevant environment details.
-      placeholder: >
 
   - type: textarea
     attributes:
