@@ -1,15 +1,17 @@
 use std::collections::{HashMap, HashSet};
 
+use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
+use zksync_db_connection::connection::Connection;
 use zksync_types::{MiniblockNumber, H256, U256};
 use zksync_utils::{bytes_to_be_words, bytes_to_chunks};
 
-use crate::StorageProcessor;
+use crate::Core;
 
 /// DAL methods related to factory dependencies.
 #[derive(Debug)]
 pub struct FactoryDepsDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl FactoryDepsDal<'_, '_> {
@@ -22,7 +24,7 @@ impl FactoryDepsDal<'_, '_> {
     ) -> sqlx::Result<()> {
         let (bytecode_hashes, bytecodes): (Vec<_>, Vec<_>) = factory_deps
             .iter()
-            .map(|dep| (dep.0.as_bytes(), dep.1.as_slice()))
+            .map(|(hash, bytecode)| (hash.as_bytes(), bytecode.as_slice()))
             .unzip();
 
         // Copy from stdin can't be used here because of `ON CONFLICT`.
@@ -42,7 +44,7 @@ impl FactoryDepsDal<'_, '_> {
             "#,
             &bytecode_hashes as &[&[u8]],
             &bytecodes as &[&[u8]],
-            block_number.0 as i64,
+            i64::from(block_number.0)
         )
         .execute(self.storage.conn())
         .await?;
@@ -51,8 +53,8 @@ impl FactoryDepsDal<'_, '_> {
     }
 
     /// Returns bytecode for a factory dependency with the specified bytecode `hash`.
-    pub async fn get_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-        sqlx::query!(
+    pub async fn get_factory_dep(&mut self, hash: H256) -> sqlx::Result<Option<Vec<u8>>> {
+        Ok(sqlx::query!(
             r#"
             SELECT
                 bytecode
@@ -64,20 +66,20 @@ impl FactoryDepsDal<'_, '_> {
             hash.as_bytes(),
         )
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| row.bytecode)
+        .await?
+        .map(|row| row.bytecode))
     }
 
     pub async fn get_base_system_contracts(
         &mut self,
         bootloader_hash: H256,
         default_aa_hash: H256,
-    ) -> BaseSystemContracts {
+    ) -> anyhow::Result<BaseSystemContracts> {
         let bootloader_bytecode = self
             .get_factory_dep(bootloader_hash)
             .await
-            .expect("Bootloader code should be present in the database");
+            .context("failed loading bootloader code")?
+            .with_context(|| format!("bootloader code with hash {bootloader_hash:?} should be present in the database"))?;
         let bootloader_code = SystemContractCode {
             code: bytes_to_be_words(bootloader_bytecode),
             hash: bootloader_hash,
@@ -86,16 +88,17 @@ impl FactoryDepsDal<'_, '_> {
         let default_aa_bytecode = self
             .get_factory_dep(default_aa_hash)
             .await
-            .expect("Default account code should be present in the database");
+            .context("failed loading default account code")?
+            .with_context(|| format!("default account code with hash {default_aa_hash:?} should be present in the database"))?;
 
         let default_aa_code = SystemContractCode {
             code: bytes_to_be_words(default_aa_bytecode),
             hash: default_aa_hash,
         };
-        BaseSystemContracts {
+        Ok(BaseSystemContracts {
             bootloader: bootloader_code,
             default_aa: default_aa_code,
-        }
+        })
     }
 
     /// Returns bytecodes for factory deps with the specified `hashes`.
@@ -145,7 +148,7 @@ impl FactoryDepsDal<'_, '_> {
             WHERE
                 miniblock_number > $1
             "#,
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .fetch_all(self.storage.conn())
         .await?
@@ -155,17 +158,20 @@ impl FactoryDepsDal<'_, '_> {
     }
 
     /// Removes all factory deps with a miniblock number strictly greater than the specified `block_number`.
-    pub async fn rollback_factory_deps(&mut self, block_number: MiniblockNumber) {
+    pub async fn rollback_factory_deps(
+        &mut self,
+        block_number: MiniblockNumber,
+    ) -> sqlx::Result<()> {
         sqlx::query!(
             r#"
             DELETE FROM factory_deps
             WHERE
                 miniblock_number > $1
             "#,
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
+        Ok(())
     }
 }

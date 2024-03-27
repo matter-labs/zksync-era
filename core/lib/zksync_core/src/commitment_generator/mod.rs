@@ -6,9 +6,12 @@ use metrics::{CommitmentStage, METRICS};
 use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
+use zksync_l1_contract_interface::i_executor::commit::kzg::pubdata_to_blob_commitments;
 use zksync_types::{
     commitment::{AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchCommitment},
+    event::convert_vm_events_to_log_queries,
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
     L1BatchNumber, ProtocolVersionId, StorageKey, H256,
 };
@@ -20,16 +23,20 @@ const SLEEP_INTERVAL: Duration = Duration::from_millis(100);
 
 #[derive(Debug)]
 pub struct CommitmentGenerator {
-    connection_pool: ConnectionPool,
-    stop_receiver: watch::Receiver<bool>,
+    connection_pool: ConnectionPool<Core>,
+    health_updater: HealthUpdater,
 }
 
 impl CommitmentGenerator {
-    pub fn new(connection_pool: ConnectionPool, stop_receiver: watch::Receiver<bool>) -> Self {
+    pub fn new(connection_pool: ConnectionPool<Core>) -> Self {
         Self {
             connection_pool,
-            stop_receiver,
+            health_updater: ReactiveHealthCheck::new("commitment_generator").1,
         }
+    }
+
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.health_updater.subscribe()
     }
 
     async fn calculate_aux_commitments(
@@ -39,25 +46,44 @@ impl CommitmentGenerator {
     ) -> anyhow::Result<AuxCommitments> {
         let mut connection = self
             .connection_pool
-            .access_storage_tagged("commitment_generator")
+            .connection_tagged("commitment_generator")
             .await?;
-        let events_queue = connection
+        let events_queue_from_db = connection
             .blocks_dal()
             .get_events_queue(l1_batch_number)
             .await?
-            .context("Events queue is required for post-boojum batch")?;
+            .with_context(|| format!("Events queue is missing for L1 batch #{l1_batch_number}"))?;
+
+        // Calculate events queue using VM events.
+        // For now we only check that it results in the same set of events that are saved in `events_queue` DB table.
+        // Later, `events_queue` table will be removed and this will be the only way to get events queue.
+        let events_queue_calculated = {
+            let events = connection
+                .events_dal()
+                .get_vm_events_for_l1_batch(l1_batch_number)
+                .await?
+                .with_context(|| format!("Events are missing for L1 batch #{l1_batch_number}"))?;
+            convert_vm_events_to_log_queries(&events)
+        };
+
+        if events_queue_from_db != events_queue_calculated {
+            tracing::error!("Events queue mismatch for L1 batch #{l1_batch_number}");
+        }
+
         let initial_bootloader_contents = connection
             .blocks_dal()
             .get_initial_bootloader_heap(l1_batch_number)
             .await?
-            .context("Bootloader initial heap is missing")?;
+            .with_context(|| {
+                format!("Bootloader initial heap is missing for L1 batch #{l1_batch_number}")
+            })?;
         drop(connection);
 
         let events_commitment_task: JoinHandle<anyhow::Result<H256>> =
             tokio::task::spawn_blocking(move || {
                 let latency = METRICS.events_queue_commitment_latency.start();
                 let events_queue_commitment =
-                    events_queue_commitment(&events_queue, protocol_version)
+                    events_queue_commitment(&events_queue_from_db, protocol_version)
                         .context("Events queue commitment is required for post-boojum batch")?;
                 latency.observe();
 
@@ -77,12 +103,15 @@ impl CommitmentGenerator {
                 Ok(bootloader_initial_content_commitment)
             });
 
-        let events_queue_commitment = events_commitment_task
-            .await
-            .context("`events_commitment_task` failed")??;
-        let bootloader_initial_content_commitment = bootloader_memory_commitment_task
-            .await
-            .context("`bootloader_memory_commitment_task` failed")??;
+        let events_queue_commitment = events_commitment_task.await.with_context(|| {
+            format!("`events_commitment_task` failed for L1 batch #{l1_batch_number}")
+        })??;
+        let bootloader_initial_content_commitment =
+            bootloader_memory_commitment_task.await.with_context(|| {
+                format!(
+                    "`bootloader_memory_commitment_task` failed for L1 batch #{l1_batch_number}"
+                )
+            })??;
 
         Ok(AuxCommitments {
             events_queue_commitment,
@@ -94,20 +123,22 @@ impl CommitmentGenerator {
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<CommitmentInput> {
+        tracing::info!("Started preparing commitment input for L1 batch #{l1_batch_number}");
+
         let mut connection = self
             .connection_pool
-            .access_storage_tagged("commitment_generator")
+            .connection_tagged("commitment_generator")
             .await?;
         let header = connection
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
             .await?
-            .context("header is missing for batch")?;
+            .with_context(|| format!("header is missing for L1 batch #{l1_batch_number}"))?;
         let tree_data = connection
             .blocks_dal()
             .get_l1_batch_tree_data(l1_batch_number)
             .await?
-            .context("tree data is missing for batch")?;
+            .with_context(|| format!("`tree_data` is missing for L1 batch #{l1_batch_number}"))?;
 
         // TODO(PLA-731): ensure that the protocol version is always available.
         let protocol_version = header
@@ -205,11 +236,22 @@ impl CommitmentGenerator {
             }
             state_diffs.sort_unstable_by_key(|rec| (rec.address, rec.key));
 
+            let blob_commitments = if protocol_version.is_post_1_4_2() {
+                let pubdata_input = header.pubdata_input.with_context(|| {
+                    format!("`pubdata_input` is missing for L1 batch #{l1_batch_number}")
+                })?;
+
+                pubdata_to_blob_commitments(&pubdata_input)
+            } else {
+                [H256::zero(), H256::zero()]
+            };
+
             CommitmentInput::PostBoojum {
                 common,
                 system_logs: header.system_logs,
                 state_diffs,
                 aux_commitments,
+                blob_commitments,
             }
         };
 
@@ -220,36 +262,50 @@ impl CommitmentGenerator {
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::PrepareInput].start();
         let input = self.prepare_input(l1_batch_number).await?;
-        latency.observe();
+        let latency = latency.observe();
+        tracing::debug!("Prepared commitment input for L1 batch #{l1_batch_number} in {latency:?}");
 
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::Calculate].start();
         let commitment = L1BatchCommitment::new(input);
         let artifacts = commitment.artifacts();
-        latency.observe();
+        let latency = latency.observe();
+        tracing::debug!(
+            "Generated commitment artifacts for L1 batch #{l1_batch_number} in {latency:?}"
+        );
 
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::SaveResults].start();
         self.connection_pool
-            .access_storage_tagged("commitment_generator")
+            .connection_tagged("commitment_generator")
             .await?
             .blocks_dal()
             .save_l1_batch_commitment_artifacts(l1_batch_number, &artifacts)
             .await?;
-        latency.observe();
+        let latency = latency.observe();
+        tracing::debug!(
+            "Stored commitment artifacts for L1 batch #{l1_batch_number} in {latency:?}"
+        );
 
+        let health_details = serde_json::json!({
+            "l1_batch_number": l1_batch_number,
+        });
+        self.health_updater
+            .update(Health::from(HealthStatus::Ready).with_details(health_details));
         Ok(())
     }
 
-    pub async fn run(self) -> anyhow::Result<()> {
+    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        self.health_updater.update(HealthStatus::Ready.into());
         loop {
-            if *self.stop_receiver.borrow() {
-                tracing::info!("Stop signal received, CommitmentGenerator is shutting down");
+            if *stop_receiver.borrow() {
+                tracing::info!("Stop signal received, commitment generator is shutting down");
                 break;
             }
+
             let Some(l1_batch_number) = self
                 .connection_pool
-                .access_storage_tagged("commitment_generator")
+                .connection_tagged("commitment_generator")
                 .await?
                 .blocks_dal()
                 .get_next_l1_batch_ready_for_commitment_generation()
@@ -259,7 +315,9 @@ impl CommitmentGenerator {
                 continue;
             };
 
+            tracing::info!("Started commitment generation for L1 batch #{l1_batch_number}");
             self.step(l1_batch_number).await?;
+            tracing::info!("Finished commitment generation for L1 batch #{l1_batch_number}");
         }
         Ok(())
     }

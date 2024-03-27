@@ -1,12 +1,13 @@
+use zksync_db_connection::connection::Connection;
 use zksync_types::{
     snapshots::SnapshotRecoveryStatus, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
 };
 
-use crate::StorageProcessor;
+use crate::Core;
 
 #[derive(Debug)]
 pub struct SnapshotRecoveryDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl SnapshotRecoveryDal<'_, '_> {
@@ -32,12 +33,12 @@ impl SnapshotRecoveryDal<'_, '_> {
             VALUES
                 ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
             "#,
-            status.l1_batch_number.0 as i64,
+            i64::from(status.l1_batch_number.0),
             status.l1_batch_timestamp as i64,
-            status.l1_batch_root_hash.0.as_slice(),
-            status.miniblock_number.0 as i64,
+            status.l1_batch_root_hash.as_bytes(),
+            i64::from(status.miniblock_number.0),
             status.miniblock_timestamp as i64,
-            status.miniblock_hash.0.as_slice(),
+            status.miniblock_hash.as_bytes(),
             status.protocol_version as i32,
             &status.storage_logs_chunks_processed,
         )
@@ -105,12 +106,12 @@ mod tests {
         snapshots::SnapshotRecoveryStatus, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
     };
 
-    use crate::ConnectionPool;
+    use crate::{ConnectionPool, Core, CoreDal};
 
     #[tokio::test]
     async fn manipulating_snapshot_recovery_table() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         let mut applied_status_dal = conn.snapshot_recovery_dal();
         let empty_status = applied_status_dal
             .get_applied_snapshot_status()

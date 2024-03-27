@@ -1,4 +1,4 @@
-use zkevm_test_harness_1_4_0::witness::sort_storage_access::sort_storage_access_queries;
+use circuit_sequencer_api_1_4_0::sort_storage_access::sort_storage_access_queries;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     event::extract_l2tol1logs_from_l1_messenger,
@@ -7,7 +7,6 @@ use zksync_types::{
 };
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-use super::constants::BOOTLOADER_BATCH_TIP_OVERHEAD;
 use crate::{
     glue::GlueInto,
     interface::{
@@ -165,8 +164,8 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         self.record_vm_memory_metrics_inner()
     }
 
-    fn has_enough_gas_for_batch_tip(&self) -> bool {
-        self.state.local_state.callstack.current.ergs_remaining >= BOOTLOADER_BATCH_TIP_OVERHEAD
+    fn gas_remaining(&self) -> u32 {
+        self.state.local_state.callstack.current.ergs_remaining
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {

@@ -14,6 +14,7 @@ use multivm::{
     vm_latest::{constants::BLOCK_GAS_LIMIT, VmExecutionLogs},
 };
 use once_cell::sync::Lazy;
+use tokio::sync::watch;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
@@ -30,13 +31,14 @@ use zksync_types::{
 mod tester;
 
 use self::tester::{
-    bootloader_tip_out_of_gas, pending_batch_data, random_tx, rejected_exec, successful_exec,
-    successful_exec_with_metrics, TestScenario,
+    pending_batch_data, random_tx, random_upgrade_tx, rejected_exec, successful_exec,
+    successful_exec_with_metrics, TestIO, TestScenario,
 };
 pub(crate) use self::tester::{MockBatchExecutor, TestBatchExecutorBuilder};
 use crate::{
     gas_tracker::l1_batch_base_cost,
     state_keeper::{
+        batch_executor::TxExecutionResult,
         keeper::POLL_WAIT_DURATION,
         seal_criteria::{
             criteria::{GasCriterion, SlotsCriterion},
@@ -44,6 +46,7 @@ use crate::{
         },
         types::ExecutionMetricsForCriteria,
         updates::UpdatesManager,
+        ZkSyncStateKeeper,
     },
     utils::testonly::create_l2_transaction,
 };
@@ -145,6 +148,7 @@ pub(super) fn create_execution_result(
             contracts_used: 0,
             cycles_used: 0,
             gas_used: 0,
+            gas_remaining: 0,
             computational_gas_used: 0,
             total_log_queries,
             pubdata_published: 0,
@@ -247,7 +251,7 @@ async fn sealed_by_gas() {
         })
         .next_tx("Second tx", random_tx(1), execution_result)
         .miniblock_sealed("Miniblock 2")
-        .batch_sealed_with("Batch sealed with both txs", |_, updates, _| {
+        .batch_sealed_with("Batch sealed with both txs", |updates| {
             assert_eq!(
                 updates.l1_batch.l1_gas_count,
                 BlockGasCount {
@@ -366,7 +370,7 @@ async fn bootloader_tip_out_of_gas_flow() {
         .next_tx(
             "Tx -> Bootloader tip out of gas",
             bootloader_out_of_gas_tx.clone(),
-            bootloader_tip_out_of_gas(),
+            TxExecutionResult::BootloaderOutOfGasForTx,
         )
         .tx_rollback(
             "Last tx rolled back to seal the block",
@@ -425,7 +429,7 @@ async fn pending_batch_is_applied() {
                 "Only one transaction should be in miniblock"
             );
         })
-        .batch_sealed_with("Batch sealed with all 3 txs", |_, updates, _| {
+        .batch_sealed_with("Batch sealed with all 3 txs", |updates| {
             assert_eq!(
                 updates.l1_batch.executed_transactions.len(),
                 3,
@@ -434,6 +438,48 @@ async fn pending_batch_is_applied() {
         })
         .run(sealer)
         .await;
+}
+
+/// Load protocol upgrade transactions
+#[tokio::test]
+async fn load_upgrade_tx() {
+    let sealer = SequencerSealer::default();
+    let scenario = TestScenario::new();
+    let batch_executor_base = TestBatchExecutorBuilder::new(&scenario);
+    let (stop_sender, stop_receiver) = watch::channel(false);
+
+    let (mut io, output_handler) = TestIO::new(stop_sender, scenario);
+    io.add_upgrade_tx(ProtocolVersionId::latest(), random_upgrade_tx(1));
+    io.add_upgrade_tx(ProtocolVersionId::next(), random_upgrade_tx(2));
+
+    let mut sk = ZkSyncStateKeeper::new(
+        stop_receiver,
+        Box::new(io),
+        Box::new(batch_executor_base),
+        output_handler,
+        Arc::new(sealer),
+    );
+
+    // Since the version hasn't changed, and we are not using shared bridge, we should not load any
+    // upgrade transactions.
+    assert_eq!(
+        sk.load_protocol_upgrade_tx(&[], ProtocolVersionId::latest(), L1BatchNumber(2))
+            .await
+            .unwrap(),
+        None
+    );
+
+    // If the protocol version has changed, we should load the upgrade transaction.
+    assert_eq!(
+        sk.load_protocol_upgrade_tx(&[], ProtocolVersionId::next(), L1BatchNumber(2))
+            .await
+            .unwrap(),
+        Some(random_upgrade_tx(2))
+    );
+
+    // TODO: add one more test case for the shared bridge after it's integrated.
+    // If we are processing the 1st batch while using the shared bridge,
+    // we should load the upgrade transaction -- that's the `SetChainIdUpgrade`.
 }
 
 /// Unconditionally seal the batch without triggering specific criteria.
@@ -500,8 +546,8 @@ async fn miniblock_timestamp_after_pending_batch() {
             successful_exec(),
         )
         .miniblock_sealed_with("Miniblock with a single tx", move |updates| {
-            assert!(
-                updates.miniblock.timestamp == 1,
+            assert_eq!(
+                updates.miniblock.timestamp, 2,
                 "Timestamp for the new block must be taken from the test IO"
             );
         })
@@ -552,7 +598,7 @@ async fn time_is_monotonic() {
             );
             timestamp_second_miniblock.store(updates.miniblock.timestamp, Ordering::Relaxed);
         })
-        .batch_sealed_with("Batch 1", move |_, updates, _| {
+        .batch_sealed_with("Batch 1", move |updates| {
             // Timestamp from the currently stored miniblock would be used in the fictive miniblock.
             // It should be correct as well.
             let min_expected = timestamp_third_miniblock.load(Ordering::Relaxed);
@@ -584,7 +630,7 @@ async fn protocol_upgrade() {
         .increment_protocol_version("Increment protocol version")
         .next_tx("Second tx", random_tx(2), successful_exec())
         .miniblock_sealed("Miniblock 2")
-        .batch_sealed_with("Batch 1", move |_, updates, _| {
+        .batch_sealed_with("Batch 1", move |updates| {
             assert_eq!(
                 updates.protocol_version(),
                 ProtocolVersionId::latest(),

@@ -2,9 +2,11 @@
 
 use std::{sync::Arc, time::Instant};
 
+use prover_dal::{Connection, Prover, ProverDal};
 use tokio::sync::Mutex;
-use zkevm_test_harness::prover_utils::{verify_base_layer_proof, verify_recursion_layer_proof};
-use zksync_dal::StorageProcessor;
+use zkevm_test_harness::prover_utils::{
+    verify_base_layer_proof, verify_eip4844_proof, verify_recursion_layer_proof,
+};
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -12,11 +14,7 @@ use zksync_prover_fri_types::{
             algebraic_props::{
                 round_function::AbsorptionModeOverwrite, sponge::GoldilocksPoseidon2Sponge,
             },
-            config::ProvingCSConfig,
-            cs::implementations::{
-                pow::NoPow, proof::Proof, reference_cs::CSReferenceAssembly,
-                verifier::VerificationKey,
-            },
+            cs::implementations::{pow::NoPow, proof::Proof, verifier::VerificationKey},
             field::goldilocks::{GoldilocksExt2, GoldilocksField},
         },
         circuit_definitions::recursion_layer::{
@@ -25,6 +23,7 @@ use zksync_prover_fri_types::{
     },
     queue::FixedSizeQueue,
     CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
+    EIP_4844_CIRCUIT_ID,
 };
 use zksync_prover_fri_utils::get_base_layer_circuit_id_for_recursive_layer;
 use zksync_types::{
@@ -38,8 +37,6 @@ pub type F = GoldilocksField;
 pub type H = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;
 pub type Ext = GoldilocksExt2;
 
-#[cfg(feature = "gpu")]
-pub type ProvingAssembly = CSReferenceAssembly<F, F, ProvingCSConfig>;
 #[cfg(feature = "gpu")]
 pub type SharedWitnessVectorQueue = Arc<Mutex<FixedSizeQueue<GpuProverJob>>>;
 
@@ -60,7 +57,6 @@ impl ProverArtifacts {
 #[cfg(feature = "gpu")]
 pub struct GpuProverJob {
     pub witness_vector_artifacts: WitnessVectorArtifacts,
-    pub assembly: ProvingAssembly,
 }
 
 pub async fn save_proof(
@@ -70,7 +66,7 @@ pub async fn save_proof(
     blob_store: &dyn ObjectStore,
     public_blob_store: Option<&dyn ObjectStore>,
     shall_save_to_public_bucket: bool,
-    storage_processor: &mut StorageProcessor<'_>,
+    storage_processor: &mut Connection<'_, Prover>,
 ) {
     tracing::info!(
         "Successfully proven job: {}, total time taken: {:?}",
@@ -96,6 +92,7 @@ pub async fn save_proof(
             }
             _ => (recursive_circuit.numeric_circuit_type(), false),
         },
+        FriProofWrapper::Eip4844(_) => (ProverServiceDataKey::eip4844().circuit_id, false),
     };
 
     let blob_save_started_at = Instant::now();
@@ -115,12 +112,18 @@ pub async fn save_proof(
             .await;
     }
     if job_metadata.is_node_final_proof {
+        let circuit_id = if job_metadata.circuit_id == EIP_4844_CIRCUIT_ID {
+            EIP_4844_CIRCUIT_ID
+        } else {
+            get_base_layer_circuit_id_for_recursive_layer(job_metadata.circuit_id)
+        };
         transaction
             .fri_scheduler_dependency_tracker_dal()
             .set_final_prover_job_id_for_l1_batch(
-                get_base_layer_circuit_id_for_recursive_layer(job_metadata.circuit_id),
+                circuit_id,
                 job_id,
                 job_metadata.block_number,
+                job_metadata.sequence_number,
             )
             .await;
     }
@@ -143,14 +146,16 @@ pub fn verify_proof(
             verify_recursion_layer_proof::<NoPow>(recursive_circuit, proof, vk),
             recursive_circuit.numeric_circuit_type(),
         ),
+        CircuitWrapper::Eip4844(_) => (
+            verify_eip4844_proof::<NoPow>(proof, vk),
+            ProverServiceDataKey::eip4844().circuit_id,
+        ),
     };
 
     METRICS.proof_verification_time[&circuit_id.to_string()].observe(started_at.elapsed());
 
     if !is_valid {
-        let msg = format!(
-            "Failed to verify base layer proof for job-id: {job_id} circuit_type {circuit_id}"
-        );
+        let msg = format!("Failed to verify proof for job-id: {job_id} circuit_type {circuit_id}");
         tracing::error!("{}", msg);
         panic!("{}", msg);
     }

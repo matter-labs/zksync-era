@@ -1,6 +1,6 @@
+use circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries as sort_storage_access_queries_1_3_3;
 use itertools::Itertools;
 use zk_evm_1_3_1::aux_structures::LogQuery as LogQuery_1_3_1;
-use zkevm_test_harness_1_3_3::witness::sort_storage_access::sort_storage_access_queries as sort_storage_access_queries_1_3_3;
 use zksync_types::l2_to_l1_log::UserL2ToL1Log;
 
 use crate::{
@@ -43,6 +43,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::Fi
                     total_log_queries: value.block_tip_result.logs.total_log_queries_count,
                     computational_gas_used: value.full_result.gas_used,
                     gas_used: value.full_result.gas_used,
+                    gas_remaining: value.full_result.gas_remaining,
                     pubdata_published: 0,
                     circuit_statistic: Default::default(),
                 },
@@ -104,6 +105,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::Fi
                     total_log_queries: value.block_tip_result.logs.total_log_queries_count,
                     computational_gas_used: value.full_result.computational_gas_used,
                     gas_used: value.full_result.gas_used,
+                    gas_remaining: value.full_result.gas_remaining,
                     pubdata_published: 0,
                     circuit_statistic: Default::default(),
                 },
@@ -142,7 +144,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface:
     fn glue_from(value: crate::vm_1_3_2::vm_instance::VmBlockResult) -> Self {
         let storage_log_queries = value.full_result.storage_log_queries.clone();
         let deduplicated_storage_log_queries =
-            zkevm_test_harness_1_3_3::witness::sort_storage_access::sort_storage_access_queries(
+            circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries(
                 storage_log_queries.iter().map(|log| &log.log_query),
             )
             .1;
@@ -163,6 +165,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface:
                     total_log_queries: value.block_tip_result.logs.total_log_queries_count,
                     computational_gas_used: value.full_result.computational_gas_used,
                     gas_used: value.full_result.gas_used,
+                    gas_remaining: value.full_result.gas_remaining,
                     pubdata_published: 0,
                     circuit_statistic: Default::default(),
                 },
@@ -236,6 +239,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult>
                 total_log_queries: value.full_result.total_log_queries,
                 computational_gas_used: value.full_result.computational_gas_used,
                 gas_used: value.full_result.gas_used,
+                gas_remaining: value.full_result.gas_remaining,
                 pubdata_published: 0,
                 circuit_statistic: Default::default(),
             },
@@ -267,6 +271,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult>
                 total_log_queries: value.full_result.total_log_queries,
                 computational_gas_used: 0,
                 gas_used: value.full_result.gas_used,
+                gas_remaining: value.full_result.gas_remaining,
                 pubdata_published: 0,
                 circuit_statistic: Default::default(),
             },
@@ -314,6 +319,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult>
                 total_log_queries: value.full_result.total_log_queries,
                 computational_gas_used: value.full_result.computational_gas_used,
                 gas_used: value.full_result.gas_used,
+                gas_remaining: value.full_result.gas_remaining,
                 pubdata_published: 0,
                 circuit_statistic: Default::default(),
             },

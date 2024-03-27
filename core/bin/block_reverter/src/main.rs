@@ -1,11 +1,14 @@
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
-use zksync_config::{ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, PostgresConfig};
-use zksync_core::block_reverter::{
-    BlockReverter, BlockReverterEthConfig, BlockReverterFlags, L1ExecutedBatchesRevert,
+use zksync_config::{
+    configs::ObservabilityConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig,
+    PostgresConfig,
 };
-use zksync_dal::ConnectionPool;
+use zksync_core::block_reverter::{
+    BlockReverter, BlockReverterEthConfig, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole,
+};
+use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::FromEnv;
 use zksync_types::{L1BatchNumber, U256};
 
@@ -68,19 +71,19 @@ enum Command {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let log_format = vlog::log_format_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let sentry_url = vlog::sentry_url_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let environment = vlog::environment_from_env();
+    let observability_config =
+        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
+    let log_format: vlog::LogFormat = observability_config
+        .log_format
+        .parse()
+        .context("Invalid log format")?;
 
     let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = sentry_url {
+    if let Some(sentry_url) = observability_config.sentry_url {
         builder = builder
             .with_sentry_url(&sentry_url)
             .context("Invalid Sentry URL")?
-            .with_sentry_environment(environment);
+            .with_sentry_environment(observability_config.sentry_environment);
     }
     let _guard = builder.build();
 
@@ -93,7 +96,7 @@ async fn main() -> anyhow::Result<()> {
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
     let config = BlockReverterEthConfig::new(eth_sender, contracts, eth_client.web3_url.clone());
 
-    let connection_pool = ConnectionPool::builder(
+    let connection_pool = ConnectionPool::<Core>::builder(
         postgres_config.master_url()?,
         postgres_config.max_connections()?,
     )
@@ -101,6 +104,7 @@ async fn main() -> anyhow::Result<()> {
     .await
     .context("failed to build a connection pool")?;
     let mut block_reverter = BlockReverter::new(
+        NodeRole::Main,
         db_config.state_keeper_db_path,
         db_config.merkle_tree.path,
         Some(config),
@@ -179,6 +183,7 @@ async fn main() -> anyhow::Result<()> {
             if rollback_sk_cache {
                 flags |= BlockReverterFlags::SK_CACHE;
             }
+
             block_reverter
                 .rollback_db(L1BatchNumber(l1_batch_number), flags)
                 .await

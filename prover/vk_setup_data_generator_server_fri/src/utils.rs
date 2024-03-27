@@ -1,304 +1,30 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    fs,
-};
-
 use anyhow::Context as _;
-use circuit_definitions::circuit_definitions::recursion_layer::scheduler::SchedulerCircuit;
-use itertools::Itertools;
-use zkevm_test_harness::{
-    compute_setups::{generate_base_layer_vks_and_proofs, generate_recursive_layer_vks_and_proofs},
-    data_source::{in_memory_data_source::InMemoryDataSource, BlockDataSource},
-    ethereum_types::{Address, U256},
-    external_calls::run,
-    helper::artifact_utils::{save_predeployed_contracts, TestArtifact},
-    sha3::{Digest, Keccak256},
-    toolset::GeometryConfig,
-    witness::{
-        recursive_aggregation::compute_leaf_params,
-        tree::{BinarySparseStorageTree, ZKSyncTestingTree},
+use circuit_definitions::{
+    circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuit,
+    snark_wrapper::franklin_crypto::bellman::{
+        compact_bn256::Fq, pairing::bn256::Bn256,
+        plonk::better_better_cs::setup::VerificationKey as SnarkVK,
     },
+};
+use sha3::Digest;
+use zkevm_test_harness::{
+    franklin_crypto::bellman::{CurveAffine, PrimeField, PrimeFieldRepr},
+    witness::recursive_aggregation::compute_leaf_params,
 };
 use zksync_prover_fri_types::circuit_definitions::{
-    aux_definitions::witness_oracle::VmWitnessOracle,
-    base_layer_proof_config,
-    boojum::{
-        field::goldilocks::GoldilocksField,
-        gadgets::{
-            queue::full_state_queue::FullStateCircuitQueueRawWitness,
-            traits::allocatable::CSAllocatable,
-        },
-    },
-    circuit_definitions::{
-        base_layer::ZkSyncBaseLayerCircuit,
-        recursion_layer::{
-            base_circuit_type_into_recursive_leaf_circuit_type,
-            leaf_layer::ZkSyncLeafLayerRecursiveCircuit,
-            node_layer::ZkSyncNodeLayerRecursiveCircuit, ZkSyncRecursionLayerStorageType,
-            ZkSyncRecursionProof, ZkSyncRecursiveLayerCircuit, RECURSION_ARITY, SCHEDULER_CAPACITY,
-        },
-    },
-    recursion_layer_proof_config, zk_evm,
-    zk_evm::{bytecode_to_code_hash, testing::storage::InMemoryStorage},
+    boojum::field::goldilocks::GoldilocksField,
+    circuit_definitions::recursion_layer::base_circuit_type_into_recursive_leaf_circuit_type,
     zkevm_circuits::{
-        recursion::{
-            leaf_layer::{
-                input::{
-                    RecursionLeafInput, RecursionLeafInstanceWitness,
-                    RecursionLeafParametersWitness,
-                },
-                LeafLayerRecursionConfig,
-            },
-            node_layer::{
-                input::{RecursionNodeInput, RecursionNodeInstanceWitness},
-                NodeLayerRecursionConfig,
-            },
-        },
-        scheduler::{
-            aux::BaseLayerCircuitType, input::SchedulerCircuitInstanceWitness, SchedulerConfig,
-        },
+        recursion::leaf_layer::input::RecursionLeafParametersWitness,
+        scheduler::aux::BaseLayerCircuitType,
     },
-    ZkSyncDefaultRoundFunction,
 };
+use zksync_types::H256;
 
-use crate::{
-    get_base_layer_vk_for_circuit_type, get_base_path, get_recursive_layer_vk_for_circuit_type,
-};
-
-pub const CYCLE_LIMIT: usize = 20000;
-
-fn read_witness_artifact(filepath: &str) -> anyhow::Result<TestArtifact> {
-    let text = fs::read_to_string(filepath)
-        .with_context(|| format!("Failed to read witness artifact from path: {filepath}"))?;
-    serde_json::from_str(text.as_str()).context("serde_json::from_str()")
-}
-
-pub fn get_basic_circuits(
-    cycle_limit: usize,
-    geometry: GeometryConfig,
-) -> anyhow::Result<
-    Vec<
-        ZkSyncBaseLayerCircuit<
-            GoldilocksField,
-            VmWitnessOracle<GoldilocksField>,
-            ZkSyncDefaultRoundFunction,
-        >,
-    >,
-> {
-    let path = format!("{}/witness_artifacts.json", get_base_path());
-    let mut test_artifact = read_witness_artifact(&path).context("read_withess_artifact()")?;
-
-    let mut storage_impl = InMemoryStorage::new();
-    let mut tree = ZKSyncTestingTree::empty();
-
-    test_artifact.entry_point_address =
-        *zk_evm::zkevm_opcode_defs::system_params::BOOTLOADER_FORMAL_ADDRESS;
-
-    let predeployed_contracts = test_artifact
-        .predeployed_contracts
-        .clone()
-        .into_iter()
-        .chain(Some((
-            test_artifact.entry_point_address,
-            test_artifact.entry_point_code.clone(),
-        )))
-        .collect::<HashMap<_, _>>();
-    save_predeployed_contracts(&mut storage_impl, &mut tree, &predeployed_contracts);
-
-    let used_bytecodes = HashMap::from_iter(
-        test_artifact
-            .predeployed_contracts
-            .values()
-            .map(|bytecode| {
-                (
-                    bytecode_to_code_hash(bytecode).unwrap().into(),
-                    bytecode.clone(),
-                )
-            })
-            .chain(
-                Some(test_artifact.default_account_code.clone()).map(|bytecode| {
-                    (
-                        bytecode_to_code_hash(&bytecode).unwrap().into(),
-                        bytecode.clone(),
-                    )
-                }),
-            ),
-    );
-
-    let previous_enumeration_index = tree.next_enumeration_index();
-    let previous_root = tree.root();
-    // simulate content hash
-
-    let mut hasher = Keccak256::new();
-    hasher.update(previous_enumeration_index.to_be_bytes());
-    hasher.update(previous_root);
-    hasher.update(0u64.to_be_bytes()); // porter shard
-    hasher.update([0u8; 32]); // porter shard
-
-    let mut previous_data_hash = [0u8; 32];
-    previous_data_hash[..].copy_from_slice(hasher.finalize().as_slice());
-
-    let previous_aux_hash = [0u8; 32];
-    let previous_meta_hash = [0u8; 32];
-
-    let mut hasher = Keccak256::new();
-    hasher.update(previous_data_hash);
-    hasher.update(previous_meta_hash);
-    hasher.update(previous_aux_hash);
-
-    let mut previous_content_hash = [0u8; 32];
-    previous_content_hash[..].copy_from_slice(hasher.finalize().as_slice());
-
-    let default_account_codehash =
-        bytecode_to_code_hash(&test_artifact.default_account_code).unwrap();
-    let default_account_codehash = U256::from_big_endian(&default_account_codehash);
-
-    let mut base_layer_circuits = vec![];
-    let _ = run(
-        Address::zero(),
-        test_artifact.entry_point_address,
-        test_artifact.entry_point_code,
-        vec![],
-        false,
-        default_account_codehash,
-        used_bytecodes,
-        vec![],
-        cycle_limit,
-        geometry,
-        storage_impl,
-        &mut tree,
-        |circuit| base_layer_circuits.push(circuit),
-        |_, _, _| {},
-    );
-
-    Ok(base_layer_circuits
-        .into_iter()
-        .dedup_by(|a, b| a.numeric_circuit_type() == b.numeric_circuit_type())
-        .collect())
-}
-
-pub fn get_leaf_circuits() -> anyhow::Result<Vec<ZkSyncRecursiveLayerCircuit>> {
-    let mut circuits = vec![];
-    for base_circuit_type in
-        (BaseLayerCircuitType::VM as u8)..=(BaseLayerCircuitType::L1MessagesHasher as u8)
-    {
-        let input = RecursionLeafInput::placeholder_witness();
-        let vk = get_base_layer_vk_for_circuit_type(base_circuit_type)
-            .with_context(|| format!("get_base_layer_vk_for_circuit_type({base_circuit_type})"))?;
-
-        let witness = RecursionLeafInstanceWitness {
-            input,
-            vk_witness: vk.clone().into_inner(),
-            queue_witness: FullStateCircuitQueueRawWitness {
-                elements: VecDeque::new(),
-            },
-            proof_witnesses: VecDeque::new(),
-        };
-
-        let config = LeafLayerRecursionConfig {
-            proof_config: base_layer_proof_config(),
-            vk_fixed_parameters: vk.into_inner().fixed_parameters,
-            capacity: RECURSION_ARITY,
-            _marker: std::marker::PhantomData,
-        };
-
-        let circuit = ZkSyncLeafLayerRecursiveCircuit {
-            base_layer_circuit_type: BaseLayerCircuitType::from_numeric_value(base_circuit_type),
-            witness,
-            config,
-            transcript_params: (),
-            _marker: std::marker::PhantomData,
-        };
-
-        let circuit = ZkSyncRecursiveLayerCircuit::leaf_circuit_from_base_type(
-            BaseLayerCircuitType::from_numeric_value(base_circuit_type),
-            circuit,
-        );
-        circuits.push(circuit)
-    }
-    Ok(circuits)
-}
-
-pub fn get_node_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
-    let input = RecursionNodeInput::placeholder_witness();
-
-    let input_vk = get_recursive_layer_vk_for_circuit_type(
-        ZkSyncRecursionLayerStorageType::LeafLayerCircuitForMainVM as u8,
-    )
-    .context("get_recursive_layer_vk_for_circuit_type(LeafLAyerCircyutFromMainVM")?;
-    let witness = RecursionNodeInstanceWitness {
-        input,
-        vk_witness: input_vk.clone().into_inner(),
-        split_points: VecDeque::new(),
-        proof_witnesses: VecDeque::new(),
-    };
-
-    let config = NodeLayerRecursionConfig {
-        proof_config: recursion_layer_proof_config(),
-        vk_fixed_parameters: input_vk.clone().into_inner().fixed_parameters,
-        leaf_layer_capacity: RECURSION_ARITY,
-        node_layer_capacity: RECURSION_ARITY,
-        _marker: std::marker::PhantomData,
-    };
-    let circuit = ZkSyncNodeLayerRecursiveCircuit {
-        witness,
-        config,
-        transcript_params: (),
-        _marker: std::marker::PhantomData,
-    };
-    Ok(ZkSyncRecursiveLayerCircuit::NodeLayerCircuit(circuit))
-}
-
-pub fn get_scheduler_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
-    let mut scheduler_witness = SchedulerCircuitInstanceWitness::placeholder();
-
-    // node VK
-    let node_vk = get_recursive_layer_vk_for_circuit_type(
-        ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
-    )
-    .context("get_recursive_layer_vk_for_circuit_type(NodeLayerCircuit)")?
-    .into_inner();
-    scheduler_witness.node_layer_vk_witness = node_vk.clone();
-
-    let config = SchedulerConfig {
-        proof_config: recursion_layer_proof_config(),
-        vk_fixed_parameters: node_vk.fixed_parameters,
-        capacity: SCHEDULER_CAPACITY,
-        _marker: std::marker::PhantomData,
-    };
-    let scheduler_circuit = SchedulerCircuit {
-        witness: scheduler_witness,
-        config,
-        transcript_params: (),
-        eip4844_proof_config: None,
-        eip4844_vk: None,
-        eip4844_vk_fixed_parameters: None,
-        _marker: std::marker::PhantomData,
-    };
-    Ok(ZkSyncRecursiveLayerCircuit::SchedulerCircuit(
-        scheduler_circuit,
-    ))
-}
-
-#[allow(dead_code)]
-fn get_recursive_layer_proofs() -> Vec<ZkSyncRecursionProof> {
-    let mut in_memory_source = InMemoryDataSource::new();
-    generate_base_layer_vks_and_proofs(&mut in_memory_source).expect("Failed generating base vk's");
-    generate_recursive_layer_vks_and_proofs(&mut in_memory_source)
-        .expect("Failed generating recursive vk's");
-    let mut scheduler_proofs: Vec<ZkSyncRecursionProof> = vec![];
-    for recursive_circuit_type in (ZkSyncRecursionLayerStorageType::LeafLayerCircuitForMainVM as u8)
-        ..=(ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8)
-    {
-        let proof = in_memory_source
-            .get_node_layer_proof(recursive_circuit_type, 0, 0)
-            .unwrap();
-        scheduler_proofs.push(proof.into_inner());
-    }
-    scheduler_proofs
-}
+use crate::keystore::Keystore;
 
 pub fn get_leaf_vk_params(
+    keystore: &Keystore,
 ) -> anyhow::Result<Vec<(u8, RecursionLeafParametersWitness<GoldilocksField>)>> {
     let mut leaf_vk_commits = vec![];
 
@@ -308,9 +34,11 @@ pub fn get_leaf_vk_params(
         let recursive_circuit_type = base_circuit_type_into_recursive_leaf_circuit_type(
             BaseLayerCircuitType::from_numeric_value(circuit_type),
         );
-        let base_vk = get_base_layer_vk_for_circuit_type(circuit_type)
+        let base_vk = keystore
+            .load_base_layer_verification_key(circuit_type)
             .with_context(|| format!("get_base_layer_vk_for_circuit_type({circuit_type})"))?;
-        let leaf_vk = get_recursive_layer_vk_for_circuit_type(recursive_circuit_type as u8)
+        let leaf_vk = keystore
+            .load_recursive_layer_verification_key(recursive_circuit_type as u8)
             .with_context(|| {
                 format!("get_recursive_layer_vk_for_circuit_type({recursive_circuit_type:?})")
             })?;
@@ -318,4 +46,96 @@ pub fn get_leaf_vk_params(
         leaf_vk_commits.push((circuit_type, params));
     }
     Ok(leaf_vk_commits)
+}
+
+/// Calculates the hash of a snark verification key.
+// This function corresponds 1:1 with the following solidity code: https://github.com/matter-labs/era-contracts/blob/3e2bee96e412bac7c0a58c4b919837b59e9af36e/ethereum/contracts/zksync/Verifier.sol#L260
+pub fn calculate_snark_vk_hash(keystore: &Keystore) -> anyhow::Result<H256> {
+    let verification_key: SnarkVK<Bn256, ZkSyncSnarkWrapperCircuit> =
+        serde_json::from_str(&keystore.load_snark_verification_key()?)?;
+
+    let mut res = vec![];
+
+    // gate setup commitments
+    assert_eq!(8, verification_key.gate_setup_commitments.len());
+
+    for gate_setup in verification_key.gate_setup_commitments {
+        let (x, y) = gate_setup.as_xy();
+        x.into_repr().write_be(&mut res).unwrap();
+        y.into_repr().write_be(&mut res).unwrap();
+    }
+
+    // gate selectors commitments
+    assert_eq!(2, verification_key.gate_selectors_commitments.len());
+
+    for gate_selector in verification_key.gate_selectors_commitments {
+        let (x, y) = gate_selector.as_xy();
+        x.into_repr().write_be(&mut res).unwrap();
+        y.into_repr().write_be(&mut res).unwrap();
+    }
+
+    // permutation commitments
+    assert_eq!(4, verification_key.permutation_commitments.len());
+
+    for permutation in verification_key.permutation_commitments {
+        let (x, y) = permutation.as_xy();
+        x.into_repr().write_be(&mut res).unwrap();
+        y.into_repr().write_be(&mut res).unwrap();
+    }
+
+    // lookup selector commitment
+    let lookup_selector = verification_key.lookup_selector_commitment.unwrap();
+    let (x, y) = lookup_selector.as_xy();
+    x.into_repr().write_be(&mut res).unwrap();
+    y.into_repr().write_be(&mut res).unwrap();
+
+    // lookup tables commitments
+    assert_eq!(4, verification_key.lookup_tables_commitments.len());
+
+    for table_commit in verification_key.lookup_tables_commitments {
+        let (x, y) = table_commit.as_xy();
+        x.into_repr().write_be(&mut res).unwrap();
+        y.into_repr().write_be(&mut res).unwrap();
+    }
+
+    // table type commitment
+    let lookup_table = verification_key.lookup_table_type_commitment.unwrap();
+    let (x, y) = lookup_table.as_xy();
+    x.into_repr().write_be(&mut res).unwrap();
+    y.into_repr().write_be(&mut res).unwrap();
+
+    // flag for using recursive part
+    Fq::default().into_repr().write_be(&mut res).unwrap();
+
+    let mut hasher = sha3::Keccak256::new();
+    hasher.update(&res);
+    let computed_vk_hash = hasher.finalize();
+
+    Ok(H256::from_slice(&computed_vk_hash))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{env, path::PathBuf, str::FromStr};
+
+    use super::*;
+
+    #[test]
+    fn test_keyhash_generation() {
+        let mut path_to_input = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+        path_to_input.push("historical_data");
+
+        for version in 18..=22 {
+            let basepath = path_to_input.join(format!("{}", version));
+            let keystore = Keystore::new_with_optional_setup_path(
+                basepath.as_os_str().to_str().unwrap().to_string(),
+                None,
+            );
+
+            let expected =
+                H256::from_str(&keystore.load_commitments().unwrap().snark_wrapper).unwrap();
+
+            assert_eq!(expected, calculate_snark_vk_hash(&keystore).unwrap());
+        }
+    }
 }

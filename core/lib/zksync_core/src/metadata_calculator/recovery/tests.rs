@@ -10,13 +10,14 @@ use zksync_config::configs::{
     chain::OperationsManagerConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
+use zksync_dal::CoreDal;
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
-use zksync_types::{L1BatchNumber, L2ChainId, ProtocolVersionId, StorageLog};
+use zksync_types::{L1BatchNumber, ProtocolVersionId, StorageLog};
 
 use super::*;
 use crate::{
-    genesis::{ensure_genesis_state, GenesisParams},
+    genesis::{insert_genesis_batch, GenesisParams},
     metadata_calculator::{
         helpers::create_db,
         tests::{
@@ -59,7 +60,7 @@ async fn create_tree_recovery(path: PathBuf, l1_batch: L1BatchNumber) -> AsyncTr
 
 #[tokio::test]
 async fn basic_recovery_workflow() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let snapshot_recovery = prepare_recovery_snapshot_with_genesis(&pool, &temp_dir).await;
     let snapshot = SnapshotParameters::new(&pool, &snapshot_recovery)
@@ -93,11 +94,11 @@ async fn basic_recovery_workflow() {
 }
 
 async fn prepare_recovery_snapshot_with_genesis(
-    pool: &ConnectionPool,
+    pool: &ConnectionPool<Core>,
     temp_dir: &TempDir,
 ) -> SnapshotRecoveryStatus {
-    let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
+    let mut storage = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
     let mut logs = gen_storage_logs(100..300, 1).pop().unwrap();
@@ -172,7 +173,7 @@ impl HandleRecoveryEvent for TestEventListener {
 #[test_casing(3, [5, 7, 8])]
 #[tokio::test]
 async fn recovery_fault_tolerance(chunk_count: u64) {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let snapshot_recovery = prepare_recovery_snapshot_with_genesis(&pool, &temp_dir).await;
 
@@ -238,10 +239,10 @@ impl RecoveryWorkflowCase {
 #[test_casing(2, RecoveryWorkflowCase::ALL)]
 #[tokio::test]
 async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     // Emulate the recovered view of Postgres. Unlike with previous tests, we don't perform genesis.
     let snapshot_logs = gen_storage_logs(100..300, 1).pop().unwrap();
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     let snapshot_recovery = prepare_recovery_snapshot(
         &mut storage,
         L1BatchNumber(23),
@@ -272,7 +273,7 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
     match case {
         // Wait until the tree is fully initialized and stop the calculator.
         RecoveryWorkflowCase::Stop => {
-            let tree_info = tree_reader.await.info().await;
+            let tree_info = tree_reader.wait().await.info().await;
             assert_eq!(tree_info.root_hash, snapshot_recovery.l1_batch_root_hash);
             assert_eq!(tree_info.leaf_count, 200);
             assert_eq!(
@@ -283,7 +284,7 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
 
         // Emulate state keeper adding a new L1 batch to Postgres.
         RecoveryWorkflowCase::CreateBatch => {
-            tree_reader.await;
+            tree_reader.wait().await;
 
             let mut storage = storage.start_transaction().await.unwrap();
             let mut new_logs = gen_storage_logs(500..600, 1).pop().unwrap();

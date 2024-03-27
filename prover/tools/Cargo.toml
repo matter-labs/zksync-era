@@ -1,0 +1,20 @@
+[package]
+name = "tools"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+clap = { workspace = true, features = ["derive"] }
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+zksync_prover_fri_types.workspace = true
+bincode.workspace = true
+colored.workspace = true
+zksync_prover_interface.workspace = true
+hex.workspace = true

@@ -121,7 +121,7 @@ export async function generateMigration(dbType: DbType, name: string) {
 
 export async function setupForDal(dalPath: DalPath, dbUrl: string) {
     process.chdir(dalPath);
-    const localDbUrl = 'postgres://postgres@localhost';
+    const localDbUrl = 'postgres://postgres:notsecurepassword@localhost';
     if (dbUrl.startsWith(localDbUrl)) {
         console.log(`Using localhost database -- ${dbUrl}`);
     } else {
@@ -140,21 +140,6 @@ export async function setupForDal(dalPath: DalPath, dbUrl: string) {
 }
 
 export async function setup(opts: DbOpts) {
-    if (process.env.TEMPLATE_DATABASE_URL) {
-        process.chdir(DalPath.CoreDal);
-
-        // Dump and restore from template database (simulate backup)
-        console.log(`Template DB URL provided. Creating a DB via dump from ${process.env.TEMPLATE_DATABASE_URL}`);
-        await utils.spawn('cargo sqlx database drop -y');
-        await utils.spawn('cargo sqlx database create');
-        await utils.spawn(
-            `pg_dump ${process.env.TEMPLATE_DATABASE_URL} -F c | pg_restore -d ${process.env.DATABASE_URL}`
-        );
-
-        process.chdir(process.env.ZKSYNC_HOME as string);
-
-        return;
-    }
     let dals = getDals(opts);
     for (const [dalPath, dbUrl] of dals.entries()) {
         await setupForDal(dalPath, dbUrl);

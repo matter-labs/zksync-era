@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_db_connection::connection_pool::ConnectionPool;
 use zksync_types::{
     block::{MiniblockHasher, MiniblockHeader},
     fee::{Fee, TransactionExecutionMetrics},
@@ -8,6 +9,7 @@ use zksync_types::{
     helpers::unix_timestamp_ms,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     l2::L2Tx,
+    protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     snapshots::SnapshotRecoveryStatus,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     Address, Execute, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber,
@@ -16,10 +18,10 @@ use zksync_types::{
 
 use crate::{
     blocks_dal::BlocksDal,
-    connection::ConnectionPool,
     protocol_versions_dal::ProtocolVersionsDal,
     transactions_dal::{L2TxSubmissionResult, TransactionsDal},
     transactions_web3_dal::TransactionsWeb3Dal,
+    Core,
 };
 
 const DEFAULT_GAS_PER_PUBDATA: u32 = 100;
@@ -71,7 +73,7 @@ pub(crate) fn mock_l2_transaction() -> L2Tx {
     l2_tx
 }
 
-fn mock_l1_execute() -> L1Tx {
+pub(crate) fn mock_l1_execute() -> L1Tx {
     let serial_id = 1;
     let priority_op_data = L1TxCommonData {
         sender: H160::random(),
@@ -99,6 +101,35 @@ fn mock_l1_execute() -> L1Tx {
     };
 
     L1Tx {
+        common_data: priority_op_data,
+        execute,
+        received_timestamp_ms: 0,
+    }
+}
+
+pub(crate) fn mock_protocol_upgrade_transaction() -> ProtocolUpgradeTx {
+    let serial_id = 1;
+    let priority_op_data = ProtocolUpgradeTxCommonData {
+        sender: H160::random(),
+        upgrade_id: Default::default(),
+        canonical_tx_hash: H256::from_low_u64_be(serial_id),
+        gas_limit: U256::from(100_100),
+        max_fee_per_gas: U256::from(1u32),
+        gas_per_pubdata_limit: 100.into(),
+        eth_hash: H256::random(),
+        to_mint: U256::zero(),
+        refund_recipient: Address::random(),
+        eth_block: 1,
+    };
+
+    let execute = Execute {
+        contract_address: H160::random(),
+        value: Default::default(),
+        calldata: vec![],
+        factory_deps: None,
+    };
+
+    ProtocolUpgradeTx {
         common_data: priority_op_data,
         execute,
         received_timestamp_ms: 0,
@@ -134,28 +165,30 @@ pub(crate) fn create_snapshot_recovery() -> SnapshotRecoveryStatus {
 
 #[tokio::test]
 async fn workflow_with_submit_tx_equal_hashes() {
-    let connection_pool = ConnectionPool::test_pool().await;
-    let storage = &mut connection_pool.access_storage().await.unwrap();
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    let storage = &mut connection_pool.connection().await.unwrap();
     let mut transactions_dal = TransactionsDal { storage };
 
     let tx = mock_l2_transaction();
     let result = transactions_dal
         .insert_transaction_l2(tx.clone(), mock_tx_execution_metrics())
-        .await;
+        .await
+        .unwrap();
 
     assert_eq!(result, L2TxSubmissionResult::Added);
 
     let result = transactions_dal
         .insert_transaction_l2(tx, mock_tx_execution_metrics())
-        .await;
+        .await
+        .unwrap();
 
     assert_eq!(result, L2TxSubmissionResult::Duplicate);
 }
 
 #[tokio::test]
 async fn workflow_with_submit_tx_diff_hashes() {
-    let connection_pool = ConnectionPool::test_pool().await;
-    let storage = &mut connection_pool.access_storage().await.unwrap();
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    let storage = &mut connection_pool.connection().await.unwrap();
     let mut transactions_dal = TransactionsDal { storage };
 
     let tx = mock_l2_transaction();
@@ -165,7 +198,8 @@ async fn workflow_with_submit_tx_diff_hashes() {
 
     let result = transactions_dal
         .insert_transaction_l2(tx, mock_tx_execution_metrics())
-        .await;
+        .await
+        .unwrap();
 
     assert_eq!(result, L2TxSubmissionResult::Added);
 
@@ -174,15 +208,16 @@ async fn workflow_with_submit_tx_diff_hashes() {
     tx.common_data.initiator_address = initiator_address;
     let result = transactions_dal
         .insert_transaction_l2(tx, mock_tx_execution_metrics())
-        .await;
+        .await
+        .unwrap();
 
     assert_eq!(result, L2TxSubmissionResult::Replaced);
 }
 
 #[tokio::test]
 async fn remove_stuck_txs() {
-    let connection_pool = ConnectionPool::test_pool().await;
-    let storage = &mut connection_pool.access_storage().await.unwrap();
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    let storage = &mut connection_pool.connection().await.unwrap();
     let mut protocol_versions_dal = ProtocolVersionsDal { storage };
     protocol_versions_dal
         .save_protocol_version_with_tx(Default::default())
@@ -196,12 +231,14 @@ async fn remove_stuck_txs() {
     tx.received_timestamp_ms = unix_timestamp_ms() - Duration::new(1000, 0).as_millis() as u64;
     transactions_dal
         .insert_transaction_l2(tx, mock_tx_execution_metrics())
-        .await;
+        .await
+        .unwrap();
     // Tx in mempool
     let tx = mock_l2_transaction();
     transactions_dal
         .insert_transaction_l2(tx, mock_tx_execution_metrics())
-        .await;
+        .await
+        .unwrap();
 
     // Stuck L1 tx. We should never ever remove L1 tx
     let mut tx = mock_l1_execute();
@@ -216,7 +253,8 @@ async fn remove_stuck_txs() {
         unix_timestamp_ms() - Duration::new(1000, 0).as_millis() as u64;
     transactions_dal
         .insert_transaction_l2(executed_tx.clone(), mock_tx_execution_metrics())
-        .await;
+        .await
+        .unwrap();
 
     // Get all txs
     transactions_dal.reset_mempool().await.unwrap();

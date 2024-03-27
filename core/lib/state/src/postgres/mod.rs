@@ -4,13 +4,19 @@ use std::{
 };
 
 use anyhow::Context as _;
-use tokio::{runtime::Handle, sync::mpsc};
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use tokio::{
+    runtime::Handle,
+    sync::{
+        mpsc::{self, UnboundedReceiver},
+        watch,
+    },
+};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{L1BatchNumber, MiniblockNumber, StorageKey, StorageValue, H256};
 
 use self::metrics::{Method, ValuesUpdateStage, CACHE_METRICS, STORAGE_METRICS};
 use crate::{
-    cache::{Cache, CacheValue},
+    cache::{lru_cache::LruCache, CacheValue},
     ReadStorage,
 };
 
@@ -19,7 +25,7 @@ mod metrics;
 mod tests;
 
 /// Type alias for smart contract source code cache.
-type FactoryDepsCache = Cache<H256, Vec<u8>>;
+type FactoryDepsCache = LruCache<H256, Vec<u8>>;
 
 impl CacheValue<H256> for Vec<u8> {
     fn cache_weight(&self) -> u32 {
@@ -28,7 +34,7 @@ impl CacheValue<H256> for Vec<u8> {
 }
 
 /// Type alias for initial writes caches.
-type InitialWritesCache = Cache<StorageKey, L1BatchNumber>;
+type InitialWritesCache = LruCache<StorageKey, L1BatchNumber>;
 
 impl CacheValue<StorageKey> for L1BatchNumber {
     #[allow(clippy::cast_possible_truncation)] // doesn't happen in practice
@@ -70,7 +76,7 @@ struct ValuesCacheInner {
     /// in `PostgresStorage` (i.e., the latest sealed miniblock for which storage logs should
     /// be taken into account).
     valid_for: MiniblockNumber,
-    values: Cache<H256, TimestampedStorageValue>,
+    values: LruCache<H256, TimestampedStorageValue>,
 }
 
 /// Cache for the VM storage. Only caches values for a single VM storage snapshot, which logically
@@ -95,7 +101,7 @@ impl ValuesCache {
     fn new(capacity: u64) -> Self {
         let inner = ValuesCacheInner {
             valid_for: MiniblockNumber(0),
-            values: Cache::new("values_cache", capacity),
+            values: LruCache::new("values_cache", capacity),
         };
         Self(Arc::new(RwLock::new(inner)))
     }
@@ -140,14 +146,12 @@ impl ValuesCache {
         }
     }
 
-    #[allow(clippy::cast_precision_loss)] // acceptable for metrics
-    fn update(
+    async fn update(
         &self,
         from_miniblock: MiniblockNumber,
         to_miniblock: MiniblockNumber,
-        rt_handle: &Handle,
-        connection: &mut StorageProcessor<'_>,
-    ) {
+        connection: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<()> {
         const MAX_MINIBLOCKS_LAG: u32 = 5;
 
         tracing::debug!(
@@ -161,8 +165,16 @@ impl ValuesCache {
                 "Storage values cache is too far behind (current miniblock is {from_miniblock}; \
                  requested update to {to_miniblock}); resetting the cache"
             );
-            let mut lock = self.0.write().expect("values cache is poisoned");
-            assert_eq!(lock.valid_for, from_miniblock);
+            let mut lock = self
+                .0
+                .write()
+                .map_err(|_| anyhow::anyhow!("values cache is poisoned"))?;
+            anyhow::ensure!(
+                lock.valid_for == from_miniblock,
+                "sanity check failed: values cache was expected to be valid for miniblock #{from_miniblock}, but it's actually \
+                 valid for miniblock #{}",
+                lock.valid_for
+            );
             lock.valid_for = to_miniblock;
             lock.values.clear();
 
@@ -170,11 +182,13 @@ impl ValuesCache {
         } else {
             let update_latency = CACHE_METRICS.values_update[&ValuesUpdateStage::LoadKeys].start();
             let miniblocks = (from_miniblock + 1)..=to_miniblock;
-            let modified_keys = rt_handle.block_on(
-                connection
-                    .storage_web3_dal()
-                    .modified_keys_in_miniblocks(miniblocks.clone()),
-            );
+            let modified_keys = connection
+                .storage_logs_dal()
+                .modified_keys_in_miniblocks(miniblocks.clone())
+                .await
+                .with_context(|| {
+                    format!("failed loading modified keys for miniblocks {miniblocks:?}")
+                })?;
 
             let elapsed = update_latency.observe();
             CACHE_METRICS
@@ -188,11 +202,19 @@ impl ValuesCache {
 
             let update_latency =
                 CACHE_METRICS.values_update[&ValuesUpdateStage::RemoveStaleKeys].start();
-            let mut lock = self.0.write().expect("values cache is poisoned");
+            let mut lock = self
+                .0
+                .write()
+                .map_err(|_| anyhow::anyhow!("values cache is poisoned"))?;
             // The code below holding onto the write `lock` is the only code that can theoretically poison the `RwLock`
             // (other than emptying the cache above). Thus, it's kept as simple and tight as possible.
             // E.g., we load data from Postgres beforehand.
-            assert_eq!(lock.valid_for, from_miniblock);
+            anyhow::ensure!(
+                lock.valid_for == from_miniblock,
+                "sanity check failed: values cache was expected to be valid for miniblock #{from_miniblock}, but it's actually \
+                 valid for miniblock #{}",
+                lock.valid_for
+            );
             lock.valid_for = to_miniblock;
             for modified_key in &modified_keys {
                 lock.values.remove(modified_key);
@@ -201,9 +223,11 @@ impl ValuesCache {
             drop(lock);
             update_latency.observe();
         }
+
         CACHE_METRICS
             .values_valid_for_miniblock
             .set(u64::from(to_miniblock.0));
+        Ok(())
     }
 }
 
@@ -271,54 +295,42 @@ impl PostgresStorageCaches {
     pub fn configure_storage_values_cache(
         &mut self,
         capacity: u64,
-        connection_pool: ConnectionPool,
-        rt_handle: Handle,
-    ) -> impl FnOnce() -> anyhow::Result<()> + Send {
+        connection_pool: ConnectionPool<Core>,
+    ) -> PostgresStorageCachesTask {
         assert!(
             capacity > 0,
             "Storage values cache capacity must be positive"
         );
         tracing::debug!("Initializing VM storage values cache with {capacity}B capacity");
 
-        let (command_sender, mut command_receiver) = mpsc::unbounded_channel();
+        let (command_sender, command_receiver) = mpsc::unbounded_channel();
         let values_cache = ValuesCache::new(capacity);
         self.values = Some(ValuesCacheAndUpdater {
             cache: values_cache.clone(),
             command_sender,
         });
 
-        // We want to run updates on a single thread in order to not block VM execution on update
+        // We want to run updates in a separate task in order to not block VM execution on update
         // and keep contention over the `ValuesCache` lock as low as possible. As a downside,
         // `Self::schedule_values_update()` will produce some no-op update commands from concurrently
         // executing VM instances. Due to built-in filtering, this seems manageable.
-        move || {
-            let mut current_miniblock = values_cache.valid_for();
-            while let Some(to_miniblock) = command_receiver.blocking_recv() {
-                if to_miniblock <= current_miniblock {
-                    continue;
-                }
-                let mut connection = rt_handle
-                    .block_on(connection_pool.access_storage_tagged("values_cache_updater"))
-                    .unwrap();
-                values_cache.update(current_miniblock, to_miniblock, &rt_handle, &mut connection);
-                current_miniblock = to_miniblock;
-            }
-            Ok(())
+        PostgresStorageCachesTask {
+            connection_pool,
+            values_cache,
+            command_receiver,
         }
     }
 
-    /// Schedules an update of the VM storage values cache to the specified miniblock.
+    /// Schedules an update of the VM storage values cache to the specified miniblock. If the values cache is not configured,
+    /// this is a no-op.
     ///
     /// # Panics
     ///
-    /// - Panics if the cache wasn't previously configured using [`Self::configure_storage_values_cache()`].
     /// - Panics if the cache update task returned from `configure_storage_values_cache()` has panicked.
     pub fn schedule_values_update(&self, to_miniblock: MiniblockNumber) {
-        let values = self
-            .values
-            .as_ref()
-            .expect("`schedule_update()` called without configuring values cache");
-
+        let Some(values) = &self.values else {
+            return;
+        };
         if values.cache.valid_for() < to_miniblock {
             // Filter out no-op updates right away in order to not store lots of them in RAM.
             values
@@ -329,11 +341,57 @@ impl PostgresStorageCaches {
     }
 }
 
+/// An asynchronous task that updates the VM storage values cache.
+#[derive(Debug)]
+pub struct PostgresStorageCachesTask {
+    connection_pool: ConnectionPool<Core>,
+    values_cache: ValuesCache,
+    command_receiver: UnboundedReceiver<MiniblockNumber>,
+}
+
+impl PostgresStorageCachesTask {
+    /// Runs the task.
+    ///
+    /// ## Errors
+    ///
+    /// - Propagates Postgres errors.
+    /// - Propagates errors from the cache update task.
+    pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let mut current_miniblock = self.values_cache.valid_for();
+        loop {
+            tokio::select! {
+                _ = stop_receiver.changed() => {
+                    break;
+                }
+                Some(to_miniblock) = self.command_receiver.recv() => {
+                    if to_miniblock <= current_miniblock {
+                        continue;
+                    }
+                    let mut connection = self
+                        .connection_pool
+                        .connection_tagged("values_cache_updater")
+                        .await?;
+                    self.values_cache
+                        .update(current_miniblock, to_miniblock, &mut connection)
+                        .await?;
+                    current_miniblock = to_miniblock;
+                }
+                else => {
+                    // The command sender has been dropped, which means that we must receive the stop signal soon.
+                    stop_receiver.changed().await?;
+                    break;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 /// [`ReadStorage`] implementation backed by the Postgres database.
 #[derive(Debug)]
 pub struct PostgresStorage<'a> {
     rt_handle: Handle,
-    connection: StorageProcessor<'a>,
+    connection: Connection<'a, Core>,
     miniblock_number: MiniblockNumber,
     l1_batch_number_for_miniblock: L1BatchNumber,
     pending_l1_batch_number: L1BatchNumber,
@@ -349,7 +407,7 @@ impl<'a> PostgresStorage<'a> {
     /// Panics on Postgres errors.
     pub fn new(
         rt_handle: Handle,
-        connection: StorageProcessor<'a>,
+        connection: Connection<'a, Core>,
         block_number: MiniblockNumber,
         consider_new_l1_batch: bool,
     ) -> Self {
@@ -371,7 +429,7 @@ impl<'a> PostgresStorage<'a> {
     /// Propagates Postgres errors.
     pub async fn new_async(
         rt_handle: Handle,
-        mut connection: StorageProcessor<'a>,
+        mut connection: Connection<'a, Core>,
         block_number: MiniblockNumber,
         consider_new_l1_batch: bool,
     ) -> anyhow::Result<PostgresStorage<'a>> {
@@ -521,11 +579,9 @@ impl ReadStorage for PostgresStorage<'_> {
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
         let mut dal = self.connection.storage_logs_dedup_dal();
-
         let value = self
             .rt_handle
-            .block_on(dal.get_enumeration_index_for_key(*key));
-
-        value
+            .block_on(dal.get_enumeration_index_for_key(key.hashed_key()));
+        value.expect("failed getting enumeration index for key")
     }
 }

@@ -2,10 +2,10 @@ use std::collections::HashSet;
 
 use rand::{distributions::Alphanumeric, Rng};
 use zksync_basic_types::{
-    basic_fri_types::CircuitIdRoundTuple, network::Network, Address, L2ChainId, H256,
+    basic_fri_types::CircuitIdRoundTuple, network::Network, Address, L1ChainId, L2ChainId, H256,
 };
 
-use crate::configs;
+use crate::configs::{self, eth_sender::PubdataSendingMode};
 
 /// Generator of random configs.
 pub struct Gen<'a, R: Rng> {
@@ -26,6 +26,12 @@ impl<'a, R: Rng> Gen<'a, R> {
 
 pub trait RandomConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self;
+}
+
+impl RandomConfig for std::net::SocketAddr {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        std::net::SocketAddr::new(std::net::IpAddr::from(g.rng.gen::<[u8; 16]>()), g.gen())
+    }
 }
 
 impl RandomConfig for String {
@@ -60,7 +66,7 @@ impl<T: RandomConfig> RandomConfig for Vec<T> {
 impl<T: RandomConfig + Eq + std::hash::Hash> RandomConfig for HashSet<T> {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         if g.required_only {
-            return HashSet::new();
+            return Self::new();
         }
         (0..g.rng.gen_range(5..10)).map(|_| g.gen()).collect()
     }
@@ -182,6 +188,7 @@ impl RandomConfig for configs::api::Web3JsonRpcConfig {
             ws_port: g.gen(),
             ws_url: g.gen(),
             req_entities_limit: g.gen(),
+            filters_disabled: g.gen(),
             filters_limit: g.gen(),
             subscriptions_limit: g.gen(),
             pubsub_polling_interval: g.gen(),
@@ -203,13 +210,19 @@ impl RandomConfig for configs::api::Web3JsonRpcConfig {
             max_response_body_size_mb: g.gen(),
             websocket_requests_per_minute_limit: g.gen(),
             tree_api_url: g.gen(),
+            mempool_cache_update_interval: g.gen(),
+            mempool_cache_size: g.gen(),
         }
     }
 }
 
 impl RandomConfig for configs::api::HealthCheckConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
-        Self { port: g.gen() }
+        Self {
+            port: g.gen(),
+            slow_time_limit_ms: g.gen(),
+            hard_time_limit_ms: g.gen(),
+        }
     }
 }
 
@@ -277,6 +290,8 @@ impl RandomConfig for configs::chain::StateKeeperConfig {
             virtual_blocks_per_miniblock: g.gen(),
             upload_witness_inputs_to_gcs: g.gen(),
             enum_index_migration_chunk_size: g.gen(),
+            bootloader_hash: g.gen(),
+            default_aa_hash: g.gen(),
         }
     }
 }
@@ -323,15 +338,6 @@ impl RandomConfig for configs::ContractVerifierConfig {
     }
 }
 
-impl RandomConfig for configs::contracts::ProverAtGenesis {
-    fn sample(g: &mut Gen<impl Rng>) -> Self {
-        match g.rng.gen_range(0..2) {
-            0 => Self::Fri,
-            _ => Self::Old,
-        }
-    }
-}
-
 impl RandomConfig for configs::ContractsConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
@@ -361,8 +367,16 @@ impl RandomConfig for configs::ContractsConfig {
             fri_recursion_scheduler_level_vk_hash: g.gen(),
             fri_recursion_node_level_vk_hash: g.gen(),
             fri_recursion_leaf_level_vk_hash: g.gen(),
-            prover_at_genesis: g.gen(),
             snark_wrapper_vk_hash: g.gen(),
+            bridgehub_impl_addr: g.gen(),
+            bridgehub_proxy_addr: g.gen(),
+            state_transition_proxy_addr: g.gen(),
+            state_transition_impl_addr: g.gen(),
+            transparent_proxy_admin_addr: g.gen(),
+            genesis_batch_commitment: g.gen(),
+            genesis_rollup_leaf_index: g.gen(),
+            genesis_root: g.gen(),
+            genesis_protocol_version: g.gen(),
         }
     }
 }
@@ -406,6 +420,7 @@ impl RandomConfig for configs::database::PostgresConfig {
             replica_url: g.gen(),
             prover_url: g.gen(),
             max_connections: g.gen(),
+            max_connections_master: g.gen(),
             acquire_timeout_sec: g.gen(),
             statement_timeout_sec: g.gen(),
             long_connection_threshold_ms: g.gen(),
@@ -451,6 +466,15 @@ impl RandomConfig for configs::eth_sender::ProofLoadingMode {
     }
 }
 
+impl RandomConfig for configs::eth_sender::PubdataSendingMode {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        match g.rng.gen_range(0..2) {
+            0 => Self::Calldata,
+            _ => Self::Blobs,
+        }
+    }
+}
+
 impl RandomConfig for configs::eth_sender::SenderConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
@@ -471,6 +495,7 @@ impl RandomConfig for configs::eth_sender::SenderConfig {
             l1_batch_min_age_before_execute_seconds: g.gen(),
             max_acceptable_priority_fee_in_gwei: g.gen(),
             proof_loading_mode: g.gen(),
+            pubdata_sending_mode: PubdataSendingMode::Calldata,
         }
     }
 }
@@ -486,6 +511,9 @@ impl RandomConfig for configs::eth_sender::GasAdjusterConfig {
             internal_enforced_l1_gas_price: g.gen(),
             poll_period: g.gen(),
             max_l1_gas_price: g.gen(),
+            num_samples_for_blob_base_fee_estimate: g.gen(),
+            internal_pubdata_pricing_multiplier: g.gen(),
+            max_blob_base_fee: g.gen(),
         }
     }
 }
@@ -589,6 +617,10 @@ impl RandomConfig for configs::FriWitnessGeneratorConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
             generation_timeout_in_secs: g.gen(),
+            basic_generation_timeout_in_secs: g.gen(),
+            leaf_generation_timeout_in_secs: g.gen(),
+            node_generation_timeout_in_secs: g.gen(),
+            scheduler_generation_timeout_in_secs: g.gen(),
             max_attempts: g.gen(),
             blocks_proving_percentage: g.gen(),
             dump_arguments_for_blocks: g.gen(),
@@ -662,22 +694,11 @@ impl RandomConfig for configs::ObjectStoreConfig {
     }
 }
 
-impl RandomConfig for configs::proof_data_handler::ProtocolVersionLoadingMode {
-    fn sample(g: &mut Gen<impl Rng>) -> Self {
-        match g.rng.gen_range(0..2) {
-            0 => Self::FromDb,
-            _ => Self::FromEnvVar,
-        }
-    }
-}
-
 impl RandomConfig for configs::ProofDataHandlerConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
             http_port: g.gen(),
             proof_generation_timeout_in_secs: g.gen(),
-            protocol_version_loading_mode: g.gen(),
-            fri_protocol_version_id: g.gen(),
         }
     }
 }
@@ -712,6 +733,45 @@ impl RandomConfig for configs::WitnessGeneratorConfig {
             dump_arguments_for_blocks: g.gen(),
             last_l1_batch_to_process: g.gen(),
             data_source: g.gen(),
+        }
+    }
+}
+
+impl RandomConfig for configs::ObservabilityConfig {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        Self {
+            sentry_url: g.gen(),
+            sentry_environment: g.gen(),
+            log_format: g.gen(),
+            opentelemetry: g.gen(),
+        }
+    }
+}
+
+impl RandomConfig for configs::OpentelemetryConfig {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        Self {
+            level: g.gen(),
+            endpoint: g.gen(),
+        }
+    }
+}
+
+impl RandomConfig for configs::GenesisConfig {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        Self {
+            protocol_version: g.gen(),
+            genesis_root_hash: g.gen(),
+            rollup_last_leaf_index: g.gen(),
+            genesis_commitment: g.gen(),
+            bootloader_hash: g.gen(),
+            default_aa_hash: g.gen(),
+            fee_account: g.gen(),
+            l1_chain_id: L1ChainId(g.gen()),
+            l2_chain_id: L2ChainId::default(),
+            recursion_node_level_vk_hash: g.gen(),
+            recursion_leaf_level_vk_hash: g.gen(),
+            recursion_scheduler_level_vk_hash: g.gen(),
         }
     }
 }

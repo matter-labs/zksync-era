@@ -10,7 +10,7 @@ use std::{
 };
 
 use rand::{thread_rng, Rng};
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Connection, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
@@ -61,7 +61,7 @@ impl HandleEvent for TestEventListener {
 }
 
 impl SnapshotCreator {
-    fn for_tests(blob_store: Arc<dyn ObjectStore>, pool: ConnectionPool) -> Self {
+    fn for_tests(blob_store: Arc<dyn ObjectStore>, pool: ConnectionPool<Core>) -> Self {
         Self {
             blob_store,
             master_pool: pool.clone(),
@@ -132,7 +132,7 @@ struct ExpectedOutputs {
 }
 
 async fn create_miniblock(
-    conn: &mut StorageProcessor<'_>,
+    conn: &mut Connection<'_, Core>,
     miniblock_number: MiniblockNumber,
     block_logs: Vec<StorageLog>,
 ) {
@@ -162,7 +162,7 @@ async fn create_miniblock(
 }
 
 async fn create_l1_batch(
-    conn: &mut StorageProcessor<'_>,
+    conn: &mut Connection<'_, Core>,
     l1_batch_number: L1BatchNumber,
     logs_for_initial_writes: &[StorageLog],
 ) {
@@ -186,7 +186,7 @@ async fn create_l1_batch(
 
 async fn prepare_postgres(
     rng: &mut impl Rng,
-    conn: &mut StorageProcessor<'_>,
+    conn: &mut Connection<'_, Core>,
     block_count: u32,
 ) -> ExpectedOutputs {
     conn.protocol_versions_dal()
@@ -241,13 +241,13 @@ async fn prepare_postgres(
 
 #[tokio::test]
 async fn persisting_snapshot_metadata() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let mut rng = thread_rng();
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
 
     // Insert some data to Postgres.
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = pool.connection().await.unwrap();
     prepare_postgres(&mut rng, &mut conn, 10).await;
 
     SnapshotCreator::for_tests(object_store, pool.clone())
@@ -290,11 +290,11 @@ async fn persisting_snapshot_metadata() {
 
 #[tokio::test]
 async fn persisting_snapshot_factory_deps() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let mut rng = thread_rng();
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = pool.connection().await.unwrap();
     let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
 
     SnapshotCreator::for_tests(object_store, pool.clone())
@@ -312,11 +312,11 @@ async fn persisting_snapshot_factory_deps() {
 
 #[tokio::test]
 async fn persisting_snapshot_logs() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let mut rng = thread_rng();
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = pool.connection().await.unwrap();
     let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
 
     SnapshotCreator::for_tests(object_store, pool.clone())
@@ -348,11 +348,11 @@ async fn assert_storage_logs(
 
 #[tokio::test]
 async fn recovery_workflow() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let mut rng = thread_rng();
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = pool.connection().await.unwrap();
     let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
 
     SnapshotCreator::for_tests(object_store, pool.clone())
@@ -414,11 +414,11 @@ async fn recovery_workflow() {
 
 #[tokio::test]
 async fn recovery_workflow_with_varying_chunk_size() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let mut rng = thread_rng();
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = pool.connection().await.unwrap();
     let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
 
     SnapshotCreator::for_tests(object_store, pool.clone())

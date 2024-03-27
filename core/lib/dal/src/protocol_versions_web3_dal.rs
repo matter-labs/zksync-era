@@ -1,10 +1,11 @@
+use zksync_db_connection::connection::Connection;
 use zksync_types::api::ProtocolVersion;
 
-use crate::{models::storage_protocol_version::StorageProtocolVersion, StorageProcessor};
+use crate::{models::storage_protocol_version::StorageProtocolVersion, Core};
 
 #[derive(Debug)]
 pub struct ProtocolVersionsWeb3Dal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut Connection<'c, Core>,
 }
 
 impl ProtocolVersionsWeb3Dal<'_, '_> {
@@ -19,7 +20,7 @@ impl ProtocolVersionsWeb3Dal<'_, '_> {
             WHERE
                 id = $1
             "#,
-            version_id as i32
+            i32::from(version_id)
         )
         .fetch_optional(self.storage.conn())
         .await

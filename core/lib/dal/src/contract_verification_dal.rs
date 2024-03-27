@@ -1,3 +1,4 @@
+#![doc = include_str!("../doc/ContractVerificationDal.md")]
 use std::{
     fmt::{Display, Formatter},
     time::Duration,
@@ -5,6 +6,7 @@ use std::{
 
 use anyhow::Context as _;
 use sqlx::postgres::types::PgInterval;
+use zksync_db_connection::connection::Connection;
 use zksync_types::{
     contract_verification_api::{
         DeployContractCalldata, VerificationIncomingRequest, VerificationInfo, VerificationRequest,
@@ -13,11 +15,11 @@ use zksync_types::{
     get_code_key, Address, CONTRACT_DEPLOYER_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH,
 };
 
-use crate::{models::storage_verification_request::StorageVerificationRequest, StorageProcessor};
+use crate::{models::storage_verification_request::StorageVerificationRequest, Core};
 
 #[derive(Debug)]
 pub struct ContractVerificationDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 #[derive(Debug)]
@@ -73,12 +75,13 @@ impl ContractVerificationDal<'_, '_> {
                     optimizer_mode,
                     constructor_arguments,
                     is_system,
+                    force_evmla,
                     status,
                     created_at,
                     updated_at
                 )
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'queued', NOW(), NOW())
+                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'queued', NOW(), NOW())
             RETURNING
                 id
             "#,
@@ -92,6 +95,7 @@ impl ContractVerificationDal<'_, '_> {
             query.optimizer_mode,
             query.constructor_arguments.0,
             query.is_system,
+            query.force_evmla,
         )
         .fetch_one(self.storage.conn())
         .await
@@ -149,7 +153,8 @@ impl ContractVerificationDal<'_, '_> {
                 optimization_used,
                 optimizer_mode,
                 constructor_arguments,
-                is_system
+                is_system,
+                force_evmla
             "#,
             &processing_timeout
         )
@@ -469,7 +474,8 @@ impl ContractVerificationDal<'_, '_> {
                 optimization_used,
                 optimizer_mode,
                 constructor_arguments,
-                is_system
+                is_system,
+                force_evmla
             FROM
                 contract_verification_requests
             WHERE

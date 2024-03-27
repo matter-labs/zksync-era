@@ -2,7 +2,6 @@
 //! stores them in the DB.
 
 use std::{
-    future::{self, Future},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -13,10 +12,11 @@ use zksync_config::configs::{
     chain::OperationsManagerConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_object_store::ObjectStore;
 
+pub use self::helpers::LazyAsyncTreeReader;
 pub(crate) use self::helpers::{AsyncTreeReader, L1BatchWithLogs, MerkleTreeInfo};
 use self::{
     helpers::{create_db, Delayer, GenericAsyncTree, MerkleTreeHealth},
@@ -109,19 +109,8 @@ impl MetadataCalculator {
     }
 
     /// Returns a reference to the tree reader.
-    pub(crate) fn tree_reader(&self) -> impl Future<Output = AsyncTreeReader> {
-        let mut receiver = self.tree_reader.subscribe();
-        async move {
-            loop {
-                if let Some(reader) = receiver.borrow().clone() {
-                    break reader;
-                }
-                if receiver.changed().await.is_err() {
-                    tracing::info!("Tree dropped without getting ready; not resolving tree reader");
-                    future::pending::<()>().await;
-                }
-            }
-        }
+    pub fn tree_reader(&self) -> LazyAsyncTreeReader {
+        LazyAsyncTreeReader(self.tree_reader.subscribe())
     }
 
     async fn create_tree(&self) -> anyhow::Result<GenericAsyncTree> {
@@ -154,7 +143,7 @@ impl MetadataCalculator {
 
     pub async fn run(
         self,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         let tree = self.create_tree().await?;

@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{web3::types::Log, ProtocolUpgrade, ProtocolVersionId, H256};
 
 use crate::eth_watch::{
@@ -32,7 +32,7 @@ impl UpgradesEventProcessor {
 impl EventProcessor for UpgradesEventProcessor {
     async fn process_events(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<(), Error> {
@@ -52,23 +52,17 @@ impl EventProcessor for UpgradesEventProcessor {
             upgrades.push((upgrade, scheduler_vk_hash));
         }
 
-        if upgrades.is_empty() {
-            return Ok(());
-        }
-
-        let ids_str: Vec<_> = upgrades
-            .iter()
-            .map(|(u, _)| format!("{}", u.id as u16))
-            .collect();
-        tracing::debug!("Received upgrades with ids: {}", ids_str.join(", "));
-
         let new_upgrades: Vec<_> = upgrades
             .into_iter()
             .skip_while(|(v, _)| v.id as u16 <= self.last_seen_version_id as u16)
             .collect();
+
         if new_upgrades.is_empty() {
             return Ok(());
         }
+
+        let ids: Vec<_> = new_upgrades.iter().map(|(u, _)| u.id as u16).collect();
+        tracing::debug!("Received upgrades with ids: {:?}", ids);
 
         let last_id = new_upgrades.last().unwrap().0.id;
         let stage_latency = METRICS.poll_eth_node[&PollStage::PersistUpgrades].start();

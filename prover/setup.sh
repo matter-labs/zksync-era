@@ -2,8 +2,10 @@
 # This script sets up the necessary data needed by the CPU/GPU FRI prover to be used locally.
 
 GPU_FLAG=""
+GENERATE_SK_COMMAND="generate-sk"
 if [ "$1" = "gpu" ]; then
     GPU_FLAG='--features gpu'
+    GENERATE_SK_COMMAND="generate-sk-gpu"
 fi
 
 if [[ -z "${ZKSYNC_HOME}" ]]; then
@@ -21,24 +23,5 @@ rm ../etc/env/base/fri_proof_compressor.toml.backup
 
 zk config compile dev
 
-for i in {1..13}
-do
-    if ! [ -f vk_setup_data_generator_server_fri/data/setup_basic_${i}_data.bin ]; then
-        zk f cargo run $GPU_FLAG --release --bin zksync_setup_data_generator_fri -- --numeric-circuit $i --is_base_layer
-    fi
-done
-
-if ! [ -f vk_setup_data_generator_server_fri/data/setup_scheduler_data.bin ]; then
-    zk f cargo run $GPU_FLAG --release --bin zksync_setup_data_generator_fri -- --numeric-circuit 1
-fi
-
-if ! [ -f vk_setup_data_generator_server_fri/data/setup_node_data.bin ]; then
-    zk f cargo run $GPU_FLAG --release --bin zksync_setup_data_generator_fri -- --numeric-circuit 2
-fi
-
-for i in {3..15}
-do
-    if ! [ -f vk_setup_data_generator_server_fri/data/setup_leaf_${i}_data.bin ]; then
-        zk f cargo run $GPU_FLAG --release --bin zksync_setup_data_generator_fri -- --numeric-circuit $i
-    fi
-done
+# Update setup keys (only if they are not present)
+zk f cargo run $GPU_FLAG --release --bin key_generator -- $GENERATE_SK_COMMAND all --recompute-if-missing

@@ -13,7 +13,9 @@ pub use self::{
     fri_prover_gateway::FriProverGatewayConfig,
     fri_witness_generator::FriWitnessGeneratorConfig,
     fri_witness_vector_generator::FriWitnessVectorGeneratorConfig,
+    genesis::GenesisConfig,
     object_store::ObjectStoreConfig,
+    observability::{ObservabilityConfig, OpentelemetryConfig},
     proof_data_handler::ProofDataHandlerConfig,
     snapshots_creator::SnapshotsCreatorConfig,
     utils::PrometheusConfig,
@@ -35,8 +37,10 @@ pub mod fri_prover_gateway;
 pub mod fri_prover_group;
 pub mod fri_witness_generator;
 pub mod fri_witness_vector_generator;
+pub mod genesis;
 pub mod house_keeper;
 pub mod object_store;
+pub mod observability;
 pub mod proof_data_handler;
 pub mod snapshots_creator;
 pub mod utils;

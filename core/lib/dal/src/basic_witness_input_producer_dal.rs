@@ -1,17 +1,19 @@
+#![doc = include_str!("../doc/BasicWitnessInputProducerDal.md")]
 use std::time::{Duration, Instant};
 
 use sqlx::postgres::types::PgInterval;
+use zksync_db_connection::{
+    connection::Connection,
+    instrument::InstrumentExt,
+    utils::{duration_to_naive_time, pg_interval_from_duration},
+};
 use zksync_types::L1BatchNumber;
 
-use crate::{
-    instrument::InstrumentExt,
-    time_utils::{duration_to_naive_time, pg_interval_from_duration},
-    StorageProcessor,
-};
+use crate::Core;
 
 #[derive(Debug)]
 pub struct BasicWitnessInputProducerDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 /// The amount of attempts to process a job before giving up.
@@ -58,7 +60,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
                 ($1, $2, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-            l1_batch_number.0 as i64,
+            i64::from(l1_batch_number.0),
             BasicWitnessInputProducerJobStatus::Queued as BasicWitnessInputProducerJobStatus,
         )
         .instrument("create_basic_witness_input_producer_job")
@@ -134,7 +136,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
             WHERE
                 l1_batch_number = $1
             "#,
-            l1_batch_number.0 as i64,
+            i64::from(l1_batch_number.0),
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -161,7 +163,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
                 l1_batch_number = $2
             "#,
             BasicWitnessInputProducerJobStatus::Successful as BasicWitnessInputProducerJobStatus,
-            l1_batch_number.0 as i64,
+            i64::from(l1_batch_number.0),
             duration_to_naive_time(started_at.elapsed()),
             object_path,
         )
@@ -194,7 +196,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
                 basic_witness_input_producer_jobs.attempts
             "#,
             BasicWitnessInputProducerJobStatus::Failed as BasicWitnessInputProducerJobStatus,
-            l1_batch_number.0 as i64,
+            i64::from(l1_batch_number.0),
             duration_to_naive_time(started_at.elapsed()),
             error,
             BasicWitnessInputProducerJobStatus::Successful as BasicWitnessInputProducerJobStatus,
