@@ -4,7 +4,8 @@ use anyhow::Context as _;
 use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_eth_client::{CallFunctionArgs, Error as L1ClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::i_executor::commit::kzg::ZK_SYNC_BYTES_PER_BLOB;
 use zksync_types::{
