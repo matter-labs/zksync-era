@@ -26,7 +26,7 @@ impl ProtoRepr for proto::Genesis {
         };
         Ok(Self::Type {
             protocol_version: required(&self.genesis_protocol_version)
-                .and_then(|x| Ok(*x as u16))
+                .map(|x| *x as u16)
                 .context("protocol_version")?,
             genesis_root_hash: required(&self.genesis_root)
                 .and_then(|x| parse_h256(x))
@@ -43,7 +43,7 @@ impl ProtoRepr for proto::Genesis {
                 .and_then(|x| parse_h256(x))
                 .context("default_aa_hash")?,
             l1_chain_id: required(&self.l1_chain_id)
-                .and_then(|x| Ok(L1ChainId(*x)))
+                .map(|x| L1ChainId(*x))
                 .context("l1_chain_id")?,
             l2_chain_id: required(&self.l2_chain_id)
                 .and_then(|x| L2ChainId::try_from(*x).map_err(|a| anyhow::anyhow!(a)))
@@ -69,8 +69,10 @@ impl ProtoRepr for proto::Genesis {
     }
 
     fn build(this: &Self::Type) -> Self {
-        let shared_bridge = if let Some(shared_bridge) = &this.shared_bridge {
-            Some(proto::SharedBridge {
+        let shared_bridge = this
+            .shared_bridge
+            .as_ref()
+            .map(|shared_bridge| proto::SharedBridge {
                 bridgehub_proxy_addr: Some(shared_bridge.bridgehub_proxy_addr.as_bytes().into()),
                 state_transition_proxy_addr: Some(
                     shared_bridge.state_transition_proxy_addr.as_bytes().into(),
@@ -78,10 +80,7 @@ impl ProtoRepr for proto::Genesis {
                 transparent_proxy_admin_addr: Some(
                     shared_bridge.transparent_proxy_admin_addr.as_bytes().into(),
                 ),
-            })
-        } else {
-            None
-        };
+            });
 
         Self {
             genesis_root: Some(this.genesis_root_hash.as_bytes().into()),

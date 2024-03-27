@@ -20,9 +20,6 @@ use zksync_protobuf::{read_optional, repr::ProtoRepr, ProtoFmt};
 
 use crate::{consensus, proto};
 
-#[cfg(test)]
-mod tests;
-
 pub fn decode_yaml<T: ProtoFmt>(yaml: &str) -> anyhow::Result<T> {
     let d = serde_yaml::Deserializer::from_str(yaml);
     let this: T = zksync_protobuf::serde::deserialize(d)?;

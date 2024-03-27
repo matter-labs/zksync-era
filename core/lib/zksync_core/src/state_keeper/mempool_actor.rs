@@ -218,7 +218,7 @@ mod tests {
     #[tokio::test]
     async fn syncing_mempool_basics() {
         let pool = ConnectionPool::constrained_test_pool(1).await;
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();

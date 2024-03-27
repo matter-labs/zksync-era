@@ -314,11 +314,6 @@ impl ProtoRepr for proto::Prover {
     }
 
     fn build(this: &Self::Type) -> Self {
-        let object_store = if let Some(object_store) = &this.object_store {
-            Some(ProtoRepr::build(object_store))
-        } else {
-            None
-        };
         Self {
             setup_data_path: Some(this.setup_data_path.clone()),
             prometheus_port: Some(this.prometheus_port.into()),
@@ -339,7 +334,7 @@ impl ProtoRepr for proto::Prover {
             witness_vector_receiver_port: Some(this.witness_vector_receiver_port.into()),
             zone_read_url: Some(this.zone_read_url.clone()),
             shall_save_to_public_bucket: Some(this.shall_save_to_public_bucket),
-            object_store,
+            object_store: this.object_store.as_ref().map(ProtoRepr::build),
         }
     }
 }

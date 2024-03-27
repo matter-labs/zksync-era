@@ -4,16 +4,14 @@ use serde::Serialize;
 use zksync_basic_types::{Address, H256, U256};
 
 use crate::{
-    tx::primitives::{
-        eip712_signature::{
-            struct_builder::StructBuilder,
-            typed_structure::{EIP712TypedStructure, Eip712Domain},
-            utils::get_eip712_json,
-        },
-        PackedEthSignature,
+    eip712_signature::{
+        struct_builder::StructBuilder,
+        typed_structure::{EIP712TypedStructure, Eip712Domain},
+        utils::get_eip712_json,
     },
-    web3::signing::keccak256,
+    PackedEthSignature,
 };
+use web3::signing::keccak256;
 
 #[derive(Clone, Serialize)]
 struct Person {

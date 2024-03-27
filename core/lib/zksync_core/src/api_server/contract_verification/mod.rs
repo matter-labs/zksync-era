@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_config::{configs::api::ContractVerificationApiConfig, ContractVerifierConfig};
+use zksync_config::ContractVerifierConfig;
 use zksync_dal::ConnectionPool;
 
 use self::api_decl::RestApi;

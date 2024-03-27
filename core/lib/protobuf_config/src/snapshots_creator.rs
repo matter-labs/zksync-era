@@ -22,15 +22,10 @@ impl ProtoRepr for proto::SnapshotsCreator {
     }
 
     fn build(this: &Self::Type) -> Self {
-        let object_store = if let Some(object_store) = &this.object_store {
-            Some(ProtoRepr::build(object_store))
-        } else {
-            None
-        };
         Self {
             storage_logs_chunk_size: Some(this.storage_logs_chunk_size),
             concurrent_queries_count: Some(this.concurrent_queries_count),
-            object_store,
+            object_store: this.object_store.as_ref().map(ProtoRepr::build),
         }
     }
 }

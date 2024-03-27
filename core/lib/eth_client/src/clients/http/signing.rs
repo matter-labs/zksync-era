@@ -104,7 +104,7 @@ impl PKSigningClient {
         SigningClient::new_raw(
             operator_private_key,
             diamond_proxy_addr,
-            default_priority_fee_per_gas.into(),
+            default_priority_fee_per_gas,
             l1_chain_id,
             main_node_url,
         )

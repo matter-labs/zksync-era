@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use zksync_basic_types::{Address, H256};
 use zksync_config::{
     configs::chain::{NetworkConfig, StateKeeperConfig},
-    ContractsConfig, GenesisConfig,
+    GenesisConfig,
 };
 
 use crate::{envy_load, FromEnv};

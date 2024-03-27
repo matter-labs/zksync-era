@@ -18,7 +18,7 @@ impl ProtoRepr for proto::Wallets {
                     blob_operator
                         .address
                         .as_ref()
-                        .and_then(|a| parse_h160(&a).ok()),
+                        .and_then(|a| parse_h160(a).ok()),
                 )?)
             } else {
                 None
@@ -31,7 +31,7 @@ impl ProtoRepr for proto::Wallets {
                 operator_wallet
                     .address
                     .as_ref()
-                    .and_then(|a| parse_h160(&a).ok()),
+                    .and_then(|a| parse_h160(a).ok()),
             )?;
 
             Some(EthSender {

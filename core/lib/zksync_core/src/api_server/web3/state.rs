@@ -12,9 +12,7 @@ use lru::LruCache;
 use tokio::sync::{watch, Mutex};
 use vise::GaugeGuard;
 use zksync_config::{
-    configs::{
-        api::Web3JsonRpcConfig, chain::NetworkConfig, genesis::SharedBridge, ContractsConfig,
-    },
+    configs::{api::Web3JsonRpcConfig, ContractsConfig},
     GenesisConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};

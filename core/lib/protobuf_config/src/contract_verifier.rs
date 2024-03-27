@@ -15,9 +15,7 @@ impl ProtoRepr for proto::ContractVerifier {
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("prometheus_port")?,
             url: required(&self.url).cloned().context("url")?,
-            port: required(&self.port)
-                .and_then(|x| Ok(*x as u16))
-                .context("port")?,
+            port: required(&self.port).map(|x| *x as u16).context("port")?,
         })
     }
 

@@ -10,7 +10,6 @@ use std::{
 use anyhow::Context as _;
 use api_server::tx_sender::master_pool_sink::MasterPoolSink;
 use fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInputProvider};
-use multivm::zk_evm_latest::ethereum_types::H256;
 use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::Prover;
 use temp_config_store::Secrets;
@@ -22,14 +21,10 @@ use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker,
     CircuitBreakerChecker, CircuitBreakers,
 };
-use zksync_concurrency::{ctx, scope};
 use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
-        chain::{
-            CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
-            StateKeeperConfig,
-        },
+        chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
         database::{MerkleTreeConfig, MerkleTreeMode},
         wallets::Wallets,
         ContractsConfig, GeneralConfig,
@@ -47,7 +42,7 @@ use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
-use zksync_types::{fee_model::FeeModelConfig, Address, L1ChainId, L2ChainId, PackedEthSignature};
+use zksync_types::{fee_model::FeeModelConfig, L2ChainId};
 
 use crate::{
     api_server::{
@@ -230,7 +225,7 @@ pub async fn initialize_components(
     genesis_config: &GenesisConfig,
     contracts_config: &ContractsConfig,
     components: &[Component],
-    secrets: &Secrets,
+    _secrets: &Secrets,
 ) -> anyhow::Result<(
     Vec<JoinHandle<anyhow::Result<()>>>,
     watch::Sender<bool>,
@@ -342,11 +337,8 @@ pub async fn initialize_components(
             .context("state_keeper_config")?;
         let tx_sender_config =
             TxSenderConfig::new(&state_keeper_config, &api_config.web3_json_rpc, l2_chain_id);
-        let internal_api_config = InternalApiConfig::new(
-            &api_config.web3_json_rpc,
-            &contracts_config,
-            &genesis_config,
-        );
+        let internal_api_config =
+            InternalApiConfig::new(&api_config.web3_json_rpc, contracts_config, genesis_config);
 
         // Lazily initialize storage caches only when they are needed (e.g., skip their initialization
         // if we only run the explorer APIs). This is required because the cache update task will
@@ -494,7 +486,7 @@ pub async fn initialize_components(
         add_state_keeper_to_task_futures(
             &mut task_futures,
             &postgres_config,
-            &contracts_config,
+            contracts_config,
             state_keeper_config,
             l2_chain_id,
             &db_config,
@@ -675,7 +667,7 @@ pub async fn initialize_components(
                 diamond_proxy_addr,
                 default_priority_fee_per_gas,
                 l1_chain_id,
-                &web3_url,
+                web3_url,
             ))
         } else {
             None

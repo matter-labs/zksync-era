@@ -10,18 +10,19 @@ use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::CoreDal;
 use zksync_types::{
-    api, api::L1BatchDetails, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L1ChainId,
-    L2ChainId, MiniblockNumber, ProtocolVersionId, H256,
+    api, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
+    ProtocolVersionId, H256,
 };
 use zksync_web3_decl::{
     error::{EnrichedClientError, EnrichedClientResult},
     jsonrpsee::http_client::HttpClient,
 };
 
+use crate::genesis::mock_genesis_config;
 use crate::{
     api_server::web3::{state::InternalApiConfig, tests::spawn_http_server},
     consensus::{fetcher::P2PConfig, Fetcher, Store},
-    genesis::{insert_genesis_batch, GenesisParams},
+    genesis::GenesisParams,
     state_keeper::{
         io::{IoCursor, L1BatchParams, MiniblockParams},
         seal_criteria::NoopSealer,
@@ -414,9 +415,9 @@ impl StateKeeperRunner {
             s.spawn_bg(async {
                 // Spawn HTTP server.
                 let cfg = InternalApiConfig::new(
-                    &configs::chain::NetworkConfig::for_tests(),
                     &configs::api::Web3JsonRpcConfig::for_tests(),
                     &configs::contracts::ContractsConfig::for_tests(),
+                    &configs::GenesisConfig::for_tests(),
                 );
                 let mut server = spawn_http_server(
                     cfg,

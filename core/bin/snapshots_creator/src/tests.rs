@@ -27,10 +27,12 @@ use super::*;
 const TEST_CONFIG: SnapshotsCreatorConfig = SnapshotsCreatorConfig {
     storage_logs_chunk_size: 1_000_000,
     concurrent_queries_count: 10,
+    object_store: None,
 };
 const SEQUENTIAL_TEST_CONFIG: SnapshotsCreatorConfig = SnapshotsCreatorConfig {
     storage_logs_chunk_size: 1_000_000,
     concurrent_queries_count: 1,
+    object_store: None,
 };
 
 #[derive(Debug)]

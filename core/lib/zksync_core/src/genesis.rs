@@ -162,8 +162,14 @@ pub fn mock_genesis_config() -> GenesisConfig {
         l2_chain_id: L2ChainId::default(),
         recursion_node_level_vk_hash: first_l1_verifier_config.params.recursion_node_level_vk_hash,
         recursion_leaf_level_vk_hash: first_l1_verifier_config.params.recursion_leaf_level_vk_hash,
+        recursion_circuits_set_vks_hash: first_l1_verifier_config
+            .params
+            .recursion_circuits_set_vks_hash,
         recursion_scheduler_level_vk_hash: first_l1_verifier_config
             .recursion_scheduler_level_vk_hash,
+        fee_account: Default::default(),
+        shared_bridge: None,
+        dummy_prover: false,
     }
 }
 
