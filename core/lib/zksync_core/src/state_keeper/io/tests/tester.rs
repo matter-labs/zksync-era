@@ -25,7 +25,7 @@ use crate::{
     fee_model::MainNodeFeeInputProvider,
     genesis::create_genesis_l1_batch,
     l1_gas_price::{GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing},
-    state_keeper::{io::MiniblockSealer, MempoolGuard, MempoolIO},
+    state_keeper::{MempoolGuard, MempoolIO},
     utils::testonly::{
         create_l1_batch, create_l2_transaction, create_miniblock, execute_l2_transaction,
         DeploymentMode,

@@ -218,10 +218,12 @@ mod tests {
     use std::sync::Mutex;
 
     use assert_matches::assert_matches;
-    use zksync_eth_client::{ContractCall, ExecutedTxStatus, FailureInfo, RawTransactionBytes};
+    use zksync_eth_client::{
+        Block, ContractCall, ExecutedTxStatus, FailureInfo, RawTransactionBytes,
+    };
     use zksync_types::{
-        web3::types::{Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt},
-        L2ChainId, H160, H256, U256, U64,
+        web3::types::{BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt},
+        H160, H256, U256, U64,
     };
 
     use super::*;
