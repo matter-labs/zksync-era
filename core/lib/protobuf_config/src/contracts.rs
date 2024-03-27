@@ -1,11 +1,11 @@
 use anyhow::Context as _;
-use zksync_config::configs::ContractsConfigReduced;
+use zksync_config::configs::ContractsConfig;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
 use crate::{parse_h160, proto::contracts as proto};
 
 impl ProtoRepr for proto::Contracts {
-    type Type = ContractsConfigReduced;
+    type Type = ContractsConfig;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         let l1 = required(&self.l1).context("l1")?;

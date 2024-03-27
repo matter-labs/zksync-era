@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
-use zksync_config::configs::{chain::NetworkConfig, eth_sender::ETHConfig, ContractsConfigReduced};
+use zksync_config::configs::{chain::NetworkConfig, eth_sender::ETHConfig, ContractsConfig};
 use zksync_core::eth_sender::{Aggregator, EthTxAggregator, EthTxManager};
 use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface};
 use zksync_types::L1ChainId;
@@ -22,7 +22,7 @@ use crate::{
 #[derive(Debug)]
 pub struct EthSenderLayer {
     eth_sender_config: ETHConfig,
-    contracts_config: ContractsConfigReduced,
+    contracts_config: ContractsConfig,
     network_config: NetworkConfig,
     l1chain_id: L1ChainId,
 }
@@ -30,7 +30,7 @@ pub struct EthSenderLayer {
 impl EthSenderLayer {
     pub fn new(
         eth_sender_config: ETHConfig,
-        contracts_config: ContractsConfigReduced,
+        contracts_config: ContractsConfig,
         network_config: NetworkConfig,
         l1chain_id: L1ChainId,
     ) -> Self {

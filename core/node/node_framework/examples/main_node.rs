@@ -87,7 +87,7 @@ impl MainNodeBuilder {
         let genesis = GenesisConfig::from_env()?;
         self.node.add_layer(PKSigningEthClientLayer::new(
             ETHConfig::from_env()?,
-            ContractsConfig::from_env()?.into(),
+            ContractsConfig::from_env()?,
             genesis.l1_chain_id,
         ));
         Ok(self)
@@ -204,7 +204,7 @@ impl MainNodeBuilder {
 
     fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
         let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
-        let contracts_config = ContractsConfig::from_env()?.into();
+        let contracts_config = ContractsConfig::from_env()?;
         let network_config = NetworkConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
         let with_debug_namespace = state_keeper_config.save_call_traces;
@@ -235,7 +235,7 @@ impl MainNodeBuilder {
 
     fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
         let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
-        let contracts_config = ContractsConfig::from_env()?.into();
+        let contracts_config = ContractsConfig::from_env()?;
         let genesis_config = GenesisConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
         let circuit_breaker_config = CircuitBreakerConfig::from_env()?;
@@ -268,7 +268,7 @@ impl MainNodeBuilder {
     }
     fn add_eth_sender_layer(mut self) -> anyhow::Result<Self> {
         let eth_sender_config = ETHConfig::from_env()?;
-        let contracts_config = ContractsConfig::from_env()?.into();
+        let contracts_config = ContractsConfig::from_env()?;
         let network_config = NetworkConfig::from_env()?;
         let genesis_config = GenesisConfig::from_env()?;
 

@@ -13,7 +13,7 @@ use tokio::sync::{watch, Mutex};
 use vise::GaugeGuard;
 use zksync_config::{
     configs::{
-        api::Web3JsonRpcConfig, chain::NetworkConfig, genesis::SharedBridge, ContractsConfigReduced,
+        api::Web3JsonRpcConfig, chain::NetworkConfig, genesis::SharedBridge, ContractsConfig,
     },
     GenesisConfig,
 };
@@ -104,7 +104,7 @@ pub struct InternalApiConfig {
 impl InternalApiConfig {
     pub fn new(
         web3_config: &Web3JsonRpcConfig,
-        contracts_config: &ContractsConfigReduced,
+        contracts_config: &ContractsConfig,
         genesis_config: &GenesisConfig,
     ) -> Self {
         Self {

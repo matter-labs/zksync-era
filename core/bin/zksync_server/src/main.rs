@@ -11,12 +11,12 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        ContractsConfigReduced, FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
+        ContractsConfig, FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
         ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, WitnessGeneratorConfig,
     },
-    ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, ETHConfig, ETHWatchConfig,
-    GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
+    ApiConfig, ContractVerifierConfig, DBConfig, ETHConfig, ETHWatchConfig, GasAdjusterConfig,
+    GenesisConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_core::{
     genesis, genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
@@ -159,7 +159,7 @@ async fn main() -> anyhow::Result<()> {
         },
     };
 
-    let contracts_config: ContractsConfigReduced = match opt.contracts_config_path {
+    let contracts_config: ContractsConfig = match opt.contracts_config_path {
         None => ContractsConfig::from_env()
             .context("contracts_config")?
             .into(),
@@ -186,11 +186,13 @@ async fn main() -> anyhow::Result<()> {
     if opt.set_chain_id {
         let eth_client = ETHConfig::from_env().context("EthClientConfig")?;
         let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
-        if let Some(state_transition_proxy_addr) = contracts.state_transition_proxy_addr {
+        let genesis = GenesisConfig::from_env().context("Genesis config")?;
+
+        if let Some(shared_bridge) = genesis.shared_bridge {
             genesis::save_set_chain_id_tx(
                 &eth_client.web3_url,
                 contracts.diamond_proxy_addr,
-                state_transition_proxy_addr,
+                shared_bridge.state_transition_proxy_addr,
                 &postgres_config,
             )
             .await

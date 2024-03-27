@@ -1,11 +1,38 @@
 use anyhow::anyhow;
-use zksync_basic_types::H256;
+use serde::{Deserialize, Serialize};
+use zksync_basic_types::{Address, H256};
 use zksync_config::{
     configs::chain::{NetworkConfig, StateKeeperConfig},
     ContractsConfig, GenesisConfig,
 };
 
-use crate::FromEnv;
+use crate::{envy_load, FromEnv};
+
+// For initializing genesis file from  env it's required to have an additional struct,
+// because these data is not required as part of the current Conract Config
+#[derive(Deserialize, Serialize, Debug, Clone)]
+struct ContractsForGenesis {
+    pub genesis_root: Option<H256>,
+    pub genesis_rollup_leaf_index: Option<u64>,
+    pub genesis_batch_commitment: Option<H256>,
+    pub genesis_protocol_version: Option<u16>,
+    pub fri_recursion_scheduler_level_vk_hash: H256,
+    pub fri_recursion_node_level_vk_hash: H256,
+    pub fri_recursion_leaf_level_vk_hash: H256,
+    pub snark_wrapper_vk_hash: H256,
+    // These contracts will be used after shared bridge integration.
+    pub bridgehub_proxy_addr: Option<Address>,
+    pub bridgehub_impl_addr: Option<Address>,
+    pub state_transition_proxy_addr: Option<Address>,
+    pub state_transition_impl_addr: Option<Address>,
+    pub transparent_proxy_admin_addr: Option<Address>,
+}
+
+impl FromEnv for ContractsForGenesis {
+    fn from_env() -> anyhow::Result<Self> {
+        envy_load("contracts_for_genesis", "CONTRACTS_")
+    }
+}
 
 impl FromEnv for GenesisConfig {
     fn from_env() -> anyhow::Result<Self> {
@@ -13,7 +40,7 @@ impl FromEnv for GenesisConfig {
         // re-implemented and for the sake of simplicity we combine values from different sources
         // #PLA-811
         let network_config = &NetworkConfig::from_env()?;
-        let contracts_config = &ContractsConfig::from_env()?;
+        let contracts_config = &ContractsForGenesis::from_env()?;
         let state_keeper = StateKeeperConfig::from_env()?;
         Ok(GenesisConfig {
             protocol_version: contracts_config

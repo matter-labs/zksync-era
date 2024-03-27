@@ -32,7 +32,7 @@ use zksync_config::{
         },
         database::{MerkleTreeConfig, MerkleTreeMode},
         wallets::Wallets,
-        ContractsConfigReduced, GeneralConfig,
+        ContractsConfig, GeneralConfig,
     },
     ApiConfig, DBConfig, GenesisConfig, PostgresConfig,
 };
@@ -228,7 +228,7 @@ pub async fn initialize_components(
     configs: &GeneralConfig,
     wallets: Option<Wallets>,
     genesis_config: &GenesisConfig,
-    contracts_config: &ContractsConfigReduced,
+    contracts_config: &ContractsConfig,
     components: &[Component],
     secrets: &Secrets,
 ) -> anyhow::Result<(
@@ -775,7 +775,7 @@ pub async fn initialize_components(
 async fn add_state_keeper_to_task_futures(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     postgres_config: &PostgresConfig,
-    contracts_config: &ContractsConfigReduced,
+    contracts_config: &ContractsConfig,
     state_keeper_config: StateKeeperConfig,
     l2chain_id: L2ChainId,
     db_config: &DBConfig,
