@@ -1,8 +1,8 @@
 use anyhow::Context as _;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
-    api::en::SyncBlock, block::MiniblockHasher, helpers::unix_timestamp_ms, Address, L1BatchNumber,
-    MiniblockNumber, ProtocolVersionId, H256,
+    api::en::SyncBlock, block::MiniblockHasher, fee_model::BatchFeeInput,
+    helpers::unix_timestamp_ms, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
 };
 
 use super::{
@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     metrics::{TxStage, APP_METRICS},
-    state_keeper::io::common::IoCursor,
+    state_keeper::io::{common::IoCursor, L1BatchParams, MiniblockParams},
 };
 
 /// Same as [`zksync_types::Transaction`], just with additional guarantees that the "received at" timestamp was set locally.
@@ -102,7 +102,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
 
 impl IoCursor {
     /// Loads this cursor from storage and modifies it to account for the pending L1 batch if necessary.
-    pub(crate) async fn for_fetcher(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
+    pub(crate) async fn for_fetcher(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
         let mut this = Self::new(storage).await?;
         // It's important to know whether we have opened a new batch already or just sealed the previous one.
         // Depending on it, we must either insert `OpenBatch` item into the queue, or not.
@@ -147,15 +147,23 @@ impl IoCursor {
             );
 
             new_actions.push(SyncAction::OpenBatch {
+                params: L1BatchParams {
+                    protocol_version: block.protocol_version,
+                    validation_computational_gas_limit: super::VALIDATION_COMPUTATIONAL_GAS_LIMIT,
+                    operator_address: block.operator_address,
+                    fee_input: BatchFeeInput::for_protocol_version(
+                        block.protocol_version,
+                        block.l2_fair_gas_price,
+                        block.fair_pubdata_price,
+                        block.l1_gas_price,
+                    ),
+                    first_miniblock: MiniblockParams {
+                        timestamp: block.timestamp,
+                        virtual_blocks: block.virtual_blocks,
+                    },
+                },
                 number: block.l1_batch_number,
-                timestamp: block.timestamp,
-                l1_gas_price: block.l1_gas_price,
-                l2_fair_gas_price: block.l2_fair_gas_price,
-                fair_pubdata_price: block.fair_pubdata_price,
-                operator_address: block.operator_address,
-                protocol_version: block.protocol_version,
-                // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
-                first_miniblock_info: (block.number, block.virtual_blocks),
+                first_miniblock_number: block.number,
             });
             FETCHER_METRICS.l1_batch[&L1BatchStage::Open].set(block.l1_batch_number.0.into());
             self.l1_batch += 1;
@@ -163,10 +171,11 @@ impl IoCursor {
             // New batch implicitly means a new miniblock, so we only need to push the miniblock action
             // if it's not a new batch.
             new_actions.push(SyncAction::Miniblock {
+                params: MiniblockParams {
+                    timestamp: block.timestamp,
+                    virtual_blocks: block.virtual_blocks,
+                },
                 number: block.number,
-                timestamp: block.timestamp,
-                // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
-                virtual_blocks: block.virtual_blocks,
             });
             FETCHER_METRICS.miniblock.set(block.number.0.into());
         }
@@ -178,10 +187,7 @@ impl IoCursor {
         // Last miniblock of the batch is a "fictive" miniblock and would be replicated locally.
         // We don't need to seal it explicitly, so we only put the seal miniblock command if it's not the last miniblock.
         if block.last_in_batch {
-            new_actions.push(SyncAction::SealBatch {
-                // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
-                virtual_blocks: block.virtual_blocks,
-            });
+            new_actions.push(SyncAction::SealBatch);
         } else {
             new_actions.push(SyncAction::SealMiniblock);
         }

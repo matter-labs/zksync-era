@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     clients::QueryClient, CallFunctionArgs, Error as L1ClientError, EthInterface,
 };
@@ -149,7 +149,7 @@ impl LocalL1BatchCommitData {
     /// Returns `Ok(None)` if Postgres doesn't contain all data necessary to check L1 commitment
     /// for the specified batch.
     async fn new(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<Self>> {
         let Some(storage_l1_batch) = storage
@@ -253,7 +253,7 @@ pub struct ConsistencyChecker {
     l1_client: Box<dyn EthInterface>,
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
     health_check: ReactiveHealthCheck,
 }
 
@@ -263,7 +263,7 @@ impl ConsistencyChecker {
     pub fn new(
         web3_url: &str,
         max_batches_to_recheck: u32,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
     ) -> anyhow::Result<Self> {
         let web3 = QueryClient::new(web3_url).context("cannot create L1 Web3 client")?;
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
@@ -436,7 +436,7 @@ impl ConsistencyChecker {
     async fn last_committed_batch(&self) -> anyhow::Result<Option<L1BatchNumber>> {
         Ok(self
             .pool
-            .access_storage()
+            .connection()
             .await?
             .blocks_dal()
             .get_number_of_last_l1_batch_committed_on_eth()
@@ -504,11 +504,20 @@ impl ConsistencyChecker {
             .0
             .saturating_sub(self.max_batches_to_recheck)
             .into();
+
+        let last_processed_batch = self
+            .pool
+            .connection()
+            .await?
+            .blocks_dal()
+            .get_consistency_checker_last_processed_l1_batch()
+            .await?;
+
         // We shouldn't check batches not present in the storage, and skip the genesis batch since
         // it's not committed on L1.
         let first_batch_to_check = first_batch_to_check
             .max(earliest_l1_batch_number)
-            .max(L1BatchNumber(1));
+            .max(L1BatchNumber(last_processed_batch.0 + 1));
         tracing::info!(
             "Last committed L1 batch is #{last_committed_batch}; starting checks from L1 batch #{first_batch_to_check}"
         );
@@ -522,7 +531,7 @@ impl ConsistencyChecker {
                 break;
             }
 
-            let mut storage = self.pool.access_storage().await?;
+            let mut storage = self.pool.connection().await?;
             // The batch might be already committed but not yet processed by the external node's tree
             // OR the batch might be processed by the external node's tree but not yet committed.
             // We need both.
@@ -534,6 +543,11 @@ impl ConsistencyChecker {
 
             match self.check_commitments(batch_number, &local).await {
                 Ok(()) => {
+                    let mut storage = self.pool.connection().await?;
+                    storage
+                        .blocks_dal()
+                        .set_consistency_checker_last_processed_l1_batch(batch_number)
+                        .await?;
                     self.event_handler.update_checked_batch(batch_number);
                     batch_number += 1;
                 }

@@ -28,8 +28,6 @@ pub(crate) enum TxExecutionResult {
     Success {
         tx_result: Box<VmExecutionResultAndLogs>,
         tx_metrics: Box<ExecutionMetricsForCriteria>,
-        bootloader_dry_run_metrics: Box<ExecutionMetricsForCriteria>,
-        bootloader_dry_run_result: Box<VmExecutionResultAndLogs>,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         call_tracer_result: Vec<Call>,
         gas_remaining: u32,
@@ -38,8 +36,6 @@ pub(crate) enum TxExecutionResult {
     RejectedByVm { reason: Halt },
     /// Bootloader gas limit is not enough to execute the tx.
     BootloaderOutOfGasForTx,
-    /// Bootloader gas limit is enough to run the tx but not enough to execute block tip.
-    BootloaderOutOfGasForBlockTip,
 }
 
 impl TxExecutionResult {
@@ -50,9 +46,7 @@ impl TxExecutionResult {
             Self::RejectedByVm {
                 reason: rejection_reason,
             } => Some(rejection_reason),
-            Self::BootloaderOutOfGasForTx | Self::BootloaderOutOfGasForBlockTip { .. } => {
-                Some(&Halt::BootloaderOutOfGas)
-            }
+            Self::BootloaderOutOfGasForTx => Some(&Halt::BootloaderOutOfGas),
         }
     }
 }

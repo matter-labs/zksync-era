@@ -120,6 +120,12 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .transpose()
                 .context("websocket_requests_per_minute_limit")?,
             tree_api_url: self.tree_api_url.clone(),
+            mempool_cache_update_interval: self.mempool_cache_update_interval,
+            mempool_cache_size: self
+                .mempool_cache_size
+                .map(|x| x.try_into())
+                .transpose()
+                .context("mempool_cache_size")?,
         })
     }
     fn build(this: &Self::Type) -> Self {
@@ -130,6 +136,8 @@ impl ProtoRepr for proto::Web3JsonRpc {
             ws_url: Some(this.ws_url.clone()),
             req_entities_limit: this.req_entities_limit,
             filters_disabled: Some(this.filters_disabled),
+            mempool_cache_update_interval: this.mempool_cache_update_interval,
+            mempool_cache_size: this.mempool_cache_size.map(|x| x.try_into().unwrap()),
             filters_limit: this.filters_limit,
             subscriptions_limit: this.subscriptions_limit,
             pubsub_polling_interval: this.pubsub_polling_interval,

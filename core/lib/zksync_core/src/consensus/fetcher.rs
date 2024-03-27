@@ -51,7 +51,6 @@ impl Fetcher {
             // Fetch blocks before the genesis.
             self.fetch_blocks(ctx, &mut cursor, Some(genesis.fork.first_block))
                 .await?;
-
             // Monitor the genesis of the main node.
             // If it changes, it means that a hard fork occurred and we need to reset the consensus state.
             s.spawn_bg::<()>(async {
@@ -175,6 +174,7 @@ impl Fetcher {
         end: Option<validator::BlockNumber>,
     ) -> ctx::Result<()> {
         const MAX_CONCURRENT_REQUESTS: usize = 30;
+        let first = cursor.next();
         let mut next = cursor.next();
         scope::run!(ctx, |ctx, s| async {
             let (send, mut recv) = ctx::channel::bounded(MAX_CONCURRENT_REQUESTS);
@@ -194,6 +194,13 @@ impl Fetcher {
             }
             Ok(())
         })
-        .await
+        .await?;
+        // If fetched anything, wait for the last block to be stored persistently.
+        if first < cursor.next() {
+            self.store
+                .wait_for_payload(ctx, cursor.next().prev().unwrap())
+                .await?;
+        }
+        Ok(())
     }
 }

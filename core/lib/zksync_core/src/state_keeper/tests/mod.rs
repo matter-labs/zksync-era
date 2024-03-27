@@ -31,13 +31,14 @@ use zksync_types::{
 mod tester;
 
 use self::tester::{
-    bootloader_tip_out_of_gas, pending_batch_data, random_tx, random_upgrade_tx, rejected_exec,
-    successful_exec, successful_exec_with_metrics, TestIO, TestScenario,
+    pending_batch_data, random_tx, random_upgrade_tx, rejected_exec, successful_exec,
+    successful_exec_with_metrics, TestIO, TestScenario,
 };
 pub(crate) use self::tester::{MockBatchExecutor, TestBatchExecutorBuilder};
 use crate::{
     gas_tracker::l1_batch_base_cost,
     state_keeper::{
+        batch_executor::TxExecutionResult,
         keeper::POLL_WAIT_DURATION,
         seal_criteria::{
             criteria::{GasCriterion, SlotsCriterion},
@@ -250,7 +251,7 @@ async fn sealed_by_gas() {
         })
         .next_tx("Second tx", random_tx(1), execution_result)
         .miniblock_sealed("Miniblock 2")
-        .batch_sealed_with("Batch sealed with both txs", |_, updates, _| {
+        .batch_sealed_with("Batch sealed with both txs", |updates| {
             assert_eq!(
                 updates.l1_batch.l1_gas_count,
                 BlockGasCount {
@@ -369,7 +370,7 @@ async fn bootloader_tip_out_of_gas_flow() {
         .next_tx(
             "Tx -> Bootloader tip out of gas",
             bootloader_out_of_gas_tx.clone(),
-            bootloader_tip_out_of_gas(),
+            TxExecutionResult::BootloaderOutOfGasForTx,
         )
         .tx_rollback(
             "Last tx rolled back to seal the block",
@@ -428,7 +429,7 @@ async fn pending_batch_is_applied() {
                 "Only one transaction should be in miniblock"
             );
         })
-        .batch_sealed_with("Batch sealed with all 3 txs", |_, updates, _| {
+        .batch_sealed_with("Batch sealed with all 3 txs", |updates| {
             assert_eq!(
                 updates.l1_batch.executed_transactions.len(),
                 3,
@@ -447,7 +448,7 @@ async fn load_upgrade_tx() {
     let batch_executor_base = TestBatchExecutorBuilder::new(&scenario);
     let (stop_sender, stop_receiver) = watch::channel(false);
 
-    let mut io = TestIO::new(stop_sender, scenario);
+    let (mut io, output_handler) = TestIO::new(stop_sender, scenario);
     io.add_upgrade_tx(ProtocolVersionId::latest(), random_upgrade_tx(1));
     io.add_upgrade_tx(ProtocolVersionId::next(), random_upgrade_tx(2));
 
@@ -455,6 +456,7 @@ async fn load_upgrade_tx() {
         stop_receiver,
         Box::new(io),
         Box::new(batch_executor_base),
+        output_handler,
         Arc::new(sealer),
     );
 
@@ -544,8 +546,8 @@ async fn miniblock_timestamp_after_pending_batch() {
             successful_exec(),
         )
         .miniblock_sealed_with("Miniblock with a single tx", move |updates| {
-            assert!(
-                updates.miniblock.timestamp == 1,
+            assert_eq!(
+                updates.miniblock.timestamp, 2,
                 "Timestamp for the new block must be taken from the test IO"
             );
         })
@@ -596,7 +598,7 @@ async fn time_is_monotonic() {
             );
             timestamp_second_miniblock.store(updates.miniblock.timestamp, Ordering::Relaxed);
         })
-        .batch_sealed_with("Batch 1", move |_, updates, _| {
+        .batch_sealed_with("Batch 1", move |updates| {
             // Timestamp from the currently stored miniblock would be used in the fictive miniblock.
             // It should be correct as well.
             let min_expected = timestamp_third_miniblock.load(Ordering::Relaxed);
@@ -628,7 +630,7 @@ async fn protocol_upgrade() {
         .increment_protocol_version("Increment protocol version")
         .next_tx("Second tx", random_tx(2), successful_exec())
         .miniblock_sealed("Miniblock 2")
-        .batch_sealed_with("Batch 1", move |_, updates, _| {
+        .batch_sealed_with("Batch 1", move |updates| {
             assert_eq!(
                 updates.protocol_version(),
                 ProtocolVersionId::latest(),

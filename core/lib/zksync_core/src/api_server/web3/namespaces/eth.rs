@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use zksync_dal::CoreDal;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
@@ -43,11 +44,7 @@ impl EthNamespace {
 
     #[tracing::instrument(skip(self))]
     pub async fn get_block_number_impl(&self) -> Result<U64, Web3Error> {
-        let mut storage = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut storage = self.state.connection_pool.connection_tagged("api").await?;
         let block_number = storage
             .blocks_dal()
             .get_sealed_miniblock_number()
@@ -66,11 +63,7 @@ impl EthNamespace {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         self.current_method().set_block_id(block_id);
 
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut connection = self.state.connection_pool.connection_tagged("api").await?;
         let block_args = self
             .state
             .resolve_block_args(&mut connection, block_id)
@@ -153,11 +146,7 @@ impl EthNamespace {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         self.current_method().set_block_id(block_id);
 
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut connection = self.state.connection_pool.connection_tagged("api").await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
 
         let balance = connection
@@ -229,11 +218,7 @@ impl EthNamespace {
         self.current_method().set_block_id(block_id);
         self.state.start_info.ensure_not_pruned(block_id)?;
 
-        let mut storage = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut storage = self.state.connection_pool.connection_tagged("api").await?;
         let Some(block_number) = self
             .state
             .resolve_block_unchecked(&mut storage, block_id)
@@ -295,11 +280,7 @@ impl EthNamespace {
         self.current_method().set_block_id(block_id);
         self.state.start_info.ensure_not_pruned(block_id)?;
 
-        let mut storage = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut storage = self.state.connection_pool.connection_tagged("api").await?;
         let Some(block_number) = self
             .state
             .resolve_block_unchecked(&mut storage, block_id)
@@ -327,11 +308,7 @@ impl EthNamespace {
         self.current_method().set_block_id(block_id);
         self.state.start_info.ensure_not_pruned(block_id)?;
 
-        let mut storage = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut storage = self.state.connection_pool.connection_tagged("api").await?;
         let Some(block_number) = self
             .state
             .resolve_block_unchecked(&mut storage, block_id)
@@ -367,11 +344,7 @@ impl EthNamespace {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         self.current_method().set_block_id(block_id);
 
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut connection = self.state.connection_pool.connection_tagged("api").await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         self.set_block_diff(block_number);
 
@@ -399,11 +372,7 @@ impl EthNamespace {
         self.current_method().set_block_id(block_id);
 
         let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(idx));
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut connection = self.state.connection_pool.connection_tagged("api").await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         self.set_block_diff(block_number);
         let value = connection
@@ -424,11 +393,7 @@ impl EthNamespace {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         self.current_method().set_block_id(block_id);
 
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut connection = self.state.connection_pool.connection_tagged("api").await?;
 
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         self.set_block_diff(block_number);
@@ -470,11 +435,7 @@ impl EthNamespace {
         &self,
         id: TransactionId,
     ) -> Result<Option<Transaction>, Web3Error> {
-        let mut storage = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut storage = self.state.connection_pool.connection_tagged("api").await?;
         let chain_id = self.state.api_config.l2_chain_id;
         let mut transaction = match id {
             TransactionId::Hash(hash) => storage
@@ -519,7 +480,7 @@ impl EthNamespace {
         let receipts = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .connection_tagged("api")
             .await?
             .transactions_web3_dal()
             .get_transaction_receipts(&[hash])
@@ -535,11 +496,7 @@ impl EthNamespace {
             .installed_filters
             .as_ref()
             .ok_or(Web3Error::NotImplemented)?;
-        let mut storage = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut storage = self.state.connection_pool.connection_tagged("api").await?;
         let last_block_number = storage
             .blocks_dal()
             .get_sealed_miniblock_number()
@@ -687,11 +644,7 @@ impl EthNamespace {
             .min(self.state.api_config.fee_history_limit)
             .max(1);
 
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut connection = self.state.connection_pool.connection_tagged("api").await?;
         let newest_miniblock = self
             .state
             .resolve_block(&mut connection, BlockId::Number(newest_block))
@@ -732,11 +685,7 @@ impl EthNamespace {
     ) -> Result<FilterChanges, Web3Error> {
         Ok(match typed_filter {
             TypedFilter::Blocks(from_block) => {
-                let mut conn = self
-                    .state
-                    .connection_pool
-                    .access_storage_tagged("api")
-                    .await?;
+                let mut conn = self.state.connection_pool.connection_tagged("api").await?;
                 let (block_hashes, last_block_number) = conn
                     .blocks_web3_dal()
                     .get_block_hashes_since(*from_block, self.state.api_config.req_entities_limit)
@@ -752,23 +701,39 @@ impl EthNamespace {
             }
 
             TypedFilter::PendingTransactions(from_timestamp_excluded) => {
-                let mut conn = self
+                // Attempt to get pending transactions from cache.
+
+                let tx_hashes_from_cache = self
                     .state
-                    .connection_pool
-                    .access_storage_tagged("api")
-                    .await?;
-                let (tx_hashes, last_timestamp) = conn
-                    .transactions_web3_dal()
-                    .get_pending_txs_hashes_after(
-                        *from_timestamp_excluded,
-                        Some(self.state.api_config.req_entities_limit),
-                    )
-                    .await
-                    .context("get_pending_txs_hashes_after")?;
+                    .mempool_cache
+                    .get_tx_hashes_after(*from_timestamp_excluded)
+                    .await;
+                let tx_hashes = match tx_hashes_from_cache {
+                    Some(mut result) => {
+                        result.truncate(self.state.api_config.req_entities_limit);
+                        result
+                    }
+                    None => {
+                        // On cache miss, query the database.
+                        let mut conn = self.state.connection_pool.connection_tagged("api").await?;
+                        conn.transactions_web3_dal()
+                            .get_pending_txs_hashes_after(
+                                *from_timestamp_excluded,
+                                Some(self.state.api_config.req_entities_limit),
+                            )
+                            .await
+                            .context("get_pending_txs_hashes_after")?
+                    }
+                };
 
-                *from_timestamp_excluded = last_timestamp.unwrap_or(*from_timestamp_excluded);
+                // It's possible the `tx_hashes` vector is empty,
+                // meaning there are no transactions in cache that are newer than `from_timestamp_excluded`.
+                // In this case we should return empty result and don't update `from_timestamp_excluded`.
+                if let Some((last_timestamp, _)) = tx_hashes.last() {
+                    *from_timestamp_excluded = *last_timestamp;
+                }
 
-                FilterChanges::Hashes(tx_hashes)
+                FilterChanges::Hashes(tx_hashes.into_iter().map(|(_, hash)| hash).collect())
             }
 
             TypedFilter::Events(filter, from_block) => {
@@ -809,11 +774,7 @@ impl EthNamespace {
                     topics,
                 };
 
-                let mut storage = self
-                    .state
-                    .connection_pool
-                    .access_storage_tagged("api")
-                    .await?;
+                let mut storage = self.state.connection_pool.connection_tagged("api").await?;
 
                 // Check if there is more than one block in range and there are more than `req_entities_limit` logs that satisfies filter.
                 // In this case we should return error and suggest requesting logs with smaller block range.

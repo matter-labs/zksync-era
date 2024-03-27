@@ -13,7 +13,7 @@ use self::utils::{
     mock_recovery_status, prepare_clients, MockMainNodeClient, ObjectStoreWithErrors,
 };
 use super::*;
-use crate::tests::utils::{mock_tokens, random_storage_logs};
+use crate::tests::utils::{mock_snapshot_header, mock_tokens, random_storage_logs};
 
 mod utils;
 
@@ -24,9 +24,9 @@ async fn snapshots_creator_can_successfully_recover_db(
     with_object_store_errors: bool,
 ) {
     let pool = if let Some(pool_size) = pool_size {
-        ConnectionPool::constrained_test_pool(pool_size).await
+        ConnectionPool::<Core>::constrained_test_pool(pool_size).await
     } else {
-        ConnectionPool::test_pool().await
+        ConnectionPool::<Core>::test_pool().await
     };
     let expected_status = mock_recovery_status();
     let storage_logs = random_storage_logs(expected_status.l1_batch_number, 200);
@@ -56,7 +56,7 @@ async fn snapshots_creator_can_successfully_recover_db(
         .await
         .unwrap();
 
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     let mut recovery_dal = storage.snapshot_recovery_dal();
 
     let current_db_status = recovery_dal.get_applied_snapshot_status().await.unwrap();
@@ -98,10 +98,10 @@ async fn snapshots_creator_can_successfully_recover_db(
 
 #[tokio::test]
 async fn applier_errors_after_genesis() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
 
     // We don't want to depend on the core crate, so instead we cheaply emulate it.
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     storage
         .protocol_versions_dal()
         .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -154,7 +154,7 @@ async fn applier_errors_after_genesis() {
 
 #[tokio::test]
 async fn applier_errors_without_snapshots() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
     let client = MockMainNodeClient::default();
@@ -166,8 +166,28 @@ async fn applier_errors_without_snapshots() {
 }
 
 #[tokio::test]
-async fn applier_returns_error_on_fatal_object_store_error() {
+async fn applier_errors_with_unrecognized_snapshot_version() {
     let pool = ConnectionPool::test_pool().await;
+    let object_store_factory = ObjectStoreFactory::mock();
+    let object_store = object_store_factory.create_store().await;
+    let expected_status = mock_recovery_status();
+    let client = MockMainNodeClient {
+        fetch_newest_snapshot_response: Some(SnapshotHeader {
+            version: u16::MAX,
+            ..mock_snapshot_header(&expected_status)
+        }),
+        ..MockMainNodeClient::default()
+    };
+
+    SnapshotsApplierConfig::for_tests()
+        .run(&pool, &client, &object_store)
+        .await
+        .unwrap_err();
+}
+
+#[tokio::test]
+async fn applier_returns_error_on_fatal_object_store_error() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let expected_status = mock_recovery_status();
     let storage_logs = random_storage_logs(expected_status.l1_batch_number, 100);
     let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
@@ -189,7 +209,7 @@ async fn applier_returns_error_on_fatal_object_store_error() {
 
 #[tokio::test]
 async fn applier_returns_error_after_too_many_object_store_retries() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let expected_status = mock_recovery_status();
     let storage_logs = random_storage_logs(expected_status.l1_batch_number, 100);
     let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
@@ -211,7 +231,7 @@ async fn applier_returns_error_after_too_many_object_store_retries() {
 
 #[tokio::test]
 async fn recovering_tokens() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let expected_status = mock_recovery_status();
     let tokens = mock_tokens();
     let mut storage_logs = random_storage_logs(expected_status.l1_batch_number, 200);
@@ -235,7 +255,7 @@ async fn recovering_tokens() {
         .unwrap();
 
     // Check that tokens are successfully restored.
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     let recovered_tokens = storage
         .tokens_web3_dal()
         .get_all_tokens(None)

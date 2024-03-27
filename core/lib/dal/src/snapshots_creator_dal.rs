@@ -1,13 +1,14 @@
+use zksync_db_connection::{connection::Connection, instrument::InstrumentExt};
 use zksync_types::{
     snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber, MiniblockNumber,
     StorageKey, H256,
 };
 
-use crate::{instrument::InstrumentExt, StorageProcessor};
+use crate::Core;
 
 #[derive(Debug)]
 pub struct SnapshotsCreatorDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl SnapshotsCreatorDal<'_, '_> {
@@ -40,6 +41,8 @@ impl SnapshotsCreatorDal<'_, '_> {
         Ok(count as u64)
     }
 
+    /// Constructs a `storate_logs` chunk of the state AFTER processing `[0..l1_batch_number]`
+    /// batches. `miniblock_number` MUST be the last miniblock of the `l1_batch_number` batch.
     pub async fn get_storage_logs_chunk(
         &mut self,
         miniblock_number: MiniblockNumber,
@@ -143,12 +146,12 @@ mod tests {
     use zksync_types::StorageLog;
 
     use super::*;
-    use crate::ConnectionPool;
+    use crate::{ConnectionPool, Core, CoreDal};
 
     #[tokio::test]
     async fn getting_storage_log_chunks_basics() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
 
         let logs = (0..100).map(|i| {
             let key = StorageKey::new(
@@ -219,7 +222,7 @@ mod tests {
     }
 
     async fn assert_logs_for_snapshot(
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut Connection<'_, Core>,
         miniblock_number: MiniblockNumber,
         l1_batch_number: L1BatchNumber,
         expected_logs: &[StorageLog],
@@ -259,8 +262,8 @@ mod tests {
 
     #[tokio::test]
     async fn phantom_writes_are_filtered_out() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
 
         let key = StorageKey::new(AccountTreeId::default(), H256::repeat_byte(1));
         let phantom_writes = vec![

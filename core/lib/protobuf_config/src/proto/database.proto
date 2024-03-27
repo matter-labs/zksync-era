@@ -31,4 +31,5 @@ message Postgres {
   optional uint64 acquire_timeout_sec = 6; // optional; s
   optional uint64 long_connection_threshold_ms = 7; // optional; ms
   optional uint64 slow_query_threshold_ms = 8; // optional; ms
+  optional uint32 max_connections_master = 9; // optional
 }
