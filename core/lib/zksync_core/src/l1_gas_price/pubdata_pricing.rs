@@ -6,9 +6,9 @@ pub trait PubdataPricing
 where
     Self: std::fmt::Debug + Sync + Send,
 {
-    /// Returns the amount of L1 gas to publish a single byte of pub data in PubdataSendingMode::Calldata.
+    /// Returns the amount of L1 gas to publish a single byte of pub data in `PubdataSendingMode::Calldata`.
     fn pubdata_byte_gas(&self) -> u64;
-    /// Returns the amount of L1 gas to publish a single byte of pub data in PubdataSendingMode::Blobs.
+    /// Returns the amount of L1 gas to publish a single byte of pub data in `PubdataSendingMode::Blobs`.
     fn bound_blob_base_fee(&self, blob_base_fee: f64, max_blob_base_fee: u64) -> u64;
 }
 
