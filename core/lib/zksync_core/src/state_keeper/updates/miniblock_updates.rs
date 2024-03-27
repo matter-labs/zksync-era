@@ -27,7 +27,7 @@ pub struct MiniblockUpdates {
     pub block_execution_metrics: ExecutionMetrics,
     pub txs_encoding_size: usize,
     pub timestamp: u64,
-    pub number: u32,
+    pub number: MiniblockNumber,
     pub prev_block_hash: H256,
     pub virtual_blocks: u32,
     pub protocol_version: ProtocolVersionId,
@@ -36,7 +36,7 @@ pub struct MiniblockUpdates {
 impl MiniblockUpdates {
     pub(crate) fn new(
         timestamp: u64,
-        number: u32,
+        number: MiniblockNumber,
         prev_block_hash: H256,
         virtual_blocks: u32,
         protocol_version: ProtocolVersionId,
@@ -148,11 +148,7 @@ impl MiniblockUpdates {
 
     /// Calculates miniblock hash based on the protocol version.
     pub(crate) fn get_miniblock_hash(&self) -> H256 {
-        let mut digest = MiniblockHasher::new(
-            MiniblockNumber(self.number),
-            self.timestamp,
-            self.prev_block_hash,
-        );
+        let mut digest = MiniblockHasher::new(self.number, self.timestamp, self.prev_block_hash);
         for tx in &self.executed_transactions {
             digest.push_tx_hash(tx.hash);
         }
@@ -161,7 +157,7 @@ impl MiniblockUpdates {
 
     pub(crate) fn get_miniblock_env(&self) -> L2BlockEnv {
         L2BlockEnv {
-            number: self.number,
+            number: self.number.0,
             timestamp: self.timestamp,
             prev_block_hash: self.prev_block_hash,
             max_virtual_blocks_to_create: self.virtual_blocks,
@@ -178,8 +174,13 @@ mod tests {
 
     #[test]
     fn apply_empty_l2_tx() {
-        let mut accumulator =
-            MiniblockUpdates::new(0, 0, H256::random(), 0, ProtocolVersionId::latest());
+        let mut accumulator = MiniblockUpdates::new(
+            0,
+            MiniblockNumber(0),
+            H256::random(),
+            0,
+            ProtocolVersionId::latest(),
+        );
         let tx = create_transaction(10, 100);
         let bootloader_encoding_size = tx.bootloader_encoding_size();
         accumulator.extend_from_executed_transaction(

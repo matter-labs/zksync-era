@@ -159,7 +159,6 @@ impl MainNodeBuilder {
     fn add_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(ProofDataHandlerLayer::new(
             ProofDataHandlerConfig::from_env()?,
-            ContractsConfig::from_env()?,
         ));
         Ok(self)
     }

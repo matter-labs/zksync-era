@@ -79,7 +79,7 @@ pub(crate) struct VmInstanceInnerState<H: HistoryMode> {
 
 impl<S: WriteStorage, H: CommonHistoryMode> Vm<S, H> {
     // Dump inner state of the VM.
-    pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState<H::Vm1_4_2> {
+    pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState<H::VmLatest> {
         let event_sink = self.state.event_sink.clone();
         let precompile_processor_state = PrecompileProcessorTestInnerState {
             timestamp_history: self.state.precompiles_processor.timestamp_history.clone(),

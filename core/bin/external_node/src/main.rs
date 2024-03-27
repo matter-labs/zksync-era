@@ -5,7 +5,7 @@ use clap::Parser;
 use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task};
-use zksync_basic_types::{Address, L2ChainId};
+use zksync_basic_types::L2ChainId;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_core::{
@@ -25,8 +25,8 @@ use zksync_core::{
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
     state_keeper::{
-        seal_criteria::NoopSealer, BatchExecutor, MainBatchExecutor, MiniblockSealer,
-        MiniblockSealerHandle, ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, BatchExecutor, MainBatchExecutor, OutputHandler,
+        StateKeeperPersistence, ZkSyncStateKeeper,
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue, SyncState,
@@ -62,25 +62,16 @@ async fn build_state_keeper(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
     main_node_client: L2Client,
-    sync_state: SyncState,
-    l2_erc20_bridge_addr: Address,
-    miniblock_sealer_handle: MiniblockSealerHandle,
+    output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
 ) -> anyhow::Result<ZkSyncStateKeeper> {
-    // These config values are used on the main node, and depending on these values certain transactions can
-    // be *rejected* (that is, not included into the block). However, external node only mirrors what the main
-    // node has already executed, so we can safely set these values to the maximum possible values - if the main
-    // node has already executed the transaction, then the external node must execute it too.
-    let max_allowed_l2_tx_gas_limit = u32::MAX.into();
-    let validation_computational_gas_limit = u32::MAX;
     // We only need call traces on the external node if the `debug_` namespace is enabled.
     let save_call_traces = config.optional.api_namespaces().contains(&Namespace::Debug);
 
     let batch_executor_base: Box<dyn BatchExecutor> = Box::new(MainBatchExecutor::new(
         state_keeper_db_path,
         connection_pool.clone(),
-        max_allowed_l2_tx_gas_limit,
         save_call_traces,
         false,
         config.optional.enum_index_migration_chunk_size,
@@ -88,13 +79,9 @@ async fn build_state_keeper(
     ));
 
     let io = ExternalIO::new(
-        miniblock_sealer_handle,
         connection_pool,
         action_queue,
-        sync_state,
-        Box::new(main_node_client),
-        l2_erc20_bridge_addr,
-        validation_computational_gas_limit,
+        Box::new(main_node_client.for_component("external_io")),
         chain_id,
     )
     .await
@@ -104,6 +91,7 @@ async fn build_state_keeper(
         stop_receiver,
         Box::new(io),
         batch_executor_base,
+        output_handler,
         Arc::new(NoopSealer),
     ))
 }
@@ -131,8 +119,9 @@ async fn init_tasks(
     app_health.insert_custom_component(Arc::new(sync_state.clone()));
     let (action_queue_sender, action_queue) = ActionQueue::new();
 
-    let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(
+    let (persistence, miniblock_sealer) = StateKeeperPersistence::new(
         connection_pool.clone(),
+        config.remote.l2_erc20_bridge_addr,
         config.optional.miniblock_seal_queue_capacity,
     );
     task_handles.push(tokio::spawn(miniblock_sealer.run()));
@@ -159,15 +148,15 @@ async fn init_tasks(
         Ok(())
     }));
 
+    let output_handler = OutputHandler::new(Box::new(persistence.with_tx_insertion()))
+        .with_handler(Box::new(sync_state.clone()));
     let state_keeper = build_state_keeper(
         action_queue,
         config.required.state_cache_path.clone(),
         config,
         connection_pool.clone(),
         main_node_client.clone(),
-        sync_state.clone(),
-        config.remote.l2_erc20_bridge_addr,
-        miniblock_sealer_handle,
+        output_handler,
         stop_receiver.clone(),
         config.remote.l2_chain_id,
     )

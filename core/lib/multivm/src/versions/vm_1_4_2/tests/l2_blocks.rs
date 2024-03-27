@@ -18,14 +18,14 @@ use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     interface::{ExecutionResult, Halt, L2BlockEnv, TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
+    vm_1_4_2::{
         constants::{
             BOOTLOADER_HEAP_PAGE, TX_OPERATOR_L2_BLOCK_INFO_OFFSET,
             TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
         },
         tests::tester::{default_l1_batch, VmTesterBuilder},
         utils::l2_blocks::get_l2_block_hash_key,
-        HistoryEnabled, Vm,
+        Vm,
     },
     HistoryMode,
 };
@@ -55,7 +55,7 @@ fn test_l2_block_initialization_timestamp() {
     // Here we check that that the first block must have timestamp that is greater or equal to the timestamp
     // of the current batch.
 
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -92,7 +92,7 @@ fn test_l2_block_initialization_number_non_zero() {
         max_virtual_blocks_to_create: 1,
     };
 
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_l1_batch_env(l1_batch)
@@ -125,7 +125,7 @@ fn test_same_l2_block(
 ) {
     let mut l1_batch = default_l1_batch(L1BatchNumber(1));
     l1_batch.timestamp = 1;
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_l1_batch_env(l1_batch)
@@ -200,7 +200,7 @@ fn test_new_l2_block(
     l1_batch.timestamp = 1;
     l1_batch.first_l2_block = first_l2_block;
 
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_l1_batch_env(l1_batch)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
@@ -301,7 +301,7 @@ fn test_first_in_batch(
     l1_batch.number += 1;
     l1_batch.timestamp = new_batch_timestamp;
 
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(crate::vm_latest::HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_l1_batch_env(l1_batch)
         .with_execution_mode(TxExecutionMode::VerifyExecute)

@@ -76,7 +76,8 @@ use crate::{
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     metrics::{InitStage, APP_METRICS},
     state_keeper::{
-        create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer, SequencerSealer,
+        create_state_keeper, MempoolFetcher, MempoolGuard, OutputHandler, SequencerSealer,
+        StateKeeperPersistence,
     },
 };
 
@@ -701,10 +702,6 @@ pub async fn initialize_components(
                 .proof_data_handler_config
                 .clone()
                 .context("proof_data_handler_config")?,
-            configs
-                .contracts_config
-                .clone()
-                .context("contracts_config")?,
             store_factory.create_store().await,
             connection_pool.clone(),
             stop_receiver.clone(),
@@ -769,14 +766,15 @@ async fn add_state_keeper_to_task_futures(
         .build()
         .await
         .context("failed to build miniblock_sealer_pool")?;
-    let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(
+    let (persistence, miniblock_sealer) = StateKeeperPersistence::new(
         miniblock_sealer_pool,
+        contracts_config.l2_erc20_bridge_addr,
         state_keeper_config.miniblock_seal_queue_capacity,
     );
+    let persistence = persistence.with_object_store(object_store);
     task_futures.push(tokio::spawn(miniblock_sealer.run()));
 
     let state_keeper = create_state_keeper(
-        contracts_config,
         state_keeper_config,
         db_config,
         network_config,
@@ -784,8 +782,7 @@ async fn add_state_keeper_to_task_futures(
         state_keeper_pool.clone(),
         mempool.clone(),
         batch_fee_input_provider.clone(),
-        miniblock_sealer_handle,
-        object_store,
+        OutputHandler::new(Box::new(persistence)),
         stop_receiver.clone(),
     )
     .await;
