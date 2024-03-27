@@ -236,7 +236,10 @@ describe('ETH token checks', () => {
     });
 
     test('Can perform a deposit with precalculated max value', async () => {
-        console.log('approval of ERC20: ', (await alice.approveERC20(process.env.CONTRACTS_BASE_TOKEN_ADDR!, 7_000_000_000)));
+        console.log(
+            'approval of ERC20: ',
+            await alice.approveERC20(process.env.CONTRACTS_BASE_TOKEN_ADDR!, 7_000_000_000)
+        );
 
         const depositFee = await alice.getFullRequiredDepositFee({
             token: ETH_ADDRESS
