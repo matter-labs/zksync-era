@@ -17,7 +17,10 @@ mod tests {
 
     fn expected_config() -> FriWitnessGeneratorConfig {
         FriWitnessGeneratorConfig {
-            generation_timeout_in_secs: 900u16,
+            basic_generation_timeout_in_secs: 900u16,
+            leaf_generation_timeout_in_secs: 900u16,
+            node_generation_timeout_in_secs: 900u16,
+            scheduler_generation_timeout_in_secs: 900u16,
             max_attempts: 4,
             blocks_proving_percentage: Some(30),
             dump_arguments_for_blocks: vec![2, 3],
@@ -31,7 +34,10 @@ mod tests {
     fn from_env() {
         let mut lock = MUTEX.lock();
         let config = r#"
-            FRI_WITNESS_GENERATION_TIMEOUT_IN_SECS=900
+            FRI_BASIC_WITNESS_GENERATION_TIMEOUT_IN_SECS=900
+            FRI_LEAF_WITNESS_GENERATION_TIMEOUT_IN_SECS=900
+            FRI_NODE_WITNESS_GENERATION_TIMEOUT_IN_SECS=900
+            FRI_SCHEDULER_WITNESS_GENERATION_TIMEOUT_IN_SECS=900
             FRI_WITNESS_MAX_ATTEMPTS=4
             FRI_WITNESS_DUMP_ARGUMENTS_FOR_BLOCKS="2,3"
             FRI_WITNESS_BLOCKS_PROVING_PERCENTAGE="30"

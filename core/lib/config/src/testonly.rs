@@ -616,7 +616,10 @@ impl RandomConfig for configs::fri_prover_group::FriProverGroupConfig {
 impl RandomConfig for configs::FriWitnessGeneratorConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
-            generation_timeout_in_secs: g.gen(),
+            basic_generation_timeout_in_secs: g.gen(),
+            leaf_generation_timeout_in_secs: g.gen(),
+            node_generation_timeout_in_secs: g.gen(),
+            scheduler_generation_timeout_in_secs: g.gen(),
             max_attempts: g.gen(),
             blocks_proving_percentage: g.gen(),
             dump_arguments_for_blocks: g.gen(),

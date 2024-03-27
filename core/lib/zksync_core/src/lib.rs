@@ -1001,7 +1001,7 @@ async fn add_house_keeper_to_task_futures(
         .context("fri_witness_generator_config")?;
     let fri_witness_gen_job_retry_manager = FriWitnessGeneratorJobRetryManager::new(
         fri_witness_gen_config.max_attempts,
-        fri_witness_gen_config.witness_generation_timeout(),
+        fri_witness_gen_config.witness_generation_timeouts(),
         house_keeper_config.fri_witness_generator_job_retrying_interval_ms,
         prover_connection_pool.clone(),
     );
