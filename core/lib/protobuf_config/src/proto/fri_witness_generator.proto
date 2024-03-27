@@ -14,3 +14,4 @@ message FriWitnessGenerator {
     optional uint32 force_process_block = 9; // optional
     optional bool shall_save_to_public_bucket = 10; // required
 }
+
