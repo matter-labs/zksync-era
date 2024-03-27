@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
-use zksync_config::{ContractsConfig, ETHClientConfig, ETHSenderConfig};
+use zksync_config::{configs::ContractsConfig, ETHConfig};
 use zksync_eth_client::clients::PKSigningClient;
+use zksync_types::L1ChainId;
 
 use crate::{
     implementations::resources::eth_interface::BoundEthInterfaceResource,
@@ -11,21 +12,21 @@ use crate::{
 
 #[derive(Debug)]
 pub struct PKSigningEthClientLayer {
-    eth_sender_config: ETHSenderConfig,
+    eth_sender_config: ETHConfig,
     contracts_config: ContractsConfig,
-    eth_client_config: ETHClientConfig,
+    l1chain_id: L1ChainId,
 }
 
 impl PKSigningEthClientLayer {
     pub fn new(
-        eth_sender_config: ETHSenderConfig,
+        eth_sender_config: ETHConfig,
         contracts_config: ContractsConfig,
-        eth_client_config: ETHClientConfig,
+        l1chain_id: L1ChainId,
     ) -> Self {
         Self {
             eth_sender_config,
             contracts_config,
-            eth_client_config,
+            l1chain_id,
         }
     }
 }
@@ -46,7 +47,7 @@ impl WiringLayer for PKSigningEthClientLayer {
         let signing_client = PKSigningClient::from_config(
             &self.eth_sender_config,
             &self.contracts_config,
-            &self.eth_client_config,
+            self.l1chain_id,
         );
         context.insert_resource(BoundEthInterfaceResource(Arc::new(signing_client)))?;
         Ok(())

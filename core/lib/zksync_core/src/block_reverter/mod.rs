@@ -3,7 +3,7 @@ use std::{path::Path, time::Duration};
 use bitflags::bitflags;
 use serde::Serialize;
 use tokio::time::sleep;
-use zksync_config::{ContractsConfig, ETHSenderConfig};
+use zksync_config::{ContractsConfig, ETHConfig};
 use zksync_contracts::zksync_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
@@ -53,7 +53,7 @@ pub struct BlockReverterEthConfig {
 }
 
 impl BlockReverterEthConfig {
-    pub fn new(eth_config: ETHSenderConfig, contract: ContractsConfig, web3_url: String) -> Self {
+    pub fn new(eth_config: ETHConfig, contract: ContractsConfig) -> Self {
         let pk = eth_config
             .sender
             .private_key()
@@ -62,7 +62,7 @@ impl BlockReverterEthConfig {
             .expect("Failed to get address from private key");
 
         Self {
-            eth_client_url: web3_url,
+            eth_client_url: eth_config.web3_url,
             reverter_private_key: pk,
             reverter_address: operator_address,
             diamond_proxy_addr: contract.diamond_proxy_addr,

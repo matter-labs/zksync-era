@@ -1,10 +1,12 @@
 syntax = "proto3";
 
-package zksync.config.eth_sender;
+package zksync.config.eth;
 
-message ETHSender {
+message ETH {
   optional Sender sender = 1; // required
   optional GasAdjuster gas_adjuster = 2; // required
+  optional ETHWatch watcher = 3; // required
+  optional string web3_url = 4;
 }
 
 enum ProofSendingMode {
@@ -40,9 +42,8 @@ message Sender {
   optional uint64 timestamp_criteria_max_allowed_lag = 14; // required; ?
   optional uint64 l1_batch_min_age_before_execute_seconds = 15; // optional; s
   optional uint64 max_acceptable_priority_fee_in_gwei = 16; // required; gwei
-  optional ProofLoadingMode proof_loading_mode = 17; // required
-  // operator_private_key?
   optional PubdataSendingMode pubdata_sending_mode = 18; // required
+  optional ProofLoadingMode proof_loading_mode = 19;
 }
 
 message GasAdjuster {
@@ -57,4 +58,9 @@ message GasAdjuster {
   optional uint64 num_samples_for_blob_base_fee_estimate = 9; // required;
   optional double internal_pubdata_pricing_multiplier = 10; // required;
   optional uint64 max_blob_base_fee = 11; // optional; wei
+}
+
+message ETHWatch {
+  optional uint64 confirmations_for_eth_event = 1; // optional
+  optional uint64 eth_node_poll_interval = 2; // required; ms
 }

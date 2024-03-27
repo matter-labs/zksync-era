@@ -69,8 +69,8 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
         'WS L2 node URL'
     );
     const contractVerificationUrl = process.env.ZKSYNC_ENV!.startsWith('ext-node')
-        ? process.env.API_CONTRACT_VERIFICATION_URL!
-        : ensureVariable(process.env.API_CONTRACT_VERIFICATION_URL, 'Contract verification API');
+        ? process.env.CONTRACT_VERIFIER_URL!
+        : ensureVariable(process.env.CONTRACT_VERIFIER_URL, 'Contract verification API');
 
     const tokens = getTokens(process.env.CHAIN_ETH_NETWORK || 'localhost');
     // wBTC is chosen because it has decimals different from ETH (8 instead of 18).

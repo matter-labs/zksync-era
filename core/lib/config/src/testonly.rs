@@ -5,7 +5,7 @@ use zksync_basic_types::{
     basic_fri_types::CircuitIdRoundTuple, network::Network, Address, L1ChainId, L2ChainId, H256,
 };
 
-use crate::configs::{self, eth_sender::PubdataSendingMode};
+use crate::configs::{self, eth_sender::PubdataSendingMode, genesis::SharedBridge};
 
 /// Generator of random configs.
 pub struct Gen<'a, R: Rng> {
@@ -172,7 +172,6 @@ impl RandomConfig for configs::ApiConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
             web3_json_rpc: g.gen(),
-            contract_verification: g.gen(),
             prometheus: g.gen(),
             healthcheck: g.gen(),
             merkle_tree: g.gen(),
@@ -334,6 +333,8 @@ impl RandomConfig for configs::ContractVerifierConfig {
             compilation_timeout: g.gen(),
             polling_interval: g.gen(),
             prometheus_port: g.gen(),
+            port: g.gen(),
+            url: g.gen(),
         }
     }
 }
@@ -342,41 +343,16 @@ impl RandomConfig for configs::ContractsConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
             governance_addr: g.gen(),
-            mailbox_facet_addr: g.gen(),
-            executor_facet_addr: g.gen(),
-            admin_facet_addr: g.gen(),
-            getters_facet_addr: g.gen(),
             verifier_addr: g.gen(),
-            diamond_init_addr: g.gen(),
-            diamond_upgrade_init_addr: g.gen(),
+            default_upgrade_addr: g.gen(),
             diamond_proxy_addr: g.gen(),
             validator_timelock_addr: g.gen(),
-            genesis_tx_hash: g.gen(),
             l1_erc20_bridge_proxy_addr: g.gen(),
-            l1_erc20_bridge_impl_addr: g.gen(),
             l2_erc20_bridge_addr: g.gen(),
             l1_weth_bridge_proxy_addr: g.gen(),
             l2_weth_bridge_addr: g.gen(),
-            l1_allow_list_addr: g.gen(),
             l2_testnet_paymaster_addr: g.gen(),
-            recursion_scheduler_level_vk_hash: g.gen(),
-            recursion_node_level_vk_hash: g.gen(),
-            recursion_leaf_level_vk_hash: g.gen(),
-            recursion_circuits_set_vks_hash: g.gen(),
             l1_multicall3_addr: g.gen(),
-            fri_recursion_scheduler_level_vk_hash: g.gen(),
-            fri_recursion_node_level_vk_hash: g.gen(),
-            fri_recursion_leaf_level_vk_hash: g.gen(),
-            snark_wrapper_vk_hash: g.gen(),
-            bridgehub_impl_addr: g.gen(),
-            bridgehub_proxy_addr: g.gen(),
-            state_transition_proxy_addr: g.gen(),
-            state_transition_impl_addr: g.gen(),
-            transparent_proxy_admin_addr: g.gen(),
-            genesis_batch_commitment: g.gen(),
-            genesis_rollup_leaf_index: g.gen(),
-            genesis_root: g.gen(),
-            genesis_protocol_version: g.gen(),
         }
     }
 }
@@ -425,24 +401,19 @@ impl RandomConfig for configs::database::PostgresConfig {
             statement_timeout_sec: g.gen(),
             long_connection_threshold_ms: g.gen(),
             slow_query_threshold_ms: g.gen(),
+            test_server_url: g.gen(),
+            test_prover_url: g.gen(),
         }
     }
 }
 
-impl RandomConfig for configs::ETHClientConfig {
-    fn sample(g: &mut Gen<impl Rng>) -> Self {
-        Self {
-            chain_id: g.gen(),
-            web3_url: g.gen(),
-        }
-    }
-}
-
-impl RandomConfig for configs::ETHSenderConfig {
+impl RandomConfig for configs::ETHConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
             sender: g.gen(),
             gas_adjuster: g.gen(),
+            watcher: g.gen(),
+            web3_url: g.gen(),
         }
     }
 }
@@ -568,6 +539,7 @@ impl RandomConfig for configs::FriProverConfig {
             witness_vector_receiver_port: g.gen(),
             zone_read_url: g.gen(),
             shall_save_to_public_bucket: g.gen(),
+            object_store: g.gen(),
         }
     }
 }
@@ -654,13 +626,10 @@ impl RandomConfig for configs::house_keeper::HouseKeeperConfig {
             prover_stats_reporting_interval_ms: g.gen(),
             witness_job_moving_interval_ms: g.gen(),
             witness_generator_stats_reporting_interval_ms: g.gen(),
-            fri_witness_job_moving_interval_ms: g.gen(),
-            fri_prover_job_retrying_interval_ms: g.gen(),
-            fri_witness_generator_job_retrying_interval_ms: g.gen(),
+            witness_generator_job_retrying_interval_ms: g.gen(),
             prover_db_pool_size: g.gen(),
-            fri_prover_stats_reporting_interval_ms: g.gen(),
-            fri_proof_compressor_job_retrying_interval_ms: g.gen(),
-            fri_proof_compressor_stats_reporting_interval_ms: g.gen(),
+            proof_compressor_job_retrying_interval_ms: g.gen(),
+            proof_compressor_stats_reporting_interval_ms: g.gen(),
         }
     }
 }
@@ -708,6 +677,7 @@ impl RandomConfig for configs::SnapshotsCreatorConfig {
         Self {
             storage_logs_chunk_size: g.gen(),
             concurrent_queries_count: g.gen(),
+            object_store: g.gen(),
         }
     }
 }
@@ -744,6 +714,7 @@ impl RandomConfig for configs::ObservabilityConfig {
             sentry_environment: g.gen(),
             log_format: g.gen(),
             opentelemetry: g.gen(),
+            sporadic_crypto_errors_substrs: g.gen(),
         }
     }
 }
@@ -766,12 +737,25 @@ impl RandomConfig for configs::GenesisConfig {
             genesis_commitment: g.gen(),
             bootloader_hash: g.gen(),
             default_aa_hash: g.gen(),
-            fee_account: g.gen(),
             l1_chain_id: L1ChainId(g.gen()),
             l2_chain_id: L2ChainId::default(),
             recursion_node_level_vk_hash: g.gen(),
             recursion_leaf_level_vk_hash: g.gen(),
+            recursion_circuits_set_vks_hash: g.gen(),
             recursion_scheduler_level_vk_hash: g.gen(),
+            fee_account: g.gen(),
+            shared_bridge: g.gen(),
+            dummy_prover: g.gen(),
+        }
+    }
+}
+
+impl RandomConfig for SharedBridge {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        Self {
+            bridgehub_proxy_addr: g.gen(),
+            state_transition_proxy_addr: g.gen(),
+            transparent_proxy_admin_addr: g.gen(),
         }
     }
 }

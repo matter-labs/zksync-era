@@ -1,4 +1,4 @@
-use zksync_config::configs::api::ContractVerificationApiConfig;
+use zksync_config::ContractVerifierConfig;
 use zksync_dal::{ConnectionPool, Core};
 
 use crate::{
@@ -9,7 +9,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct ContractVerificationApiLayer(pub ContractVerificationApiConfig);
+pub struct ContractVerificationApiLayer(pub ContractVerifierConfig);
 
 #[async_trait::async_trait]
 impl WiringLayer for ContractVerificationApiLayer {
@@ -41,7 +41,7 @@ impl WiringLayer for ContractVerificationApiLayer {
 pub struct ContractVerificationApiTask {
     master_pool: ConnectionPool<Core>,
     replica_pool: ConnectionPool<Core>,
-    config: ContractVerificationApiConfig,
+    config: ContractVerifierConfig,
 }
 
 #[async_trait::async_trait]

@@ -1,10 +1,41 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
+use serde::{Deserialize, Serialize};
+use zksync_basic_types::{Address, H256};
 use zksync_config::{
-    configs::chain::{NetworkConfig, StateKeeperConfig},
-    ContractsConfig, GenesisConfig,
+    configs::{
+        chain::{NetworkConfig, StateKeeperConfig},
+        genesis::SharedBridge,
+    },
+    GenesisConfig,
 };
 
-use crate::FromEnv;
+use crate::{envy_load, FromEnv};
+
+// For initializing genesis file from  env it's required to have an additional struct,
+// because these data is not required as part of the current Conract Config
+#[derive(Deserialize, Serialize, Debug, Clone)]
+struct ContractsForGenesis {
+    pub genesis_root: Option<H256>,
+    pub genesis_rollup_leaf_index: Option<u64>,
+    pub genesis_batch_commitment: Option<H256>,
+    pub genesis_protocol_version: Option<u16>,
+    pub fri_recursion_scheduler_level_vk_hash: H256,
+    pub fri_recursion_node_level_vk_hash: H256,
+    pub fri_recursion_leaf_level_vk_hash: H256,
+    pub snark_wrapper_vk_hash: H256,
+    // These contracts will be used after shared bridge integration.
+    pub bridgehub_proxy_addr: Option<Address>,
+    pub bridgehub_impl_addr: Option<Address>,
+    pub state_transition_proxy_addr: Option<Address>,
+    pub state_transition_impl_addr: Option<Address>,
+    pub transparent_proxy_admin_addr: Option<Address>,
+}
+
+impl FromEnv for ContractsForGenesis {
+    fn from_env() -> anyhow::Result<Self> {
+        envy_load("contracts_for_genesis", "CONTRACTS_")
+    }
+}
 
 impl FromEnv for GenesisConfig {
     fn from_env() -> anyhow::Result<Self> {
@@ -12,8 +43,24 @@ impl FromEnv for GenesisConfig {
         // re-implemented and for the sake of simplicity we combine values from different sources
         // #PLA-811
         let network_config = &NetworkConfig::from_env()?;
-        let contracts_config = &ContractsConfig::from_env()?;
+        let contracts_config = &ContractsForGenesis::from_env()?;
         let state_keeper = StateKeeperConfig::from_env()?;
+        let shared_bridge = if let Some(state_transition_proxy_addr) =
+            contracts_config.state_transition_proxy_addr
+        {
+            Some(SharedBridge {
+                bridgehub_proxy_addr: contracts_config
+                    .bridgehub_proxy_addr
+                    .context("Must be specified with state_transition_proxy_addr")?,
+                state_transition_proxy_addr,
+                transparent_proxy_admin_addr: contracts_config
+                    .transparent_proxy_admin_addr
+                    .context("Must be specified with state_transition_proxy_addr")?,
+            })
+        } else {
+            None
+        };
+
         Ok(GenesisConfig {
             protocol_version: contracts_config
                 .genesis_protocol_version
@@ -33,12 +80,15 @@ impl FromEnv for GenesisConfig {
             default_aa_hash: state_keeper
                 .default_aa_hash
                 .ok_or(anyhow!("Default aa hash required for genesis"))?,
-            fee_account: state_keeper.fee_account_addr,
             l1_chain_id: network_config.network.chain_id(),
             l2_chain_id: network_config.zksync_network_id,
             recursion_node_level_vk_hash: contracts_config.fri_recursion_node_level_vk_hash,
             recursion_leaf_level_vk_hash: contracts_config.fri_recursion_leaf_level_vk_hash,
+            recursion_circuits_set_vks_hash: H256::zero(),
             recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
+            fee_account: state_keeper.fee_account_addr,
+            shared_bridge,
+            dummy_prover: false,
         })
     }
 }

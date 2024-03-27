@@ -12,8 +12,6 @@ impl FromEnv for ApiConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             web3_json_rpc: Web3JsonRpcConfig::from_env().context("Web3JsonRpcConfig")?,
-            contract_verification: ContractVerificationApiConfig::from_env()
-                .context("ContractVerificationApiConfig")?,
             prometheus: PrometheusConfig::from_env().context("PrometheusConfig")?,
             healthcheck: HealthCheckConfig::from_env().context("HealthCheckConfig")?,
             merkle_tree: MerkleTreeApiConfig::from_env().context("MerkleTreeApiConfig")?,
@@ -90,10 +88,6 @@ mod tests {
                 tree_api_url: None,
                 mempool_cache_update_interval: Some(50),
                 mempool_cache_size: Some(10000),
-            },
-            contract_verification: ContractVerificationApiConfig {
-                port: 3070,
-                url: "http://127.0.0.1:3070".into(),
             },
             prometheus: PrometheusConfig {
                 listener_port: 3312,

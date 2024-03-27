@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use tokio::sync::watch;
 use zksync_config::{
-    configs::chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
+    configs::chain::{MempoolConfig, StateKeeperConfig},
     DBConfig,
 };
 use zksync_dal::{ConnectionPool, Core};
+use zksync_types::L2ChainId;
 
 pub use self::{
     batch_executor::{main_executor::MainBatchExecutor, BatchExecutor},
@@ -38,7 +39,7 @@ pub(crate) mod updates;
 pub(crate) async fn create_state_keeper(
     state_keeper_config: StateKeeperConfig,
     db_config: &DBConfig,
-    network_config: &NetworkConfig,
+    l2chain_id: L2ChainId,
     mempool_config: &MempoolConfig,
     pool: ConnectionPool<Core>,
     mempool: MempoolGuard,
@@ -64,7 +65,7 @@ pub(crate) async fn create_state_keeper(
         pool,
         &state_keeper_config,
         mempool_config.delay_interval(),
-        network_config.zksync_network_id,
+        l2chain_id,
     )
     .await
     .expect("Failed initializing main node I/O for state keeper");

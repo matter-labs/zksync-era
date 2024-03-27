@@ -23,13 +23,10 @@ mod tests {
             prover_stats_reporting_interval_ms: 5_000,
             witness_job_moving_interval_ms: 30_000,
             witness_generator_stats_reporting_interval_ms: 10_000,
-            fri_witness_job_moving_interval_ms: 40_000,
-            fri_prover_job_retrying_interval_ms: 30_000,
-            fri_witness_generator_job_retrying_interval_ms: 30_000,
+            witness_generator_job_retrying_interval_ms: 30_000,
             prover_db_pool_size: 2,
-            fri_prover_stats_reporting_interval_ms: 30_000,
-            fri_proof_compressor_job_retrying_interval_ms: 30_000,
-            fri_proof_compressor_stats_reporting_interval_ms: 30_000,
+            proof_compressor_job_retrying_interval_ms: 30_000,
+            proof_compressor_stats_reporting_interval_ms: 30_000,
         }
     }
 

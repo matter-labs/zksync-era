@@ -146,6 +146,8 @@ pub struct PostgresConfig {
     pub long_connection_threshold_ms: Option<u64>,
     /// Threshold in milliseconds to denote a DB query as "slow" and log its details.
     pub slow_query_threshold_ms: Option<u64>,
+    pub test_server_url: Option<String>,
+    pub test_prover_url: Option<String>,
 }
 
 impl PostgresConfig {

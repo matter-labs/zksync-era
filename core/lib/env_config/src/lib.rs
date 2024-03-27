@@ -7,7 +7,6 @@ mod chain;
 mod contract_verifier;
 mod contracts;
 mod database;
-mod eth_client;
 mod eth_sender;
 mod eth_watch;
 mod fri_proof_compressor;

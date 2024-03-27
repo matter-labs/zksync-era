@@ -4,23 +4,23 @@
 # Configuration for the web3 JSON RPC server
 [api.web3_json_rpc]
 # Port for the HTTP RPC API.
-http_port=3050
-http_url="http://127.0.0.1:3050"
+http_port = 3050
+http_url = "http://127.0.0.1:3050"
 # Port for the WebSocket RPC API.
-ws_port=3051
-ws_url="ws://127.0.0.1:3051"
-req_entities_limit=10000
-filters_disabled=false
-filters_limit=10000
-subscriptions_limit=10000
+ws_port = 3051
+ws_url = "ws://127.0.0.1:3051"
+req_entities_limit = 10000
+filters_disabled = false
+filters_limit = 10000
+subscriptions_limit = 10000
 # Interval between polling db for pubsub (in ms).
-pubsub_polling_interval=200
-threads_per_server=128
-max_nonce_ahead=50
-gas_price_scale_factor=1.2
-l1_to_l2_transactions_compatibility_mode=true
-request_timeout=10
-account_pks=[
+pubsub_polling_interval = 200
+threads_per_server = 128
+max_nonce_ahead = 50
+gas_price_scale_factor = 1.2
+l1_to_l2_transactions_compatibility_mode = true
+request_timeout = 10
+account_pks = [
     "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
     "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
     "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
@@ -42,26 +42,20 @@ account_pks=[
     "0xde9be858da4a475276426320d5e9262ecfc3ba460bfac56360bfa6c4c28b4ee0",
     "0xdf57089febbacf7ba0bc227dafbffa9fc08a93fdc68e1e42411a14efcf23656e"
 ]
-estimate_gas_scale_factor=1.2
-estimate_gas_acceptable_overestimation=1000
-max_tx_size=1000000
-# Configuration for the contract verification API
-[api.contract_verification]
-# Port for the contract verification API.
-port=3070
-url="http://127.0.0.1:3070"
-threads_per_server=128
+estimate_gas_scale_factor = 1.2
+estimate_gas_acceptable_overestimation = 1000
+max_tx_size = 1000000
 
 # Configuration for the prometheus exporter server.
 [api.prometheus]
-listener_port=3312
-pushgateway_url="http://127.0.0.1:9091"
-push_interval_ms=100
+listener_port = 3312
+pushgateway_url = "http://127.0.0.1:9091"
+push_interval_ms = 100
 
 # Configuration for the healtcheck server.
 [api.healthcheck]
-port=3071
+port = 3071
 
 # Configuration for the Merkle tree API server
 [api.merkle_tree]
-port=3072
+port = 3072

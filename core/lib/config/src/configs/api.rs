@@ -10,8 +10,6 @@ pub use crate::configs::PrometheusConfig;
 pub struct ApiConfig {
     /// Configuration options for the Web3 JSON RPC servers.
     pub web3_json_rpc: Web3JsonRpcConfig,
-    /// Configuration options for the REST servers.
-    pub contract_verification: ContractVerificationApiConfig,
     /// Configuration options for the Prometheus exporter.
     pub prometheus: PrometheusConfig,
     /// Configuration options for the Health check.

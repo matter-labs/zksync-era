@@ -14,8 +14,8 @@ pub use self::{execute::Execute, tx_execution_info::ExecutionMetrics};
 use crate::{vm_trace::Call, Transaction};
 
 pub mod execute;
-pub mod primitives;
 pub mod tx_execution_info;
+pub use zksync_crypto_primitives as primitives;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransactionExecutionResult {
