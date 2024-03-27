@@ -7,7 +7,6 @@ import fs, { FileHandle } from 'node:fs/promises';
 import { ChildProcess, spawn, exec } from 'node:child_process';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import dotenv from 'dotenv';
 
 interface AllSnapshotsResponse {
     readonly snapshotsL1BatchNumbers: number[];
