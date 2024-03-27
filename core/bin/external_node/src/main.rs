@@ -262,17 +262,15 @@ async fn run_core(
         }
     }));
 
-    let pruning_enabled = config.optional.pruning_data_retention_hours.is_some();
-    if pruning_enabled {
-        let l1_batch_age_to_prune =
-            Duration::from_secs(3600 * config.optional.pruning_data_retention_hours.unwrap());
+    if let Some(data_retention_hours) = config.optional.pruning_data_retention_hours {
+        let l1_batch_age_to_prune = Duration::from_secs(3600 * data_retention_hours);
         tracing::info!(
             "Configured pruning of batches after they become {l1_batch_age_to_prune:?} old"
         );
         let db_pruner = DbPruner::new(
             DbPrunerConfig {
                 soft_and_hard_pruning_time_delta: Duration::from_secs(60),
-                pruned_chunk_size: config.optional.pruning_chunk_size,
+                pruned_batch_chunk_size: config.optional.pruning_chunk_size,
                 next_iterations_delay: Duration::from_secs(30),
             },
             vec![
@@ -292,7 +290,7 @@ async fn run_core(
             ],
         )?;
         task_handles.push(tokio::spawn(
-            db_pruner.run_in_loop(connection_pool.clone(), stop_receiver.clone()),
+            db_pruner.run(connection_pool.clone(), stop_receiver.clone()),
         ));
     }
 

@@ -1,5 +1,5 @@
 use std::{
-    sync::{Arc, Mutex},
+    sync::{Arc, RwLock},
     time::Duration,
 };
 
@@ -196,13 +196,13 @@ impl TxSharedArgs {
 /// Information about first L1 batch / miniblock in the node storage.
 #[derive(Debug, Clone)]
 pub(crate) struct BlockStartInfo {
-    cached_pruning_info: Arc<Mutex<(PruningInfo, DateTime<Utc>)>>,
+    cached_pruning_info: Arc<RwLock<(PruningInfo, DateTime<Utc>)>>,
 }
 
 impl BlockStartInfo {
     pub async fn new(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
         Ok(Self {
-            cached_pruning_info: Arc::from(Mutex::from((
+            cached_pruning_info: Arc::from(RwLock::from((
                 storage.pruning_dal().get_pruning_info().await?,
                 Utc::now(),
             ))),
@@ -212,7 +212,7 @@ impl BlockStartInfo {
     fn get_cache_state_copy(&self) -> (PruningInfo, DateTime<Utc>) {
         let current_cache = self
             .cached_pruning_info
-            .lock()
+            .read()
             .expect("BlockStartInfo is poisoned");
         *current_cache
     }
@@ -222,17 +222,17 @@ impl BlockStartInfo {
     ) -> anyhow::Result<PruningInfo> {
         let (pruning_info, last_cache_date) = self.get_cache_state_copy();
         let now = Utc::now();
-        let cache_max_age_ms = 20000;
+        const CACHE_MAX_AGE_MS: i64 = 20000;
         // we make max_age a bit random so that all threads don't start refreshing cache at the same time
         let random_delay =
-            chrono::Duration::milliseconds(i64::from(random::<u32>()) % cache_max_age_ms / 2);
-        if now - last_cache_date > chrono::Duration::milliseconds(cache_max_age_ms) + random_delay {
+            chrono::Duration::milliseconds(i64::from(random::<u32>()) % CACHE_MAX_AGE_MS / 2);
+        if now - last_cache_date > chrono::Duration::milliseconds(CACHE_MAX_AGE_MS) + random_delay {
             //multiple threads may execute this query if we're very unlucky
             let new_pruning_info = storage.pruning_dal().get_pruning_info().await?;
 
             let mut new_cached_pruning_info = self
                 .cached_pruning_info
-                .lock()
+                .write()
                 .expect("BlockStartInfo is poisoned");
             new_cached_pruning_info.0 = new_pruning_info;
             new_cached_pruning_info.1 = now;

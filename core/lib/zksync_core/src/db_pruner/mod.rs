@@ -1,7 +1,7 @@
 mod metrics;
 pub mod prune_conditions;
 
-use std::{fmt, sync::Arc, time::Duration};
+use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use tokio::sync::watch;
@@ -14,16 +14,7 @@ use crate::db_pruner::metrics::{MetricPruneType, METRICS};
 pub struct DbPrunerConfig {
     pub soft_and_hard_pruning_time_delta: Duration,
     pub next_iterations_delay: Duration,
-    pub pruned_chunk_size: u32,
-}
-
-impl fmt::Debug for dyn PruneCondition {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("PruneCondition")
-            .field("name", &self.name())
-            .finish()
-    }
+    pub pruned_batch_chunk_size: u32,
 }
 
 #[derive(Debug)]
@@ -34,9 +25,7 @@ pub struct DbPruner {
 
 /// Interface to be used for health checks.
 #[async_trait]
-pub trait PruneCondition: Send + Sync + 'static {
-    /// Unique name of the condition.
-    fn name(&self) -> &'static str;
+pub trait PruneCondition: Debug + Send + Sync + 'static {
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool>;
 }
 
@@ -52,19 +41,18 @@ impl DbPruner {
     }
 
     pub async fn is_l1_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> bool {
-        let mut successful_conditions: Vec<&'static str> = vec![];
-        let mut failed_conditions: Vec<&'static str> = vec![];
-        let mut errored_conditions: Vec<&'static str> = vec![];
+        let mut successful_conditions: Vec<String> = vec![];
+        let mut failed_conditions: Vec<String> = vec![];
+        let mut errored_conditions: Vec<String> = vec![];
 
-        for condition in self.prune_conditions.iter() {
+        for condition in &self.prune_conditions {
             match condition.is_batch_prunable(l1_batch_number).await {
-                Ok(true) => successful_conditions.push(condition.name()),
-                Ok(false) => failed_conditions.push(condition.name()),
+                Ok(true) => successful_conditions.push(format!("{condition:?}")),
+                Ok(false) => failed_conditions.push(format!("{condition:?}")),
                 Err(error) => {
-                    errored_conditions.push(condition.name());
+                    errored_conditions.push(format!("{condition:?}"));
                     tracing::warn!(
-                        "Pruning condition for component {} resulted in an error: {error}",
-                        condition.name()
+                        "Pruning condition for component {condition:?} resulted in an error: {error}"
                     )
                 }
             }
@@ -73,16 +61,16 @@ impl DbPruner {
         if !result {
             tracing::info!(
                 "Pruning l1 batch {l1_batch_number} is not possible, \
-            successful checks: {successful_conditions:?}, \
-            failed conditions: {failed_conditions:?}, \
-            errored_conditions: {errored_conditions:?}"
+                successful conditions: {successful_conditions:?}, \
+                failed conditions: {failed_conditions:?}, \
+                errored_conditions: {errored_conditions:?}"
             );
         }
         result
     }
 
     async fn update_l1_batches_metric(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
-        let mut storage = pool.connection().await.unwrap();
+        let mut storage = pool.connection_tagged("db_pruner").await?;
         let first_l1_batch = storage.blocks_dal().get_earliest_l1_batch_number().await?;
         let last_l1_batch = storage.blocks_dal().get_sealed_l1_batch_number().await?;
         if first_l1_batch.is_none() {
@@ -99,7 +87,7 @@ impl DbPruner {
     async fn soft_prune(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<bool> {
         let latency = METRICS.pruning_chunk_duration[&MetricPruneType::Soft].start();
 
-        let mut storage = pool.connection().await?;
+        let mut storage = pool.connection_tagged("db_pruner").await?;
         let mut transaction = storage.start_transaction().await?;
 
         let current_pruning_info = transaction.pruning_dal().get_pruning_info().await?;
@@ -108,7 +96,7 @@ impl DbPruner {
                 .last_soft_pruned_l1_batch
                 .unwrap_or(L1BatchNumber(0))
                 .0
-                + self.config.pruned_chunk_size,
+                + self.config.pruned_batch_chunk_size,
         );
         if !self.is_l1_batch_prunable(next_l1_batch_to_prune).await {
             latency.observe();
@@ -130,10 +118,7 @@ impl DbPruner {
 
         let latency = latency.observe();
         tracing::info!(
-            "Soft pruned db l1_batches up to {} and miniblocks up to {}, operation took {:?}",
-            next_l1_batch_to_prune,
-            next_miniblock_to_prune,
-            latency
+            "Soft pruned db l1_batches up to {next_l1_batch_to_prune} and miniblocks up to {next_miniblock_to_prune}, operation took {latency:?}",
         );
 
         Ok(true)
@@ -142,7 +127,7 @@ impl DbPruner {
     async fn hard_prune(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let latency = METRICS.pruning_chunk_duration[&MetricPruneType::Hard].start();
 
-        let mut storage = pool.connection().await?;
+        let mut storage = pool.connection_tagged("db_pruner").await?;
         let mut transaction = storage.start_transaction().await?;
 
         let current_pruning_info = transaction.pruning_dal().get_pruning_info().await?;
@@ -168,9 +153,10 @@ impl DbPruner {
     }
 
     pub async fn run_single_iteration(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<bool> {
-        let mut storage = pool.connection().await?;
+        let mut storage = pool.connection_tagged("db_pruner").await?;
         let current_pruning_info = storage.pruning_dal().get_pruning_info().await?;
 
+        // If this if is not entered, it means that the node has restarted after soft pruning
         if current_pruning_info.last_soft_pruned_l1_batch
             == current_pruning_info.last_hard_pruned_l1_batch
         {
@@ -178,15 +164,14 @@ impl DbPruner {
             if !pruning_done {
                 return Ok(false);
             }
-
-            tokio::time::sleep(self.config.soft_and_hard_pruning_time_delta).await;
         }
 
+        tokio::time::sleep(self.config.soft_and_hard_pruning_time_delta).await;
         self.hard_prune(pool).await?;
 
         Ok(true)
     }
-    pub async fn run_in_loop(
+    pub async fn run(
         self,
         pool: ConnectionPool<Core>,
         stop_receiver: watch::Receiver<bool>,
@@ -198,8 +183,16 @@ impl DbPruner {
             let _ = self.update_l1_batches_metric(&pool).await;
             // as this component is not really mission-critical, all errors are generally ignored
             let pruning_done = self.run_single_iteration(&pool).await;
-            if !pruning_done.unwrap_or(false) {
+            if let Err(e) = pruning_done {
+                tracing::warn!(
+                    "Pruning error, retrying in {:?}, error was: {e}",
+                    self.config.next_iterations_delay
+                );
                 tokio::time::sleep(self.config.next_iterations_delay).await;
+            } else {
+                if !pruning_done.unwrap_or(false) {
+                    tokio::time::sleep(self.config.next_iterations_delay).await;
+                }
             }
         }
     }
@@ -207,7 +200,7 @@ impl DbPruner {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, fmt::Formatter};
 
     use anyhow::anyhow;
     use multivm::zk_evm_latest::ethereum_types::H256;
@@ -238,12 +231,14 @@ mod tests {
         }
     }
 
+    impl Debug for ConditionMock {
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            write!(f, "{}", self.name)
+        }
+    }
+
     #[async_trait]
     impl PruneCondition for ConditionMock {
-        fn name(&self) -> &'static str {
-            self.name
-        }
-
         async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
             if !self
                 .is_batch_prunable_responses
@@ -277,7 +272,7 @@ mod tests {
         let pruner = DbPruner::new(
             DbPrunerConfig {
                 soft_and_hard_pruning_time_delta: Duration::from_secs(0),
-                pruned_chunk_size: 1,
+                pruned_batch_chunk_size: 1,
                 next_iterations_delay: Duration::from_secs(0),
             },
             vec![failing_check, other_failing_check],
@@ -349,7 +344,7 @@ mod tests {
         let pruner = DbPruner::new(
             DbPrunerConfig {
                 soft_and_hard_pruning_time_delta: Duration::from_secs(0),
-                pruned_chunk_size: 5,
+                pruned_batch_chunk_size: 5,
                 next_iterations_delay: Duration::from_secs(0),
             },
             vec![nothing_prunable_check],
@@ -382,7 +377,7 @@ mod tests {
         let pruner = DbPruner::new(
             DbPrunerConfig {
                 soft_and_hard_pruning_time_delta: Duration::from_secs(0),
-                pruned_chunk_size: 5,
+                pruned_batch_chunk_size: 5,
                 next_iterations_delay: Duration::from_secs(0),
             },
             vec![], //No checks, so every batch is prunable
@@ -423,7 +418,7 @@ mod tests {
         let pruner = DbPruner::new(
             DbPrunerConfig {
                 soft_and_hard_pruning_time_delta: Duration::from_secs(0),
-                pruned_chunk_size: 3,
+                pruned_batch_chunk_size: 3,
                 next_iterations_delay: Duration::from_secs(0),
             },
             vec![], //No checks, so every batch is prunable
@@ -468,7 +463,7 @@ mod tests {
         let pruner = DbPruner::new(
             DbPrunerConfig {
                 soft_and_hard_pruning_time_delta: Duration::from_secs(0),
-                pruned_chunk_size: 3,
+                pruned_batch_chunk_size: 3,
                 next_iterations_delay: Duration::from_secs(0),
             },
             vec![first_chunk_prunable_check],

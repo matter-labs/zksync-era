@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    fmt::{Debug, Formatter},
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use chrono::Utc;
@@ -12,12 +15,14 @@ pub struct L1BatchOlderThanPruneCondition {
     pub conn: ConnectionPool<Core>,
 }
 
+impl Debug for L1BatchOlderThanPruneCondition {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "l1 Batch is older than {:?}", self.minimal_age)
+    }
+}
+
 #[async_trait]
 impl PruneCondition for L1BatchOlderThanPruneCondition {
-    fn name(&self) -> &'static str {
-        "l1 Batch is old enough"
-    }
-
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
         let mut storage = self.conn.connection().await?;
         let l1_batch_header = storage
@@ -35,12 +40,14 @@ pub struct NextL1BatchWasExecutedCondition {
     pub conn: ConnectionPool<Core>,
 }
 
+impl Debug for NextL1BatchWasExecutedCondition {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "next l1 batch was executed")
+    }
+}
+
 #[async_trait]
 impl PruneCondition for NextL1BatchWasExecutedCondition {
-    fn name(&self) -> &'static str {
-        "next l1 batch was executed"
-    }
-
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
         let mut storage = self.conn.connection().await?;
         let next_l1_batch_number = L1BatchNumber(l1_batch_number.0 + 1);
@@ -58,12 +65,14 @@ pub struct NextL1BatchHasMetadataCondition {
     pub conn: ConnectionPool<Core>,
 }
 
+impl Debug for NextL1BatchHasMetadataCondition {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "next l1 batch has metadata")
+    }
+}
+
 #[async_trait]
 impl PruneCondition for NextL1BatchHasMetadataCondition {
-    fn name(&self) -> &'static str {
-        "next l1 batch has metadata"
-    }
-
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
         let mut storage = self.conn.connection().await?;
         let next_l1_batch_number = L1BatchNumber(l1_batch_number.0 + 1);
@@ -79,12 +88,14 @@ pub struct L1BatchExistsCondition {
     pub conn: ConnectionPool<Core>,
 }
 
+impl Debug for L1BatchExistsCondition {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "l1 batch exists")
+    }
+}
+
 #[async_trait]
 impl PruneCondition for L1BatchExistsCondition {
-    fn name(&self) -> &'static str {
-        "l1 batch exists"
-    }
-
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
         let mut storage = self.conn.connection().await?;
         let l1_batch_header = storage

@@ -277,8 +277,8 @@ impl StorageLogsDal<'_, '_> {
     }
 
     /// Loads (hashed_key, value, operation_number) tuples for given miniblock_number.
-    /// Uses provided DB table.
     /// Shouldn't be used in production.
+    #[cfg(test)]
     pub async fn get_miniblock_storage_logs(
         &mut self,
         miniblock_number: MiniblockNumber,

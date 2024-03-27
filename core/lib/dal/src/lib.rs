@@ -59,6 +59,9 @@ pub mod metrics;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod pruning_dal_tests;
+
 // This module is private and serves as a way to seal the trait.
 mod private {
     pub trait Sealed {}
