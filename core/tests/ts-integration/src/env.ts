@@ -4,6 +4,7 @@ import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
 import { TestEnvironment } from './types';
 import { Reporter } from './reporter';
+import { L2_ETH_TOKEN_ADDRESS } from 'zksync-ethers/build/src/utils';
 
 /**
  * Attempts to connect to server.
@@ -81,6 +82,7 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
         token = tokens[0];
     }
     const weth = tokens.find((token: { symbol: string }) => token.symbol == 'WETH')!;
+    const baseToken = tokens.find((token: { symbol: string }) => token.symbol == 'BAT')!;
 
     // `waitForServer` is expected to be executed. Otherwise this call may throw.
     const l2TokenAddress = await new zksync.Wallet(
@@ -94,6 +96,8 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
         new zksync.Provider(l2NodeUrl),
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(weth.address);
+
+    const baseTokenAddress = L2_ETH_TOKEN_ADDRESS;
 
     return {
         network,
@@ -115,6 +119,13 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
             decimals: weth.decimals,
             l1Address: weth.address,
             l2Address: l2WethAddress
+        },
+        baseToken: {
+            name: baseToken.name,
+            symbol: baseToken.symbol,
+            decimals: baseToken.decimals,
+            l1Address: baseToken.address,
+            l2Address: baseTokenAddress
         }
     };
 }
