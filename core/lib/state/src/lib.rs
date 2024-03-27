@@ -31,7 +31,7 @@ pub use self::{
     cache::sequential_cache::SequentialCache,
     in_memory::{InMemoryStorage, IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID},
     postgres::{PostgresStorage, PostgresStorageCaches, PostgresStorageCachesTask},
-    rocksdb::{RocksbStorageBuilder, RocksdbStorage},
+    rocksdb::{RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily},
     shadow_storage::ShadowStorage,
     storage_view::{StorageView, StorageViewMetrics},
     witness::WitnessStorage,

@@ -29,7 +29,7 @@ use zksync_prover_fri_types::{
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId,
+    basic_fri_types::AggregationRound, protocol_version::ProtocolVersionId,
     prover_dal::LeafAggregationJobMetadata, L1BatchNumber,
 };
 use zksync_vk_setup_data_server_fri::keystore::Keystore;
@@ -74,7 +74,7 @@ pub struct LeafAggregationWitnessGenerator {
     config: FriWitnessGeneratorConfig,
     object_store: Arc<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool<Prover>,
-    protocol_versions: Vec<FriProtocolVersionId>,
+    protocol_versions: Vec<ProtocolVersionId>,
 }
 
 impl LeafAggregationWitnessGenerator {
@@ -82,7 +82,7 @@ impl LeafAggregationWitnessGenerator {
         config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         prover_connection_pool: ConnectionPool<Prover>,
-        protocol_versions: Vec<FriProtocolVersionId>,
+        protocol_versions: Vec<ProtocolVersionId>,
     ) -> Self {
         Self {
             config,

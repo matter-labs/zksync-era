@@ -13,7 +13,6 @@ use crate::{
         },
         HistoryEnabled,
     },
-    vm_m5::storage::Storage,
 };
 
 enum TestOptions {

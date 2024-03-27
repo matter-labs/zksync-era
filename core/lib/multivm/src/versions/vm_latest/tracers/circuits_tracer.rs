@@ -239,7 +239,7 @@ impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
                     self.statistics.keccak256_cycles += *cycles as u32;
                 }
                 PrecompileAddress::Secp256r1Verify => {
-                    self.statistics.secp256k1_cycles += *cycles as u32;
+                    self.statistics.secp256k1_verify_cycles += *cycles as u32;
                 }
             };
         }

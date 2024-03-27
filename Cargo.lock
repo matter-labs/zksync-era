@@ -1000,6 +1000,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "circuit_encodings"
+version = "0.1.50"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#bd4445a407d8bfc77aaae1cdd687179e9e0d287c"
+dependencies = [
+ "derivative",
+ "serde",
+ "zk_evm 1.5.0",
+ "zkevm_circuits 1.5.0",
+]
+
+[[package]]
 name = "circuit_sequencer_api"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.3.3#aba8f2a32767b79838aca7d7d00d9d23144df32f"
@@ -1048,6 +1059,19 @@ dependencies = [
  "rayon",
  "serde",
  "zk_evm 1.4.1",
+]
+
+[[package]]
+name = "circuit_sequencer_api"
+version = "0.1.50"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#bd4445a407d8bfc77aaae1cdd687179e9e0d287c"
+dependencies = [
+ "bellman_ce",
+ "circuit_encodings 0.1.50",
+ "derivative",
+ "rayon",
+ "serde",
+ "zk_evm 1.5.0",
 ]
 
 [[package]]
@@ -3665,6 +3689,7 @@ dependencies = [
  "circuit_sequencer_api 0.1.40",
  "circuit_sequencer_api 0.1.41",
  "circuit_sequencer_api 0.1.42",
+ "circuit_sequencer_api 0.1.50",
  "ethabi",
  "hex",
  "itertools 0.10.5",
@@ -7928,6 +7953,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "zkevm_circuits"
+version = "1.5.0"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#71269b28be3c87b7a63d935e770af01cc5c5961e"
+dependencies = [
+ "arrayvec 0.7.4",
+ "boojum",
+ "cs_derive",
+ "derivative",
+ "hex",
+ "itertools 0.10.5",
+ "rand 0.4.6",
+ "rand 0.8.5",
+ "seq-macro",
+ "serde",
+ "smallvec",
+ "zkevm_opcode_defs 1.5.0",
+]
+
+[[package]]
 name = "zkevm_opcode_defs"
 version = "1.3.1"
 source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.3.1#00d4ad2292bd55374a0fa10fe11686d7a109d8a0"
@@ -8676,7 +8720,7 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "chrono",
- "circuit_sequencer_api 0.1.42",
+ "circuit_sequencer_api 0.1.50",
  "serde",
  "serde_with",
  "strum",
