@@ -60,13 +60,15 @@ impl L2ToL1Log {
 pub fn l2_to_l1_logs_tree_size(protocol_version: ProtocolVersionId) -> usize {
     pub const PRE_BOOJUM_L2_L1_LOGS_TREE_SIZE: usize = 512;
     pub const VM_1_4_0_L2_L1_LOGS_TREE_SIZE: usize = 2048;
-    // pub const VM_1_4_2_L2_L1_LOGS_TREE_SIZE: usize = 4096;
+    pub const VM_1_4_2_L2_L1_LOGS_TREE_SIZE: usize = 4096;
     pub const VM_1_5_0_L2_L1_LOGS_TREE_SIZE: usize = 16384;
 
     if protocol_version.is_pre_boojum() {
         PRE_BOOJUM_L2_L1_LOGS_TREE_SIZE
     } else if protocol_version.is_1_4_0() || protocol_version.is_1_4_1() {
         VM_1_4_0_L2_L1_LOGS_TREE_SIZE
+    } else if protocol_version.is_pre_1_5_0() {
+        VM_1_4_2_L2_L1_LOGS_TREE_SIZE
     } else {
         VM_1_5_0_L2_L1_LOGS_TREE_SIZE
     }

@@ -123,6 +123,18 @@ impl ProtocolVersionId {
     pub fn is_pre_1_4_2(&self) -> bool {
         self < &ProtocolVersionId::Version21
     }
+
+    pub fn is_1_4_2(&self) -> bool {
+        self == &ProtocolVersionId::Version22
+    }
+
+    pub fn is_pre_1_5_0(&self) -> bool {
+        self < &ProtocolVersionId::Version23
+    }
+
+    pub fn is_post_1_5_0(&self) -> bool {
+        self >= &ProtocolVersionId::Version23
+    }
 }
 
 impl Default for ProtocolVersionId {
