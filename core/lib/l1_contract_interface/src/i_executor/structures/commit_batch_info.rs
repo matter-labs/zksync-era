@@ -402,7 +402,8 @@ impl<'a> Tokenizable for CommitBatchInfoValidium<'a> {
 
         if protocol_version.is_pre_1_4_2() {
             tokens.push(
-                // `totalL2ToL1Pubdata` without pubdata source byte
+                // Here we're not pushing any pubdata on purpose.
+                // We are not sending pubdata in Validium mode.
                 Token::Bytes(Vec::default()),
             );
         } else {
@@ -413,6 +414,8 @@ impl<'a> Tokenizable for CommitBatchInfoValidium<'a> {
                     // even if we are not using blobs.
                     let blob_commitment = KzgInfo::new(&pubdata).to_blob_commitment();
 
+                    // Here we're not pushing any pubdata on purpose.
+                    // We are not sending pubdata in Validium mode.
                     let result = std::iter::once(PUBDATA_SOURCE_CALLDATA)
                         .chain(blob_commitment)
                         .collect();
