@@ -54,8 +54,8 @@ use zksync_types::{
     basic_fri_types::{
         AggregationRound, Eip4844Blobs, EIP_4844_BLOB_SIZE, MAX_4844_BLOBS_PER_BLOCK,
     },
-    protocol_version::FriProtocolVersionId,
-    Address, L1BatchNumber, ProtocolVersionId, BOOTLOADER_ADDRESS, H256, U256,
+    protocol_version::ProtocolVersionId,
+    Address, L1BatchNumber, BOOTLOADER_ADDRESS, H256, U256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
@@ -108,7 +108,7 @@ pub struct BasicWitnessGenerator {
     public_blob_store: Option<Arc<dyn ObjectStore>>,
     connection_pool: ConnectionPool<Core>,
     prover_connection_pool: ConnectionPool<Prover>,
-    protocol_versions: Vec<FriProtocolVersionId>,
+    protocol_versions: Vec<ProtocolVersionId>,
 }
 
 impl BasicWitnessGenerator {
@@ -118,7 +118,7 @@ impl BasicWitnessGenerator {
         public_blob_store: Option<Arc<dyn ObjectStore>>,
         connection_pool: ConnectionPool<Core>,
         prover_connection_pool: ConnectionPool<Prover>,
-        protocol_versions: Vec<FriProtocolVersionId>,
+        protocol_versions: Vec<ProtocolVersionId>,
     ) -> Self {
         Self {
             config: Arc::new(config),

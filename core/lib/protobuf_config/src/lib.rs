@@ -6,22 +6,20 @@
 
 mod api;
 mod chain;
+mod circuit_breaker;
 mod contract_verifier;
 mod contracts;
 mod database;
 mod eth;
+mod general;
+mod genesis;
 mod house_keeper;
 mod object_store;
 mod observability;
 mod proof_data_handler;
-mod snapshots_creator;
-mod witness_generator;
-
-mod circuit_breaker;
-mod general;
-mod genesis;
 pub mod proto;
 mod prover;
+mod snapshots_creator;
 pub mod testonly;
 #[cfg(test)]
 mod tests;

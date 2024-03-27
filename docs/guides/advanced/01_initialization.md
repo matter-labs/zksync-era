@@ -18,9 +18,9 @@ there, make sure to run `zk` (that compiles this code), before re-running `zk in
 
 #### zk init
 
-As first step, it gets the docker images for postgres and geth.
+As first step, it gets the docker images for postgres and reth.
 
-Geth (one of the Ethereum clients) will be used to setup our own copy of L1 chain (that our local zkSync would use).
+Reth (one of the Ethereum clients) will be used to setup our own copy of L1 chain (that our local zkSync would use).
 
 Postgres is one of the two databases, that is used by zkSync (the other one is RocksDB). Currently most of the data is
 stored in postgres (blocks, transactions etc) - while RocksDB is only storing the state (Tree & Map) - and it used by
@@ -61,7 +61,7 @@ document with DB schema.
 We're running two things in a docker:
 
 - a postgres (that we've covered above)
-- a geth (that is the L1 Ethereum chain).
+- a reth (that is the L1 Ethereum chain).
 
 Let's see if they are running:
 
@@ -69,13 +69,13 @@ Let's see if they are running:
 docker container ls
 ```
 
-and then we can look at the Geth logs:
+and then we can look at the Reth logs:
 
 ```shell
-docker logs zksync-era-geth-1
+docker logs zksync-era-reth-1
 ```
 
-Where `zksync-era-geth-1` is the container name, that we got from the first command.
+Where `zksync-era-reth-1` is the container name, that we got from the first command.
 
 If everything goes well, you should see that L1 blocks are being produced.
 
@@ -100,24 +100,23 @@ But you should see some initial blocks in postgres:
 select * from miniblocks;
 ```
 
-#### Our L1 (geth)
+#### Our L1 (reth)
 
 Let's finish this article, by taking a look at our L1:
 
-```shell
-docker container exec -it zksync-era-geth-1  geth attach http://localhost:8545
-```
-
-The command above will start a shell - and you can check that you're a (localnet) crypto trillionaire, by running:
+We will use the `web3` tool to communicate with the L1, have a look at [02_deposits.md](02_deposits.md) for installation
+instructions. You can check that you're a (localnet) crypto trillionaire, by running:
 
 ```shell
-eth.getBalance(personal.listAccounts[0])
+./web3 --rpc-url http://localhost:8545 balance 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049
 ```
 
-**Note:** This geth shell is running official Ethereum JSON RPC with Geth-specific extensions documented at
-[Ethereum Geth](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-eth)
+This is one of the "rich wallets" we predefined for local L1.
 
-In order to communicate with L2 (our zkSync) - we have to deploy multiple contracts onto L1 (our local geth created
+**Note:** This reth shell is running official Ethereum JSON RPC with Reth-specific extensions documented at
+[reth docs](https://paradigmxyz.github.io/reth/jsonrpc/intro.html)
+
+In order to communicate with L2 (our zkSync) - we have to deploy multiple contracts onto L1 (our local reth created
 Ethereum). You can look on the `deployL1.log` file - to see the list of contracts that were deployed and their accounts.
 
 First thing in the file, is the deployer/governor wallet - this is the account that can change, freeze and unfreeze the
@@ -129,7 +128,7 @@ contains the address.
 You can quickly verify that they were really deployed, by calling:
 
 ```shell
-eth.getCode("XXXX")
+./web3 --rpc-url http://localhost:8545 address XXX
 ```
 
 Where XXX is the address in the file.
@@ -142,7 +141,7 @@ this is the contract that our server is 'listening' on).
 Ok - so let's sum up what we have:
 
 - a postgres running in docker (main database)
-- a local instance of ethereum (geth running in docker)
+- a local instance of ethereum (reth running in docker)
   - which also has a bunch of 'magic' contracts deployed
   - and two accounts with lots of tokens
 - and a server process

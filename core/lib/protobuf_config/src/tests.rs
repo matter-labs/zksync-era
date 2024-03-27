@@ -32,6 +32,5 @@ fn test_encoding() {
     encode_decode::<ReprConv<proto::object_store::ObjectStore>>(rng);
     encode_decode::<ReprConv<proto::prover::ProofDataHandler>>(rng);
     encode_decode::<ReprConv<proto::snapshot_creator::SnapshotsCreator>>(rng);
-    encode_decode::<ReprConv<proto::witness_generator::WitnessGenerator>>(rng);
     encode_decode::<ReprConv<proto::observability::Observability>>(rng);
 }

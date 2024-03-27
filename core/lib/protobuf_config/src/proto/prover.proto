@@ -67,8 +67,13 @@ message ProverGateway {
   optional uint64 prometheus_push_interval_ms = 5; // optional; ms
 }
 
+
 message WitnessGenerator {
-  optional uint32 generation_timeout_in_secs = 1; // required; s
+  optional uint32 generation_timeout_in_secs = 1; // required;
+  optional uint32 basic_generation_timeout_in_secs = 8; // optional;
+  optional uint32 leaf_generation_timeout_in_secs = 9; // optional;
+  optional uint32 node_generation_timeout_in_secs = 10; // optional;
+  optional uint32 scheduler_generation_timeout_in_secs = 11; // optional;
   optional uint32 max_attempts = 2; // required
   optional uint32 blocks_proving_percentage = 3; // optional; 0-100
   repeated uint32 dump_arguments_for_blocks = 4;
