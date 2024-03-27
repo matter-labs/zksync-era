@@ -1,4 +1,5 @@
 use zksync_basic_types::{Address, H256};
+use zksync_crypto_primitives::PackedEthSignature;
 
 #[derive(Debug, Clone)]
 pub struct Wallet {
@@ -14,15 +15,18 @@ impl Wallet {
         }
     }
 
-    pub fn from_private_key(private_key: H256) -> Self {
-        // let address = PackedEthSignature::address_from_private_key(&private_key)
-        //     .expect("Failed to get address from private key");
-        // TODO fix it
-        let address = Address::zero();
-        Self {
-            address,
-            private_key: Some(private_key),
+    pub fn from_private_key(private_key: H256, address: Option<Address>) -> anyhow::Result<Self> {
+        let calculated_address = PackedEthSignature::address_from_private_key(&private_key)?;
+        if let Some(address) = address {
+            if calculated_address != address {
+                anyhow::bail!("Malformed wallet, address doesn't correspond private_key")
+            }
         }
+
+        Ok(Self {
+            address: calculated_address,
+            private_key: Some(private_key),
+        })
     }
 
     pub fn address(&self) -> Address {

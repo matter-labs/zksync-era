@@ -2,14 +2,10 @@ use std::sync::Arc;
 
 use tokio::sync::watch;
 use zksync_config::{
-    configs::{
-        chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
-        ContractsConfigReduced,
-    },
+    configs::chain::{MempoolConfig, StateKeeperConfig},
     DBConfig,
 };
 use zksync_dal::{ConnectionPool, Core};
-use zksync_object_store::ObjectStore;
 use zksync_types::L2ChainId;
 
 pub use self::{
@@ -39,7 +35,6 @@ pub(crate) mod updates;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn create_state_keeper(
-    contracts_config: &ContractsConfigReduced,
     state_keeper_config: StateKeeperConfig,
     db_config: &DBConfig,
     l2chain_id: L2ChainId,

@@ -32,8 +32,7 @@ use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
     Message as SecpMessage, PublicKey, SecretKey, SECP256K1,
 };
-
-use crate::web3::{
+use web3::{
     signing::keccak256,
     types::{Address, H256, H512, H520},
 };

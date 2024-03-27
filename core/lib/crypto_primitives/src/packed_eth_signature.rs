@@ -1,17 +1,15 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
+use web3::signing::keccak256;
 use zksync_basic_types::{Address, H256};
 use zksync_utils::ZeroPrefixHexSerde;
 
 use crate::{
-    tx::primitives::{
-        ecdsa_signature::{
-            public_to_address, recover, sign, Error as ParityCryptoError, KeyPair,
-            Signature as ETHSignature,
-        },
-        eip712_signature::typed_structure::{EIP712TypedStructure, Eip712Domain},
+    ecdsa_signature::{
+        public_to_address, recover, sign, Error as ParityCryptoError, KeyPair,
+        Signature as ETHSignature,
     },
-    web3::signing::keccak256,
+    eip712_signature::typed_structure::{EIP712TypedStructure, Eip712Domain},
 };
 
 /// Struct used for working with Ethereum signatures created using eth_sign (using geth, ethers.js, etc)

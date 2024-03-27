@@ -7,7 +7,6 @@ use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
-use zksync_types::protocol_version::L1VerifierConfig;
 
 use crate::proof_data_handler::request_processor::RequestProcessor;
 

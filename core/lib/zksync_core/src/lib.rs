@@ -812,7 +812,6 @@ async fn add_state_keeper_to_task_futures(
     task_futures.push(tokio::spawn(miniblock_sealer.run()));
 
     let state_keeper = create_state_keeper(
-        &contracts_config,
         state_keeper_config,
         db_config,
         l2chain_id,

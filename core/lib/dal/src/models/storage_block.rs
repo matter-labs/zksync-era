@@ -345,8 +345,6 @@ pub struct StorageL1BatchDetails {
     pub l2_fair_gas_price: i64,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
-    pub commitment: Option<Vec<u8>>,
-    pub rollup_last_leaf_index: Option<i64>,
 }
 
 impl From<StorageL1BatchDetails> for api::L1BatchDetails {
@@ -393,8 +391,6 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
         };
         api::L1BatchDetails {
             base,
-            commitment: details.commitment.as_deref().map(H256::from_slice),
-            rollup_last_leaf_index: details.rollup_last_leaf_index.map(|a| a as u64),
             number: L1BatchNumber(details.number as u32),
         }
     }

@@ -1,9 +1,7 @@
+use web3::signing::keccak256;
 use zksync_basic_types::{Address, H256, U256};
 
-use crate::{
-    tx::primitives::eip712_signature::typed_structure::{EncodedStructureMember, StructMember},
-    web3::signing::keccak256,
-};
+use crate::eip712_signature::typed_structure::{EncodedStructureMember, StructMember};
 
 impl StructMember for String {
     const MEMBER_TYPE: &'static str = "string";
