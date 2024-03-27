@@ -315,13 +315,15 @@ impl ApiServer {
         let start_info = BlockStartInfo::new(&mut storage).await?;
         drop(storage);
 
-        let installed_filters = if self.config.filters_disabled {
-            None
-        } else {
-            Some(Arc::new(Mutex::new(Filters::new(
-                self.optional.filters_limit,
-            ))))
-        };
+        // Disable filter API for HTTP endpoints, WS endpoints are unaffected by the `filters_disabled` flag
+        let installed_filters =
+            if matches!(self.transport, ApiTransport::Http(_)) && self.config.filters_disabled {
+                None
+            } else {
+                Some(Arc::new(Mutex::new(Filters::new(
+                    self.optional.filters_limit,
+                ))))
+            };
 
         Ok(RpcState {
             current_method: self.method_tracer,

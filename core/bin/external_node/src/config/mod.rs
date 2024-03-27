@@ -156,7 +156,8 @@ pub struct OptionalENConfig {
     latest_values_cache_size_mb: usize,
     /// Enabled JSON RPC API namespaces.
     api_namespaces: Option<Vec<Namespace>>,
-    /// Whether to support methods installing filters and querying filter changes.
+    /// Whether to support HTTP methods that install filters and query filter changes.
+    /// WS methods are unaffected.
     ///
     /// When to set this value to `true`:
     /// Filters are local to the specific node they were created at. Meaning if
