@@ -33,7 +33,7 @@ use zksync_prover_fri_types::{
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::{AggregationRound, FinalProofIds},
-    protocol_version::FriProtocolVersionId,
+    protocol_version::ProtocolVersionId,
     L1BatchNumber,
 };
 use zksync_vk_setup_data_server_fri::{keystore::Keystore, utils::get_leaf_vk_params};
@@ -64,7 +64,7 @@ pub struct SchedulerWitnessGenerator {
     config: FriWitnessGeneratorConfig,
     object_store: Arc<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool<Prover>,
-    protocol_versions: Vec<FriProtocolVersionId>,
+    protocol_versions: Vec<ProtocolVersionId>,
 }
 
 impl SchedulerWitnessGenerator {
@@ -72,7 +72,7 @@ impl SchedulerWitnessGenerator {
         config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         prover_connection_pool: ConnectionPool<Prover>,
-        protocol_versions: Vec<FriProtocolVersionId>,
+        protocol_versions: Vec<ProtocolVersionId>,
     ) -> Self {
         Self {
             config,

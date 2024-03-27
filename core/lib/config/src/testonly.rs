@@ -542,6 +542,10 @@ impl Distribution<configs::FriWitnessGeneratorConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::FriWitnessGeneratorConfig {
         configs::FriWitnessGeneratorConfig {
             generation_timeout_in_secs: self.sample(rng),
+            basic_generation_timeout_in_secs: self.sample(rng),
+            leaf_generation_timeout_in_secs: self.sample(rng),
+            node_generation_timeout_in_secs: self.sample(rng),
+            scheduler_generation_timeout_in_secs: self.sample(rng),
             max_attempts: self.sample(rng),
             blocks_proving_percentage: self.sample(rng),
             dump_arguments_for_blocks: self.sample_collect(rng),
