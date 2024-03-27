@@ -92,8 +92,8 @@ virtual_blocks_per_miniblock = 1
 # This variable should not be set to true in any customer facing environment.
 upload_witness_inputs_to_gcs = false
 
-bootloader_hash = "0x010007ede999d096c84553fb514d3d6ca76fbf39789dda76bfeda9f3ae06236e"
-default_aa_hash = "0x0100055b041eb28aff6e3a6e0f37c31fd053fc9ef142683b05e5f0aee6934066"
+bootloader_hash = "0x010008cb037f780742bcf34e05ff9b1a3140061de045a40192eb0424585521af"
+default_aa_hash = "0x01000563322a8444108dc763ebd80fb18ae14d2ec5c0fb5057a090023cd3d4a4"
 
 [chain.operations_manager]
 # Sleep time when there is no new input data
