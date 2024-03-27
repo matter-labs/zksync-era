@@ -16,14 +16,14 @@ impl PeriodicApiStruct {
         let mut connection = self.pool.connection().await.unwrap();
         connection
             .fri_protocol_versions_dal()
-            .save_prover_protocol_version(data.fri_protocol_version_id, data.l1_verifier_config)
+            .save_prover_protocol_version(data.protocol_version_id, data.l1_verifier_config)
             .await;
         connection
             .fri_witness_generator_dal()
             .save_witness_inputs(
                 data.l1_batch_number,
                 &blob_url,
-                data.fri_protocol_version_id,
+                data.protocol_version_id,
                 data.eip_4844_blobs,
             )
             .await;
