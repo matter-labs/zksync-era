@@ -2,11 +2,6 @@ syntax = "proto3";
 
 package zksync.config.contracts;
 
-enum ProverAtGenesis {
-  FRI = 0;
-  OLD = 1;
-}
-
 message Contracts {
     optional bytes governance_addr = 1; // required; H160
     optional bytes mailbox_facet_addr = 2; // required; H160
@@ -34,11 +29,14 @@ message Contracts {
     optional bytes fri_recursion_scheduler_level_vk_hash = 24; // required; H256
     optional bytes fri_recursion_node_level_vk_hash = 25; // required; H256
     optional bytes fri_recursion_leaf_level_vk_hash = 26; // required; H256
-    optional ProverAtGenesis prover_at_genesis = 27; // required
     optional bytes snark_wrapper_vk_hash = 28; // required; H256
     optional bytes bridgehub_proxy_addr = 29; // optional; H160
     optional bytes bridgehub_impl_addr = 30; // optional; H160
     optional bytes state_transition_proxy_addr = 31; // optional; H160
     optional bytes state_transition_impl_addr = 32; // optional; H160
-    optional bytes transparent_proxy_admin_addr = 33; // optional; H160
+    optional bytes transparent_proxy_admin_addr = 33; // optional; h160
+    optional bytes genesis_root = 34; // optional; h256
+    optional uint64 genesis_rollup_leaf_index = 35; // optional;
+    optional bytes genesis_batch_commitment = 36; // optional; h256
+    optional uint32 genesis_protocol_version= 37; // optional;
 }

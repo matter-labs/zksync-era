@@ -15,16 +15,16 @@ use zksync_config::{
         PrometheusConfig, ProofDataHandlerConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
-    GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
+    GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_core::{
-    genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
+    genesis, genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
     temp_config_store::{decode_yaml, Secrets, TempConfigStore},
     Component, Components,
 };
 use zksync_env_config::FromEnv;
 use zksync_storage::RocksDB;
-use zksync_utils::wait_for_tasks::wait_for_tasks;
+use zksync_utils::wait_for_tasks::ManagedTasks;
 
 mod config;
 
@@ -38,8 +38,7 @@ struct Cli {
     /// Generate genesis block for the first contract deployment using temporary DB.
     #[arg(long)]
     genesis: bool,
-    /// Wait for the `setChainId` event during genesis.
-    /// If `--genesis` is not set, this flag is ignored.
+    /// Set chain id (temporary will be moved to genesis config)
     #[arg(long)]
     set_chain_id: bool,
     /// Rebuild tree.
@@ -156,22 +155,27 @@ async fn main() -> anyhow::Result<()> {
     let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;
 
     if opt.genesis || is_genesis_needed(&postgres_config).await {
-        let network = NetworkConfig::from_env().context("NetworkConfig")?;
-        let eth_sender = ETHSenderConfig::from_env().context("ETHSenderConfig")?;
-        let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
-        let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
-        genesis_init(
-            &postgres_config,
-            &eth_sender,
-            &network,
-            &contracts,
-            &eth_client.web3_url,
-            opt.set_chain_id,
-        )
-        .await
-        .context("genesis_init")?;
+        let genesis = GenesisConfig::from_env().context("Genesis config")?;
+        genesis_init(genesis, &postgres_config)
+            .await
+            .context("genesis_init")?;
         if opt.genesis {
             return Ok(());
+        }
+    }
+
+    if opt.set_chain_id {
+        let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
+        let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
+        if let Some(state_transition_proxy_addr) = contracts.state_transition_proxy_addr {
+            genesis::save_set_chain_id_tx(
+                &eth_client.web3_url,
+                contracts.diamond_proxy_addr,
+                state_transition_proxy_addr,
+                &postgres_config,
+            )
+            .await
+            .context("Failed to save SetChainId upgrade transaction")?;
         }
     }
 
@@ -182,36 +186,33 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // Run core actors.
-    let (core_task_handles, stop_sender, cb_receiver, health_check_handle) =
-        initialize_components(&configs, components, &secrets)
+    let (core_task_handles, stop_sender, health_check_handle) =
+        initialize_components(&configs, &components, &secrets)
             .await
             .context("Unable to start Core actors")?;
 
     tracing::info!("Running {} core task handlers", core_task_handles.len());
 
-    let particular_crypto_alerts = None::<Vec<String>>;
-    let graceful_shutdown = None::<futures::future::Ready<()>>;
-    let tasks_allowed_to_finish = false;
+    let mut tasks = ManagedTasks::new(core_task_handles);
     tokio::select! {
-        _ = wait_for_tasks(core_task_handles, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
+        _ = tasks.wait_single() => {},
         _ = sigint_receiver => {
             tracing::info!("Stop signal received, shutting down");
-        },
-        error = cb_receiver => {
-            if let Ok(error_msg) = error {
-                let err = format!("Circuit breaker received, shutting down. Reason: {}", error_msg);
-                tracing::warn!("{err}");
-                vlog::capture_message(&err, vlog::AlertLevel::Warning);
-            }
         },
     }
 
     stop_sender.send(true).ok();
     tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
         .await
-        .unwrap();
-    // Sleep for some time to let some components gracefully stop.
-    tokio::time::sleep(Duration::from_secs(5)).await;
+        .context("error waiting for RocksDB instances to drop")?;
+    let complete_timeout =
+        if components.contains(&Component::HttpApi) || components.contains(&Component::WsApi) {
+            // Increase timeout because of complicated graceful shutdown procedure for API servers.
+            Duration::from_secs(30)
+        } else {
+            Duration::from_secs(5)
+        };
+    tasks.complete(complete_timeout).await;
     health_check_handle.stop().await;
     tracing::info!("Stopped");
     Ok(())

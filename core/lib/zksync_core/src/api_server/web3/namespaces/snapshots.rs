@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use zksync_dal::CoreDal;
 use zksync_types::{
     snapshots::{AllSnapshots, SnapshotHeader, SnapshotStorageLogsChunkMetadata},
     L1BatchNumber,
@@ -22,11 +23,7 @@ impl SnapshotsNamespace {
     }
 
     pub async fn get_all_snapshots_impl(&self) -> Result<AllSnapshots, Web3Error> {
-        let mut storage_processor = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut storage_processor = self.state.connection_pool.connection_tagged("api").await?;
         let mut snapshots_dal = storage_processor.snapshots_dal();
         Ok(snapshots_dal
             .get_all_complete_snapshots()
@@ -38,11 +35,7 @@ impl SnapshotsNamespace {
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> Result<Option<SnapshotHeader>, Web3Error> {
-        let mut storage_processor = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut storage_processor = self.state.connection_pool.connection_tagged("api").await?;
         let snapshot_metadata = storage_processor
             .snapshots_dal()
             .get_snapshot_metadata(l1_batch_number)
@@ -84,6 +77,7 @@ impl SnapshotsNamespace {
             .with_context(|| format!("missing miniblocks for L1 batch #{l1_batch_number}"))?;
 
         Ok(Some(SnapshotHeader {
+            version: snapshot_metadata.version.into(),
             l1_batch_number: snapshot_metadata.l1_batch_number,
             miniblock_number,
             last_l1_batch_with_metadata: l1_batch_with_metadata,

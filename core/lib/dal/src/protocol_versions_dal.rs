@@ -2,19 +2,21 @@ use std::convert::TryInto;
 
 use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
+use zksync_db_connection::connection::Connection;
 use zksync_types::{
-    protocol_version::{L1VerifierConfig, ProtocolUpgradeTx, ProtocolVersion, VerifierParams},
+    protocol_upgrade::{ProtocolUpgradeTx, ProtocolVersion},
+    protocol_version::{L1VerifierConfig, VerifierParams},
     ProtocolVersionId, H256,
 };
 
 use crate::{
     models::storage_protocol_version::{protocol_version_from_storage, StorageProtocolVersion},
-    StorageProcessor,
+    Core, CoreDal,
 };
 
 #[derive(Debug)]
 pub struct ProtocolVersionsDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut Connection<'c, Core>,
 }
 
 impl ProtocolVersionsDal<'_, '_> {
@@ -136,15 +138,13 @@ impl ProtocolVersionsDal<'_, '_> {
         db_transaction.commit().await.unwrap();
     }
 
-    pub async fn base_system_contracts_by_timestamp(
+    pub async fn protocol_version_id_by_timestamp(
         &mut self,
         current_timestamp: u64,
-    ) -> anyhow::Result<(BaseSystemContracts, ProtocolVersionId)> {
+    ) -> sqlx::Result<ProtocolVersionId> {
         let row = sqlx::query!(
             r#"
             SELECT
-                bootloader_code_hash,
-                default_account_code_hash,
                 id
             FROM
                 protocol_versions
@@ -158,21 +158,9 @@ impl ProtocolVersionsDal<'_, '_> {
             current_timestamp as i64
         )
         .fetch_one(self.storage.conn())
-        .await
-        .context("cannot fetch system contract hashes")?;
+        .await?;
 
-        let protocol_version = (row.id as u16)
-            .try_into()
-            .context("bogus protocol version ID")?;
-        let contracts = self
-            .storage
-            .factory_deps_dal()
-            .get_base_system_contracts(
-                H256::from_slice(&row.bootloader_code_hash),
-                H256::from_slice(&row.default_account_code_hash),
-            )
-            .await?;
-        Ok((contracts, protocol_version))
+        ProtocolVersionId::try_from(row.id as u16).map_err(|err| sqlx::Error::Decode(err.into()))
     }
 
     pub async fn load_base_system_contracts_by_version_id(

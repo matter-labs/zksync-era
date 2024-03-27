@@ -4,7 +4,7 @@ use zksync_types::{
     system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT},
     AccountTreeId, U256,
 };
-use zksync_utils::{h256_to_u256, u256_to_h256};
+use zksync_utils::u256_to_h256;
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},

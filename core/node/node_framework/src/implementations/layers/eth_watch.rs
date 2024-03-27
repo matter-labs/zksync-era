@@ -3,7 +3,7 @@ use std::time::Duration;
 use zksync_config::{ContractsConfig, ETHWatchConfig};
 use zksync_contracts::governance_contract;
 use zksync_core::eth_watch::{client::EthHttpQueryClient, EthWatch};
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_types::{ethabi::Contract, Address};
 
 use crate::{
@@ -60,7 +60,7 @@ impl WiringLayer for EthWatchLayer {
 
 #[derive(Debug)]
 struct EthWatchTask {
-    main_pool: ConnectionPool,
+    main_pool: ConnectionPool<Core>,
     client: EthHttpQueryClient,
     governance_contract: Option<Contract>,
     diamond_proxy_address: Address,

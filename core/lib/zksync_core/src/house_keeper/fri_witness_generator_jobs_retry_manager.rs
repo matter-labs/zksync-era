@@ -1,13 +1,14 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
+use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
 
 use crate::house_keeper::periodic_job::PeriodicJob;
 
 #[derive(Debug)]
 pub struct FriWitnessGeneratorJobRetryManager {
-    pool: ConnectionPool,
+    pool: ConnectionPool<Prover>,
     max_attempts: u32,
     processing_timeout: Duration,
     retry_interval_ms: u64,
@@ -18,7 +19,7 @@ impl FriWitnessGeneratorJobRetryManager {
         max_attempts: u32,
         processing_timeout: Duration,
         retry_interval_ms: u64,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Prover>,
     ) -> Self {
         Self {
             max_attempts,
@@ -31,7 +32,7 @@ impl FriWitnessGeneratorJobRetryManager {
     pub async fn requeue_stuck_witness_inputs_jobs(&mut self) {
         let stuck_jobs = self
             .pool
-            .access_storage()
+            .connection()
             .await
             .unwrap()
             .fri_witness_generator_dal()
@@ -47,7 +48,7 @@ impl FriWitnessGeneratorJobRetryManager {
     pub async fn requeue_stuck_leaf_aggregations_jobs(&mut self) {
         let stuck_jobs = self
             .pool
-            .access_storage()
+            .connection()
             .await
             .unwrap()
             .fri_witness_generator_dal()
@@ -66,7 +67,7 @@ impl FriWitnessGeneratorJobRetryManager {
     pub async fn requeue_stuck_node_aggregations_jobs(&mut self) {
         let stuck_jobs = self
             .pool
-            .access_storage()
+            .connection()
             .await
             .unwrap()
             .fri_witness_generator_dal()
@@ -85,7 +86,7 @@ impl FriWitnessGeneratorJobRetryManager {
     pub async fn requeue_stuck_scheduler_jobs(&mut self) {
         let stuck_jobs = self
             .pool
-            .access_storage()
+            .connection()
             .await
             .unwrap()
             .fri_witness_generator_dal()

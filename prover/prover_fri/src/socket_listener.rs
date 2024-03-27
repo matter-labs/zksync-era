@@ -3,17 +3,15 @@ pub mod gpu_socket_listener {
     use std::{net::SocketAddr, time::Instant};
 
     use anyhow::Context as _;
+    use prover_dal::{ConnectionPool, Prover, ProverDal};
     use tokio::{
         io::copy,
         net::{TcpListener, TcpStream},
         sync::watch,
     };
-    use zksync_dal::{
-        fri_prover_dal::types::{GpuProverInstanceStatus, SocketAddress},
-        ConnectionPool,
-    };
     use zksync_object_store::bincode;
     use zksync_prover_fri_types::WitnessVectorArtifacts;
+    use zksync_types::prover_dal::{GpuProverInstanceStatus, SocketAddress};
 
     use crate::{
         metrics::METRICS,
@@ -23,7 +21,7 @@ pub mod gpu_socket_listener {
     pub(crate) struct SocketListener {
         address: SocketAddress,
         queue: SharedWitnessVectorQueue,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Prover>,
         specialized_prover_group_id: u8,
         zone: String,
     }
@@ -32,7 +30,7 @@ pub mod gpu_socket_listener {
         pub fn new(
             address: SocketAddress,
             queue: SharedWitnessVectorQueue,
-            pool: ConnectionPool,
+            pool: ConnectionPool<Prover>,
             specialized_prover_group_id: u8,
             zone: String,
         ) -> Self {
@@ -57,7 +55,7 @@ pub mod gpu_socket_listener {
 
             let _lock = self.queue.lock().await;
             self.pool
-                .access_storage()
+                .connection()
                 .await
                 .unwrap()
                 .fri_gpu_prover_queue_dal()
@@ -143,7 +141,7 @@ pub mod gpu_socket_listener {
             };
 
             self.pool
-                .access_storage()
+                .connection()
                 .await
                 .unwrap()
                 .fri_gpu_prover_queue_dal()

@@ -31,7 +31,7 @@ impl<H: HistoryMode> ValidationTracer<H> {
         &mut self,
         state: VmLocalStateData<'_>,
         data: BeforeExecutionData,
-        memory: &SimpleMemory<H::Vm1_4_2>,
+        memory: &SimpleMemory<H::Vm1_5_0>,
         storage: StoragePtr<S>,
     ) -> ValidationRoundResult {
         if self.computational_gas_used > self.computational_gas_limit {
@@ -125,14 +125,14 @@ impl<H: HistoryMode> ValidationTracer<H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::Vm1_4_2>>
+impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::Vm1_5_0>>
     for ValidationTracer<H>
 {
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,
         data: BeforeExecutionData,
-        memory: &SimpleMemory<H::Vm1_4_2>,
+        memory: &SimpleMemory<H::Vm1_5_0>,
         storage: StoragePtr<S>,
     ) {
         // For now, we support only validations for users.
@@ -178,10 +178,10 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::Vm1_4_2>>
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H::Vm1_4_2> for ValidationTracer<H> {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H::Vm1_5_0> for ValidationTracer<H> {
     fn finish_cycle(
         &mut self,
-        _state: &mut ZkSyncVmState<S, H::Vm1_4_2>,
+        _state: &mut ZkSyncVmState<S, H::Vm1_5_0>,
         _bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
         if self.should_stop_execution {
