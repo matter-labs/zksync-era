@@ -235,7 +235,7 @@ impl SharedRateLimit {
 #[cfg(test)]
 mod tests {
     use futures::future;
-    use rand::{thread_rng, Rng};
+    use rand::{rngs::StdRng, Rng, SeedableRng};
     use test_casing::test_casing;
 
     use super::*;
@@ -347,16 +347,18 @@ mod tests {
         assert_timestamps_spacing_with_mock_clock(&timestamps, rate_limit);
     }
 
-    #[test_casing(3, [2, 3, 5])]
-    #[tokio::test(flavor = "multi_thread")]
-    async fn rate_limiting_with_multiple_instances_and_threads(rate_limit: usize) {
-        let rate_limit_window = Duration::from_millis(50);
+    async fn test_rate_limiting_with_rng(rate_limit: usize, rng_seed: u64) {
+        const RATE_LIMIT_WINDOW_MS: u64 = 50;
+
+        let mut rng = StdRng::seed_from_u64(rng_seed);
         let service = MockService::default();
+        let rate_limit_window = Duration::from_millis(RATE_LIMIT_WINDOW_MS);
         let limiter = SharedRateLimit::new(rate_limit, rate_limit_window);
+        let max_sleep_duration_ms = RATE_LIMIT_WINDOW_MS * 2 / rate_limit as u64;
 
         let mut call_tasks = vec![];
         for _ in 0..50 {
-            let sleep_duration_ms = thread_rng().gen_range(0..20);
+            let sleep_duration_ms = rng.gen_range(0..=max_sleep_duration_ms);
             tokio::time::sleep(Duration::from_millis(sleep_duration_ms)).await;
 
             let service = service.clone();
@@ -369,16 +371,42 @@ mod tests {
 
         let timestamps = service.0.lock().unwrap().clone();
         assert_eq!(timestamps.len(), 50);
-        for (i, window) in timestamps.windows(rate_limit + 1).enumerate() {
-            let first_timestamp = *window.first().unwrap();
-            let last_timestamp = *window.last().unwrap();
-            assert!(
-                // We reduce the required diff between timestamps because the number of calls is limited not in *any* window,
-                // but rather in specific windows; thus, in marginal cases, the diff may be slightly lower than `rate_limit_window`.
-                last_timestamp - first_timestamp >= rate_limit_window / 2,
-                "diffs={:?}, idx={i}",
-                timestamp_diffs(&timestamps)
-            );
+        let mut window_start = (0, timestamps[0]);
+        // Add an artificial terminal timestamp to check the last rate limiting window.
+        let it = timestamps
+            .iter()
+            .copied()
+            .chain([Instant::now() + rate_limit_window])
+            .enumerate()
+            .skip(1);
+        for (i, timestamp) in it {
+            if timestamp - window_start.1 >= rate_limit_window {
+                assert!(
+                    i - window_start.0 <= rate_limit,
+                    "diffs={:?}, idx={i}, window_start={window_start:?}",
+                    timestamp_diffs(&timestamps)
+                );
+                window_start = (i, timestamp);
+            }
         }
+    }
+
+    #[test_casing(4, [2, 3, 5, 8])]
+    #[tokio::test]
+    async fn rate_limiting_with_rng(rate_limit: usize) {
+        tokio::time::pause();
+
+        for rng_seed in 0..1_000 {
+            println!("Testing RNG seed: {rng_seed}");
+            test_rate_limiting_with_rng(rate_limit, rng_seed).await;
+        }
+    }
+
+    #[test_casing(4, [2, 3, 5, 8])]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn rate_limiting_with_rng_and_threads(rate_limit: usize) {
+        const RNG_SEED: u64 = 123;
+
+        test_rate_limiting_with_rng(rate_limit, RNG_SEED).await;
     }
 }
