@@ -58,8 +58,8 @@ If you don’t need all of the `zk init` functionality, but just need to start/s
 commands:
 
 ```
-zk up   # Set up `reth` container
-zk down # Shut down `reth` container
+zk up   # Set up `reth` and `postgres` containers
+zk down # Shut down `reth` and `postgres` containers
 ```
 
 ## Reinitializing
