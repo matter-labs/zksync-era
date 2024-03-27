@@ -8,7 +8,7 @@ use tokio::{
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::clients::QueryClient;
 
-use crate::l1_gas_price::GasAdjuster;
+use crate::{base_token_fetcher::ConversionRateFetcher, l1_gas_price::GasAdjuster};
 
 /// Special struct for creating a singleton of `GasAdjuster`.
 /// This is needed only for running the server.
@@ -18,6 +18,7 @@ pub struct GasAdjusterSingleton {
     gas_adjuster_config: GasAdjusterConfig,
     pubdata_sending_mode: PubdataSendingMode,
     singleton: OnceCell<Result<Arc<GasAdjuster>, Error>>,
+    base_token_fetcher: Arc<dyn ConversionRateFetcher>,
 }
 
 #[derive(thiserror::Error, Debug, Clone)]
@@ -35,12 +36,14 @@ impl GasAdjusterSingleton {
         web3_url: String,
         gas_adjuster_config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
+        base_token_fetcher: Arc<dyn ConversionRateFetcher>,
     ) -> Self {
         Self {
             web3_url,
             gas_adjuster_config,
             pubdata_sending_mode,
             singleton: OnceCell::new(),
+            base_token_fetcher,
         }
     }
 
@@ -54,6 +57,7 @@ impl GasAdjusterSingleton {
                     Arc::new(query_client.clone()),
                     self.gas_adjuster_config,
                     self.pubdata_sending_mode,
+                    self.base_token_fetcher.clone(),
                 )
                 .await
                 .context("GasAdjuster::new()")?;
@@ -67,9 +71,12 @@ impl GasAdjusterSingleton {
         self,
         stop_signal: watch::Receiver<bool>,
     ) -> Option<JoinHandle<anyhow::Result<()>>> {
-        let gas_adjuster = self.singleton.get()?.clone();
+        let gas_adjuster = match self.singleton.get()? {
+            Ok(gas_adjuster) => gas_adjuster.clone(),
+            Err(_e) => return None,
+        };
         Some(tokio::spawn(
-            async move { gas_adjuster?.run(stop_signal).await },
+            async move { gas_adjuster.run(stop_signal).await },
         ))
     }
 }

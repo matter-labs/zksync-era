@@ -6,6 +6,7 @@
 
 mod alerts;
 mod api;
+mod base_token_fetcher;
 mod chain;
 mod contract_verifier;
 mod contracts;

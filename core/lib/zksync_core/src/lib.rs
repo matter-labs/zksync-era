@@ -58,6 +58,7 @@ use crate::{
         tx_sender::{ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
         web3::{self, state::InternalApiConfig, Namespace},
     },
+    base_token_fetcher::{BaseTokenFetcher, ConversionRateFetcher, NoOpConversionRateFetcher},
     basic_witness_input_producer::BasicWitnessInputProducer,
     commitment_generator::CommitmentGenerator,
     eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
@@ -83,11 +84,13 @@ use crate::{
 };
 
 pub mod api_server;
+pub mod base_token_fetcher;
 pub mod basic_witness_input_producer;
 pub mod block_reverter;
 pub mod commitment_generator;
 pub mod consensus;
 pub mod consistency_checker;
+pub mod dev_api_conversion_rate;
 pub mod eth_sender;
 pub mod eth_watch;
 pub mod fee_model;
@@ -255,6 +258,10 @@ pub enum Component {
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
+    /// Base Token fetcher
+    BaseTokenFetcher,
+    /// Conversion rate API, for local development.
+    DevConversionRateApi,
     /// Component generating BFT consensus certificates for miniblocks.
     Consensus,
     /// Component generating commitment for L1 batches.
@@ -293,6 +300,8 @@ impl FromStr for Components {
             "eth_tx_aggregator" => Ok(Components(vec![Component::EthTxAggregator])),
             "eth_tx_manager" => Ok(Components(vec![Component::EthTxManager])),
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
+            "base_token_fetcher" => Ok(Components(vec![Component::BaseTokenFetcher])),
+            "dev_conversion_rate_api" => Ok(Components(vec![Component::DevConversionRateApi])),
             "consensus" => Ok(Components(vec![Component::Consensus])),
             "commitment_generator" => Ok(Components(vec![Component::CommitmentGenerator])),
             other => Err(format!("{} is not a valid component name", other)),
@@ -368,6 +377,37 @@ pub async fn initialize_components(
         panic!("Circuit breaker triggered: {}", err);
     });
 
+    let mut task_futures: Vec<JoinHandle<anyhow::Result<()>>> = Vec::new();
+    let (stop_sender, stop_receiver) = watch::channel(false);
+
+    // spawn the conversion rate API if it is enabled
+    if components.contains(&Component::DevConversionRateApi) {
+        let base_token_fetcher_config = configs
+            .base_token_fetcher_config
+            .clone()
+            .context("base_token_fetcher_config")?;
+
+        let stop_receiver = stop_receiver.clone();
+        let conversion_rate_task = tokio::spawn(async move {
+            dev_api_conversion_rate::run_server(stop_receiver, &base_token_fetcher_config).await
+        });
+        task_futures.push(conversion_rate_task);
+    };
+
+    let base_token_fetcher = if components.contains(&Component::BaseTokenFetcher) {
+        Arc::new(
+            BaseTokenFetcher::new(
+                configs
+                    .base_token_fetcher_config
+                    .clone()
+                    .context("base_token_fetcher_config")?,
+            )
+            .await?,
+        ) as Arc<dyn ConversionRateFetcher>
+    } else {
+        Arc::new(NoOpConversionRateFetcher::new())
+    };
+
     let query_client = QueryClient::new(&eth_client_config.web3_url).unwrap();
     let gas_adjuster_config = configs.gas_adjuster_config.context("gas_adjuster_config")?;
 
@@ -379,9 +419,9 @@ pub async fn initialize_components(
         eth_client_config.web3_url.clone(),
         gas_adjuster_config,
         eth_sender_config.sender.pubdata_sending_mode,
+        base_token_fetcher,
     );
 
-    let (stop_sender, stop_receiver) = watch::channel(false);
     let (cb_sender, cb_receiver) = oneshot::channel();
 
     // Prometheus exporter and circuit breaker checker should run for every component configuration.
@@ -402,10 +442,10 @@ pub async fn initialize_components(
         res
     });
 
-    let mut task_futures: Vec<JoinHandle<anyhow::Result<()>>> = vec![
+    task_futures.extend(vec![
         prometheus_task,
         tokio::spawn(circuit_breaker_checker.run(cb_sender, stop_receiver.clone())),
-    ];
+    ]);
 
     if components.contains(&Component::WsApi)
         || components.contains(&Component::HttpApi)
@@ -792,6 +832,7 @@ pub async fn initialize_components(
     if let Some(task) = gas_adjuster.run_if_initialized(stop_receiver.clone()) {
         task_futures.push(task);
     }
+
     Ok((task_futures, stop_sender, cb_receiver, health_check_handle))
 }
 
