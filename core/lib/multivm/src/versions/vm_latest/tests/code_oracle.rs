@@ -1,25 +1,15 @@
 use ethabi::Token;
 use zk_evm_1_5_0::aux_structures::Timestamp;
-use zksync_system_constants::L2_ETH_TOKEN_ADDRESS;
-use zksync_types::{
-    get_code_key, get_known_code_key, get_nonce_key,
-    system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT},
-    web3::signing::keccak256,
-    AccountTreeId, Address, Execute, StorageKey, H256, U256,
-};
+use zksync_types::{get_known_code_key, web3::signing::keccak256, Address, Execute, U256};
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     vm_latest::{
         tests::{
-            tester::{get_empty_storage, DeployContractsTx, TxType, VmTesterBuilder},
-            utils::{
-                get_balance, load_precompiles_contract, read_precompiles_contract,
-                read_test_contract, verify_required_storage,
-            },
+            tester::{get_empty_storage, VmTesterBuilder},
+            utils::{load_precompiles_contract, read_precompiles_contract, read_test_contract},
         },
-        utils::fee::get_batch_base_fee,
         HistoryEnabled,
     },
 };

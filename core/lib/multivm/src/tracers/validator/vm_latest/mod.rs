@@ -20,9 +20,7 @@ use crate::{
         ValidationRoundResult, ValidationTracer,
     },
     vm_latest::{
-        tracers::utils::{
-            computational_gas_price, get_calldata_page_via_abi, print_debug_if_needed, VmHook,
-        },
+        tracers::utils::{computational_gas_price, get_calldata_page_via_abi, VmHook},
         BootloaderState, SimpleMemory, VmTracer, ZkSyncVmState,
     },
     HistoryMode,

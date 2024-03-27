@@ -4,7 +4,6 @@ use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics
 use zk_evm_1_5_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
-    vm_state::VmLocalState,
     zkevm_opcode_defs::system_params::L1_MESSAGE_PUBDATA_BYTES,
 };
 use zksync_state::{StoragePtr, WriteStorage};

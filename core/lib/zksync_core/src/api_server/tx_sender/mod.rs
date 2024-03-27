@@ -94,7 +94,8 @@ impl MultiVMBaseSystemContracts {
             ProtocolVersionId::Version20 => self.post_1_4_1,
             ProtocolVersionId::Version21
             | ProtocolVersionId::Version22
-            | ProtocolVersionId::Version23 => self.post_1_4_2,
+            | ProtocolVersionId::Version23
+            | ProtocolVersionId::Version24 => self.post_1_4_2,
         }
     }
 }

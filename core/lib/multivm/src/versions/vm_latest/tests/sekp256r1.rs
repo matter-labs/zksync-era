@@ -1,26 +1,11 @@
-use std::convert::TryInto;
-
-use zk_evm_1_4_1::k256::elliptic_curve::sec1::FromEncodedPoint;
 use zk_evm_1_5_0::zkevm_opcode_defs::p256;
-use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, P256VERIFY_PRECOMPILE_ADDRESS};
-use zksync_types::{
-    get_code_key, get_known_code_key, get_nonce_key,
-    system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT},
-    web3::signing::keccak256,
-    AccountTreeId, Execute, H256, U256,
-};
-use zksync_utils::{h256_to_u256, u256_to_h256};
+use zksync_system_constants::P256VERIFY_PRECOMPILE_ADDRESS;
+use zksync_types::{web3::signing::keccak256, Execute, H256, U256};
+use zksync_utils::h256_to_u256;
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
-        tests::{
-            tester::{DeployContractsTx, TxType, VmTesterBuilder},
-            utils::{get_balance, read_test_contract, verify_required_storage},
-        },
-        utils::fee::get_batch_base_fee,
-        ExecutionResult, HistoryEnabled,
-    },
+    vm_latest::{tests::tester::VmTesterBuilder, ExecutionResult, HistoryEnabled},
 };
 
 #[test]
