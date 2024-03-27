@@ -47,6 +47,9 @@ pub fn derive_base_fee_and_gas_per_pubdata(
         VmVersion::Vm1_4_2 => crate::vm_1_4_2::utils::fee::derive_base_fee_and_gas_per_pubdata(
             batch_fee_input.into_pubdata_independent(),
         ),
+        VmVersion::Vm1_5_0 => crate::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata(
+            batch_fee_input.into_pubdata_independent(),
+        ),
     }
 }
 
@@ -70,6 +73,7 @@ pub fn get_batch_base_fee(l1_batch_env: &L1BatchEnv, vm_version: VmVersion) -> u
         }
         VmVersion::Vm1_4_1 => crate::vm_1_4_1::utils::fee::get_batch_base_fee(l1_batch_env),
         VmVersion::Vm1_4_2 => crate::vm_1_4_2::utils::fee::get_batch_base_fee(l1_batch_env),
+        VmVersion::Vm1_5_0 => crate::vm_latest::utils::fee::get_batch_base_fee(l1_batch_env),
     }
 }
 
@@ -195,6 +199,7 @@ pub fn derive_overhead(
         }
         VmVersion::Vm1_4_1 => crate::vm_1_4_1::utils::overhead::derive_overhead(encoded_len),
         VmVersion::Vm1_4_2 => crate::vm_1_4_2::utils::overhead::derive_overhead(encoded_len),
+        VmVersion::Vm1_5_0 => crate::vm_latest::utils::overhead::derive_overhead(encoded_len),
     };
 
     overhead
@@ -220,6 +225,7 @@ pub fn get_bootloader_encoding_space(version: VmVersion) -> u32 {
         }
         VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::BOOTLOADER_TX_ENCODING_SPACE,
         VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::BOOTLOADER_TX_ENCODING_SPACE,
+        VmVersion::Vm1_5_0 => crate::vm_latest::constants::BOOTLOADER_TX_ENCODING_SPACE,
     }
 }
 
@@ -239,6 +245,7 @@ pub fn get_bootloader_max_txs_in_batch(version: VmVersion) -> usize {
         VmVersion::VmBoojumIntegration => crate::vm_boojum_integration::constants::MAX_TXS_IN_BLOCK,
         VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::MAX_TXS_IN_BATCH,
         VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::MAX_TXS_IN_BATCH,
+        VmVersion::Vm1_5_0 => crate::vm_latest::constants::MAX_TXS_IN_BATCH,
     }
 }
 
@@ -259,6 +266,7 @@ pub fn gas_bootloader_batch_tip_overhead(version: VmVersion) -> u32 {
         }
         VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::BOOTLOADER_BATCH_TIP_OVERHEAD,
         VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::BOOTLOADER_BATCH_TIP_OVERHEAD,
+        VmVersion::Vm1_5_0 => crate::vm_latest::constants::BOOTLOADER_BATCH_TIP_OVERHEAD,
     }
 }
 
@@ -279,6 +287,9 @@ pub fn circuit_statistics_bootloader_batch_tip_overhead(version: VmVersion) -> u
         VmVersion::Vm1_4_2 => {
             crate::vm_1_4_2::constants::BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD as usize
         }
+        VmVersion::Vm1_5_0 => {
+            crate::vm_latest::constants::BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD as usize
+        }
     }
 }
 
@@ -298,6 +309,9 @@ pub fn execution_metrics_bootloader_batch_tip_overhead(version: VmVersion) -> us
         }
         VmVersion::Vm1_4_2 => {
             crate::vm_1_4_2::constants::BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD as usize
+        }
+        VmVersion::Vm1_5_0 => {
+            crate::vm_latest::constants::BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD as usize
         }
     }
 }
@@ -320,6 +334,7 @@ pub fn get_max_gas_per_pubdata_byte(version: VmVersion) -> u64 {
         }
         VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::MAX_GAS_PER_PUBDATA_BYTE,
         VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::MAX_GAS_PER_PUBDATA_BYTE,
+        VmVersion::Vm1_5_0 => crate::vm_latest::constants::MAX_GAS_PER_PUBDATA_BYTE,
     }
 }
 
@@ -343,6 +358,7 @@ pub fn get_used_bootloader_memory_bytes(version: VmVersion) -> usize {
         }
         VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::USED_BOOTLOADER_MEMORY_BYTES,
         VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::USED_BOOTLOADER_MEMORY_BYTES,
+        VmVersion::Vm1_5_0 => crate::vm_latest::constants::USED_BOOTLOADER_MEMORY_BYTES,
     }
 }
 
@@ -366,5 +382,6 @@ pub fn get_used_bootloader_memory_words(version: VmVersion) -> usize {
         }
         VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::USED_BOOTLOADER_MEMORY_WORDS,
         VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::USED_BOOTLOADER_MEMORY_WORDS,
+        VmVersion::Vm1_5_0 => crate::vm_latest::constants::USED_BOOTLOADER_MEMORY_WORDS,
     }
 }

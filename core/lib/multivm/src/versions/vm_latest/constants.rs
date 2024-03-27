@@ -8,15 +8,9 @@ use zksync_system_constants::{MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS};
 use crate::vm_latest::old_vm::utils::heap_page_from_base;
 
 /// The amount of ergs to be reserved at the end of the batch to ensure that it has enough ergs to verify compression, etc.
-// TODO(EVM-513): remove allowing the dead code
-#[allow(dead_code)]
 pub(crate) const BOOTLOADER_BATCH_TIP_OVERHEAD: u32 = 170_000_000;
 
-// TODO(EVM-513): remove allowing the dead code
-#[allow(dead_code)]
 pub(crate) const BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD: u32 = 5000;
-// TODO(EVM-513): remove allowing the dead code
-#[allow(dead_code)]
 pub(crate) const BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD: u32 = 1500;
 
 /// The size of the bootloader memory in bytes which is used by the protocol.
@@ -97,8 +91,6 @@ pub(crate) const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
     OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS;
 
 /// The size of the bootloader memory dedicated to the encodings of transactions
-// TODO(EVM-513): remove allowing the dead code
-#[allow(dead_code)]
 pub(crate) const BOOTLOADER_TX_ENCODING_SPACE: u32 =
     (USED_BOOTLOADER_MEMORY_WORDS - TX_DESCRIPTION_OFFSET - MAX_TXS_IN_BATCH) as u32;
 
