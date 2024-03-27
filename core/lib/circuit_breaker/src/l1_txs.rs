@@ -10,6 +10,10 @@ pub struct FailedL1TransactionChecker {
 
 #[async_trait::async_trait]
 impl CircuitBreaker for FailedL1TransactionChecker {
+    fn name(&self) -> &'static str {
+        "failed_l1_transaction"
+    }
+
     async fn check(&self) -> Result<(), CircuitBreakerError> {
         let number_of_failed_transactions = self
             .pool
