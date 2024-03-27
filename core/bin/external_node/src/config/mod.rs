@@ -17,7 +17,7 @@ use zksync_types::{api::BridgeAddresses, fee_model::FeeParams};
 use zksync_web3_decl::{
     error::ClientRpcContext,
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
-    namespaces::{EthNamespaceClient, ZksNamespaceClient},
+    namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
 
 pub(crate) mod observability;
@@ -30,6 +30,8 @@ const BYTES_IN_MEGABYTE: usize = 1_024 * 1_024;
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct RemoteENConfig {
     pub bridgehub_proxy_addr: Option<Address>,
+    pub state_transition_proxy_addr: Option<Address>,
+    pub transparent_proxy_admin_addr: Option<Address>,
     pub diamond_proxy_addr: Address,
     pub l1_erc20_bridge_proxy_addr: Address,
     pub l2_erc20_bridge_addr: Address,
@@ -51,8 +53,8 @@ impl RemoteENConfig {
             .get_testnet_paymaster()
             .rpc_context("get_testnet_paymaster")
             .await?;
-        // In case EN is connected to the old server version without `get_bridgehub_contract` method.
-        let bridgehub_proxy_addr = client.get_bridgehub_contract().await.ok().flatten();
+        let genesis = client.genesis_config().rpc_context("genesis").await.ok();
+        let shared_bridge = genesis.map(|a| a.shared_bridge).flatten();
         let diamond_proxy_addr = client
             .get_main_contract()
             .rpc_context("get_main_contract")
@@ -77,7 +79,13 @@ impl RemoteENConfig {
         };
 
         Ok(Self {
-            bridgehub_proxy_addr,
+            bridgehub_proxy_addr: shared_bridge.as_ref().map(|a| a.bridgehub_proxy_addr),
+            state_transition_proxy_addr: shared_bridge
+                .as_ref()
+                .map(|a| a.state_transition_proxy_addr),
+            transparent_proxy_admin_addr: shared_bridge
+                .as_ref()
+                .map(|a| a.transparent_proxy_admin_addr),
             diamond_proxy_addr,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
@@ -633,9 +641,8 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
                 l2_weth_bridge: config.remote.l2_weth_bridge_addr,
             },
             bridgehub_proxy_addr: config.remote.bridgehub_proxy_addr,
-            // TODO set values
-            state_transition_proxy_addr: None,
-            transparent_proxy_admin_addr: None,
+            state_transition_proxy_addr: config.remote.state_transition_proxy_addr,
+            transparent_proxy_admin_addr: config.remote.transparent_proxy_admin_addr,
             diamond_proxy_addr: config.remote.diamond_proxy_addr,
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,

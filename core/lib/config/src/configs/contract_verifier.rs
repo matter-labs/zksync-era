@@ -1,4 +1,7 @@
-use std::{net::SocketAddr, time::Duration};
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    time::Duration,
+};
 
 use serde::Deserialize;
 
@@ -23,6 +26,6 @@ impl ContractVerifierConfig {
         Duration::from_millis(self.polling_interval.unwrap_or(1000))
     }
     pub fn bind_addr(&self) -> SocketAddr {
-        SocketAddr::new("0.0.0.0".parse().unwrap(), self.port)
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), self.port)
     }
 }

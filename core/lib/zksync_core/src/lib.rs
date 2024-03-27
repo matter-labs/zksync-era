@@ -451,8 +451,7 @@ pub async fn initialize_components(
                 configs
                     .contract_verifier
                     .clone()
-                    .context("Contract verifier")?
-                    .clone(),
+                    .context("Contract verifier")?,
                 stop_receiver.clone(),
             )));
             let elapsed = started_at.elapsed();
