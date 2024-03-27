@@ -17,8 +17,7 @@ use tokio::sync::{mpsc, watch};
 use zksync_contracts::BaseSystemContracts;
 use zksync_types::{
     block::MiniblockExecutionData, fee_model::BatchFeeInput, protocol_upgrade::ProtocolUpgradeTx,
-    witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
-    ProtocolVersionId, Transaction, H256,
+    Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
 };
 
 use crate::{
@@ -569,11 +568,7 @@ impl StateKeeperOutputHandler for TestPersistence {
         Ok(())
     }
 
-    async fn handle_l1_batch(
-        &mut self,
-        _witness_block_state: Option<&WitnessBlockState>,
-        updates_manager: &UpdatesManager,
-    ) -> anyhow::Result<()> {
+    async fn handle_l1_batch(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
         let action = self.pop_next_item("seal_l1_batch");
         let ScenarioItem::BatchSeal(_, check_fn) = action else {
             anyhow::bail!("Unexpected action: {:?}", action);

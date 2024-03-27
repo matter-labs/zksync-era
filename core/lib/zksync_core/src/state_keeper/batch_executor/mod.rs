@@ -143,6 +143,7 @@ impl BatchExecutorHandle {
         latency.observe();
     }
 
+    // FIXME: remove WitnessBlockState
     pub(super) async fn finish_batch(self) -> (FinishedL1Batch, Option<WitnessBlockState>) {
         let (response_sender, response_receiver) = oneshot::channel();
         self.commands
