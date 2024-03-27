@@ -774,7 +774,7 @@ async fn add_state_keeper_to_task_futures(
     let persistence = persistence.with_object_store(object_store);
     task_futures.push(tokio::spawn(miniblock_sealer.run()));
 
-    let state_keeper = create_state_keeper(
+    let (state_keeper, async_catchup_task) = create_state_keeper(
         state_keeper_config,
         db_config,
         network_config,
@@ -787,6 +787,12 @@ async fn add_state_keeper_to_task_futures(
     )
     .await;
 
+    let mut stop_receiver_clone = stop_receiver.clone();
+    task_futures.push(tokio::task::spawn(async move {
+        let result = async_catchup_task.run(stop_receiver_clone.clone()).await;
+        stop_receiver_clone.changed().await?;
+        result
+    }));
     task_futures.push(tokio::spawn(
         state_keeper.run_fee_address_migration(state_keeper_pool),
     ));
