@@ -79,6 +79,22 @@ zk env <ENV_NAME>
 Default configuration is `dev.env`, which is generated automatically from `dev.env.example` during `zk init` command
 execution.
 
+## Setup local validium dev environment
+
+Validium mode config differs a little bit with Rollup mode config (dev), to set the correct config run
+
+```
+zk env dev_validium
+```
+
+> If you'd like to come back to the Rollup mode config (dev) run `zk env dev`.
+
+In addition to the default setup, we just add the `--validium-mode` flag to the `zk init` command as follows
+
+```
+zk init --validium-mode
+```
+
 ## Build and run server
 
 Run server:
