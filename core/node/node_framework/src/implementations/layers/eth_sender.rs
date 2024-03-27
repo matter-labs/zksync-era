@@ -1,11 +1,10 @@
 use std::sync::Arc;
 
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
-use zksync_config::configs::{
-    chain::NetworkConfig, eth_sender::ETHConfig, ContractsConfigReduced, ETHClientConfig,
-};
+use zksync_config::configs::{chain::NetworkConfig, eth_sender::ETHConfig, ContractsConfigReduced};
 use zksync_core::eth_sender::{Aggregator, EthTxAggregator, EthTxManager};
 use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface};
+use zksync_types::L1ChainId;
 
 use crate::{
     implementations::resources::{
@@ -24,22 +23,22 @@ use crate::{
 pub struct EthSenderLayer {
     eth_sender_config: ETHConfig,
     contracts_config: ContractsConfigReduced,
-    eth_client_config: ETHClientConfig,
     network_config: NetworkConfig,
+    l1chain_id: L1ChainId,
 }
 
 impl EthSenderLayer {
     pub fn new(
         eth_sender_config: ETHConfig,
         contracts_config: ContractsConfigReduced,
-        eth_client_config: ETHClientConfig,
         network_config: NetworkConfig,
+        l1chain_id: L1ChainId,
     ) -> Self {
         Self {
             eth_sender_config,
             contracts_config,
-            eth_client_config,
             network_config,
+            l1chain_id,
         }
     }
 }
@@ -66,7 +65,7 @@ impl WiringLayer for EthSenderLayer {
         let eth_client_blobs = PKSigningClient::from_config_blobs(
             &self.eth_sender_config,
             &self.contracts_config,
-            &self.eth_client_config,
+            self.l1chain_id,
         );
         let eth_client_blobs_addr = eth_client_blobs.clone().map(|k| k.sender_account());
 

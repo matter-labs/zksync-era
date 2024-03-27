@@ -15,8 +15,8 @@ use zksync_config::{
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
         ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, WitnessGeneratorConfig,
     },
-    ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHConfig,
-    ETHWatchConfig, GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
+    ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, ETHConfig, ETHWatchConfig,
+    GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_core::{
     genesis, genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
@@ -138,7 +138,6 @@ async fn main() -> anyhow::Result<()> {
                 witness_generator_config: WitnessGeneratorConfig::from_env().ok(),
                 api_config: ApiConfig::from_env().ok(),
                 db_config: DBConfig::from_env().ok(),
-                eth_client_config: ETHClientConfig::from_env().ok(),
                 eth_sender_config: ETHConfig::from_env().ok(),
                 eth_watch_config: ETHWatchConfig::from_env().ok(),
                 gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
@@ -185,7 +184,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     if opt.set_chain_id {
-        let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
+        let eth_client = ETHConfig::from_env().context("EthClientConfig")?;
         let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
         if let Some(state_transition_proxy_addr) = contracts.state_transition_proxy_addr {
             genesis::save_set_chain_id_tx(

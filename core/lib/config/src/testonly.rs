@@ -430,15 +430,6 @@ impl RandomConfig for configs::database::PostgresConfig {
     }
 }
 
-impl RandomConfig for configs::ETHClientConfig {
-    fn sample(g: &mut Gen<impl Rng>) -> Self {
-        Self {
-            chain_id: g.gen(),
-            web3_url: g.gen(),
-        }
-    }
-}
-
 impl RandomConfig for configs::ETHConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {

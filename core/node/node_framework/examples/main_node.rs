@@ -14,8 +14,8 @@ use zksync_config::{
         FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, ObservabilityConfig,
         ProofDataHandlerConfig,
     },
-    ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHConfig, ETHWatchConfig,
-    GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
+    ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, ETHConfig, ETHWatchConfig,
+    GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_core::{
     api_server::{
@@ -84,16 +84,17 @@ impl MainNodeBuilder {
     }
 
     fn add_pk_signing_client_layer(mut self) -> anyhow::Result<Self> {
+        let genesis = GenesisConfig::from_env()?;
         self.node.add_layer(PKSigningEthClientLayer::new(
             ETHConfig::from_env()?,
-            ContractsConfig::from_env()?,
-            ETHClientConfig::from_env()?,
+            ContractsConfig::from_env()?.into(),
+            genesis.l1_chain_id,
         ));
         Ok(self)
     }
 
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
-        let eth_client_config = ETHClientConfig::from_env()?;
+        let eth_client_config = ETHConfig::from_env()?;
         let query_eth_client_layer = QueryEthClientLayer::new(eth_client_config.web3_url);
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
@@ -203,10 +204,11 @@ impl MainNodeBuilder {
 
     fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
         let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
-        let contracts_config = ContractsConfig::from_env()?;
+        let contracts_config = ContractsConfig::from_env()?.into();
         let network_config = NetworkConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
         let with_debug_namespace = state_keeper_config.save_call_traces;
+        let genesis_config = GenesisConfig::from_env()?;
 
         let mut namespaces = Namespace::DEFAULT.to_vec();
         if with_debug_namespace {
@@ -224,7 +226,7 @@ impl MainNodeBuilder {
         };
         self.node.add_layer(Web3ServerLayer::http(
             rpc_config.http_port,
-            InternalApiConfig::new(&network_config, &rpc_config, &contracts_config),
+            InternalApiConfig::new(&rpc_config, &contracts_config, &genesis_config),
             optional_config,
         ));
 
@@ -233,8 +235,8 @@ impl MainNodeBuilder {
 
     fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
         let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
-        let contracts_config = ContractsConfig::from_env()?;
-        let network_config = NetworkConfig::from_env()?;
+        let contracts_config = ContractsConfig::from_env()?.into();
+        let genesis_config = GenesisConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
         let circuit_breaker_config = CircuitBreakerConfig::from_env()?;
         let with_debug_namespace = state_keeper_config.save_call_traces;
@@ -258,7 +260,7 @@ impl MainNodeBuilder {
         };
         self.node.add_layer(Web3ServerLayer::ws(
             rpc_config.ws_port,
-            InternalApiConfig::new(&network_config, &rpc_config, &contracts_config),
+            InternalApiConfig::new(&rpc_config, &contracts_config, &genesis_config),
             optional_config,
         ));
 
@@ -266,15 +268,15 @@ impl MainNodeBuilder {
     }
     fn add_eth_sender_layer(mut self) -> anyhow::Result<Self> {
         let eth_sender_config = ETHConfig::from_env()?;
-        let contracts_config = ContractsConfig::from_env()?;
-        let eth_client_config = ETHClientConfig::from_env()?;
+        let contracts_config = ContractsConfig::from_env()?.into();
         let network_config = NetworkConfig::from_env()?;
+        let genesis_config = GenesisConfig::from_env()?;
 
         self.node.add_layer(EthSenderLayer::new(
             eth_sender_config,
             contracts_config,
-            eth_client_config,
             network_config,
+            genesis_config.l1_chain_id,
         ));
 
         Ok(self)
@@ -313,7 +315,7 @@ impl MainNodeBuilder {
     }
 
     fn add_contract_verification_api_layer(mut self) -> anyhow::Result<Self> {
-        let config = ApiConfig::from_env()?.contract_verification;
+        let config = ContractVerifierConfig::from_env()?;
         self.node.add_layer(ContractVerificationApiLayer(config));
         Ok(self)
     }

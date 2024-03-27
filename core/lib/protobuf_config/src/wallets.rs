@@ -1,5 +1,4 @@
 use anyhow::Context;
-use zksync_basic_types::Address;
 use zksync_config::configs::{
     self,
     wallets::{EthSender, StateKeeper, Wallet},

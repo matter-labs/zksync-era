@@ -1,7 +1,7 @@
 use std::{fmt, sync::Arc};
 
 use async_trait::async_trait;
-use zksync_config::{configs::ContractsConfigReduced, ETHClientConfig, ETHConfig};
+use zksync_config::{configs::ContractsConfigReduced, ETHConfig};
 use zksync_contracts::zksync_contract;
 use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
 use zksync_types::{
@@ -32,7 +32,7 @@ impl PKSigningClient {
     pub fn from_config(
         eth_sender: &ETHConfig,
         contracts_config: &ContractsConfigReduced,
-        eth_client: &ETHClientConfig,
+        l1_chain_id: L1ChainId,
     ) -> Self {
         // Gather required data from the config.
         // It's done explicitly to simplify getting rid of this function later.
@@ -44,7 +44,7 @@ impl PKSigningClient {
         Self::from_config_inner(
             eth_sender,
             contracts_config,
-            eth_client,
+            l1_chain_id,
             operator_private_key,
         )
     }
@@ -53,7 +53,7 @@ impl PKSigningClient {
     pub fn from_config_blobs(
         eth_sender: &ETHConfig,
         contracts_config: &ContractsConfigReduced,
-        eth_client: &ETHClientConfig,
+        l1_chain_id: L1ChainId,
     ) -> Option<Self> {
         // Gather required data from the config.
         // It's done explicitly to simplify getting rid of this function later.
@@ -62,7 +62,7 @@ impl PKSigningClient {
         Some(Self::from_config_inner(
             eth_sender,
             contracts_config,
-            eth_client,
+            l1_chain_id,
             operator_private_key,
         ))
     }
@@ -94,19 +94,18 @@ impl PKSigningClient {
     fn from_config_inner(
         eth_sender: &ETHConfig,
         contracts_config: &ContractsConfigReduced,
-        eth_client: &ETHClientConfig,
+        l1_chain_id: L1ChainId,
         operator_private_key: H256,
     ) -> Self {
-        let main_node_url = &eth_client.web3_url;
         let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
         let default_priority_fee_per_gas = eth_sender.gas_adjuster.default_priority_fee_per_gas;
-        let l1_chain_id = eth_client.chain_id;
+        let main_node_url = &eth_sender.web3_url;
 
         SigningClient::new_raw(
             operator_private_key,
             diamond_proxy_addr,
             default_priority_fee_per_gas.into(),
-            L1ChainId(l1_chain_id),
+            l1_chain_id,
             main_node_url,
         )
     }

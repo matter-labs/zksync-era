@@ -13,7 +13,7 @@ use fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInpu
 use multivm::zk_evm_latest::ethereum_types::H256;
 use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::Prover;
-use temp_config_store::{Secrets, TempConfigStore};
+use temp_config_store::Secrets;
 use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,

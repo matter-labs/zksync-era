@@ -5,7 +5,6 @@ pub use self::{
     contract_verifier::ContractVerifierConfig,
     contracts::{ContractsConfig, ContractsConfigReduced},
     database::{DBConfig, PostgresConfig},
-    eth_client::ETHClientConfig,
     eth_sender::{ETHConfig, GasAdjusterConfig},
     eth_watch::ETHWatchConfig,
     fri_proof_compressor::FriProofCompressorConfig,
@@ -29,7 +28,6 @@ pub mod chain;
 pub mod contract_verifier;
 pub mod contracts;
 pub mod database;
-pub mod eth_client;
 pub mod eth_sender;
 pub mod eth_watch;
 pub mod fri_proof_compressor;
