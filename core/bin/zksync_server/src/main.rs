@@ -12,8 +12,8 @@ use zksync_config::{
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         ContractsConfig, FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
-        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
-        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, WitnessGeneratorConfig,
+        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
+        PrometheusConfig, ProofDataHandlerConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, ETHConfig, ETHWatchConfig, GasAdjusterConfig,
     GenesisConfig, ObjectStoreConfig, PostgresConfig,
@@ -24,7 +24,6 @@ use zksync_core::{
     Component, Components,
 };
 use zksync_env_config::FromEnv;
-use zksync_protobuf_config;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
@@ -60,6 +59,9 @@ struct Cli {
     /// Path to the yaml with secrets. If set, it will be used instead of env vars.
     #[arg(long)]
     contracts_config_path: Option<std::path::PathBuf>,
+    /// Path to the wallets config. If set, it will be used instead of env vars.
+    #[arg(long)]
+    wallets_path: Option<std::path::PathBuf>,
 }
 
 #[derive(Debug, Clone)]
@@ -106,46 +108,25 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("No sentry URL was provided");
     }
 
-    // TODO (QIT-22): Only deserialize configs on demand.
-    // Right now, we are trying to deserialize all the configs that may be needed by `zksync_core`.
-    // "May" is the key word here, since some configs are only used by certain component configuration,
-    // hence we are using `Option`s.
-    let (configs, wallets) = match opt.config_path {
+    let tmp_config = load_env_config()?;
+
+    let configs = match opt.config_path {
+        None => tmp_config.general(),
         Some(path) => {
-            todo!()
+            let yaml =
+                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
+            decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
+                .context("failed decoding YAML config")?
         }
-        None => {
-            let config = TempConfigStore {
-                postgres_config: PostgresConfig::from_env().ok(),
-                health_check_config: HealthCheckConfig::from_env().ok(),
-                merkle_tree_api_config: MerkleTreeApiConfig::from_env().ok(),
-                web3_json_rpc_config: Web3JsonRpcConfig::from_env().ok(),
-                circuit_breaker_config: CircuitBreakerConfig::from_env().ok(),
-                mempool_config: MempoolConfig::from_env().ok(),
-                network_config: NetworkConfig::from_env().ok(),
-                contract_verifier: ContractVerifierConfig::from_env().ok(),
-                operations_manager_config: OperationsManagerConfig::from_env().ok(),
-                state_keeper_config: StateKeeperConfig::from_env().ok(),
-                house_keeper_config: HouseKeeperConfig::from_env().ok(),
-                fri_proof_compressor_config: FriProofCompressorConfig::from_env().ok(),
-                fri_prover_config: Some(FriProverConfig::from_env().context("fri_prover_config")?),
-                fri_prover_group_config: FriProverGroupConfig::from_env().ok(),
-                fri_prover_gateway_config: FriProverGatewayConfig::from_env().ok(),
-                fri_witness_vector_generator: FriWitnessVectorGeneratorConfig::from_env().ok(),
-                fri_witness_generator_config: FriWitnessGeneratorConfig::from_env().ok(),
-                prometheus_config: PrometheusConfig::from_env().ok(),
-                proof_data_handler_config: ProofDataHandlerConfig::from_env().ok(),
-                witness_generator_config: WitnessGeneratorConfig::from_env().ok(),
-                api_config: ApiConfig::from_env().ok(),
-                db_config: DBConfig::from_env().ok(),
-                eth_sender_config: ETHConfig::from_env().ok(),
-                eth_watch_config: ETHWatchConfig::from_env().ok(),
-                gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
-                object_store_config: ObjectStoreConfig::from_env().ok(),
-                consensus_config: config::read_consensus_config()
-                    .context("read_consensus_config()")?,
-            };
-            (config.general(), config.wallets())
+    };
+
+    let wallets = match opt.wallets_path {
+        None => tmp_config.wallets(),
+        Some(path) => {
+            let yaml =
+                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
+            decode_yaml_repr::<zksync_protobuf_config::proto::wallets::Wallets>(&yaml)
+                .context("failed decoding YAML config")?
         }
     };
     let secrets: Secrets = match opt.secrets_path {
@@ -162,9 +143,7 @@ async fn main() -> anyhow::Result<()> {
     let consensus = config::read_consensus_config().context("read_consensus_config()")?;
 
     let contracts_config: ContractsConfig = match opt.contracts_config_path {
-        None => ContractsConfig::from_env()
-            .context("contracts_config")?
-            .into(),
+        None => ContractsConfig::from_env().context("contracts_config")?,
         Some(path) => {
             let yaml =
                 std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
@@ -246,4 +225,35 @@ async fn main() -> anyhow::Result<()> {
     health_check_handle.stop().await;
     tracing::info!("Stopped");
     Ok(())
+}
+
+fn load_env_config() -> anyhow::Result<TempConfigStore> {
+    Ok(TempConfigStore {
+        postgres_config: PostgresConfig::from_env().ok(),
+        health_check_config: HealthCheckConfig::from_env().ok(),
+        merkle_tree_api_config: MerkleTreeApiConfig::from_env().ok(),
+        web3_json_rpc_config: Web3JsonRpcConfig::from_env().ok(),
+        circuit_breaker_config: CircuitBreakerConfig::from_env().ok(),
+        mempool_config: MempoolConfig::from_env().ok(),
+        network_config: NetworkConfig::from_env().ok(),
+        contract_verifier: ContractVerifierConfig::from_env().ok(),
+        operations_manager_config: OperationsManagerConfig::from_env().ok(),
+        state_keeper_config: StateKeeperConfig::from_env().ok(),
+        house_keeper_config: HouseKeeperConfig::from_env().ok(),
+        fri_proof_compressor_config: FriProofCompressorConfig::from_env().ok(),
+        fri_prover_config: Some(FriProverConfig::from_env().context("fri_prover_config")?),
+        fri_prover_group_config: FriProverGroupConfig::from_env().ok(),
+        fri_prover_gateway_config: FriProverGatewayConfig::from_env().ok(),
+        fri_witness_vector_generator: FriWitnessVectorGeneratorConfig::from_env().ok(),
+        fri_witness_generator_config: FriWitnessGeneratorConfig::from_env().ok(),
+        prometheus_config: PrometheusConfig::from_env().ok(),
+        proof_data_handler_config: ProofDataHandlerConfig::from_env().ok(),
+        witness_generator_config: WitnessGeneratorConfig::from_env().ok(),
+        api_config: ApiConfig::from_env().ok(),
+        db_config: DBConfig::from_env().ok(),
+        eth_sender_config: ETHConfig::from_env().ok(),
+        eth_watch_config: ETHWatchConfig::from_env().ok(),
+        gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
+        object_store_config: ObjectStoreConfig::from_env().ok(),
+    })
 }

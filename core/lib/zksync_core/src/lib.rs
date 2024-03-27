@@ -45,7 +45,6 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{fee_model::FeeModelConfig, L2ChainId};
 
-use crate::consensus::MainNodeConfig;
 use crate::{
     api_server::{
         contract_verification,
