@@ -20,7 +20,7 @@ use jsonrpsee::{
 use serde::de::DeserializeOwned;
 use tokio::time::Instant;
 
-use self::metrics::{RequestLabels, METRICS};
+use self::metrics::METRICS;
 
 mod metrics;
 #[cfg(test)]
@@ -88,20 +88,32 @@ impl L2Client {
         self
     }
 
-    async fn limit_rate(&self, origin: RateLimitOrigin<'_>) {
-        let stats = self.rate_limit.acquire(origin.request_count()).await;
-        if !stats.was_waiting {
-            return;
-        }
+    async fn limit_rate(&self, origin: RateLimitOrigin<'_>) -> Result<(), Error> {
+        const RATE_LIMIT_TIMEOUT: Duration = Duration::from_secs(10);
 
-        for method in origin.distinct_method_names() {
-            let request_labels = RequestLabels {
-                component: self.component_name,
-                method: method.to_owned(),
-            };
-            METRICS.rate_limit_latency[&request_labels].observe(stats.total_sleep_time);
-        }
+        let rate_limit_result = tokio::time::timeout(
+            RATE_LIMIT_TIMEOUT,
+            self.rate_limit.acquire(origin.request_count()),
+        )
+        .await;
+        let stats = match rate_limit_result {
+            Err(_) => {
+                METRICS.observe_rate_limit_timeout(self.component_name, origin);
+                tracing::warn!(
+                    component = self.component_name,
+                    %origin,
+                    "Request to {origin} by component `{}` timed out during rate limiting using policy {} reqs/{:?}",
+                    self.component_name,
+                    self.rate_limit.rate_limit,
+                    self.rate_limit.rate_limit_window
+                );
+                return Err(Error::RequestTimeout);
+            }
+            Ok(stats) if !stats.was_waiting => return Ok(()),
+            Ok(stats) => stats,
+        };
 
+        METRICS.observe_rate_limit_latency(self.component_name, origin, &stats);
         tracing::warn!(
             component = self.component_name,
             %origin,
@@ -110,6 +122,7 @@ impl L2Client {
             self.rate_limit.rate_limit,
             self.rate_limit.rate_limit_window
         );
+        Ok(())
     }
 }
 
@@ -119,7 +132,8 @@ impl ClientT for L2Client {
     where
         Params: ToRpcParams + Send,
     {
-        self.limit_rate(RateLimitOrigin::Notification(method)).await;
+        self.limit_rate(RateLimitOrigin::Notification(method))
+            .await?;
         self.inner.notification(method, params).await
     }
 
@@ -128,7 +142,7 @@ impl ClientT for L2Client {
         R: DeserializeOwned,
         Params: ToRpcParams + Send,
     {
-        self.limit_rate(RateLimitOrigin::Request(method)).await;
+        self.limit_rate(RateLimitOrigin::Request(method)).await?;
         self.inner.request(method, params).await
     }
 
@@ -139,7 +153,8 @@ impl ClientT for L2Client {
     where
         R: DeserializeOwned + fmt::Debug + 'a,
     {
-        self.limit_rate(RateLimitOrigin::BatchRequest(&batch)).await;
+        self.limit_rate(RateLimitOrigin::BatchRequest(&batch))
+            .await?;
         self.inner.batch_request(batch).await
     }
 }
@@ -157,7 +172,7 @@ impl SubscriptionClientT for L2Client {
         Notif: DeserializeOwned,
     {
         self.limit_rate(RateLimitOrigin::Subscription(subscribe_method))
-            .await;
+            .await?;
         self.inner
             .subscribe(subscribe_method, params, unsubscribe_method)
             .await
@@ -170,7 +185,8 @@ impl SubscriptionClientT for L2Client {
     where
         Notif: DeserializeOwned,
     {
-        self.limit_rate(RateLimitOrigin::Subscription(method)).await;
+        self.limit_rate(RateLimitOrigin::Subscription(method))
+            .await?;
         self.inner.subscribe_to_method(method).await
     }
 }
