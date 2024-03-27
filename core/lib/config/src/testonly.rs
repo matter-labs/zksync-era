@@ -261,6 +261,15 @@ impl RandomConfig for configs::chain::NetworkConfig {
     }
 }
 
+impl RandomConfig for configs::chain::L1BatchCommitDataGeneratorMode {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        match g.rng.gen_range(0..2) {
+            0 => Self::Rollup,
+            _ => Self::Validium,
+        }
+    }
+}
+
 impl RandomConfig for configs::chain::StateKeeperConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
@@ -292,6 +301,7 @@ impl RandomConfig for configs::chain::StateKeeperConfig {
             enum_index_migration_chunk_size: g.gen(),
             bootloader_hash: g.gen(),
             default_aa_hash: g.gen(),
+            l1_batch_commit_data_generator_mode: g.gen(),
         }
     }
 }

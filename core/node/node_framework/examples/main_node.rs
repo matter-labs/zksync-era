@@ -265,6 +265,7 @@ impl MainNodeBuilder {
         Ok(self)
     }
     fn add_eth_sender_layer(mut self) -> anyhow::Result<Self> {
+        let state_keeper_config = StateKeeperConfig::from_env()?;
         let eth_sender_config = ETHSenderConfig::from_env()?;
         let contracts_config = ContractsConfig::from_env()?;
         let eth_client_config = ETHClientConfig::from_env()?;
@@ -275,6 +276,7 @@ impl MainNodeBuilder {
             contracts_config,
             eth_client_config,
             network_config,
+            state_keeper_config.l1_batch_commit_data_generator_mode,
         ));
 
         Ok(self)

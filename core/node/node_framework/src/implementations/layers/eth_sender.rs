@@ -2,9 +2,17 @@ use std::sync::Arc;
 
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::{
-    chain::NetworkConfig, eth_sender::ETHSenderConfig, ContractsConfig, ETHClientConfig,
+    chain::{L1BatchCommitDataGeneratorMode, NetworkConfig},
+    eth_sender::ETHSenderConfig,
+    ContractsConfig, ETHClientConfig,
 };
-use zksync_core::eth_sender::{Aggregator, EthTxAggregator, EthTxManager};
+use zksync_core::eth_sender::{
+    l1_batch_commit_data_generator::{
+        L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
+        ValidiumModeL1BatchCommitDataGenerator,
+    },
+    Aggregator, EthTxAggregator, EthTxManager,
+};
 use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface};
 
 use crate::{
@@ -26,6 +34,7 @@ pub struct EthSenderLayer {
     contracts_config: ContractsConfig,
     eth_client_config: ETHClientConfig,
     network_config: NetworkConfig,
+    l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
 
 impl EthSenderLayer {
@@ -34,12 +43,14 @@ impl EthSenderLayer {
         contracts_config: ContractsConfig,
         eth_client_config: ETHClientConfig,
         network_config: NetworkConfig,
+        l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
     ) -> Self {
         Self {
             eth_sender_config,
             contracts_config,
             eth_client_config,
             network_config,
+            l1_batch_commit_data_generator_mode,
         }
     }
 }
@@ -70,11 +81,22 @@ impl WiringLayer for EthSenderLayer {
         );
         let eth_client_blobs_addr = eth_client_blobs.clone().map(|k| k.sender_account());
 
+        let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> =
+            match self.l1_batch_commit_data_generator_mode {
+                L1BatchCommitDataGeneratorMode::Rollup => {
+                    Arc::new(RollupModeL1BatchCommitDataGenerator {})
+                }
+                L1BatchCommitDataGeneratorMode::Validium => {
+                    Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
+                }
+            };
+
         let aggregator = Aggregator::new(
             self.eth_sender_config.sender.clone(),
             object_store,
             eth_client_blobs_addr.is_some(),
             self.eth_sender_config.sender.pubdata_sending_mode.into(),
+            l1_batch_commit_data_generator.clone(),
         );
 
         let config = self.eth_sender_config.sender;
@@ -89,6 +111,7 @@ impl WiringLayer for EthSenderLayer {
             self.contracts_config.diamond_proxy_addr,
             self.network_config.zksync_network_id,
             eth_client_blobs_addr,
+            l1_batch_commit_data_generator,
         )
         .await;
 
