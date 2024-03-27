@@ -94,7 +94,7 @@ impl WiringLayer for HouseKeeperLayer {
         let fri_witness_gen_job_retry_manager = FriWitnessGeneratorJobRetryManager::new(
             self.fri_witness_generator_config.max_attempts,
             self.fri_witness_generator_config
-                .witness_generation_timeout(),
+                .witness_generation_timeouts(),
             self.house_keeper_config
                 .fri_witness_generator_job_retrying_interval_ms,
             prover_pool.clone(),
