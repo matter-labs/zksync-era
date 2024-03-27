@@ -38,9 +38,8 @@ use zksync_core::{
     },
     utils::ensure_l1_batch_commit_data_generation_mode,
 };
-use zksync_dal::{
-    healthcheck::ConnectionPoolHealthCheck, metrics::PostgresMetrics, ConnectionPool, Core, CoreDal,
-};
+use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
+use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
 use zksync_eth_client::clients::QueryClient;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;

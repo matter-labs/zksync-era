@@ -220,8 +220,8 @@ mod tests {
     use assert_matches::assert_matches;
     use zksync_eth_client::{ContractCall, ExecutedTxStatus, FailureInfo, RawTransactionBytes};
     use zksync_types::{
-        web3::types::{Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt},
-        L2ChainId, H160, H256, U256, U64,
+        web3::types::{BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt},
+        H160, H256, U256, U64,
     };
 
     use super::*;
@@ -413,7 +413,7 @@ mod tests {
             &self,
             _: BlockId,
             _: &'static str,
-        ) -> Result<Option<Block<H256>>, EthClientError> {
+        ) -> Result<Option<zksync_eth_client::Block<H256>>, EthClientError> {
             unimplemented!("Not needed");
         }
     }

@@ -20,12 +20,12 @@ where
         &self,
         last_committed_l1_batch: &L1BatchWithMetadata,
         l1_batches: &[L1BatchWithMetadata],
-        pubdata_da: &PubdataDA,
+        pubdata_da: PubdataDA,
     ) -> Vec<Token>;
 
     /// [`l1_commit_batch`] is used mostly for size calculations for sealing criteria and for
     /// consistency checks. Instead of preparing a full commit, it will tokenize an individual batch.
-    fn l1_commit_batch(&self, l1_batch: &L1BatchWithMetadata, pubdata_da: &PubdataDA) -> Token;
+    fn l1_commit_batch(&self, l1_batch: &L1BatchWithMetadata, pubdata_da: PubdataDA) -> Token;
 }
 
 /// [`RollupModeL1BatchCommitDataGenerator`] implements [`L1BatchCommitDataGenerator`] for
@@ -45,20 +45,20 @@ impl L1BatchCommitDataGenerator for RollupModeL1BatchCommitDataGenerator {
         &self,
         last_committed_l1_batch: &L1BatchWithMetadata,
         l1_batches: &[L1BatchWithMetadata],
-        pubdata_da: &PubdataDA,
+        pubdata_da: PubdataDA,
     ) -> Vec<Token> {
         CommitBatchesRollup {
             last_committed_l1_batch: last_committed_l1_batch.clone(),
             l1_batches: l1_batches.to_vec(),
-            pubdata_da: pubdata_da.clone(),
+            pubdata_da,
         }
         .into_tokens()
     }
 
-    fn l1_commit_batch(&self, l1_batch: &L1BatchWithMetadata, pubdata_da: &PubdataDA) -> Token {
+    fn l1_commit_batch(&self, l1_batch: &L1BatchWithMetadata, pubdata_da: PubdataDA) -> Token {
         CommitBatchInfoRollup {
             l1_batch_with_metadata: l1_batch,
-            pubdata_da: pubdata_da.clone(),
+            pubdata_da,
         }
         .into_token()
     }
@@ -69,20 +69,20 @@ impl L1BatchCommitDataGenerator for ValidiumModeL1BatchCommitDataGenerator {
         &self,
         last_committed_l1_batch: &L1BatchWithMetadata,
         l1_batches: &[L1BatchWithMetadata],
-        pubdata_da: &PubdataDA,
+        pubdata_da: PubdataDA,
     ) -> Vec<Token> {
         CommitBatchesValidium {
             last_committed_l1_batch: last_committed_l1_batch.clone(),
             l1_batches: l1_batches.to_vec(),
-            pubdata_da: pubdata_da.clone(),
+            pubdata_da,
         }
         .into_tokens()
     }
 
-    fn l1_commit_batch(&self, l1_batch: &L1BatchWithMetadata, pubdata_da: &PubdataDA) -> Token {
+    fn l1_commit_batch(&self, l1_batch: &L1BatchWithMetadata, pubdata_da: PubdataDA) -> Token {
         CommitBatchInfoValidium {
             l1_batch_with_metadata: l1_batch,
-            pubdata_da: pubdata_da.clone(),
+            pubdata_da,
         }
         .into_token()
     }

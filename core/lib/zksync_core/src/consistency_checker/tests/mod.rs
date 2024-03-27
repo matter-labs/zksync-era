@@ -55,10 +55,6 @@ pub(crate) fn build_commit_tx_input_data(
     l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) -> Vec<u8> {
     let pubdata_da = PubdataDA::Calldata;
-    let commit_tokens = batches
-        .iter()
-        .map(|batch| l1_batch_commit_data_generator.l1_commit_batch(batch, &pubdata_da));
-    let commit_tokens = ethabi::Token::Array(commit_tokens.collect());
 
     let is_pre_boojum = batches[0].header.protocol_version.unwrap().is_pre_boojum();
     let contract;
@@ -75,7 +71,7 @@ pub(crate) fn build_commit_tx_input_data(
     // it's taken from the L1 batch previous to `batches[0]`, but since this argument is not checked,
     // it's OK to use `batches[0]`.
     encoded.extend_from_slice(&ethabi::encode(
-        &l1_batch_commit_data_generator.l1_commit_batches(&batches[0], batches, &pubdata_da),
+        &l1_batch_commit_data_generator.l1_commit_batches(&batches[0], batches, pubdata_da),
     ));
     encoded
 }
@@ -155,7 +151,7 @@ fn build_commit_tx_input_data_is_correct(deployment_mode: DeploymentMode) {
         .unwrap();
         assert_eq!(
             commit_data,
-            l1_batch_commit_data_generator.l1_commit_batch(batch, &PubdataDA::Calldata),
+            l1_batch_commit_data_generator.l1_commit_batch(batch, PubdataDA::Calldata),
         );
     }
 }
@@ -554,7 +550,7 @@ async fn checker_functions_after_snapshot_recovery(
     };
 
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     storage
         .protocol_versions_dal()
         .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -774,7 +770,7 @@ async fn checker_detects_incorrect_tx_data(
     };
 
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     if snapshot_recovery {
         storage
             .protocol_versions_dal()
