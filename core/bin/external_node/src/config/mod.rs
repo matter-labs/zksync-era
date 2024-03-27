@@ -250,7 +250,7 @@ pub(crate) struct OptionalENConfig {
     // This is intentionally not a part of `RemoteENConfig` because fetching this info from the main node would defeat
     // its purpose; the consistency checker assumes that the main node may provide false information.
     pub contracts_diamond_proxy_addr: Option<Address>,
-    /// Number of permits in each rate limiting window applied to the main node HTTP client. Default is 10 permits.
+    /// Number of requests in each rate limiting window allocated for the main node HTTP client. Default is 10 requests.
     #[serde(default = "OptionalENConfig::default_main_node_rate_limit_count")]
     pub main_node_rate_limit_count: NonZeroUsize,
     /// Duration of a rate limiting window applied to the main node HTTP client. Default is 50 ms.

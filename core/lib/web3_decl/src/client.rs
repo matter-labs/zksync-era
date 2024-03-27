@@ -27,6 +27,15 @@ enum RateLimitOrigin<'a> {
     Subscription(&'a str),
 }
 
+impl RateLimitOrigin<'_> {
+    fn request_count(self) -> usize {
+        match self {
+            Self::BatchRequest(batch) => batch.iter().count(),
+            _ => 1,
+        }
+    }
+}
+
 impl fmt::Display for RateLimitOrigin<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -63,7 +72,8 @@ impl L2Client {
         self
     }
 
-    fn report_waiting(&self, origin: RateLimitOrigin, stats: &AcquireStats) {
+    async fn limit_rate(&self, origin: RateLimitOrigin<'_>) {
+        let stats = self.rate_limit.acquire(origin.request_count()).await;
         if !stats.was_waiting {
             return;
         }
@@ -85,8 +95,7 @@ impl ClientT for L2Client {
     where
         Params: ToRpcParams + Send,
     {
-        let stats = self.rate_limit.acquire(1).await;
-        self.report_waiting(RateLimitOrigin::Notification(method), &stats);
+        self.limit_rate(RateLimitOrigin::Notification(method)).await;
         self.inner.notification(method, params).await
     }
 
@@ -95,8 +104,7 @@ impl ClientT for L2Client {
         R: DeserializeOwned,
         Params: ToRpcParams + Send,
     {
-        let stats = self.rate_limit.acquire(1).await;
-        self.report_waiting(RateLimitOrigin::Request(method), &stats);
+        self.limit_rate(RateLimitOrigin::Request(method)).await;
         self.inner.request(method, params).await
     }
 
@@ -107,8 +115,7 @@ impl ClientT for L2Client {
     where
         R: DeserializeOwned + fmt::Debug + 'a,
     {
-        let stats = self.rate_limit.acquire(batch.iter().count()).await;
-        self.report_waiting(RateLimitOrigin::BatchRequest(&batch), &stats);
+        self.limit_rate(RateLimitOrigin::BatchRequest(&batch)).await;
         self.inner.batch_request(batch).await
     }
 }
@@ -125,8 +132,8 @@ impl SubscriptionClientT for L2Client {
         Params: ToRpcParams + Send,
         Notif: DeserializeOwned,
     {
-        let stats = self.rate_limit.acquire(1).await;
-        self.report_waiting(RateLimitOrigin::Subscription(subscribe_method), &stats);
+        self.limit_rate(RateLimitOrigin::Subscription(subscribe_method))
+            .await;
         self.inner
             .subscribe(subscribe_method, params, unsubscribe_method)
             .await
@@ -139,8 +146,7 @@ impl SubscriptionClientT for L2Client {
     where
         Notif: DeserializeOwned,
     {
-        let stats = self.rate_limit.acquire(1).await;
-        self.report_waiting(RateLimitOrigin::Subscription(method), &stats);
+        self.limit_rate(RateLimitOrigin::Subscription(method)).await;
         self.inner.subscribe_to_method(method).await
     }
 }
@@ -191,8 +197,13 @@ struct AcquireStats {
 
 #[derive(Debug)]
 enum SharedRateLimitState {
-    Limited { until: Instant },
-    Ready { until: Instant, permits: usize },
+    Limited {
+        until: Instant,
+    },
+    Ready {
+        until: Instant,
+        remaining_requests: usize,
+    },
 }
 
 #[derive(Debug)]
@@ -216,7 +227,7 @@ impl SharedRateLimit {
     fn new(rate_limit: usize, rate_limit_window: Duration) -> Self {
         let state = Arc::new(Mutex::new(SharedRateLimitState::Ready {
             until: Instant::now(),
-            permits: rate_limit,
+            remaining_requests: rate_limit,
         }));
         Self {
             rate_limit,
@@ -225,12 +236,14 @@ impl SharedRateLimit {
         }
     }
 
-    /// Acquires the specified number of permits waiting if necessary. If the number of permits exceeds
+    /// Acquires the specified number of requests waiting if necessary. If the number of requests exceeds
     /// the capacity of the limiter, it is saturated (i.e., this method cannot hang indefinitely or panic
     /// in this case).
     ///
-    /// This implementation is similar to `RateLimit` middleware in Tower, but is shared among client instances.
-    async fn acquire(&self, permit_count: usize) -> AcquireStats {
+    /// This implementation is similar to [`RateLimit`] middleware in Tower, but is shared among client instances.
+    ///
+    /// [`RateLimit`]: https://docs.rs/tower/latest/tower/limit/struct.RateLimit.html
+    async fn acquire(&self, request_count: usize) -> AcquireStats {
         let mut stats = AcquireStats::default();
         let mut state = loop {
             // A separate scope is required to not hold a mutex guard across the `await` point,
@@ -246,7 +259,7 @@ impl SharedRateLimit {
                         // Because we hold an exclusive lock on `state`, there's no risk of a data race.
                         *state = SharedRateLimitState::Ready {
                             until: now + self.rate_limit_window,
-                            permits: self.rate_limit,
+                            remaining_requests: self.rate_limit,
                         };
                         break state;
                     }
@@ -258,7 +271,11 @@ impl SharedRateLimit {
             stats.total_sleep_time += until.duration_since(now);
             tokio::time::sleep_until(until).await;
         };
-        let SharedRateLimitState::Ready { until, permits } = &mut *state else {
+        let SharedRateLimitState::Ready {
+            until,
+            remaining_requests,
+        } = &mut *state
+        else {
             unreachable!();
         };
 
@@ -266,10 +283,10 @@ impl SharedRateLimit {
         // Reset the period if it has elapsed.
         if now >= *until {
             *until = now + self.rate_limit_window;
-            *permits = self.rate_limit;
+            *remaining_requests = self.rate_limit;
         }
-        *permits = permits.saturating_sub(permit_count);
-        if *permits == 0 {
+        *remaining_requests = remaining_requests.saturating_sub(request_count);
+        if *remaining_requests == 0 {
             *state = SharedRateLimitState::Limited { until: *until };
         }
         stats
