@@ -5,7 +5,7 @@ use rand::{
 };
 use test_casing::test_casing;
 use tracing::Instrument as _;
-use zksync_concurrency::{ctx, scope};
+use zksync_concurrency::{ctx, net, scope};
 use zksync_config::testonly::{Gen, RandomConfig};
 use zksync_consensus_executor as executor;
 use zksync_consensus_network as network;
@@ -78,7 +78,7 @@ async fn test_validator_block_store() {
 fn executor_config(cfg: &network::Config) -> executor::Config {
     executor::Config {
         server_addr: *cfg.server_addr,
-        public_addr: cfg.public_addr,
+        public_addr: cfg.public_addr.clone(),
         max_payload_size: usize::MAX,
         node_key: cfg.gossip.key.clone(),
         gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
@@ -457,7 +457,7 @@ impl RandomConfig for Config {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
             server_addr: g.gen(),
-            public_addr: g.gen(),
+            public_addr: net::Host(g.gen()),
             validators: g.rng.gen(),
             max_payload_size: g.gen(),
             gossip_dynamic_inbound_limit: g.gen(),
@@ -469,7 +469,7 @@ impl RandomConfig for Config {
             gossip_static_outbound: g
                 .gen::<Vec<Random<node::PublicKey>>>()
                 .into_iter()
-                .map(|x| (x.0, g.gen()))
+                .map(|x| (x.0, net::Host(g.gen())))
                 .collect(),
         }
     }
