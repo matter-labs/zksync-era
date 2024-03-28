@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::{parse_h160, proto::chain as proto};
+use crate::proto::chain as proto;
 
 impl proto::FeeModelVersion {
     fn new(n: &configs::chain::FeeModelVersion) -> Self {
@@ -25,6 +25,7 @@ impl proto::FeeModelVersion {
 impl ProtoRepr for proto::StateKeeper {
     type Type = configs::chain::StateKeeperConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
+        #[allow(deprecated)]
         Ok(Self::Type {
             transaction_slots: required(&self.transaction_slots)
                 .and_then(|x| Ok((*x).try_into()?))
@@ -53,9 +54,6 @@ impl ProtoRepr for proto::StateKeeper {
             .context("close_block_at_eth_params_percentage")?,
             close_block_at_gas_percentage: *required(&self.close_block_at_gas_percentage)
                 .context("close_block_at_gas_percentage")?,
-            fee_account_addr: required(&self.fee_account_addr)
-                .and_then(|a| parse_h160(a))
-                .context("fee_account_addr")?,
             minimal_l2_gas_price: *required(&self.minimal_l2_gas_price)
                 .context("minimal_l2_gas_price")?,
             compute_overhead_part: *required(&self.compute_overhead_part)
@@ -89,6 +87,7 @@ impl ProtoRepr for proto::StateKeeper {
             // needed during the initialization from files
             bootloader_hash: None,
             default_aa_hash: None,
+            fee_account_addr: None,
         })
     }
 
@@ -108,7 +107,6 @@ impl ProtoRepr for proto::StateKeeper {
             close_block_at_geometry_percentage: Some(this.close_block_at_geometry_percentage),
             close_block_at_eth_params_percentage: Some(this.close_block_at_eth_params_percentage),
             close_block_at_gas_percentage: Some(this.close_block_at_gas_percentage),
-            fee_account_addr: Some(this.fee_account_addr.as_bytes().into()),
             minimal_l2_gas_price: Some(this.minimal_l2_gas_price),
             compute_overhead_part: Some(this.compute_overhead_part),
             pubdata_overhead_part: Some(this.pubdata_overhead_part),

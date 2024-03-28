@@ -124,11 +124,17 @@ impl TempConfigStore {
                 blob_operator,
             })
         });
+        #[allow(deprecated)]
         let state_keeper = self
             .state_keeper_config
             .as_ref()
             .map(|state_keeper| StateKeeper {
-                fee_account: Wallet::from_address(state_keeper.fee_account_addr),
+                fee_account: Wallet::from_address(
+                    state_keeper
+                        .fee_account_addr
+                        .clone()
+                        .expect("Must be presented in env variables"),
+                ),
             });
         Wallets {
             eth_sender,

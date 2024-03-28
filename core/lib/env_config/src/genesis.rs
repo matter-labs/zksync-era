@@ -61,6 +61,7 @@ impl FromEnv for GenesisConfig {
             None
         };
 
+        #[allow(deprecated)]
         Ok(GenesisConfig {
             protocol_version: contracts_config
                 .genesis_protocol_version
@@ -86,7 +87,9 @@ impl FromEnv for GenesisConfig {
             recursion_leaf_level_vk_hash: contracts_config.fri_recursion_leaf_level_vk_hash,
             recursion_circuits_set_vks_hash: H256::zero(),
             recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
-            fee_account: state_keeper.fee_account_addr,
+            fee_account: state_keeper
+                .fee_account_addr
+                .ok_or(anyhow!("Fee account required for genesis"))?,
             shared_bridge,
             dummy_prover: false,
         })

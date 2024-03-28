@@ -262,6 +262,7 @@ impl RandomConfig for configs::chain::NetworkConfig {
 
 impl RandomConfig for configs::chain::StateKeeperConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
+        #[allow(deprecated)]
         Self {
             transaction_slots: g.gen(),
             block_commit_deadline_ms: g.gen(),
@@ -275,7 +276,6 @@ impl RandomConfig for configs::chain::StateKeeperConfig {
             close_block_at_geometry_percentage: g.gen(),
             close_block_at_eth_params_percentage: g.gen(),
             close_block_at_gas_percentage: g.gen(),
-            fee_account_addr: g.gen(),
             minimal_l2_gas_price: g.gen(),
             compute_overhead_part: g.gen(),
             pubdata_overhead_part: g.gen(),
@@ -291,6 +291,7 @@ impl RandomConfig for configs::chain::StateKeeperConfig {
             enum_index_migration_chunk_size: g.gen(),
             bootloader_hash: g.gen(),
             default_aa_hash: g.gen(),
+            fee_account_addr: g.gen(),
         }
     }
 }

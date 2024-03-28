@@ -22,7 +22,6 @@ message StateKeeper {
   optional double close_block_at_geometry_percentage = 10; // required; %
   optional double close_block_at_eth_params_percentage = 11; // required; %
   optional double close_block_at_gas_percentage = 12; // required; %
-  optional bytes fee_account_addr = 13; // required; H160
   optional uint64 minimal_l2_gas_price = 14; // required; wei?
   optional double compute_overhead_part = 15; // required; [0,1]
   optional double pubdata_overhead_part = 16; // required; [0,1]

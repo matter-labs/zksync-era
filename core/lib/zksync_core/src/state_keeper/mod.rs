@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use tokio::sync::watch;
 use zksync_config::{
-    configs::chain::{MempoolConfig, StateKeeperConfig},
+    configs::{
+        chain::{MempoolConfig, StateKeeperConfig},
+        wallets,
+    },
     DBConfig,
 };
 use zksync_dal::{ConnectionPool, Core};
@@ -38,6 +41,7 @@ pub(crate) mod updates;
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn create_state_keeper(
     state_keeper_config: StateKeeperConfig,
+    wallets: wallets::StateKeeper,
     db_config: &DBConfig,
     l2chain_id: L2ChainId,
     mempool_config: &MempoolConfig,
@@ -64,6 +68,7 @@ pub(crate) async fn create_state_keeper(
         batch_fee_input_provider,
         pool,
         &state_keeper_config,
+        wallets.fee_account.address(),
         mempool_config.delay_interval(),
         l2chain_id,
     )

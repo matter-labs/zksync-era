@@ -27,6 +27,7 @@ use zksync_config::{
         api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
         chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
         database::{MerkleTreeConfig, MerkleTreeMode},
+        wallets,
         wallets::Wallets,
         ContractsConfig, GeneralConfig,
     },
@@ -222,7 +223,7 @@ impl FromStr for Components {
 
 pub async fn initialize_components(
     configs: &GeneralConfig,
-    wallets: Wallets,
+    wallets: &Wallets,
     genesis_config: &GenesisConfig,
     contracts_config: &ContractsConfig,
     components: &[Component],
@@ -337,8 +338,17 @@ pub async fn initialize_components(
             .state_keeper_config
             .clone()
             .context("state_keeper_config")?;
-        let tx_sender_config =
-            TxSenderConfig::new(&state_keeper_config, &api_config.web3_json_rpc, l2_chain_id);
+        let tx_sender_config = TxSenderConfig::new(
+            &state_keeper_config,
+            &api_config.web3_json_rpc,
+            wallets
+                .state_keeper
+                .clone()
+                .context("Fee account")?
+                .fee_account
+                .address(),
+            l2_chain_id,
+        );
         let internal_api_config =
             InternalApiConfig::new(&api_config.web3_json_rpc, contracts_config, genesis_config);
 
@@ -489,6 +499,10 @@ pub async fn initialize_components(
             &postgres_config,
             contracts_config,
             state_keeper_config,
+            wallets
+                .state_keeper
+                .clone()
+                .context("State keeper wallets")?,
             l2_chain_id,
             &db_config,
             &configs.mempool_config.clone().context("mempool_config")?,
@@ -628,7 +642,7 @@ pub async fn initialize_components(
             .await
             .context("failed to build eth_manager_pool")?;
         let eth_sender = configs.eth.clone().context("eth_sender_config")?;
-        let eth_sender_wallets = wallets.eth_sender.context("eth_sender")?;
+        let eth_sender_wallets = wallets.eth_sender.clone().context("eth_sender")?;
         let operator_private_key = eth_sender_wallets
             .operator
             .private_key()
@@ -755,6 +769,7 @@ async fn add_state_keeper_to_task_futures(
     postgres_config: &PostgresConfig,
     contracts_config: &ContractsConfig,
     state_keeper_config: StateKeeperConfig,
+    state_keeper_wallets: wallets::StateKeeper,
     l2chain_id: L2ChainId,
     db_config: &DBConfig,
     mempool_config: &MempoolConfig,
@@ -791,6 +806,7 @@ async fn add_state_keeper_to_task_futures(
 
     let (state_keeper, async_catchup_task) = create_state_keeper(
         state_keeper_config,
+        state_keeper_wallets,
         db_config,
         l2chain_id,
         mempool_config,

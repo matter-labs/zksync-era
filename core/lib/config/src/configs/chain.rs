@@ -79,9 +79,9 @@ pub struct StateKeeperConfig {
     pub close_block_at_eth_params_percentage: f64,
     /// Denotes the percentage of L1 gas used in L2 block that triggers L2 block seal.
     pub close_block_at_gas_percentage: f64,
-
-    pub fee_account_addr: Address,
-
+    /// Fee account address, it's optional because it's required only for loading from envs
+    #[deprecated]
+    pub fee_account_addr: Option<Address>,
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
     /// as potentially premium for congestion.
     pub minimal_l2_gas_price: u64,
@@ -119,7 +119,9 @@ pub struct StateKeeperConfig {
 
     // Base system contract hash, required only for genesis file, it's temporary solution
     // #PLA-811
+    #[deprecated]
     pub bootloader_hash: Option<H256>,
+    #[deprecated]
     pub default_aa_hash: Option<H256>,
 }
 
@@ -127,6 +129,7 @@ impl StateKeeperConfig {
     /// Creates a config object suitable for use in unit tests.
     /// Values mostly repeat the values used in the localhost environment.
     pub fn for_tests() -> Self {
+        #[allow(deprecated)]
         Self {
             transaction_slots: 250,
             block_commit_deadline_ms: 2500,
@@ -140,8 +143,9 @@ impl StateKeeperConfig {
             close_block_at_geometry_percentage: 0.95,
             close_block_at_eth_params_percentage: 0.95,
             close_block_at_gas_percentage: 0.95,
-            fee_account_addr: Address::from_str("0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7")
-                .unwrap(),
+            fee_account_addr: Some(
+                Address::from_str("0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7").unwrap(),
+            ),
             compute_overhead_part: 0.0,
             pubdata_overhead_part: 1.0,
             batch_overhead_l1_gas: 800_000,
@@ -155,7 +159,9 @@ impl StateKeeperConfig {
             virtual_blocks_per_miniblock: 1,
             upload_witness_inputs_to_gcs: false,
             enum_index_migration_chunk_size: None,
+            #[allow(deprecated)]
             bootloader_hash: None,
+            #[allow(deprecated)]
             default_aa_hash: None,
         }
     }

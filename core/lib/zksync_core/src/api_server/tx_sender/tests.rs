@@ -16,7 +16,12 @@ pub(crate) async fn create_test_tx_sender(
 ) -> (TxSender, VmConcurrencyBarrier) {
     let web3_config = Web3JsonRpcConfig::for_tests();
     let state_keeper_config = StateKeeperConfig::for_tests();
-    let tx_sender_config = TxSenderConfig::new(&state_keeper_config, &web3_config, l2_chain_id);
+    let tx_sender_config = TxSenderConfig::new(
+        &state_keeper_config,
+        &web3_config,
+        state_keeper_config.fee_account_addr.unwrap(),
+        l2_chain_id,
+    );
 
     let storage_caches = PostgresStorageCaches::new(1, 1);
     let batch_fee_model_input_provider = Arc::new(MockBatchFeeParamsProvider::default());

@@ -108,6 +108,7 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("No sentry URL was provided");
     }
 
+    // Load env config and use it if file config is not provided
     let tmp_config = load_env_config()?;
 
     let configs = match opt.config_path {
@@ -188,7 +189,7 @@ async fn main() -> anyhow::Result<()> {
     // Run core actors.
     let (core_task_handles, stop_sender, health_check_handle) = initialize_components(
         &configs,
-        wallets,
+        &wallets,
         &genesis,
         &contracts_config,
         &components,
