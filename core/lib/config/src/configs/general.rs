@@ -7,7 +7,7 @@ use crate::{
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, PrometheusConfig,
         ProofDataHandlerConfig,
     },
-    ApiConfig, ContractVerifierConfig, DBConfig, ETHConfig, PostgresConfig,
+    ApiConfig, ContractVerifierConfig, DBConfig, ETHConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 
 #[derive(Debug, PartialEq)]
@@ -30,4 +30,5 @@ pub struct GeneralConfig {
     pub proof_data_handler_config: Option<ProofDataHandlerConfig>,
     pub db_config: Option<DBConfig>,
     pub eth: Option<ETHConfig>,
+    pub snapshot_creator: Option<SnapshotsCreatorConfig>,
 }

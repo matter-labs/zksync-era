@@ -34,6 +34,8 @@ impl ProtoRepr for proto::GeneralConfig {
             api_config: read_optional_repr(&self.api).context("api")?,
             db_config: read_optional_repr(&self.db).context("db")?,
             eth: read_optional_repr(&self.eth).context("eth")?,
+            snapshot_creator: read_optional_repr(&self.snapshot_creator)
+                .context("snapshot_creator")?,
         })
     }
 
@@ -63,7 +65,7 @@ impl ProtoRepr for proto::GeneralConfig {
             api: this.api_config.as_ref().map(ProtoRepr::build),
             db: this.db_config.as_ref().map(ProtoRepr::build),
             eth: this.eth.as_ref().map(ProtoRepr::build),
-            snapshot_creator: None,
+            snapshot_creator: this.snapshot_creator.as_ref().map(ProtoRepr::build),
         }
     }
 }

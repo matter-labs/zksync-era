@@ -106,6 +106,7 @@ impl TempConfigStore {
             proof_data_handler_config: self.proof_data_handler_config.clone(),
             db_config: self.db_config.clone(),
             eth: self.eth_sender_config.clone(),
+            snapshot_creator: None,
         }
     }
 
