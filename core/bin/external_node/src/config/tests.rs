@@ -25,6 +25,10 @@ fn parsing_optional_config_from_empty_env() {
         128 * BYTES_IN_MEGABYTE
     );
     assert_eq!(config.max_response_body_size(), 10 * BYTES_IN_MEGABYTE);
+    assert_eq!(
+        config.l1_batch_commit_data_generator_mode,
+        L1BatchCommitDataGeneratorMode::Rollup
+    );
 }
 
 #[test]
@@ -45,6 +49,7 @@ fn parsing_optional_config_from_env() {
         ("EN_MERKLE_TREE_MULTI_GET_CHUNK_SIZE", "1000"),
         ("EN_MERKLE_TREE_BLOCK_CACHE_SIZE_MB", "32"),
         ("EN_MAX_RESPONSE_BODY_SIZE_MB", "1"),
+        ("EN_L1_BATCH_COMMIT_DATA_GENERATOR_MODE", "Validium"),
     ];
     let env_vars = env_vars
         .into_iter()
@@ -72,4 +77,8 @@ fn parsing_optional_config_from_env() {
         32 * BYTES_IN_MEGABYTE
     );
     assert_eq!(config.max_response_body_size(), BYTES_IN_MEGABYTE);
+    assert_eq!(
+        config.l1_batch_commit_data_generator_mode,
+        L1BatchCommitDataGeneratorMode::Validium
+    );
 }

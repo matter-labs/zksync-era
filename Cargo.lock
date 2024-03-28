@@ -8419,6 +8419,7 @@ dependencies = [
  "zksync_core",
  "zksync_dal",
  "zksync_db_connection",
+ "zksync_eth_client",
  "zksync_health_check",
  "zksync_l1_contract_interface",
  "zksync_object_store",
