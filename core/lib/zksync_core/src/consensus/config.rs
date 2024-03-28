@@ -2,6 +2,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::Context as _;
+use zksync_concurrency::net;
 use zksync_consensus_crypto::{read_required_text, Text, TextFmt};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::{node, validator};
@@ -27,7 +28,7 @@ pub struct Config {
     /// Public address of this node (should forward to `server_addr`)
     /// that will be advertised to peers, so that they can connect to this
     /// node.
-    pub public_addr: std::net::SocketAddr,
+    pub public_addr: net::Host,
 
     /// Validators participating in consensus.
     pub validators: validator::ValidatorSet,
@@ -42,7 +43,7 @@ pub struct Config {
     pub gossip_static_inbound: BTreeSet<node::PublicKey>,
     /// Outbound gossip connections that the node should actively try to
     /// establish and maintain.
-    pub gossip_static_outbound: BTreeMap<node::PublicKey, std::net::SocketAddr>,
+    pub gossip_static_outbound: BTreeMap<node::PublicKey, net::Host>,
 }
 
 impl Config {
@@ -63,7 +64,7 @@ impl Config {
     fn executor_config(&self, node_key: node::SecretKey) -> executor::Config {
         executor::Config {
             server_addr: self.server_addr,
-            public_addr: self.public_addr,
+            public_addr: self.public_addr.clone(),
             max_payload_size: self.max_payload_size,
             node_key,
             gossip_dynamic_inbound_limit: self.gossip_dynamic_inbound_limit,
@@ -100,13 +101,16 @@ impl ProtoFmt for Config {
         for (i, e) in r.gossip_static_outbound.iter().enumerate() {
             let key = read_required_text(&e.key)
                 .with_context(|| format!("gossip_static_outbound[{i}].key"))?;
-            let addr = read_required_text(&e.addr)
-                .with_context(|| format!("gossip_static_outbound[{i}].addr"))?;
+            let addr = net::Host(
+                required(&e.addr)
+                    .with_context(|| format!("gossip_static_outbound[{i}].addr"))?
+                    .clone(),
+            );
             gossip_static_outbound.insert(key, addr);
         }
         Ok(Self {
             server_addr: read_required_text(&r.server_addr).context("server_addr")?,
-            public_addr: read_required_text(&r.public_addr).context("public_addr")?,
+            public_addr: net::Host(required(&r.public_addr).context("public_addr")?.clone()),
             validators,
             max_payload_size: required(&r.max_payload_size)
                 .and_then(|x| Ok((*x).try_into()?))
@@ -122,7 +126,7 @@ impl ProtoFmt for Config {
     fn build(&self) -> Self::Proto {
         Self::Proto {
             server_addr: Some(self.server_addr.encode()),
-            public_addr: Some(self.public_addr.encode()),
+            public_addr: Some(self.public_addr.0.clone()),
             validators: self.validators.iter().map(TextFmt::encode).collect(),
             max_payload_size: Some(self.max_payload_size.try_into().unwrap()),
             gossip_static_inbound: self
@@ -135,7 +139,7 @@ impl ProtoFmt for Config {
                 .iter()
                 .map(|(key, addr)| proto::NodeAddr {
                     key: Some(TextFmt::encode(key)),
-                    addr: Some(TextFmt::encode(addr)),
+                    addr: Some(addr.0.clone()),
                 })
                 .collect(),
             gossip_dynamic_inbound_limit: Some(

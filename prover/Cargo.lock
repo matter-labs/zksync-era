@@ -2410,6 +2410,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "heck"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
+
+[[package]]
 name = "hermit-abi"
 version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3777,7 +3783,7 @@ dependencies = [
 [[package]]
 name = "pairing_ce"
 version = "0.28.5"
-source = "git+https://github.com/matter-labs/pairing.git?rev=f55393fd366596eac792d78525d26e9c4d6ed1ca#f55393fd366596eac792d78525d26e9c4d6ed1ca"
+source = "git+https://github.com/matter-labs/pairing.git?rev=d24f2c5871089c4cd4f54c0ca266bb9fef6115eb#d24f2c5871089c4cd4f54c0ca266bb9fef6115eb"
 dependencies = [
  "byteorder",
  "cfg-if 1.0.0",
@@ -5159,6 +5165,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_yaml"
+version = "0.9.34+deprecated"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a8b1a1a2ebf674015cc02edccce75287f1a0130d394307b36743c2f5d504b47"
+dependencies = [
+ "indexmap 2.2.3",
+ "itoa",
+ "ryu",
+ "serde",
+ "unsafe-libyaml",
+]
+
+[[package]]
 name = "sha-1"
 version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6449,6 +6468,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "unsafe-libyaml"
+version = "0.2.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "673aac59facbab8a9007c7f6108d11f63b603f7cabff99fabf650fea5c32b861"
+
+[[package]]
 name = "untrusted"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7341,7 +7366,7 @@ dependencies = [
 [[package]]
 name = "zksync_concurrency"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5329a809cfc06d4939fb5ece26c9ad1e1741c50a#5329a809cfc06d4939fb5ece26c9ad1e1741c50a"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=ce9279566ae9653c6da61b499e89c0779d601484#ce9279566ae9653c6da61b499e89c0779d601484"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -7364,19 +7389,20 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "zksync_basic_types",
+ "zksync_consensus_utils",
 ]
 
 [[package]]
 name = "zksync_consensus_crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5329a809cfc06d4939fb5ece26c9ad1e1741c50a#5329a809cfc06d4939fb5ece26c9ad1e1741c50a"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=ce9279566ae9653c6da61b499e89c0779d601484#ce9279566ae9653c6da61b499e89c0779d601484"
 dependencies = [
  "anyhow",
  "blst",
  "ed25519-dalek",
  "ff_ce",
  "hex",
- "pairing_ce 0.28.5 (git+https://github.com/matter-labs/pairing.git?rev=f55393fd366596eac792d78525d26e9c4d6ed1ca)",
+ "pairing_ce 0.28.5 (git+https://github.com/matter-labs/pairing.git?rev=d24f2c5871089c4cd4f54c0ca266bb9fef6115eb)",
  "rand 0.4.6",
  "rand 0.8.5",
  "sha3 0.10.8",
@@ -7387,7 +7413,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_roles"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5329a809cfc06d4939fb5ece26c9ad1e1741c50a#5329a809cfc06d4939fb5ece26c9ad1e1741c50a"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=ce9279566ae9653c6da61b499e89c0779d601484#ce9279566ae9653c6da61b499e89c0779d601484"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -7407,7 +7433,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_storage"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5329a809cfc06d4939fb5ece26c9ad1e1741c50a#5329a809cfc06d4939fb5ece26c9ad1e1741c50a"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=ce9279566ae9653c6da61b499e89c0779d601484#ce9279566ae9653c6da61b499e89c0779d601484"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7425,8 +7451,9 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_utils"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5329a809cfc06d4939fb5ece26c9ad1e1741c50a#5329a809cfc06d4939fb5ece26c9ad1e1741c50a"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=ce9279566ae9653c6da61b499e89c0779d601484#ce9279566ae9653c6da61b499e89c0779d601484"
 dependencies = [
+ "rand 0.8.5",
  "thiserror",
  "zksync_concurrency",
 ]
@@ -7594,7 +7621,7 @@ dependencies = [
 [[package]]
 name = "zksync_protobuf"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5329a809cfc06d4939fb5ece26c9ad1e1741c50a#5329a809cfc06d4939fb5ece26c9ad1e1741c50a"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=ce9279566ae9653c6da61b499e89c0779d601484#ce9279566ae9653c6da61b499e89c0779d601484"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -7605,17 +7632,19 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_json",
+ "serde_yaml",
  "zksync_concurrency",
+ "zksync_consensus_utils",
  "zksync_protobuf_build",
 ]
 
 [[package]]
 name = "zksync_protobuf_build"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5329a809cfc06d4939fb5ece26c9ad1e1741c50a#5329a809cfc06d4939fb5ece26c9ad1e1741c50a"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=ce9279566ae9653c6da61b499e89c0779d601484#ce9279566ae9653c6da61b499e89c0779d601484"
 dependencies = [
  "anyhow",
- "heck 0.4.1",
+ "heck 0.5.0",
  "prettyplease",
  "proc-macro2 1.0.78",
  "prost-build",

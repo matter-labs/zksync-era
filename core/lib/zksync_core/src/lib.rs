@@ -501,7 +501,6 @@ pub async fn initialize_components(
             &db_config,
             &configs.mempool_config.clone().context("mempool_config")?,
             batch_fee_input_provider,
-            store_factory.create_store().await,
             stop_receiver.clone(),
         )
         .await
@@ -745,7 +744,6 @@ async fn add_state_keeper_to_task_futures(
     db_config: &DBConfig,
     mempool_config: &MempoolConfig,
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
-    object_store: Arc<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let pool_builder = ConnectionPool::<Core>::singleton(postgres_config.master_url()?);
@@ -772,7 +770,6 @@ async fn add_state_keeper_to_task_futures(
         contracts_config.l2_erc20_bridge_addr,
         state_keeper_config.miniblock_seal_queue_capacity,
     );
-    let persistence = persistence.with_object_store(object_store);
     task_futures.push(tokio::spawn(miniblock_sealer.run()));
 
     let (state_keeper, async_catchup_task) = create_state_keeper(

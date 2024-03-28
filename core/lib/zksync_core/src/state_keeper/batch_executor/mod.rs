@@ -8,7 +8,7 @@ use tokio::{
     sync::{mpsc, oneshot, watch},
     task::JoinHandle,
 };
-use zksync_types::{vm_trace::Call, witness_block_state::WitnessBlockState, Transaction};
+use zksync_types::{vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::state_keeper::{
@@ -143,7 +143,7 @@ impl BatchExecutorHandle {
         latency.observe();
     }
 
-    pub(super) async fn finish_batch(self) -> (FinishedL1Batch, Option<WitnessBlockState>) {
+    pub(super) async fn finish_batch(self) -> FinishedL1Batch {
         let (response_sender, response_receiver) = oneshot::channel();
         self.commands
             .send(Command::FinishBatch(response_sender))
@@ -152,10 +152,10 @@ impl BatchExecutorHandle {
         let latency = EXECUTOR_METRICS.batch_executor_command_response_time
             [&ExecutorCommand::FinishBatch]
             .start();
-        let resp = response_receiver.await.unwrap();
+        let finished_batch = response_receiver.await.unwrap();
         self.handle.await.unwrap();
         latency.observe();
-        resp
+        finished_batch
     }
 }
 
@@ -164,5 +164,5 @@ pub(super) enum Command {
     ExecuteTx(Box<Transaction>, oneshot::Sender<TxExecutionResult>),
     StartNextMiniblock(L2BlockEnv, oneshot::Sender<()>),
     RollbackLastTx(oneshot::Sender<()>),
-    FinishBatch(oneshot::Sender<(FinishedL1Batch, Option<WitnessBlockState>)>),
+    FinishBatch(oneshot::Sender<FinishedL1Batch>),
 }
