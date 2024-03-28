@@ -439,7 +439,6 @@ impl L1BatchWithLogs {
 
         let protective_reads = match mode {
             MerkleTreeMode::Full => {
-                // FIXME: check that protective reads exist?
                 let protective_reads_latency =
                     METRICS.start_load_stage(LoadChangesStage::LoadProtectiveReads);
                 let protective_reads = storage
@@ -447,6 +446,12 @@ impl L1BatchWithLogs {
                     .get_protective_reads_for_l1_batch(l1_batch_number)
                     .await
                     .context("cannot fetch protective reads")?;
+                if protective_reads.is_empty() {
+                    tracing::warn!(
+                        "Protective reads for L1 batch #{l1_batch_number} are empty. This is highly unlikely \
+                         and could be caused by disabling protective reads persistence in state keeper"
+                    );
+                }
                 protective_reads_latency.observe_with_count(protective_reads.len());
                 protective_reads
             }

@@ -146,8 +146,16 @@ async fn init_tasks(
         }
     }));
 
-    let output_handler = OutputHandler::new(Box::new(persistence.with_tx_insertion()))
-        .with_handler(Box::new(sync_state.clone()));
+    let mut persistence = persistence.with_tx_insertion();
+    if !config.optional.protective_reads_persistence_enabled {
+        // **Important:** Disabling protective reads persistence is only sound if the node will never
+        // run a full Merkle tree.
+        tracing::warn!("Disabling persisting protective reads; this should be safe, but is considered an experimental option at the moment");
+        persistence = persistence.without_protective_reads();
+    }
+
+    let output_handler =
+        OutputHandler::new(Box::new(persistence)).with_handler(Box::new(sync_state.clone()));
     let state_keeper = build_state_keeper(
         action_queue,
         config.required.state_cache_path.clone(),
