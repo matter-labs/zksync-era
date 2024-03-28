@@ -288,7 +288,6 @@ impl RandomConfig for configs::chain::StateKeeperConfig {
             save_call_traces: g.gen(),
             virtual_blocks_interval: g.gen(),
             virtual_blocks_per_miniblock: g.gen(),
-            upload_witness_inputs_to_gcs: g.gen(),
             enum_index_migration_chunk_size: g.gen(),
             bootloader_hash: g.gen(),
             default_aa_hash: g.gen(),
