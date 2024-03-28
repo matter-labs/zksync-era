@@ -154,7 +154,7 @@ export async function validiumSubmoduleCheckout() {
     await utils.exec(`cd contracts && git checkout origin/feat_validium_mode`);
 }
 
-// clone dockprom and zksync-era dashboards
+// clone the dockprom and zksync-era dashboards
 export async function setupObservability() {
     // clone dockprom, era-observability repos and export era dashboards to dockprom
     await utils.spawn(
@@ -163,7 +163,7 @@ export async function setupObservability() {
             && cp ./target/era-observability/dashboards/* ./target/dockprom/grafana/provisioning/dashboards
         `
     );
-    // add scrape configuration to prometheus
+    // add scrape configuration to ‘prometheus’
     await utils.spawn(
         `yq eval '.scrape_configs += [{"job_name": "zksync", "scrape_interval": "5s", "honor_labels": true, "static_configs": [{"targets": ["host.docker.internal:3312"]}]}]' \
             -i ./target/dockprom/prometheus/prometheus.yml
