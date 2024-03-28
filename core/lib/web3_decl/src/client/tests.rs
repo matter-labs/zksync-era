@@ -344,7 +344,7 @@ async fn wrapping_mock_client() {
         .request::<String, _>("rate_limit", [()])
         .await
         .unwrap_err();
-    assert_matches!(err, Error::Call(_));
+    assert_matches!(err, Error::Transport(_));
     let labels = HttpErrorLabels {
         component: "test",
         method: "rate_limit".to_string(),
