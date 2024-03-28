@@ -166,7 +166,6 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             save_call_traces: self.sample(rng),
             virtual_blocks_interval: self.sample(rng),
             virtual_blocks_per_miniblock: self.sample(rng),
-            upload_witness_inputs_to_gcs: self.sample(rng),
             enum_index_migration_chunk_size: self.sample(rng),
             bootloader_hash: rng.gen(),
             default_aa_hash: rng.gen(),
