@@ -1,4 +1,8 @@
-use zksync_db_connection::{connection::Connection, instrument::InstrumentExt};
+use zksync_db_connection::{
+    connection::Connection,
+    error::{DalError, DalResult},
+    instrument::InstrumentExt,
+};
 use zksync_types::{
     snapshots::{AllSnapshots, SnapshotMetadata, SnapshotVersion},
     L1BatchNumber,
@@ -15,18 +19,13 @@ struct StorageSnapshotMetadata {
 }
 
 impl TryFrom<StorageSnapshotMetadata> for SnapshotMetadata {
-    type Error = sqlx::Error;
+    type Error = DalError;
 
     fn try_from(row: StorageSnapshotMetadata) -> Result<Self, Self::Error> {
-        let int_version = u16::try_from(row.version).map_err(|err| sqlx::Error::ColumnDecode {
-            index: "version".to_owned(),
-            source: err.into(),
-        })?;
-        let version =
-            SnapshotVersion::try_from(int_version).map_err(|err| sqlx::Error::ColumnDecode {
-                index: "version".to_owned(),
-                source: err.into(),
-            })?;
+        let int_version = u16::try_from(row.version)
+            .map_err(|err| DalError::column_conversion("version", err.into()))?;
+        let version = SnapshotVersion::try_from(int_version)
+            .map_err(|err| DalError::column_conversion("version", err.into()))?;
 
         Ok(Self {
             version,
@@ -53,7 +52,7 @@ impl SnapshotsDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
         storage_logs_chunk_count: u64,
         factory_deps_filepaths: &str,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -74,6 +73,8 @@ impl SnapshotsDal<'_, '_> {
             factory_deps_filepaths,
         )
         .instrument("add_snapshot")
+        .with_arg("version", &version)
+        .with_arg("l1_batch_number", &l1_batch_number)
         .report_latency()
         .execute(self.storage)
         .await?;
@@ -105,7 +106,7 @@ impl SnapshotsDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_all_complete_snapshots(&mut self) -> sqlx::Result<AllSnapshots> {
+    pub async fn get_all_complete_snapshots(&mut self) -> DalResult<AllSnapshots> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -133,7 +134,7 @@ impl SnapshotsDal<'_, '_> {
         })
     }
 
-    pub async fn get_newest_snapshot_metadata(&mut self) -> sqlx::Result<Option<SnapshotMetadata>> {
+    pub async fn get_newest_snapshot_metadata(&mut self) -> DalResult<Option<SnapshotMetadata>> {
         let row = sqlx::query_as!(
             StorageSnapshotMetadata,
             r#"
@@ -161,7 +162,7 @@ impl SnapshotsDal<'_, '_> {
     pub async fn get_snapshot_metadata(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<Option<SnapshotMetadata>> {
+    ) -> DalResult<Option<SnapshotMetadata>> {
         let row = sqlx::query_as!(
             StorageSnapshotMetadata,
             r#"
@@ -178,6 +179,7 @@ impl SnapshotsDal<'_, '_> {
             l1_batch_number.0 as i32
         )
         .instrument("get_snapshot_metadata")
+        .with_arg("l1_batch_number", &l1_batch_number)
         .report_latency()
         .fetch_optional(self.storage)
         .await?;

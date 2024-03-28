@@ -1,7 +1,9 @@
+use std::ops;
+
 use anyhow::Context as _;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::ReplicaState;
-use zksync_db_connection::connection::Connection;
+use zksync_db_connection::{connection::Connection, error::DalResult};
 use zksync_types::MiniblockNumber;
 
 pub use crate::models::consensus::Payload;
@@ -94,26 +96,20 @@ impl ConsensusDal<'_, '_> {
 
     /// Fetches the range of miniblocks present in storage.
     /// If storage was recovered from snapshot, the range doesn't need to start at 0.
-    pub async fn block_range(&mut self) -> anyhow::Result<std::ops::Range<validator::BlockNumber>> {
-        let mut txn = self
-            .storage
-            .start_transaction()
-            .await
-            .context("start_transaction")?;
+    pub async fn block_range(&mut self) -> DalResult<ops::Range<validator::BlockNumber>> {
+        let mut txn = self.storage.start_transaction().await?;
         let snapshot = txn
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
-            .await
-            .context("get_applied_snapshot_status()")?;
+            .await?;
         // `snapshot.miniblock_number` indicates the last block processed.
-        // This block is NOT present in storage. Therefore the first block
+        // This block is NOT present in storage. Therefore, the first block
         // that will appear in storage is `snapshot.miniblock_number+1`.
         let start = validator::BlockNumber(snapshot.map_or(0, |s| s.miniblock_number.0 + 1).into());
         let end = txn
             .blocks_dal()
             .get_sealed_miniblock_number()
-            .await
-            .context("get_sealed_miniblock_number")?
+            .await?
             .map_or(start, |last| validator::BlockNumber(last.0.into()).next());
         Ok(start..end)
     }

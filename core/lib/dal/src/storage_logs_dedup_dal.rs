@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use sqlx::types::chrono::Utc;
-use zksync_db_connection::connection::Connection;
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{
     snapshots::SnapshotStorageLog, zk_evm_types::LogQuery, AccountTreeId, Address, L1BatchNumber,
     StorageKey, H256,
@@ -85,7 +85,7 @@ impl StorageLogsDedupDal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
         written_storage_keys: &[StorageKey],
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         let hashed_keys: Vec<_> = written_storage_keys
             .iter()
             .map(|key| StorageKey::raw_hashed_key(key.address(), key.key()).to_vec())
@@ -113,7 +113,10 @@ impl StorageLogsDedupDal<'_, '_> {
             &indices,
             i64::from(l1_batch_number.0)
         )
-        .execute(self.storage.conn())
+        .instrument("insert_initial_writes")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .with_arg("hashed_keys.len", &hashed_keys.len())
+        .execute(self.storage)
         .await?;
 
         Ok(())
@@ -148,7 +151,7 @@ impl StorageLogsDedupDal<'_, '_> {
         .collect()
     }
 
-    async fn max_enumeration_index(&mut self) -> sqlx::Result<Option<u64>> {
+    async fn max_enumeration_index(&mut self) -> DalResult<Option<u64>> {
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -157,7 +160,8 @@ impl StorageLogsDedupDal<'_, '_> {
                 initial_writes
             "#,
         )
-        .fetch_one(self.storage.conn())
+        .instrument("max_enumeration_index")
+        .fetch_one(self.storage)
         .await?
         .max
         .map(|max| max as u64))

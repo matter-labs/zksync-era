@@ -2,7 +2,7 @@ use std::{collections::HashMap, ops, time::Instant};
 
 use sqlx::types::chrono::Utc;
 use zksync_db_connection::{
-    connection::Connection, instrument::InstrumentExt, write_str, writeln_str,
+    connection::Connection, error::DalResult, instrument::InstrumentExt, write_str, writeln_str,
 };
 use zksync_types::{
     get_code_key, snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber,
@@ -142,7 +142,7 @@ impl StorageLogsDal<'_, '_> {
     pub async fn rollback_storage(
         &mut self,
         last_miniblock_to_keep: MiniblockNumber,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         let stage_start = Instant::now();
         let modified_keys = self
             .modified_keys_in_miniblocks(last_miniblock_to_keep.next()..=MiniblockNumber(u32::MAX))
@@ -190,7 +190,8 @@ impl StorageLogsDal<'_, '_> {
             "#,
             &keys_to_delete as &[&[u8]],
         )
-        .execute(self.storage.conn())
+        .instrument("rollback_storage#delete_storage")
+        .execute(self.storage)
         .await?;
 
         tracing::info!(
@@ -213,7 +214,8 @@ impl StorageLogsDal<'_, '_> {
             &keys_to_update as &[&[u8]],
             &values_to_update as &[&[u8]],
         )
-        .execute(self.storage.conn())
+        .instrument("rollback_storage#update_storage")
+        .execute(self.storage)
         .await?;
 
         tracing::info!(
@@ -228,7 +230,7 @@ impl StorageLogsDal<'_, '_> {
     pub async fn modified_keys_in_miniblocks(
         &mut self,
         miniblock_numbers: ops::RangeInclusive<MiniblockNumber>,
-    ) -> sqlx::Result<Vec<H256>> {
+    ) -> DalResult<Vec<H256>> {
         let rows = sqlx::query!(
             r#"
             SELECT DISTINCT
@@ -241,7 +243,9 @@ impl StorageLogsDal<'_, '_> {
             i64::from(miniblock_numbers.start().0),
             i64::from(miniblock_numbers.end().0)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("modified_keys_in_miniblocks")
+        .with_arg("miniblock_numbers", &miniblock_numbers)
+        .fetch_all(self.storage)
         .await?;
 
         Ok(rows
@@ -404,7 +408,7 @@ impl StorageLogsDal<'_, '_> {
     pub async fn get_storage_logs_for_revert(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<HashMap<H256, Option<(H256, u64)>>> {
+    ) -> DalResult<HashMap<H256, Option<(H256, u64)>>> {
         let miniblock_range = self
             .storage
             .blocks_dal()
@@ -488,7 +492,7 @@ impl StorageLogsDal<'_, '_> {
     pub async fn get_l1_batches_and_indices_for_initial_writes(
         &mut self,
         hashed_keys: &[H256],
-    ) -> sqlx::Result<HashMap<H256, (L1BatchNumber, u64)>> {
+    ) -> DalResult<HashMap<H256, (L1BatchNumber, u64)>> {
         if hashed_keys.is_empty() {
             return Ok(HashMap::new()); // Shortcut to save time on communication with DB in the common case
         }
@@ -508,6 +512,7 @@ impl StorageLogsDal<'_, '_> {
             &hashed_keys as &[&[u8]],
         )
         .instrument("get_l1_batches_and_indices_for_initial_writes")
+        .with_arg("hashed_keys.len", &hashed_keys.len())
         .report_latency()
         .fetch_all(self.storage)
         .await?;
@@ -537,7 +542,7 @@ impl StorageLogsDal<'_, '_> {
         &mut self,
         hashed_keys: &[H256],
         next_l1_batch: L1BatchNumber,
-    ) -> sqlx::Result<HashMap<H256, Option<H256>>> {
+    ) -> DalResult<HashMap<H256, Option<H256>>> {
         let (miniblock_number, _) = self
             .storage
             .blocks_dal()
@@ -558,7 +563,7 @@ impl StorageLogsDal<'_, '_> {
         &mut self,
         hashed_keys: &[H256],
         miniblock_number: MiniblockNumber,
-    ) -> sqlx::Result<HashMap<H256, Option<H256>>> {
+    ) -> DalResult<HashMap<H256, Option<H256>>> {
         let hashed_keys: Vec<_> = hashed_keys.iter().map(H256::as_bytes).collect();
 
         let rows = sqlx::query!(
@@ -585,7 +590,10 @@ impl StorageLogsDal<'_, '_> {
             &hashed_keys as &[&[u8]],
             i64::from(miniblock_number.0)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_storage_values")
+        .with_arg("miniblock_number", &miniblock_number)
+        .with_arg("hashed_keys.len", &hashed_keys.len())
+        .fetch_all(self.storage)
         .await?;
 
         Ok(rows
@@ -637,7 +645,7 @@ impl StorageLogsDal<'_, '_> {
     pub async fn get_storage_logs_row_count(
         &mut self,
         at_miniblock: MiniblockNumber,
-    ) -> sqlx::Result<u64> {
+    ) -> DalResult<u64> {
         let row = sqlx::query!(
             r#"
             SELECT

@@ -5,7 +5,9 @@
 
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
 use zksync_db_connection::connection::DbMarker;
-pub use zksync_db_connection::{connection::Connection, connection_pool::ConnectionPool};
+pub use zksync_db_connection::{
+    connection::Connection, connection_pool::ConnectionPool, error::DalError,
+};
 
 use crate::{
     basic_witness_input_producer_dal::BasicWitnessInputProducerDal, blocks_dal::BlocksDal,

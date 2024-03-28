@@ -1,5 +1,6 @@
 use zksync_db_connection::{
-    connection::Connection, instrument::InstrumentExt, interpolate_query, match_query_as,
+    connection::Connection, error::DalResult, instrument::InstrumentExt, interpolate_query,
+    match_query_as,
 };
 use zksync_system_constants::EMPTY_UNCLES_HASH;
 use zksync_types::{
@@ -506,7 +507,7 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_block_details(
         &mut self,
         block_number: MiniblockNumber,
-    ) -> sqlx::Result<Option<api::BlockDetails>> {
+    ) -> DalResult<Option<api::BlockDetails>> {
         let storage_block_details = sqlx::query_as!(
             StorageBlockDetails,
             r#"
@@ -580,7 +581,7 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_l1_batch_details(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<Option<api::L1BatchDetails>> {
+    ) -> DalResult<Option<api::L1BatchDetails>> {
         let l1_batch_details: Option<StorageL1BatchDetails> = sqlx::query_as!(
             StorageL1BatchDetails,
             r#"

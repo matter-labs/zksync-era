@@ -1,6 +1,7 @@
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_db_connection::{
-    connection::Connection, instrument::InstrumentExt, interpolate_query, match_query_as,
+    connection::Connection, error::DalResult, instrument::InstrumentExt, interpolate_query,
+    match_query_as,
 };
 use zksync_types::{
     api, api::TransactionReceipt, Address, L2ChainId, MiniblockNumber, Transaction,
@@ -226,7 +227,7 @@ impl TransactionsWeb3Dal<'_, '_> {
     pub async fn get_transaction_details(
         &mut self,
         hash: H256,
-    ) -> sqlx::Result<Option<api::TransactionDetails>> {
+    ) -> DalResult<Option<api::TransactionDetails>> {
         {
             let storage_tx_details: Option<StorageTransactionDetails> = sqlx::query_as!(
                 StorageTransactionDetails,
