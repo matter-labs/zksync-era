@@ -600,7 +600,7 @@ pub(super) struct TestIO {
     /// requests until some other action happens.
     skipping_txs: bool,
     protocol_version: ProtocolVersionId,
-    previous_batch_protocol_version: ProtocolVersionId, // FIXME: not updated
+    previous_batch_protocol_version: ProtocolVersionId,
     protocol_upgrade_txs: HashMap<ProtocolVersionId, ProtocolUpgradeTx>,
 }
 

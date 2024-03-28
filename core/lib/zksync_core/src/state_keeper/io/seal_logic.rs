@@ -174,7 +174,7 @@ impl UpdatesManager {
                 .storage_logs_dedup_dal()
                 .insert_protective_reads(self.l1_batch.number, &protective_reads)
                 .await
-                .unwrap(); // FIXME: propagate errors
+                .unwrap();
             progress.observe(protective_reads.len());
         }
 
