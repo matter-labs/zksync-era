@@ -66,22 +66,30 @@ impl fmt::Display for CallOrigin<'_> {
     }
 }
 
+/// L2 client trait.
+pub trait L2ClientT: SubscriptionClientT + fmt::Debug + Send + Sync + 'static {}
+
+impl<T: SubscriptionClientT + fmt::Debug + Send + Sync + 'static> L2ClientT for T {}
+
 /// JSON-RPC client for the main node with built-in middleware support.
 ///
 /// The client should be used instead of `HttpClient` etc. A single instance of the client should be built
 /// and shared among all tasks run by the node in order to correctly rate-limit requests.
 #[derive(Debug, Clone)]
-pub struct L2Client {
-    inner: HttpClient,
+pub struct L2Client<C = HttpClient> {
+    inner: C,
     rate_limit: SharedRateLimit,
     component_name: &'static str,
 }
 
 impl L2Client {
-    pub fn builder() -> L2ClientBuilder {
-        L2ClientBuilder::default()
+    pub fn http(url: &str) -> anyhow::Result<L2ClientBuilder> {
+        let client = HttpClientBuilder::default().build(url)?;
+        Ok(L2ClientBuilder::new(client))
     }
+}
 
+impl<C: L2ClientT> L2Client<C> {
     /// Sets the component operating this client. This is used in logging etc.
     pub fn for_component(mut self, component_name: &'static str) -> Self {
         self.component_name = component_name;
@@ -138,7 +146,7 @@ impl L2Client {
 }
 
 #[async_trait]
-impl ClientT for L2Client {
+impl<C: L2ClientT> ClientT for L2Client<C> {
     async fn notification<Params>(&self, method: &str, params: Params) -> Result<(), Error>
     where
         Params: ToRpcParams + Send,
@@ -172,7 +180,7 @@ impl ClientT for L2Client {
 }
 
 #[async_trait]
-impl SubscriptionClientT for L2Client {
+impl<C: L2ClientT> SubscriptionClientT for L2Client<C> {
     async fn subscribe<'a, Notif, Params>(
         &self,
         subscribe_method: &'a str,
@@ -207,19 +215,20 @@ impl SubscriptionClientT for L2Client {
 
 /// Builder for the [`L2Client`].
 #[derive(Debug)]
-pub struct L2ClientBuilder {
+pub struct L2ClientBuilder<C = HttpClient> {
+    client: C,
     rate_limit: (usize, Duration),
 }
 
-impl Default for L2ClientBuilder {
-    fn default() -> Self {
+impl<C: L2ClientT> L2ClientBuilder<C> {
+    /// Wraps the provided client.
+    pub fn new(client: C) -> Self {
         Self {
+            client,
             rate_limit: (1, Duration::ZERO),
         }
     }
-}
 
-impl L2ClientBuilder {
     /// Sets the rate limit for the client. The rate limit is applied across all client instances,
     /// including cloned ones.
     pub fn with_allowed_requests_per_second(mut self, rps: NonZeroUsize) -> Self {
@@ -237,17 +246,17 @@ impl L2ClientBuilder {
     }
 
     /// Builds the client.
-    pub fn build(self, url: &str) -> anyhow::Result<L2Client> {
+    pub fn build(self) -> L2Client<C> {
         tracing::info!(
-            "Creating HTTP JSON-RPC client with URL: {url} and rate limit: {:?}",
+            "Creating JSON-RPC client with inner client: {:?} and rate limit: {:?}",
+            self.client,
             self.rate_limit
         );
-        let inner = HttpClientBuilder::default().build(url)?;
-        Ok(L2Client {
-            inner,
+        L2Client {
+            inner: self.client,
             rate_limit: SharedRateLimit::new(self.rate_limit.0, self.rate_limit.1),
             component_name: "",
-        })
+        }
     }
 }
 

@@ -282,9 +282,9 @@ impl StateKeeper {
         let addr = sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some)
             .await?
             .unwrap();
-        Ok(L2Client::builder()
-            .build(&format!("http://{addr}/"))
-            .context("json_rpc()")?)
+        Ok(L2Client::http(&format!("http://{addr}/"))
+            .context("json_rpc()")?
+            .build())
     }
 
     /// Runs the centralized fetcher.

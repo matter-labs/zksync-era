@@ -33,9 +33,9 @@ impl WiringLayer for TxSinkLayer {
                 TxSinkResource(Arc::new(MasterPoolSink::new(pool)))
             }
             TxSinkLayer::ProxySink { main_node_url } => {
-                let client = L2Client::builder()
-                    .build(main_node_url)
-                    .map_err(WiringError::Internal)?;
+                let client = L2Client::http(main_node_url)
+                    .map_err(WiringError::Internal)?
+                    .build();
                 TxSinkResource(Arc::new(TxProxy::new(client)))
             }
         };

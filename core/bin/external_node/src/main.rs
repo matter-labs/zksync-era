@@ -503,10 +503,10 @@ async fn main() -> anyhow::Result<()> {
         .main_node_url()
         .expect("Main node URL is incorrect");
     tracing::info!("Main node URL is: {main_node_url}");
-    let main_node_client = L2Client::builder()
+    let main_node_client = L2Client::http(&main_node_url)
+        .context("Failed creating JSON-RPC client for main node")?
         .with_allowed_requests_per_second(config.optional.main_node_rate_limit_rps)
-        .build(&main_node_url)
-        .context("Failed creating JSON-RPC client for main node")?;
+        .build();
 
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");

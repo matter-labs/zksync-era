@@ -561,9 +561,9 @@ impl ExternalNodeConfig {
             .from_env::<OptionalENConfig>()
             .context("could not load external node config")?;
 
-        let client = L2Client::builder()
-            .build(&required.main_node_url()?)
-            .context("Unable to build HTTP client for main node")?;
+        let client = L2Client::http(&required.main_node_url()?)
+            .context("Unable to build HTTP client for main node")?
+            .build();
         let remote = RemoteENConfig::fetch(&client)
             .await
             .context("Unable to fetch required config values from the main node")?;
