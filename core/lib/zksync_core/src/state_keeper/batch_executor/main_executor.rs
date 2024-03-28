@@ -35,7 +35,6 @@ use crate::{
 pub struct MainBatchExecutor {
     storage_factory: Arc<dyn ReadStorageFactory>,
     save_call_traces: bool,
-    upload_witness_inputs_to_gcs: bool,
     optional_bytecode_compression: bool,
 }
 
@@ -43,13 +42,11 @@ impl MainBatchExecutor {
     pub fn new(
         storage_factory: Arc<dyn ReadStorageFactory>,
         save_call_traces: bool,
-        upload_witness_inputs_to_gcs: bool,
         optional_bytecode_compression: bool,
     ) -> Self {
         Self {
             storage_factory,
             save_call_traces,
-            upload_witness_inputs_to_gcs,
             optional_bytecode_compression,
         }
     }
@@ -71,7 +68,6 @@ impl BatchExecutor for MainBatchExecutor {
             optional_bytecode_compression: self.optional_bytecode_compression,
             commands: commands_receiver,
         };
-        let upload_witness_inputs_to_gcs = self.upload_witness_inputs_to_gcs;
 
         let storage_factory = self.storage_factory.clone();
         let stop_receiver = stop_receiver.clone();
@@ -80,12 +76,7 @@ impl BatchExecutor for MainBatchExecutor {
                 .block_on(storage_factory.access_storage(&stop_receiver))
                 .expect("failed getting access to state keeper storage")
             {
-                executor.run(
-                    storage,
-                    l1_batch_params,
-                    system_env,
-                    upload_witness_inputs_to_gcs,
-                );
+                executor.run(storage, l1_batch_params, system_env);
             } else {
                 tracing::info!("Interrupted while trying to access state keeper storage");
             }
@@ -116,7 +107,6 @@ impl CommandReceiver {
         secondary_storage: S,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
-        upload_witness_inputs_to_gcs: bool,
     ) {
         tracing::info!("Starting executing batch #{:?}", &l1_batch_params.number);
 
@@ -140,12 +130,7 @@ impl CommandReceiver {
                 }
                 Command::FinishBatch(resp) => {
                     let vm_block_result = self.finish_batch(&mut vm);
-                    let witness_block_state = if upload_witness_inputs_to_gcs {
-                        Some(storage_view.borrow_mut().witness_block_state())
-                    } else {
-                        None
-                    };
-                    resp.send((vm_block_result, witness_block_state)).unwrap();
+                    resp.send(vm_block_result).unwrap();
 
                     // `storage_view` cannot be accessed while borrowed by the VM,
                     // so this is the only point at which storage metrics can be obtained
