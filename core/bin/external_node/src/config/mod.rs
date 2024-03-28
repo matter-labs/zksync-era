@@ -367,11 +367,8 @@ impl OptionalENConfig {
         10_000
     }
 
-    const fn default_main_node_rate_limit_rps() -> NonZeroUsize {
-        match NonZeroUsize::new(100) {
-            Some(value) => value,
-            None => unreachable!(),
-        }
+    fn default_main_node_rate_limit_rps() -> NonZeroUsize {
+        NonZeroUsize::new(100).unwrap()
     }
 
     pub fn polling_interval(&self) -> Duration {
