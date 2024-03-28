@@ -568,8 +568,9 @@ impl FriProverDal<'_, '_> {
         .map(|row| row.id as u32)
     }
 
-    pub async fn archive_old_jobs(&mut self, archivation_interval: u64) -> usize {
-        let timeout = pg_interval_from_duration(Duration::from_millis(archivation_interval));
+    pub async fn archive_old_jobs(&mut self, archiving_interval_secs: u64) -> usize {
+        let archiving_interval_secs =
+            pg_interval_from_duration(Duration::from_secs(archiving_interval_secs));
 
         sqlx::query_scalar!(
             r#"
@@ -586,7 +587,7 @@ impl FriProverDal<'_, '_> {
             )
             SELECT COUNT(*) FROM deleted
             "#,
-            &timeout,
+            &archiving_interval_secs,
         )
         .fetch_one(self.storage.conn())
         .await

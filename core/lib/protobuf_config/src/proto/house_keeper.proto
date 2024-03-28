@@ -16,6 +16,6 @@ message HouseKeeper {
     optional uint64 fri_prover_stats_reporting_interval_ms = 11; // required; ms
     optional uint64 fri_proof_compressor_job_retrying_interval_ms = 12; // required; ms
     optional uint64 fri_proof_compressor_stats_reporting_interval_ms = 13; // required; ms
-    optional uint64 fri_prover_job_archivation_reporting_interval_ms = 14; // required; ms
-    optional uint64 fri_prover_job_archivation_archiving_interval_ms = 15; // required
+    optional uint64 fri_prover_job_archiver_reporting_interval_ms = 14; // optional; ms
+    optional uint64 fri_prover_job_archiver_archiving_interval_secs = 15; // optional; seconds
 }
