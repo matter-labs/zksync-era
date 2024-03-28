@@ -16,6 +16,7 @@ pub use self::{
     keeper::ZkSyncStateKeeper,
     mempool_actor::MempoolFetcher,
     seal_criteria::SequencerSealer,
+    state_keeper_storage::{AsyncCatchupTask, AsyncRocksdbCache},
     types::MempoolGuard,
 };
 use crate::fee_model::BatchFeeModelInputProvider;
@@ -27,6 +28,7 @@ mod keeper;
 mod mempool_actor;
 pub(crate) mod metrics;
 pub mod seal_criteria;
+mod state_keeper_storage;
 #[cfg(test)]
 pub(crate) mod tests;
 pub(crate) mod types;
@@ -43,13 +45,15 @@ pub(crate) async fn create_state_keeper(
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
-) -> ZkSyncStateKeeper {
-    let batch_executor_base = MainBatchExecutor::new(
-        db_config.state_keeper_db_path.clone(),
+) -> (ZkSyncStateKeeper, AsyncCatchupTask) {
+    let (storage_factory, task) = AsyncRocksdbCache::new(
         pool.clone(),
-        state_keeper_config.save_call_traces,
-        state_keeper_config.upload_witness_inputs_to_gcs,
+        db_config.state_keeper_db_path.clone(),
         state_keeper_config.enum_index_migration_chunk_size(),
+    );
+    let batch_executor_base = MainBatchExecutor::new(
+        Arc::new(storage_factory),
+        state_keeper_config.save_call_traces,
         false,
     );
 
@@ -65,11 +69,14 @@ pub(crate) async fn create_state_keeper(
     .expect("Failed initializing main node I/O for state keeper");
 
     let sealer = SequencerSealer::new(state_keeper_config);
-    ZkSyncStateKeeper::new(
-        stop_receiver,
-        Box::new(io),
-        Box::new(batch_executor_base),
-        output_handler,
-        Arc::new(sealer),
+    (
+        ZkSyncStateKeeper::new(
+            stop_receiver,
+            Box::new(io),
+            Box::new(batch_executor_base),
+            output_handler,
+            Arc::new(sealer),
+        ),
+        task,
     )
 }

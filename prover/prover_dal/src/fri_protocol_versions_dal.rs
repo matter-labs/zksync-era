@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use zksync_basic_types::protocol_version::{FriProtocolVersionId, L1VerifierConfig};
+use zksync_basic_types::protocol_version::{L1VerifierConfig, ProtocolVersionId};
 use zksync_db_connection::connection::Connection;
 
 use crate::Prover;
@@ -13,7 +13,7 @@ pub struct FriProtocolVersionsDal<'a, 'c> {
 impl FriProtocolVersionsDal<'_, '_> {
     pub async fn save_prover_protocol_version(
         &mut self,
-        id: FriProtocolVersionId,
+        id: ProtocolVersionId,
         l1_verifier_config: L1VerifierConfig,
     ) {
         sqlx::query!(
@@ -56,7 +56,7 @@ impl FriProtocolVersionsDal<'_, '_> {
     pub async fn protocol_version_for(
         &mut self,
         vk_commitments: &L1VerifierConfig,
-    ) -> Vec<FriProtocolVersionId> {
+    ) -> Vec<ProtocolVersionId> {
         sqlx::query!(
             r#"
             SELECT
@@ -87,7 +87,7 @@ impl FriProtocolVersionsDal<'_, '_> {
         .await
         .unwrap()
         .into_iter()
-        .map(|row| FriProtocolVersionId::try_from(row.id as u16).unwrap())
+        .map(|row| ProtocolVersionId::try_from(row.id as u16).unwrap())
         .collect()
     }
 }
