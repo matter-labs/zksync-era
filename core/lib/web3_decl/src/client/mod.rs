@@ -75,6 +75,16 @@ impl<T: SubscriptionClientT + Clone + fmt::Debug + Send + Sync + 'static> L2Clie
 ///
 /// The client should be used instead of `HttpClient` etc. A single instance of the client should be built
 /// and shared among all tasks run by the node in order to correctly rate-limit requests.
+//
+// # Why not use `HttpClient` with custom Tower middleware?
+//
+// - `HttpClient` allows to set HTTP-level middleware, not an RPC-level one. The latter is more appropriate for rate limiting.
+// - Observability (logging, metrics) is also easier with RPC-level middleware.
+// - We might want to add other middleware layers that could be better implemented on the RPC level
+//   (e.g., automated batching of requests issued in a quick succession).
+// - Naming the HTTP middleware type is problematic if middleware is complex. Tower provides
+//   [a boxed cloneable version of services](https://docs.rs/tower/latest/tower/util/struct.BoxCloneService.html),
+//   but it doesn't fit (it's unconditionally `!Sync`, and `Sync` is required for `HttpClient<_>` to implement RPC traits).
 #[derive(Debug, Clone)]
 pub struct L2Client<C = HttpClient> {
     inner: C,
