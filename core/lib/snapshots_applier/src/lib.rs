@@ -61,21 +61,6 @@ impl SnapshotsApplierError {
             }
         }
     }
-
-    // FIXME: remove
-    fn db(err: SqlxError, context: impl Into<String>) -> Self {
-        let context = context.into();
-        match err {
-            SqlxError::Database(_)
-            | SqlxError::RowNotFound
-            | SqlxError::ColumnNotFound(_)
-            | SqlxError::Configuration(_)
-            | SqlxError::TypeNotFound { .. } => {
-                Self::Fatal(anyhow::Error::from(err).context(context))
-            }
-            _ => Self::Retryable(anyhow::Error::from(err).context(context)),
-        }
-    }
 }
 
 impl From<DalError> for SnapshotsApplierError {
@@ -477,25 +462,18 @@ impl<'a> SnapshotsApplier<'a> {
 
     async fn insert_initial_writes_chunk(
         &self,
-        chunk_id: u64,
         storage_logs: &[SnapshotStorageLog],
         storage: &mut Connection<'_, Core>,
     ) -> Result<(), SnapshotsApplierError> {
         storage
             .storage_logs_dedup_dal()
             .insert_initial_writes_from_snapshot(storage_logs)
-            .await
-            .map_err(|err| {
-                let context =
-                    format!("failed persisting initial writes from storage logs chunk {chunk_id}");
-                SnapshotsApplierError::db(err, context)
-            })?;
+            .await?;
         Ok(())
     }
 
     async fn insert_storage_logs_chunk(
         &self,
-        chunk_id: u64,
         storage_logs: &[SnapshotStorageLog],
         storage: &mut Connection<'_, Core>,
     ) -> Result<(), SnapshotsApplierError> {
@@ -505,11 +483,7 @@ impl<'a> SnapshotsApplier<'a> {
                 self.applied_snapshot_status.miniblock_number,
                 storage_logs,
             )
-            .await
-            .map_err(|err| {
-                let context = format!("failed persisting storage logs from chunk {chunk_id}");
-                SnapshotsApplierError::db(err, context)
-            })?;
+            .await?;
         Ok(())
     }
 
@@ -554,19 +528,15 @@ impl<'a> SnapshotsApplier<'a> {
         let mut storage_transaction = storage.start_transaction().await?;
 
         tracing::info!("Loading {} storage logs into Postgres", storage_logs.len());
-        self.insert_storage_logs_chunk(chunk_id, storage_logs, &mut storage_transaction)
+        self.insert_storage_logs_chunk(storage_logs, &mut storage_transaction)
             .await?;
-        self.insert_initial_writes_chunk(chunk_id, storage_logs, &mut storage_transaction)
+        self.insert_initial_writes_chunk(storage_logs, &mut storage_transaction)
             .await?;
 
         storage_transaction
             .snapshot_recovery_dal()
             .mark_storage_logs_chunk_as_processed(chunk_id)
-            .await
-            .map_err(|err| {
-                let context = format!("failed marking storage logs chunk {chunk_id} as processed");
-                SnapshotsApplierError::db(err, context)
-            })?;
+            .await?;
         storage_transaction.commit().await?;
 
         let chunks_left = METRICS.storage_logs_chunks_left_to_process.dec_by(1) - 1;
@@ -642,11 +612,7 @@ impl<'a> SnapshotsApplier<'a> {
             .connection_pool
             .connection_tagged("snapshots_applier")
             .await?;
-        let all_token_addresses = storage
-            .tokens_dal()
-            .get_all_l2_token_addresses()
-            .await
-            .map_err(|err| SnapshotsApplierError::db(err, "failed fetching L2 token addresses"))?;
+        let all_token_addresses = storage.tokens_dal().get_all_l2_token_addresses().await?;
         if !all_token_addresses.is_empty() {
             tracing::info!(
                 "{} tokens are already present in DB; skipping token recovery",
@@ -672,10 +638,7 @@ impl<'a> SnapshotsApplier<'a> {
         let filtered_addresses = storage
             .storage_logs_dal()
             .filter_deployed_contracts(l2_addresses, Some(snapshot_miniblock_number))
-            .await
-            .map_err(|err| {
-                SnapshotsApplierError::db(err, "failed querying L2 contracts for tokens")
-            })?;
+            .await?;
 
         let bogus_tokens = tokens.iter().filter(|token| {
             // We need special handling for L2 ether; its `l2_address` doesn't have a deployed contract
@@ -693,11 +656,7 @@ impl<'a> SnapshotsApplier<'a> {
             "Checked {} tokens deployment on L2; persisting tokens into DB",
             tokens.len()
         );
-        storage
-            .tokens_dal()
-            .add_tokens(&tokens)
-            .await
-            .map_err(|err| SnapshotsApplierError::db(err, "failed persisting tokens"))?;
+        storage.tokens_dal().add_tokens(&tokens).await?;
         Ok(())
     }
 }

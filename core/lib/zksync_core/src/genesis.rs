@@ -385,8 +385,7 @@ async fn insert_system_contracts(
     transaction
         .storage_logs_dedup_dal()
         .insert_protective_reads(L1BatchNumber(0), &protective_reads)
-        .await
-        .context("Postgres error")?; // FIXME
+        .await?;
 
     let written_storage_keys: Vec<_> = deduplicated_writes
         .iter()

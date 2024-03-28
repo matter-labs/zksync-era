@@ -50,10 +50,7 @@ impl SnapshotRecoveryDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn mark_storage_logs_chunk_as_processed(
-        &mut self,
-        chunk_id: u64,
-    ) -> sqlx::Result<()> {
+    pub async fn mark_storage_logs_chunk_as_processed(&mut self, chunk_id: u64) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE snapshot_recovery
@@ -63,7 +60,9 @@ impl SnapshotRecoveryDal<'_, '_> {
             "#,
             chunk_id as i32 + 1
         )
-        .execute(self.storage.conn())
+        .instrument("mark_storage_logs_chunk_as_processed")
+        .with_arg("chunk_id", &chunk_id)
+        .execute(self.storage)
         .await?;
 
         Ok(())

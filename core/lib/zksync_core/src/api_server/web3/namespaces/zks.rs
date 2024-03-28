@@ -169,7 +169,7 @@ impl ZksNamespace {
             .tokens_dal()
             .get_all_l2_token_addresses()
             .await
-            .context("get_all_l2_token_addresses")?;
+            .context("Postgres error")?;
         let hashed_balance_keys = tokens.iter().map(|&token_address| {
             let token_account = AccountTreeId::new(if token_address == ETHEREUM_ADDRESS {
                 L2_ETH_TOKEN_ADDRESS

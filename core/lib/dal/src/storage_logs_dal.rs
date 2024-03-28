@@ -2,7 +2,10 @@ use std::{collections::HashMap, ops, time::Instant};
 
 use sqlx::types::chrono::Utc;
 use zksync_db_connection::{
-    connection::Connection, error::DalResult, instrument::InstrumentExt, write_str, writeln_str,
+    connection::Connection,
+    error::DalResult,
+    instrument::{CopyStatement, InstrumentExt},
+    write_str, writeln_str,
 };
 use zksync_types::{
     get_code_key, snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber,
@@ -24,7 +27,7 @@ impl StorageLogsDal<'_, '_> {
         &mut self,
         block_number: MiniblockNumber,
         logs: &[(H256, Vec<StorageLog>)],
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         self.insert_storage_logs_inner(block_number, logs, 0).await
     }
 
@@ -33,18 +36,20 @@ impl StorageLogsDal<'_, '_> {
         block_number: MiniblockNumber,
         logs: &[(H256, Vec<StorageLog>)],
         mut operation_number: u32,
-    ) -> sqlx::Result<()> {
-        let mut copy = self
-            .storage
-            .conn()
-            .copy_in_raw(
-                "COPY storage_logs(
-                    hashed_key, address, key, value, operation_number, tx_hash, miniblock_number,
-                    created_at, updated_at
-                )
-                FROM STDIN WITH (DELIMITER '|')",
+    ) -> DalResult<()> {
+        let logs_len = logs.len();
+        let copy = CopyStatement::new(
+            "COPY storage_logs(
+                hashed_key, address, key, value, operation_number, tx_hash, miniblock_number,
+                created_at, updated_at
             )
-            .await?;
+            FROM STDIN WITH (DELIMITER '|')",
+        )
+        .instrument("insert_storage_logs")
+        .with_arg("block_number", &block_number)
+        .with_arg("logs.len", &logs_len)
+        .start(self.storage)
+        .await?;
 
         let mut buffer = String::new();
         let now = Utc::now().naive_utc().to_string();
@@ -66,27 +71,27 @@ impl StorageLogsDal<'_, '_> {
                 operation_number += 1;
             }
         }
-        copy.send(buffer.as_bytes()).await?;
-        copy.finish().await?;
-        Ok(())
+        copy.send(buffer.as_bytes()).await
     }
 
     pub async fn insert_storage_logs_from_snapshot(
         &mut self,
         miniblock_number: MiniblockNumber,
         snapshot_storage_logs: &[SnapshotStorageLog],
-    ) -> sqlx::Result<()> {
-        let mut copy = self
-            .storage
-            .conn()
-            .copy_in_raw(
-                "COPY storage_logs(
-                    hashed_key, address, key, value, operation_number, tx_hash, miniblock_number,
-                    created_at, updated_at
-                )
-                FROM STDIN WITH (DELIMITER '|')",
+    ) -> DalResult<()> {
+        let storage_logs_len = snapshot_storage_logs.len();
+        let copy = CopyStatement::new(
+            "COPY storage_logs(
+                hashed_key, address, key, value, operation_number, tx_hash, miniblock_number,
+                created_at, updated_at
             )
-            .await?;
+            FROM STDIN WITH (DELIMITER '|')",
+        )
+        .instrument("insert_storage_logs_from_snapshot")
+        .with_arg("miniblock_number", &miniblock_number)
+        .with_arg("storage_logs.len", &storage_logs_len)
+        .start(self.storage)
+        .await?;
 
         let mut buffer = String::new();
         let now = Utc::now().naive_utc().to_string();
@@ -106,16 +111,14 @@ impl StorageLogsDal<'_, '_> {
                 H256::zero()
             );
         }
-        copy.send(buffer.as_bytes()).await?;
-        copy.finish().await?;
-        Ok(())
+        copy.send(buffer.as_bytes()).await
     }
 
     pub async fn append_storage_logs(
         &mut self,
         block_number: MiniblockNumber,
         logs: &[(H256, Vec<StorageLog>)],
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         let operation_number = sqlx::query!(
             r#"
             SELECT
@@ -127,7 +130,9 @@ impl StorageLogsDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .fetch_one(self.storage.conn())
+        .instrument("append_storage_logs#get_operation_number")
+        .with_arg("block_number", &block_number)
+        .fetch_one(self.storage)
         .await?
         .max
         .map(|max| max as u32 + 1)
@@ -311,7 +316,7 @@ impl StorageLogsDal<'_, '_> {
         &mut self,
         addresses: impl Iterator<Item = Address>,
         at_miniblock: Option<MiniblockNumber>,
-    ) -> sqlx::Result<HashMap<Address, MiniblockNumber>> {
+    ) -> DalResult<HashMap<Address, MiniblockNumber>> {
         let (bytecode_hashed_keys, address_by_hashed_key): (Vec<_>, HashMap<_, _>) = addresses
             .map(|address| {
                 let hashed_key = get_code_key(&address).hashed_key().0;
@@ -340,7 +345,11 @@ impl StorageLogsDal<'_, '_> {
             &bytecode_hashed_keys as &[_],
             i64::from(max_miniblock_number)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("filter_deployed_contracts")
+        .with_arg("addresses.len", &bytecode_hashed_keys.len())
+        .with_arg("at_miniblock", &at_miniblock)
+        .report_latency()
+        .fetch_all(self.storage)
         .await?;
 
         let deployment_data = rows.into_iter().filter_map(|row| {

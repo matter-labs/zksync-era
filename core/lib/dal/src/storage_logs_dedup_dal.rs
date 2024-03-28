@@ -1,7 +1,11 @@
 use std::collections::HashSet;
 
 use sqlx::types::chrono::Utc;
-use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
+use zksync_db_connection::{
+    connection::Connection,
+    error::DalResult,
+    instrument::{CopyStatement, InstrumentExt},
+};
 use zksync_types::{
     snapshots::SnapshotStorageLog, zk_evm_types::LogQuery, AccountTreeId, Address, L1BatchNumber,
     StorageKey, H256,
@@ -21,15 +25,17 @@ impl StorageLogsDedupDal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
         read_logs: &[LogQuery],
-    ) -> sqlx::Result<()> {
-        let mut copy = self
-            .storage
-            .conn()
-            .copy_in_raw(
-                "COPY protective_reads (l1_batch_number, address, key, created_at, updated_at) \
-                FROM STDIN WITH (DELIMITER '|')",
-            )
-            .await?;
+    ) -> DalResult<()> {
+        let read_logs_len = read_logs.len();
+        let copy = CopyStatement::new(
+            "COPY protective_reads (l1_batch_number, address, key, created_at, updated_at) \
+             FROM STDIN WITH (DELIMITER '|')",
+        )
+        .instrument("insert_protective_reads")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .with_arg("read_logs.len", &read_logs_len)
+        .start(self.storage)
+        .await?;
 
         let mut bytes: Vec<u8> = Vec::new();
         let now = Utc::now().naive_utc().to_string();
@@ -42,9 +48,7 @@ impl StorageLogsDedupDal<'_, '_> {
             );
             bytes.extend_from_slice(row.as_bytes());
         }
-        copy.send(bytes).await?;
-        copy.finish().await?;
-        Ok(())
+        copy.send(&bytes).await
     }
 
     /// Insert initial writes and assigns indices to them.
@@ -52,15 +56,16 @@ impl StorageLogsDedupDal<'_, '_> {
     pub async fn insert_initial_writes_from_snapshot(
         &mut self,
         snapshot_storage_logs: &[SnapshotStorageLog],
-    ) -> sqlx::Result<()> {
-        let mut copy = self
-            .storage
-            .conn()
-            .copy_in_raw(
-                "COPY initial_writes (hashed_key, index, l1_batch_number, created_at, updated_at) \
-                FROM STDIN WITH (DELIMITER '|')",
-            )
-            .await?;
+    ) -> DalResult<()> {
+        let storage_logs_len = snapshot_storage_logs.len();
+        let copy = CopyStatement::new(
+            "COPY initial_writes (hashed_key, index, l1_batch_number, created_at, updated_at) \
+             FROM STDIN WITH (DELIMITER '|')",
+        )
+        .instrument("insert_initial_writes_from_snapshot")
+        .with_arg("storage_logs.len", &storage_logs_len)
+        .start(self.storage)
+        .await?;
 
         let mut bytes: Vec<u8> = Vec::new();
         let now = Utc::now().naive_utc().to_string();
@@ -75,10 +80,7 @@ impl StorageLogsDedupDal<'_, '_> {
             );
             bytes.extend_from_slice(row.as_bytes());
         }
-        copy.send(bytes).await?;
-        copy.finish().await?;
-
-        Ok(())
+        copy.send(&bytes).await
     }
 
     pub async fn insert_initial_writes(

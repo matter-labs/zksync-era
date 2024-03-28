@@ -14,9 +14,9 @@
 use std::{fmt, future::Future, panic::Location};
 
 use sqlx::{
-    postgres::{PgQueryResult, PgRow},
+    postgres::{PgCopyIn, PgQueryResult, PgRow},
     query::{Map, Query, QueryAs},
-    FromRow, IntoArguments, Postgres,
+    FromRow, IntoArguments, PgConnection, Postgres,
 };
 use tokio::time::Instant;
 
@@ -106,6 +106,64 @@ where
             query: self,
             data: InstrumentedData::new(name, Location::caller()),
         }
+    }
+}
+
+/// Wrapper for a `COPY` SQL statement. To actually do something on a statement, it should be instrumented.
+#[derive(Debug)]
+pub struct CopyStatement {
+    statement: &'static str,
+}
+
+impl CopyStatement {
+    /// Creates a new statement wrapping the specified SQL.
+    pub fn new(statement: &'static str) -> Self {
+        Self { statement }
+    }
+}
+
+impl InstrumentExt for CopyStatement {
+    #[track_caller]
+    fn instrument(self, name: &'static str) -> Instrumented<'static, Self> {
+        Instrumented {
+            query: self,
+            data: InstrumentedData::new(name, Location::caller()),
+        }
+    }
+}
+
+/// Result of `start()`ing copying on a [`CopyStatement`].
+#[must_use = "Data should be sent to database using `send()`"]
+pub struct ActiveCopy<'a> {
+    raw: PgCopyIn<&'a mut PgConnection>,
+    data: InstrumentedData<'a>,
+    tags: Option<&'a ConnectionTags>,
+}
+
+impl fmt::Debug for ActiveCopy<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ActiveCopy")
+            .field("data", &self.data)
+            .field("tags", &self.tags)
+            .finish_non_exhaustive()
+    }
+}
+
+impl ActiveCopy<'_> {
+    /// Sends the specified bytes to the database and finishes the copy statement.
+    // FIXME: measure latency?
+    pub async fn send(mut self, data: &[u8]) -> DalResult<()> {
+        let inner_send = async {
+            self.raw.send(data).await?;
+            self.raw.finish().await.map(drop)
+        };
+        inner_send.await.map_err(|err| {
+            DalRequestError::new(err, self.data.name, self.data.location)
+                .with_args(self.data.args.into_owned())
+                .with_connection_tags(self.tags.cloned())
+                .into()
+        })
     }
 }
 
@@ -299,6 +357,29 @@ where
     ) -> DalResult<Vec<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_all(conn)).await
+    }
+}
+
+impl<'a> Instrumented<'a, CopyStatement> {
+    /// Starts `COPY`ing data using this statement.
+    pub async fn start<DB: DbMarker>(
+        self,
+        storage: &'a mut Connection<'_, DB>,
+    ) -> DalResult<ActiveCopy<'a>> {
+        let (conn, tags) = storage.conn_and_tags();
+        match conn.copy_in_raw(self.query.statement).await {
+            Ok(raw) => Ok(ActiveCopy {
+                raw,
+                data: self.data,
+                tags,
+            }),
+            Err(err) => Err(
+                DalRequestError::new(err, self.data.name, self.data.location)
+                    .with_args(self.data.args.into_owned())
+                    .with_connection_tags(tags.cloned())
+                    .into(),
+            ),
+        }
     }
 }
 
