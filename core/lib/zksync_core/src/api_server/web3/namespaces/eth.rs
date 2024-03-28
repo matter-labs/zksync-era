@@ -241,7 +241,7 @@ impl EthNamespace {
                 .transactions_web3_dal()
                 .get_transactions(&block.transactions, self.state.api_config.l2_chain_id)
                 .await
-                .context("get_transactions")?;
+                .map_err(DalError::generalize)?;
             if transactions.len() != block.transactions.len() {
                 let err = anyhow::anyhow!(
                     "storage inconsistency: get_api_block({block_number}) returned {} tx hashes, but get_transactions({:?}) \
@@ -352,7 +352,7 @@ impl EthNamespace {
             .storage_web3_dal()
             .get_contract_code_unchecked(address, block_number)
             .await
-            .context("get_contract_code_unchecked")?;
+            .map_err(DalError::generalize)?;
         Ok(contract_code.unwrap_or_default().into())
     }
 
@@ -424,7 +424,7 @@ impl EthNamespace {
                     .transactions_web3_dal()
                     .next_nonce_by_initiator_account(address, account_nonce_u64)
                     .await
-                    .context("next_nonce_by_initiator_account")?
+                    .map_err(DalError::generalize)?
             };
         }
         Ok(account_nonce)
@@ -442,7 +442,7 @@ impl EthNamespace {
                 .transactions_web3_dal()
                 .get_transaction_by_hash(hash, chain_id)
                 .await
-                .with_context(|| format!("get_transaction_by_hash({hash:?})"))?,
+                .map_err(DalError::generalize)?,
 
             TransactionId::Block(block_id, idx) => {
                 let Ok(idx) = u32::try_from(idx) else {
@@ -460,9 +460,7 @@ impl EthNamespace {
                     .transactions_web3_dal()
                     .get_transaction_by_position(block_number, idx, chain_id)
                     .await
-                    .with_context(|| {
-                        format!("get_transaction_by_position({block_number}, {idx})")
-                    })?
+                    .map_err(DalError::generalize)?
             }
         };
 
@@ -655,7 +653,7 @@ impl EthNamespace {
             .blocks_web3_dal()
             .get_fee_history(newest_miniblock, block_count)
             .await
-            .context("get_fee_history")?;
+            .map_err(DalError::generalize)?;
         // DAL method returns fees in DESC order while we need ASC.
         base_fee_per_gas.reverse();
 
@@ -690,7 +688,7 @@ impl EthNamespace {
                     .blocks_web3_dal()
                     .get_block_hashes_since(*from_block, self.state.api_config.req_entities_limit)
                     .await
-                    .context("get_block_hashes_since")?;
+                    .map_err(DalError::generalize)?;
 
                 *from_block = match last_block_number {
                     Some(last_block_number) => last_block_number + 1,
@@ -722,7 +720,7 @@ impl EthNamespace {
                                 Some(self.state.api_config.req_entities_limit),
                             )
                             .await
-                            .context("get_pending_txs_hashes_after")?
+                            .map_err(DalError::generalize)?
                     }
                 };
 

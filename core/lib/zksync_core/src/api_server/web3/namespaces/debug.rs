@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use multivm::{interface::ExecutionResult, vm_latest::constants::BLOCK_GAS_LIMIT};
 use once_cell::sync::OnceCell;
-use zksync_dal::CoreDal;
+use zksync_dal::{CoreDal, DalError};
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
@@ -76,7 +76,7 @@ impl DebugNamespace {
             .blocks_web3_dal()
             .get_traces_for_miniblock(block_number)
             .await
-            .context("get_traces_for_miniblock")?;
+            .map_err(DalError::generalize)?;
         let call_trace = call_traces
             .into_iter()
             .map(|call_trace| {
@@ -115,7 +115,7 @@ impl DebugNamespace {
             .transactions_dal()
             .get_call_trace(tx_hash)
             .await
-            .context("get_call_trace")?;
+            .map_err(DalError::generalize)?;
         Ok(call_trace.map(|call_trace| {
             let mut result: DebugCall = call_trace.into();
             if only_top_call {

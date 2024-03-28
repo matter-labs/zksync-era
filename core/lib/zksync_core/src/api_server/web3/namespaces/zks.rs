@@ -216,7 +216,7 @@ impl ZksNamespace {
             .blocks_web3_dal()
             .get_l1_batch_number_of_miniblock(block_number)
             .await
-            .context("get_l1_batch_number_of_miniblock")?
+            .map_err(DalError::generalize)?
         else {
             return Ok(None);
         };
@@ -224,7 +224,7 @@ impl ZksNamespace {
             .blocks_web3_dal()
             .get_miniblock_range_of_l1_batch(l1_batch_number)
             .await
-            .context("get_miniblock_range_of_l1_batch")?
+            .map_err(DalError::generalize)?
             .context("L1 batch should contain at least one miniblock")?;
 
         // Position of l1 log in L1 batch relative to logs with identical data
@@ -280,7 +280,7 @@ impl ZksNamespace {
             .blocks_web3_dal()
             .get_l2_to_l1_logs(l1_batch_number)
             .await
-            .context("get_l2_to_l1_logs")?;
+            .map_err(DalError::generalize)?;
 
         let Some((l1_log_index, _)) = all_l1_logs_in_batch
             .iter()
@@ -327,7 +327,7 @@ impl ZksNamespace {
             .blocks_web3_dal()
             .get_l1_batch_info_for_tx(tx_hash)
             .await
-            .context("get_l1_batch_info_for_tx")?
+            .map_err(DalError::generalize)?
         else {
             return Ok(None);
         };
@@ -366,7 +366,7 @@ impl ZksNamespace {
             .blocks_web3_dal()
             .get_miniblock_range_of_l1_batch(batch)
             .await
-            .context("get_miniblock_range_of_l1_batch")?;
+            .map_err(DalError::generalize)?;
         Ok(range.map(|(min, max)| (U64::from(min.0), U64::from(max.0))))
     }
 
@@ -395,7 +395,7 @@ impl ZksNamespace {
             .transactions_web3_dal()
             .get_raw_miniblock_transactions(block_number)
             .await
-            .context("get_raw_miniblock_transactions")?)
+            .map_err(DalError::generalize)?)
     }
 
     #[tracing::instrument(skip(self))]
@@ -441,7 +441,7 @@ impl ZksNamespace {
             .factory_deps_dal()
             .get_factory_dep(hash)
             .await
-            .context("get_factory_dep")?)
+            .map_err(DalError::generalize)?)
     }
 
     #[tracing::instrument(skip(self))]

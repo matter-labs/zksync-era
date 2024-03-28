@@ -9,7 +9,7 @@ use zksync_types::{
     Address, MiniblockNumber, H256,
 };
 
-use crate::{models::storage_event::StorageWeb3Log, Core, SqlxError};
+use crate::{models::storage_event::StorageWeb3Log, Core};
 
 #[derive(Debug)]
 pub struct EventsWeb3Dal<'a, 'c> {
@@ -183,10 +183,7 @@ impl EventsWeb3Dal<'_, '_> {
         }
     }
 
-    pub async fn get_all_logs(
-        &mut self,
-        from_block: MiniblockNumber,
-    ) -> Result<Vec<Log>, SqlxError> {
+    pub async fn get_all_logs(&mut self, from_block: MiniblockNumber) -> DalResult<Vec<Log>> {
         {
             let db_logs: Vec<StorageWeb3Log> = sqlx::query_as!(
                 StorageWeb3Log,
@@ -236,7 +233,9 @@ impl EventsWeb3Dal<'_, '_> {
                 "#,
                 i64::from(from_block.0)
             )
-            .fetch_all(self.storage.conn())
+            .instrument("get_all_logs")
+            .with_arg("from_block", &from_block)
+            .fetch_all(self.storage)
             .await?;
             let logs = db_logs.into_iter().map(Into::into).collect();
             Ok(logs)

@@ -134,7 +134,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         hashes: &[H256],
         chain_id: L2ChainId,
-    ) -> sqlx::Result<Vec<api::Transaction>> {
+    ) -> DalResult<Vec<api::Transaction>> {
         self.get_transactions_inner(TransactionSelector::Hashes(hashes), chain_id)
             .await
     }
@@ -143,7 +143,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         selector: TransactionSelector<'_>,
         chain_id: L2ChainId,
-    ) -> sqlx::Result<Vec<api::Transaction>> {
+    ) -> DalResult<Vec<api::Transaction>> {
         if let TransactionSelector::Position(_, idx) = selector {
             // Since index is not trusted, we check it to prevent potential overflow below.
             if idx > i32::MAX as u32 {
@@ -192,7 +192,11 @@ impl TransactionsWeb3Dal<'_, '_> {
             }
         );
 
-        let rows = query.fetch_all(self.storage.conn()).await?;
+        let rows = query
+            .instrument("get_transactions")
+            .with_arg("selector", &selector)
+            .fetch_all(self.storage)
+            .await?;
         Ok(rows.into_iter().map(|row| row.into_api(chain_id)).collect())
     }
 
@@ -200,7 +204,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         hash: H256,
         chain_id: L2ChainId,
-    ) -> sqlx::Result<Option<api::Transaction>> {
+    ) -> DalResult<Option<api::Transaction>> {
         Ok(self
             .get_transactions_inner(TransactionSelector::Hashes(&[hash]), chain_id)
             .await?
@@ -213,7 +217,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         block_number: MiniblockNumber,
         index_in_block: u32,
         chain_id: L2ChainId,
-    ) -> sqlx::Result<Option<api::Transaction>> {
+    ) -> DalResult<Option<api::Transaction>> {
         Ok(self
             .get_transactions_inner(
                 TransactionSelector::Position(block_number, index_in_block),
@@ -282,7 +286,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         from_timestamp: NaiveDateTime,
         limit: Option<usize>,
-    ) -> Result<Vec<(NaiveDateTime, H256)>, SqlxError> {
+    ) -> DalResult<Vec<(NaiveDateTime, H256)>> {
         let records = sqlx::query!(
             r#"
             SELECT
@@ -301,7 +305,10 @@ impl TransactionsWeb3Dal<'_, '_> {
             from_timestamp,
             limit.map(|limit| limit as i64)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_pending_txs_hashes_after")
+        .with_arg("from_timestamp", &from_timestamp)
+        .with_arg("limit", &limit)
+        .fetch_all(self.storage)
         .await?;
 
         let hashes = records
@@ -316,7 +323,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         initiator_address: Address,
         committed_next_nonce: u64,
-    ) -> Result<U256, SqlxError> {
+    ) -> DalResult<U256> {
         // Get nonces of non-rejected transactions, starting from the 'latest' nonce.
         // `latest` nonce is used, because it is guaranteed that there are no gaps before it.
         // `(miniblock_number IS NOT NULL OR error IS NULL)` is the condition that filters non-rejected transactions.
@@ -342,7 +349,10 @@ impl TransactionsWeb3Dal<'_, '_> {
             initiator_address.as_bytes(),
             committed_next_nonce as i64
         )
-        .fetch_all(self.storage.conn())
+        .instrument("next_nonce_by_initiator_account#non_rejected_nonces")
+        .with_arg("initiator_address", &initiator_address)
+        .with_arg("committed_next_nonce", &committed_next_nonce)
+        .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(|row| row.nonce as u64)
@@ -366,7 +376,7 @@ impl TransactionsWeb3Dal<'_, '_> {
     pub async fn get_raw_miniblock_transactions(
         &mut self,
         miniblock: MiniblockNumber,
-    ) -> sqlx::Result<Vec<Transaction>> {
+    ) -> DalResult<Vec<Transaction>> {
         let rows = sqlx::query_as!(
             StorageTransaction,
             r#"
@@ -381,7 +391,9 @@ impl TransactionsWeb3Dal<'_, '_> {
             "#,
             i64::from(miniblock.0)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_raw_miniblock_transactions")
+        .with_arg("miniblock", &miniblock)
+        .fetch_all(self.storage)
         .await?;
 
         Ok(rows.into_iter().map(Into::into).collect())

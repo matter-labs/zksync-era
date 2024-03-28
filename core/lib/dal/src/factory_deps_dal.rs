@@ -56,7 +56,7 @@ impl FactoryDepsDal<'_, '_> {
     }
 
     /// Returns bytecode for a factory dependency with the specified bytecode `hash`.
-    pub async fn get_factory_dep(&mut self, hash: H256) -> sqlx::Result<Option<Vec<u8>>> {
+    pub async fn get_factory_dep(&mut self, hash: H256) -> DalResult<Option<Vec<u8>>> {
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -68,7 +68,9 @@ impl FactoryDepsDal<'_, '_> {
             "#,
             hash.as_bytes(),
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_factory_dep")
+        .with_arg("hash", &hash)
+        .fetch_optional(self.storage)
         .await?
         .map(|row| row.bytecode))
     }

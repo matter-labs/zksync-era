@@ -63,7 +63,7 @@ impl EnNamespace {
             .tokens_web3_dal()
             .get_all_tokens(block_number)
             .await
-            .context("get_all_tokens")?)
+            .map_err(DalError::generalize)?)
     }
 
     #[tracing::instrument(skip(self))]

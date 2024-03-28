@@ -343,6 +343,7 @@ impl<DB: DbMarker> ConnectionPool<DB> {
     ///
     /// WARN: This method should not be used if it will result in too many time series (e.g.
     /// from witness generators or provers), otherwise Prometheus won't be able to handle it.
+    // FIXME: return DalResult
     #[track_caller] // In order to use it, we have to de-sugar `async fn`
     pub fn connection_tagged(
         &self,

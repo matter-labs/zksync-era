@@ -204,7 +204,7 @@ impl StorageWeb3Dal<'_, '_> {
         &mut self,
         address: Address,
         block_number: MiniblockNumber,
-    ) -> sqlx::Result<Option<Vec<u8>>> {
+    ) -> DalResult<Option<Vec<u8>>> {
         let hashed_key = get_code_key(&address).hashed_key();
         let row = sqlx::query!(
             r#"
@@ -233,7 +233,10 @@ impl StorageWeb3Dal<'_, '_> {
             i64::from(block_number.0),
             FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_contract_code_unchecked")
+        .with_arg("address", &address)
+        .with_arg("block_number", &block_number)
+        .fetch_optional(self.storage)
         .await?;
         Ok(row.map(|row| row.bytecode))
     }
