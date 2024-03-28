@@ -189,9 +189,9 @@ impl EthTxManager {
         const LINEA_TEST_CHAIN_ID: L1ChainId = L1ChainId(59140);
         const LINEA_MAINNET_CHAIN_ID: L1ChainId = L1ChainId(59144);
         let current_gate_way_chain_id = self.ethereum_gateway.chain_id();
-        let (base_fee_per_gas, priority_fee_per_gas) = if current_gate_way_chain_id
+        let (base_fee_per_gas, priority_fee_per_gas) = if (current_gate_way_chain_id
             == LINEA_TEST_CHAIN_ID
-            || current_gate_way_chain_id == LINEA_MAINNET_CHAIN_ID
+            || current_gate_way_chain_id == LINEA_MAINNET_CHAIN_ID) && self.config.enable_linea_estimate_gas
         {
             let call_request = zksync_types::web3::types::CallRequest::builder()
                 .from(self.ethereum_gateway.sender_account())
