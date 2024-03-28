@@ -44,7 +44,7 @@ use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
-use zksync_web3_decl::{jsonrpsee::http_client::HttpClient, namespaces::EthNamespaceClient};
+use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
 
 use crate::{
     config::{observability::observability_config_from_env, ExternalNodeConfig},
@@ -59,42 +59,6 @@ mod metrics;
 mod version_sync_task;
 
 const RELEASE_MANIFEST: &str = include_str!("../../../../.github/release-please/manifest.json");
-
-async fn sync_state_updater(
-    sync_state: SyncState,
-    tree_pool: ConnectionPool<Core>,
-    main_node_client: HttpClient,
-    stop_receiver: watch::Receiver<bool>,
-) -> anyhow::Result<()> {
-    const UPDATE_INTERVAL: Duration = Duration::from_secs(10);
-
-    loop {
-        if *stop_receiver.borrow() {
-            return Ok(());
-        }
-
-        let local_block = tree_pool
-            .connection()
-            .await
-            .context("Failed to get a connection from the pool in sync state updater")?
-            .blocks_dal()
-            .get_sealed_miniblock_number()
-            .await
-            .context("Failed to get the miniblock number from DB")?;
-
-        let main_node_block = main_node_client
-            .get_block_number()
-            .await
-            .context("Failed to request last miniblock number from main node")?;
-
-        if let Some(local_block) = local_block {
-            sync_state.set_local_block(local_block);
-            sync_state.set_main_node_block(main_node_block.as_u32().into());
-        }
-
-        tokio::time::sleep(UPDATE_INTERVAL).await;
-    }
-}
 
 /// Creates the state keeper configured to work in the external node mode.
 #[allow(clippy::too_many_arguments)]
@@ -157,11 +121,6 @@ async fn run_tree(
     stop_receiver: watch::Receiver<bool>,
     tree_pool: ConnectionPool<Core>,
 ) -> anyhow::Result<Arc<dyn TreeApiClient>> {
-    if config.api_component_config.tree_api_url.is_some() {
-        tracing::warn!(
-            "it is a misconfiguration to run both tree api and have EN_TREE_API_URL specified"
-        );
-    }
     let metadata_calculator_config = MetadataCalculatorConfig {
         db_path: config.required.merkle_tree_path.clone(),
         mode: MerkleTreeMode::Lightweight,
@@ -370,10 +329,18 @@ async fn run_api(
     components: &HashSet<Component>,
 ) -> anyhow::Result<()> {
     let tree_reader = match tree_reader {
-        Some(tree_reader) => tree_reader,
+        Some(tree_reader) => {
+            if let Some(url) = &config.api_component.tree_api_url {
+                tracing::warn!(
+                    "Tree component is run locally; the specified tree API URL {url} is ignored"
+                );
+            }
+
+            tree_reader
+        }
         None => {
             let tree_api_url = &config
-                .api_component_config
+                .api_component
                 .tree_api_url
                 .as_ref()
                 .context("Need to have a configured tree api url")?;
@@ -545,7 +512,7 @@ async fn init_tasks(
         let tree_api_config = if components.contains(&Component::TreeApi) {
             Some(MerkleTreeApiConfig {
                 port: config
-                    .tree_component_config
+                    .tree_component
                     .api_port
                     .context("should contain tree api port")?,
             })
@@ -584,12 +551,12 @@ async fn init_tasks(
     } else {
         let sync_state = SyncState::default();
 
-        task_handles.push(tokio::spawn(sync_state_updater(
-            sync_state.clone(),
+        task_handles.push(tokio::spawn(sync_state.clone().run_updater(
             connection_pool.clone(),
             main_node_client.clone(),
             stop_receiver.clone(),
         )));
+
         sync_state
     };
 
@@ -675,7 +642,7 @@ pub enum Component {
 }
 
 impl Component {
-    fn components_from_str(s: &str) -> Result<&[Component], String> {
+    fn components_from_str(s: &str) -> anyhow::Result<&[Component]> {
         match s {
             "api" => Ok(&[Component::HttpApi, Component::WsApi]),
             "http_api" => Ok(&[Component::HttpApi]),
@@ -689,7 +656,7 @@ impl Component {
                 Component::Tree,
                 Component::Core,
             ]),
-            other => Err(format!("{} is not a valid component name", other)),
+            other => Err(anyhow::anyhow!("{} is not a valid component name", other)),
         }
     }
 }
@@ -698,7 +665,7 @@ impl Component {
 struct ComponentsToRun(HashSet<Component>);
 
 impl FromStr for ComponentsToRun {
-    type Err = String;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let components = s
@@ -706,7 +673,7 @@ impl FromStr for ComponentsToRun {
             .try_fold(HashSet::new(), |mut acc, component_str| {
                 let components = Component::components_from_str(component_str.trim())?;
                 acc.extend(components);
-                Ok::<_, String>(acc)
+                Ok::<_, Self::Err>(acc)
             })?;
         Ok(Self(components))
     }

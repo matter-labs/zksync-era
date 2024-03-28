@@ -549,8 +549,8 @@ pub struct ExternalNodeConfig {
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
     pub consensus: Option<consensus::Config>,
-    pub api_component_config: ApiComponentConfig,
-    pub tree_component_config: TreeComponentConfig,
+    pub api_component: ApiComponentConfig,
+    pub tree_component: TreeComponentConfig,
 }
 
 impl ExternalNodeConfig {
@@ -624,8 +624,8 @@ impl ExternalNodeConfig {
             required,
             optional,
             consensus: read_consensus_config().context("read_consensus_config()")?,
-            tree_component_config,
-            api_component_config,
+            tree_component: tree_component_config,
+            api_component: api_component_config,
         })
     }
 }
