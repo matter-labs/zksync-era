@@ -16,4 +16,6 @@ pub struct HouseKeeperConfig {
     pub fri_prover_stats_reporting_interval_ms: u64,
     pub fri_proof_compressor_job_retrying_interval_ms: u64,
     pub fri_proof_compressor_stats_reporting_interval_ms: u64,
+    pub fri_prover_job_archivation_reporting_interval_ms: u64,
+    pub fri_prover_job_archivation_archiving_interval_ms: u64,
 }

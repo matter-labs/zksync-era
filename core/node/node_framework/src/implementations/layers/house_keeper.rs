@@ -9,6 +9,7 @@ use zksync_core::house_keeper::{
     fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
     fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter,
     fri_prover_job_retry_manager::FriProverJobRetryManager,
+    fri_prover_jobs_archivation::FriProverJobArchivation,
     fri_prover_queue_monitor::FriProverStatsReporter,
     fri_scheduler_circuit_queuer::SchedulerCircuitQueuer,
     fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager,
@@ -109,6 +110,17 @@ impl WiringLayer for HouseKeeperLayer {
         );
         context.add_task(Box::new(WaitingToQueuedFriWitnessJobMoverTask {
             waiting_to_queued_fri_witness_job_mover,
+        }));
+
+        let fri_prover_job_archivation = FriProverJobArchivation::new(
+            prover_pool.clone(),
+            self.house_keeper_config
+                .fri_prover_job_archivation_reporting_interval_ms,
+            self.house_keeper_config
+                .fri_prover_job_archivation_archiving_interval_ms,
+        );
+        context.add_task(Box::new(FriProverJobArchivationTask {
+            fri_prover_job_archivation,
         }));
 
         let scheduler_circuit_queuer = SchedulerCircuitQueuer::new(
@@ -331,5 +343,21 @@ impl Task for FriProofCompressorJobRetryManagerTask {
         self.fri_proof_compressor_retry_manager
             .run(stop_receiver.0)
             .await
+    }
+}
+
+#[derive(Debug)]
+struct FriProverJobArchivationTask {
+    fri_prover_job_archivation: FriProverJobArchivation,
+}
+
+#[async_trait::async_trait]
+impl Task for FriProverJobArchivationTask {
+    fn name(&self) -> &'static str {
+        "fri_prover_job_archivation"
+    }
+
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.fri_prover_job_archivation.run(stop_receiver.0).await
     }
 }

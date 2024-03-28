@@ -567,4 +567,30 @@ impl FriProverDal<'_, '_> {
         .ok()?
         .map(|row| row.id as u32)
     }
+
+    pub async fn archive_old_jobs(&mut self, archivation_interval: u64) -> usize {
+        let timeout = pg_interval_from_duration(Duration::from_millis(archivation_interval));
+
+        sqlx::query_scalar!(
+            r#"
+            WITH deleted AS (
+                DELETE FROM prover_jobs_fri
+                WHERE
+                    status NOT IN ('queued', 'in_progress', 'in_gpu_proof', 'failed')
+                    AND updated_at < NOW() - $1::INTERVAL
+                RETURNING *
+            ),
+            inserted_count AS (
+                INSERT INTO prover_jobs_fri_archive
+                SELECT * FROM deleted
+            )
+            SELECT COUNT(*) FROM deleted
+            "#,
+            &timeout,
+        )
+        .fetch_one(self.storage.conn())
+        .await
+        .unwrap()
+        .unwrap_or(0) as usize
+    }
 }
