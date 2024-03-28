@@ -26,7 +26,7 @@ use crate::{
         batch_executor::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult},
         io::{IoCursor, L1BatchParams, MiniblockParams, PendingBatchData, StateKeeperIO},
         seal_criteria::{IoSealCriteria, SequencerSealer},
-        tests::{default_l1_batch_env, default_vm_block_result, BASE_SYSTEM_CONTRACTS},
+        tests::{default_l1_batch_env, default_vm_batch_result, BASE_SYSTEM_CONTRACTS},
         types::ExecutionMetricsForCriteria,
         updates::UpdatesManager,
         OutputHandler, StateKeeperOutputHandler, ZkSyncStateKeeper,
@@ -528,7 +528,7 @@ impl TestBatchExecutor {
                 }
                 Command::FinishBatch(resp) => {
                     // Blanket result, it doesn't really matter.
-                    resp.send((default_vm_block_result(), None)).unwrap();
+                    resp.send((default_vm_batch_result(), None)).unwrap();
                     return;
                 }
             }
@@ -862,7 +862,7 @@ impl BatchExecutor for MockBatchExecutor {
                     Command::RollbackLastTx(_) => panic!("unexpected rollback"),
                     Command::FinishBatch(resp) => {
                         // Blanket result, it doesn't really matter.
-                        resp.send((default_vm_block_result(), None)).unwrap();
+                        resp.send((default_vm_batch_result(), None)).unwrap();
                         return;
                     }
                 }
