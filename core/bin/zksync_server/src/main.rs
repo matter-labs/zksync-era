@@ -159,23 +159,23 @@ async fn main() -> anyhow::Result<()> {
         genesis_init(genesis, &postgres_config)
             .await
             .context("genesis_init")?;
+
+        if opt.set_chain_id {
+            let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
+            let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
+            if let Some(state_transition_proxy_addr) = contracts.state_transition_proxy_addr {
+                genesis::save_set_chain_id_tx(
+                    &eth_client.web3_url,
+                    contracts.diamond_proxy_addr,
+                    state_transition_proxy_addr,
+                    &postgres_config,
+                )
+                .await
+                .context("Failed to save SetChainId upgrade transaction")?;
+            }
+        }
         if opt.genesis {
             return Ok(());
-        }
-    }
-
-    if opt.set_chain_id {
-        let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
-        let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
-        if let Some(state_transition_proxy_addr) = contracts.state_transition_proxy_addr {
-            genesis::save_set_chain_id_tx(
-                &eth_client.web3_url,
-                contracts.diamond_proxy_addr,
-                state_transition_proxy_addr,
-                &postgres_config,
-            )
-            .await
-            .context("Failed to save SetChainId upgrade transaction")?;
         }
     }
 

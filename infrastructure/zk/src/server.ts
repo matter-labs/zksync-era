@@ -4,6 +4,7 @@ import { clean } from './clean';
 import fs from 'fs';
 import * as path from 'path';
 import * as db from './database';
+import * as env from './env';
 
 export async function server(rebuildTree: boolean, uring: boolean, components?: string) {
     let options = '';
