@@ -53,3 +53,19 @@ pub struct Wallets {
     pub eth_sender: Option<EthSender>,
     pub state_keeper: Option<StateKeeper>,
 }
+
+impl Wallets {
+    pub fn for_tests() -> Wallets {
+        Wallets {
+            eth_sender: Some(EthSender {
+                operator: Wallet::from_private_key(H256::repeat_byte(0x1), None).unwrap(),
+                blob_operator: Some(
+                    Wallet::from_private_key(H256::repeat_byte(0x2), None).unwrap(),
+                ),
+            }),
+            state_keeper: Some(StateKeeper {
+                fee_account: Wallet::from_private_key(H256::repeat_byte(0x3), None).unwrap(),
+            }),
+        }
+    }
+}

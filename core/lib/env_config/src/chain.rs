@@ -66,6 +66,7 @@ mod tests {
         assert_eq!(actual, expected_network_config());
     }
 
+    #[allow(deprecated)]
     fn expected_state_keeper_config() -> StateKeeperConfig {
         StateKeeperConfig {
             transaction_slots: 50,
@@ -79,7 +80,7 @@ mod tests {
             close_block_at_geometry_percentage: 0.5,
             reject_tx_at_eth_params_percentage: 0.8,
             reject_tx_at_geometry_percentage: 0.3,
-            fee_account_addr: addr("de03a0B5963f75f1C8485B355fF6D30f3093BDE7"),
+            fee_account_addr: Some(addr("de03a0B5963f75f1C8485B355fF6D30f3093BDE7")),
             reject_tx_at_gas_percentage: 0.5,
             minimal_l2_gas_price: 100000000,
             compute_overhead_part: 0.0,

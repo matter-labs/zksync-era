@@ -109,6 +109,7 @@ impl TempConfigStore {
         }
     }
 
+    #[allow(deprecated)]
     pub fn wallets(&self) -> Wallets {
         let eth_sender = self.eth_sender_config.as_ref().and_then(|x| {
             let operator = x
@@ -124,7 +125,6 @@ impl TempConfigStore {
                 blob_operator,
             })
         });
-        #[allow(deprecated)]
         let state_keeper = self
             .state_keeper_config
             .as_ref()
@@ -132,7 +132,6 @@ impl TempConfigStore {
                 fee_account: Wallet::from_address(
                     state_keeper
                         .fee_account_addr
-                        .clone()
                         .expect("Must be presented in env variables"),
                 ),
             });

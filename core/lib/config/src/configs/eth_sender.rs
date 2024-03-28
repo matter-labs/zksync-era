@@ -133,6 +133,7 @@ impl SenderConfig {
     }
 
     // Don't load private key, if it's not required.
+    #[deprecated]
     pub fn private_key(&self) -> Option<H256> {
         std::env::var("ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY")
             .ok()
@@ -140,6 +141,7 @@ impl SenderConfig {
     }
 
     // Don't load blobs private key, if it's not required
+    #[deprecated]
     pub fn private_key_blobs(&self) -> Option<H256> {
         std::env::var("ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY")
             .ok()

@@ -26,6 +26,7 @@ mod witness_generator;
 mod genesis;
 #[cfg(test)]
 mod test_utils;
+mod wallets;
 
 pub trait FromEnv: Sized {
     fn from_env() -> anyhow::Result<Self>;

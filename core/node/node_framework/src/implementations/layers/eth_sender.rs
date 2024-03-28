@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
-use zksync_config::configs::{chain::NetworkConfig, eth_sender::ETHConfig, ContractsConfig};
+use zksync_config::configs::{
+    chain::NetworkConfig, eth_sender::ETHConfig, wallets, ContractsConfig,
+};
 use zksync_core::eth_sender::{Aggregator, EthTxAggregator, EthTxManager};
 use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface};
 use zksync_types::L1ChainId;
@@ -25,6 +27,7 @@ pub struct EthSenderLayer {
     contracts_config: ContractsConfig,
     network_config: NetworkConfig,
     l1chain_id: L1ChainId,
+    wallets: wallets::EthSender,
 }
 
 impl EthSenderLayer {
@@ -33,12 +36,14 @@ impl EthSenderLayer {
         contracts_config: ContractsConfig,
         network_config: NetworkConfig,
         l1chain_id: L1ChainId,
+        wallets: wallets::EthSender,
     ) -> Self {
         Self {
             eth_sender_config,
             contracts_config,
             network_config,
             l1chain_id,
+            wallets,
         }
     }
 }
@@ -62,11 +67,17 @@ impl WiringLayer for EthSenderLayer {
         let object_store = context.get_resource::<ObjectStoreResource>().await?.0;
 
         // Create and add tasks.
-        let eth_client_blobs = PKSigningClient::from_config_blobs(
-            &self.eth_sender_config,
-            &self.contracts_config,
-            self.l1chain_id,
-        );
+
+        let eth_client_blobs = self.wallets.blob_operator.and_then(|wallet| {
+            wallet.private_key().map(|pk| {
+                PKSigningClient::from_config(
+                    &self.eth_sender_config,
+                    &self.contracts_config,
+                    self.l1chain_id,
+                    pk,
+                )
+            })
+        });
         let eth_client_blobs_addr = eth_client_blobs.clone().map(|k| k.sender_account());
 
         let aggregator = Aggregator::new(

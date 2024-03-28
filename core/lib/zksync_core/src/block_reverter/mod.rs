@@ -54,6 +54,8 @@ pub struct BlockReverterEthConfig {
 
 impl BlockReverterEthConfig {
     pub fn new(eth_config: ETHConfig, contract: ContractsConfig) -> Self {
+        #[allow(deprecated)]
+        // `BlockReverter` doesn't support non env configs yet
         let pk = eth_config
             .sender
             .private_key()

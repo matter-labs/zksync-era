@@ -33,38 +33,14 @@ impl PKSigningClient {
         eth_sender: &ETHConfig,
         contracts_config: &ContractsConfig,
         l1_chain_id: L1ChainId,
+        operator_private_key: H256,
     ) -> Self {
-        // Gather required data from the config.
-        // It's done explicitly to simplify getting rid of this function later.
-        let operator_private_key = eth_sender
-            .sender
-            .private_key()
-            .expect("Operator private key is required for signing client");
-
         Self::from_config_inner(
             eth_sender,
             contracts_config,
             l1_chain_id,
             operator_private_key,
         )
-    }
-
-    /// Create an signing client for the blobs account
-    pub fn from_config_blobs(
-        eth_sender: &ETHConfig,
-        contracts_config: &ContractsConfig,
-        l1_chain_id: L1ChainId,
-    ) -> Option<Self> {
-        // Gather required data from the config.
-        // It's done explicitly to simplify getting rid of this function later.
-        let operator_private_key = eth_sender.sender.private_key_blobs()?;
-
-        Some(Self::from_config_inner(
-            eth_sender,
-            contracts_config,
-            l1_chain_id,
-            operator_private_key,
-        ))
     }
 
     pub fn new_raw(

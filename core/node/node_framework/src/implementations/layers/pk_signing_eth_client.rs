@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use zksync_config::{configs::ContractsConfig, ETHConfig};
+use zksync_config::{
+    configs::{wallets, ContractsConfig},
+    ETHConfig,
+};
 use zksync_eth_client::clients::PKSigningClient;
 use zksync_types::L1ChainId;
 
@@ -15,6 +18,7 @@ pub struct PKSigningEthClientLayer {
     eth_sender_config: ETHConfig,
     contracts_config: ContractsConfig,
     l1chain_id: L1ChainId,
+    wallets: wallets::EthSender,
 }
 
 impl PKSigningEthClientLayer {
@@ -22,11 +26,13 @@ impl PKSigningEthClientLayer {
         eth_sender_config: ETHConfig,
         contracts_config: ContractsConfig,
         l1chain_id: L1ChainId,
+        wallets: wallets::EthSender,
     ) -> Self {
         Self {
             eth_sender_config,
             contracts_config,
             l1chain_id,
+            wallets,
         }
     }
 }
@@ -38,16 +44,19 @@ impl WiringLayer for PKSigningEthClientLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        if self.eth_sender_config.sender.private_key().is_none() {
-            return Err(WiringError::Configuration(
-                "Private key is missing in ETHSenderConfig".to_string(),
-            ));
-        }
+        let private_key = self
+            .wallets
+            .operator
+            .private_key()
+            .ok_or(WiringError::Configuration(
+                "Private key is missing in Wallets".to_string(),
+            ))?;
 
         let signing_client = PKSigningClient::from_config(
             &self.eth_sender_config,
             &self.contracts_config,
             self.l1chain_id,
+            private_key,
         );
         context.insert_resource(BoundEthInterfaceResource(Arc::new(signing_client)))?;
         Ok(())

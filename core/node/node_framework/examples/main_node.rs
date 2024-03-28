@@ -11,6 +11,7 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
+        wallets::Wallets,
         FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, ObservabilityConfig,
         ProofDataHandlerConfig,
     },
@@ -85,10 +86,13 @@ impl MainNodeBuilder {
 
     fn add_pk_signing_client_layer(mut self) -> anyhow::Result<Self> {
         let genesis = GenesisConfig::from_env()?;
+        let eth_config = ETHConfig::from_env()?;
+        let wallets = Wallets::from_env()?;
         self.node.add_layer(PKSigningEthClientLayer::new(
-            ETHConfig::from_env()?,
+            eth_config,
             ContractsConfig::from_env()?,
             genesis.l1_chain_id,
+            wallets.eth_sender.context("Eth sender configs")?,
         ));
         Ok(self)
     }
@@ -133,11 +137,13 @@ impl MainNodeBuilder {
     }
 
     fn add_state_keeper_layer(mut self) -> anyhow::Result<Self> {
+        let wallets = Wallets::from_env()?;
         let mempool_io_layer = MempoolIOLayer::new(
             NetworkConfig::from_env()?,
             ContractsConfig::from_env()?,
             StateKeeperConfig::from_env()?,
             MempoolConfig::from_env()?,
+            wallets.state_keeper.context("State keeper wallets")?,
         );
         let main_node_batch_executor_builder_layer =
             MainBatchExecutorLayer::new(DBConfig::from_env()?, StateKeeperConfig::from_env()?);
@@ -179,6 +185,7 @@ impl MainNodeBuilder {
             initial_writes_cache_size: rpc_config.initial_writes_cache_size() as u64,
             latest_values_cache_size: rpc_config.latest_values_cache_size() as u64,
         };
+        let wallets = Wallets::from_env()?;
 
         // On main node we always use master pool sink.
         self.node.add_layer(TxSinkLayer::MasterPoolSink);
@@ -186,6 +193,11 @@ impl MainNodeBuilder {
             TxSenderConfig::new(
                 &state_keeper_config,
                 &rpc_config,
+                wallets
+                    .state_keeper
+                    .context("StateKeeper wallets")?
+                    .fee_account
+                    .address(),
                 network_config.zksync_network_id,
             ),
             postgres_storage_caches_config,
@@ -271,12 +283,14 @@ impl MainNodeBuilder {
         let contracts_config = ContractsConfig::from_env()?;
         let network_config = NetworkConfig::from_env()?;
         let genesis_config = GenesisConfig::from_env()?;
+        let wallets = Wallets::from_env()?;
 
         self.node.add_layer(EthSenderLayer::new(
             eth_sender_config,
             contracts_config,
             network_config,
             genesis_config.l1_chain_id,
+            wallets.eth_sender.context("Eth sender wallets")?,
         ));
 
         Ok(self)

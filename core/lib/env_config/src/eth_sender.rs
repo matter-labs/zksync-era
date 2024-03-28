@@ -84,6 +84,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn from_env() {
         let mut lock = MUTEX.lock();
         let config = r#"
