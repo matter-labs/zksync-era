@@ -25,14 +25,16 @@ pub fn events_queue_commitment(
             ),
         )),
         // FIXME: use 1.5,0 methods once available
-        VmVersion::Vm1_4_1 | VmVersion::Vm1_4_2 | VmVersion::Vm1_5_0 | VmVersion::Local => Some(H256(
-            circuit_sequencer_api_1_4_1::commitments::events_queue_commitment_fixed(
-                &events_queue
-                    .iter()
-                    .map(|x| to_log_query_1_4_1(*x))
-                    .collect(),
-            ),
-        )),
+        VmVersion::Vm1_4_1 | VmVersion::Vm1_4_2 | VmVersion::Vm1_5_0 | VmVersion::Local => {
+            Some(H256(
+                circuit_sequencer_api_1_4_1::commitments::events_queue_commitment_fixed(
+                    &events_queue
+                        .iter()
+                        .map(|x| to_log_query_1_4_1(*x))
+                        .collect(),
+                ),
+            ))
+        }
         _ => None,
     }
 }
@@ -57,11 +59,13 @@ pub fn bootloader_initial_content_commitment(
             ),
         )),
         // FIXME: use 1.5,0 methods once available
-        VmVersion::Vm1_4_1 | VmVersion::Vm1_4_2 | VmVersion::Vm1_5_0 | VmVersion::Local => Some(H256(
-            circuit_sequencer_api_1_4_1::commitments::initial_heap_content_commitment_fixed(
-                &full_bootloader_memory,
-            ),
-        )),
+        VmVersion::Vm1_4_1 | VmVersion::Vm1_4_2 | VmVersion::Vm1_5_0 | VmVersion::Local => {
+            Some(H256(
+                circuit_sequencer_api_1_4_1::commitments::initial_heap_content_commitment_fixed(
+                    &full_bootloader_memory,
+                ),
+            ))
+        }
         _ => unreachable!(),
     }
 }
