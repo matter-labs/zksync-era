@@ -30,9 +30,9 @@ impl fmt::Debug for dyn WiringLayer {
 #[non_exhaustive]
 pub enum WiringError {
     #[error("Layer attempted to add resource {0}, but it is already provided")]
-    ResourceAlreadyProvided(ResourceId),
+    ResourceAlreadyProvided(String),
     #[error("Resource {0} is not provided")]
-    ResourceLacking(ResourceId),
+    ResourceLacking(String),
     #[error("Wiring layer has been incorrectly configured: {0}")]
     Configuration(String),
     #[error(transparent)]

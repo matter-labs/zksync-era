@@ -4,13 +4,13 @@ use zksync_core::state_keeper::{
     seal_criteria::ConditionalSealer, BatchExecutor, OutputHandler, StateKeeperIO,
 };
 
-use crate::resource::{Resource, ResourceId, Unique};
+use crate::resource::{Resource, Unique};
 
 #[derive(Debug, Clone)]
 pub struct StateKeeperIOResource(pub Unique<Box<dyn StateKeeperIO>>);
 
 impl Resource for StateKeeperIOResource {
-    fn resource_id() -> ResourceId {
+    fn name() -> String {
         "state_keeper/io".into()
     }
 }
@@ -19,7 +19,7 @@ impl Resource for StateKeeperIOResource {
 pub struct BatchExecutorResource(pub Unique<Box<dyn BatchExecutor>>);
 
 impl Resource for BatchExecutorResource {
-    fn resource_id() -> ResourceId {
+    fn name() -> String {
         "state_keeper/batch_executor".into()
     }
 }
@@ -37,7 +37,7 @@ impl Resource for OutputHandlerResource {
 pub struct ConditionalSealerResource(pub Arc<dyn ConditionalSealer>);
 
 impl Resource for ConditionalSealerResource {
-    fn resource_id() -> ResourceId {
+    fn name() -> String {
         "state_keeper/conditional_sealer".into()
     }
 }
