@@ -435,14 +435,12 @@ impl BlockArgs {
             vm_l1_batch_number = connection
                 .blocks_dal()
                 .get_sealed_l1_batch_number()
-                .await
-                .context("failed getting sealed L1 batch number")?
+                .await?
                 .context("no L1 batches in storage")?;
             let sealed_miniblock_header = connection
                 .blocks_dal()
                 .get_last_sealed_miniblock_header()
-                .await
-                .context("failed getting sealed miniblock header")?
+                .await?
                 .context("no miniblocks in storage")?;
 
             state_l2_block_number = sealed_miniblock_header.number;
@@ -464,8 +462,7 @@ impl BlockArgs {
             connection
                 .blocks_dal()
                 .get_miniblock_header(self.resolved_block_number)
-                .await
-                .context("failed getting header of resolved miniblock")?
+                .await?
                 .context("resolved miniblock disappeared from storage")?
         };
 
@@ -473,8 +470,7 @@ impl BlockArgs {
             let miniblock_header = connection
                 .blocks_dal()
                 .get_miniblock_header(self.resolved_block_number)
-                .await
-                .context("failed getting resolved miniblock header")?
+                .await?
                 .context("resolved miniblock is not in storage")?;
             Some(miniblock_header.batch_fee_input)
         } else {

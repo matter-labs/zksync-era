@@ -74,7 +74,7 @@ impl EnNamespace {
             .blocks_dal()
             .get_storage_l1_batch(L1BatchNumber(0))
             .await
-            .context("genesis_config")?
+            .context("Postgres error")?
             .context("Genesis batch doesn't exist")?;
 
         let protocol_version = genesis_batch
@@ -89,7 +89,7 @@ impl EnNamespace {
             .blocks_dal()
             .get_fee_address_for_miniblock(MiniblockNumber(0))
             .await
-            .context("genesis_config")?
+            .context("Postgres error")?
             .context("Genesis not finished")?;
         let config = GenesisConfig {
             protocol_version,

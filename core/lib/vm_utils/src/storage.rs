@@ -183,8 +183,7 @@ impl L1BatchParamsProvider {
             Some(number) => storage
                 .blocks_dal()
                 .get_miniblock_header(number)
-                .await
-                .context("failed getting miniblock header")?
+                .await?
                 .map(|header| FirstMiniblockInBatch {
                     header,
                     l1_batch_number,
@@ -219,10 +218,7 @@ impl L1BatchParamsProvider {
         let Some((_, last_miniblock_in_prev_l1_batch)) = storage
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(prev_l1_batch)
-            .await
-            .with_context(|| {
-                format!("failed getting miniblock range for L1 batch #{prev_l1_batch}")
-            })?
+            .await?
         else {
             return Ok(None);
         };

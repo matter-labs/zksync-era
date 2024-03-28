@@ -49,7 +49,7 @@ impl EthNamespace {
             .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .context("get_sealed_miniblock_number")?
+            .context("Postgres error")?
             .ok_or(Web3Error::NoBlock)?;
         Ok(block_number.0.into())
     }
@@ -379,7 +379,7 @@ impl EthNamespace {
             .storage_web3_dal()
             .get_historical_value_unchecked(&storage_key, block_number)
             .await
-            .context("get_historical_value_unchecked")?;
+            .context("Postgres error")?;
         Ok(value)
     }
 
@@ -501,7 +501,7 @@ impl EthNamespace {
             .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .context("get_sealed_miniblock_number")?
+            .context("Postgres error")?
             .context("no miniblocks in storage")?;
         let next_block_number = last_block_number + 1;
         drop(storage);
@@ -786,7 +786,7 @@ impl EthNamespace {
                             self.state.api_config.req_entities_limit,
                         )
                         .await
-                        .context("get_log_block_number")?
+                        .context("Postgres error")?
                     {
                         return Err(Web3Error::LogsLimitExceeded(
                             self.state.api_config.req_entities_limit,
@@ -800,7 +800,7 @@ impl EthNamespace {
                     .events_web3_dal()
                     .get_logs(get_logs_filter, i32::MAX as usize)
                     .await
-                    .context("get_logs")?;
+                    .context("Postgres error")?;
                 *from_block = to_block + 1;
                 FilterChanges::Logs(logs)
             }

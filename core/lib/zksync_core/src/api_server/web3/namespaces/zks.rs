@@ -187,7 +187,7 @@ impl ZksNamespace {
             .storage_web3_dal()
             .get_values(&hashed_balance_keys)
             .await
-            .context("get_values")?;
+            .context("Postgres error")?;
 
         let balances = balance_values
             .into_iter()
@@ -241,7 +241,7 @@ impl ZksNamespace {
                     self.state.api_config.req_entities_limit,
                 )
                 .await
-                .context("get_logs")?;
+                .context("Postgres error")?;
             let maybe_pos = logs.iter().position(|event| {
                 event.block_number == Some(block_number.0.into())
                     && event.log_index == Some(l2_log_position.into())
@@ -295,7 +295,7 @@ impl ZksNamespace {
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
             .await
-            .context("get_l1_batch_header")?
+            .context("Postgres error")?
         else {
             return Ok(None);
         };
@@ -350,7 +350,7 @@ impl ZksNamespace {
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .context("get_sealed_l1_batch_number")?
+            .context("Postgres error")?
             .ok_or(Web3Error::NoBlock)?;
         Ok(l1_batch_number.0.into())
     }
@@ -381,7 +381,7 @@ impl ZksNamespace {
             .blocks_web3_dal()
             .get_block_details(block_number)
             .await
-            .context("get_block_details")?)
+            .context("Postgres error")?)
     }
 
     #[tracing::instrument(skip(self))]
@@ -408,7 +408,7 @@ impl ZksNamespace {
             .transactions_web3_dal()
             .get_transaction_details(hash)
             .await
-            .context("get_transaction_details")?;
+            .context("Postgres error")?;
         drop(storage);
 
         if tx_details.is_none() {
@@ -428,7 +428,7 @@ impl ZksNamespace {
             .blocks_web3_dal()
             .get_l1_batch_details(batch_number)
             .await
-            .context("get_l1_batch_details")?)
+            .context("Postgres error")?)
     }
 
     #[tracing::instrument(skip(self))]

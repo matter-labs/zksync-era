@@ -28,7 +28,7 @@ impl SnapshotsNamespace {
         Ok(snapshots_dal
             .get_all_complete_snapshots()
             .await
-            .context("get_all_complete_snapshots")?)
+            .context("Postgres error")?)
     }
 
     pub async fn get_snapshot_by_l1_batch_number_impl(
@@ -73,7 +73,7 @@ impl SnapshotsNamespace {
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(l1_batch_number)
             .await
-            .context("get_miniblock_range_of_l1_batch")?
+            .context("Postgres error")?
             .with_context(|| format!("missing miniblocks for L1 batch #{l1_batch_number}"))?;
 
         Ok(Some(SnapshotHeader {

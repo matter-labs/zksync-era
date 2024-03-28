@@ -45,7 +45,10 @@ impl<'a> Connection<'a> {
         &mut self,
         ctx: &ctx::Ctx,
     ) -> ctx::Result<std::ops::Range<validator::BlockNumber>> {
-        Ok(ctx.wait(self.0.consensus_dal().block_range()).await??)
+        Ok(ctx
+            .wait(self.0.consensus_dal().block_range())
+            .await?
+            .context("sqlx")?)
     }
 
     /// Wrapper for `consensus_dal().block_payload()`.

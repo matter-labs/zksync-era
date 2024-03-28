@@ -246,7 +246,7 @@ impl ReorgDetector {
             .blocks_dal()
             .get_last_l1_batch_number_with_metadata()
             .await
-            .context("get_last_l1_batch_number_with_metadata()")?
+            .context("Postgres error")?
         else {
             return Ok(());
         };
@@ -254,7 +254,7 @@ impl ReorgDetector {
             .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .context("get_sealed_miniblock_number()")?
+            .context("Postgres error")?
         else {
             return Ok(());
         };
@@ -290,8 +290,8 @@ impl ReorgDetector {
             .blocks_dal()
             .get_earliest_l1_batch_number_with_metadata()
             .await
-            .context("get_earliest_l1_batch_number_with_metadata")?
-            .context("all L1 batches dissapeared")?;
+            .context("Postgres error")?
+            .context("all L1 batches disappeared")?;
         drop(storage);
         match self.root_hashes_match(first_l1_batch).await {
             Ok(true) => {}
@@ -318,7 +318,7 @@ impl ReorgDetector {
             .blocks_dal()
             .get_miniblock_header(miniblock)
             .await
-            .context("get_miniblock_header()")?
+            .context("Postgres error")?
             .with_context(|| format!("Header does not exist for local miniblock #{miniblock}"))?
             .hash;
         drop(storage);
@@ -347,7 +347,7 @@ impl ReorgDetector {
             .blocks_dal()
             .get_l1_batch_state_root(l1_batch)
             .await
-            .context("get_l1_batch_state_root()")?
+            .context("Postgres error")?
             .with_context(|| format!("Root hash does not exist for local batch #{l1_batch}"))?;
         drop(storage);
 

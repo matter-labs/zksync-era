@@ -43,7 +43,7 @@ impl RocksdbStorage {
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
             .await
-            .context("failed getting snapshot recovery info")?;
+            .context("Postgres error")?;
         Ok(if let Some(snapshot_recovery) = snapshot_recovery {
             self.recover_from_snapshot(
                 storage,

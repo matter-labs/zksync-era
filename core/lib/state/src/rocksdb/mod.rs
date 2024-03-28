@@ -257,7 +257,7 @@ impl RocksdbStorage {
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .context("failed fetching sealed L1 batch number")?
+            .context("Postgres error")?
         else {
             // No L1 batches are persisted in Postgres; update is not necessary.
             return Ok(());
@@ -515,10 +515,7 @@ impl RocksdbStorage {
         let (_, last_miniblock_to_keep) = connection
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(last_l1_batch_to_keep)
-            .await
-            .with_context(|| {
-                format!("failed fetching miniblock range for L1 batch #{last_l1_batch_to_keep}")
-            })?
+            .await?
             .context("L1 batch should contain at least one miniblock")?;
         tracing::info!(
             "Got miniblock number {last_miniblock_to_keep}, took {:?}",

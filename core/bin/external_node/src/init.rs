@@ -30,13 +30,11 @@ pub(crate) async fn ensure_storage_initialized(
     let genesis_l1_batch = storage
         .blocks_dal()
         .get_l1_batch_header(L1BatchNumber(0))
-        .await
-        .context("failed getting genesis batch info")?;
+        .await?;
     let snapshot_recovery = storage
         .snapshot_recovery_dal()
         .get_applied_snapshot_status()
-        .await
-        .context("failed getting snapshot recovery info")?;
+        .await?;
     drop(storage);
 
     let decision = match (genesis_l1_batch, snapshot_recovery) {

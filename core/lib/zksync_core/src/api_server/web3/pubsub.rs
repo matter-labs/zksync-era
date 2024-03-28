@@ -64,11 +64,7 @@ impl PubSubNotifier {
             .connection_tagged("api")
             .await
             .context("connection_tagged")?;
-        let sealed_miniblock_number = storage
-            .blocks_dal()
-            .get_sealed_miniblock_number()
-            .await
-            .context("get_sealed_miniblock_number()")?;
+        let sealed_miniblock_number = storage.blocks_dal().get_sealed_miniblock_number().await?;
         Ok(match sealed_miniblock_number {
             Some(number) => number,
             None => {

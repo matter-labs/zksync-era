@@ -336,14 +336,14 @@ async fn calculate_mock_metadata(ctx: &ctx::Ctx, store: &Store) -> ctx::Result<(
     let Some(last) = ctx
         .wait(conn.0.blocks_dal().get_sealed_l1_batch_number())
         .await?
-        .context("get_sealed_l1_batch_number()")?
+        .context("Postgres error")?
     else {
         return Ok(());
     };
     let prev = ctx
         .wait(conn.0.blocks_dal().get_last_l1_batch_number_with_metadata())
         .await?
-        .context("get_last_l1_batch_number_with_metadata()")?;
+        .context("Postgres error")?;
     let mut first = match prev {
         Some(prev) => prev + 1,
         None => ctx

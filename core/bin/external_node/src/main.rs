@@ -603,8 +603,7 @@ async fn main() -> anyhow::Result<()> {
         let sealed_l1_batch_number = connection
             .blocks_dal()
             .get_sealed_l1_batch_number()
-            .await
-            .context("Failed getting sealed L1 batch number")?
+            .await?
             .context(
                 "Cannot roll back pending L1 batch since there are no L1 batches in Postgres",
             )?;

@@ -12,7 +12,7 @@ use multivm::{
 };
 use zksync_config::{GenesisConfig, PostgresConfig};
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
-use zksync_dal::{Connection, Core, CoreDal, SqlxError};
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_db_connection::connection_pool::ConnectionPool;
 use zksync_eth_client::{clients::QueryClient, EthInterface};
 use zksync_merkle_tree::domain::ZkSyncTree;
@@ -67,7 +67,7 @@ pub enum GenesisError {
     #[error("Wrong protocol version")]
     ProtocolVersion(u16),
     #[error("DB Error: {0}")]
-    DBError(#[from] SqlxError),
+    DBError(#[from] DalError),
     #[error("Error: {0}")]
     Other(#[from] anyhow::Error),
 }
@@ -328,7 +328,8 @@ async fn insert_system_contracts(
     transaction
         .storage_logs_dal()
         .insert_storage_logs(MiniblockNumber(0), &storage_logs)
-        .await?;
+        .await
+        .context("Postgres error")?; // FIXME
 
     // we don't produce proof for the genesis block,
     // but we still need to populate the table
@@ -384,7 +385,8 @@ async fn insert_system_contracts(
     transaction
         .storage_logs_dedup_dal()
         .insert_protective_reads(L1BatchNumber(0), &protective_reads)
-        .await?;
+        .await
+        .context("Postgres error")?; // FIXME
 
     let written_storage_keys: Vec<_> = deduplicated_writes
         .iter()
