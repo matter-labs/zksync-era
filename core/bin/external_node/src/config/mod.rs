@@ -245,7 +245,7 @@ pub struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
     pub miniblock_seal_queue_capacity: usize,
     /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
-    /// Protective reads are never required by ENs so far, not until an EN runs a full Merkle tree
+    /// Protective reads are never required by full nodes so far, not until such a node runs a full Merkle tree
     /// (presumably, to participate in L1 batch proving).
     /// By default, set to `true` as a temporary safety measure.
     #[serde(default = "OptionalENConfig::default_protective_reads_persistence_enabled")]
