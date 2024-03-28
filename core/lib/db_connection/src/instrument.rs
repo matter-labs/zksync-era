@@ -23,6 +23,7 @@ use tokio::time::Instant;
 use crate::{
     connection::{Connection, ConnectionTags, DbMarker},
     connection_pool::ConnectionPool,
+    error::{DalRequestError, DalResult},
     metrics::REQUEST_METRICS,
     utils::InternalMarker,
 };
@@ -33,6 +34,15 @@ type ThreadSafeDebug<'a> = dyn fmt::Debug + Send + Sync + 'a;
 #[derive(Debug, Default)]
 struct QueryArgs<'a> {
     inner: Vec<(&'static str, &'a ThreadSafeDebug<'a>)>,
+}
+
+impl QueryArgs<'_> {
+    fn into_owned(self) -> Vec<(&'static str, String)> {
+        self.inner
+            .into_iter()
+            .map(|(name, value)| (name, format!("{value:?}")))
+            .collect()
+    }
 }
 
 impl fmt::Display for QueryArgs<'_> {
@@ -123,7 +133,7 @@ impl<'a> InstrumentedData<'a> {
         self,
         connection_tags: Option<&ConnectionTags>,
         query_future: impl Future<Output = Result<R, sqlx::Error>>,
-    ) -> Result<R, sqlx::Error> {
+    ) -> DalResult<R> {
         let Self {
             name,
             location,
@@ -161,22 +171,28 @@ impl<'a> InstrumentedData<'a> {
             REQUEST_METRICS.request[&name].observe(elapsed);
         }
 
-        let connection_tags = ConnectionTags::display(connection_tags);
+        let connection_tags_display = ConnectionTags::display(connection_tags);
         if let Err(err) = &output {
             tracing::warn!(
-                "Query {name}{args} called at {file}:{line} [{connection_tags}] has resulted in error: {err}",
+                "Query {name}{args} called at {file}:{line} [{connection_tags_display}] has resulted in error: {err}",
                 file = location.file(),
                 line = location.line()
             );
             REQUEST_METRICS.request_error[&name].inc();
         } else if is_slow {
             tracing::info!(
-                "Slow query {name}{args} called at {file}:{line} [{connection_tags}] has finished after {elapsed:?}",
+                "Slow query {name}{args} called at {file}:{line} [{connection_tags_display}] has finished after {elapsed:?}",
                 file = location.file(),
                 line = location.line()
             );
         }
-        output
+
+        output.map_err(|err| {
+            DalRequestError::new(err, name, location)
+                .with_args(args.into_owned())
+                .with_connection_tags(connection_tags.cloned())
+                .into()
+        })
     }
 }
 
@@ -225,7 +241,7 @@ where
     pub async fn execute<DB: DbMarker>(
         self,
         storage: &mut Connection<'_, DB>,
-    ) -> sqlx::Result<PgQueryResult> {
+    ) -> DalResult<PgQueryResult> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.execute(conn)).await
     }
@@ -234,7 +250,7 @@ where
     pub async fn fetch_optional<DB: DbMarker>(
         self,
         storage: &mut Connection<'_, DB>,
-    ) -> Result<Option<PgRow>, sqlx::Error> {
+    ) -> DalResult<Option<PgRow>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_optional(conn)).await
     }
@@ -249,7 +265,7 @@ where
     pub async fn fetch_all<DB: DbMarker>(
         self,
         storage: &mut Connection<'_, DB>,
-    ) -> sqlx::Result<Vec<O>> {
+    ) -> DalResult<Vec<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_all(conn)).await
     }
@@ -265,16 +281,13 @@ where
     pub async fn fetch_optional<DB: DbMarker>(
         self,
         storage: &mut Connection<'_, DB>,
-    ) -> sqlx::Result<Option<O>> {
+    ) -> DalResult<Option<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_optional(conn)).await
     }
 
     /// Fetches a single row using this query.
-    pub async fn fetch_one<DB: DbMarker>(
-        self,
-        storage: &mut Connection<'_, DB>,
-    ) -> sqlx::Result<O> {
+    pub async fn fetch_one<DB: DbMarker>(self, storage: &mut Connection<'_, DB>) -> DalResult<O> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_one(conn)).await
     }
@@ -283,7 +296,7 @@ where
     pub async fn fetch_all<DB: DbMarker>(
         self,
         storage: &mut Connection<'_, DB>,
-    ) -> sqlx::Result<Vec<O>> {
+    ) -> DalResult<Vec<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_all(conn)).await
     }
