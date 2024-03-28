@@ -28,6 +28,8 @@ max_pubdata_per_batch=100000
 
 [eth_sender]
 [eth_sender.sender]
+# Priority fee to be used by GasAdjuster (in wei).
+default_priority_fee_per_gas=100_000_000
 max_aggregated_tx_gas=5000000
 max_eth_tx_data_size=59000
 tx_poll_period=60
