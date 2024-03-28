@@ -20,7 +20,7 @@ use jsonrpsee::{
 use serde::de::DeserializeOwned;
 use tokio::time::Instant;
 
-use self::metrics::METRICS;
+use self::metrics::{L2ClientMetrics, METRICS};
 
 mod metrics;
 #[cfg(test)]
@@ -66,10 +66,10 @@ impl fmt::Display for CallOrigin<'_> {
     }
 }
 
-/// L2 client trait.
-pub trait L2ClientT: SubscriptionClientT + fmt::Debug + Send + Sync + 'static {}
+/// Trait encapsulating requirements for the L2 client base.
+pub trait L2ClientBase: SubscriptionClientT + Clone + fmt::Debug + Send + Sync + 'static {}
 
-impl<T: SubscriptionClientT + fmt::Debug + Send + Sync + 'static> L2ClientT for T {}
+impl<T: SubscriptionClientT + Clone + fmt::Debug + Send + Sync + 'static> L2ClientBase for T {}
 
 /// JSON-RPC client for the main node with built-in middleware support.
 ///
@@ -80,16 +80,18 @@ pub struct L2Client<C = HttpClient> {
     inner: C,
     rate_limit: SharedRateLimit,
     component_name: &'static str,
+    metrics: &'static L2ClientMetrics,
 }
 
 impl L2Client {
+    /// Creates an HTTP-backed L2 client.
     pub fn http(url: &str) -> anyhow::Result<L2ClientBuilder> {
         let client = HttpClientBuilder::default().build(url)?;
         Ok(L2ClientBuilder::new(client))
     }
 }
 
-impl<C: L2ClientT> L2Client<C> {
+impl<C: L2ClientBase> L2Client<C> {
     /// Sets the component operating this client. This is used in logging etc.
     pub fn for_component(mut self, component_name: &'static str) -> Self {
         self.component_name = component_name;
@@ -106,7 +108,8 @@ impl<C: L2ClientT> L2Client<C> {
         .await;
         let stats = match rate_limit_result {
             Err(_) => {
-                METRICS.observe_rate_limit_timeout(self.component_name, origin);
+                self.metrics
+                    .observe_rate_limit_timeout(self.component_name, origin);
                 tracing::warn!(
                     component = self.component_name,
                     %origin,
@@ -121,7 +124,8 @@ impl<C: L2ClientT> L2Client<C> {
             Ok(stats) => stats,
         };
 
-        METRICS.observe_rate_limit_latency(self.component_name, origin, &stats);
+        self.metrics
+            .observe_rate_limit_latency(self.component_name, origin, &stats);
         tracing::warn!(
             component = self.component_name,
             %origin,
@@ -139,14 +143,14 @@ impl<C: L2ClientT> L2Client<C> {
         call_result: Result<T, Error>,
     ) -> Result<T, Error> {
         if let Err(err) = &call_result {
-            METRICS.observe_error(self.component_name, origin, err);
+            self.metrics.observe_error(self.component_name, origin, err);
         }
         call_result
     }
 }
 
 #[async_trait]
-impl<C: L2ClientT> ClientT for L2Client<C> {
+impl<C: L2ClientBase> ClientT for L2Client<C> {
     async fn notification<Params>(&self, method: &str, params: Params) -> Result<(), Error>
     where
         Params: ToRpcParams + Send,
@@ -180,7 +184,7 @@ impl<C: L2ClientT> ClientT for L2Client<C> {
 }
 
 #[async_trait]
-impl<C: L2ClientT> SubscriptionClientT for L2Client<C> {
+impl<C: L2ClientBase> SubscriptionClientT for L2Client<C> {
     async fn subscribe<'a, Notif, Params>(
         &self,
         subscribe_method: &'a str,
@@ -220,7 +224,7 @@ pub struct L2ClientBuilder<C = HttpClient> {
     rate_limit: (usize, Duration),
 }
 
-impl<C: L2ClientT> L2ClientBuilder<C> {
+impl<C: L2ClientBase> L2ClientBuilder<C> {
     /// Wraps the provided client.
     pub fn new(client: C) -> Self {
         Self {
@@ -256,6 +260,7 @@ impl<C: L2ClientT> L2ClientBuilder<C> {
             inner: self.client,
             rate_limit: SharedRateLimit::new(self.rate_limit.0, self.rate_limit.1),
             component_name: "",
+            metrics: &METRICS,
         }
     }
 }

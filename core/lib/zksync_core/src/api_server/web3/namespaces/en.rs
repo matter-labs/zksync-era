@@ -122,7 +122,6 @@ impl EnNamespace {
             recursion_leaf_level_vk_hash: verifier_config.params.recursion_leaf_level_vk_hash,
             recursion_scheduler_level_vk_hash: verifier_config.recursion_scheduler_level_vk_hash,
         };
-        dbg!(&config);
         Ok(config)
     }
 }

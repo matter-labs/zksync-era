@@ -26,6 +26,7 @@ tracing.workspace = true
 vise.workspace = true
 
 [dev-dependencies]
+assert_matches.workspace = true
 futures.workspace = true
 rand.workspace = true
 serde_json.workspace = true

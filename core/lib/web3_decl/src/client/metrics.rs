@@ -8,35 +8,35 @@ use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Histogram
 use super::{AcquireStats, CallOrigin};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
-struct RequestLabels {
-    component: &'static str,
-    method: String,
+pub(super) struct RequestLabels {
+    pub component: &'static str,
+    pub method: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
-struct RpcErrorLabels {
-    component: &'static str,
-    method: String,
-    code: i32,
+pub(super) struct RpcErrorLabels {
+    pub component: &'static str,
+    pub method: String,
+    pub code: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
-struct HttpErrorLabels {
-    component: &'static str,
-    method: String,
-    status: Option<u16>,
+pub(super) struct HttpErrorLabels {
+    pub component: &'static str,
+    pub method: String,
+    pub status: Option<u16>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
 #[metrics(rename_all = "snake_case")]
-enum CallErrorKind {
+pub(super) enum CallErrorKind {
     RequestTimeout,
     Parse,
     Other,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
-struct GenericErrorLabels {
+pub(super) struct GenericErrorLabels {
     component: &'static str,
     method: String,
     kind: CallErrorKind,
@@ -46,16 +46,16 @@ struct GenericErrorLabels {
 #[metrics(prefix = "l2_client")]
 pub(super) struct L2ClientMetrics {
     /// Number of requests timed out in the rate-limiting logic.
-    rate_limit_timeout: Family<RequestLabels, Counter>,
+    pub rate_limit_timeout: Family<RequestLabels, Counter>,
     /// Latency of rate-limiting logic for rate-limited requests.
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
-    rate_limit_latency: Family<RequestLabels, Histogram<Duration>>,
+    pub rate_limit_latency: Family<RequestLabels, Histogram<Duration>>,
     /// Number of calls that resulted in an RPC-level error.
-    rpc_errors: Family<RpcErrorLabels, Counter>,
+    pub rpc_errors: Family<RpcErrorLabels, Counter>,
     /// Number of calls that resulted in an HTTP-level error.
-    http_errors: Family<HttpErrorLabels, Counter>,
+    pub http_errors: Family<HttpErrorLabels, Counter>,
     /// Number of calls that resulted in a generic / internal error.
-    generic_errors: Family<GenericErrorLabels, Counter>,
+    pub generic_errors: Family<GenericErrorLabels, Counter>,
 }
 
 impl L2ClientMetrics {
@@ -70,7 +70,7 @@ impl L2ClientMetrics {
                 component,
                 method: method.to_owned(),
             };
-            METRICS.rate_limit_latency[&request_labels].observe(stats.total_sleep_time);
+            self.rate_limit_latency[&request_labels].observe(stats.total_sleep_time);
         }
     }
 
@@ -80,7 +80,7 @@ impl L2ClientMetrics {
                 component,
                 method: method.to_owned(),
             };
-            METRICS.rate_limit_timeout[&request_labels].inc();
+            self.rate_limit_timeout[&request_labels].inc();
         }
     }
 
