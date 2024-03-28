@@ -365,7 +365,7 @@ fn test_evm_contract_calls() {
             calldata: abi
                 .function("warmAccount")
                 .unwrap()
-                .encode_input(&[Token::Uint(U256::from(35))])
+                .encode_input(&[Token::Address(expected_deployed_address)])
                 .unwrap(),
             value: U256::zero(),
             factory_deps: None,
@@ -378,24 +378,100 @@ fn test_evm_contract_calls() {
         VmExecutionMode::OneTx,
     );
     assert!(tx_result.result.is_failed(), "Access violated");
-    /*let txWarmSlot = account.get_l2_tx_for_execute(
+
+    let txWarmSlot = account.get_l2_tx_for_execute(
         Execute {
             contract_address: Some(expected_deployed_address),
-            calldata: abi.function("warmAccount").unwrap().encode_input(&[Token::Uint(U256::from(35))]).unwrap(),
+            calldata: abi
+                .function("warmSlot")
+                .unwrap()
+                .encode_input(&[Token::Uint(U256::from(324)), Token::Uint(U256::from(432))])
+                .unwrap(),
             value: U256::zero(),
             factory_deps: None,
         },
         None,
     );
-    vm.vm.push_transaction(txWarmAccount);
+    vm.vm.push_transaction(txWarmSlot);
     let tx_result = vm.vm.inspect(
         EvmDebugTracer::new().into_tracer_pointer().into(),
         VmExecutionMode::OneTx,
     );
-    assert!(
-        tx_result.result.is_failed(),
-        "Access violated"
-    );*/
+    assert!(tx_result.result.is_failed(), "Access violated");
+
+    let tx_pushEVMFrame = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(expected_deployed_address),
+            calldata: abi
+                .function("_pushEVMFrame")
+                .unwrap()
+                .encode_input(&[Token::Uint(U256::from(324)), Token::Bool(false)])
+                .unwrap(),
+            value: U256::zero(),
+            factory_deps: None,
+        },
+        None,
+    );
+    vm.vm.push_transaction(tx_pushEVMFrame);
+    let tx_result = vm.vm.inspect(
+        EvmDebugTracer::new().into_tracer_pointer().into(),
+        VmExecutionMode::OneTx,
+    );
+    assert!(tx_result.result.is_failed(), "Access violated");
+
+    let tx_popEVMFrame = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(expected_deployed_address),
+            calldata: abi
+                .function("_popEVMFrame")
+                .unwrap()
+                .encode_input(&[])
+                .unwrap(),
+            value: U256::zero(),
+            factory_deps: None,
+        },
+        None,
+    );
+    vm.vm.push_transaction(tx_popEVMFrame);
+    let tx_result = vm.vm.inspect(
+        EvmDebugTracer::new().into_tracer_pointer().into(),
+        VmExecutionMode::OneTx,
+    );
+    assert!(tx_result.result.is_failed(), "Access violated");
+    let function = match abi.function("_consumeEvmFrame") {
+        Ok(func) => func,
+        Err(e) => {
+            println!("Error retrieving function definition: {:?}", e);
+            return;
+        }
+    };
+
+    let encoded_input = match function.encode_input(&[
+        Token::Uint(U256::from(324)),
+        Token::Bool(false),
+        Token::Bool(false),
+    ]) {
+        Ok(input) => input,
+        Err(e) => {
+            println!("Error encoding input: {:?}", e);
+            return;
+        }
+    };
+    let tx_consumeEVMFrame = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(expected_deployed_address),
+            calldata: encoded_input,
+            value: U256::zero(),
+            factory_deps: None,
+        },
+        None,
+    );
+    vm.vm.push_transaction(tx_consumeEVMFrame);
+    let tx_result = vm.vm.inspect(
+        EvmDebugTracer::new().into_tracer_pointer().into(),
+        VmExecutionMode::OneTx,
+    );
+    assert!(tx_result.result.is_failed(), "Access violated");
 }
 #[test]
 fn test_evm_gas_consumption() {

@@ -5,7 +5,7 @@ import {EVM_GAS_MANAGER, INF_PASS_GAS} from "./Constants.sol";
 
 
 contract GasManagerCaller {
-    function warmAccount(address _addr) internal returns (bool isWarm) {
+    function warmAccount(address _addr) public returns (bool isWarm) {
         bytes4 selector = EVM_GAS_MANAGER.warmAccount.selector;
         address addr = address(EVM_GAS_MANAGER);
         assembly {
@@ -22,7 +22,7 @@ contract GasManagerCaller {
             isWarm := mload(0)
         }
     }
-    function warmSlot(uint256 key, uint256 currentValue) internal returns (bool isWarm, uint256 originalValue) {
+    function warmSlot(uint256 key, uint256 currentValue) public returns (bool isWarm, uint256 originalValue) {
         bytes4 selector = EVM_GAS_MANAGER.warmSlot.selector;
         address addr = address(EVM_GAS_MANAGER);
         assembly {
@@ -41,7 +41,7 @@ contract GasManagerCaller {
             originalValue := mload(32)
         }
     }
-     function _pushEVMFrame(uint256 _passGas, bool _isStatic) internal {
+     function _pushEVMFrame(uint256 _passGas, bool _isStatic) public {
         bytes4 selector = EVM_GAS_MANAGER.pushEVMFrame.selector;
         address addr = address(EVM_GAS_MANAGER);
         assembly {
@@ -57,7 +57,7 @@ contract GasManagerCaller {
             }
         }
     }
-    function _popEVMFrame() internal {
+    function _popEVMFrame() public {
         bytes4 selector = EVM_GAS_MANAGER.popEVMFrame.selector;
         address addr = address(EVM_GAS_MANAGER);
         assembly {
@@ -71,7 +71,7 @@ contract GasManagerCaller {
             }
         }
     }
-    function _consumeEvmFrame() internal returns (uint256 _passGas, bool isStatic, bool callerEVM) {
+    function _consumeEvmFrame() public returns (uint256 _passGas, bool isStatic, bool callerEVM) {
         bytes4 selector = EVM_GAS_MANAGER.consumeEvmFrame.selector;
         address addr = address(EVM_GAS_MANAGER);
         assembly {
