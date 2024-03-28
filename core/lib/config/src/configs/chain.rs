@@ -79,7 +79,7 @@ pub struct StateKeeperConfig {
     pub close_block_at_eth_params_percentage: f64,
     /// Denotes the percentage of L1 gas used in L2 block that triggers L2 block seal.
     pub close_block_at_gas_percentage: f64,
-    /// Fee account address, it's optional because it's required only for loading from envs
+    /// Fee account address. Value is deprecated and it's used only for generating wallets struct
     #[deprecated]
     pub fee_account_addr: Option<Address>,
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
@@ -117,7 +117,7 @@ pub struct StateKeeperConfig {
     /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
     pub enum_index_migration_chunk_size: Option<usize>,
 
-    // Base system contract hash, required only for genesis file, it's temporary solution
+    // Base system contract hashes, required only for generating genesis config.
     // #PLA-811
     #[deprecated]
     pub bootloader_hash: Option<H256>,

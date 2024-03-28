@@ -16,6 +16,7 @@ impl ProtoRepr for proto::ContractVerifier {
                 .context("prometheus_port")?,
             url: required(&self.url).cloned().context("url")?,
             port: required(&self.port).map(|x| *x as u16).context("port")?,
+            threads_per_server: self.threads_per_server.map(|a| a as u16),
         })
     }
 
@@ -25,7 +26,7 @@ impl ProtoRepr for proto::ContractVerifier {
             url: Some(this.url.clone()),
             compilation_timeout: Some(this.compilation_timeout),
             polling_interval: this.polling_interval,
-            threads_per_server: None,
+            threads_per_server: this.threads_per_server.map(|a| a as u32),
             prometheus_port: Some(this.prometheus_port.into()),
         }
     }

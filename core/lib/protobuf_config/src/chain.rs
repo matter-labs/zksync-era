@@ -83,7 +83,7 @@ impl ProtoRepr for proto::StateKeeper {
                 .map(|x| x.try_into())
                 .transpose()
                 .context("enum_index_migration_chunk_size")?,
-            // We need this values only for genesis file, so it's not
+            // We need these values only for instantiating configs from envs, so it's not
             // needed during the initialization from files
             bootloader_hash: None,
             default_aa_hash: None,

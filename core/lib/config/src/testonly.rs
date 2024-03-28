@@ -334,6 +334,7 @@ impl RandomConfig for configs::ContractVerifierConfig {
             compilation_timeout: g.gen(),
             polling_interval: g.gen(),
             prometheus_port: g.gen(),
+            threads_per_server: g.gen(),
             port: g.gen(),
             url: g.gen(),
         }
