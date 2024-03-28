@@ -74,7 +74,7 @@ mod tests {
             snark_wrapper_vk_hash: hash(
                 "0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bece83612563f2",
             ),
-            genesis_protocol_version: Some(22),
+            genesis_protocol_version: Some(23),
         }
     }
 

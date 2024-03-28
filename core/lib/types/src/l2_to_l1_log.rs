@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use zksync_system_constants::{BLOB1_LINEAR_HASH_KEY, PUBDATA_CHUNK_PUBLISHER_ADDRESS};
 
 use crate::{commitment::SerializeCommitment, Address, ProtocolVersionId, H256};
 
@@ -72,6 +73,29 @@ pub fn l2_to_l1_logs_tree_size(protocol_version: ProtocolVersionId) -> usize {
     } else {
         VM_1_5_0_L2_L1_LOGS_TREE_SIZE
     }
+}
+
+/// Returns the blob hashes parsed out from the system logs
+pub fn parse_system_logs_for_blob_hashes(
+    protocol_version: &ProtocolVersionId,
+    system_logs: &Vec<SystemL2ToL1Log>,
+) -> Vec<H256> {
+    let num_blobs = protocol_version.into_num_blobs() as u32;
+
+    let mut blob_hashes = system_logs
+        .iter()
+        .filter(|log| {
+            log.0.sender == PUBDATA_CHUNK_PUBLISHER_ADDRESS
+                && log.0.key >= H256::from_low_u64_be(BLOB1_LINEAR_HASH_KEY as u64)
+                && log.0.key < H256::from_low_u64_be((BLOB1_LINEAR_HASH_KEY + num_blobs) as u64)
+        })
+        .map(|log| (log.0.key, log.0.value))
+        .collect::<Vec<(H256, H256)>>();
+
+    blob_hashes.sort_unstable_by_key(|(k, _)| *k);
+    let mut blob_hashes = blob_hashes.iter().map(|(_, v)| *v).collect::<Vec<H256>>();
+    blob_hashes.resize(num_blobs as usize, H256::zero());
+    blob_hashes
 }
 
 #[cfg(test)]
