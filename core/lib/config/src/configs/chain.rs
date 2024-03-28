@@ -152,10 +152,6 @@ pub struct StateKeeperConfig {
     pub virtual_blocks_interval: u32,
     pub virtual_blocks_per_miniblock: u32,
 
-    /// Flag which will enable storage to cache witness_inputs during State Keeper's run.
-    /// NOTE: This will slow down StateKeeper, to be used in non-production environments!
-    pub upload_witness_inputs_to_gcs: bool,
-
     /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
     pub enum_index_migration_chunk_size: Option<usize>,
 
@@ -198,7 +194,6 @@ impl StateKeeperConfig {
             save_call_traces: true,
             virtual_blocks_interval: 1,
             virtual_blocks_per_miniblock: 1,
-            upload_witness_inputs_to_gcs: false,
             enum_index_migration_chunk_size: None,
             bootloader_hash: None,
             default_aa_hash: None,

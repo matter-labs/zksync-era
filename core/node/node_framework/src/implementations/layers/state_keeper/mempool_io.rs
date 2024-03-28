@@ -13,7 +13,6 @@ use zksync_core::state_keeper::{
 use crate::{
     implementations::resources::{
         fee_input::FeeInputResource,
-        object_store::ObjectStoreResource,
         pools::MasterPoolResource,
         state_keeper::{ConditionalSealerResource, OutputHandlerResource, StateKeeperIOResource},
     },
@@ -73,7 +72,6 @@ impl WiringLayer for MempoolIOLayer {
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Fetch required resources.
         let batch_fee_input_provider = context.get_resource::<FeeInputResource>().await?.0;
-        let object_store = context.get_resource::<ObjectStoreResource>().await?.0;
         let master_pool = context.get_resource::<MasterPoolResource>().await?;
 
         // Create miniblock sealer task.
@@ -85,7 +83,6 @@ impl WiringLayer for MempoolIOLayer {
             self.contracts_config.l2_erc20_bridge_addr,
             self.state_keeper_config.miniblock_seal_queue_capacity,
         );
-        let persistence = persistence.with_object_store(object_store);
         let output_handler = OutputHandler::new(Box::new(persistence));
         context.insert_resource(OutputHandlerResource(Unique::new(output_handler)))?;
         context.add_task(Box::new(MiniblockSealerTask(miniblock_sealer)));

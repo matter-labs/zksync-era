@@ -151,8 +151,6 @@ impl ProtoRepr for proto::StateKeeper {
                 .context("virtual_blocks_interval")?,
             virtual_blocks_per_miniblock: *required(&self.virtual_blocks_per_miniblock)
                 .context("virtual_blocks_per_miniblock")?,
-            upload_witness_inputs_to_gcs: *required(&self.upload_witness_inputs_to_gcs)
-                .context("upload_witness_inputs_to_gcs")?,
             enum_index_migration_chunk_size: self
                 .enum_index_migration_chunk_size
                 .map(|x| x.try_into())
@@ -207,7 +205,6 @@ impl ProtoRepr for proto::StateKeeper {
             save_call_traces: Some(this.save_call_traces),
             virtual_blocks_interval: Some(this.virtual_blocks_interval),
             virtual_blocks_per_miniblock: Some(this.virtual_blocks_per_miniblock),
-            upload_witness_inputs_to_gcs: Some(this.upload_witness_inputs_to_gcs),
             enum_index_migration_chunk_size: this
                 .enum_index_migration_chunk_size
                 .as_ref()
