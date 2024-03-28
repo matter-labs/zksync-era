@@ -19,13 +19,13 @@ impl ProtoRepr for proto::GeneralConfig {
             state_keeper_config: read_optional_repr(&self.state_keeper).context("state_keeper")?,
             house_keeper_config: read_optional_repr(&self.house_keeper).context("house_keeper")?,
             proof_compressor_config: read_optional_repr(&self.proof_compressor)
-                .context("fri_proof_compressor")?,
-            prover_config: read_optional_repr(&self.prover).context("fri_prover")?,
-            prover_gateway: read_optional_repr(&self.prover_gateway).context("fri_prover")?,
+                .context("proof_compressor_config")?,
+            prover_config: read_optional_repr(&self.prover).context("prover_config")?,
+            prover_gateway: read_optional_repr(&self.prover_gateway).context("prover_gateway")?,
             witness_vector_generator: read_optional_repr(&self.witness_vector_generator)
-                .context("fri_prover")?,
+                .context("witness_vector_generator")?,
             prover_group_config: read_optional_repr(&self.prover_group)
-                .context("fri_prover_group")?,
+                .context("prover_group_config")?,
             prometheus_config: read_optional_repr(&self.prometheus).context("prometheus")?,
             proof_data_handler_config: read_optional_repr(&self.data_handler)
                 .context("proof_data_handler")?,
@@ -33,7 +33,7 @@ impl ProtoRepr for proto::GeneralConfig {
                 .context("witness_generator")?,
             api_config: read_optional_repr(&self.api).context("api")?,
             db_config: read_optional_repr(&self.db).context("db")?,
-            eth: read_optional_repr(&self.eth).context("db")?,
+            eth: read_optional_repr(&self.eth).context("eth")?,
         })
     }
 
@@ -63,6 +63,7 @@ impl ProtoRepr for proto::GeneralConfig {
             api: this.api_config.as_ref().map(ProtoRepr::build),
             db: this.db_config.as_ref().map(ProtoRepr::build),
             eth: this.eth.as_ref().map(ProtoRepr::build),
+            snapshot_creator: None,
         }
     }
 }

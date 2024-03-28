@@ -43,7 +43,10 @@ impl ProtoRepr for proto::Wallets {
         };
 
         let state_keeper = if let Some(fee_account) = &self.fee_account {
-            let address = parse_h160(required(&fee_account.address)?)?;
+            let address = parse_h160(
+                required(&fee_account.address).context("fee_account.address requireed")?,
+            )
+            .context("fee_account.address")?;
             if let Some(private_key) = &fee_account.private_key {
                 let calculated_address = PackedEthSignature::address_from_private_key(
                     &parse_h256(private_key).context("Malformed private key")?,
@@ -70,16 +73,13 @@ impl ProtoRepr for proto::Wallets {
     fn build(this: &Self::Type) -> Self {
         let (operator, blob_operator) = if let Some(eth_sender) = &this.eth_sender {
             let blob = eth_sender.blob_operator.as_ref().map(|blob| proto::Wallet {
-                address: Some(blob.address().as_bytes().to_vec()),
-                private_key: blob.private_key().map(|a| a.as_bytes().to_vec()),
+                address: Some(blob.address().to_string()),
+                private_key: blob.private_key().map(|a| a.to_string()),
             });
             (
                 Some(proto::Wallet {
-                    address: Some(eth_sender.operator.address().as_bytes().to_vec()),
-                    private_key: eth_sender
-                        .operator
-                        .private_key()
-                        .map(|a| a.as_bytes().to_vec()),
+                    address: Some(eth_sender.operator.address().to_string()),
+                    private_key: eth_sender.operator.private_key().map(|a| a.to_string()),
                 }),
                 blob,
             )
@@ -91,11 +91,11 @@ impl ProtoRepr for proto::Wallets {
             .state_keeper
             .as_ref()
             .map(|state_keeper| proto::Wallet {
-                address: Some(state_keeper.fee_account.address().as_bytes().to_vec()),
+                address: Some(state_keeper.fee_account.address().to_string()),
                 private_key: state_keeper
                     .fee_account
                     .private_key()
-                    .map(|a| a.as_bytes().to_vec()),
+                    .map(|a| a.to_string()),
             });
         Self {
             blob_operator,

@@ -28,7 +28,7 @@ pub fn decode_yaml<T: ProtoFmt>(yaml: &str) -> anyhow::Result<T> {
 
 pub fn decode_yaml_repr<T: ProtoRepr>(yaml: &str) -> anyhow::Result<T::Type> {
     let d = serde_yaml::Deserializer::from_str(yaml);
-    let this: T = zksync_protobuf::serde::deserialize_proto(d)?;
+    let this: T = zksync_protobuf::serde::deserialize_proto_with_options(d, false)?;
     this.read()
 }
 //

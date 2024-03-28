@@ -3,22 +3,22 @@ syntax = "proto3";
 package zksync.config.contracts;
 
 message L1 {
-  optional bytes governance_addr = 1; // required; H160
-  optional bytes verifier_addr = 6; // required; H160
-  optional bytes diamond_proxy_addr = 9; // required; H160
-  optional bytes validator_timelock_addr = 10; // required; H160
-  optional bytes default_upgrade_addr = 11; // required; H160
-  optional bytes multicall3_addr = 12; // required; H160
+  optional string governance_addr = 1; // required; H160
+  optional string verifier_addr = 6; // required; H160
+  optional string diamond_proxy_addr = 9; // required; H160
+  optional string validator_timelock_addr = 10; // required; H160
+  optional string default_upgrade_addr = 11; // required; H160
+  optional string multicall3_addr = 12; // required; H160
 
 }
 
 message L2 {
-  optional bytes testnet_paymaster_addr = 18; // optional; H160
+  optional string testnet_paymaster_addr = 18; // optional; H160
 }
 
 message Bridge {
-  optional bytes l1_address = 1;
-  optional bytes l2_address = 2;
+  optional string l1_address = 1;
+  optional string l2_address = 2;
 }
 
 message Bridges {

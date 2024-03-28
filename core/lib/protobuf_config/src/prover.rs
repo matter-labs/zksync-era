@@ -304,16 +304,16 @@ impl ProtoRepr for proto::Prover {
             generation_timeout_in_secs: required(&self.generation_timeout_in_secs)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("generation_timeout_in_secs")?,
-            base_layer_circuit_ids_to_be_verified: required(
-                &self.base_layer_circuit_ids_to_be_verified,
-            )
-            .context("base_layer_circuit_ids_to_be_verified")?
-            .clone(),
-            recursive_layer_circuit_ids_to_be_verified: required(
-                &self.recursive_layer_circuit_ids_to_be_verified,
-            )
-            .context("recursive_layer_circuit_ids_to_be_verified")?
-            .clone(),
+            base_layer_circuit_ids_to_be_verified: self
+                .base_layer_circuit_ids_to_be_verified
+                .iter()
+                .map(|a| *a as u8)
+                .collect(),
+            recursive_layer_circuit_ids_to_be_verified: self
+                .recursive_layer_circuit_ids_to_be_verified
+                .iter()
+                .map(|a| *a as u8)
+                .collect(),
             setup_load_mode: required(&self.setup_load_mode)
                 .and_then(|x| Ok(proto::SetupLoadMode::try_from(*x)?))
                 .context("setup_load_mode")?
@@ -347,12 +347,16 @@ impl ProtoRepr for proto::Prover {
             prometheus_port: Some(this.prometheus_port.into()),
             max_attempts: Some(this.max_attempts),
             generation_timeout_in_secs: Some(this.generation_timeout_in_secs.into()),
-            base_layer_circuit_ids_to_be_verified: Some(
-                this.base_layer_circuit_ids_to_be_verified.clone(),
-            ),
-            recursive_layer_circuit_ids_to_be_verified: Some(
-                this.recursive_layer_circuit_ids_to_be_verified.clone(),
-            ),
+            base_layer_circuit_ids_to_be_verified: this
+                .base_layer_circuit_ids_to_be_verified
+                .iter()
+                .map(|a| *a as u32)
+                .collect(),
+            recursive_layer_circuit_ids_to_be_verified: this
+                .recursive_layer_circuit_ids_to_be_verified
+                .iter()
+                .map(|a| *a as u32)
+                .collect(),
             setup_load_mode: Some(proto::SetupLoadMode::new(&this.setup_load_mode).into()),
             specialized_group_id: Some(this.specialized_group_id.into()),
             witness_vector_generator_thread_count: this

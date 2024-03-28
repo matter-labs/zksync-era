@@ -92,9 +92,18 @@ impl ProtoRepr for proto::Postgres {
             .as_ref()
             .map(|x| (x.server_url.clone(), x.prover_url.clone()))
             .unwrap_or_default();
+        let replica_url = if let Some(replica_url) = self.server_replica_url.clone() {
+            Some(replica_url)
+        } else {
+            if let Some(server_url) = self.server_url.clone() {
+                Some(server_url)
+            } else {
+                None
+            }
+        };
         Ok(Self::Type {
             master_url: self.server_url.clone(),
-            replica_url: self.server_replica_url.clone(),
+            replica_url,
             prover_url: self.prover_url.clone(),
             max_connections: self.max_connections,
             max_connections_master: self.max_connections_master,

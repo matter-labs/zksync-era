@@ -62,24 +62,24 @@ impl ProtoRepr for proto::Contracts {
     fn build(this: &Self::Type) -> Self {
         Self {
             l1: Some(proto::L1 {
-                governance_addr: Some(this.governance_addr.as_bytes().into()),
-                verifier_addr: Some(this.verifier_addr.as_bytes().into()),
-                diamond_proxy_addr: Some(this.diamond_proxy_addr.as_bytes().into()),
-                validator_timelock_addr: Some(this.validator_timelock_addr.as_bytes().into()),
-                default_upgrade_addr: Some(this.default_upgrade_addr.as_bytes().into()),
-                multicall3_addr: Some(this.l1_multicall3_addr.as_bytes().into()),
+                governance_addr: Some(this.governance_addr.to_string()),
+                verifier_addr: Some(this.verifier_addr.to_string()),
+                diamond_proxy_addr: Some(this.diamond_proxy_addr.to_string()),
+                validator_timelock_addr: Some(this.validator_timelock_addr.to_string()),
+                default_upgrade_addr: Some(this.default_upgrade_addr.to_string()),
+                multicall3_addr: Some(this.l1_multicall3_addr.to_string()),
             }),
             l2: Some(proto::L2 {
-                testnet_paymaster_addr: this.l2_testnet_paymaster_addr.map(|a| a.as_bytes().into()),
+                testnet_paymaster_addr: this.l2_testnet_paymaster_addr.map(|a| a.to_string()),
             }),
             bridges: Some(proto::Bridges {
                 erc20: Some(proto::Bridge {
-                    l1_address: Some(this.l1_erc20_bridge_proxy_addr.as_bytes().into()),
-                    l2_address: Some(this.l2_erc20_bridge_addr.as_bytes().into()),
+                    l1_address: Some(this.l1_erc20_bridge_proxy_addr.to_string()),
+                    l2_address: Some(this.l2_erc20_bridge_addr.to_string()),
                 }),
                 weth: Some(proto::Bridge {
-                    l1_address: this.l1_weth_bridge_proxy_addr.map(|a| a.as_bytes().into()),
-                    l2_address: this.l2_weth_bridge_addr.map(|a| a.as_bytes().into()),
+                    l1_address: this.l1_weth_bridge_proxy_addr.map(|a| a.to_string()),
+                    l2_address: this.l2_weth_bridge_addr.map(|a| a.to_string()),
                 }),
             }),
         }

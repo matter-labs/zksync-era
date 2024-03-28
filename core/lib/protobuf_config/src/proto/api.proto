@@ -4,10 +4,6 @@ package zksync.config.api;
 
 import "zksync/config/utils.proto";
 
-message PrivateKeys {
-  repeated bytes keys = 1; // H256
-}
-
 message Web3JsonRpc {
   optional uint32 http_port = 1; // required; u16
   optional string http_url = 2; // required
@@ -20,7 +16,7 @@ message Web3JsonRpc {
   optional uint32 max_nonce_ahead = 9; // required
   optional double gas_price_scale_factor = 10; // required
   optional uint64 request_timeout = 11; // seconds
-  optional PrivateKeys account_pks = 12; // optional
+  repeated string account_pks = 12; // optional
   optional double estimate_gas_scale_factor = 13; // required
   optional uint32 estimate_gas_acceptable_overestimation = 14; // required
   optional bool l1_to_l2_transactions_compatibility_mode = 15; // required

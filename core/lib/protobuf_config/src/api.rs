@@ -49,19 +49,15 @@ impl ProtoRepr for proto::Web3JsonRpc {
             gas_price_scale_factor: *required(&self.gas_price_scale_factor)
                 .context("gas_price_scale_factor")?,
             request_timeout: self.request_timeout,
-            account_pks: self
-                .account_pks
-                .as_ref()
-                .map(|keys| {
-                    keys.keys
-                        .iter()
-                        .enumerate()
-                        .map(|(i, k)| parse_h256(k).context(i))
-                        .collect::<Result<_, _>>()
-                        .context("keys")
-                })
-                .transpose()
-                .context("account_pks")?,
+            account_pks: Some(
+                self.account_pks
+                    .iter()
+                    .enumerate()
+                    .map(|(i, k)| parse_h256(k).context(i))
+                    .collect::<Result<_, _>>()
+                    .context("keys")?,
+            ),
+
             estimate_gas_scale_factor: *required(&self.estimate_gas_scale_factor)
                 .context("estimate_gas_scale_factor")?,
             estimate_gas_acceptable_overestimation: *required(
@@ -141,9 +137,11 @@ impl ProtoRepr for proto::Web3JsonRpc {
             max_nonce_ahead: Some(this.max_nonce_ahead),
             gas_price_scale_factor: Some(this.gas_price_scale_factor),
             request_timeout: this.request_timeout,
-            account_pks: this.account_pks.as_ref().map(|keys| proto::PrivateKeys {
-                keys: keys.iter().map(|k| k.as_bytes().into()).collect(),
-            }),
+            account_pks: this
+                .account_pks
+                .as_ref()
+                .map(|keys| keys.iter().map(|k| k.to_string()).collect())
+                .unwrap_or_default(),
             estimate_gas_scale_factor: Some(this.estimate_gas_scale_factor),
             estimate_gas_acceptable_overestimation: Some(
                 this.estimate_gas_acceptable_overestimation,

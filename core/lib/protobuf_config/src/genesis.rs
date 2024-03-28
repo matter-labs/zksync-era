@@ -53,13 +53,17 @@ impl ProtoRepr for proto::Genesis {
                 .context("recursion_node_level_vk_hash")?,
             recursion_leaf_level_vk_hash: required(&prover.recursion_leaf_level_vk_hash)
                 .and_then(|x| parse_h256(x))
-                .context("recursion_node_level_vk_hash")?,
-            recursion_circuits_set_vks_hash: required(&prover.recursion_circuits_set_vks_hash)
-                .and_then(|x| parse_h256(x))
-                .context("recursion_node_level_vk_hash")?,
+                .context("recursion_leaf_level_vk_hash")?,
+            recursion_circuits_set_vks_hash: prover
+                .recursion_circuits_set_vks_hash
+                .as_ref()
+                .map(|x| parse_h256(x))
+                .transpose()
+                .context("recursion_circuits_set_vks_hash")?
+                .unwrap_or_default(),
             recursion_scheduler_level_vk_hash: required(&prover.recursion_scheduler_level_vk_hash)
                 .and_then(|x| parse_h256(x))
-                .context("recursion_node_level_vk_hash")?,
+                .context("recursion_scheduler_level_vk_hash")?,
             fee_account: required(&self.fee_account)
                 .and_then(|x| parse_h160(x))
                 .context("fee_account")?,
@@ -73,37 +77,33 @@ impl ProtoRepr for proto::Genesis {
             .shared_bridge
             .as_ref()
             .map(|shared_bridge| proto::SharedBridge {
-                bridgehub_proxy_addr: Some(shared_bridge.bridgehub_proxy_addr.as_bytes().into()),
+                bridgehub_proxy_addr: Some(shared_bridge.bridgehub_proxy_addr.to_string()),
                 state_transition_proxy_addr: Some(
-                    shared_bridge.state_transition_proxy_addr.as_bytes().into(),
+                    shared_bridge.state_transition_proxy_addr.to_string(),
                 ),
                 transparent_proxy_admin_addr: Some(
-                    shared_bridge.transparent_proxy_admin_addr.as_bytes().into(),
+                    shared_bridge.transparent_proxy_admin_addr.to_string(),
                 ),
             });
 
         Self {
-            genesis_root: Some(this.genesis_root_hash.as_bytes().into()),
+            genesis_root: Some(this.genesis_root_hash.to_string()),
             genesis_rollup_leaf_index: Some(this.rollup_last_leaf_index),
-            genesis_batch_commitment: Some(this.genesis_root_hash.as_bytes().into()),
+            genesis_batch_commitment: Some(this.genesis_root_hash.to_string()),
             genesis_protocol_version: Some(this.protocol_version as u32),
-            default_aa_hash: Some(this.genesis_root_hash.as_bytes().into()),
-            bootloader_hash: Some(this.genesis_root_hash.as_bytes().into()),
-            fee_account: Some(this.fee_account.as_bytes().into()),
+            default_aa_hash: Some(this.genesis_root_hash.to_string()),
+            bootloader_hash: Some(this.genesis_root_hash.to_string()),
+            fee_account: Some(this.fee_account.to_string()),
             l1_chain_id: Some(this.l1_chain_id.0),
             l2_chain_id: Some(this.l2_chain_id.as_u64()),
             prover: Some(proto::Prover {
                 recursion_scheduler_level_vk_hash: Some(
-                    this.recursion_scheduler_level_vk_hash.as_bytes().into(),
+                    this.recursion_scheduler_level_vk_hash.to_string(),
                 ),
-                recursion_node_level_vk_hash: Some(
-                    this.recursion_node_level_vk_hash.as_bytes().into(),
-                ),
-                recursion_leaf_level_vk_hash: Some(
-                    this.recursion_leaf_level_vk_hash.as_bytes().into(),
-                ),
+                recursion_node_level_vk_hash: Some(this.recursion_node_level_vk_hash.to_string()),
+                recursion_leaf_level_vk_hash: Some(this.recursion_leaf_level_vk_hash.to_string()),
                 recursion_circuits_set_vks_hash: Some(
-                    this.recursion_circuits_set_vks_hash.as_bytes().into(),
+                    this.recursion_circuits_set_vks_hash.to_string(),
                 ),
                 dummy_verifier: Some(this.dummy_prover),
             }),

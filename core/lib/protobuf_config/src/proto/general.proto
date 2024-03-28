@@ -33,5 +33,7 @@ message GeneralConfig {
   optional config.prover.ProofDataHandler data_handler = 28;
   optional config.prover.ProverGroup prover_group = 29;
   optional config.prover.ProverGateway prover_gateway = 30;
+  optional config.snapshot_creator.SnapshotsCreator snapshot_creator = 31;
+
 }
 

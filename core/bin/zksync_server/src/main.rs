@@ -62,6 +62,9 @@ struct Cli {
     /// Path to the wallets config. If set, it will be used instead of env vars.
     #[arg(long)]
     wallets_path: Option<std::path::PathBuf>,
+    /// Path to the yaml with secrets. If set, it will be used instead of env vars.
+    #[arg(long)]
+    genesis_path: Option<std::path::PathBuf>,
 }
 
 #[derive(Debug, Clone)]
@@ -117,9 +120,11 @@ async fn main() -> anyhow::Result<()> {
             let yaml =
                 std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
             decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
-                .context("failed decoding YAML config")?
+                .context("failed decoding general YAML config")?
         }
     };
+
+    dbg!(&configs);
 
     let wallets = match opt.wallets_path {
         None => tmp_config.wallets(),
@@ -127,14 +132,15 @@ async fn main() -> anyhow::Result<()> {
             let yaml =
                 std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
             decode_yaml_repr::<zksync_protobuf_config::proto::wallets::Wallets>(&yaml)
-                .context("failed decoding YAML config")?
+                .context("failed decoding wallets YAML config")?
         }
     };
+
     let secrets: Secrets = match opt.secrets_path {
         Some(path) => {
             let yaml =
                 std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            decode_yaml(&yaml).context("failed decoding YAML config")?
+            decode_yaml(&yaml).context("failed decoding secrets YAML config")?
         }
         None => Secrets {
             consensus: config::read_consensus_secrets().context("read_consensus_secrets()")?,
@@ -143,18 +149,28 @@ async fn main() -> anyhow::Result<()> {
 
     let consensus = config::read_consensus_config().context("read_consensus_config()")?;
 
-    let contracts_config: ContractsConfig = match opt.contracts_config_path {
+    let contracts_config = match opt.contracts_config_path {
         None => ContractsConfig::from_env().context("contracts_config")?,
         Some(path) => {
             let yaml =
                 std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
             decode_yaml_repr::<zksync_protobuf_config::proto::contracts::Contracts>(&yaml)
-                .context("failed decoding YAML config")?
+                .context("failed decoding contracts YAML config")?
         }
     };
+
+    let genesis = match opt.genesis_path {
+        None => GenesisConfig::from_env().context("Genesis config")?,
+        Some(path) => {
+            let yaml =
+                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
+            decode_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&yaml)
+                .context("failed decoding genesis YAML config")?
+        }
+    };
+
     let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;
 
-    let genesis = GenesisConfig::from_env().context("Genesis config")?;
     if opt.genesis || is_genesis_needed(&postgres_config).await {
         genesis_init(genesis.clone(), &postgres_config)
             .await

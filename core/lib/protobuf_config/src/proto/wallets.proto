@@ -4,8 +4,8 @@ package zksync.config.wallets;
 
 
 message Wallet {
-  optional bytes private_key = 1; // required
-  optional bytes address = 2; // required
+  optional string private_key = 1; // required
+  optional string address = 2; // required
 }
 
 message Wallets {

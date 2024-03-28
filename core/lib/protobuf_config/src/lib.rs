@@ -26,16 +26,17 @@ mod tests;
 mod utils;
 mod wallets;
 
-use anyhow::Context as _;
+use std::str::FromStr;
+
 use zksync_protobuf::ProtoRepr;
 use zksync_types::{H160, H256};
 
-fn parse_h256(bytes: &[u8]) -> anyhow::Result<H256> {
-    Ok(<[u8; 32]>::try_from(bytes).context("invalid size")?.into())
+fn parse_h256(bytes: &str) -> anyhow::Result<H256> {
+    Ok(H256::from_str(&bytes)?)
 }
 
-fn parse_h160(bytes: &[u8]) -> anyhow::Result<H160> {
-    Ok(<[u8; 20]>::try_from(bytes).context("invalid size")?.into())
+fn parse_h160(bytes: &str) -> anyhow::Result<H160> {
+    Ok(H160::from_str(&bytes)?)
 }
 
 fn read_optional_repr<P: ProtoRepr>(field: &Option<P>) -> anyhow::Result<Option<P::Type>> {

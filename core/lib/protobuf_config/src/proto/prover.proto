@@ -25,8 +25,8 @@ message Prover {
   optional uint32 prometheus_port = 2; // required; u16
   optional uint32 max_attempts = 3; // required
   optional uint32 generation_timeout_in_secs = 4; // required; s
-  optional bytes base_layer_circuit_ids_to_be_verified = 5; // required
-  optional bytes recursive_layer_circuit_ids_to_be_verified = 6; // required
+  repeated uint32 base_layer_circuit_ids_to_be_verified = 5; // required
+  repeated uint32 recursive_layer_circuit_ids_to_be_verified = 6; // required
   optional SetupLoadMode setup_load_mode = 7; // required
   optional uint32 specialized_group_id = 8; // required; u8
   optional uint64 witness_vector_generator_thread_count = 9; // optional
