@@ -39,6 +39,7 @@ members = [
     "core/lib/queued_job_processor",
     "core/lib/state",
     "core/lib/storage",
+    "core/lib/tee_verifier",
     "core/lib/types",
     "core/lib/protobuf_config",
     "core/lib/utils",
@@ -214,6 +215,7 @@ zksync_snapshots_applier = { path = "core/lib/snapshots_applier" }
 zksync_state = { path = "core/lib/state" }
 zksync_storage = { path = "core/lib/storage" }
 zksync_system_constants = { path = "core/lib/constants" }
+zksync_tee_verifier = { path = "core/lib/tee_verifier" }
 zksync_test_account = { path = "core/tests/test_account" }
 zksync_types = { path = "core/lib/types" }
 zksync_utils = { path = "core/lib/utils" }

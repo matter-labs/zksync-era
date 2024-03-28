@@ -8471,6 +8471,7 @@ dependencies = [
  "zksync_state",
  "zksync_storage",
  "zksync_system_constants",
+ "zksync_tee_verifier",
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
@@ -9027,6 +9028,30 @@ version = "0.1.0"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
+ "zksync_utils",
+]
+
+[[package]]
+name = "zksync_tee_verifier"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "multivm",
+ "serde",
+ "tracing",
+ "vm_utils",
+ "zksync_basic_types",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_crypto",
+ "zksync_dal",
+ "zksync_db_connection",
+ "zksync_merkle_tree",
+ "zksync_object_store",
+ "zksync_prover_interface",
+ "zksync_queued_job_processor",
+ "zksync_state",
+ "zksync_types",
  "zksync_utils",
 ]
 

@@ -956,3 +956,6 @@ RECURSION_TIP_ARITY
 empty_proof
 hyperchain
 storages
+vec
+zksync_merkle_tree
+TreeMetadata

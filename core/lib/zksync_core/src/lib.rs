@@ -91,6 +91,7 @@ use crate::{
         create_state_keeper, AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler,
         SequencerSealer, StateKeeperPersistence,
     },
+    tee_verifier_input_producer::TeeVerifierInputProducer,
     utils::ensure_l1_batch_commit_data_generation_mode,
 };
 
@@ -108,6 +109,7 @@ pub mod proto;
 pub mod reorg_detector;
 pub mod state_keeper;
 pub mod sync_layer;
+pub mod tee_verifier_input_producer;
 pub mod temp_config_store;
 pub mod utils;
 pub mod vm_runner;
@@ -180,6 +182,9 @@ pub enum Component {
     /// Produces input for basic witness generator and uploads it as bin encoded file (blob) to GCS.
     /// The blob is later used as input for Basic Witness Generators.
     BasicWitnessInputProducer,
+    /// Produces input for the TEE verifier.
+    /// The blob is later used as input for TEE verifier.
+    TeeVerifierInputProducer,
     /// Component for housekeeping task such as cleaning blobs from GCS, reporting metrics etc.
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
@@ -212,6 +217,9 @@ impl FromStr for Components {
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
             "basic_witness_input_producer" => {
                 Ok(Components(vec![Component::BasicWitnessInputProducer]))
+            }
+            "tee_verifier_input_producer" => {
+                Ok(Components(vec![Component::TeeVerifierInputProducer]))
             }
             "eth" => Ok(Components(vec![
                 Component::EthWatcher,
@@ -775,6 +783,23 @@ pub async fn initialize_components(
         .context("add_basic_witness_input_producer_to_task_futures()")?;
     }
 
+    if components.contains(&Component::TeeVerifierInputProducer) {
+        let singleton_connection_pool =
+            ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
+                .build()
+                .await
+                .context("failed to build singleton connection_pool")?;
+        add_tee_verifier_input_producer_to_task_futures(
+            &mut task_futures,
+            &singleton_connection_pool,
+            &store_factory,
+            l2_chain_id,
+            stop_receiver.clone(),
+        )
+        .await
+        .context("add_tee_verifier_input_producer_to_task_futures()")?;
+    }
+
     if components.contains(&Component::Housekeeper) {
         add_house_keeper_to_task_futures(configs, &mut task_futures, stop_receiver.clone())
             .await
@@ -1075,6 +1100,27 @@ async fn add_basic_witness_input_producer_to_task_futures(
     );
     let elapsed = started_at.elapsed();
     APP_METRICS.init_latency[&InitStage::BasicWitnessInputProducer].set(elapsed);
+    Ok(())
+}
+
+async fn add_tee_verifier_input_producer_to_task_futures(
+    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    connection_pool: &ConnectionPool<Core>,
+    store_factory: &ObjectStoreFactory,
+    l2_chain_id: L2ChainId,
+    stop_receiver: watch::Receiver<bool>,
+) -> anyhow::Result<()> {
+    let started_at = Instant::now();
+    tracing::info!("initializing TeeVerifierInputProducer");
+    let producer =
+        TeeVerifierInputProducer::new(connection_pool.clone(), store_factory, l2_chain_id).await?;
+    task_futures.push(tokio::spawn(producer.run(stop_receiver, None)));
+    tracing::info!(
+        "Initialized TeeVerifierInputProducer in {:?}",
+        started_at.elapsed()
+    );
+    let elapsed = started_at.elapsed();
+    APP_METRICS.init_latency[&InitStage::TeeVerifierInputProducer].set(elapsed);
     Ok(())
 }
 
