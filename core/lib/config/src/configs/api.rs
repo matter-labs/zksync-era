@@ -32,7 +32,8 @@ pub struct Web3JsonRpcConfig {
     pub ws_url: String,
     /// Max possible limit of entities to be requested once.
     pub req_entities_limit: Option<u32>,
-    /// Whether to support methods installing filters and querying filter changes.
+    /// Whether to support HTTP methods that install filters and query filter changes.
+    /// WS methods are unaffected.
     ///
     /// When to set this value to `true`:
     /// Filters are local to the specific node they were created at. Meaning if
