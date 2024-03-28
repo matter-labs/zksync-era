@@ -288,7 +288,6 @@ impl RandomConfig for configs::chain::StateKeeperConfig {
             save_call_traces: g.gen(),
             virtual_blocks_interval: g.gen(),
             virtual_blocks_per_miniblock: g.gen(),
-            upload_witness_inputs_to_gcs: g.gen(),
             enum_index_migration_chunk_size: g.gen(),
             bootloader_hash: g.gen(),
             default_aa_hash: g.gen(),
@@ -616,6 +615,10 @@ impl RandomConfig for configs::FriWitnessGeneratorConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
             generation_timeout_in_secs: g.gen(),
+            basic_generation_timeout_in_secs: g.gen(),
+            leaf_generation_timeout_in_secs: g.gen(),
+            node_generation_timeout_in_secs: g.gen(),
+            scheduler_generation_timeout_in_secs: g.gen(),
             max_attempts: g.gen(),
             blocks_proving_percentage: g.gen(),
             dump_arguments_for_blocks: g.gen(),

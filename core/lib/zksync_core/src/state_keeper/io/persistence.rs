@@ -1,13 +1,11 @@
 //! State keeper persistence logic.
 
-use std::{sync::Arc, time::Instant};
+use std::time::Instant;
 
-use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
 use zksync_dal::{ConnectionPool, Core};
-use zksync_object_store::ObjectStore;
-use zksync_types::{witness_block_state::WitnessBlockState, Address};
+use zksync_types::Address;
 
 use crate::{
     metrics::{BlockStage, APP_METRICS},
@@ -29,7 +27,6 @@ struct Completable<T> {
 #[derive(Debug)]
 pub struct StateKeeperPersistence {
     pool: ConnectionPool<Core>,
-    object_store: Option<Arc<dyn ObjectStore>>, // FIXME (PLA-857): remove from the state keeper
     l2_shared_bridge_addr: Address,
     pre_insert_txs: bool,
     commands_sender: mpsc::Sender<Completable<MiniblockSealCommand>>,
@@ -60,7 +57,6 @@ impl StateKeeperPersistence {
         };
         let this = Self {
             pool,
-            object_store: None,
             l2_shared_bridge_addr,
             pre_insert_txs: false,
             commands_sender,
@@ -72,11 +68,6 @@ impl StateKeeperPersistence {
 
     pub fn with_tx_insertion(mut self) -> Self {
         self.pre_insert_txs = true;
-        self
-    }
-
-    pub fn with_object_store(mut self, object_store: Arc<dyn ObjectStore>) -> Self {
-        self.object_store = Some(object_store);
         self
     }
 
@@ -156,33 +147,9 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
         Ok(())
     }
 
-    async fn handle_l1_batch(
-        &mut self,
-        witness_block_state: Option<&WitnessBlockState>,
-        updates_manager: &UpdatesManager,
-    ) -> anyhow::Result<()> {
+    async fn handle_l1_batch(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
         // We cannot start sealing an L1 batch until we've sealed all miniblocks included in it.
         self.wait_for_all_commands().await;
-
-        if let Some(witness_block_state) = witness_block_state {
-            let store = self
-                .object_store
-                .as_deref()
-                .context("object store not set when saving `WitnessBlockState`")?;
-            match store
-                .put(updates_manager.l1_batch.number, witness_block_state)
-                .await
-            {
-                Ok(path) => {
-                    tracing::debug!("Successfully uploaded witness block start state to Object Store to path = '{path}'");
-                }
-                Err(e) => {
-                    tracing::error!(
-                        "Failed to upload witness block start state to Object Store: {e:?}"
-                    );
-                }
-            }
-        }
 
         let pool = self.pool.clone();
         let mut storage = pool.connection_tagged("state_keeper").await?;
@@ -323,7 +290,7 @@ mod tests {
         });
 
         updates.finish_batch(default_vm_block_result());
-        persistence.handle_l1_batch(None, &updates).await.unwrap();
+        persistence.handle_l1_batch(&updates).await.unwrap();
 
         // Check that miniblock #1 and L1 batch #1 are persisted.
         let mut storage = pool.connection().await.unwrap();

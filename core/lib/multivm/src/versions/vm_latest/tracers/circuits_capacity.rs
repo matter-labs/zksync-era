@@ -1,4 +1,4 @@
-use circuit_sequencer_api_1_4_2::{geometry_config::get_geometry_config, toolset::GeometryConfig};
+use circuit_sequencer_api_1_5_0::{geometry_config::get_geometry_config, toolset::GeometryConfig};
 use zksync_types::circuit::{CircuitCycleStatistic, CircuitStatistic};
 
 // "Rich addressing" opcodes are opcodes that can write their return value/read the input onto the stack
@@ -39,6 +39,8 @@ pub(crate) const UMA_READ_RAM_CYCLES: u32 = 3;
 pub(crate) const PRECOMPILE_RAM_CYCLES: u32 = 1;
 pub(crate) const PRECOMPILE_LOG_DEMUXER_CYCLES: u32 = 1;
 
+pub(crate) const LOG_DECOMMIT_DECOMMITTER_SORTER_CYCLES: u32 = 1;
+
 const GEOMETRY_CONFIG: GeometryConfig = get_geometry_config();
 
 pub(crate) fn circuit_statistic_from_cycles(cycles: CircuitCycleStatistic) -> CircuitStatistic {
@@ -63,5 +65,7 @@ pub(crate) fn circuit_statistic_from_cycles(cycles: CircuitCycleStatistic) -> Ci
         ecrecover: cycles.ecrecover_cycles as f32
             / GEOMETRY_CONFIG.cycles_per_ecrecover_circuit as f32,
         sha256: cycles.sha256_cycles as f32 / GEOMETRY_CONFIG.cycles_per_sha256_circuit as f32,
+        secp256k1_verify: cycles.secp256k1_verify_cycles as f32
+            / GEOMETRY_CONFIG.cycles_per_secp256r1_verify_circuit as f32,
     }
 }

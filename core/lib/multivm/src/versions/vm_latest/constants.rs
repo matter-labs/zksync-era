@@ -1,6 +1,6 @@
-use circuit_sequencer_api_1_4_2::{BLOB_CHUNK_SIZE, ELEMENTS_PER_4844_BLOCK};
-use zk_evm_1_4_1::aux_structures::MemoryPage;
-pub use zk_evm_1_4_1::zkevm_opcode_defs::system_params::{
+use circuit_sequencer_api_1_5_0::{BLOB_CHUNK_SIZE, ELEMENTS_PER_4844_BLOCK};
+use zk_evm_1_5_0::aux_structures::MemoryPage;
+pub use zk_evm_1_5_0::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 use zksync_system_constants::{MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS};
@@ -8,15 +8,9 @@ use zksync_system_constants::{MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS};
 use crate::vm_latest::old_vm::utils::heap_page_from_base;
 
 /// The amount of ergs to be reserved at the end of the batch to ensure that it has enough ergs to verify compression, etc.
-// TODO(EVM-513): remove allowing the dead code
-#[allow(dead_code)]
 pub(crate) const BOOTLOADER_BATCH_TIP_OVERHEAD: u32 = 170_000_000;
 
-// TODO(EVM-513): remove allowing the dead code
-#[allow(dead_code)]
 pub(crate) const BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD: u32 = 5000;
-// TODO(EVM-513): remove allowing the dead code
-#[allow(dead_code)]
 pub(crate) const BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD: u32 = 1500;
 
 /// The size of the bootloader memory in bytes which is used by the protocol.
@@ -28,16 +22,9 @@ pub(crate) const USED_BOOTLOADER_MEMORY_BYTES: usize = 30_000_000;
 #[allow(dead_code)]
 pub(crate) const USED_BOOTLOADER_MEMORY_WORDS: usize = USED_BOOTLOADER_MEMORY_BYTES / 32;
 
-// This the number of pubdata such that it should be always possible to publish
-// from a single transaction. Note, that these pubdata bytes include only bytes that are
-// to be published inside the body of transaction (i.e. excluding of factory deps).
-pub(crate) const GUARANTEED_PUBDATA_PER_L1_BATCH: u64 = 2500;
-
-// The users should always be able to provide `MAX_GAS_PER_PUBDATA_BYTE` gas per pubdata in their
-// transactions so that they are able to send at least `GUARANTEED_PUBDATA_PER_L1_BATCH` bytes per
-// transaction.
-pub(crate) const MAX_GAS_PER_PUBDATA_BYTE: u64 =
-    MAX_L2_TX_GAS_LIMIT / GUARANTEED_PUBDATA_PER_L1_BATCH;
+/// We want `MAX_GAS_PER_PUBDATA_BYTE` multiplied by the u32::MAX (i.e. the maximal possible value of the pubdata counter)
+/// to be a safe integer with a good enough margin.
+pub(crate) const MAX_GAS_PER_PUBDATA_BYTE: u64 = 1 << 20;
 
 // The maximal number of transactions in a single batch.
 // In this version of the VM the limit has been increased from `1024` to to `10000`.
@@ -104,8 +91,6 @@ pub(crate) const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
     OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS;
 
 /// The size of the bootloader memory dedicated to the encodings of transactions
-// TODO(EVM-513): remove allowing the dead code
-#[allow(dead_code)]
 pub(crate) const BOOTLOADER_TX_ENCODING_SPACE: u32 =
     (USED_BOOTLOADER_MEMORY_WORDS - TX_DESCRIPTION_OFFSET - MAX_TXS_IN_BATCH) as u32;
 
@@ -129,7 +114,7 @@ pub const BOOTLOADER_HEAP_PAGE: u32 = heap_page_from_base(MemoryPage(INITIAL_BAS
 /// So the layout looks like this:
 /// `[param 0][param 1][vmhook opcode]`
 pub const VM_HOOK_POSITION: u32 = RESULT_SUCCESS_FIRST_SLOT - 1;
-pub const VM_HOOK_PARAMS_COUNT: u32 = 2;
+pub const VM_HOOK_PARAMS_COUNT: u32 = 3;
 pub const VM_HOOK_PARAMS_START_POSITION: u32 = VM_HOOK_POSITION - VM_HOOK_PARAMS_COUNT;
 
 /// Arbitrary space in memory closer to the end of the page
@@ -140,7 +125,7 @@ pub const RESULT_SUCCESS_FIRST_SLOT: u32 =
 /// Note that this value doesn't correspond to the gas limit of any particular transaction
 /// (except for the fact that, of course, gas limit for each transaction should be <= `BLOCK_GAS_LIMIT`).
 pub const BLOCK_GAS_LIMIT: u32 =
-    zk_evm_1_4_1::zkevm_opcode_defs::system_params::VM_INITIAL_FRAME_ERGS;
+    zk_evm_1_5_0::zkevm_opcode_defs::system_params::VM_INITIAL_FRAME_ERGS;
 
 /// How many gas is allowed to spend on a single transaction in eth_call method
 pub const ETH_CALL_GAS_LIMIT: u32 = MAX_L2_TX_GAS_LIMIT as u32;
@@ -168,7 +153,7 @@ pub(crate) const COMPRESSED_BYTECODES_OFFSET: usize =
 /// It the gas limit cap on Mailbox for a priority transactions should generally be low enough to never cross that boundary, since
 /// artificially limiting the gas price is bad UX. However, during the transition between the pre-1.4.1 fee model and the 1.4.1 one,
 /// we need to process such transactions somehow.
-pub(crate) const PRIORITY_TX_MAX_GAS_LIMIT: usize = 80_000_000;
+pub(crate) const TX_MAX_COMPUTE_GAS_LIMIT: usize = 80_000_000;
 
 /// The amount of gas to be charged for occupying a single slot of a transaction.
 /// It is roughly equal to `80kk/MAX_TRANSACTIONS_PER_BATCH`, i.e. how many gas would an L1->L2 transaction

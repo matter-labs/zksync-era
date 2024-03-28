@@ -9,6 +9,10 @@ use serde::Deserialize;
 pub struct FriWitnessGeneratorConfig {
     /// Max time for witness to be generated
     pub generation_timeout_in_secs: u16,
+    pub basic_generation_timeout_in_secs: Option<u16>,
+    pub leaf_generation_timeout_in_secs: Option<u16>,
+    pub node_generation_timeout_in_secs: Option<u16>,
+    pub scheduler_generation_timeout_in_secs: Option<u16>,
     /// Max attempts for generating witness
     pub max_attempts: u32,
     // Percentage of the blocks that gets proven in the range [0.0, 1.0]
@@ -25,9 +29,54 @@ pub struct FriWitnessGeneratorConfig {
     // whether to write to public GCS bucket for https://github.com/matter-labs/era-boojum-validator-cli
     pub shall_save_to_public_bucket: bool,
 }
+
+#[derive(Debug)]
+pub struct WitnessGenerationTimeouts {
+    basic: Duration,
+    leaf: Duration,
+    node: Duration,
+    scheduler: Duration,
+}
+
+impl WitnessGenerationTimeouts {
+    pub fn basic(&self) -> Duration {
+        self.basic
+    }
+
+    pub fn leaf(&self) -> Duration {
+        self.leaf
+    }
+
+    pub fn node(&self) -> Duration {
+        self.node
+    }
+
+    pub fn scheduler(&self) -> Duration {
+        self.scheduler
+    }
+
+    pub fn new(basic: u16, leaf: u16, node: u16, scheduler: u16) -> Self {
+        Self {
+            basic: Duration::from_secs(basic as u64),
+            leaf: Duration::from_secs(leaf as u64),
+            node: Duration::from_secs(node as u64),
+            scheduler: Duration::from_secs(scheduler as u64),
+        }
+    }
+}
+
 impl FriWitnessGeneratorConfig {
-    pub fn witness_generation_timeout(&self) -> Duration {
-        Duration::from_secs(self.generation_timeout_in_secs as u64)
+    pub fn witness_generation_timeouts(&self) -> WitnessGenerationTimeouts {
+        WitnessGenerationTimeouts::new(
+            self.basic_generation_timeout_in_secs
+                .unwrap_or(self.generation_timeout_in_secs),
+            self.leaf_generation_timeout_in_secs
+                .unwrap_or(self.generation_timeout_in_secs),
+            self.node_generation_timeout_in_secs
+                .unwrap_or(self.generation_timeout_in_secs),
+            self.scheduler_generation_timeout_in_secs
+                .unwrap_or(self.generation_timeout_in_secs),
+        )
     }
 
     pub fn last_l1_batch_to_process(&self) -> u32 {

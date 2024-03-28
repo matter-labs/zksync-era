@@ -45,6 +45,7 @@ pub enum ProtocolVersionId {
     Version21,
     Version22,
     Version23,
+    Version24,
     // Local version has to be last
     // kl todo delete local vm verion
     Local,
@@ -52,13 +53,13 @@ pub enum ProtocolVersionId {
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
-        // Self::Version22
+        // Self::Version23
         // kl todo delete local vm version
         Self::Local
     }
 
     pub fn next() -> Self {
-        Self::Version23
+        Self::Version24
     }
 
     /// Returns VM version to be used by API for this protocol version.
@@ -88,7 +89,8 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
             ProtocolVersionId::Version21 => VmVersion::Vm1_4_2,
             ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
-            ProtocolVersionId::Version23 => VmVersion::Vm1_4_2,
+            ProtocolVersionId::Version23 => VmVersion::Vm1_5_0,
+            ProtocolVersionId::Version24 => VmVersion::Vm1_5_0,
             // kl todo delete local vm verion
             ProtocolVersionId::Local => VmVersion::Local,
         }
@@ -146,87 +148,6 @@ impl TryFrom<U256> for ProtocolVersionId {
             (value.as_u32() as u16)
                 .try_into()
                 .map_err(|_| format!("unknown protocol version ID: {}", value))
-        }
-    }
-}
-
-// TODO: Do we even need this? I reckon we could merge this with `ProtocolVersionId`.
-#[repr(u16)]
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TryFromPrimitive, Serialize, Deserialize,
-)]
-pub enum FriProtocolVersionId {
-    Version0 = 0,
-    Version1,
-    Version2,
-    Version3,
-    Version4,
-    Version5,
-    Version6,
-    Version7,
-    Version8,
-    Version9,
-    Version10,
-    Version11,
-    Version12,
-    Version13,
-    Version14,
-    Version15,
-    Version16,
-    Version17,
-    Version18,
-    Version19,
-    Version20,
-    Version21,
-    Version22,
-    Version23,
-}
-
-impl FriProtocolVersionId {
-    pub fn latest() -> Self {
-        Self::Version22
-    }
-
-    pub fn next() -> Self {
-        Self::Version23
-    }
-}
-
-impl Default for FriProtocolVersionId {
-    fn default() -> Self {
-        Self::latest()
-    }
-}
-
-impl From<ProtocolVersionId> for FriProtocolVersionId {
-    fn from(protocol_version: ProtocolVersionId) -> Self {
-        match protocol_version {
-            ProtocolVersionId::Version0 => FriProtocolVersionId::Version0,
-            ProtocolVersionId::Version1 => FriProtocolVersionId::Version1,
-            ProtocolVersionId::Version2 => FriProtocolVersionId::Version2,
-            ProtocolVersionId::Version3 => FriProtocolVersionId::Version3,
-            ProtocolVersionId::Version4 => FriProtocolVersionId::Version4,
-            ProtocolVersionId::Version5 => FriProtocolVersionId::Version5,
-            ProtocolVersionId::Version6 => FriProtocolVersionId::Version6,
-            ProtocolVersionId::Version7 => FriProtocolVersionId::Version7,
-            ProtocolVersionId::Version8 => FriProtocolVersionId::Version8,
-            ProtocolVersionId::Version9 => FriProtocolVersionId::Version9,
-            ProtocolVersionId::Version10 => FriProtocolVersionId::Version10,
-            ProtocolVersionId::Version11 => FriProtocolVersionId::Version11,
-            ProtocolVersionId::Version12 => FriProtocolVersionId::Version12,
-            ProtocolVersionId::Version13 => FriProtocolVersionId::Version13,
-            ProtocolVersionId::Version14 => FriProtocolVersionId::Version14,
-            ProtocolVersionId::Version15 => FriProtocolVersionId::Version15,
-            ProtocolVersionId::Version16 => FriProtocolVersionId::Version16,
-            ProtocolVersionId::Version17 => FriProtocolVersionId::Version17,
-            ProtocolVersionId::Version18 => FriProtocolVersionId::Version18,
-            ProtocolVersionId::Version19 => FriProtocolVersionId::Version19,
-            ProtocolVersionId::Version20 => FriProtocolVersionId::Version20,
-            ProtocolVersionId::Version21 => FriProtocolVersionId::Version21,
-            ProtocolVersionId::Version22 => FriProtocolVersionId::Version22,
-            ProtocolVersionId::Version23 => FriProtocolVersionId::Version23,
-            // todo delete local vm version
-            ProtocolVersionId::Local => FriProtocolVersionId::Version22,
         }
     }
 }
@@ -293,7 +214,8 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
             ProtocolVersionId::Version21 => VmVersion::Vm1_4_2,
             ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
-            ProtocolVersionId::Version23 => VmVersion::Vm1_4_2,
+            ProtocolVersionId::Version23 => VmVersion::Vm1_5_0,
+            ProtocolVersionId::Version24 => VmVersion::Vm1_5_0,
             // kl todo delete local vm verion
             ProtocolVersionId::Local => VmVersion::Local,
         }
