@@ -11,9 +11,11 @@ use multivm::{
     MultiVMTracer, VmInstance,
 };
 use once_cell::sync::OnceCell;
-use tokio::sync::{mpsc, watch};
-use zksync_dal::{ConnectionPool, Core};
-use zksync_state::{RocksdbStorage, StorageView, WriteStorage};
+use tokio::{
+    runtime::Handle,
+    sync::{mpsc, watch},
+};
+use zksync_state::{ReadStorage, StorageView, WriteStorage};
 use zksync_types::{vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -22,6 +24,7 @@ use crate::{
     metrics::{InteractionType, TxStage, APP_METRICS},
     state_keeper::{
         metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
+        state_keeper_storage::ReadStorageFactory,
         types::ExecutionMetricsForCriteria,
     },
 };
@@ -30,29 +33,20 @@ use crate::{
 /// Creates a "real" batch executor which maintains the VM (as opposed to the test builder which doesn't use the VM).
 #[derive(Debug, Clone)]
 pub struct MainBatchExecutor {
-    state_keeper_db_path: String,
-    pool: ConnectionPool<Core>,
+    storage_factory: Arc<dyn ReadStorageFactory>,
     save_call_traces: bool,
-    upload_witness_inputs_to_gcs: bool,
-    enum_index_migration_chunk_size: usize,
     optional_bytecode_compression: bool,
 }
 
 impl MainBatchExecutor {
     pub fn new(
-        state_keeper_db_path: String,
-        pool: ConnectionPool<Core>,
+        storage_factory: Arc<dyn ReadStorageFactory>,
         save_call_traces: bool,
-        upload_witness_inputs_to_gcs: bool,
-        enum_index_migration_chunk_size: usize,
         optional_bytecode_compression: bool,
     ) -> Self {
         Self {
-            state_keeper_db_path,
-            pool,
+            storage_factory,
             save_call_traces,
-            upload_witness_inputs_to_gcs,
-            enum_index_migration_chunk_size,
             optional_bytecode_compression,
         }
     }
@@ -66,16 +60,6 @@ impl BatchExecutor for MainBatchExecutor {
         system_env: SystemEnv,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Option<BatchExecutorHandle> {
-        let mut secondary_storage = RocksdbStorage::builder(self.state_keeper_db_path.as_ref())
-            .await
-            .expect("Failed initializing state keeper storage");
-        secondary_storage.enable_enum_index_migration(self.enum_index_migration_chunk_size);
-        let mut conn = self.pool.connection_tagged("state_keeper").await.unwrap();
-        let secondary_storage = secondary_storage
-            .synchronize(&mut conn, stop_receiver)
-            .await
-            .expect("Failed synchronizing secondary state keeper storage")?;
-
         // Since we process `BatchExecutor` commands one-by-one (the next command is never enqueued
         // until a previous command is processed), capacity 1 is enough for the commands channel.
         let (commands_sender, commands_receiver) = mpsc::channel(1);
@@ -84,15 +68,18 @@ impl BatchExecutor for MainBatchExecutor {
             optional_bytecode_compression: self.optional_bytecode_compression,
             commands: commands_receiver,
         };
-        let upload_witness_inputs_to_gcs = self.upload_witness_inputs_to_gcs;
 
+        let storage_factory = self.storage_factory.clone();
+        let stop_receiver = stop_receiver.clone();
         let handle = tokio::task::spawn_blocking(move || {
-            executor.run(
-                secondary_storage,
-                l1_batch_params,
-                system_env,
-                upload_witness_inputs_to_gcs,
-            )
+            if let Some(storage) = Handle::current()
+                .block_on(storage_factory.access_storage(&stop_receiver))
+                .expect("failed getting access to state keeper storage")
+            {
+                executor.run(storage, l1_batch_params, system_env);
+            } else {
+                tracing::info!("Interrupted while trying to access state keeper storage");
+            }
         });
         Some(BatchExecutorHandle {
             handle,
@@ -115,12 +102,11 @@ struct CommandReceiver {
 }
 
 impl CommandReceiver {
-    pub(super) fn run(
+    pub(super) fn run<S: ReadStorage>(
         mut self,
-        secondary_storage: RocksdbStorage,
+        secondary_storage: S,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
-        upload_witness_inputs_to_gcs: bool,
     ) {
         tracing::info!("Starting executing batch #{:?}", &l1_batch_params.number);
 
@@ -144,12 +130,7 @@ impl CommandReceiver {
                 }
                 Command::FinishBatch(resp) => {
                     let vm_block_result = self.finish_batch(&mut vm);
-                    let witness_block_state = if upload_witness_inputs_to_gcs {
-                        Some(storage_view.borrow_mut().witness_block_state())
-                    } else {
-                        None
-                    };
-                    resp.send((vm_block_result, witness_block_state)).unwrap();
+                    resp.send(vm_block_result).unwrap();
 
                     // `storage_view` cannot be accessed while borrowed by the VM,
                     // so this is the only point at which storage metrics can be obtained
