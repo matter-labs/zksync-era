@@ -31,6 +31,11 @@ impl DalError {
             Self::Transaction(err) => &err.inner,
         }
     }
+
+    /// Wraps this error into an `anyhow` wrapper.
+    pub fn generalize(self) -> anyhow::Error {
+        anyhow::Error::from(self).context("Postgres error")
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use zksync_config::GenesisConfig;
-use zksync_dal::CoreDal;
+use zksync_dal::{CoreDal, DalError};
 use zksync_types::{api::en, tokens::TokenInfo, L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::error::Web3Error;
 
@@ -74,7 +74,7 @@ impl EnNamespace {
             .blocks_dal()
             .get_storage_l1_batch(L1BatchNumber(0))
             .await
-            .context("Postgres error")?
+            .map_err(DalError::generalize)?
             .context("Genesis batch doesn't exist")?;
 
         let protocol_version = genesis_batch
@@ -89,7 +89,7 @@ impl EnNamespace {
             .blocks_dal()
             .get_fee_address_for_miniblock(MiniblockNumber(0))
             .await
-            .context("Postgres error")?
+            .map_err(DalError::generalize)?
             .context("Genesis not finished")?;
         let config = GenesisConfig {
             protocol_version,
@@ -122,7 +122,6 @@ impl EnNamespace {
             recursion_leaf_level_vk_hash: verifier_config.params.recursion_leaf_level_vk_hash,
             recursion_scheduler_level_vk_hash: verifier_config.recursion_scheduler_level_vk_hash,
         };
-        dbg!(&config);
         Ok(config)
     }
 }

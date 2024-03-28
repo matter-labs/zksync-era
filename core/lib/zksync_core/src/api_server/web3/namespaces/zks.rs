@@ -1,7 +1,7 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use anyhow::Context as _;
-use zksync_dal::{Connection, Core, CoreDal};
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
@@ -142,7 +142,7 @@ impl ZksNamespace {
             .tokens_web3_dal()
             .get_well_known_tokens()
             .await
-            .context("Postgres error")?;
+            .map_err(DalError::generalize)?;
 
         let tokens = tokens
             .into_iter()
@@ -169,7 +169,7 @@ impl ZksNamespace {
             .tokens_dal()
             .get_all_l2_token_addresses()
             .await
-            .context("Postgres error")?;
+            .map_err(DalError::generalize)?;
         let hashed_balance_keys = tokens.iter().map(|&token_address| {
             let token_account = AccountTreeId::new(if token_address == ETHEREUM_ADDRESS {
                 L2_ETH_TOKEN_ADDRESS
@@ -187,7 +187,7 @@ impl ZksNamespace {
             .storage_web3_dal()
             .get_values(&hashed_balance_keys)
             .await
-            .context("Postgres error")?;
+            .map_err(DalError::generalize)?;
 
         let balances = balance_values
             .into_iter()
@@ -241,7 +241,7 @@ impl ZksNamespace {
                     self.state.api_config.req_entities_limit,
                 )
                 .await
-                .context("Postgres error")?;
+                .map_err(DalError::generalize)?;
             let maybe_pos = logs.iter().position(|event| {
                 event.block_number == Some(block_number.0.into())
                     && event.log_index == Some(l2_log_position.into())
@@ -295,7 +295,7 @@ impl ZksNamespace {
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
             .await
-            .context("Postgres error")?
+            .map_err(DalError::generalize)?
         else {
             return Ok(None);
         };
@@ -350,7 +350,7 @@ impl ZksNamespace {
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .context("Postgres error")?
+            .map_err(DalError::generalize)?
             .ok_or(Web3Error::NoBlock)?;
         Ok(l1_batch_number.0.into())
     }
@@ -381,7 +381,7 @@ impl ZksNamespace {
             .blocks_web3_dal()
             .get_block_details(block_number)
             .await
-            .context("Postgres error")?)
+            .map_err(DalError::generalize)?)
     }
 
     #[tracing::instrument(skip(self))]
@@ -408,7 +408,7 @@ impl ZksNamespace {
             .transactions_web3_dal()
             .get_transaction_details(hash)
             .await
-            .context("Postgres error")?;
+            .map_err(DalError::generalize)?;
         drop(storage);
 
         if tx_details.is_none() {
@@ -428,7 +428,7 @@ impl ZksNamespace {
             .blocks_web3_dal()
             .get_l1_batch_details(batch_number)
             .await
-            .context("Postgres error")?)
+            .map_err(DalError::generalize)?)
     }
 
     #[tracing::instrument(skip(self))]

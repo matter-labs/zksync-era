@@ -328,8 +328,7 @@ async fn insert_system_contracts(
     transaction
         .storage_logs_dal()
         .insert_storage_logs(MiniblockNumber(0), &storage_logs)
-        .await
-        .context("Postgres error")?; // FIXME
+        .await?;
 
     // we don't produce proof for the genesis block,
     // but we still need to populate the table

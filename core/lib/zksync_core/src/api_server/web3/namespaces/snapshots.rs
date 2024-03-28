@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_dal::CoreDal;
+use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
     snapshots::{AllSnapshots, SnapshotHeader, SnapshotStorageLogsChunkMetadata},
     L1BatchNumber,
@@ -28,7 +28,7 @@ impl SnapshotsNamespace {
         Ok(snapshots_dal
             .get_all_complete_snapshots()
             .await
-            .context("Postgres error")?)
+            .map_err(DalError::generalize)?)
     }
 
     pub async fn get_snapshot_by_l1_batch_number_impl(
@@ -40,7 +40,7 @@ impl SnapshotsNamespace {
             .snapshots_dal()
             .get_snapshot_metadata(l1_batch_number)
             .await
-            .context("get_snapshot_metadata")?;
+            .map_err(DalError::generalize)?;
 
         let Some(snapshot_metadata) = snapshot_metadata else {
             return Ok(None);
@@ -67,13 +67,13 @@ impl SnapshotsNamespace {
             .blocks_dal()
             .get_l1_batch_metadata(l1_batch_number)
             .await
-            .context("get_l1_batch_metadata")?
+            .map_err(DalError::generalize)?
             .with_context(|| format!("missing metadata for L1 batch #{l1_batch_number}"))?;
         let (_, miniblock_number) = storage_processor
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(l1_batch_number)
             .await
-            .context("Postgres error")?
+            .map_err(DalError::generalize)?
             .with_context(|| format!("missing miniblocks for L1 batch #{l1_batch_number}"))?;
 
         Ok(Some(SnapshotHeader {

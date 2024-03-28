@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_dal::CoreDal;
+use zksync_dal::{CoreDal, DalError};
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
@@ -49,7 +49,7 @@ impl EthNamespace {
             .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .context("Postgres error")?
+            .map_err(DalError::generalize)?
             .ok_or(Web3Error::NoBlock)?;
         Ok(block_number.0.into())
     }
@@ -157,7 +157,7 @@ impl EthNamespace {
                 block_number,
             )
             .await
-            .context("standard_token_historical_balance")?;
+            .map_err(DalError::generalize)?;
         self.set_block_diff(block_number);
 
         Ok(balance)
@@ -379,7 +379,7 @@ impl EthNamespace {
             .storage_web3_dal()
             .get_historical_value_unchecked(&storage_key, block_number)
             .await
-            .context("Postgres error")?;
+            .map_err(DalError::generalize)?;
         Ok(value)
     }
 
@@ -401,7 +401,7 @@ impl EthNamespace {
             .storage_web3_dal()
             .get_address_historical_nonce(address, block_number)
             .await
-            .context("get_address_historical_nonce")?;
+            .map_err(DalError::generalize)?;
 
         // TODO (SMA-1612): currently account nonce is returning always, but later we will
         //  return account nonce for account abstraction and deployment nonce for non account abstraction.
@@ -501,7 +501,7 @@ impl EthNamespace {
             .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .context("Postgres error")?
+            .map_err(DalError::generalize)?
             .context("no miniblocks in storage")?;
         let next_block_number = last_block_number + 1;
         drop(storage);
@@ -786,7 +786,7 @@ impl EthNamespace {
                             self.state.api_config.req_entities_limit,
                         )
                         .await
-                        .context("Postgres error")?
+                        .map_err(DalError::generalize)?
                     {
                         return Err(Web3Error::LogsLimitExceeded(
                             self.state.api_config.req_entities_limit,
@@ -800,7 +800,7 @@ impl EthNamespace {
                     .events_web3_dal()
                     .get_logs(get_logs_filter, i32::MAX as usize)
                     .await
-                    .context("Postgres error")?;
+                    .map_err(DalError::generalize)?;
                 *from_block = to_block + 1;
                 FilterChanges::Logs(logs)
             }

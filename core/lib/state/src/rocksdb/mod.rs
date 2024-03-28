@@ -30,7 +30,7 @@ use std::{
 use anyhow::Context as _;
 use itertools::{Either, Itertools};
 use tokio::sync::watch;
-use zksync_dal::{Connection, Core, CoreDal};
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_storage::{db::NamedColumnFamily, RocksDB};
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256, U256};
 use zksync_utils::{h256_to_u256, u256_to_h256};
@@ -257,7 +257,7 @@ impl RocksdbStorage {
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .context("Postgres error")?
+            .map_err(DalError::generalize)?
         else {
             // No L1 batches are persisted in Postgres; update is not necessary.
             return Ok(());
@@ -284,7 +284,7 @@ impl RocksdbStorage {
                 .storage_logs_dal()
                 .get_touched_slots_for_l1_batch(current_l1_batch_number)
                 .await
-                .context("Postgres error")?;
+                .map_err(DalError::generalize)?;
             self.apply_storage_logs(storage_logs, storage).await?;
 
             tracing::debug!("Loading factory deps for L1 batch {current_l1_batch_number}");
@@ -292,7 +292,7 @@ impl RocksdbStorage {
                 .blocks_dal()
                 .get_l1_batch_factory_deps(current_l1_batch_number)
                 .await
-                .context("Postgres error")?;
+                .map_err(DalError::generalize)?;
             for (hash, bytecode) in factory_deps {
                 self.store_factory_dep(hash, bytecode);
             }
