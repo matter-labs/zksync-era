@@ -5,7 +5,6 @@ use std::{ops, sync::Arc, time::Instant};
 use anyhow::Context as _;
 use futures::{future, FutureExt};
 use tokio::sync::watch;
-use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::domain::TreeMetadata;
@@ -48,11 +47,12 @@ impl TreeUpdater {
         l1_batch: L1BatchWithLogs,
     ) -> anyhow::Result<(L1BatchHeader, TreeMetadata, Option<String>)> {
         let compute_latency = METRICS.start_stage(TreeUpdateStage::Compute);
-        let mut metadata = self.tree.process_l1_batch(l1_batch.storage_logs).await?;
+        let l1_batch_header = l1_batch.header.clone();
+        let l1_batch_number = l1_batch_header.number;
+        let mut metadata = self.tree.process_l1_batch(l1_batch).await?;
         compute_latency.observe();
 
         let witness_input = metadata.witness.take();
-        let l1_batch_number = l1_batch.header.number;
         let object_key = if let Some(object_store) = &self.object_store {
             let witness_input =
                 witness_input.context("no witness input provided by tree; this is a bug")?;
@@ -71,7 +71,7 @@ impl TreeUpdater {
             None
         };
 
-        Ok((l1_batch.header, metadata, object_key))
+        Ok((l1_batch_header, metadata, object_key))
     }
 
     /// Processes a range of L1 batches with a single flushing of the tree updates to RocksDB at the end.
@@ -231,14 +231,13 @@ impl TreeUpdater {
                 earliest_l1_batch == L1BatchNumber(0),
                 "Non-zero earliest L1 batch #{earliest_l1_batch} is not supported without previous tree recovery"
             );
-            let logs =
-                L1BatchWithLogs::new(&mut storage, earliest_l1_batch, MerkleTreeMode::Lightweight)
-                    .await
-                    .with_context(|| {
-                        format!("failed fetching tree input for L1 batch #{earliest_l1_batch}")
-                    })?
-                    .context("Missing storage logs for the genesis L1 batch")?;
-            tree.process_l1_batch(logs.storage_logs).await?;
+            let batch = L1BatchWithLogs::new(&mut storage, earliest_l1_batch, tree.mode())
+                .await
+                .with_context(|| {
+                    format!("failed fetching tree input for L1 batch #{earliest_l1_batch}")
+                })?
+                .context("Missing storage logs for the genesis L1 batch")?;
+            tree.process_l1_batch(batch).await?;
             tree.save().await?;
         }
         let mut next_l1_batch_to_seal = tree.next_l1_batch_number();

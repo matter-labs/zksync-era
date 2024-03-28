@@ -177,15 +177,25 @@ impl AsyncTree {
     /// Returned errors are unrecoverable; the tree must not be used after an error is returned.
     pub async fn process_l1_batch(
         &mut self,
-        storage_logs: Vec<TreeInstruction<StorageKey>>,
+        batch: L1BatchWithLogs,
     ) -> anyhow::Result<TreeMetadata> {
+        anyhow::ensure!(
+            batch.mode == self.mode,
+            "Cannot process L1 batch with mode {:?} in tree with mode {:?}",
+            batch.mode,
+            self.mode
+        );
+        let batch_number = batch.header.number;
+
         let mut tree = self.inner.take().context(Self::INCONSISTENT_MSG)?;
         let (tree, metadata) = tokio::task::spawn_blocking(move || {
-            let metadata = tree.process_l1_batch(&storage_logs);
+            let metadata = tree.process_l1_batch(&batch.storage_logs);
             (tree, metadata)
         })
         .await
-        .context("Merkle tree panicked when processing L1 batch")?;
+        .with_context(|| {
+            format!("Merkle tree panicked when processing L1 batch #{batch_number}")
+        })?;
 
         self.inner = Some(tree);
         Ok(metadata)
@@ -402,6 +412,7 @@ impl Delayer {
 pub(crate) struct L1BatchWithLogs {
     pub header: L1BatchHeader,
     pub storage_logs: Vec<TreeInstruction<StorageKey>>,
+    mode: MerkleTreeMode,
 }
 
 impl L1BatchWithLogs {
@@ -471,12 +482,10 @@ impl L1BatchWithLogs {
             let log = TreeInstruction::Read(storage_key);
             storage_logs.insert(storage_key, log);
         }
-        if !protective_reads.is_empty() {
-            tracing::debug!(
-                "Made touched slots disjoint with protective reads; remaining touched slots: {}",
-                touched_slots.len()
-            );
-        }
+        tracing::debug!(
+            "Made touched slots disjoint with protective reads; remaining touched slots: {}",
+            touched_slots.len()
+        );
 
         for (storage_key, value) in touched_slots {
             if let Some(&(initial_write_batch_for_key, leaf_index)) =
@@ -496,6 +505,7 @@ impl L1BatchWithLogs {
         Ok(Some(Self {
             header,
             storage_logs: storage_logs.into_values().collect(),
+            mode,
         }))
     }
 }
@@ -580,6 +590,7 @@ mod tests {
             Some(Self {
                 header,
                 storage_logs: storage_logs.into_values().collect(),
+                mode: MerkleTreeMode::Full,
             })
         }
     }
@@ -657,7 +668,7 @@ mod tests {
                 .await
                 .unwrap()
                 .expect("no L1 batch");
-        let lightweight_l1_batch_with_logs =
+        let mut lightweight_l1_batch_with_logs =
             L1BatchWithLogs::new(storage, l1_batch_number, MerkleTreeMode::Lightweight)
                 .await
                 .unwrap()
@@ -674,18 +685,16 @@ mod tests {
         );
 
         tree.save().await.unwrap(); // Necessary for `reset()` below to work properly
-        let tree_metadata = tree
-            .process_l1_batch(l1_batch_with_logs.storage_logs)
-            .await
-            .unwrap();
+        let tree_metadata = tree.process_l1_batch(l1_batch_with_logs).await.unwrap();
         tree.as_mut().reset();
+        lightweight_l1_batch_with_logs.mode = tree.mode; // Manually override the mode so that processing won't panic
         let lightweight_tree_metadata = tree
-            .process_l1_batch(lightweight_l1_batch_with_logs.storage_logs)
+            .process_l1_batch(lightweight_l1_batch_with_logs)
             .await
             .unwrap();
         tree.as_mut().reset();
         let slow_tree_metadata = tree
-            .process_l1_batch(slow_l1_batch_with_logs.storage_logs)
+            .process_l1_batch(slow_l1_batch_with_logs)
             .await
             .unwrap();
         assert_metadata_eq(&tree_metadata, &slow_tree_metadata);
