@@ -46,7 +46,7 @@ impl TokensDal<'_, '_> {
         copy.send(buffer.as_bytes()).await
     }
 
-    pub async fn mark_token_as_well_known(&mut self, l1_address: Address) -> sqlx::Result<()> {
+    pub async fn mark_token_as_well_known(&mut self, l1_address: Address) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE tokens
@@ -58,7 +58,9 @@ impl TokensDal<'_, '_> {
             "#,
             l1_address.as_bytes()
         )
-        .execute(self.storage.conn())
+        .instrument("mark_token_as_well_known")
+        .with_arg("l1_address", &l1_address)
+        .execute(self.storage)
         .await?;
         Ok(())
     }

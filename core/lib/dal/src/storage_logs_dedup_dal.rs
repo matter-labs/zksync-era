@@ -172,7 +172,7 @@ impl StorageLogsDedupDal<'_, '_> {
     pub async fn initial_writes_for_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<Vec<(H256, u64)>> {
+    ) -> DalResult<Vec<(H256, u64)>> {
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -187,7 +187,9 @@ impl StorageLogsDedupDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("initial_writes_for_batch")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(|row| (H256::from_slice(&row.hashed_key), row.index as u64))
@@ -197,7 +199,7 @@ impl StorageLogsDedupDal<'_, '_> {
     pub async fn get_enumeration_index_for_key(
         &mut self,
         hashed_key: H256,
-    ) -> sqlx::Result<Option<u64>> {
+    ) -> DalResult<Option<u64>> {
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -209,16 +211,15 @@ impl StorageLogsDedupDal<'_, '_> {
             "#,
             hashed_key.as_bytes()
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_enumeration_index_for_key")
+        .with_arg("hashed_key", &hashed_key)
+        .fetch_optional(self.storage)
         .await?
         .map(|row| row.index as u64))
     }
 
     /// Returns `hashed_keys` that are both present in the input and in `initial_writes` table.
-    pub async fn filter_written_slots(
-        &mut self,
-        hashed_keys: &[H256],
-    ) -> sqlx::Result<HashSet<H256>> {
+    pub async fn filter_written_slots(&mut self, hashed_keys: &[H256]) -> DalResult<HashSet<H256>> {
         let hashed_keys: Vec<_> = hashed_keys.iter().map(H256::as_bytes).collect();
         Ok(sqlx::query!(
             r#"
@@ -231,7 +232,9 @@ impl StorageLogsDedupDal<'_, '_> {
             "#,
             &hashed_keys as &[&[u8]],
         )
-        .fetch_all(self.storage.conn())
+        .instrument("filter_written_slots")
+        .with_arg("hashed_keys.len", &hashed_keys.len())
+        .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(|row| H256::from_slice(&row.hashed_key))

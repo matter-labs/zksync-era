@@ -284,9 +284,7 @@ impl RocksdbStorage {
                 .storage_logs_dal()
                 .get_touched_slots_for_l1_batch(current_l1_batch_number)
                 .await
-                .with_context(|| {
-                    format!("failed loading touched slots for L1 batch {current_l1_batch_number}")
-                })?;
+                .context("Postgres error")?;
             self.apply_storage_logs(storage_logs, storage).await?;
 
             tracing::debug!("Loading factory deps for L1 batch {current_l1_batch_number}");
@@ -294,9 +292,7 @@ impl RocksdbStorage {
                 .blocks_dal()
                 .get_l1_batch_factory_deps(current_l1_batch_number)
                 .await
-                .with_context(|| {
-                    format!("failed loading factory deps for L1 batch {current_l1_batch_number}")
-                })?;
+                .context("Postgres error")?;
             for (hash, bytecode) in factory_deps {
                 self.store_factory_dep(hash, bytecode);
             }

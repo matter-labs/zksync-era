@@ -193,8 +193,7 @@ impl RocksdbStorage {
         let chunk_starts = storage
             .storage_logs_dal()
             .get_chunk_starts_for_miniblock(snapshot_miniblock, &key_chunks)
-            .await
-            .context("Failed getting chunk starts")?;
+            .await?;
         let latency = latency.observe();
         tracing::info!("Loaded {chunk_count} chunk starts in {latency:?}");
 
@@ -227,10 +226,7 @@ impl RocksdbStorage {
         let all_entries = storage
             .storage_logs_dal()
             .get_tree_entries_for_miniblock(snapshot_miniblock, key_chunk.clone())
-            .await
-            .with_context(|| {
-                format!("Failed getting entries for chunk {key_chunk:?} in snapshot for miniblock #{snapshot_miniblock}")
-            })?;
+            .await?;
         let latency = latency.observe();
         tracing::debug!(
             "Loaded {} log entries for chunk {key_chunk:?} in {latency:?}",

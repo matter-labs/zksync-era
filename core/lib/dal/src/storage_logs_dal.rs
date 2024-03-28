@@ -260,10 +260,7 @@ impl StorageLogsDal<'_, '_> {
     }
 
     /// Removes all storage logs with a miniblock number strictly greater than the specified `block_number`.
-    pub async fn rollback_storage_logs(
-        &mut self,
-        block_number: MiniblockNumber,
-    ) -> sqlx::Result<()> {
+    pub async fn rollback_storage_logs(&mut self, block_number: MiniblockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM storage_logs
@@ -272,7 +269,9 @@ impl StorageLogsDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .execute(self.storage.conn())
+        .instrument("rollback_storage_logs")
+        .with_arg("block_number", &block_number)
+        .execute(self.storage)
         .await?;
         Ok(())
     }
@@ -368,7 +367,7 @@ impl StorageLogsDal<'_, '_> {
     pub async fn get_touched_slots_for_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<HashMap<StorageKey, H256>> {
+    ) -> DalResult<HashMap<StorageKey, H256>> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -399,7 +398,9 @@ impl StorageLogsDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_touched_slots_for_l1_batch")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_all(self.storage)
         .await?;
 
         let touched_slots = rows.into_iter().map(|row| {
@@ -681,7 +682,7 @@ impl StorageLogsDal<'_, '_> {
         &mut self,
         miniblock_number: MiniblockNumber,
         key_ranges: &[ops::RangeInclusive<H256>],
-    ) -> sqlx::Result<Vec<Option<StorageRecoveryLogEntry>>> {
+    ) -> DalResult<Vec<Option<StorageRecoveryLogEntry>>> {
         let (start_keys, end_keys): (Vec<_>, Vec<_>) = key_ranges
             .iter()
             .map(|range| (range.start().as_bytes(), range.end().as_bytes()))
@@ -720,7 +721,10 @@ impl StorageLogsDal<'_, '_> {
             &start_keys as &[&[u8]],
             &end_keys as &[&[u8]],
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_chunk_starts_for_miniblock")
+        .with_arg("miniblock_number", &miniblock_number)
+        .with_arg("key_ranges.len", &key_ranges.len())
+        .fetch_all(self.storage)
         .await?;
 
         let rows = rows.into_iter().map(|row| {
@@ -739,7 +743,7 @@ impl StorageLogsDal<'_, '_> {
         &mut self,
         miniblock_number: MiniblockNumber,
         key_range: ops::RangeInclusive<H256>,
-    ) -> sqlx::Result<Vec<StorageRecoveryLogEntry>> {
+    ) -> DalResult<Vec<StorageRecoveryLogEntry>> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -760,7 +764,10 @@ impl StorageLogsDal<'_, '_> {
             key_range.start().as_bytes(),
             key_range.end().as_bytes()
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_tree_entries_for_miniblock")
+        .with_arg("miniblock_number", &miniblock_number)
+        .with_arg("key_range", &key_range)
+        .fetch_all(self.storage)
         .await?;
 
         let rows = rows.into_iter().map(|row| StorageRecoveryLogEntry {

@@ -142,7 +142,7 @@ impl ZksNamespace {
             .tokens_web3_dal()
             .get_well_known_tokens()
             .await
-            .context("get_well_known_tokens")?;
+            .context("Postgres error")?;
 
         let tokens = tokens
             .into_iter()

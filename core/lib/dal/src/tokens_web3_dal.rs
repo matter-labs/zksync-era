@@ -36,7 +36,7 @@ pub struct TokensWeb3Dal<'a, 'c> {
 
 impl TokensWeb3Dal<'_, '_> {
     /// Returns information about well-known tokens.
-    pub async fn get_well_known_tokens(&mut self) -> sqlx::Result<Vec<TokenInfo>> {
+    pub async fn get_well_known_tokens(&mut self) -> DalResult<Vec<TokenInfo>> {
         let records = sqlx::query_as!(
             StorageTokenInfo,
             r#"
@@ -54,7 +54,8 @@ impl TokensWeb3Dal<'_, '_> {
                 symbol
             "#
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_well_known_tokens")
+        .fetch_all(self.storage)
         .await?;
 
         Ok(records.into_iter().map(Into::into).collect())
