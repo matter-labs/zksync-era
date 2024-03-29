@@ -7,7 +7,7 @@ use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task};
 use zksync_basic_types::L2ChainId;
 use zksync_concurrency::{ctx, scope};
-use zksync_config::configs::database::MerkleTreeMode;
+use zksync_config::configs::{chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode};
 use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
@@ -19,21 +19,27 @@ use zksync_core::{
     commitment_generator::CommitmentGenerator,
     consensus,
     consistency_checker::ConsistencyChecker,
+    eth_sender::l1_batch_commit_data_generator::{
+        L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
+        ValidiumModeL1BatchCommitDataGenerator,
+    },
     l1_gas_price::MainNodeFeeParamsFetcher,
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     reorg_detector,
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
     state_keeper::{
-        seal_criteria::NoopSealer, BatchExecutor, MainBatchExecutor, OutputHandler,
-        StateKeeperPersistence, ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, AsyncRocksdbCache, BatchExecutor, MainBatchExecutor,
+        OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue, SyncState,
     },
+    utils::ensure_l1_batch_commit_data_generation_mode,
 };
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
+use zksync_eth_client::clients::QueryClient;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
@@ -65,16 +71,25 @@ async fn build_state_keeper(
     output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
+    task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
 ) -> anyhow::Result<ZkSyncStateKeeper> {
     // We only need call traces on the external node if the `debug_` namespace is enabled.
     let save_call_traces = config.optional.api_namespaces().contains(&Namespace::Debug);
 
-    let batch_executor_base: Box<dyn BatchExecutor> = Box::new(MainBatchExecutor::new(
-        state_keeper_db_path,
+    let (storage_factory, task) = AsyncRocksdbCache::new(
         connection_pool.clone(),
-        save_call_traces,
-        false,
+        state_keeper_db_path,
         config.optional.enum_index_migration_chunk_size,
+    );
+    let mut stop_receiver_clone = stop_receiver.clone();
+    task_handles.push(tokio::task::spawn(async move {
+        let result = task.run(stop_receiver_clone.clone()).await;
+        stop_receiver_clone.changed().await?;
+        result
+    }));
+    let batch_executor_base: Box<dyn BatchExecutor> = Box::new(MainBatchExecutor::new(
+        Arc::new(storage_factory),
+        save_call_traces,
         true,
     ));
 
@@ -159,6 +174,7 @@ async fn init_tasks(
         output_handler,
         stop_receiver.clone(),
         config.remote.l2_chain_id,
+        task_handles,
     )
     .await?;
 
@@ -239,16 +255,37 @@ async fn init_tasks(
         remote_diamond_proxy_addr
     };
 
+    let eth_client_url = config
+        .required
+        .eth_client_url()
+        .context("L1 client URL is incorrect")?;
+    let eth_client = QueryClient::new(&eth_client_url).unwrap();
+
+    ensure_l1_batch_commit_data_generation_mode(
+        config.optional.l1_batch_commit_data_generator_mode,
+        diamond_proxy_addr,
+        &eth_client,
+    )
+    .await?;
+
+    let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match config
+        .optional
+        .l1_batch_commit_data_generator_mode
+    {
+        L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        L1BatchCommitDataGeneratorMode::Validium => {
+            Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
+        }
+    };
+
     let consistency_checker = ConsistencyChecker::new(
-        &config
-            .required
-            .eth_client_url()
-            .context("L1 client URL is incorrect")?,
+        Box::new(eth_client),
         10, // TODO (BFT-97): Make it a part of a proper EN config
         singleton_pool_builder
             .build()
             .await
             .context("failed to build connection pool for ConsistencyChecker")?,
+        l1_batch_commit_data_generator,
     )
     .context("cannot initialize consistency checker")?
     .with_diamond_proxy_addr(diamond_proxy_addr);

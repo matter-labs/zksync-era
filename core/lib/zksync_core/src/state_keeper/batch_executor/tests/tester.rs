@@ -1,14 +1,14 @@
 //! Testing harness for the batch executor.
 //! Contains helper functionality to initialize test context and perform tests without too much boilerplate.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv},
     vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 use tempfile::TempDir;
-use tokio::sync::watch;
+use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
@@ -23,12 +23,17 @@ use zksync_types::{
 };
 use zksync_utils::u256_to_h256;
 
+use super::{
+    read_storage_factory::{PostgresFactory, RocksdbFactory},
+    StorageType,
+};
 use crate::{
     genesis::create_genesis_l1_batch,
     state_keeper::{
         batch_executor::{BatchExecutorHandle, TxExecutionResult},
+        state_keeper_storage::ReadStorageFactory,
         tests::{default_l1_batch_env, default_system_env, BASE_SYSTEM_CONTRACTS},
-        BatchExecutor, MainBatchExecutor,
+        AsyncRocksdbCache, BatchExecutor, MainBatchExecutor,
     },
     utils::testonly::prepare_recovery_snapshot,
 };
@@ -43,7 +48,6 @@ pub(super) struct TestConfig {
     pub(super) save_call_traces: bool,
     pub(super) vm_gas_limit: Option<u32>,
     pub(super) validation_computational_gas_limit: u32,
-    pub(super) upload_witness_inputs_to_gcs: bool,
 }
 
 impl TestConfig {
@@ -54,7 +58,6 @@ impl TestConfig {
             vm_gas_limit: None,
             save_call_traces: false,
             validation_computational_gas_limit: config.validation_computational_gas_limit,
-            upload_witness_inputs_to_gcs: false,
         }
     }
 }
@@ -67,6 +70,7 @@ pub(super) struct Tester {
     db_dir: TempDir,
     pool: ConnectionPool<Core>,
     config: TestConfig,
+    tasks: Vec<JoinHandle<()>>,
 }
 
 impl Tester {
@@ -80,6 +84,7 @@ impl Tester {
             db_dir: TempDir::new().unwrap(),
             pool,
             config,
+            tasks: Vec::new(),
         }
     }
 
@@ -87,37 +92,118 @@ impl Tester {
         self.config = config;
     }
 
-    /// Creates a batch executor instance.
+    /// Creates a batch executor instance with the specified storage type.
     /// This function intentionally uses sensible defaults to not introduce boilerplate.
-    pub(super) async fn create_batch_executor(&self) -> BatchExecutorHandle {
-        // Not really important for the batch executor - it operates over a single batch.
-        let (l1_batch_env, system_env) = self.batch_params(L1BatchNumber(1), 100);
-        self.create_batch_executor_inner(l1_batch_env, system_env)
-            .await
+    pub(super) async fn create_batch_executor(
+        &mut self,
+        storage_type: StorageType,
+    ) -> BatchExecutorHandle {
+        let (l1_batch_env, system_env) = self.default_batch_params();
+        match storage_type {
+            StorageType::AsyncRocksdbCache => {
+                let (l1_batch_env, system_env) = self.default_batch_params();
+                let (state_keeper_storage, task) = AsyncRocksdbCache::new(
+                    self.pool(),
+                    self.state_keeper_db_path(),
+                    self.enum_index_migration_chunk_size(),
+                );
+                let handle = tokio::task::spawn(async move {
+                    let (_stop_sender, stop_receiver) = watch::channel(false);
+                    task.run(stop_receiver).await.unwrap()
+                });
+                self.tasks.push(handle);
+                self.create_batch_executor_inner(
+                    Arc::new(state_keeper_storage),
+                    l1_batch_env,
+                    system_env,
+                )
+                .await
+            }
+            StorageType::Rocksdb => {
+                self.create_batch_executor_inner(
+                    Arc::new(RocksdbFactory::new(
+                        self.pool(),
+                        self.state_keeper_db_path(),
+                        self.enum_index_migration_chunk_size(),
+                    )),
+                    l1_batch_env,
+                    system_env,
+                )
+                .await
+            }
+            StorageType::Postgres => {
+                self.create_batch_executor_inner(
+                    Arc::new(PostgresFactory::new(self.pool())),
+                    l1_batch_env,
+                    system_env,
+                )
+                .await
+            }
+        }
     }
 
     async fn create_batch_executor_inner(
         &self,
+        storage_factory: Arc<dyn ReadStorageFactory>,
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
     ) -> BatchExecutorHandle {
-        let mut builder = MainBatchExecutor::new(
-            self.db_dir.path().to_str().unwrap().to_owned(),
-            self.pool.clone(),
-            self.config.save_call_traces,
-            self.config.upload_witness_inputs_to_gcs,
-            100,
-            false,
-        );
+        let mut batch_executor =
+            MainBatchExecutor::new(storage_factory, self.config.save_call_traces, false);
         let (_stop_sender, stop_receiver) = watch::channel(false);
-        builder
+        batch_executor
             .init_batch(l1_batch_env, system_env, &stop_receiver)
             .await
             .expect("Batch executor was interrupted")
     }
 
     pub(super) async fn recover_batch_executor(
+        &mut self,
+        snapshot: &SnapshotRecoveryStatus,
+    ) -> BatchExecutorHandle {
+        let (storage_factory, task) = AsyncRocksdbCache::new(
+            self.pool(),
+            self.state_keeper_db_path(),
+            self.enum_index_migration_chunk_size(),
+        );
+        let (_, stop_receiver) = watch::channel(false);
+        let handle = tokio::task::spawn(async move { task.run(stop_receiver).await.unwrap() });
+        self.tasks.push(handle);
+        self.recover_batch_executor_inner(Arc::new(storage_factory), snapshot)
+            .await
+    }
+
+    pub(super) async fn recover_batch_executor_custom(
+        &mut self,
+        storage_type: &StorageType,
+        snapshot: &SnapshotRecoveryStatus,
+    ) -> BatchExecutorHandle {
+        match storage_type {
+            StorageType::AsyncRocksdbCache => self.recover_batch_executor(snapshot).await,
+            StorageType::Rocksdb => {
+                self.recover_batch_executor_inner(
+                    Arc::new(RocksdbFactory::new(
+                        self.pool(),
+                        self.state_keeper_db_path(),
+                        self.enum_index_migration_chunk_size(),
+                    )),
+                    snapshot,
+                )
+                .await
+            }
+            StorageType::Postgres => {
+                self.recover_batch_executor_inner(
+                    Arc::new(PostgresFactory::new(self.pool())),
+                    snapshot,
+                )
+                .await
+            }
+        }
+    }
+
+    async fn recover_batch_executor_inner(
         &self,
+        storage_factory: Arc<dyn ReadStorageFactory>,
         snapshot: &SnapshotRecoveryStatus,
     ) -> BatchExecutorHandle {
         let current_timestamp = snapshot.miniblock_timestamp + 1;
@@ -131,8 +217,13 @@ impl Tester {
             max_virtual_blocks_to_create: 1,
         };
 
-        self.create_batch_executor_inner(l1_batch_env, system_env)
+        self.create_batch_executor_inner(storage_factory, l1_batch_env, system_env)
             .await
+    }
+
+    pub(super) fn default_batch_params(&self) -> (L1BatchEnv, SystemEnv) {
+        // Not really important for the batch executor - it operates over a single batch.
+        self.batch_params(L1BatchNumber(1), 100)
     }
 
     /// Creates test batch params that can be fed into the VM.
@@ -204,6 +295,24 @@ impl Tester {
                     .unwrap();
             }
         }
+    }
+
+    pub(super) async fn wait_for_tasks(&mut self) {
+        for task in self.tasks.drain(..) {
+            task.await.expect("Failed to join a task");
+        }
+    }
+
+    pub(super) fn pool(&self) -> ConnectionPool<Core> {
+        self.pool.clone()
+    }
+
+    pub(super) fn state_keeper_db_path(&self) -> String {
+        self.db_dir.path().to_str().unwrap().to_owned()
+    }
+
+    pub(super) fn enum_index_migration_chunk_size(&self) -> usize {
+        100
     }
 }
 
@@ -369,7 +478,7 @@ impl StorageSnapshot {
         alice: &mut Account,
         transaction_count: u32,
     ) -> Self {
-        let tester = Tester::new(connection_pool.clone());
+        let mut tester = Tester::new(connection_pool.clone());
         tester.genesis().await;
         tester.fund(&[alice.address()]).await;
 
@@ -394,7 +503,9 @@ impl StorageSnapshot {
             .collect();
         drop(storage);
 
-        let executor = tester.create_batch_executor().await;
+        let executor = tester
+            .create_batch_executor(StorageType::AsyncRocksdbCache)
+            .await;
         let mut l2_block_env = L2BlockEnv {
             number: 1,
             prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
@@ -428,7 +539,7 @@ impl StorageSnapshot {
             executor.start_next_miniblock(l2_block_env).await;
         }
 
-        let (finished_batch, _) = executor.finish_batch().await;
+        let finished_batch = executor.finish_batch().await;
         let storage_logs = &finished_batch.block_tip_execution_result.logs.storage_logs;
         storage_writes_deduplicator.apply(storage_logs.iter().filter(|log| log.log_query.rw_flag));
         let modified_entries = storage_writes_deduplicator.into_modified_key_values();

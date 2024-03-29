@@ -30,7 +30,7 @@ Public address: 0x618263CE921F7dd5F4f40C29f6c524Aaf97b9bbd
 Now, let's see how many tokens we have:
 
 ```shell
-// This checks the tokens on 'L1' (geth)
+// This checks the tokens on 'L1' (reth)
 ./web3 --rpc-url http://localhost:8545 balance  0x618263CE921F7dd5F4f40C29f6c524Aaf97b9bbd
 
 // This checks the tokens on 'L2' (zkSync)
@@ -40,9 +40,7 @@ Now, let's see how many tokens we have:
 Unsurprisingly we have 0 on both - let's fix it by first transferring some tokens on L1:
 
 ```shell
-docker container exec -it zksync-era-geth-1  geth attach http://localhost:8545
-// and inside:
-eth.sendTransaction({from: personal.listAccounts[0], to: "0x618263CE921F7dd5F4f40C29f6c524Aaf97b9bbd", value: "7400000000000000000"})
+./web3 --rpc-url http://localhost:8545 transfer --pk 0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110 7.4 to 0x618263CE921F7dd5F4f40C29f6c524Aaf97b9bbd
 ```
 
 And now when we check the balance, we should see:
@@ -83,40 +81,29 @@ Transaction submitted 💸💸💸
 [...]/tx/0xe27dc466c36ad2046766e191017e7acf29e84356465feef76e821708ff18e179
 ```
 
-Let's run the `geth attach` (exact command is above) and see the details:
+Let's use the web3 tool and see the details:
 
 ```shell
-eth.getTransaction("0xe27dc466c36ad2046766e191017e7acf29e84356465feef76e821708ff18e179")
+./web3 --rpc-url http://localhost:8545 tx --input hex 0xe27dc466c36ad2046766e191017e7acf29e84356465feef76e821708ff18e179
 ```
 
 returns
 
-```json
-{
-  "accessList": [],
-  "blockHash": "0xd319b685a1a0b88545ec6df473a3efb903358ac655263868bb14b92797ea7504",
-  "blockNumber": 79660,
-  "chainId": "0x9",
-  "from": "0x618263ce921f7dd5f4f40c29f6c524aaf97b9bbd",
-  "gas": 125060,
-  "gasPrice": 1500000007,
-  "hash": "0xe27dc466c36ad2046766e191017e7acf29e84356465feef76e821708ff18e179",
-  "input": "0xeb672419000000000000000000000000618263ce921f7dd5f4f40c29f6c524aaf97b9bbd00000000000000000000000000000000000000000000000029a2241af62c000000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000009cb4200000000000000000000000000000000000000000000000000000000000003200000000000000000000000000000000000000000000000000000000000000100000000000000000000000000618263ce921f7dd5f4f40c29f6c524aaf97b9bbd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-  "maxFeePerGas": 1500000010,
-  "maxPriorityFeePerGas": 1500000000,
-  "nonce": 40,
-  "r": "0xc9b0548ade9c5d7334f1ebdfba9239cf1acca7873381b8f0bc0e8f49ae1e456f",
-  "s": "0xb9dd338283a3409c281b69c3d6f1d66ea6ee5486ee6884c71d82f596d6a934",
-  "to": "0x54e8159f006750466084913d5bd288d4afb1ee9a",
-  "transactionIndex": 0,
-  "type": "0x2",
-  "v": "0x1",
-  "value": 3000320929000000000
-}
+```
+Hash: 0xe27dc466c36ad2046766e191017e7acf29e84356465feef76e821708ff18e179
+From: 0x618263CE921F7dd5F4f40C29f6c524Aaf97b9bbd
+To: 0xa6Bcd8124d42293D3DDFAE6003940A62D8C280F2
+Value: 3.000120034768750000 GO
+Nonce: 0
+Gas Limit: 134871
+Gas Price: 1.500000001 gwei
+Block Number: 100074
+Block Hash: 0x5219e6fef442b4cfd38515ea7119dd6d2e12df82b4d95b1f75fd3650c012f133
+Input: 0xeb672419000000000000000000000000618263ce921f7dd5f4f40c29f6c524aaf97b9bbd00000000000000000000000000000000000000000000000029a2241af62c000000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000006d0b100000000000000000000000000000000000000000000000000000000000003200000000000000000000000000000000000000000000000000000000000000100000000000000000000000000618263ce921f7dd5f4f40c29f6c524aaf97b9bbd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 ```
 
-The deposit command has called the contract on address `0x54e8` (which is exactly the `CONTRACTS_DIAMOND_PROXY_ADDR`
-from `deployL1.log`), and it has called the method `0xeb672419` - which is the `requestL2Transaction` from
+The deposit command has called the contract on address `0xa6B` (which is exactly the `CONTRACTS_DIAMOND_PROXY_ADDR` from
+`deployL1.log`), and it has called the method `0xeb672419` - which is the `requestL2Transaction` from
 [Mailbox.sol](https://github.com/matter-labs/era-contracts/blob/f06a58360a2b8e7129f64413998767ac169d1efd/ethereum/contracts/zksync/facets/Mailbox.sol#L220)
 
 #### Quick note on our L1 contracts
@@ -166,11 +153,11 @@ transaction was successfully inserted, and it was also marked as 'priority' (as 
 transactions that are received by the server directly are not marked as priority.
 
 You can verify that this is your transaction, by looking at the `l1_block_number` column (it should match the
-`block_number` from the `eth.getTransaction(...)` call above).
+`block_number` from the `web3 tx` call above).
 
-Notice that the hash of the transaction in the postgres will be different from the one returned by
-`eth.getTransaction(...)`. This is because the postgres keeps the hash of the 'L2' transaction (which was 'inside' the
-L1 transaction that `eth.getTransaction(...)` returned).
+Notice that the hash of the transaction in the postgres will be different from the one returned by `web3 tx`. This is
+because the postgres keeps the hash of the 'L2' transaction (which was 'inside' the L1 transaction that `web3 tx`
+returned).
 
 ## Summary
 

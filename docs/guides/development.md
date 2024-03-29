@@ -25,7 +25,7 @@ zk init
 This command will do the following:
 
 - Generate `$ZKSYNC_HOME/etc/env/dev.env` file with settings for the applications.
-- Initialize docker containers with `geth` Ethereum node for local development.
+- Initialize docker containers with `reth` Ethereum node for local development.
 - Download and unpack files for cryptographical backend.
 - Generate required smart contracts.
 - Compile all the smart contracts.
@@ -58,8 +58,8 @@ If you don’t need all of the `zk init` functionality, but just need to start/s
 commands:
 
 ```
-zk up   # Set up `reth` container
-zk down # Shut down `geth` container
+zk up   # Set up `reth` and `postgres` containers
+zk down # Shut down `reth` and `postgres` containers
 ```
 
 ## Reinitializing
@@ -175,8 +175,8 @@ To switch dummy prover to real prover, one must change `dummy_verifier` to `fals
 - Running a specific `rust` unit-test:
 
   ```
-  zk test rust --package <package_name> --lib <mod>::tests::<test_fn_name> -- --exact
-  # e.g. zk test rust --package zksync_core --lib eth_sender::tests::resend_each_block -- --exact
+  zk test rust --package <package_name> --lib <mod>::tests::<test_fn_name>
+  # e.g. zk test rust --package zksync_core --lib eth_sender::tests::resend_each_block
   ```
 
 - Running the integration test:

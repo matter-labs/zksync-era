@@ -4,7 +4,7 @@ use anyhow::Context;
 use serde::Deserialize;
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
-use zksync_config::ObjectStoreConfig;
+use zksync_config::{configs::chain::L1BatchCommitDataGeneratorMode, ObjectStoreConfig};
 use zksync_core::{
     api_server::{
         tx_sender::TxSenderConfig,
@@ -157,7 +157,8 @@ pub(crate) struct OptionalENConfig {
     latest_values_cache_size_mb: usize,
     /// Enabled JSON RPC API namespaces.
     api_namespaces: Option<Vec<Namespace>>,
-    /// Whether to support methods installing filters and querying filter changes.
+    /// Whether to support HTTP methods that install filters and query filter changes.
+    /// WS methods are unaffected.
     ///
     /// When to set this value to `true`:
     /// Filters are local to the specific node they were created at. Meaning if
@@ -253,6 +254,9 @@ pub(crate) struct OptionalENConfig {
     /// Number of requests per second allocated for the main node HTTP client. Default is 100 requests.
     #[serde(default = "OptionalENConfig::default_main_node_rate_limit_rps")]
     pub main_node_rate_limit_rps: NonZeroUsize,
+
+    #[serde(default = "OptionalENConfig::default_l1_batch_commit_data_generator_mode")]
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
 
 impl OptionalENConfig {
@@ -369,6 +373,10 @@ impl OptionalENConfig {
 
     fn default_main_node_rate_limit_rps() -> NonZeroUsize {
         NonZeroUsize::new(100).unwrap()
+    }
+
+    const fn default_l1_batch_commit_data_generator_mode() -> L1BatchCommitDataGeneratorMode {
+        L1BatchCommitDataGeneratorMode::Rollup
     }
 
     pub fn polling_interval(&self) -> Duration {

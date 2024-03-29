@@ -26,8 +26,8 @@ use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
         chain::{
-            CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
-            StateKeeperConfig,
+            CircuitBreakerConfig, L1BatchCommitDataGeneratorMode, MempoolConfig, NetworkConfig,
+            OperationsManagerConfig, StateKeeperConfig,
         },
         database::{MerkleTreeConfig, MerkleTreeMode},
     },
@@ -57,7 +57,13 @@ use crate::{
     },
     basic_witness_input_producer::BasicWitnessInputProducer,
     commitment_generator::CommitmentGenerator,
-    eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
+    eth_sender::{
+        l1_batch_commit_data_generator::{
+            L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
+            ValidiumModeL1BatchCommitDataGenerator,
+        },
+        Aggregator, EthTxAggregator, EthTxManager,
+    },
     eth_watch::start_eth_watch,
     genesis::GenesisParams,
     house_keeper::{
@@ -72,13 +78,16 @@ use crate::{
         periodic_job::PeriodicJob,
         waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
     },
-    l1_gas_price::GasAdjusterSingleton,
+    l1_gas_price::{
+        GasAdjusterSingleton, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
+    },
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     metrics::{InitStage, APP_METRICS},
     state_keeper::{
         create_state_keeper, MempoolFetcher, MempoolGuard, OutputHandler, SequencerSealer,
         StateKeeperPersistence,
     },
+    utils::ensure_l1_batch_commit_data_generation_mode,
 };
 
 pub mod api_server;
@@ -102,7 +111,7 @@ pub mod reorg_detector;
 pub mod state_keeper;
 pub mod sync_layer;
 pub mod temp_config_store;
-mod utils;
+pub mod utils;
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
@@ -298,7 +307,15 @@ pub async fn initialize_components(
 
     let query_client = QueryClient::new(&eth_client_config.web3_url).unwrap();
     let gas_adjuster_config = configs.gas_adjuster_config.context("gas_adjuster_config")?;
-
+    let state_keeper_config = configs
+        .state_keeper_config
+        .clone()
+        .context("state_keeper_config")?;
+    let pubdata_pricing: Arc<dyn PubdataPricing> =
+        match state_keeper_config.l1_batch_commit_data_generator_mode {
+            L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupPubdataPricing {}),
+            L1BatchCommitDataGeneratorMode::Validium => Arc::new(ValidiumPubdataPricing {}),
+        };
     let eth_sender_config = configs
         .eth_sender_config
         .clone()
@@ -307,6 +324,7 @@ pub async fn initialize_components(
         eth_client_config.web3_url.clone(),
         gas_adjuster_config,
         eth_sender_config.sender.pubdata_sending_mode,
+        pubdata_pricing,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -500,7 +518,6 @@ pub async fn initialize_components(
             &db_config,
             &configs.mempool_config.clone().context("mempool_config")?,
             batch_fee_input_provider,
-            store_factory.create_store().await,
             stop_receiver.clone(),
         )
         .await
@@ -595,6 +612,28 @@ pub async fn initialize_components(
             .context("eth_sender_config")?;
         let eth_client =
             PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
+        let state_keeper_config = configs
+            .state_keeper_config
+            .clone()
+            .context("state_keeper_config")?;
+
+        ensure_l1_batch_commit_data_generation_mode(
+            state_keeper_config.l1_batch_commit_data_generator_mode,
+            contracts_config.diamond_init_addr,
+            &eth_client,
+        )
+        .await?;
+
+        let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> =
+            match state_keeper_config.l1_batch_commit_data_generator_mode {
+                L1BatchCommitDataGeneratorMode::Rollup => {
+                    Arc::new(RollupModeL1BatchCommitDataGenerator {})
+                }
+                L1BatchCommitDataGeneratorMode::Validium => {
+                    Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
+                }
+            };
+
         let eth_client_blobs_addr =
             PKSigningClient::from_config_blobs(&eth_sender, &contracts_config, &eth_client_config)
                 .map(|k| k.sender_account());
@@ -607,6 +646,7 @@ pub async fn initialize_components(
                 store_factory.create_store().await,
                 eth_client_blobs_addr.is_some(),
                 eth_sender.sender.pubdata_sending_mode.into(),
+                l1_batch_commit_data_generator.clone(),
             ),
             Arc::new(eth_client),
             contracts_config.validator_timelock_addr,
@@ -618,6 +658,7 @@ pub async fn initialize_components(
                 .context("network_config")?
                 .zksync_network_id,
             eth_client_blobs_addr,
+            l1_batch_commit_data_generator,
         )
         .await;
         task_futures.push(tokio::spawn(
@@ -744,7 +785,6 @@ async fn add_state_keeper_to_task_futures(
     db_config: &DBConfig,
     mempool_config: &MempoolConfig,
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
-    object_store: Arc<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let pool_builder = ConnectionPool::<Core>::singleton(postgres_config.master_url()?);
@@ -771,10 +811,9 @@ async fn add_state_keeper_to_task_futures(
         contracts_config.l2_erc20_bridge_addr,
         state_keeper_config.miniblock_seal_queue_capacity,
     );
-    let persistence = persistence.with_object_store(object_store);
     task_futures.push(tokio::spawn(miniblock_sealer.run()));
 
-    let state_keeper = create_state_keeper(
+    let (state_keeper, async_catchup_task) = create_state_keeper(
         state_keeper_config,
         db_config,
         network_config,
@@ -787,6 +826,12 @@ async fn add_state_keeper_to_task_futures(
     )
     .await;
 
+    let mut stop_receiver_clone = stop_receiver.clone();
+    task_futures.push(tokio::task::spawn(async move {
+        let result = async_catchup_task.run(stop_receiver_clone.clone()).await;
+        stop_receiver_clone.changed().await?;
+        result
+    }));
     task_futures.push(tokio::spawn(
         state_keeper.run_fee_address_migration(state_keeper_pool),
     ));
@@ -1001,7 +1046,7 @@ async fn add_house_keeper_to_task_futures(
         .context("fri_witness_generator_config")?;
     let fri_witness_gen_job_retry_manager = FriWitnessGeneratorJobRetryManager::new(
         fri_witness_gen_config.max_attempts,
-        fri_witness_gen_config.witness_generation_timeout(),
+        fri_witness_gen_config.witness_generation_timeouts(),
         house_keeper_config.fri_witness_generator_job_retrying_interval_ms,
         prover_connection_pool.clone(),
     );
