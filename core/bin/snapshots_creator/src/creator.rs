@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use tokio::sync::Semaphore;
 use zksync_config::SnapshotsCreatorConfig;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalResult};
 use zksync_object_store::ObjectStore;
 use zksync_types::{
     snapshots::{
@@ -67,7 +67,7 @@ pub(crate) struct SnapshotCreator {
 }
 
 impl SnapshotCreator {
-    async fn connect_to_replica(&self) -> anyhow::Result<Connection<'_, Core>> {
+    async fn connect_to_replica(&self) -> DalResult<Connection<'_, Core>> {
         self.replica_pool
             .connection_tagged("snapshots_creator")
             .await

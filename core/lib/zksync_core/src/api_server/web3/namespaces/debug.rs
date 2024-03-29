@@ -67,7 +67,7 @@ impl DebugNamespace {
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
-        let mut connection = self.state.connection_pool.connection_tagged("api").await?;
+        let mut connection = self.state.acquire_connection().await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         self.current_method()
             .set_block_diff(self.state.last_sealed_miniblock.diff(block_number));
@@ -110,7 +110,7 @@ impl DebugNamespace {
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
-        let mut connection = self.state.connection_pool.connection_tagged("api").await?;
+        let mut connection = self.state.acquire_connection().await?;
         let call_trace = connection
             .transactions_dal()
             .get_call_trace(tx_hash)
@@ -139,7 +139,7 @@ impl DebugNamespace {
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
 
-        let mut connection = self.state.connection_pool.connection_tagged("api").await?;
+        let mut connection = self.state.acquire_connection().await?;
         let block_args = self
             .state
             .resolve_block_args(&mut connection, block_id)

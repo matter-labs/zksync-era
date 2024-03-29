@@ -15,7 +15,7 @@ use sqlx::{
 
 use crate::{
     connection_pool::ConnectionPool,
-    error::{DalResult, DalTransactionError},
+    error::{DalConnectionError, DalResult},
     metrics::CONNECTION_METRICS,
     utils::InternalMarker,
 };
@@ -189,7 +189,7 @@ impl<'a, DB: DbMarker> Connection<'a, DB> {
             transaction: conn
                 .begin()
                 .await
-                .map_err(|err| DalTransactionError::create(err, tags.cloned()))?,
+                .map_err(|err| DalConnectionError::start_transaction(err, tags.cloned()))?,
             tags,
         };
         Ok(Connection {
@@ -212,7 +212,7 @@ impl<'a, DB: DbMarker> Connection<'a, DB> {
             postgres
                 .commit()
                 .await
-                .map_err(|err| DalTransactionError::commit(err, tags.cloned()).into())
+                .map_err(|err| DalConnectionError::commit_transaction(err, tags.cloned()).into())
         } else {
             panic!("StorageProcessor::commit can only be invoked after calling StorageProcessor::begin_transaction");
         }

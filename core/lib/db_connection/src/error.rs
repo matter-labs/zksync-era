@@ -10,7 +10,7 @@ pub enum DalError {
     #[error(transparent)]
     Request(#[from] DalRequestError),
     #[error(transparent)]
-    Transaction(#[from] DalTransactionError),
+    Connection(#[from] DalConnectionError),
 }
 
 impl DalError {
@@ -18,7 +18,7 @@ impl DalError {
     pub fn inner(&self) -> &sqlx::Error {
         match self {
             Self::Request(err) => &err.inner,
-            Self::Transaction(err) => &err.inner,
+            Self::Connection(err) => &err.inner,
         }
     }
 
@@ -96,33 +96,35 @@ impl fmt::Display for DalRequestError {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum TransactionAction {
-    Create,
-    Commit,
+enum ConnectionAction {
+    AcquireConnection,
+    StartTransaction,
+    CommitTransaction,
 }
 
-impl TransactionAction {
+impl ConnectionAction {
     fn as_str(self) -> &'static str {
         match self {
-            Self::Create => "creating",
-            Self::Commit => "committing",
+            Self::AcquireConnection => "acquiring DB connection",
+            Self::StartTransaction => "starting DB transaction",
+            Self::CommitTransaction => "committing DB transaction",
         }
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-pub struct DalTransactionError {
+pub struct DalConnectionError {
     #[source]
     inner: sqlx::Error,
-    action: TransactionAction,
+    action: ConnectionAction,
     connection_tags: Option<ConnectionTags>,
 }
 
-impl fmt::Display for DalTransactionError {
+impl fmt::Display for DalConnectionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
-            "Failed {action} DB transaction [{connection_tags}]: {err}",
+            "Failed {action} [{connection_tags}]: {err}",
             action = self.action.as_str(),
             connection_tags = ConnectionTags::display(self.connection_tags.as_ref()),
             err = self.inner
@@ -130,19 +132,36 @@ impl fmt::Display for DalTransactionError {
     }
 }
 
-impl DalTransactionError {
-    pub(crate) fn create(inner: sqlx::Error, connection_tags: Option<ConnectionTags>) -> Self {
+impl DalConnectionError {
+    pub(crate) fn acquire_connection(
+        inner: sqlx::Error,
+        connection_tags: Option<ConnectionTags>,
+    ) -> Self {
         Self {
             inner,
-            action: TransactionAction::Create,
+            action: ConnectionAction::AcquireConnection,
             connection_tags,
         }
     }
 
-    pub(crate) fn commit(inner: sqlx::Error, connection_tags: Option<ConnectionTags>) -> Self {
+    pub(crate) fn start_transaction(
+        inner: sqlx::Error,
+        connection_tags: Option<ConnectionTags>,
+    ) -> Self {
         Self {
             inner,
-            action: TransactionAction::Commit,
+            action: ConnectionAction::StartTransaction,
+            connection_tags,
+        }
+    }
+
+    pub(crate) fn commit_transaction(
+        inner: sqlx::Error,
+        connection_tags: Option<ConnectionTags>,
+    ) -> Self {
+        Self {
+            inner,
+            action: ConnectionAction::CommitTransaction,
             connection_tags,
         }
     }

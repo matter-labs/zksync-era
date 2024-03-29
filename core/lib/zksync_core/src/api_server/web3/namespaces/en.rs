@@ -19,7 +19,7 @@ impl EnNamespace {
     }
 
     pub async fn consensus_genesis_impl(&self) -> Result<Option<en::ConsensusGenesis>, Web3Error> {
-        let mut storage = self.state.connection_pool.connection_tagged("api").await?;
+        let mut storage = self.state.acquire_connection().await?;
         let Some(genesis) = storage
             .consensus_dal()
             .genesis()
@@ -43,7 +43,7 @@ impl EnNamespace {
         block_number: MiniblockNumber,
         include_transactions: bool,
     ) -> Result<Option<en::SyncBlock>, Web3Error> {
-        let mut storage = self.state.connection_pool.connection_tagged("api").await?;
+        let mut storage = self.state.acquire_connection().await?;
         Ok(storage
             .sync_dal()
             .sync_block(block_number, include_transactions)
@@ -56,7 +56,7 @@ impl EnNamespace {
         &self,
         block_number: Option<MiniblockNumber>,
     ) -> Result<Vec<TokenInfo>, Web3Error> {
-        let mut storage = self.state.connection_pool.connection_tagged("api").await?;
+        let mut storage = self.state.acquire_connection().await?;
         Ok(storage
             .tokens_web3_dal()
             .get_all_tokens(block_number)
@@ -67,7 +67,7 @@ impl EnNamespace {
     #[tracing::instrument(skip(self))]
     pub async fn genesis_config_impl(&self) -> Result<GenesisConfig, Web3Error> {
         // If this method will cause some load, we can cache everything in memory
-        let mut storage = self.state.connection_pool.connection_tagged("api").await?;
+        let mut storage = self.state.acquire_connection().await?;
         let genesis_batch = storage
             .blocks_dal()
             .get_storage_l1_batch(L1BatchNumber(0))
