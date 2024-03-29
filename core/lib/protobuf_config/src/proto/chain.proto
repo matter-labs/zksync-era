@@ -18,6 +18,11 @@ enum FeeModelVersion {
   V2 = 1;
 }
 
+enum L1BatchCommitDataGeneratorMode {
+  Rollup = 0;
+  Validium = 1;
+}
+
 message EthNetwork {
   optional Network network = 1; // required
   optional string zksync_network = 2; // required
@@ -52,6 +57,7 @@ message StateKeeper {
   optional uint64 enum_index_migration_chunk_size = 26; // optional
   optional bytes bootloader_hash = 27; // required; H256
   optional bytes default_aa_hash = 28; // required; H256
+  optional L1BatchCommitDataGeneratorMode l1_batch_commit_data_generator_mode = 29; // optional, default to rollup
 }
 
 message OperationsManager {

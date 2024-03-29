@@ -139,6 +139,19 @@ impl Distribution<configs::chain::NetworkConfig> for EncodeDist {
     }
 }
 
+impl Distribution<configs::chain::L1BatchCommitDataGeneratorMode> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(
+        &self,
+        rng: &mut R,
+    ) -> configs::chain::L1BatchCommitDataGeneratorMode {
+        type T = configs::chain::L1BatchCommitDataGeneratorMode;
+        match rng.gen_range(0..2) {
+            0 => T::Rollup,
+            _ => T::Validium,
+        }
+    }
+}
+
 impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::chain::StateKeeperConfig {
         configs::chain::StateKeeperConfig {
@@ -169,6 +182,7 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             enum_index_migration_chunk_size: self.sample(rng),
             bootloader_hash: rng.gen(),
             default_aa_hash: rng.gen(),
+            l1_batch_commit_data_generator_mode: self.sample(rng),
         }
     }
 }
