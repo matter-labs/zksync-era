@@ -125,6 +125,11 @@ pub const ERC20_TRANSFER_TOPIC: H256 = H256([
     99, 196, 161, 22, 40, 245, 90, 77, 245, 35, 179, 239,
 ]);
 
+pub const GAS_BOUND_CALLER_ADDRESS: Address = H160([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x01, 0x00, 0x00,
+]);
+
 // TODO (SMA-240): Research whether using zero address is ok
 pub const MINT_AND_BURN_ADDRESS: H160 = H160::zero();
 
