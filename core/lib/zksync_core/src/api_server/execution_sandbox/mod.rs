@@ -216,17 +216,22 @@ impl BlockStartInfo {
             .expect("BlockStartInfo is poisoned");
         *current_cache
     }
+
+    fn is_cache_expired(&self, now: DateTime<Utc>, last_cache_date: DateTime<Utc>) -> bool {
+        const CACHE_MAX_AGE_MS: i64 = 20000;
+        // we make max_age a bit random so that all threads don't start refreshing cache at the same time
+        let random_delay =
+            chrono::Duration::milliseconds(i64::from(random::<u32>()) % CACHE_MAX_AGE_MS / 2);
+        now - last_cache_date > chrono::Duration::milliseconds(CACHE_MAX_AGE_MS) + random_delay
+    }
+
     async fn get_pruning_info(
         &self,
         storage: &mut Connection<'_, Core>,
     ) -> anyhow::Result<PruningInfo> {
         let (pruning_info, last_cache_date) = self.get_cache_state_copy();
         let now = Utc::now();
-        const CACHE_MAX_AGE_MS: i64 = 20000;
-        // we make max_age a bit random so that all threads don't start refreshing cache at the same time
-        let random_delay =
-            chrono::Duration::milliseconds(i64::from(random::<u32>()) % CACHE_MAX_AGE_MS / 2);
-        if now - last_cache_date > chrono::Duration::milliseconds(CACHE_MAX_AGE_MS) + random_delay {
+        if self.is_cache_expired(now, last_cache_date) {
             //multiple threads may execute this query if we're very unlucky
             let new_pruning_info = storage.pruning_dal().get_pruning_info().await?;
 

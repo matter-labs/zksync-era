@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                WITH\n                    deleted AS (\n                        DELETE FROM storage_logs USING (\n                            SELECT\n                                hashed_key,\n                                MAX(ARRAY[miniblock_number, operation_number]::INT[]) AS op\n                            FROM\n                                storage_logs\n                            WHERE\n                                miniblock_number BETWEEN $1 AND $2\n                            GROUP BY\n                                hashed_key\n                        ) AS last_storage_logs\n                        WHERE\n                            storage_logs.miniblock_number BETWEEN $1 AND $2\n                            AND last_storage_logs.hashed_key = storage_logs.hashed_key\n                            AND (\n                                storage_logs.miniblock_number != last_storage_logs.op[1]\n                                OR storage_logs.operation_number != last_storage_logs.op[2]\n                            )\n                        RETURNING\n                            *\n                    )\n                SELECT\n                    COUNT(*) AS \"count!\"\n                FROM\n                    deleted\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "550ddf6034c382f35b8cb7a6c93b989aabf87887d2d1c3db01b43b442241fca7"
+}

@@ -153,46 +153,73 @@ impl PruningDal<'_, '_> {
             let first_miniblock_to_prune =
                 MiniblockNumber(row.first_miniblock_to_prune.unwrap() as u32);
 
-            sqlx::query!(
+            let deleted_events = sqlx::query!(
                 r#"
-                DELETE FROM events
-                WHERE
-                    miniblock_number <= $1
+                WITH
+                    deleted AS (
+                        DELETE FROM events
+                        WHERE
+                            miniblock_number <= $1
+                        RETURNING
+                            *
+                    )
+                SELECT
+                    COUNT(*) AS "count!"
+                FROM
+                    deleted
                 "#,
                 i64::from(last_miniblock_to_prune.0),
             )
             .instrument("hard_prune_batches_range#delete_events")
             .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
             .report_latency()
-            .execute(self.storage)
+            .fetch_one(self.storage)
             .await?;
 
-            sqlx::query!(
+            let deleted_l2_to_l1_logs = sqlx::query!(
                 r#"
-                DELETE FROM l2_to_l1_logs
-                WHERE
-                    miniblock_number <= $1
+                WITH
+                    deleted AS (
+                        DELETE FROM l2_to_l1_logs
+                        WHERE
+                            miniblock_number <= $1
+                        RETURNING
+                            *
+                    )
+                SELECT
+                    COUNT(*) AS "count!"
+                FROM
+                    deleted
                 "#,
                 i64::from(last_miniblock_to_prune.0),
             )
             .instrument("hard_prune_batches_range#delete_l2_to_l1_logs")
             .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
             .report_latency()
-            .execute(self.storage)
+            .fetch_one(self.storage)
             .await?;
 
-            sqlx::query!(
+            let deleted_call_traces = sqlx::query!(
                 r#"
-                DELETE FROM call_traces USING (
-                    SELECT
-                        *
-                    FROM
-                        transactions
-                    WHERE
-                        miniblock_number BETWEEN $1 AND $2
-                ) AS matching_transactions
-                WHERE
-                    matching_transactions.hash = call_traces.tx_hash
+                WITH
+                    deleted AS (
+                        DELETE FROM call_traces USING (
+                            SELECT
+                                *
+                            FROM
+                                transactions
+                            WHERE
+                                miniblock_number BETWEEN $1 AND $2
+                        ) AS matching_transactions
+                        WHERE
+                            matching_transactions.hash = call_traces.tx_hash
+                        RETURNING
+                            *
+                    )
+                SELECT
+                    COUNT(*) AS "count!"
+                FROM
+                    deleted
                 "#,
                 i64::from(first_miniblock_to_prune.0),
                 i64::from(last_miniblock_to_prune.0),
@@ -201,20 +228,29 @@ impl PruningDal<'_, '_> {
             .with_arg("first_miniblock_to_prune", &first_miniblock_to_prune)
             .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
             .report_latency()
-            .execute(self.storage)
+            .fetch_one(self.storage)
             .await?;
 
             sqlx::query!(
                 r#"
-                UPDATE transactions
-                SET
-                    input = NULL,
-                    data = '{}',
-                    execution_info = '{}',
-                    updated_at = NOW()
-                WHERE
-                    miniblock_number BETWEEN $1 AND $2
-                    AND upgrade_id IS NULL
+                WITH
+                    updated AS (
+                        UPDATE transactions
+                        SET
+                            input = NULL,
+                            data = '{}',
+                            execution_info = '{}',
+                            updated_at = NOW()
+                        WHERE
+                            miniblock_number BETWEEN $1 AND $2
+                            AND upgrade_id IS NULL
+                        RETURNING
+                            *
+                    )
+                SELECT
+                    COUNT(*) AS "count!"
+                FROM
+                    updated
                 "#,
                 i64::from(first_miniblock_to_prune.0),
                 i64::from(last_miniblock_to_prune.0),
@@ -223,25 +259,34 @@ impl PruningDal<'_, '_> {
             .with_arg("first_miniblock_to_prune", &first_miniblock_to_prune)
             .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
             .report_latency()
-            .execute(self.storage)
+            .fetch_one(self.storage)
             .await?;
 
             //The deleting of logs is split into two queries to make it faster,
             // only the first query has to go through all previous logs
             // and the query optimizer should be happy with it
-            sqlx::query!(
+            let deleted_storage_logs_from_past_batches = sqlx::query!(
                 r#"
-                DELETE FROM storage_logs USING (
-                    SELECT
-                        *
-                    FROM
-                        storage_logs
-                    WHERE
-                        miniblock_number BETWEEN $1 AND $2
-                ) AS batches_to_prune
-                WHERE
-                    storage_logs.miniblock_number < $1
-                    AND batches_to_prune.hashed_key = storage_logs.hashed_key
+                WITH
+                    deleted AS (
+                        DELETE FROM storage_logs USING (
+                            SELECT
+                                *
+                            FROM
+                                storage_logs
+                            WHERE
+                                miniblock_number BETWEEN $1 AND $2
+                        ) AS batches_to_prune
+                        WHERE
+                            storage_logs.miniblock_number < $1
+                            AND batches_to_prune.hashed_key = storage_logs.hashed_key
+                        RETURNING
+                            *
+                    )
+                SELECT
+                    COUNT(*) AS "count!"
+                FROM
+                    deleted
                 "#,
                 i64::from(first_miniblock_to_prune.0),
                 i64::from(last_miniblock_to_prune.0),
@@ -250,29 +295,38 @@ impl PruningDal<'_, '_> {
             .with_arg("first_miniblock_to_prune", &first_miniblock_to_prune)
             .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
             .report_latency()
-            .execute(self.storage)
+            .fetch_one(self.storage)
             .await?;
 
-            sqlx::query!(
+            let deleted_storage_logs_from_pruned_batches = sqlx::query!(
                 r#"
-                DELETE FROM storage_logs USING (
-                    SELECT
-                        hashed_key,
-                        MAX(ARRAY[miniblock_number, operation_number]::INT[]) AS op
-                    FROM
-                        storage_logs
-                    WHERE
-                        miniblock_number BETWEEN $1 AND $2
-                    GROUP BY
-                        hashed_key
-                ) AS last_storage_logs
-                WHERE
-                    storage_logs.miniblock_number BETWEEN $1 AND $2
-                    AND last_storage_logs.hashed_key = storage_logs.hashed_key
-                    AND (
-                        storage_logs.miniblock_number != last_storage_logs.op[1]
-                        OR storage_logs.operation_number != last_storage_logs.op[2]
+                WITH
+                    deleted AS (
+                        DELETE FROM storage_logs USING (
+                            SELECT
+                                hashed_key,
+                                MAX(ARRAY[miniblock_number, operation_number]::INT[]) AS op
+                            FROM
+                                storage_logs
+                            WHERE
+                                miniblock_number BETWEEN $1 AND $2
+                            GROUP BY
+                                hashed_key
+                        ) AS last_storage_logs
+                        WHERE
+                            storage_logs.miniblock_number BETWEEN $1 AND $2
+                            AND last_storage_logs.hashed_key = storage_logs.hashed_key
+                            AND (
+                                storage_logs.miniblock_number != last_storage_logs.op[1]
+                                OR storage_logs.operation_number != last_storage_logs.op[2]
+                            )
+                        RETURNING
+                            *
                     )
+                SELECT
+                    COUNT(*) AS "count!"
+                FROM
+                    deleted
                 "#,
                 i64::from(first_miniblock_to_prune.0),
                 i64::from(last_miniblock_to_prune.0),
@@ -283,36 +337,62 @@ impl PruningDal<'_, '_> {
             .with_arg("first_miniblock_to_prune", &first_miniblock_to_prune)
             .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
             .report_latency()
-            .execute(self.storage)
+            .fetch_one(self.storage)
             .await?;
 
-            sqlx::query!(
+            let deleted_l1_batches = sqlx::query!(
                 r#"
-                DELETE FROM l1_batches
-                WHERE
-                    number <= $1
+                WITH
+                    deleted AS (
+                        DELETE FROM l1_batches
+                        WHERE
+                            number <= $1
+                        RETURNING
+                            *
+                    )
+                SELECT
+                    COUNT(*) AS "count!"
+                FROM
+                    deleted
                 "#,
                 i64::from(last_l1_batch_to_prune.0),
             )
             .instrument("hard_prune_batches_range#delete_l1_batches")
             .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
             .report_latency()
-            .execute(self.storage)
+            .fetch_one(self.storage)
             .await?;
 
-            sqlx::query!(
+            let deleted_miniblocks = sqlx::query!(
                 r#"
-                DELETE FROM miniblocks
-                WHERE
-                    number <= $1
+                WITH
+                    deleted AS (
+                        DELETE FROM miniblocks
+                        WHERE
+                            number <= $1
+                        RETURNING
+                            *
+                    )
+                SELECT
+                    COUNT(*) AS "count!"
+                FROM
+                    deleted
                 "#,
                 i64::from(last_miniblock_to_prune.0),
             )
             .instrument("hard_prune_batches_range#delete_miniblocks")
             .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
             .report_latency()
-            .execute(self.storage)
+            .fetch_one(self.storage)
             .await?;
+
+            tracing::info!("Performed pruning of database, deleted {} l1_batches, {} miniblocks, {} storage_logs, {} events, {} call traces, {} l2_to_l1_logs",
+                deleted_l1_batches.count,
+                deleted_miniblocks.count,
+                deleted_storage_logs_from_past_batches.count + deleted_storage_logs_from_pruned_batches.count,
+                deleted_events.count,
+                deleted_call_traces.count,
+                deleted_l2_to_l1_logs.count)
         }
 
         sqlx::query!(
