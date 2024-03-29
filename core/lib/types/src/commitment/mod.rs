@@ -710,7 +710,7 @@ impl CommitmentInput {
                     bootloader_initial_content_commitment: H256::zero(),
                 },
                 blob_commitments: {
-                    let num_blobs = protocol_version.into_num_blobs();
+                    let num_blobs = protocol_version.into_num_blobs_required();
 
                     vec![H256::zero(); num_blobs]
                 },

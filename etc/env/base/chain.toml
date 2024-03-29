@@ -87,11 +87,6 @@ save_call_traces = true
 virtual_blocks_interval = 1
 virtual_blocks_per_miniblock = 1
 
-# WARNING! This slows down the statekeeper, forcing mempool to upload to GCS
-# It is meant as a validation flag to be used in STAGING only.
-# This variable should not be set to true in any customer facing environment.
-upload_witness_inputs_to_gcs = false
-
 bootloader_hash = "0x010008cb244551e9a0fb7164cee311e35bf7c6e3746bde39f16a009bb6d1c47b"
 default_aa_hash = "0x01000563ee5d0abdf9fc65f748a700d2c377aadebc16d5bf21105f8a94eff028"
 

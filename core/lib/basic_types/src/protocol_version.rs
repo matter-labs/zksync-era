@@ -90,11 +90,22 @@ impl ProtocolVersionId {
     }
 
     /// Returns the number of blobs supported by each VM version
-    pub fn into_num_blobs(&self) -> usize {
+    pub fn into_num_blobs_required(&self) -> usize {
         if self.is_pre_1_5_0() {
             2
         } else {
             16
+        }
+    }
+
+    /// Returns the number of blobs created within each VM version
+    pub fn into_num_blobs_created(&self) -> usize {
+        if self.is_pre_1_4_2() {
+            0
+        } else if self.is_pre_1_5_0() {
+            2
+        } else {
+            6
         }
     }
 
@@ -134,7 +145,7 @@ impl ProtocolVersionId {
     }
 
     pub fn is_1_4_2(&self) -> bool {
-        self == &ProtocolVersionId::Version22
+        self == &ProtocolVersionId::Version21 || self == &ProtocolVersionId::Version22
     }
 
     pub fn is_pre_1_5_0(&self) -> bool {

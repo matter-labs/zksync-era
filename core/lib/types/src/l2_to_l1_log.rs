@@ -68,7 +68,7 @@ pub fn l2_to_l1_logs_tree_size(protocol_version: ProtocolVersionId) -> usize {
         PRE_BOOJUM_L2_L1_LOGS_TREE_SIZE
     } else if protocol_version.is_1_4_0() || protocol_version.is_1_4_1() {
         VM_1_4_0_L2_L1_LOGS_TREE_SIZE
-    } else if protocol_version.is_pre_1_5_0() {
+    } else if protocol_version.is_1_4_2() {
         VM_1_4_2_L2_L1_LOGS_TREE_SIZE
     } else {
         VM_1_5_0_L2_L1_LOGS_TREE_SIZE
@@ -80,21 +80,27 @@ pub fn parse_system_logs_for_blob_hashes(
     protocol_version: &ProtocolVersionId,
     system_logs: &Vec<SystemL2ToL1Log>,
 ) -> Vec<H256> {
-    let num_blobs = protocol_version.into_num_blobs() as u32;
+    let num_required_blobs = protocol_version.into_num_blobs_required() as u32;
+    let num_created_blobs = protocol_version.into_num_blobs_created() as u32;
+
+    if num_created_blobs == 0 {
+        return vec![H256::zero(); num_required_blobs as usize];
+    }
 
     let mut blob_hashes = system_logs
         .iter()
         .filter(|log| {
             log.0.sender == PUBDATA_CHUNK_PUBLISHER_ADDRESS
                 && log.0.key >= H256::from_low_u64_be(BLOB1_LINEAR_HASH_KEY as u64)
-                && log.0.key < H256::from_low_u64_be((BLOB1_LINEAR_HASH_KEY + num_blobs) as u64)
+                && log.0.key
+                    < H256::from_low_u64_be((BLOB1_LINEAR_HASH_KEY + num_created_blobs) as u64)
         })
         .map(|log| (log.0.key, log.0.value))
         .collect::<Vec<(H256, H256)>>();
 
     blob_hashes.sort_unstable_by_key(|(k, _)| *k);
     let mut blob_hashes = blob_hashes.iter().map(|(_, v)| *v).collect::<Vec<H256>>();
-    blob_hashes.resize(num_blobs as usize, H256::zero());
+    blob_hashes.resize(num_required_blobs as usize, H256::zero());
     blob_hashes
 }
 
