@@ -5,6 +5,23 @@ use zksync_protobuf::{repr::ProtoRepr, required};
 
 use crate::{parse_h160, parse_h256, proto::genesis as proto};
 
+impl proto::L1BatchCommitDataGeneratorMode {
+    fn new(n: &configs::chain::L1BatchCommitDataGeneratorMode) -> Self {
+        use configs::chain::L1BatchCommitDataGeneratorMode as From;
+        match n {
+            From::Rollup => Self::Rollup,
+            From::Validium => Self::Validium,
+        }
+    }
+
+    fn parse(&self) -> configs::chain::L1BatchCommitDataGeneratorMode {
+        use configs::chain::L1BatchCommitDataGeneratorMode as To;
+        match self {
+            Self::Rollup => To::Rollup,
+            Self::Validium => To::Validium,
+        }
+    }
+}
 impl ProtoRepr for proto::Genesis {
     type Type = configs::GenesisConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
@@ -69,6 +86,12 @@ impl ProtoRepr for proto::Genesis {
                 .context("fee_account")?,
             shared_bridge,
             dummy_prover: *required(&prover.dummy_verifier).context("dummy_prover")?,
+            l1_batch_commit_data_generator_mode: required(
+                &self.l1_batch_commit_data_generator_mode,
+            )
+            .and_then(|x| Ok(proto::L1BatchCommitDataGeneratorMode::try_from(*x)?))
+            .context("l1_batch_commit_data_generator_mode")?
+            .parse(),
         })
     }
 
@@ -108,6 +131,12 @@ impl ProtoRepr for proto::Genesis {
                 dummy_verifier: Some(this.dummy_prover),
             }),
             shared_bridge,
+            l1_batch_commit_data_generator_mode: Some(
+                proto::L1BatchCommitDataGeneratorMode::new(
+                    &this.l1_batch_commit_data_generator_mode,
+                )
+                .into(),
+            ),
         }
     }
 }

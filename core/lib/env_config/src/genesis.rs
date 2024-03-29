@@ -92,6 +92,9 @@ impl FromEnv for GenesisConfig {
                 .ok_or(anyhow!("Fee account required for genesis"))?,
             shared_bridge,
             dummy_prover: false,
+            l1_batch_commit_data_generator_mode: state_keeper
+                .l1_batch_commit_data_generator_mode
+                .unwrap_or_default(),
         })
     }
 }

@@ -147,6 +147,8 @@ impl EnNamespace {
             fee_account,
             shared_bridge,
             dummy_prover: false,
+            // TODO set correct value
+            l1_batch_commit_data_generator_mode: Default::default(),
         };
         Ok(config)
     }

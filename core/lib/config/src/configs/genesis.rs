@@ -1,3 +1,4 @@
+use crate::configs::chain::L1BatchCommitDataGeneratorMode;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{Address, L1ChainId, L2ChainId, H256};
 
@@ -27,6 +28,7 @@ pub struct GenesisConfig {
     pub fee_account: Address,
     pub shared_bridge: Option<SharedBridge>,
     pub dummy_prover: bool,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
 
 impl GenesisConfig {
@@ -51,6 +53,7 @@ impl GenesisConfig {
             protocol_version: 22,
             l2_chain_id: L2ChainId::default(),
             dummy_prover: false,
+            l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
         }
     }
 }

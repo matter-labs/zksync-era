@@ -1,6 +1,6 @@
 use std::{str::FromStr, time::Duration};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use zksync_basic_types::{
     network::Network,
     web3::{
@@ -52,7 +52,7 @@ impl Default for FeeModelVersion {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum L1BatchCommitDataGeneratorMode {
     #[default]
     Rollup,
@@ -161,9 +161,9 @@ pub struct StateKeeperConfig {
     pub bootloader_hash: Option<H256>,
     #[deprecated]
     pub default_aa_hash: Option<H256>,
-
     #[serde(default)]
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    #[deprecated]
+    pub l1_batch_commit_data_generator_mode: Option<L1BatchCommitDataGeneratorMode>,
 }
 
 impl StateKeeperConfig {
@@ -203,7 +203,8 @@ impl StateKeeperConfig {
             bootloader_hash: None,
             #[allow(deprecated)]
             default_aa_hash: None,
-            l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
+            #[allow(deprecated)]
+            l1_batch_commit_data_generator_mode: None,
         }
     }
 

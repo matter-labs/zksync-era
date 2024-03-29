@@ -310,12 +310,8 @@ pub async fn initialize_components(
     let query_client = QueryClient::new(&eth.web3_url).unwrap();
     let gas_adjuster_config = eth.gas_adjuster.context("gas_adjuster")?;
     let sender = eth.sender.as_ref().context("sender")?;
-    let state_keeper_config = configs
-        .state_keeper_config
-        .as_ref()
-        .context("state_keeper")?;
     let pubdata_pricing: Arc<dyn PubdataPricing> =
-        match state_keeper_config.l1_batch_commit_data_generator_mode {
+        match genesis_config.l1_batch_commit_data_generator_mode {
             L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupPubdataPricing {}),
             L1BatchCommitDataGeneratorMode::Validium => Arc::new(ValidiumPubdataPricing {}),
         };
@@ -637,15 +633,17 @@ pub async fn initialize_components(
             web3_url,
         );
 
+        let l1_batch_commit_data_generator_mode =
+            genesis_config.l1_batch_commit_data_generator_mode;
         ensure_l1_batch_commit_data_generation_mode(
-            state_keeper_config.l1_batch_commit_data_generator_mode,
+            l1_batch_commit_data_generator_mode,
             contracts_config.diamond_proxy_addr,
             &eth_client,
         )
         .await?;
 
         let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> =
-            match state_keeper_config.l1_batch_commit_data_generator_mode {
+            match l1_batch_commit_data_generator_mode {
                 L1BatchCommitDataGeneratorMode::Rollup => {
                     Arc::new(RollupModeL1BatchCommitDataGenerator {})
                 }
