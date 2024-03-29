@@ -1002,7 +1002,7 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#bd4445a407d8bfc77aaae1cdd687179e9e0d287c"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#0ae25a93e7b16732c73d9240b43cb868857d72af"
 dependencies = [
  "derivative",
  "serde",
@@ -1064,7 +1064,7 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#bd4445a407d8bfc77aaae1cdd687179e9e0d287c"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#0ae25a93e7b16732c73d9240b43cb868857d72af"
 dependencies = [
  "bellman_ce",
  "circuit_encodings 0.1.50",
@@ -7901,7 +7901,7 @@ dependencies = [
 [[package]]
 name = "zk_evm_abstractions"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zk_evm_abstractions.git?branch=v1.5.0#3e4253e2cb86cc0b51f230643571d9b387bca0c6"
+source = "git+https://github.com/matter-labs/era-zk_evm_abstractions.git?branch=v1.5.0#e464b2cf2b146d883be80e7d690c752bf670ff05"
 dependencies = [
  "anyhow",
  "num_enum 0.6.1",
@@ -7955,7 +7955,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#71269b28be3c87b7a63d935e770af01cc5c5961e"
+source = "git+https://github.com/matter-labs/zkevm_circuits.git?branch=v1.5.0#b3c262aec9b91f96b70a583c411896fba776ec26"
 dependencies = [
  "arrayvec 0.7.4",
  "boojum",

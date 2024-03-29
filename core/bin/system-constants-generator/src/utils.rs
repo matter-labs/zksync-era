@@ -128,7 +128,7 @@ pub(super) fn get_l1_tx(
 ) -> L1Tx {
     L1Tx {
         execute: Execute {
-            contract_address: contract_address,
+            contract_address,
             calldata: custom_calldata.unwrap_or_default(),
             value: U256::from(0),
             factory_deps,
