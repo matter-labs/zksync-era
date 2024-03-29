@@ -225,26 +225,33 @@ impl BlockStartInfo {
         now - last_cache_date > chrono::Duration::milliseconds(CACHE_MAX_AGE_MS) + random_delay
     }
 
+    async fn update_cache(
+        &self,
+        storage: &mut Connection<'_, Core>,
+        now: DateTime<Utc>,
+    ) -> anyhow::Result<PruningInfo> {
+        let new_pruning_info = storage.pruning_dal().get_pruning_info().await?;
+
+        let mut new_cached_pruning_info = self
+            .cached_pruning_info
+            .write()
+            .expect("BlockStartInfo is poisoned");
+        new_cached_pruning_info.0 = new_pruning_info;
+        new_cached_pruning_info.1 = now;
+        Ok(new_pruning_info)
+    }
+
     async fn get_pruning_info(
         &self,
         storage: &mut Connection<'_, Core>,
     ) -> anyhow::Result<PruningInfo> {
-        let (pruning_info, last_cache_date) = self.get_cache_state_copy();
+        let (last_cached_pruning_info, last_cache_date) = self.get_cache_state_copy();
         let now = Utc::now();
         if self.is_cache_expired(now, last_cache_date) {
             //multiple threads may execute this query if we're very unlucky
-            let new_pruning_info = storage.pruning_dal().get_pruning_info().await?;
-
-            let mut new_cached_pruning_info = self
-                .cached_pruning_info
-                .write()
-                .expect("BlockStartInfo is poisoned");
-            new_cached_pruning_info.0 = new_pruning_info;
-            new_cached_pruning_info.1 = now;
-
-            Ok(new_pruning_info)
+            self.update_cache(storage, now).await
         } else {
-            Ok(pruning_info)
+            Ok(last_cached_pruning_info)
         }
     }
 
