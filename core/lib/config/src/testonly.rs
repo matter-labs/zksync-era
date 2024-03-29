@@ -651,7 +651,7 @@ impl Distribution<configs::ObservabilityConfig> for EncodeDist {
             sentry_environment: self.sample(rng),
             log_format: self.sample(rng),
             opentelemetry: self.sample(rng),
-            sporadic_crypto_errors_substrs: vec![self.sample(rng)],
+            sporadic_crypto_errors_substrs: self.sample_collect(rng),
         }
     }
 }

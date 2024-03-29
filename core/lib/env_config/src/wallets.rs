@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use anyhow::Context;
 use zksync_basic_types::Address;
 use zksync_config::configs::wallets::{EthSender, StateKeeper, Wallet, Wallets};
 
@@ -9,11 +10,13 @@ impl FromEnv for Wallets {
     fn from_env() -> anyhow::Result<Self> {
         let operator = std::env::var("ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY")
             .ok()
-            .map(|pk| pk.parse().unwrap());
+            .map(|pk| pk.parse().context("Malformed pk"))
+            .transpose()?;
 
         let blob_operator = std::env::var("ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY")
             .ok()
-            .map(|pk| pk.parse().unwrap());
+            .map(|pk| pk.parse().context("Malformed pk"))
+            .transpose()?;
 
         let eth_sender = if let Some(operator) = operator {
             let operator = Wallet::from_private_key(operator, None)?;

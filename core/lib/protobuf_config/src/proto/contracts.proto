@@ -4,15 +4,15 @@ package zksync.config.contracts;
 
 message L1 {
   optional string governance_addr = 1; // required; H160
-  optional string verifier_addr = 6; // required; H160
-  optional string diamond_proxy_addr = 9; // required; H160
-  optional string validator_timelock_addr = 10; // required; H160
-  optional string default_upgrade_addr = 11; // required; H160
-  optional string multicall3_addr = 12; // required; H160
+  optional string verifier_addr = 2; // required; H160
+  optional string diamond_proxy_addr = 3; // required; H160
+  optional string validator_timelock_addr = 4; // required; H160
+  optional string default_upgrade_addr = 5; // required; H160
+  optional string multicall3_addr = 6; // required; H160
 }
 
 message L2 {
-  optional string testnet_paymaster_addr = 18; // optional; H160
+  optional string testnet_paymaster_addr = 1; // optional; H160
 }
 
 message Bridge {

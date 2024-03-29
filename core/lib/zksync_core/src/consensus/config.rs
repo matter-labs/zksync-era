@@ -69,12 +69,7 @@ impl Config {
             node_key,
             gossip_dynamic_inbound_limit: self.gossip_dynamic_inbound_limit,
             gossip_static_inbound: self.gossip_static_inbound.clone().into_iter().collect(),
-            gossip_static_outbound: self
-                .gossip_static_outbound
-                .clone()
-                .into_iter()
-                .map(|(key, address)| (key, address))
-                .collect(),
+            gossip_static_outbound: self.gossip_static_outbound.clone().into_iter().collect(),
         }
     }
 }

@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{Address, H256};
 use zksync_config::{
@@ -65,22 +65,22 @@ impl FromEnv for GenesisConfig {
         Ok(GenesisConfig {
             protocol_version: contracts_config
                 .genesis_protocol_version
-                .ok_or(anyhow!("Protocol version is required for genesis"))?,
+                .context("Protocol version is required for genesis")?,
             genesis_root_hash: contracts_config
                 .genesis_root
-                .ok_or(anyhow!("genesis_root_hash required for genesis"))?,
+                .context("genesis_root_hash required for genesis")?,
             rollup_last_leaf_index: contracts_config
                 .genesis_rollup_leaf_index
-                .ok_or(anyhow!("rollup_last_leaf_index required for genesis"))?,
+                .context("rollup_last_leaf_index required for genesis")?,
             genesis_commitment: contracts_config
                 .genesis_batch_commitment
-                .ok_or(anyhow!("genesis_commitment required for genesis"))?,
+                .context("genesis_commitment required for genesis")?,
             bootloader_hash: state_keeper
                 .bootloader_hash
-                .ok_or(anyhow!("Bootloader hash required for genesis"))?,
+                .context("Bootloader hash required for genesis")?,
             default_aa_hash: state_keeper
                 .default_aa_hash
-                .ok_or(anyhow!("Default aa hash required for genesis"))?,
+                .context("Default aa hash required for genesis")?,
             l1_chain_id: network_config.network.chain_id(),
             l2_chain_id: network_config.zksync_network_id,
             recursion_node_level_vk_hash: contracts_config.fri_recursion_node_level_vk_hash,
@@ -89,7 +89,7 @@ impl FromEnv for GenesisConfig {
             recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
             fee_account: state_keeper
                 .fee_account_addr
-                .ok_or(anyhow!("Fee account required for genesis"))?,
+                .context("Fee account required for genesis")?,
             shared_bridge,
             dummy_prover: false,
             l1_batch_commit_data_generator_mode: state_keeper.l1_batch_commit_data_generator_mode,

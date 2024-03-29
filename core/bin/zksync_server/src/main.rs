@@ -56,13 +56,13 @@ struct Cli {
     /// Path to the yaml with secrets. If set, it will be used instead of env vars.
     #[arg(long)]
     secrets_path: Option<std::path::PathBuf>,
-    /// Path to the yaml with secrets. If set, it will be used instead of env vars.
+    /// Path to the yaml with contracts. If set, it will be used instead of env vars.
     #[arg(long)]
     contracts_config_path: Option<std::path::PathBuf>,
     /// Path to the wallets config. If set, it will be used instead of env vars.
     #[arg(long)]
     wallets_path: Option<std::path::PathBuf>,
-    /// Path to the yaml with secrets. If set, it will be used instead of env vars.
+    /// Path to the yaml with genesis. If set, it will be used instead of env vars.
     #[arg(long)]
     genesis_path: Option<std::path::PathBuf>,
 }
@@ -256,7 +256,9 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         state_keeper_config: StateKeeperConfig::from_env().ok(),
         house_keeper_config: HouseKeeperConfig::from_env().ok(),
         fri_proof_compressor_config: FriProofCompressorConfig::from_env().ok(),
-        fri_prover_config: Some(FriProverConfig::from_env().context("fri_prover_config")?),
+        fri_prover_config: FriProverConfig::from_env()
+            .context("fri_prover_config")
+            .ok(),
         fri_prover_group_config: FriProverGroupConfig::from_env().ok(),
         fri_prover_gateway_config: FriProverGatewayConfig::from_env().ok(),
         fri_witness_vector_generator: FriWitnessVectorGeneratorConfig::from_env().ok(),
