@@ -19,14 +19,12 @@ impl EnNamespace {
     }
 
     pub async fn consensus_genesis_impl(&self) -> Result<Option<en::ConsensusGenesis>, Web3Error> {
-        let Some(genesis) = self
-            .state
-            .connection_pool
-            .connection_tagged("api")
-            .await?
+        let mut storage = self.state.connection_pool.connection_tagged("api").await?;
+        let Some(genesis) = storage
             .consensus_dal()
             .genesis()
-            .await?
+            .await
+            .map_err(DalError::generalize)?
         else {
             return Ok(None);
         };
@@ -50,7 +48,7 @@ impl EnNamespace {
             .sync_dal()
             .sync_block(block_number, include_transactions)
             .await
-            .context("sync_block")?)
+            .map_err(DalError::generalize)?)
     }
 
     #[tracing::instrument(skip(self))]

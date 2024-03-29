@@ -7,10 +7,8 @@ use std::{
 use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use zksync_db_connection::{
-    connection::Connection,
-    error::{DalError, DalResult},
-    instrument::InstrumentExt,
-    interpolate_query, match_query_as,
+    connection::Connection, error::DalResult, instrument::InstrumentExt, interpolate_query,
+    match_query_as,
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
@@ -22,7 +20,10 @@ use zksync_types::{
 };
 
 use crate::{
-    models::storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
+    models::{
+        parse_protocol_version,
+        storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
+    },
     Core, CoreDal,
 };
 
@@ -2063,7 +2064,7 @@ impl BlocksDal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> DalResult<Option<ProtocolVersionId>> {
-        let Some(row) = sqlx::query!(
+        Ok(sqlx::query!(
             r#"
             SELECT
                 protocol_version
@@ -2074,20 +2075,12 @@ impl BlocksDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
+        .try_map(|row| row.protocol_version.map(parse_protocol_version).transpose())
         .instrument("get_batch_protocol_version_id")
         .with_arg("l1_batch_number", &l1_batch_number)
         .fetch_optional(self.storage)
         .await?
-        else {
-            return Ok(None);
-        };
-
-        let Some(version) = row.protocol_version else {
-            return Ok(None);
-        };
-        let version = ProtocolVersionId::try_from(version as u16)
-            .map_err(|err| DalError::column_conversion("version", err.into()))?;
-        Ok(Some(version))
+        .flatten())
     }
 
     pub async fn set_protocol_version_for_pending_miniblocks(

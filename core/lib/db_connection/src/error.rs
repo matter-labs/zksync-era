@@ -9,25 +9,15 @@ use crate::connection::ConnectionTags;
 pub enum DalError {
     #[error(transparent)]
     Request(#[from] DalRequestError),
-    #[error("failed converting data fetched from Postgres")]
-    Conversion(#[source] sqlx::Error),
     #[error(transparent)]
     Transaction(#[from] DalTransactionError),
 }
 
 impl DalError {
-    pub fn column_conversion(name: &str, source: BoxDynError) -> Self {
-        Self::Conversion(sqlx::Error::ColumnDecode {
-            index: name.to_string(),
-            source,
-        })
-    }
-
     /// Returns a reference to the underlying `sqlx` error.
     pub fn inner(&self) -> &sqlx::Error {
         match self {
             Self::Request(err) => &err.inner,
-            Self::Conversion(err) => err,
             Self::Transaction(err) => &err.inner,
         }
     }
@@ -155,5 +145,23 @@ impl DalTransactionError {
             action: TransactionAction::Commit,
             connection_tags,
         }
+    }
+}
+
+/// Extension trait to create `sqlx::Result`s, similar to `anyhow::Context`.
+pub trait SqlxContext<T> {
+    /// Wraps the error variant of a result into a column conversion error.
+    fn decode_column(self, column_name: &'static str) -> sqlx::Result<T>;
+}
+
+impl<T, E> SqlxContext<T> for Result<T, E>
+where
+    E: Into<BoxDynError>,
+{
+    fn decode_column(self, column_name: &'static str) -> sqlx::Result<T> {
+        self.map_err(|err| sqlx::Error::ColumnDecode {
+            index: column_name.to_string(),
+            source: err.into(),
+        })
     }
 }

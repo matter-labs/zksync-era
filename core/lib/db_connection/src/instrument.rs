@@ -23,7 +23,7 @@ use tokio::time::Instant;
 use crate::{
     connection::{Connection, ConnectionTags, DbMarker},
     connection_pool::ConnectionPool,
-    error::{DalRequestError, DalResult},
+    error::{DalError, DalRequestError, DalResult},
     metrics::REQUEST_METRICS,
     utils::InternalMarker,
 };
@@ -37,10 +37,10 @@ struct QueryArgs<'a> {
 }
 
 impl QueryArgs<'_> {
-    fn into_owned(self) -> Vec<(&'static str, String)> {
+    fn to_owned(&self) -> Vec<(&'static str, String)> {
         self.inner
-            .into_iter()
-            .map(|(name, value)| (name, format!("{value:?}")))
+            .iter()
+            .map(|(name, value)| (*name, format!("{value:?}")))
             .collect()
     }
 }
@@ -160,7 +160,7 @@ impl ActiveCopy<'_> {
         };
         inner_send.await.map_err(|err| {
             DalRequestError::new(err, self.data.name, self.data.location)
-                .with_args(self.data.args.into_owned())
+                .with_args(self.data.args.to_owned())
                 .with_connection_tags(self.tags.cloned())
                 .into()
         })
@@ -247,7 +247,7 @@ impl<'a> InstrumentedData<'a> {
 
         output.map_err(|err| {
             DalRequestError::new(err, name, location)
-                .with_args(args.into_owned())
+                .with_args(args.to_owned())
                 .with_connection_tags(connection_tags.cloned())
                 .into()
         })
@@ -269,6 +269,41 @@ impl<'a> InstrumentedData<'a> {
 pub struct Instrumented<'a, Q> {
     query: Q,
     data: InstrumentedData<'a>,
+}
+
+impl<'a> Instrumented<'a, ()> {
+    /// Creates an empty instrumentation information. This is useful if you need to validate query arguments
+    /// before invoking a query.
+    #[track_caller]
+    pub fn new(name: &'static str) -> Self {
+        Self {
+            query: (),
+            data: InstrumentedData::new(name, Location::caller()),
+        }
+    }
+
+    /// Wraps a provided argument validation error.
+    pub fn arg_error<E>(&self, arg_name: &'static str, err: E) -> DalError
+    where
+        E: Into<anyhow::Error>,
+    {
+        let err: anyhow::Error = err.into();
+        let err = err.context(format!("failed validating query argument `{arg_name}`"));
+        DalRequestError::new(
+            sqlx::Error::Decode(err.into()),
+            self.data.name,
+            self.data.location,
+        )
+        .with_args(self.data.args.to_owned())
+        .into()
+    }
+
+    pub fn with<Q>(self, query: Q) -> Instrumented<'a, Q> {
+        Instrumented {
+            query,
+            data: self.data,
+        }
+    }
 }
 
 impl<'a, Q> Instrumented<'a, Q> {
@@ -375,7 +410,7 @@ impl<'a> Instrumented<'a, CopyStatement> {
             }),
             Err(err) => Err(
                 DalRequestError::new(err, self.data.name, self.data.location)
-                    .with_args(self.data.args.into_owned())
+                    .with_args(self.data.args.to_owned())
                     .with_connection_tags(tags.cloned())
                     .into(),
             ),

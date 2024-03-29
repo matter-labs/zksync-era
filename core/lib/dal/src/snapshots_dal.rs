@@ -1,6 +1,6 @@
 use zksync_db_connection::{
     connection::Connection,
-    error::{DalError, DalResult},
+    error::{DalResult, SqlxContext},
     instrument::InstrumentExt,
 };
 use zksync_types::{
@@ -19,13 +19,11 @@ struct StorageSnapshotMetadata {
 }
 
 impl TryFrom<StorageSnapshotMetadata> for SnapshotMetadata {
-    type Error = DalError;
+    type Error = sqlx::Error;
 
     fn try_from(row: StorageSnapshotMetadata) -> Result<Self, Self::Error> {
-        let int_version = u16::try_from(row.version)
-            .map_err(|err| DalError::column_conversion("version", err.into()))?;
-        let version = SnapshotVersion::try_from(int_version)
-            .map_err(|err| DalError::column_conversion("version", err.into()))?;
+        let int_version = u16::try_from(row.version).decode_column("version")?;
+        let version = SnapshotVersion::try_from(int_version).decode_column("version")?;
 
         Ok(Self {
             version,
@@ -135,7 +133,7 @@ impl SnapshotsDal<'_, '_> {
     }
 
     pub async fn get_newest_snapshot_metadata(&mut self) -> DalResult<Option<SnapshotMetadata>> {
-        let row = sqlx::query_as!(
+        sqlx::query_as!(
             StorageSnapshotMetadata,
             r#"
             SELECT
@@ -151,19 +149,18 @@ impl SnapshotsDal<'_, '_> {
                 1
             "#
         )
+        .try_map(SnapshotMetadata::try_from)
         .instrument("get_newest_snapshot_metadata")
         .report_latency()
         .fetch_optional(self.storage)
-        .await?;
-
-        row.map(TryFrom::try_from).transpose()
+        .await
     }
 
     pub async fn get_snapshot_metadata(
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> DalResult<Option<SnapshotMetadata>> {
-        let row = sqlx::query_as!(
+        sqlx::query_as!(
             StorageSnapshotMetadata,
             r#"
             SELECT
@@ -178,13 +175,12 @@ impl SnapshotsDal<'_, '_> {
             "#,
             l1_batch_number.0 as i32
         )
+        .try_map(SnapshotMetadata::try_from)
         .instrument("get_snapshot_metadata")
         .with_arg("l1_batch_number", &l1_batch_number)
         .report_latency()
         .fetch_optional(self.storage)
-        .await?;
-
-        row.map(TryFrom::try_from).transpose()
+        .await
     }
 }
 
