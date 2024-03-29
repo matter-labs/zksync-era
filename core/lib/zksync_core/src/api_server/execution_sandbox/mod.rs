@@ -219,7 +219,7 @@ impl BlockStartInfo {
 
     fn is_cache_expired(&self, now: DateTime<Utc>, last_cache_date: DateTime<Utc>) -> bool {
         const CACHE_MAX_AGE_MS: i64 = 20000;
-        // we make max_age a bit random so that all threads don't start refreshing cache at the same time
+        // we make max age a bit random so that all threads don't start refreshing cache at the same time
         let random_delay =
             chrono::Duration::milliseconds(i64::from(random::<u32>()) % CACHE_MAX_AGE_MS / 2);
         now - last_cache_date > chrono::Duration::milliseconds(CACHE_MAX_AGE_MS) + random_delay
