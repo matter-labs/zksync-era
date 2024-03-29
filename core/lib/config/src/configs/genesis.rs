@@ -1,6 +1,7 @@
-use crate::configs::chain::L1BatchCommitDataGeneratorMode;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{Address, L1ChainId, L2ChainId, H256};
+
+use crate::configs::chain::L1BatchCommitDataGeneratorMode;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SharedBridge {

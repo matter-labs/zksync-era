@@ -107,11 +107,16 @@ impl MainNodeBuilder {
     fn add_sequencer_l1_gas_layer(mut self) -> anyhow::Result<Self> {
         let gas_adjuster_config = GasAdjusterConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
+        let genesis_config = GenesisConfig::from_env()?;
         let eth_sender_config = ETHConfig::from_env()?;
         let sequencer_l1_gas_layer = SequencerL1GasLayer::new(
             gas_adjuster_config,
+            genesis_config,
             state_keeper_config,
-            eth_sender_config.sender.pubdata_sending_mode,
+            eth_sender_config
+                .sender
+                .context("eth_sender")?
+                .pubdata_sending_mode,
         );
         self.node.add_layer(sequencer_l1_gas_layer);
         Ok(self)
@@ -217,7 +222,6 @@ impl MainNodeBuilder {
     fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
         let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
         let contracts_config = ContractsConfig::from_env()?;
-        let network_config = NetworkConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
         let with_debug_namespace = state_keeper_config.save_call_traces;
         let genesis_config = GenesisConfig::from_env()?;
@@ -292,7 +296,7 @@ impl MainNodeBuilder {
             network_config,
             genesis_config.l1_chain_id,
             wallets.eth_sender.context("Eth sender wallets")?,
-            state_keeper_config.l1_batch_commit_data_generator_mode,
+            genesis_config.l1_batch_commit_data_generator_mode,
         ));
 
         Ok(self)

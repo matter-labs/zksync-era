@@ -1,4 +1,10 @@
-use zksync_protobuf::testonly::{test_encode_all_formats, ReprConv};
+use std::{path::PathBuf, str::FromStr};
+
+use anyhow::Context;
+use zksync_protobuf::{
+    testonly::{test_encode_all_formats, ReprConv},
+    ProtoRepr,
+};
 
 use crate::proto;
 
@@ -31,4 +37,25 @@ fn test_encoding() {
     test_encode_all_formats::<ReprConv<proto::prover::ProofDataHandler>>(rng);
     test_encode_all_formats::<ReprConv<proto::snapshot_creator::SnapshotsCreator>>(rng);
     test_encode_all_formats::<ReprConv<proto::observability::Observability>>(rng);
+}
+
+pub fn decode_yaml_repr<T: ProtoRepr>(
+    path: &PathBuf,
+    deny_unknown_fields: bool,
+) -> anyhow::Result<T::Type> {
+    let yaml = std::fs::read_to_string(path).with_context(|| path.display().to_string())?;
+    let d = serde_yaml::Deserializer::from_str(&yaml);
+    let this: T = zksync_protobuf::serde::deserialize_proto_with_options(d, deny_unknown_fields)?;
+    this.read()
+}
+
+#[test]
+fn verify_file_parsing() {
+    let base_path = PathBuf::from_str("../../../etc/env/file_based/").unwrap();
+    decode_yaml_repr::<proto::general::GeneralConfig>(&base_path.join("general.yaml"), true)
+        .unwrap();
+    decode_yaml_repr::<proto::wallets::Wallets>(&base_path.join("wallets.yaml"), true).unwrap();
+    decode_yaml_repr::<proto::genesis::Genesis>(&base_path.join("genesis.yaml"), true).unwrap();
+    decode_yaml_repr::<proto::contracts::Contracts>(&base_path.join("contracts.yaml"), true)
+        .unwrap();
 }

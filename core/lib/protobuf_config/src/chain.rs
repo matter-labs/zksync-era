@@ -82,12 +82,12 @@ impl ProtoRepr for proto::StateKeeper {
                 .transpose()
                 .context("enum_index_migration_chunk_size")?,
 
-            // We need these values only for instantiating configs from envs, so it's not
+            // We need these values only for instantiating configs from environmental variables, so it's not
             // needed during the initialization from files
             bootloader_hash: None,
             default_aa_hash: None,
             fee_account_addr: None,
-            l1_batch_commit_data_generator_mode: None,
+            l1_batch_commit_data_generator_mode: Default::default(),
         })
     }
 

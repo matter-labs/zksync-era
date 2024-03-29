@@ -161,9 +161,9 @@ pub struct StateKeeperConfig {
     pub bootloader_hash: Option<H256>,
     #[deprecated]
     pub default_aa_hash: Option<H256>,
-    #[serde(default)]
     #[deprecated]
-    pub l1_batch_commit_data_generator_mode: Option<L1BatchCommitDataGeneratorMode>,
+    #[serde(default)]
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
 
 impl StateKeeperConfig {
@@ -199,12 +199,9 @@ impl StateKeeperConfig {
             virtual_blocks_interval: 1,
             virtual_blocks_per_miniblock: 1,
             enum_index_migration_chunk_size: None,
-            #[allow(deprecated)]
             bootloader_hash: None,
-            #[allow(deprecated)]
             default_aa_hash: None,
-            #[allow(deprecated)]
-            l1_batch_commit_data_generator_mode: None,
+            l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
         }
     }
 

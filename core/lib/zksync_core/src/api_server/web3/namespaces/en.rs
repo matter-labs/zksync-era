@@ -146,9 +146,11 @@ impl EnNamespace {
             recursion_scheduler_level_vk_hash: verifier_config.recursion_scheduler_level_vk_hash,
             fee_account,
             shared_bridge,
-            dummy_prover: false,
-            // TODO set correct value
-            l1_batch_commit_data_generator_mode: Default::default(),
+            dummy_prover: self.state.api_config.dummy_prover,
+            l1_batch_commit_data_generator_mode: self
+                .state
+                .api_config
+                .l1_batch_commit_data_generator_mode,
         };
         Ok(config)
     }

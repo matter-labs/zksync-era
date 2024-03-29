@@ -12,7 +12,7 @@ use lru::LruCache;
 use tokio::sync::{watch, Mutex};
 use vise::GaugeGuard;
 use zksync_config::{
-    configs::{api::Web3JsonRpcConfig, ContractsConfig},
+    configs::{api::Web3JsonRpcConfig, chain::L1BatchCommitDataGeneratorMode, ContractsConfig},
     GenesisConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -99,6 +99,8 @@ pub struct InternalApiConfig {
     pub filters_disabled: bool,
     pub mempool_cache_update_interval: Duration,
     pub mempool_cache_size: usize,
+    pub dummy_prover: bool,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
 
 impl InternalApiConfig {
@@ -139,6 +141,8 @@ impl InternalApiConfig {
             filters_disabled: web3_config.filters_disabled,
             mempool_cache_update_interval: web3_config.mempool_cache_update_interval(),
             mempool_cache_size: web3_config.mempool_cache_size(),
+            dummy_prover: genesis_config.dummy_prover,
+            l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
         }
     }
 }

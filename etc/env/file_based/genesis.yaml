@@ -7,6 +7,7 @@ genesis_protocol_version: 21
 l1_chain_id: 9
 l2_chain_id: 270
 fee_account: 0x0000000000000000000000000000000000000001
+l1_batch_commit_data_generator_mode:
 prover:
   recursion_leaf_level_vk_hash: 0x400a4b532c6f072c00d1806ef299300d4c104f4ac55bd8698ade78894fcadc0a
   recursion_node_level_vk_hash: 0x5a3ef282b21e12fe1f4438e5bb158fc5060b160559c5158c6389d62d9fe3d080

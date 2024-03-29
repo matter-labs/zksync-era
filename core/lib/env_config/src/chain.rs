@@ -216,6 +216,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn default_state_keeper_mode() {
         assert_eq!(
             StateKeeperConfig::default().l1_batch_commit_data_generator_mode,

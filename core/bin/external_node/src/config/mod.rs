@@ -41,6 +41,8 @@ pub struct RemoteENConfig {
     pub l2_chain_id: L2ChainId,
     pub l1_chain_id: L1ChainId,
     pub max_pubdata_per_batch: u64,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    pub dummy_prover: bool,
 }
 
 impl RemoteENConfig {
@@ -54,7 +56,7 @@ impl RemoteENConfig {
             .rpc_context("get_testnet_paymaster")
             .await?;
         let genesis = client.genesis_config().rpc_context("genesis").await.ok();
-        let shared_bridge = genesis.and_then(|a| a.shared_bridge);
+        let shared_bridge = genesis.as_ref().and_then(|a| a.shared_bridge.clone());
         let diamond_proxy_addr = client
             .get_main_contract()
             .rpc_context("get_main_contract")
@@ -95,6 +97,11 @@ impl RemoteENConfig {
             l2_chain_id,
             l1_chain_id,
             max_pubdata_per_batch,
+            l1_batch_commit_data_generator_mode: genesis
+                .as_ref()
+                .map(|a| a.l1_batch_commit_data_generator_mode)
+                .unwrap_or_default(),
+            dummy_prover: genesis.as_ref().map(|a| a.dummy_prover).unwrap_or_default(),
         })
     }
 }
@@ -658,6 +665,8 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
             filters_disabled: config.optional.filters_disabled,
             mempool_cache_update_interval: config.optional.mempool_cache_update_interval(),
             mempool_cache_size: config.optional.mempool_cache_size,
+            dummy_prover: config.remote.dummy_prover,
+            l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
         }
     }
 }

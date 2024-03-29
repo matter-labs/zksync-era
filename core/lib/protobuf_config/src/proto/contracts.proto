@@ -9,7 +9,6 @@ message L1 {
   optional string validator_timelock_addr = 10; // required; H160
   optional string default_upgrade_addr = 11; // required; H160
   optional string multicall3_addr = 12; // required; H160
-
 }
 
 message L2 {
