@@ -86,11 +86,7 @@ impl SyncState {
     ) -> anyhow::Result<()> {
         const UPDATE_INTERVAL: Duration = Duration::from_secs(10);
 
-        loop {
-            if *stop_receiver.borrow() {
-                return Ok(());
-            }
-
+        while *stop_receiver.borrow_and_update() {
             let local_block = connection_pool
                 .connection()
                 .await
@@ -114,6 +110,7 @@ impl SyncState {
                 .await
                 .ok();
         }
+        Ok(())
     }
 }
 

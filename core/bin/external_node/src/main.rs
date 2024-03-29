@@ -685,7 +685,7 @@ impl Component {
                 Component::Tree,
                 Component::Core,
             ]),
-            other => Err(anyhow::anyhow!("{} is not a valid component name", other)),
+            other => Err(anyhow::anyhow!("{other} is not a valid component name")),
         }
     }
 }
