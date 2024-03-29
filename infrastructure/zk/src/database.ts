@@ -1,4 +1,4 @@
-import {Command} from 'commander';
+import { Command } from 'commander';
 import * as utils from './utils';
 
 export async function reset(opts: DbOpts) {

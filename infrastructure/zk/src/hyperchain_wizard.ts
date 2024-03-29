@@ -1,19 +1,19 @@
-import {Command} from 'commander';
+import { Command } from 'commander';
 import enquirer from 'enquirer';
-import {BigNumber, ethers, utils} from 'ethers';
+import { BigNumber, ethers, utils } from 'ethers';
 import chalk from 'chalk';
-import {announced, init, InitArgs} from './init';
+import { announced, init, InitArgs } from './init';
 import * as server from './server';
 import * as docker from './docker';
 import * as db from './database';
 import * as env from './env';
-import {compileConfig} from './config';
+import { compileConfig } from './config';
 import * as fs from 'fs';
 import fetch from 'node-fetch';
-import {up} from './up';
+import { up } from './up';
 import * as Handlebars from 'handlebars';
-import {ProverType, setupProver} from './prover_setup';
-import {DeploymentMode} from './contract';
+import { ProverType, setupProver } from './prover_setup';
+import { DeploymentMode } from './contract';
 
 const title = chalk.blueBright;
 const warning = chalk.yellowBright;
@@ -292,7 +292,7 @@ async function setHyperchainMetadata(runObservability: boolean) {
         feeReceiverAddress = richWallets[3].address;
 
         await up(runObservability);
-        await announced('Ensuring databases are up', db.wait({core: true, prover: false}));
+        await announced('Ensuring databases are up', db.wait({ core: true, prover: false }));
     }
 
     await initializeTestERC20s();

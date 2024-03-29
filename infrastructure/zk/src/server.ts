@@ -1,8 +1,8 @@
-import {Command} from 'commander';
+import { Command } from 'commander';
 import * as utils from './utils';
-import {clean} from './clean';
+import { clean } from './clean';
 import fs from 'fs';
-import {unloadInit} from './env';
+import { unloadInit } from './env';
 import * as path from 'path';
 import * as db from './database';
 
@@ -40,7 +40,7 @@ export async function externalNode(reinit: boolean = false, args: string[]) {
     // On --reinit we want to reset RocksDB and Postgres before we start.
     if (reinit) {
         await utils.confirmAction();
-        await db.reset({core: true, prover: false});
+        await db.reset({ core: true, prover: false });
         clean(path.dirname(process.env.EN_MERKLE_TREE_PATH!));
     }
 
@@ -61,7 +61,7 @@ async function create_genesis(cmd: string) {
         date.getSeconds()
     ];
     const label = `${process.env.ZKSYNC_ENV}-Genesis_gen-${year}-${month}-${day}-${hour}${minute}${second}`;
-    fs.mkdirSync(`logs/${label}`, {recursive: true});
+    fs.mkdirSync(`logs/${label}`, { recursive: true });
     fs.copyFileSync('genesis.log', `logs/${label}/genesis.log`);
 }
 
