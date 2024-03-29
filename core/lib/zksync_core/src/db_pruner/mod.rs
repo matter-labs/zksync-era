@@ -189,10 +189,8 @@ impl DbPruner {
                     self.config.next_iterations_delay
                 );
                 tokio::time::sleep(self.config.next_iterations_delay).await;
-            } else {
-                if !pruning_done.unwrap_or(false) {
-                    tokio::time::sleep(self.config.next_iterations_delay).await;
-                }
+            } else if !pruning_done.unwrap() {
+                tokio::time::sleep(self.config.next_iterations_delay).await;
             }
         }
     }
@@ -200,7 +198,7 @@ impl DbPruner {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, fmt::Formatter};
+    use std::{collections::HashMap, fmt, fmt::Formatter};
 
     use anyhow::anyhow;
     use multivm::zk_evm_latest::ethereum_types::H256;
