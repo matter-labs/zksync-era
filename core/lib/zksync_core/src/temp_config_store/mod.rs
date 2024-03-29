@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use zksync_config::configs::ObservabilityConfig;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -14,7 +15,7 @@ use zksync_config::{
         PrometheusConfig, ProofDataHandlerConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, ETHConfig, ETHWatchConfig, GasAdjusterConfig,
-    ObjectStoreConfig, PostgresConfig,
+    ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_protobuf::{read_optional, repr::ProtoRepr, ProtoFmt};
 
@@ -63,6 +64,8 @@ pub struct TempConfigStore {
     pub eth_watch_config: Option<ETHWatchConfig>,
     pub gas_adjuster_config: Option<GasAdjusterConfig>,
     pub object_store_config: Option<ObjectStoreConfig>,
+    pub observability: Option<ObservabilityConfig>,
+    pub snapshot_creator: Option<SnapshotsCreatorConfig>,
 }
 
 #[derive(Debug)]
@@ -106,7 +109,8 @@ impl TempConfigStore {
             proof_data_handler_config: self.proof_data_handler_config.clone(),
             db_config: self.db_config.clone(),
             eth: self.eth_sender_config.clone(),
-            snapshot_creator: None,
+            snapshot_creator: self.snapshot_creator.clone(),
+            observability: self.observability.clone(),
         }
     }
 

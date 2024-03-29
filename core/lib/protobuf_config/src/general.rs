@@ -36,6 +36,7 @@ impl ProtoRepr for proto::GeneralConfig {
             eth: read_optional_repr(&self.eth).context("eth")?,
             snapshot_creator: read_optional_repr(&self.snapshot_creator)
                 .context("snapshot_creator")?,
+            observability: read_optional_repr(&self.observability).context("observability")?,
         })
     }
 
@@ -66,6 +67,7 @@ impl ProtoRepr for proto::GeneralConfig {
             db: this.db_config.as_ref().map(ProtoRepr::build),
             eth: this.eth.as_ref().map(ProtoRepr::build),
             snapshot_creator: this.snapshot_creator.as_ref().map(ProtoRepr::build),
+            observability: this.observability.as_ref().map(ProtoRepr::build),
         }
     }
 }

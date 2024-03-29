@@ -160,14 +160,6 @@ impl RandomConfig for configs::chain::FeeModelVersion {
     }
 }
 
-impl RandomConfig for configs::AlertsConfig {
-    fn sample(g: &mut Gen<impl Rng>) -> Self {
-        Self {
-            sporadic_crypto_errors_substrs: g.gen(),
-        }
-    }
-}
-
 impl RandomConfig for configs::ApiConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {

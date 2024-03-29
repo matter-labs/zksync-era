@@ -16,7 +16,7 @@ use zksync_config::{
         PrometheusConfig, ProofDataHandlerConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, ETHConfig, ETHWatchConfig, GasAdjusterConfig,
-    GenesisConfig, ObjectStoreConfig, PostgresConfig,
+    GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core::{
     genesis, genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
@@ -270,5 +270,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         eth_watch_config: ETHWatchConfig::from_env().ok(),
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
         object_store_config: ObjectStoreConfig::from_env().ok(),
+        observability: ObservabilityConfig::from_env().ok(),
+        snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
     })
 }

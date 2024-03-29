@@ -1,6 +1,5 @@
 // Public re-exports
 pub use self::{
-    alerts::AlertsConfig,
     api::ApiConfig,
     contract_verifier::ContractVerifierConfig,
     contracts::ContractsConfig,
@@ -22,7 +21,6 @@ pub use self::{
     witness_generator::WitnessGeneratorConfig,
 };
 
-pub mod alerts;
 pub mod api;
 pub mod chain;
 pub mod contract_verifier;

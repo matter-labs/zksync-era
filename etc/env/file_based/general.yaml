@@ -293,16 +293,16 @@ prometheus:
   pushgateway_url: http://127.0.0.1:9091
   push_interval_ms: 100
 
-#monitoring:
-#  log_format: plain
-#  sentry_url: unset
-#  sentry_panic_interval: 1800
-#  sentry_error_interval: 10800
-#  otlp_url: unset
-#  sporadic_crypto_errors_substrs:
-#    - "EventDestroyErr"
-#    - "Can't free memory of DeviceBuf"
-#    - "value: PoisonError"
+observability:
+  log_format: plain
+  sentry_url: unset
+  sentry_panic_interval: 1800
+  sentry_error_interval: 10800
+  otlp_url: unset
+  sporadic_crypto_errors_substrs:
+    - "EventDestroyErr"
+    - "Can't free memory of DeviceBuf"
+    - "value: PoisonError"
 
 # Probably we can initialize it without envs
 #RUST_LOG: zksync_node_framework=info,zksync_consensus_bft=info,zksync_consensus_network=info,zksync_consensus_storage=info,zksync_core=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_dal=info,zksync_eth_client=info,zksync_storage=info,zksync_db_manager=info,zksync_merkle_tree=info,zksync_state=debug,zksync_utils=debug,zksync_queued_job_processor=info,zksync_types=info,zksync_mempool=debug,loadnext=info,vm=info,zksync_object_store=info,zksync_external_node=info,zksync_witness_generator=info,zksync_prover_fri=info,zksync_witness_vector_generator=info,zksync_health_check=debug,zksync_proof_fri_compressor=info,vise_exporter=debug,snapshots_creator=debug,

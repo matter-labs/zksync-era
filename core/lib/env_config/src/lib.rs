@@ -1,7 +1,6 @@
 use anyhow::Context as _;
 use serde::de::DeserializeOwned;
 
-mod alerts;
 mod api;
 mod chain;
 mod contract_verifier;
