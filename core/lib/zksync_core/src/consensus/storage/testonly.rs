@@ -5,7 +5,6 @@ use zksync_consensus_roles::validator;
 use zksync_consensus_storage as storage;
 use zksync_consensus_storage::PersistentBlockStore as _;
 use zksync_dal::{ConnectionPool, Core};
-use zksync_types::L2ChainId;
 
 use super::Store;
 use crate::{
