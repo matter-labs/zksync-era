@@ -125,6 +125,8 @@ pub const ERC20_TRANSFER_TOPIC: H256 = H256([
     99, 196, 161, 22, 40, 245, 90, 77, 245, 35, 179, 239,
 ]);
 
+/// This contract is specifically outside of the system contract address space as it can relay any call so it breaks
+/// the trust of system contracts.
 pub const GAS_BOUND_CALLER_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x01, 0x00, 0x00,
