@@ -1,8 +1,8 @@
 use anyhow::Context as _;
 use zksync_config::configs::{self};
-use zksync_protobuf::{read_required_repr, required, ProtoRepr};
+use zksync_protobuf::{required, ProtoRepr};
 
-use crate::proto::eth as proto;
+use crate::{proto::eth as proto, read_optional_repr};
 
 impl proto::ProofSendingMode {
     fn new(x: &configs::eth_sender::ProofSendingMode) -> Self {
@@ -64,18 +64,18 @@ impl ProtoRepr for proto::Eth {
     type Type = configs::eth_sender::ETHConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            sender: read_required_repr(&self.sender).context("sender")?,
-            gas_adjuster: read_required_repr(&self.gas_adjuster).context("gas_adjuster")?,
-            watcher: read_required_repr(&self.watcher).context("watcher")?,
+            sender: read_optional_repr(&self.sender).context("sender")?,
+            gas_adjuster: read_optional_repr(&self.gas_adjuster).context("gas_adjuster")?,
+            watcher: read_optional_repr(&self.watcher).context("watcher")?,
             web3_url: required(&self.web3_url).context("web3_url")?.clone(),
         })
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            sender: Some(ProtoRepr::build(&this.sender)),
-            gas_adjuster: Some(ProtoRepr::build(&this.gas_adjuster)),
-            watcher: Some(ProtoRepr::build(&this.watcher)),
+            sender: this.sender.as_ref().map(ProtoRepr::build),
+            gas_adjuster: this.gas_adjuster.as_ref().map(ProtoRepr::build),
+            watcher: this.watcher.as_ref().map(ProtoRepr::build),
             web3_url: Some(this.web3_url.clone()),
         }
     }

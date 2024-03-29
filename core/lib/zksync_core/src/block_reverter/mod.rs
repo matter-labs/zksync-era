@@ -58,6 +58,7 @@ impl BlockReverterEthConfig {
         // `BlockReverter` doesn't support non env configs yet
         let pk = eth_config
             .sender
+            .expect("eth_sender_config")
             .private_key()
             .expect("Private key is required for block reversion");
         let operator_address = PackedEthSignature::address_from_private_key(&pk)
@@ -69,7 +70,10 @@ impl BlockReverterEthConfig {
             reverter_address: operator_address,
             diamond_proxy_addr: contract.diamond_proxy_addr,
             validator_timelock_addr: contract.validator_timelock_addr,
-            default_priority_fee_per_gas: eth_config.gas_adjuster.default_priority_fee_per_gas,
+            default_priority_fee_per_gas: eth_config
+                .gas_adjuster
+                .expect("gas adjuster")
+                .default_priority_fee_per_gas,
         }
     }
 }

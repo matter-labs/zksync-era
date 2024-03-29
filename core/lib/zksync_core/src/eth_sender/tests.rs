@@ -85,7 +85,7 @@ impl EthSenderTester {
         let contracts_config = ContractsConfig::for_tests();
         let aggregator_config = SenderConfig {
             aggregated_proof_sizes: vec![1],
-            ..eth_sender_config.sender.clone()
+            ..eth_sender_config.clone().sender.unwrap()
         };
 
         let gateway = MockEthereum::default()
@@ -110,7 +110,7 @@ impl EthSenderTester {
                     max_base_fee_samples: Self::MAX_BASE_FEE_SAMPLES,
                     pricing_formula_parameter_a: 3.0,
                     pricing_formula_parameter_b: 2.0,
-                    ..eth_sender_config.gas_adjuster
+                    ..eth_sender_config.gas_adjuster.unwrap()
                 },
                 PubdataSendingMode::Calldata,
             )
@@ -119,18 +119,19 @@ impl EthSenderTester {
         );
         let store_factory = ObjectStoreFactory::mock();
 
+        let eth_sender = eth_sender_config.sender.clone().unwrap();
         let aggregator = EthTxAggregator::new(
             connection_pool.clone(),
             SenderConfig {
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
-                ..eth_sender_config.sender.clone()
+                pubdata_sending_mode: PubdataSendingMode::Calldata,
+                ..eth_sender.clone()
             },
             // Aggregator - unused
             Aggregator::new(
                 aggregator_config.clone(),
                 store_factory.create_store().await,
                 aggregator_operate_4844_mode,
-                PubdataDA::Calldata,
             ),
             gateway.clone(),
             // zkSync contract address
@@ -144,7 +145,7 @@ impl EthSenderTester {
 
         let manager = EthTxManager::new(
             connection_pool.clone(),
-            eth_sender_config.sender,
+            eth_sender.clone(),
             gas_adjuster.clone(),
             gateway.clone(),
             None,

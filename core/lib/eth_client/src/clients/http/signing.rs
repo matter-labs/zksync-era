@@ -74,7 +74,10 @@ impl PKSigningClient {
         operator_private_key: H256,
     ) -> Self {
         let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
-        let default_priority_fee_per_gas = eth_sender.gas_adjuster.default_priority_fee_per_gas;
+        let default_priority_fee_per_gas = eth_sender
+            .gas_adjuster
+            .expect("Gas adjuster")
+            .default_priority_fee_per_gas;
         let main_node_url = &eth_sender.web3_url;
 
         SigningClient::new_raw(

@@ -296,12 +296,13 @@ pub async fn initialize_components(
     });
 
     let query_client = QueryClient::new(&eth.web3_url).unwrap();
-    let gas_adjuster_config = eth.gas_adjuster;
+    let gas_adjuster_config = eth.gas_adjuster.context("gas_adjuster")?;
+    let sender = eth.sender.as_ref().context("sender")?;
 
     let mut gas_adjuster = GasAdjusterSingleton::new(
         eth.web3_url.clone(),
         gas_adjuster_config,
-        eth.sender.pubdata_sending_mode,
+        sender.pubdata_sending_mode,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -562,7 +563,12 @@ pub async fn initialize_components(
             .await
             .context("failed to build eth_watch_pool")?;
         let governance = (governance_contract(), contracts_config.governance_addr);
-        let eth_watch_config = configs.eth.clone().context("eth_watch_config")?.watcher;
+        let eth_watch_config = configs
+            .eth
+            .clone()
+            .context("eth_config")?
+            .watcher
+            .context("watcher")?;
         task_futures.push(
             start_eth_watch(
                 eth_watch_config,
@@ -588,14 +594,17 @@ pub async fn initialize_components(
             .await
             .context("failed to build eth_sender_pool")?;
 
-        let eth_sender = configs.eth.as_ref().context("eth_sender_config")?;
         let eth_sender_wallets = wallets.eth_sender.clone().context("eth_sender")?;
         let operator_private_key = eth_sender_wallets
             .operator
             .private_key()
             .context("Private_key")?;
         let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
-        let default_priority_fee_per_gas = eth.gas_adjuster.default_priority_fee_per_gas;
+        let default_priority_fee_per_gas = eth
+            .gas_adjuster
+            .as_ref()
+            .context("gas_adjuster")?
+            .default_priority_fee_per_gas;
         let l1_chain_id = genesis_config.l1_chain_id;
         let web3_url = &eth.web3_url;
 
@@ -609,14 +618,14 @@ pub async fn initialize_components(
 
         let operator_blobs_address = eth_sender_wallets.blob_operator.map(|x| x.address());
 
+        let sender_config = eth.sender.clone().context("eth_sender")?;
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             eth_sender_pool,
-            eth_sender.sender.clone(),
+            sender_config.clone(),
             Aggregator::new(
-                eth_sender.sender.clone(),
+                sender_config.clone(),
                 store_factory.create_store().await,
                 operator_blobs_address.is_some(),
-                eth_sender.sender.pubdata_sending_mode.into(),
             ),
             Arc::new(eth_client),
             contracts_config.validator_timelock_addr,
@@ -648,7 +657,11 @@ pub async fn initialize_components(
             .private_key()
             .context("Private_key")?;
         let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
-        let default_priority_fee_per_gas = eth.gas_adjuster.default_priority_fee_per_gas;
+        let default_priority_fee_per_gas = eth
+            .gas_adjuster
+            .as_ref()
+            .context("gas_adjuster")?
+            .default_priority_fee_per_gas;
         let l1_chain_id = genesis_config.l1_chain_id;
         let web3_url = &eth.web3_url;
 
@@ -675,7 +688,7 @@ pub async fn initialize_components(
 
         let eth_tx_manager_actor = EthTxManager::new(
             eth_manager_pool,
-            eth_sender.sender,
+            eth_sender.sender.clone().context("eth_sender")?,
             gas_adjuster
                 .get_or_init()
                 .await

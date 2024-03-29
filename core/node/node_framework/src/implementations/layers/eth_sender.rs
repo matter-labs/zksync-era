@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::Context;
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::{
     chain::NetworkConfig, eth_sender::ETHConfig, wallets, ContractsConfig,
@@ -80,14 +81,12 @@ impl WiringLayer for EthSenderLayer {
         });
         let eth_client_blobs_addr = eth_client_blobs.clone().map(|k| k.sender_account());
 
+        let config = self.eth_sender_config.sender.context("sender")?;
         let aggregator = Aggregator::new(
-            self.eth_sender_config.sender.clone(),
+            config.clone(),
             object_store,
             eth_client_blobs_addr.is_some(),
-            self.eth_sender_config.sender.pubdata_sending_mode.into(),
         );
-
-        let config = self.eth_sender_config.sender;
 
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             master_pool.clone(),

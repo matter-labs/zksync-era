@@ -88,8 +88,24 @@ async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
     let sigint_receiver = setup_sigint_handler();
 
-    let observability_config =
-        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
+    // Load env config and use it if file config is not provided
+    let tmp_config = load_env_config()?;
+
+    let configs = match opt.config_path {
+        None => tmp_config.general(),
+        Some(path) => {
+            let yaml =
+                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
+            decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
+                .context("failed decoding general YAML config")?
+        }
+    };
+
+    let observability_config = configs
+        .observability
+        .clone()
+        .context("observability config")?;
+
     let log_format: vlog::LogFormat = observability_config
         .log_format
         .parse()
@@ -110,21 +126,6 @@ async fn main() -> anyhow::Result<()> {
     } else {
         tracing::info!("No sentry URL was provided");
     }
-
-    // Load env config and use it if file config is not provided
-    let tmp_config = load_env_config()?;
-
-    let configs = match opt.config_path {
-        None => tmp_config.general(),
-        Some(path) => {
-            let yaml =
-                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
-                .context("failed decoding general YAML config")?
-        }
-    };
-
-    dbg!(&configs);
 
     let wallets = match opt.wallets_path {
         None => tmp_config.wallets(),
@@ -181,13 +182,12 @@ async fn main() -> anyhow::Result<()> {
     }
 
     if opt.set_chain_id {
-        let eth_client = ETHConfig::from_env().context("EthClientConfig")?;
-        let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
+        let eth_client = configs.eth.as_ref().context("eth config")?;
 
         if let Some(shared_bridge) = &genesis.shared_bridge {
             genesis::save_set_chain_id_tx(
                 &eth_client.web3_url,
-                contracts.diamond_proxy_addr,
+                contracts_config.diamond_proxy_addr,
                 shared_bridge.state_transition_proxy_addr,
                 &postgres_config,
             )

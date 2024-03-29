@@ -88,8 +88,12 @@ async fn main() -> anyhow::Result<()> {
 
     let eth_sender = ETHConfig::from_env().context("ETHSenderConfig::from_env()")?;
     let db_config = DBConfig::from_env().context("DBConfig::from_env()")?;
-    let default_priority_fee_per_gas =
-        U256::from(eth_sender.gas_adjuster.default_priority_fee_per_gas);
+    let default_priority_fee_per_gas = U256::from(
+        eth_sender
+            .gas_adjuster
+            .context("gas_adjuster")?
+            .default_priority_fee_per_gas,
+    );
     let contracts = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
     let config = BlockReverterEthConfig::new(eth_sender, contracts);

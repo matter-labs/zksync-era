@@ -78,7 +78,7 @@ async fn test_validator_block_store() {
 fn executor_config(cfg: &network::Config) -> executor::Config {
     executor::Config {
         server_addr: *cfg.server_addr,
-        public_addr: cfg.public_addr,
+        public_addr: cfg.public_addr.clone(),
         max_payload_size: usize::MAX,
         node_key: cfg.gossip.key.clone(),
         gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,

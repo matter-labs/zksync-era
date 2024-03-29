@@ -32,11 +32,11 @@ use zksync_protobuf::ProtoRepr;
 use zksync_types::{H160, H256};
 
 fn parse_h256(bytes: &str) -> anyhow::Result<H256> {
-    Ok(H256::from_str(&bytes)?)
+    Ok(H256::from_str(bytes)?)
 }
 
 fn parse_h160(bytes: &str) -> anyhow::Result<H160> {
-    Ok(H160::from_str(&bytes)?)
+    Ok(H160::from_str(bytes)?)
 }
 
 fn read_optional_repr<P: ProtoRepr>(field: &Option<P>) -> anyhow::Result<Option<P::Type>> {
