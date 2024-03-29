@@ -245,7 +245,7 @@ impl RpcState {
 
     /// Acquires a DB connection mapping possible errors.
     // `track_caller` is necessary to correctly record call location. `async fn`s don't support it yet,
-    // thus manual desugaring.
+    // thus manual de-sugaring.
     #[track_caller]
     pub(crate) fn acquire_connection(
         &self,
