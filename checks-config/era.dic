@@ -426,6 +426,7 @@ setChainId
 SetChainIdUpgrade
 state_transition_manager_contract
 prunable
+bytea
 
 // Names
 Vyper
