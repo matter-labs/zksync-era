@@ -148,7 +148,7 @@ impl PruningDal<'_, '_> {
         .fetch_one(self.storage)
         .await?;
 
-        // we don't have first_miniblock available when recovering from a snapshot
+        // we don't have any miniblocks available when recovering from a snapshot
         if row.first_miniblock_to_prune.is_some() {
             let first_miniblock_to_prune =
                 MiniblockNumber(row.first_miniblock_to_prune.unwrap() as u32);
