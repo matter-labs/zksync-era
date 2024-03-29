@@ -197,6 +197,6 @@ async function configExternalNode() {
 
 export const command = new Command('setup-external-node')
     .description('prepare local setup for running external-node on mainnet/testnet')
-    .action(async (cmd: Command) => {
+    .action(async (_: Command) => {
         await configExternalNode();
     });
