@@ -1,8 +1,8 @@
 import chalk from 'chalk';
-import { Command } from 'commander';
+import {Command} from 'commander';
 import * as utils from './utils';
 
-import { clean } from './clean';
+import {clean} from './clean';
 import * as compiler from './compiler';
 import * as contract from './contract';
 import * as db from './database';
@@ -10,8 +10,8 @@ import * as docker from './docker';
 import * as env from './env';
 import * as run from './run';
 import * as server from './server';
-import { createVolumes, up } from './up';
-import { down } from './down';
+import {createVolumes, up} from './up';
+import {down} from './down';
 
 const entry = chalk.bold.yellow;
 const announce = chalk.yellow;
@@ -55,8 +55,8 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
 
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
-    await announced('Drop postgres db', db.drop({ server: true, prover: true }));
-    await announced('Setup postgres db', db.setup({ server: true, prover: true }));
+    await announced('Drop postgres db', db.drop({core: true, prover: true}));
+    await announced('Setup postgres db', db.setup({core: true, prover: true}));
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
     await announced('Building contracts', contract.build());
@@ -92,8 +92,8 @@ export async function reinit(runObservability: boolean, deploymentMode: contract
     await announced('Setting up containers', up(runObservability));
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
-    await announced('Drop postgres db', db.drop({ server: true, prover: true }));
-    await announced('Setup postgres db', db.setup({ server: true, prover: true }));
+    await announced('Drop postgres db', db.drop({core: true, prover: true}));
+    await announced('Setup postgres db', db.setup({core: true, prover: true}));
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
     await announced('Building contracts', contract.build());
@@ -180,7 +180,7 @@ async function checkEnv(runObservability: boolean) {
     for (const tool of tools) {
         await utils.exec(`which ${tool}`);
     }
-    const { stdout: version } = await utils.exec('node --version');
+    const {stdout: version} = await utils.exec('node --version');
     // Node v14.14 is required because
     // the `fs.rmSync` function was added in v14.14.0
     if ('v14.14' >= version) {
@@ -212,8 +212,8 @@ const DEFAULT_ARGS: InitArgs = {
     runObservability: false,
     governorPrivateKeyArgs: [],
     deployerPrivateKeyArgs: [],
-    deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
-    testTokens: { deploy: true, args: [] },
+    deployerL2ContractInput: {args: [], includePaymaster: true, includeL2WETH: true},
+    testTokens: {deploy: true, args: []},
     deploymentMode: contract.DeploymentMode.Rollup
 };
 
@@ -229,8 +229,8 @@ export const initCommand = new Command('init')
             skipEnvSetup: cmd.skipEnvSetup,
             runObservability: cmd.runObservability,
             governorPrivateKeyArgs: [],
-            deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
-            testTokens: { deploy: true, args: [] },
+            deployerL2ContractInput: {args: [], includePaymaster: true, includeL2WETH: true},
+            testTokens: {deploy: true, args: []},
             deployerPrivateKeyArgs: [],
             deploymentMode:
                 cmd.validiumMode !== undefined ? contract.DeploymentMode.Validium : contract.DeploymentMode.Rollup
