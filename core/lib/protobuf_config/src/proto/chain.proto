@@ -8,6 +8,10 @@ enum FeeModelVersion {
   V2 = 1;
 }
 
+enum L1BatchCommitDataGeneratorMode {
+  Rollup = 0;
+  Validium = 1;
+}
 
 message StateKeeper {
   optional uint64 transaction_slots = 1; // required
@@ -33,8 +37,8 @@ message StateKeeper {
   optional bool save_call_traces = 22; // required
   optional uint32 virtual_blocks_interval = 23; // required
   optional uint32 virtual_blocks_per_miniblock = 24; // required
-  optional bool upload_witness_inputs_to_gcs = 25; // required
   optional uint64 enum_index_migration_chunk_size = 26; // optional
+  optional L1BatchCommitDataGeneratorMode l1_batch_commit_data_generator_mode = 29; // optional, default to rollup
 }
 
 message OperationsManager {

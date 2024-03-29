@@ -12,6 +12,7 @@ categories.workspace = true
 [dependencies]
 zksync_basic_types.workspace = true
 zksync_crypto_primitives.workspace = true
+zksync_consensus_utils.workspace = true
 
 anyhow.workspace = true
 rand.workspace = true

@@ -8007,6 +8007,7 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "zksync_basic_types",
+ "zksync_consensus_utils",
  "zksync_crypto_primitives",
 ]
 
@@ -8434,6 +8435,7 @@ dependencies = [
  "zksync_core",
  "zksync_dal",
  "zksync_db_connection",
+ "zksync_eth_client",
  "zksync_health_check",
  "zksync_l1_contract_interface",
  "zksync_object_store",

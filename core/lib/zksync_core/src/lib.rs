@@ -25,7 +25,10 @@ use zksync_concurrency::{ctx, scope};
 use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
-        chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
+        chain::{
+            CircuitBreakerConfig, L1BatchCommitDataGeneratorMode, MempoolConfig,
+            OperationsManagerConfig, StateKeeperConfig,
+        },
         database::{MerkleTreeConfig, MerkleTreeMode},
         wallets,
         wallets::Wallets,
@@ -57,7 +60,13 @@ use crate::{
     },
     basic_witness_input_producer::BasicWitnessInputProducer,
     commitment_generator::CommitmentGenerator,
-    eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
+    eth_sender::{
+        l1_batch_commit_data_generator::{
+            L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
+            ValidiumModeL1BatchCommitDataGenerator,
+        },
+        Aggregator, EthTxAggregator, EthTxManager,
+    },
     eth_watch::start_eth_watch,
     genesis::GenesisParams,
     house_keeper::{
@@ -72,13 +81,16 @@ use crate::{
         periodic_job::PeriodicJob,
         waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
     },
-    l1_gas_price::GasAdjusterSingleton,
+    l1_gas_price::{
+        GasAdjusterSingleton, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
+    },
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     metrics::{InitStage, APP_METRICS},
     state_keeper::{
         create_state_keeper, MempoolFetcher, MempoolGuard, OutputHandler, SequencerSealer,
         StateKeeperPersistence,
     },
+    utils::ensure_l1_batch_commit_data_generation_mode,
 };
 
 pub mod api_server;
@@ -102,7 +114,7 @@ pub mod reorg_detector;
 pub mod state_keeper;
 pub mod sync_layer;
 pub mod temp_config_store;
-mod utils;
+pub mod utils;
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
@@ -298,11 +310,21 @@ pub async fn initialize_components(
     let query_client = QueryClient::new(&eth.web3_url).unwrap();
     let gas_adjuster_config = eth.gas_adjuster.context("gas_adjuster")?;
     let sender = eth.sender.as_ref().context("sender")?;
+    let state_keeper_config = configs
+        .state_keeper_config
+        .as_ref()
+        .context("state_keeper")?;
+    let pubdata_pricing: Arc<dyn PubdataPricing> =
+        match state_keeper_config.l1_batch_commit_data_generator_mode {
+            L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupPubdataPricing {}),
+            L1BatchCommitDataGeneratorMode::Validium => Arc::new(ValidiumPubdataPricing {}),
+        };
 
     let mut gas_adjuster = GasAdjusterSingleton::new(
         eth.web3_url.clone(),
         gas_adjuster_config,
         sender.pubdata_sending_mode,
+        pubdata_pricing,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -508,7 +530,6 @@ pub async fn initialize_components(
             &db_config,
             &configs.mempool_config.clone().context("mempool_config")?,
             batch_fee_input_provider,
-            store_factory.create_store().await,
             stop_receiver.clone(),
         )
         .await
@@ -616,6 +637,23 @@ pub async fn initialize_components(
             web3_url,
         );
 
+        ensure_l1_batch_commit_data_generation_mode(
+            state_keeper_config.l1_batch_commit_data_generator_mode,
+            contracts_config.diamond_proxy_addr,
+            &eth_client,
+        )
+        .await?;
+
+        let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> =
+            match state_keeper_config.l1_batch_commit_data_generator_mode {
+                L1BatchCommitDataGeneratorMode::Rollup => {
+                    Arc::new(RollupModeL1BatchCommitDataGenerator {})
+                }
+                L1BatchCommitDataGeneratorMode::Validium => {
+                    Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
+                }
+            };
+
         let operator_blobs_address = eth_sender_wallets.blob_operator.map(|x| x.address());
 
         let sender_config = eth.sender.clone().context("eth_sender")?;
@@ -626,6 +664,7 @@ pub async fn initialize_components(
                 sender_config.clone(),
                 store_factory.create_store().await,
                 operator_blobs_address.is_some(),
+                l1_batch_commit_data_generator.clone(),
             ),
             Arc::new(eth_client),
             contracts_config.validator_timelock_addr,
@@ -633,6 +672,7 @@ pub async fn initialize_components(
             main_zksync_contract_address,
             l2_chain_id,
             operator_blobs_address,
+            l1_batch_commit_data_generator,
         )
         .await;
         task_futures.push(tokio::spawn(
@@ -787,7 +827,6 @@ async fn add_state_keeper_to_task_futures(
     db_config: &DBConfig,
     mempool_config: &MempoolConfig,
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
-    object_store: Arc<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let pool_builder = ConnectionPool::<Core>::singleton(postgres_config.master_url()?);
@@ -814,7 +853,6 @@ async fn add_state_keeper_to_task_futures(
         contracts_config.l2_erc20_bridge_addr,
         state_keeper_config.miniblock_seal_queue_capacity,
     );
-    let persistence = persistence.with_object_store(object_store);
     task_futures.push(tokio::spawn(miniblock_sealer.run()));
 
     let (state_keeper, async_catchup_task) = create_state_keeper(

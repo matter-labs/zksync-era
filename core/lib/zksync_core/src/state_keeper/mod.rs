@@ -59,7 +59,6 @@ pub(crate) async fn create_state_keeper(
     let batch_executor_base = MainBatchExecutor::new(
         Arc::new(storage_factory),
         state_keeper_config.save_call_traces,
-        state_keeper_config.upload_witness_inputs_to_gcs,
         false,
     );
 

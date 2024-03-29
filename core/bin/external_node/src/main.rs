@@ -7,7 +7,7 @@ use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task};
 use zksync_basic_types::L2ChainId;
 use zksync_concurrency::{ctx, limiter, scope, time};
-use zksync_config::configs::database::MerkleTreeMode;
+use zksync_config::configs::{chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode};
 use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
@@ -19,6 +19,10 @@ use zksync_core::{
     commitment_generator::CommitmentGenerator,
     consensus,
     consistency_checker::ConsistencyChecker,
+    eth_sender::l1_batch_commit_data_generator::{
+        L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
+        ValidiumModeL1BatchCommitDataGenerator,
+    },
     l1_gas_price::MainNodeFeeParamsFetcher,
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     reorg_detector,
@@ -32,9 +36,11 @@ use zksync_core::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue,
         MainNodeClient, SyncState,
     },
+    utils::ensure_l1_batch_commit_data_generation_mode,
 };
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
+use zksync_eth_client::clients::QueryClient;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
@@ -84,7 +90,6 @@ async fn build_state_keeper(
     let batch_executor_base: Box<dyn BatchExecutor> = Box::new(MainBatchExecutor::new(
         Arc::new(storage_factory),
         save_call_traces,
-        false,
         true,
     ));
 
@@ -254,16 +259,37 @@ async fn init_tasks(
         remote_diamond_proxy_addr
     };
 
+    let eth_client_url = config
+        .required
+        .eth_client_url()
+        .context("L1 client URL is incorrect")?;
+    let eth_client = QueryClient::new(&eth_client_url).unwrap();
+
+    ensure_l1_batch_commit_data_generation_mode(
+        config.optional.l1_batch_commit_data_generator_mode,
+        diamond_proxy_addr,
+        &eth_client,
+    )
+    .await?;
+
+    let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match config
+        .optional
+        .l1_batch_commit_data_generator_mode
+    {
+        L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        L1BatchCommitDataGeneratorMode::Validium => {
+            Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
+        }
+    };
+
     let consistency_checker = ConsistencyChecker::new(
-        &config
-            .required
-            .eth_client_url()
-            .context("L1 client URL is incorrect")?,
+        Box::new(eth_client),
         10, // TODO (BFT-97): Make it a part of a proper EN config
         singleton_pool_builder
             .build()
             .await
             .context("failed to build connection pool for ConsistencyChecker")?,
+        l1_batch_commit_data_generator,
     )
     .context("cannot initialize consistency checker")?
     .with_diamond_proxy_addr(diamond_proxy_addr);

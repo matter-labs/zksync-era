@@ -22,6 +22,23 @@ impl proto::FeeModelVersion {
     }
 }
 
+impl proto::L1BatchCommitDataGeneratorMode {
+    fn new(n: &configs::chain::L1BatchCommitDataGeneratorMode) -> Self {
+        use configs::chain::L1BatchCommitDataGeneratorMode as From;
+        match n {
+            From::Rollup => Self::Rollup,
+            From::Validium => Self::Validium,
+        }
+    }
+
+    fn parse(&self) -> configs::chain::L1BatchCommitDataGeneratorMode {
+        use configs::chain::L1BatchCommitDataGeneratorMode as To;
+        match self {
+            Self::Rollup => To::Rollup,
+            Self::Validium => To::Validium,
+        }
+    }
+}
 impl ProtoRepr for proto::StateKeeper {
     type Type = configs::chain::StateKeeperConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
@@ -76,13 +93,18 @@ impl ProtoRepr for proto::StateKeeper {
                 .context("virtual_blocks_interval")?,
             virtual_blocks_per_miniblock: *required(&self.virtual_blocks_per_miniblock)
                 .context("virtual_blocks_per_miniblock")?,
-            upload_witness_inputs_to_gcs: *required(&self.upload_witness_inputs_to_gcs)
-                .context("upload_witness_inputs_to_gcs")?,
             enum_index_migration_chunk_size: self
                 .enum_index_migration_chunk_size
                 .map(|x| x.try_into())
                 .transpose()
                 .context("enum_index_migration_chunk_size")?,
+            l1_batch_commit_data_generator_mode: required(
+                &self.l1_batch_commit_data_generator_mode,
+            )
+            .and_then(|x| Ok(proto::L1BatchCommitDataGeneratorMode::try_from(*x)?))
+            .context("l1_batch_commit_data_generator_mode")?
+            .parse(),
+
             // We need these values only for instantiating configs from envs, so it's not
             // needed during the initialization from files
             bootloader_hash: None,
@@ -118,11 +140,16 @@ impl ProtoRepr for proto::StateKeeper {
             save_call_traces: Some(this.save_call_traces),
             virtual_blocks_interval: Some(this.virtual_blocks_interval),
             virtual_blocks_per_miniblock: Some(this.virtual_blocks_per_miniblock),
-            upload_witness_inputs_to_gcs: Some(this.upload_witness_inputs_to_gcs),
             enum_index_migration_chunk_size: this
                 .enum_index_migration_chunk_size
                 .as_ref()
                 .map(|x| (*x).try_into().unwrap()),
+            l1_batch_commit_data_generator_mode: Some(
+                proto::L1BatchCommitDataGeneratorMode::new(
+                    &this.l1_batch_commit_data_generator_mode,
+                )
+                .into(),
+            ),
         }
     }
 }

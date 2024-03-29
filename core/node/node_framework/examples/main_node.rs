@@ -279,6 +279,7 @@ impl MainNodeBuilder {
         Ok(self)
     }
     fn add_eth_sender_layer(mut self) -> anyhow::Result<Self> {
+        let state_keeper_config = StateKeeperConfig::from_env()?;
         let eth_sender_config = ETHConfig::from_env()?;
         let contracts_config = ContractsConfig::from_env()?;
         let network_config = NetworkConfig::from_env()?;
@@ -291,6 +292,7 @@ impl MainNodeBuilder {
             network_config,
             genesis_config.l1_chain_id,
             wallets.eth_sender.context("Eth sender wallets")?,
+            state_keeper_config.l1_batch_commit_data_generator_mode,
         ));
 
         Ok(self)

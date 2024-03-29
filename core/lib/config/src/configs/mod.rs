@@ -12,7 +12,7 @@ pub use self::{
     fri_witness_generator::FriWitnessGeneratorConfig,
     fri_witness_vector_generator::FriWitnessVectorGeneratorConfig,
     general::GeneralConfig,
-    genesis::GenesisConfig,
+    genesis::{GenesisConfig, SharedBridge},
     object_store::ObjectStoreConfig,
     observability::{ObservabilityConfig, OpentelemetryConfig},
     proof_data_handler::ProofDataHandlerConfig,
