@@ -1,6 +1,6 @@
 //! Tree pruning logic.
 
-use std::{fmt, sync::mpsc, time::Duration};
+use std::{cmp::min, fmt, sync::mpsc, time::Duration};
 
 use crate::{
     metrics::{PruningStats, PRUNING_TIMINGS},
@@ -24,6 +24,27 @@ impl MerkleTreePrunerHandle {
     }
 }
 
+/// objects implementing this trait can be passed to pruner main loop, they act as a source of info about up to which version the tree should be pruned
+pub trait RetainedVersionSource {
+    /// Returns info up to which version (l1_batch) the tree should be pruned up to
+    fn target_retained_version(&self, last_prunable_version: u64) -> anyhow::Result<u64>;
+}
+
+/// Pruner 'algorithm' simulating keeping a constant number of past versions
+#[derive(Debug)]
+pub struct KeepConstantVersionsCount {
+    /// How many past versions of tree should be kept
+    pub past_versions_to_keep: u64,
+}
+
+impl RetainedVersionSource for KeepConstantVersionsCount {
+    fn target_retained_version(&self, last_prunable_version: u64) -> anyhow::Result<u64> {
+        Ok(last_prunable_version
+            .checked_sub(self.past_versions_to_keep)
+            .unwrap())
+    }
+}
+
 /// Component responsible for Merkle tree pruning, i.e. removing nodes not referenced by new versions
 /// of the tree. A pruner should be instantiated using a [`Clone`] of the tree database, possibly
 /// configured and then [`run()`](Self::run()) on its own thread. [`MerkleTreePrunerHandle`] provides
@@ -39,7 +60,6 @@ impl MerkleTreePrunerHandle {
 /// where `N` is a configurable number set when the pruner [is created](Self::new()).
 pub struct MerkleTreePruner<DB> {
     db: DB,
-    past_versions_to_keep: u64,
     target_pruned_key_count: usize,
     poll_interval: Duration,
     aborted_receiver: mpsc::Receiver<()>,
@@ -49,7 +69,6 @@ impl<DB> fmt::Debug for MerkleTreePruner<DB> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("MerkleTreePruner")
-            .field("past_versions_to_keep", &self.past_versions_to_keep)
             .field("target_pruned_key_count", &self.target_pruned_key_count)
             .field("poll_interval", &self.poll_interval)
             .finish_non_exhaustive()
@@ -64,12 +83,11 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
     ///
     /// Returns the created pruner and a handle to it. *The pruner will be aborted when its handle
     /// is dropped.*
-    pub fn new(db: DB, past_versions_to_keep: u64) -> (Self, MerkleTreePrunerHandle) {
+    pub fn new(db: DB) -> (Self, MerkleTreePrunerHandle) {
         let (aborted_sender, aborted_receiver) = mpsc::channel();
         let handle = MerkleTreePrunerHandle { aborted_sender };
         let this = Self {
             db,
-            past_versions_to_keep,
             target_pruned_key_count: 500_000,
             poll_interval: Duration::from_secs(60),
             aborted_receiver,
@@ -94,17 +112,24 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
         self.poll_interval = poll_interval;
     }
 
-    fn target_retained_version(&self) -> Option<u64> {
+    /// Returns max version number that can be safely pruned, so that after pruning there is at least one version present after pruning
+    pub fn last_prunable_version(&self) -> Option<u64> {
         let manifest = self.db.manifest()?;
-        let latest_version = manifest.version_count.checked_sub(1)?;
-        latest_version.checked_sub(self.past_versions_to_keep)
+        manifest.version_count.checked_sub(1)
     }
 
     #[doc(hidden)] // Used in integration tests; logically private
     #[allow(clippy::range_plus_one)] // exclusive range is required by `PrunePatchSet` constructor
-    pub fn run_once(&mut self) -> Option<PruningStats> {
-        let target_retained_version = self.target_retained_version()?;
+    pub fn prune_up_to(&mut self, target_retained_version: u64) -> Option<PruningStats> {
         let min_stale_key_version = self.db.min_stale_key_version()?;
+
+        //We must leave at least one version
+        let last_prunable_version = self.last_prunable_version();
+        if last_prunable_version.is_none() {
+            tracing::info!("Nothing to prune; skipping");
+            return None;
+        }
+        let target_retained_version = min(target_retained_version, last_prunable_version.unwrap());
         let stale_key_new_versions = min_stale_key_version..=target_retained_version;
         tracing::info!("Collecting stale keys with new versions in {stale_key_new_versions:?}");
 
@@ -142,11 +167,44 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
         Some(stats)
     }
 
+    fn wait_for_next_iteration(&mut self, timeout: Duration) -> bool {
+        match self.aborted_receiver.recv_timeout(timeout) {
+            Ok(()) => false, // Abort was requested
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                tracing::warn!("Pruner handle is dropped without calling `abort()`; exiting");
+                false
+            }
+            // The pruner handle is alive and wasn't used to abort the pruner.
+            Err(mpsc::RecvTimeoutError::Timeout) => true,
+        }
+    }
+
     /// Runs this pruner indefinitely until it is aborted by dropping its handle.
-    pub fn run(mut self) {
+    pub fn run(mut self, retained_version_source: Box<dyn RetainedVersionSource>) {
         tracing::info!("Started Merkle tree pruner {self:?}");
         loop {
-            let timeout = if let Some(stats) = self.run_once() {
+            let last_version = self.last_prunable_version();
+            if last_version.is_none() {
+                tracing::info!("Nothing to prune in tree, sleeping");
+                if !self.wait_for_next_iteration(self.poll_interval) {
+                    break;
+                }
+                continue;
+            }
+            let retained_version =
+                retained_version_source.target_retained_version(last_version.unwrap());
+            if retained_version.is_err() {
+                tracing::warn!(
+                    "Unable to determine tree target retained version, error was: {}",
+                    retained_version.unwrap_err()
+                );
+                if !self.wait_for_next_iteration(self.poll_interval) {
+                    break;
+                }
+                continue;
+            }
+
+            let timeout = if let Some(stats) = self.prune_up_to(retained_version.unwrap()) {
                 let has_more_work = stats.has_more_work();
                 stats.report();
                 if has_more_work {
@@ -159,15 +217,8 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
                 self.poll_interval
             };
 
-            match self.aborted_receiver.recv_timeout(timeout) {
-                Ok(()) => break, // Abort was requested
-                Err(mpsc::RecvTimeoutError::Disconnected) => {
-                    tracing::warn!("Pruner handle is dropped without calling `abort()`; exiting");
-                    break;
-                }
-                Err(mpsc::RecvTimeoutError::Timeout) => {
-                    // The pruner handle is alive and wasn't used to abort the pruner.
-                }
+            if !self.wait_for_next_iteration(timeout) {
+                break;
             }
         }
     }
@@ -203,9 +254,11 @@ mod tests {
     #[test]
     fn pruner_basics() {
         let mut db = create_db();
-        let (mut pruner, _handle) = MerkleTreePruner::new(&mut db, 0);
+        let (mut pruner, _handle) = MerkleTreePruner::new(&mut db);
 
-        let stats = pruner.run_once().unwrap();
+        let stats = pruner
+            .prune_up_to(pruner.last_prunable_version().unwrap())
+            .unwrap();
         assert!(stats.pruned_key_count > 0);
         assert_eq!(stats.deleted_stale_key_versions, 1..5);
         assert_eq!(stats.target_retained_version, 4);
@@ -221,11 +274,13 @@ mod tests {
     #[test]
     fn pruner_with_intermediate_commits() {
         let mut db = create_db();
-        let (mut pruner, _handle) = MerkleTreePruner::new(&mut db, 0);
+        let (mut pruner, _handle) = MerkleTreePruner::new(&mut db);
         pruner.set_target_pruned_key_count(1);
 
         for i in 1..5 {
-            let stats = pruner.run_once().unwrap();
+            let stats = pruner
+                .prune_up_to(pruner.last_prunable_version().unwrap())
+                .unwrap();
             assert!(stats.pruned_key_count > 0);
             assert_eq!(stats.deleted_stale_key_versions, i..(i + 1));
             assert_eq!(stats.target_retained_version, 4);
@@ -235,9 +290,13 @@ mod tests {
 
     #[test]
     fn pruner_is_aborted_immediately_when_requested() {
-        let (mut pruner, pruner_handle) = MerkleTreePruner::new(PatchSet::default(), 0);
+        let (mut pruner, pruner_handle) = MerkleTreePruner::new(PatchSet::default());
         pruner.set_poll_interval(Duration::from_secs(30));
-        let join_handle = thread::spawn(|| pruner.run());
+        let join_handle = thread::spawn(|| {
+            pruner.run(Box::new(KeepConstantVersionsCount {
+                past_versions_to_keep: 0,
+            }))
+        });
 
         pruner_handle.abort();
         let start = Instant::now();
@@ -260,8 +319,10 @@ mod tests {
         }
         let latest_version = tree.latest_version().unwrap();
 
-        let (mut pruner, _handle) = MerkleTreePruner::new(&mut db, past_versions_to_keep);
-        let stats = pruner.run_once().unwrap();
+        let (mut pruner, _handle) = MerkleTreePruner::new(&mut db);
+        let stats = pruner
+            .prune_up_to(pruner.last_prunable_version().unwrap() - past_versions_to_keep)
+            .unwrap();
         assert!(stats.pruned_key_count > 0);
         let first_retained_version = latest_version.saturating_sub(past_versions_to_keep);
         assert_eq!(stats.target_retained_version, first_retained_version);
@@ -282,8 +343,10 @@ mod tests {
         }
         let latest_version = tree.latest_version().unwrap();
 
-        let (mut pruner, _handle) = MerkleTreePruner::new(&mut db, past_versions_to_keep);
-        let stats = pruner.run_once().unwrap();
+        let (mut pruner, _handle) = MerkleTreePruner::new(&mut db);
+        let stats = pruner
+            .prune_up_to(pruner.last_prunable_version().unwrap() - past_versions_to_keep)
+            .unwrap();
         assert!(stats.pruned_key_count > 0);
         let first_retained_version = latest_version.saturating_sub(past_versions_to_keep);
         assert_eq!(stats.target_retained_version, first_retained_version);
@@ -344,7 +407,10 @@ mod tests {
         let new_keys_in_db: HashSet<_> = db.nodes_mut().map(|(key, _)| *key).collect();
         assert!(new_keys_in_db.is_superset(&keys_in_db));
 
-        let stats = MerkleTreePruner::new(&mut db, 0).0.run_once().unwrap();
+        let (pruner, _handle) = MerkleTreePruner::new(&mut db);
+        let stats = pruner
+            .prune_up_to(pruner.last_prunable_version().unwrap())
+            .unwrap();
         assert_eq!(stats.pruned_key_count, keys_in_db.len() + batch_count);
         // ^ roots are not counted in `keys_in_db`
 
@@ -378,12 +444,18 @@ mod tests {
         for chunk in new_kvs.chunks(20) {
             MerkleTree::new(&mut db).extend(chunk.to_vec());
             if prune_iteratively {
-                MerkleTreePruner::new(&mut db, 0).0.run_once().unwrap();
+                let (mut pruner, _handle) = MerkleTreePruner::new(&mut db);
+                pruner
+                    .prune_up_to(pruner.last_prunable_version().unwrap())
+                    .unwrap();
             }
         }
 
         if !prune_iteratively {
-            MerkleTreePruner::new(&mut db, 0).0.run_once().unwrap();
+            let (mut pruner, _handle) = MerkleTreePruner::new(&mut db);
+            pruner
+                .prune_up_to(pruner.last_prunable_version().unwrap())
+                .unwrap();
         }
         let new_leaf_keys_in_db = leaf_keys(&mut db);
         assert!(new_leaf_keys_in_db.is_disjoint(&leaf_keys_in_db));

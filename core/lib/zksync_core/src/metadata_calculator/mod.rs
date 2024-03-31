@@ -3,6 +3,7 @@
 
 use std::{
     sync::Arc,
+    thread,
     time::{Duration, Instant},
 };
 
@@ -22,9 +23,11 @@ use self::{
     helpers::{create_db, Delayer, GenericAsyncTree, MerkleTreeHealth},
     updater::TreeUpdater,
 };
+use crate::metadata_calculator::pruning::KeepPruningSyncedWithDbPruning;
 
 mod helpers;
 mod metrics;
+mod pruning;
 mod recovery;
 #[cfg(test)]
 pub(crate) mod tests;
@@ -158,11 +161,24 @@ impl MetadataCalculator {
             "Merkle tree is initialized and ready to process L1 batches: {:?}",
             tree_reader.clone().info().await
         );
+        let (tree_pruner, pruner_handle) = tree.pruner();
+        let pruner_pool = pool.clone();
+        let join_handle = thread::spawn(move || {
+            tree_pruner.run(Box::new(KeepPruningSyncedWithDbPruning {
+                pool: pruner_pool,
+            }))
+        });
         self.tree_reader.send_replace(Some(tree_reader));
 
         let updater = TreeUpdater::new(tree, self.max_l1_batches_per_iter, self.object_store);
         updater
             .loop_updating_tree(self.delayer, &pool, stop_receiver, self.health_updater)
-            .await
+            .await?;
+
+        // line below requests pruner to stop
+        drop(pruner_handle);
+        join_handle.join().unwrap();
+
+        Ok(())
     }
 }

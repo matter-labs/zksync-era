@@ -19,7 +19,8 @@ use zksync_health_check::{Health, HealthStatus};
 use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
     recovery::MerkleTreeRecovery,
-    Database, Key, NoVersionError, RocksDBWrapper, TreeEntry, TreeEntryWithProof, TreeInstruction,
+    Database, Key, MerkleTreePruner, MerkleTreePrunerHandle, NoVersionError, RocksDBWrapper,
+    TreeEntry, TreeEntryWithProof, TreeInstruction,
 };
 use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries};
 use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageKey, H256};
@@ -155,6 +156,10 @@ impl AsyncTree {
             inner: self.inner.as_ref().expect(Self::INCONSISTENT_MSG).reader(),
             mode: self.mode,
         }
+    }
+
+    pub fn pruner(&self) -> (MerkleTreePruner<RocksDBWrapper>, MerkleTreePrunerHandle) {
+        self.inner.as_ref().expect(Self::INCONSISTENT_MSG).pruner()
     }
 
     pub fn is_empty(&self) -> bool {
