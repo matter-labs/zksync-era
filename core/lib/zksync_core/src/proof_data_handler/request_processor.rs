@@ -132,12 +132,9 @@ impl RequestProcessor {
             .unwrap()
             .unwrap();
 
-        let eip_4844_blobs: Eip4844Blobs = storage_batch
-            .pubdata_input
-            .expect(&format!(
-                "expected pubdata, but it is not available for batch {l1_batch_number:?}"
-            ))
-            .into();
+        let eip_4844_blobs = Eip4844Blobs::decode(storage_batch.pubdata_input.expect(&format!(
+            "expected pubdata, but it is not available for batch {l1_batch_number:?}"
+        )));
 
         let proof_gen_data = ProofGenerationData {
             l1_batch_number,

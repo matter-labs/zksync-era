@@ -31,10 +31,12 @@ impl Eip4844Blobs {
     pub fn blobs(self) -> Vec<Blob> {
         self.blobs
     }
-}
 
-impl From<Vec<u8>> for Eip4844Blobs {
-    fn from(blobs: Vec<u8>) -> Self {
+    pub fn encode(self) -> Vec<u8> {
+        self.blobs.iter().flatten().copied().collect()
+    }
+
+    pub fn decode(blobs: Vec<u8>) -> Self {
         let mut chunks: Vec<Blob> = blobs
             .chunks(EIP_4844_BLOB_SIZE)
             .map(|chunk| chunk.into())
@@ -52,12 +54,6 @@ impl From<Vec<u8>> for Eip4844Blobs {
         );
 
         Self { blobs: chunks }
-    }
-}
-
-impl From<Eip4844Blobs> for Vec<u8> {
-    fn from(eip_4844_blobs: Eip4844Blobs) -> Self {
-        eip_4844_blobs.blobs.iter().flatten().copied().collect()
     }
 }
 
@@ -168,14 +164,14 @@ mod tests {
     #[should_panic]
     fn test_eip_4844_blobs_empty_pubdata() {
         let payload = vec![];
-        let _eip_4844_blobs: Eip4844Blobs = payload.into();
+        let _eip_4844_blobs = Eip4844Blobs::decode(payload);
     }
 
     #[test]
     fn test_eip_4844_blobs_less_than_a_blob() {
         // blob size (126976) - 1
         let payload = vec![1; 126975];
-        let eip_4844_blobs: Eip4844Blobs = payload.into();
+        let eip_4844_blobs = Eip4844Blobs::decode(payload);
         let blobs = eip_4844_blobs.blobs();
         assert_eq!(blobs.len(), 1);
         let blob = &blobs[0];
@@ -187,7 +183,7 @@ mod tests {
     fn test_eip_4844_blobs_exactly_a_blob() {
         // blob size (126976)
         let payload = vec![1; 126976];
-        let eip_4844_blobs: Eip4844Blobs = payload.into();
+        let eip_4844_blobs = Eip4844Blobs::decode(payload);
         let blobs = eip_4844_blobs.blobs();
         assert_eq!(blobs.len(), 1);
         let blob = &blobs[0];
@@ -199,7 +195,7 @@ mod tests {
     fn test_eip_4844_blobs_less_than_two_blobs() {
         // blob size (126976) * 2 (max number of blobs) - 1
         let payload = vec![1; 253951];
-        let eip_4844_blobs: Eip4844Blobs = payload.into();
+        let eip_4844_blobs = Eip4844Blobs::decode(payload);
         let blobs = eip_4844_blobs.blobs();
         assert_eq!(blobs.len(), 2);
         let first_blob = &blobs[0];
@@ -214,7 +210,7 @@ mod tests {
     fn test_eip_4844_blobs_exactly_two_blobs() {
         // blob size (126976) * 2 (max number of blobs)
         let payload = vec![1; 253952];
-        let eip_4844_blobs: Eip4844Blobs = payload.into();
+        let eip_4844_blobs = Eip4844Blobs::decode(payload);
         let blobs = eip_4844_blobs.blobs();
         assert_eq!(blobs.len(), 2);
         let first_blob = &blobs[0];
@@ -230,6 +226,21 @@ mod tests {
     fn test_eip_4844_blobs_more_than_two_blobs() {
         // blob size (126976) * 2 (max number of blobs) + 1
         let payload = vec![1; 253953];
-        let _eip_4844_blobs: Eip4844Blobs = payload.into();
+        let _eip_4844_blobs = Eip4844Blobs::decode(payload);
+    }
+
+    #[test]
+    fn test_encode() {
+        let initial_len = 126970;
+        let blob_padded_size = EIP_4844_BLOB_SIZE;
+        let payload = vec![1; initial_len];
+        let eip_4844_blobs = Eip4844Blobs::decode(payload);
+        let raw = eip_4844_blobs.encode();
+        assert_ne!(raw.len(), initial_len);
+        assert_eq!(raw.len(), 126976);
+        for byte in raw.iter().rev().take(blob_padded_size - initial_len) {
+            assert_eq!(*byte, 0);
+        }
+        assert_eq!(raw[0], 1);
     }
 }
