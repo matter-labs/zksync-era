@@ -17,6 +17,7 @@ zksync_storage.workspace = true
 zksync_prover_interface.workspace = true
 zksync_utils.workspace = true
 
+anyhow.workspace = true
 leb128.workspace = true
 once_cell.workspace = true
 rayon.workspace = true
