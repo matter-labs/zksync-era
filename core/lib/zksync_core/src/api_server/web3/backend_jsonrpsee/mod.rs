@@ -29,9 +29,8 @@ impl MethodTracer {
             _ => None,
         };
         let code = match err {
-            Web3Error::InternalError(_) | Web3Error::NotImplemented => {
-                ErrorCode::InternalError.code()
-            }
+            Web3Error::NotImplemented => ErrorCode::MethodNotFound.code(),
+            Web3Error::InternalError(_) => ErrorCode::InternalError.code(),
             Web3Error::NoBlock
             | Web3Error::PrunedBlock(_)
             | Web3Error::PrunedL1Batch(_)
