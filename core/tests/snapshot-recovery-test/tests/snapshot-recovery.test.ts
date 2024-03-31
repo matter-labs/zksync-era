@@ -222,7 +222,8 @@ describe('snapshot recovery', () => {
         externalNodeLogs = await fs.open('snapshot-recovery.log', 'w');
 
         const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
-        let args = ['external-node', '--', '--enable-snapshots-recovery'];
+        process.env.EN_SNAPSHOTS_RECOVERY_ENABLED = 'true';
+        let args = ['external-node'];
         if (enableConsensus) {
             args.push('--enable-consensus');
         }
