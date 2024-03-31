@@ -60,21 +60,16 @@
       },
       {
         "ordinal": 11,
-        "name": "is_blob_cleaned",
-        "type_info": "Bool"
-      },
-      {
-        "ordinal": 12,
         "name": "number_of_basic_circuits",
         "type_info": "Int4"
       },
       {
-        "ordinal": 13,
+        "ordinal": 12,
         "name": "protocol_version",
         "type_info": "Int4"
       },
       {
-        "ordinal": 14,
+        "ordinal": 13,
         "name": "picked_by",
         "type_info": "Text"
       }
@@ -95,7 +90,6 @@
       true,
       false,
       false,
-      true,
       true,
       true,
       true,
