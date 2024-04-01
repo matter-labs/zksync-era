@@ -283,7 +283,6 @@ impl MainNodeBuilder {
         Ok(self)
     }
     fn add_eth_sender_layer(mut self) -> anyhow::Result<Self> {
-        let state_keeper_config = StateKeeperConfig::from_env()?;
         let eth_sender_config = ETHConfig::from_env()?;
         let contracts_config = ContractsConfig::from_env()?;
         let network_config = NetworkConfig::from_env()?;
