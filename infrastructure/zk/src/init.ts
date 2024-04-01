@@ -147,7 +147,7 @@ export async function announced(fn: string, promise: Promise<void> | void) {
 
 export async function submoduleUpdate() {
     await utils.exec('git submodule init');
-    await utils.exec('git submodule update --remote');
+    await utils.exec('git submodule update');
 }
 
 export async function validiumSubmoduleCheckout() {
