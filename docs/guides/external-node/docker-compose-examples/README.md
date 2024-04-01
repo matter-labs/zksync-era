@@ -32,4 +32,4 @@ To start testnet sepolia external node, run:
 
 This docker compose setup is very simple, without monitoring, backups, with default postgres settings, etc.
 
-**If you need something more advanced, please see:** https://github.com/matter-labs/ansible-en-role
+**If you need something more advanced, please see:** [ansible-en-role repo](https://github.com/matter-labs/ansible-en-role)
