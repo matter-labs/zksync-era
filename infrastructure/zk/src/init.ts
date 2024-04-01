@@ -62,8 +62,18 @@ export async function setupObservability() {
 }
 
 // Sets up docker environment and compiles contracts
-type InitSetupOptions = { skipEnvSetup: boolean; skipSubmodulesCheckout: boolean, deploymentMode: contract.DeploymentMode, runObservability: boolean};
-const initSetup = async ({ skipSubmodulesCheckout, skipEnvSetup, deploymentMode, runObservability }: InitSetupOptions): Promise<void> => {
+type InitSetupOptions = {
+    skipEnvSetup: boolean;
+    skipSubmodulesCheckout: boolean;
+    deploymentMode: contract.DeploymentMode;
+    runObservability: boolean;
+};
+const initSetup = async ({
+    skipSubmodulesCheckout,
+    skipEnvSetup,
+    deploymentMode,
+    runObservability
+}: InitSetupOptions): Promise<void> => {
     await announced(
         `Initializing in ${deploymentMode == contract.DeploymentMode.Validium ? 'Validium mode' : 'Roll-up mode'}`
     );
@@ -71,7 +81,7 @@ const initSetup = async ({ skipSubmodulesCheckout, skipEnvSetup, deploymentMode,
     if (runObservability) {
         await announced('Pulling observability repos', setupObservability());
     }
-    
+
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
         await announced('Checking environment', checkEnv(runObservability));
@@ -94,8 +104,16 @@ const initSetup = async ({ skipSubmodulesCheckout, skipEnvSetup, deploymentMode,
 };
 
 // Sets up the database, deploys the verifier (if set) and runs server genesis
-type InitDatabaseOptions = { skipVerifierDeployment: boolean, deployerPrivateKeyArgs : any[], deploymentMode: contract.DeploymentMode };
-const initDatabase = async ({ skipVerifierDeployment, deployerPrivateKeyArgs, deploymentMode }: InitDatabaseOptions): Promise<void> => {
+type InitDatabaseOptions = {
+    skipVerifierDeployment: boolean;
+    deployerPrivateKeyArgs: any[];
+    deploymentMode: contract.DeploymentMode;
+};
+const initDatabase = async ({
+    skipVerifierDeployment,
+    deployerPrivateKeyArgs,
+    deploymentMode
+}: InitDatabaseOptions): Promise<void> => {
     await announced('Drop postgres db', db.drop({ core: true, prover: true }));
     await announced('Setup postgres db', db.setup({ core: true, prover: true }));
     await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
@@ -116,8 +134,8 @@ const deployTestTokens = async (options?: DeployTestTokensOptions) => {
 };
 
 // Deploys and verifies L1 contracts and initializes governance
-type InitBridgehubOptions = { deployerPrivateKeyArgs: any[], deploymentMode: contract.DeploymentMode };
-const initBridgehubStateTransition = async ({deployerPrivateKeyArgs, deploymentMode }: InitBridgehubOptions) => {
+type InitBridgehubOptions = { deployerPrivateKeyArgs: any[]; deploymentMode: contract.DeploymentMode };
+const initBridgehubStateTransition = async ({ deployerPrivateKeyArgs, deploymentMode }: InitBridgehubOptions) => {
     await announced('Running server genesis setup', server.genesisFromSources({ setChainId: false }));
     await announced('Deploying L1 contracts', contract.deployL1(deployerPrivateKeyArgs, deploymentMode));
     await announced('Verifying L1 contracts', contract.verifyL1Contracts());
@@ -149,7 +167,7 @@ export const initDevCmdAction = async ({
     baseTokenName
 }: InitDevCmdActionOptions): Promise<void> => {
     await initSetup({ skipEnvSetup, skipSubmodulesCheckout, deploymentMode, runObservability });
-    await initDatabase({ skipVerifierDeployment: false , deploymentMode, deployerPrivateKeyArgs: []});
+    await initDatabase({ skipVerifierDeployment: false, deploymentMode, deployerPrivateKeyArgs: [] });
     if (!skipTestTokenDeployment) {
         await deployTestTokens(testTokenOptions);
     }
@@ -159,7 +177,10 @@ export const initDevCmdAction = async ({
 };
 
 type LightWeightInitOptions = { deployerPrivateKeyArgs: any[]; deploymentMode: contract.DeploymentMode };
-const lightweightInitCmdAction = async ({deployerPrivateKeyArgs, deploymentMode}: LightWeightInitOptions): Promise<void> => {
+const lightweightInitCmdAction = async ({
+    deployerPrivateKeyArgs,
+    deploymentMode
+}: LightWeightInitOptions): Promise<void> => {
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
     await announced('Deploying L1 verifier', contract.deployVerifier(deployerPrivateKeyArgs, deploymentMode));
@@ -174,8 +195,12 @@ const lightweightInitCmdAction = async ({deployerPrivateKeyArgs, deploymentMode}
 type InitSharedBridgeCmdActionOptions = InitSetupOptions;
 const initSharedBridgeCmdAction = async (options: InitSharedBridgeCmdActionOptions): Promise<void> => {
     await initSetup(options);
-    await initDatabase({ skipVerifierDeployment: false, deployerPrivateKeyArgs: [], deploymentMode: contract.DeploymentMode.Rollup});
-    await initBridgehubStateTransition({ deployerPrivateKeyArgs: [], deploymentMode: contract.DeploymentMode.Rollup});
+    await initDatabase({
+        skipVerifierDeployment: false,
+        deployerPrivateKeyArgs: [],
+        deploymentMode: contract.DeploymentMode.Rollup
+    });
+    await initBridgehubStateTransition({ deployerPrivateKeyArgs: [], deploymentMode: contract.DeploymentMode.Rollup });
 };
 
 type InitHyperCmdActionOptions = {
@@ -192,9 +217,18 @@ export const initHyperCmdAction = async ({
         await config.bumpChainId();
     }
     if (!skipSetupCompletely) {
-        await initSetup({ skipEnvSetup: false, skipSubmodulesCheckout: false, deploymentMode: contract.DeploymentMode.Rollup, runObservability: false});
+        await initSetup({
+            skipEnvSetup: false,
+            skipSubmodulesCheckout: false,
+            deploymentMode: contract.DeploymentMode.Rollup,
+            runObservability: false
+        });
     }
-    await initDatabase({ skipVerifierDeployment: true, deployerPrivateKeyArgs: [], deploymentMode: contract.DeploymentMode.Rollup});
+    await initDatabase({
+        skipVerifierDeployment: true,
+        deployerPrivateKeyArgs: [],
+        deploymentMode: contract.DeploymentMode.Rollup
+    });
     await initHyperchain({ includePaymaster: true, baseTokenName });
 };
 

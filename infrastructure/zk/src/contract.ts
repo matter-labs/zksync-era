@@ -207,7 +207,7 @@ async function _deployL1({ onlyVerifier }: { onlyVerifier: boolean }): Promise<v
     fs.writeFileSync('deployed_contracts.log', updatedContracts);
 }
 
-export async function deployL1(deployerPrivateKeyArgs:any[], deploymentMode: DeploymentMode): Promise<void> {
+export async function deployL1(deployerPrivateKeyArgs: any[], deploymentMode: DeploymentMode): Promise<void> {
     await _deployL1({ onlyVerifier: false });
 }
 
@@ -264,7 +264,6 @@ export async function registerHyperchain({ baseTokenName }: { baseTokenName?: st
     // Currently it's used by loadtest github action to update deployment configmap.
     fs.writeFileSync('register_hyperchain.log', updatedContracts);
 }
-
 
 export enum DeploymentMode {
     Rollup = 0,
