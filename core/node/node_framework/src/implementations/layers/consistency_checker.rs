@@ -54,7 +54,7 @@ impl WiringLayer for ConsistencyCheckerLayer {
             singleton_pool,
             l1_batch_commit_data_generator,
         )
-        .map_err(|err| WiringError::Internal(err))?
+        .map_err(WiringError::Internal)?
         .with_diamond_proxy_addr(self.diamond_proxy_addr);
 
         let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
