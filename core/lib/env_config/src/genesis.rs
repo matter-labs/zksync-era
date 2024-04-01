@@ -91,7 +91,7 @@ impl FromEnv for GenesisConfig {
                 .fee_account_addr
                 .context("Fee account required for genesis")?,
             shared_bridge,
-            dummy_prover: false,
+            dummy_verifier: false,
             l1_batch_commit_data_generator_mode: state_keeper.l1_batch_commit_data_generator_mode,
         })
     }

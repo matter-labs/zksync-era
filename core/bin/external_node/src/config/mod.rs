@@ -42,7 +42,7 @@ pub struct RemoteENConfig {
     pub l1_chain_id: L1ChainId,
     pub max_pubdata_per_batch: u64,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
-    pub dummy_prover: bool,
+    pub dummy_verifier: bool,
 }
 
 impl RemoteENConfig {
@@ -101,7 +101,10 @@ impl RemoteENConfig {
                 .as_ref()
                 .map(|a| a.l1_batch_commit_data_generator_mode)
                 .unwrap_or_default(),
-            dummy_prover: genesis.as_ref().map(|a| a.dummy_prover).unwrap_or_default(),
+            dummy_verifier: genesis
+                .as_ref()
+                .map(|a| a.dummy_verifier)
+                .unwrap_or_default(),
         })
     }
 }
@@ -665,7 +668,7 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
             filters_disabled: config.optional.filters_disabled,
             mempool_cache_update_interval: config.optional.mempool_cache_update_interval(),
             mempool_cache_size: config.optional.mempool_cache_size,
-            dummy_prover: config.remote.dummy_prover,
+            dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
         }
     }

@@ -85,7 +85,7 @@ impl ProtoRepr for proto::Genesis {
                 .and_then(|x| parse_h160(x))
                 .context("fee_account")?,
             shared_bridge,
-            dummy_prover: *required(&prover.dummy_verifier).context("dummy_prover")?,
+            dummy_verifier: *required(&prover.dummy_verifier).context("dummy_verifier")?,
             l1_batch_commit_data_generator_mode: required(
                 &self.l1_batch_commit_data_generator_mode,
             )
@@ -128,7 +128,7 @@ impl ProtoRepr for proto::Genesis {
                 recursion_circuits_set_vks_hash: Some(
                     this.recursion_circuits_set_vks_hash.to_string(),
                 ),
-                dummy_verifier: Some(this.dummy_prover),
+                dummy_verifier: Some(this.dummy_verifier),
             }),
             shared_bridge,
             l1_batch_commit_data_generator_mode: Some(

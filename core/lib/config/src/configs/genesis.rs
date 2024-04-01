@@ -28,7 +28,7 @@ pub struct GenesisConfig {
     pub recursion_scheduler_level_vk_hash: H256,
     pub fee_account: Address,
     pub shared_bridge: Option<SharedBridge>,
-    pub dummy_prover: bool,
+    pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
 
@@ -53,7 +53,7 @@ impl GenesisConfig {
             l1_chain_id: L1ChainId(9),
             protocol_version: 22,
             l2_chain_id: L2ChainId::default(),
-            dummy_prover: false,
+            dummy_verifier: false,
             l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
         }
     }

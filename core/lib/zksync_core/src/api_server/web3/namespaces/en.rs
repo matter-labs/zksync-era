@@ -146,7 +146,7 @@ impl EnNamespace {
             recursion_scheduler_level_vk_hash: verifier_config.recursion_scheduler_level_vk_hash,
             fee_account,
             shared_bridge,
-            dummy_prover: self.state.api_config.dummy_prover,
+            dummy_verifier: self.state.api_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: self
                 .state
                 .api_config

@@ -99,7 +99,7 @@ pub struct InternalApiConfig {
     pub filters_disabled: bool,
     pub mempool_cache_update_interval: Duration,
     pub mempool_cache_size: usize,
-    pub dummy_prover: bool,
+    pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
 
@@ -141,7 +141,7 @@ impl InternalApiConfig {
             filters_disabled: web3_config.filters_disabled,
             mempool_cache_update_interval: web3_config.mempool_cache_update_interval(),
             mempool_cache_size: web3_config.mempool_cache_size(),
-            dummy_prover: genesis_config.dummy_prover,
+            dummy_verifier: genesis_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
         }
     }

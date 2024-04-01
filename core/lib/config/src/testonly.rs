@@ -684,7 +684,7 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             recursion_scheduler_level_vk_hash: rng.gen(),
             recursion_circuits_set_vks_hash: rng.gen(),
             shared_bridge: self.sample(rng),
-            dummy_prover: rng.gen(),
+            dummy_verifier: rng.gen(),
             l1_batch_commit_data_generator_mode: self.sample(rng),
         }
     }
