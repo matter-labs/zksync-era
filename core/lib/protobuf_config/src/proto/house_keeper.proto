@@ -18,4 +18,6 @@ message HouseKeeper {
     optional uint64 fri_proof_compressor_stats_reporting_interval_ms = 13; // required; ms
     optional uint64 fri_prover_job_archiver_reporting_interval_ms = 14; // optional; ms
     optional uint64 fri_prover_job_archiver_archiving_interval_secs = 15; // optional; seconds
+    optional uint64 fri_gpu_prover_archiver_reporting_interval_secs = 16; // optional; seconds
+    optional uint64 fri_gpu_prover_archiver_archiving_interval_secs = 17; // optional; seconds
 }

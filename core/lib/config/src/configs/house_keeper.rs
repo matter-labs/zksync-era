@@ -19,6 +19,8 @@ pub struct HouseKeeperConfig {
     // TODO(PLA-862): Make these 2 variables required
     pub fri_prover_job_archiver_reporting_interval_ms: Option<u64>,
     pub fri_prover_job_archiver_archiving_interval_secs: Option<u64>,
+    pub fri_gpu_prover_archiver_reporting_interval_secs: Option<u64>,
+    pub fri_gpu_prover_archiver_archiving_interval_secs: Option<u64>,
 }
 
 impl HouseKeeperConfig {
@@ -26,6 +28,14 @@ impl HouseKeeperConfig {
         self.fri_prover_job_archiver_reporting_interval_ms.is_some()
             && self
                 .fri_prover_job_archiver_archiving_interval_secs
+                .is_some()
+    }
+
+    pub fn fri_gpu_prover_archiver_enabled(&self) -> bool {
+        self.fri_gpu_prover_archiver_reporting_interval_secs
+            .is_some()
+            && self
+                .fri_gpu_prover_archiver_archiving_interval_secs
                 .is_some()
     }
 }

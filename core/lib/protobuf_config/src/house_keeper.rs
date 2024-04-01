@@ -55,6 +55,10 @@ impl ProtoRepr for proto::HouseKeeper {
                 .fri_prover_job_archiver_reporting_interval_ms,
             fri_prover_job_archiver_archiving_interval_secs: self
                 .fri_prover_job_archiver_archiving_interval_secs,
+            fri_gpu_prover_archiver_reporting_interval_secs: self
+                .fri_gpu_prover_archiver_reporting_interval_secs,
+            fri_gpu_prover_archiver_archiving_interval_secs: self
+                .fri_gpu_prover_archiver_archiving_interval_secs,
         })
     }
 
@@ -91,6 +95,10 @@ impl ProtoRepr for proto::HouseKeeper {
                 .fri_prover_job_archiver_reporting_interval_ms,
             fri_prover_job_archiver_archiving_interval_secs: this
                 .fri_prover_job_archiver_archiving_interval_secs,
+            fri_gpu_prover_archiver_reporting_interval_secs: this
+                .fri_gpu_prover_archiver_reporting_interval_secs,
+            fri_gpu_prover_archiver_archiving_interval_secs: this
+                .fri_gpu_prover_archiver_archiving_interval_secs,
         }
     }
 }

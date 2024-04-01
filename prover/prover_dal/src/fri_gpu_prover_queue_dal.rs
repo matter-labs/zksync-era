@@ -156,4 +156,34 @@ impl FriGpuProverQueueDal<'_, '_> {
         .await
         .unwrap();
     }
+
+    pub async fn archive_old_provers(&mut self, archiving_interval_secs: u64) -> usize {
+        let archiving_interval =
+            pg_interval_from_duration(Duration::from_secs(archiving_interval_secs));
+
+        sqlx::query_scalar!(
+            r#"
+            WITH deleted AS (
+                DELETE FROM gpu_prover_queue_fri
+                WHERE
+                    instance_status = 'dead'
+                    OR (
+                        instance_status = 'reserved'
+                        AND updated_at < NOW() - $1::INTERVAL
+                    )
+                RETURNING *
+            ),
+            inserted_count AS (
+                INSERT INTO gpu_prover_queue_fri_archive
+                SELECT * FROM deleted
+            )
+            SELECT COUNT(*) FROM deleted
+            "#,
+            &archiving_interval
+        )
+        .fetch_one(self.storage.conn())
+        .await
+        .unwrap()
+        .unwrap_or(0) as usize
+    }
 }

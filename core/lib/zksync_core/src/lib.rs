@@ -68,6 +68,7 @@ use crate::{
     genesis::GenesisParams,
     house_keeper::{
         blocks_state_reporter::L1BatchMetricsReporter,
+        fri_gpu_prover_archiver::FriGpuProverArchiver,
         fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
         fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter,
         fri_prover_job_retry_manager::FriProverJobRetryManager,
@@ -1087,6 +1088,20 @@ async fn add_house_keeper_to_task_futures(
                 .unwrap(),
         );
         let task = fri_prover_jobs_archiver.run(stop_receiver.clone());
+        task_futures.push(tokio::spawn(task));
+    }
+
+    if house_keeper_config.fri_gpu_prover_archiver_enabled() {
+        let fri_gpu_prover_jobs_archiver = FriGpuProverArchiver::new(
+            prover_connection_pool.clone(),
+            house_keeper_config
+                .fri_gpu_prover_archiver_reporting_interval_secs
+                .unwrap(),
+            house_keeper_config
+                .fri_gpu_prover_archiver_archiving_interval_secs
+                .unwrap(),
+        );
+        let task = fri_gpu_prover_jobs_archiver.run(stop_receiver.clone());
         task_futures.push(tokio::spawn(task));
     }
 
