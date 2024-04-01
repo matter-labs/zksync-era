@@ -180,7 +180,7 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
     }
 
     /// Runs this pruner indefinitely until it is aborted by dropping its handle.
-    pub fn run(mut self, retained_version_source: &Box<dyn RetainedVersionSource>) {
+    pub fn run(mut self, retained_version_source: &dyn RetainedVersionSource) {
         tracing::info!("Started Merkle tree pruner {self:?}");
         loop {
             let last_version = self.last_prunable_version();
@@ -293,9 +293,9 @@ mod tests {
         let (mut pruner, pruner_handle) = MerkleTreePruner::new(PatchSet::default());
         pruner.set_poll_interval(Duration::from_secs(30));
         let join_handle = thread::spawn(|| {
-            pruner.run(Box::new(KeepConstantVersionsCount {
+            pruner.run(&KeepConstantVersionsCount {
                 past_versions_to_keep: 0,
-            }))
+            })
         });
 
         pruner_handle.abort();

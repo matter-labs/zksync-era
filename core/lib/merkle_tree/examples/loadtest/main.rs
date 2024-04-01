@@ -105,9 +105,9 @@ impl Cli {
                 let (mut pruner, pruner_handle) = MerkleTreePruner::new(rocksdb.clone());
                 pruner.set_poll_interval(Duration::from_secs(10));
                 let pruner_thread = thread::spawn(|| {
-                    pruner.run(Box::new(KeepConstantVersionsCount {
+                    pruner.run(&KeepConstantVersionsCount {
                         past_versions_to_keep: 0,
-                    }))
+                    })
                 });
                 pruner_handles = Some((pruner_handle, pruner_thread));
             }

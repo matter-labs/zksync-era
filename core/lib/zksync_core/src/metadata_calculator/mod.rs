@@ -164,9 +164,7 @@ impl MetadataCalculator {
         let (tree_pruner, pruner_handle) = tree.pruner();
         let pruner_pool = pool.clone();
         let join_handle = thread::spawn(move || {
-            tree_pruner.run(Box::new(KeepPruningSyncedWithDbPruning {
-                pool: pruner_pool,
-            }))
+            tree_pruner.run(&KeepPruningSyncedWithDbPruning { pool: pruner_pool })
         });
         self.tree_reader.send_replace(Some(tree_reader));
 
