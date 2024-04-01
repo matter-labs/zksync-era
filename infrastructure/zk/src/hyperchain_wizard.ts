@@ -573,7 +573,7 @@ function getL1Id(baseChain: BaseNetwork) {
         case BaseNetwork.LOCALHOST:
             return 9;
         case BaseNetwork.LINEATEST:
-            return 59140;
+            return 59141;
         case BaseNetwork.SEPOLIA:
             return 11155111;
         case BaseNetwork.GOERLI:
