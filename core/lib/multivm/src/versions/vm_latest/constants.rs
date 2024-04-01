@@ -16,10 +16,8 @@ pub(crate) const BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD: u32 = 1500;
 /// The size of the bootloader memory in bytes which is used by the protocol.
 /// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce
 /// the requirements on RAM.
-/// In this version of the VM the used bootloader memory bytes has increased from `24_000_000` to `30_000_000`.
-pub(crate) const USED_BOOTLOADER_MEMORY_BYTES: usize = 30_000_000;
-// TODO(EVM-513): remove allowing the dead code
-#[allow(dead_code)]
+/// In this version of the VM the used bootloader memory bytes has increased from `30_000_000` to `59_000_000`.
+pub(crate) const USED_BOOTLOADER_MEMORY_BYTES: usize = 59_000_000;
 pub(crate) const USED_BOOTLOADER_MEMORY_WORDS: usize = USED_BOOTLOADER_MEMORY_BYTES / 32;
 
 /// We want `MAX_GAS_PER_PUBDATA_BYTE` multiplied by the u32::MAX (i.e. the maximal possible value of the pubdata counter)
@@ -68,7 +66,7 @@ pub(crate) const TX_OVERHEAD_SLOTS: usize = MAX_TXS_IN_BATCH;
 pub(crate) const TX_TRUSTED_GAS_LIMIT_OFFSET: usize = TX_OVERHEAD_OFFSET + TX_OVERHEAD_SLOTS;
 pub(crate) const TX_TRUSTED_GAS_LIMIT_SLOTS: usize = MAX_TXS_IN_BATCH;
 
-pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 65536;
+pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 196608;
 
 pub(crate) const PRIORITY_TXS_L1_DATA_OFFSET: usize =
     COMPRESSED_BYTECODES_OFFSET + COMPRESSED_BYTECODES_SLOTS;
@@ -77,15 +75,15 @@ pub(crate) const PRIORITY_TXS_L1_DATA_SLOTS: usize = 2;
 pub const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET: usize =
     PRIORITY_TXS_L1_DATA_OFFSET + PRIORITY_TXS_L1_DATA_SLOTS;
 
-/// One of "worst case" scenarios for the number of state diffs in a batch is when 260 kb of pubdata is spent
-/// on repeated writes, that are all zeroed out. In this case, the number of diffs is 260 kb / 5 = 52k. This means that they will have
-/// accommodate 14144000 bytes of calldata for the uncompressed state diffs. Adding 260k on top leaves us with
-/// roughly 14404000 bytes needed for calldata. 450125 slots are needed to accommodate this amount of data.
-/// We round up to 451000 slots just in case.
+/// One of "worst case" scenarios for the number of state diffs in a batch is when 780kb of pubdata is spent
+/// on repeated writes, that are all zeroed out. In this case, the number of diffs is 780kb / 5 = 156k. This means that they will have
+/// accoomdate 42432000 bytes of calldata for the uncompressed state diffs. Adding 780kb on top leaves us with
+/// roughly 43212000 bytes needed for calldata.
+/// 1350375 slots are needed to accommodate this amount of data. We round up to 1360000 slots just in case.
 ///
 /// In theory though much more calldata could be used (if for instance 1 byte is used for enum index). It is the responsibility of the
 /// operator to ensure that it can form the correct calldata for the L1Messenger.
-pub(crate) const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS: usize = 451000;
+pub(crate) const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS: usize = 1360000;
 
 pub(crate) const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
     OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS;
@@ -172,5 +170,5 @@ pub(crate) const TX_SLOT_OVERHEAD_GAS: u32 = 10_000;
 pub(crate) const TX_MEMORY_OVERHEAD_GAS: u32 = 10;
 
 const ZK_SYNC_BYTES_PER_BLOB: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
-pub const MAX_BLOBS_PER_BATCH: usize = 2;
+pub const MAX_BLOBS_PER_BATCH: usize = 6;
 pub const MAX_VM_PUBDATA_PER_BATCH: usize = MAX_BLOBS_PER_BATCH * ZK_SYNC_BYTES_PER_BLOB;
