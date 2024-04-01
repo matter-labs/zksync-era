@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use zksync_basic_types::Address;
-use zksync_config::configs::wallets::{EthSender, StateKeeper, Wallet, Wallets};
+use zksync_config::configs::wallets::{AddressWallet, EthSender, StateKeeper, Wallet, Wallets};
 
 use crate::FromEnv;
 
@@ -35,7 +35,7 @@ impl FromEnv for Wallets {
 
         let fee_account = std::env::var("CHAIN_STATE_KEEPER_FEE_ACCOUNT_ADDR").ok();
         let state_keeper = if let Some(fee_account) = fee_account {
-            let fee_account = Wallet::from_address(Address::from_str(&fee_account)?);
+            let fee_account = AddressWallet::from_address(Address::from_str(&fee_account)?);
             Some(StateKeeper { fee_account })
         } else {
             None

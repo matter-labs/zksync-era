@@ -613,10 +613,7 @@ pub async fn initialize_components(
             .context("failed to build eth_sender_pool")?;
 
         let eth_sender_wallets = wallets.eth_sender.clone().context("eth_sender")?;
-        let operator_private_key = eth_sender_wallets
-            .operator
-            .private_key()
-            .context("Private_key")?;
+        let operator_private_key = eth_sender_wallets.operator.private_key();
         let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
         let default_priority_fee_per_gas = eth
             .gas_adjuster
@@ -691,10 +688,7 @@ pub async fn initialize_components(
             .context("failed to build eth_manager_pool")?;
         let eth_sender = configs.eth.clone().context("eth_sender_config")?;
         let eth_sender_wallets = wallets.eth_sender.clone().context("eth_sender")?;
-        let operator_private_key = eth_sender_wallets
-            .operator
-            .private_key()
-            .context("Private_key")?;
+        let operator_private_key = eth_sender_wallets.operator.private_key();
         let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
         let default_priority_fee_per_gas = eth
             .gas_adjuster
@@ -713,7 +707,7 @@ pub async fn initialize_components(
         );
 
         let eth_client_blobs = if let Some(blob_operator) = eth_sender_wallets.blob_operator {
-            let operator_blob_private_key = blob_operator.private_key().context("Private_key")?;
+            let operator_blob_private_key = blob_operator.private_key();
             Some(PKSigningClient::new_raw(
                 operator_blob_private_key,
                 diamond_proxy_addr,

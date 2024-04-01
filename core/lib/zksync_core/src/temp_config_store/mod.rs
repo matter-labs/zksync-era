@@ -8,7 +8,7 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        wallets::{EthSender, StateKeeper, Wallet, Wallets},
+        wallets::{AddressWallet, EthSender, StateKeeper, Wallet, Wallets},
         FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
         ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, WitnessGeneratorConfig,
@@ -133,7 +133,7 @@ impl TempConfigStore {
             .state_keeper_config
             .as_ref()
             .map(|state_keeper| StateKeeper {
-                fee_account: Wallet::from_address(
+                fee_account: AddressWallet::from_address(
                     state_keeper
                         .fee_account_addr
                         .expect("Must be presented in env variables"),

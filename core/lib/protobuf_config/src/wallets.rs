@@ -1,10 +1,9 @@
 use anyhow::Context;
 use zksync_config::configs::{
     self,
-    wallets::{EthSender, StateKeeper, Wallet},
+    wallets::{AddressWallet, EthSender, StateKeeper, Wallet},
 };
 use zksync_protobuf::{required, ProtoRepr};
-use zksync_types::PackedEthSignature;
 
 use crate::{parse_h160, parse_h256, proto::wallets as proto};
 
@@ -47,18 +46,8 @@ impl ProtoRepr for proto::Wallets {
                 required(&fee_account.address).context("fee_account.address requireed")?,
             )
             .context("fee_account.address")?;
-            if let Some(private_key) = &fee_account.private_key {
-                let calculated_address = PackedEthSignature::address_from_private_key(
-                    &parse_h256(private_key).context("Malformed private key")?,
-                )?;
-                if calculated_address != address {
-                    anyhow::bail!(
-                        "Malformed fee account wallet, address doesn't correspond private_key"
-                    )
-                }
-            }
             Some(StateKeeper {
-                fee_account: Wallet::from_address(address),
+                fee_account: AddressWallet::from_address(address),
             })
         } else {
             None
@@ -72,17 +61,17 @@ impl ProtoRepr for proto::Wallets {
 
     fn build(this: &Self::Type) -> Self {
         let (operator, blob_operator) = if let Some(eth_sender) = &this.eth_sender {
-            let blob = eth_sender.blob_operator.as_ref().map(|blob| proto::Wallet {
-                address: Some(format!("{:?}", blob.address())),
-                private_key: blob.private_key().map(|a| format!("{:?}", a)),
-            });
+            let blob = eth_sender
+                .blob_operator
+                .as_ref()
+                .map(|blob| proto::PrivateKeyWallet {
+                    address: Some(format!("{:?}", blob.address())),
+                    private_key: Some(format!("{:?}", blob.private_key())),
+                });
             (
-                Some(proto::Wallet {
+                Some(proto::PrivateKeyWallet {
                     address: Some(format!("{:?}", eth_sender.operator.address())),
-                    private_key: eth_sender
-                        .operator
-                        .private_key()
-                        .map(|a| format!("{:?}", a)),
+                    private_key: Some(format!("{:?}", eth_sender.operator.private_key())),
                 }),
                 blob,
             )
@@ -93,12 +82,8 @@ impl ProtoRepr for proto::Wallets {
         let fee_account = this
             .state_keeper
             .as_ref()
-            .map(|state_keeper| proto::Wallet {
+            .map(|state_keeper| proto::AddressWallet {
                 address: Some(format!("{:?}", state_keeper.fee_account.address())),
-                private_key: state_keeper
-                    .fee_account
-                    .private_key()
-                    .map(|a| format!("{:?}", a)),
             });
         Self {
             blob_operator,

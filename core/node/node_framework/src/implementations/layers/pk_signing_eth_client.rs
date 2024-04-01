@@ -44,13 +44,7 @@ impl WiringLayer for PKSigningEthClientLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let private_key = self
-            .wallets
-            .operator
-            .private_key()
-            .ok_or(WiringError::Configuration(
-                "Private key is missing in Wallets".to_string(),
-            ))?;
+        let private_key = self.wallets.operator.private_key();
 
         let signing_client = PKSigningClient::from_config(
             &self.eth_sender_config,

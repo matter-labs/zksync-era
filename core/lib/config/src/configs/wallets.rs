@@ -1,20 +1,28 @@
-use zksync_basic_types::{Address, H256};
+use zksync_basic_types::{Address, H160, H256};
 use zksync_crypto_primitives::PackedEthSignature;
+
+#[derive(Debug, Clone)]
+pub struct AddressWallet {
+    address: Address,
+}
+
+impl AddressWallet {
+    pub fn from_address(address: Address) -> Self {
+        Self { address }
+    }
+
+    pub fn address(&self) -> Address {
+        self.address
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Wallet {
     address: Address,
-    private_key: Option<H256>,
+    private_key: H256,
 }
 
 impl Wallet {
-    pub fn from_address(address: Address) -> Self {
-        Self {
-            address,
-            private_key: None,
-        }
-    }
-
     pub fn from_private_key(private_key: H256, address: Option<Address>) -> anyhow::Result<Self> {
         let calculated_address = PackedEthSignature::address_from_private_key(&private_key)?;
         if let Some(address) = address {
@@ -25,14 +33,14 @@ impl Wallet {
 
         Ok(Self {
             address: calculated_address,
-            private_key: Some(private_key),
+            private_key,
         })
     }
 
     pub fn address(&self) -> Address {
         self.address
     }
-    pub fn private_key(&self) -> Option<H256> {
+    pub fn private_key(&self) -> H256 {
         self.private_key
     }
 }
@@ -45,7 +53,7 @@ pub struct EthSender {
 
 #[derive(Debug, Clone)]
 pub struct StateKeeper {
-    pub fee_account: Wallet,
+    pub fee_account: AddressWallet,
 }
 
 #[derive(Debug, Clone)]
@@ -64,7 +72,7 @@ impl Wallets {
                 ),
             }),
             state_keeper: Some(StateKeeper {
-                fee_account: Wallet::from_private_key(H256::repeat_byte(0x3), None).unwrap(),
+                fee_account: AddressWallet::from_address(H160::repeat_byte(0x3)),
             }),
         }
     }

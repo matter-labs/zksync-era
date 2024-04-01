@@ -80,15 +80,13 @@ impl WiringLayer for EthSenderLayer {
 
         // Create and add tasks.
 
-        let eth_client_blobs = self.wallets.blob_operator.and_then(|wallet| {
-            wallet.private_key().map(|pk| {
-                PKSigningClient::from_config(
-                    &self.eth_sender_config,
-                    &self.contracts_config,
-                    self.l1chain_id,
-                    pk,
-                )
-            })
+        let eth_client_blobs = self.wallets.blob_operator.map(|wallet| {
+            PKSigningClient::from_config(
+                &self.eth_sender_config,
+                &self.contracts_config,
+                self.l1chain_id,
+                wallet.private_key(),
+            )
         });
         let eth_client_blobs_addr = eth_client_blobs.clone().map(|k| k.sender_account());
 

@@ -5,7 +5,7 @@ use zksync_basic_types::H256;
 
 use crate::ETHWatchConfig;
 
-/// Configuration for the ethereum related components.
+/// Configuration for the Ethereum related components.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ETHConfig {
     /// Options related to the Ethereum sender directly.

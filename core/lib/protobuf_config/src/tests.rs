@@ -54,7 +54,8 @@ fn verify_file_parsing() {
     let base_path = PathBuf::from_str("../../../etc/env/file_based/").unwrap();
     decode_yaml_repr::<proto::general::GeneralConfig>(&base_path.join("general.yaml"), true)
         .unwrap();
-    decode_yaml_repr::<proto::wallets::Wallets>(&base_path.join("wallets.yaml"), true).unwrap();
+    // It's allowed to have unknown fields in wallets, e.g. we keep private key for fee account
+    decode_yaml_repr::<proto::wallets::Wallets>(&base_path.join("wallets.yaml"), false).unwrap();
     decode_yaml_repr::<proto::genesis::Genesis>(&base_path.join("genesis.yaml"), true).unwrap();
     decode_yaml_repr::<proto::contracts::Contracts>(&base_path.join("contracts.yaml"), true)
         .unwrap();
