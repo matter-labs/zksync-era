@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 
-/// Configuration for the Ethereum sender crate.
+/// Configuration for the Ethereum watch crate.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ETHWatchConfig {
     /// Amount of confirmations for the priority operation to be processed.

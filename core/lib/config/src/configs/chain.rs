@@ -122,7 +122,7 @@ pub struct StateKeeperConfig {
     /// Denotes the percentage of L1 gas used in L2 block that triggers L2 block seal.
     pub close_block_at_gas_percentage: f64,
     /// Fee account address. Value is deprecated and it's used only for generating wallets struct
-    #[deprecated]
+    #[deprecated(note = "Use Wallets::fee_account::address instead")]
     pub fee_account_addr: Option<Address>,
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
     /// as potentially premium for congestion.
@@ -157,11 +157,11 @@ pub struct StateKeeperConfig {
 
     // Base system contract hashes, required only for generating genesis config.
     // #PLA-811
-    #[deprecated]
+    #[deprecated(note = "Use GenesisConfig::bootloader_hash instead")]
     pub bootloader_hash: Option<H256>,
-    #[deprecated]
+    #[deprecated(note = "Use GenesisConfig::default_aa_hash instead")]
     pub default_aa_hash: Option<H256>,
-    #[deprecated]
+    #[deprecated(note = "Use GenesisConfig::l1_batch_commit_data_generator_mode instead")]
     #[serde(default)]
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
