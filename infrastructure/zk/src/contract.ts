@@ -283,9 +283,9 @@ export async function redeployL1(args: any[], deploymentMode: DeploymentMode) {
 
 export async function deployVerifier(args: any[], deploymentMode: DeploymentMode) {
     if (deploymentMode == DeploymentMode.Validium) {
-        await deployL1([...args, '--only-verifier', '--validium-mode'], DeploymentMode.Validium);
+        await _deployL1({ onlyVerifier: true });
     } else if (deploymentMode == DeploymentMode.Rollup) {
-        await deployL1([...args, '--only-verifier'], DeploymentMode.Rollup);
+        await _deployL1({ onlyVerifier: true });
     } else {
         throw new Error('Invalid deployment mode');
     }
