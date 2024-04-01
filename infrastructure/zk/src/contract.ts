@@ -207,7 +207,7 @@ async function _deployL1({ onlyVerifier }: { onlyVerifier: boolean }): Promise<v
     fs.writeFileSync('deployed_contracts.log', updatedContracts);
 }
 
-export async function deployL1(): Promise<void> {
+export async function deployL1(deployerPrivateKeyArgs:any[], deploymentMode: DeploymentMode): Promise<void> {
     await _deployL1({ onlyVerifier: false });
 }
 
@@ -233,11 +233,6 @@ export async function erc20BridgeFinish(args: any[] = []): Promise<void> {
     const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
 
     await utils.spawn(`${baseCommandL1} erc20-finish-deployment-on-chain ${args.join(' ')} | tee -a deployL2.log`);
-}
-
-export async function redeployL1(): Promise<void> {
-    await deployL1();
-    await verifyL1Contracts();
 }
 
 export async function registerHyperchain({ baseTokenName }: { baseTokenName?: string }): Promise<void> {
@@ -270,8 +265,31 @@ export async function registerHyperchain({ baseTokenName }: { baseTokenName?: st
     fs.writeFileSync('register_hyperchain.log', updatedContracts);
 }
 
-export async function deployVerifier(): Promise<void> {
-    await _deployL1({ onlyVerifier: true });
+
+export enum DeploymentMode {
+    Rollup = 0,
+    Validium = 1
+}
+
+export async function redeployL1(args: any[], deploymentMode: DeploymentMode) {
+    if (deploymentMode == DeploymentMode.Validium) {
+        await deployL1([...args, '--validium-mode'], DeploymentMode.Validium);
+    } else if (deploymentMode == DeploymentMode.Rollup) {
+        await deployL1(args, DeploymentMode.Rollup);
+    } else {
+        throw new Error('Invalid deployment mode');
+    }
+    await verifyL1Contracts();
+}
+
+export async function deployVerifier(args: any[], deploymentMode: DeploymentMode) {
+    if (deploymentMode == DeploymentMode.Validium) {
+        await deployL1([...args, '--only-verifier', '--validium-mode'], DeploymentMode.Validium);
+    } else if (deploymentMode == DeploymentMode.Rollup) {
+        await deployL1([...args, '--only-verifier'], DeploymentMode.Rollup);
+    } else {
+        throw new Error('Invalid deployment mode');
+    }
 }
 
 export const command = new Command('contract').description('contract management');

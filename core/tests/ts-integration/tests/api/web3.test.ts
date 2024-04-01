@@ -231,7 +231,7 @@ describe('web3 API compatibility tests', () => {
         await legacyTx.wait();
 
         const legacyApiReceipt = await alice.provider.getTransaction(legacyTx.hash);
-        expect(legacyApiReceipt.gasPrice).bnToBeEq(legacyTx.gasPrice!);
+        expect(legacyApiReceipt.gasPrice).bnToBeLte(legacyTx.gasPrice!);
     });
 
     test('Should check transactions from API / EIP1559 tx', async () => {

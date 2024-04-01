@@ -1,0 +1,16 @@
+[chain.state_keeper]
+compute_overhead_part=1.0
+pubdata_overhead_part=0.0
+batch_overhead_l1_gas=1000000
+# This value should be higher for Validium, but now it is not compatible with the current blobs model.
+# For this config to be set to its proper value we need to fully integrate Validium + Blobs.
+max_pubdata_per_batch=100000
+fee_model_version="V2"
+l1_batch_commit_data_generator_mode="Validium"
+
+# This override will be removed soon but it is needed for now.
+[eth_sender.gas_adjuster]
+max_blob_base_fee=0
+
+[_metadata]
+base=['dev.toml']

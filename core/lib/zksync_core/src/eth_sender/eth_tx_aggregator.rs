@@ -25,6 +25,7 @@ use zksync_types::{
 use super::aggregated_operations::AggregatedOperation;
 use crate::{
     eth_sender::{
+        l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
         metrics::{PubdataKind, METRICS},
         zksync_functions::ZkSyncFunctions,
         Aggregator, ETHSenderError,
@@ -63,6 +64,7 @@ pub struct EthTxAggregator {
     /// address.
     custom_commit_sender_addr: Option<Address>,
     pool: ConnectionPool<Core>,
+    l1_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
 struct TxData {
@@ -82,6 +84,7 @@ impl EthTxAggregator {
         state_transition_chain_contract: Address,
         rollup_chain_id: L2ChainId,
         custom_commit_sender_addr: Option<Address>,
+        l1_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> Self {
         let functions = ZkSyncFunctions::default();
         let base_nonce = eth_client
@@ -113,6 +116,7 @@ impl EthTxAggregator {
             rollup_chain_id,
             custom_commit_sender_addr,
             pool,
+            l1_commit_data_generator,
         }
     }
 
@@ -396,8 +400,8 @@ impl EthTxAggregator {
             aggregated_op.get_action_caption()
         );
 
-        if let AggregatedOperation::Commit(commit_op) = &aggregated_op {
-            for batch in &commit_op.l1_batches {
+        if let AggregatedOperation::Commit(_, l1_batches, _) = &aggregated_op {
+            for batch in l1_batches {
                 METRICS.pubdata_size[&PubdataKind::StateDiffs]
                     .observe(batch.metadata.state_diffs_compressed.len());
                 METRICS.pubdata_size[&PubdataKind::UserL2ToL1Logs]
@@ -431,16 +435,21 @@ impl EthTxAggregator {
         let mut args = vec![Token::Uint(self.rollup_chain_id.as_u64().into())];
 
         let (calldata, sidecar) = match op.clone() {
-            AggregatedOperation::Commit(op) => {
+            AggregatedOperation::Commit(last_committed_l1_batch, l1_batches, pubdata_da) => {
+                let commit_data = self.l1_commit_data_generator.l1_commit_batches(
+                    &last_committed_l1_batch,
+                    &l1_batches,
+                    &pubdata_da,
+                );
                 if contracts_are_pre_shared_bridge {
                     if let PubdataDA::Blobs = self.aggregator.pubdata_da() {
                         let calldata = self
                             .functions
                             .pre_shared_bridge_commit
-                            .encode_input(&op.clone().into_tokens())
+                            .encode_input(&commit_data)
                             .expect("Failed to encode commit transaction data");
 
-                        let side_car = op.l1_batches[0]
+                        let side_car = l1_batches[0]
                             .header
                             .pubdata_input
                             .clone()
@@ -463,12 +472,12 @@ impl EthTxAggregator {
                         let calldata = self
                             .functions
                             .pre_shared_bridge_commit
-                            .encode_input(&op.into_tokens())
+                            .encode_input(&commit_data)
                             .expect("Failed to encode commit transaction data");
                         (calldata, None)
                     }
                 } else {
-                    args.extend(op.into_tokens());
+                    args.extend(commit_data);
                     let calldata = self
                         .functions
                         .post_shared_bridge_commit

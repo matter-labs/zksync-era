@@ -4,7 +4,7 @@ use anyhow::Context;
 use serde::Deserialize;
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
-use zksync_config::ObjectStoreConfig;
+use zksync_config::{configs::chain::L1BatchCommitDataGeneratorMode, ObjectStoreConfig};
 use zksync_core::{
     api_server::{
         tx_sender::TxSenderConfig,
@@ -154,7 +154,8 @@ pub struct OptionalENConfig {
     latest_values_cache_size_mb: usize,
     /// Enabled JSON RPC API namespaces.
     api_namespaces: Option<Vec<Namespace>>,
-    /// Whether to support methods installing filters and querying filter changes.
+    /// Whether to support HTTP methods that install filters and query filter changes.
+    /// WS methods are unaffected.
     ///
     /// When to set this value to `true`:
     /// Filters are local to the specific node they were created at. Meaning if
@@ -247,6 +248,9 @@ pub struct OptionalENConfig {
     // This is intentionally not a part of `RemoteENConfig` because fetching this info from the main node would defeat
     // its purpose; the consistency checker assumes that the main node may provide false information.
     pub contracts_diamond_proxy_addr: Option<Address>,
+
+    #[serde(default = "OptionalENConfig::default_l1_batch_commit_data_generator_mode")]
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
 
 impl OptionalENConfig {
@@ -359,6 +363,10 @@ impl OptionalENConfig {
 
     const fn default_mempool_cache_size() -> usize {
         10_000
+    }
+
+    const fn default_l1_batch_commit_data_generator_mode() -> L1BatchCommitDataGeneratorMode {
+        L1BatchCommitDataGeneratorMode::Rollup
     }
 
     pub fn polling_interval(&self) -> Duration {

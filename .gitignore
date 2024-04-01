@@ -40,8 +40,13 @@ Cargo.lock
 !/etc/env/base
 !/etc/env/configs/docker.toml
 !/etc/env/configs/dev.toml
+!/etc/env/configs/dev_validium.toml
+!/etc/env/configs/dev_validium_docker.toml
 !/etc/env/configs/ext-node.toml
 !/etc/env/configs/ext-node-docker.toml
+!/etc/env/configs/ext-node-validium.toml
+!/etc/env/configs/ext-node-validium-docker.toml
+!/etc/env/configs/*.yaml
 /etc/tokens/localhost.json
 /etc/zksolc-bin/*
 /etc/zkvyper-bin/*

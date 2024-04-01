@@ -14,6 +14,7 @@ import { up } from './up';
 import * as Handlebars from 'handlebars';
 import { ProverType, setupProver } from './prover_setup';
 import { announced } from './utils';
+import { DeploymentMode } from './contract';
 
 const title = chalk.blueBright;
 const warning = chalk.yellowBright;
@@ -48,7 +49,7 @@ export interface BasePromptOptions {
 let isLocalhost = false;
 
 // An init command that allows configuring and spinning up a new hyperchain network.
-async function initHyperchain(envName: string) {
+async function initHyperchain(envName: string, deploymentMode: DeploymentMode) {
     await announced('Initializing hyperchain creation', setupConfiguration(envName));
 
     await init.initHyperCmdAction({ skipSetupCompletely: false, bumpChainId: true });
@@ -817,8 +818,10 @@ initHyperchainCommand
     .command('init')
     .option('--env-name <env-name>', 'chain name to use for initialization')
     .description('Wizard for hyperchain creation/configuration')
+    .option('--validium-mode')
     .action(async (cmd: Command) => {
-        initHyperchain(cmd.envName);
+        let deploymentMode = cmd.validiumMode !== undefined ? DeploymentMode.Validium : DeploymentMode.Rollup;
+        await initHyperchain(cmd.envName, cmd.runObservability, deploymentMode);
     });
 initHyperchainCommand
     .command('docker-setup')
@@ -833,5 +836,6 @@ initHyperchainCommand
     .command('demo')
     .option('--prover <value>', 'Add a cpu or gpu prover to the hyperchain')
     .option('--skip-env-setup', 'Run env setup automatically (pull docker containers, etc)')
+    .option('--validium-mode')
     .description('Spin up a demo hyperchain with default settings for testing purposes')
     .action(configDemoHyperchain);

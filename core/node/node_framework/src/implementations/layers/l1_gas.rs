@@ -2,10 +2,16 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use zksync_config::{
-    configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode},
+    configs::{
+        chain::{L1BatchCommitDataGeneratorMode, StateKeeperConfig},
+        eth_sender::PubdataSendingMode,
+    },
     GasAdjusterConfig,
 };
-use zksync_core::{fee_model::MainNodeFeeInputProvider, l1_gas_price::GasAdjuster};
+use zksync_core::{
+    fee_model::MainNodeFeeInputProvider,
+    l1_gas_price::{GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing},
+};
 use zksync_types::fee_model::FeeModelConfig;
 
 use crate::{
@@ -46,11 +52,20 @@ impl WiringLayer for SequencerL1GasLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
+        let pubdata_pricing: Arc<dyn PubdataPricing> =
+            match self.state_keeper_config.l1_batch_commit_data_generator_mode {
+                L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupPubdataPricing {}),
+                L1BatchCommitDataGeneratorMode::Validium => Arc::new(ValidiumPubdataPricing {}),
+            };
         let client = context.get_resource::<EthInterfaceResource>().await?.0;
-        let adjuster =
-            GasAdjuster::new(client, self.gas_adjuster_config, self.pubdata_sending_mode)
-                .await
-                .context("GasAdjuster::new()")?;
+        let adjuster = GasAdjuster::new(
+            client,
+            self.gas_adjuster_config,
+            self.pubdata_sending_mode,
+            pubdata_pricing,
+        )
+        .await
+        .context("GasAdjuster::new()")?;
         let gas_adjuster = Arc::new(adjuster);
 
         let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
