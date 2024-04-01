@@ -27,6 +27,8 @@ mod tests {
             prover_db_pool_size: 2,
             proof_compressor_job_retrying_interval_ms: 30_000,
             proof_compressor_stats_reporting_interval_ms: 10_000,
+            prover_job_archiver_reporting_interval_ms: Some(1_800_000),
+            prover_job_archiver_archiving_interval_secs: Some(172_800),
         }
     }
 
@@ -44,9 +46,11 @@ mod tests {
             HOUSE_KEEPER_FRI_PROVER_JOB_RETRYING_INTERVAL_MS="30000"
             HOUSE_KEEPER_FRI_WITNESS_GENERATOR_JOB_RETRYING_INTERVAL_MS="30000"
             HOUSE_KEEPER_PROVER_DB_POOL_SIZE="2"
-            HOUSE_KEEPER_FRI_PROVER_STATS_REPORTING_INTERVAL_MS="30000"
-            HOUSE_KEEPER_FRI_PROOF_COMPRESSOR_STATS_REPORTING_INTERVAL_MS="10000"
-            HOUSE_KEEPER_FRI_PROOF_COMPRESSOR_JOB_RETRYING_INTERVAL_MS="30000"
+            HOUSE_KEEPER_PROVER_STATS_REPORTING_INTERVAL_MS="30000"
+            HOUSE_KEEPER_PROOF_COMPRESSOR_STATS_REPORTING_INTERVAL_MS="10000"
+            HOUSE_KEEPER_PROOF_COMPRESSOR_JOB_RETRYING_INTERVAL_MS="30000"
+            HOUSE_KEEPER_PROVER_JOB_ARCHIVER_REPORTING_INTERVAL_MS="1800000"
+            HOUSE_KEEPER_PROVER_JOB_ARCHIVER_ARCHIVING_INTERVAL_SECS="172800"
         "#;
         lock.set_env(config);
 

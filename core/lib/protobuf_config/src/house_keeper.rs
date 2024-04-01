@@ -40,6 +40,12 @@ impl ProtoRepr for proto::HouseKeeper {
                 &self.proof_compressor_stats_reporting_interval_ms,
             )
             .context("proof_compressor_stats_reporting_interval_ms")?,
+
+            // TODO(PLA-862): Make these 2 variables required
+            prover_job_archiver_reporting_interval_ms: self
+                .prover_job_archiver_reporting_interval_ms,
+            prover_job_archiver_archiving_interval_secs: self
+                .prover_job_archiver_archiving_interval_secs,
         })
     }
 
@@ -67,6 +73,10 @@ impl ProtoRepr for proto::HouseKeeper {
             proof_compressor_stats_reporting_interval_ms: Some(
                 this.proof_compressor_stats_reporting_interval_ms,
             ),
+            prover_job_archiver_reporting_interval_ms: this
+                .prover_job_archiver_reporting_interval_ms,
+            prover_job_archiver_archiving_interval_secs: this
+                .prover_job_archiver_archiving_interval_secs,
         }
     }
 }

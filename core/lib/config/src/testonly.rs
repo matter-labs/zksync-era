@@ -562,6 +562,8 @@ impl Distribution<configs::house_keeper::HouseKeeperConfig> for EncodeDist {
             witness_generator_job_retrying_interval_ms: self.sample(rng),
             proof_compressor_job_retrying_interval_ms: self.sample(rng),
             proof_compressor_stats_reporting_interval_ms: self.sample(rng),
+            prover_job_archiver_reporting_interval_ms: self.sample(rng),
+            prover_job_archiver_archiving_interval_secs: self.sample(rng),
         }
     }
 }
