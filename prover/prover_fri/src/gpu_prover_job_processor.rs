@@ -2,6 +2,7 @@
 pub mod gpu_prover {
     use std::{collections::HashMap, sync::Arc, time::Instant};
 
+    // Importing necessary dependencies
     use anyhow::Context as _;
     use prover_dal::{ConnectionPool, ProverDal};
     use shivini::{
@@ -32,31 +33,25 @@ pub mod gpu_prover {
     use zksync_types::{basic_fri_types::CircuitIdRoundTuple, prover_dal::SocketAddress};
     use zksync_vk_setup_data_server_fri::{keystore::Keystore, GoldilocksGpuProverSetupData};
 
-    use crate::{
-        metrics::METRICS,
-        utils::{
-            get_setup_data_key, save_proof, setup_metadata_to_setup_data_key, verify_proof,
-            GpuProverJob, ProverArtifacts, SharedWitnessVectorQueue,
-        },
-    };
-
+    // Definition of the default transcript and tree hasher types
     type DefaultTranscript = GoldilocksPoisedon2Transcript;
     type DefaultTreeHasher = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;
 
+    // Enum to represent the mode of loading setup data
     pub enum SetupLoadMode {
         FromMemory(HashMap<ProverServiceDataKey, Arc<GoldilocksGpuProverSetupData>>),
         FromDisk,
     }
 
     #[allow(dead_code)]
+    // Struct representing the GPU prover
     pub struct Prover {
         blob_store: Arc<dyn ObjectStore>,
         public_blob_store: Option<Arc<dyn ObjectStore>>,
         config: Arc<FriProverConfig>,
         prover_connection_pool: ConnectionPool<prover_dal::Prover>,
         setup_load_mode: SetupLoadMode,
-        // Only pick jobs for the configured circuit id and aggregation rounds.
-        // Empty means all jobs are picked.
+        // List of circuit IDs and aggregation rounds to be proven
         circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
         witness_vector_queue: SharedWitnessVectorQueue,
         prover_context: ProverContext,
@@ -66,6 +61,7 @@ pub mod gpu_prover {
 
     impl Prover {
         #[allow(dead_code)]
+        // Constructor function for the Prover struct
         pub fn new(
             blob_store: Arc<dyn ObjectStore>,
             public_blob_store: Option<Arc<dyn ObjectStore>>,
@@ -92,6 +88,7 @@ pub mod gpu_prover {
             }
         }
 
+        // Function to retrieve setup data
         fn get_setup_data(
             &self,
             key: ProverServiceDataKey,
@@ -117,10 +114,12 @@ pub mod gpu_prover {
             })
         }
 
+        // Function to initiate the proving process
         pub fn prove(
             job: GpuProverJob,
             setup_data: Arc<GoldilocksGpuProverSetupData>,
         ) -> ProverArtifacts {
+            // Creating a worker
             let worker = Worker::new();
             let GpuProverJob {
                 witness_vector_artifacts,
@@ -130,6 +129,7 @@ pub mod gpu_prover {
                 prover_job,
             } = witness_vector_artifacts;
 
+            // Determining GPU proof config, proof config, and circuit ID
             let (gpu_proof_config, proof_config, circuit_id) = match &prover_job.circuit_wrapper {
                 CircuitWrapper::Base(circuit) => (
                     GpuProofConfig::from_base_layer_circuit(circuit),
@@ -149,6 +149,7 @@ pub mod gpu_prover {
             };
 
             let started_at = Instant::now();
+            // Generating GPU proof
             let proof = gpu_prove_from_external_witness_data::<
                 DefaultTranscript,
                 DefaultTreeHasher,
