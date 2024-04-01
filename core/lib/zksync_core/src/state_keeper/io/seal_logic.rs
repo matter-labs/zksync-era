@@ -45,6 +45,7 @@ impl UpdatesManager {
         &self,
         storage: &mut Connection<'_, Core>,
         l2_erc20_bridge_addr: Address,
+        insert_protective_reads: bool,
     ) {
         let started_at = Instant::now();
         let finished_batch = self
@@ -122,10 +123,6 @@ impl UpdatesManager {
             pubdata_input: finished_batch.pubdata_input.clone(),
         };
 
-        let events_queue = &finished_batch
-            .final_execution_state
-            .deduplicated_events_logs;
-
         let final_bootloader_memory = finished_batch
             .final_bootloader_memory
             .clone()
@@ -136,7 +133,6 @@ impl UpdatesManager {
                 &l1_batch,
                 &final_bootloader_memory,
                 self.pending_l1_gas_count(),
-                events_queue,
                 &finished_batch.final_execution_state.storage_refunds,
                 self.pending_execution_metrics().circuit_statistic,
             )
@@ -162,18 +158,20 @@ impl UpdatesManager {
             .await;
         progress.observe(None);
 
-        let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertProtectiveReads);
         let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) = finished_batch
             .final_execution_state
             .deduplicated_storage_log_queries
             .iter()
             .partition(|log_query| log_query.rw_flag);
-        transaction
-            .storage_logs_dedup_dal()
-            .insert_protective_reads(self.l1_batch.number, &protective_reads)
-            .await
-            .unwrap();
-        progress.observe(protective_reads.len());
+        if insert_protective_reads {
+            let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertProtectiveReads);
+            transaction
+                .storage_logs_dedup_dal()
+                .insert_protective_reads(self.l1_batch.number, &protective_reads)
+                .await
+                .unwrap();
+            progress.observe(protective_reads.len());
+        }
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FilterWrittenSlots);
         let deduplicated_writes_hashed_keys: Vec<_> = deduplicated_writes

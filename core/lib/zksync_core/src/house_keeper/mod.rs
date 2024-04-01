@@ -2,6 +2,7 @@ pub mod blocks_state_reporter;
 pub mod fri_proof_compressor_job_retry_manager;
 pub mod fri_proof_compressor_queue_monitor;
 pub mod fri_prover_job_retry_manager;
+pub mod fri_prover_jobs_archiver;
 pub mod fri_prover_queue_monitor;
 pub mod fri_scheduler_circuit_queuer;
 pub mod fri_witness_generator_jobs_retry_manager;

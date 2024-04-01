@@ -91,7 +91,7 @@ pub(super) fn default_l1_batch_env(
     }
 }
 
-pub(super) fn default_vm_block_result() -> FinishedL1Batch {
+pub(super) fn default_vm_batch_result() -> FinishedL1Batch {
     FinishedL1Batch {
         block_tip_execution_result: VmExecutionResultAndLogs {
             result: ExecutionResult::Success { output: vec![] },

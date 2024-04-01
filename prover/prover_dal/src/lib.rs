@@ -49,7 +49,7 @@ pub struct Prover;
 
 // Implement the marker trait for the Prover to be able to use it in Connection.
 impl DbMarker for Prover {}
-// Implement the sealed trait for the StorageProcessor.
+// Implement the sealed trait for the Connection.
 impl private::Sealed for Connection<'_, Prover> {}
 
 impl<'a> ProverDal<'a> for Connection<'a, Prover> {
