@@ -153,6 +153,7 @@ const initHyperchain = async ({ includePaymaster, baseTokenName }: InitHyperchai
 
 // ########################### Command Actions ###########################
 type InitDevCmdActionOptions = InitSetupOptions & {
+    validiumMode: boolean;
     skipTestTokenDeployment?: boolean;
     testTokenOptions?: DeployTestTokensOptions;
     baseTokenName?: string;
@@ -160,12 +161,13 @@ type InitDevCmdActionOptions = InitSetupOptions & {
 export const initDevCmdAction = async ({
     skipEnvSetup,
     skipSubmodulesCheckout,
-    deploymentMode,
+    validiumMode,
     runObservability,
     skipTestTokenDeployment,
     testTokenOptions,
     baseTokenName
 }: InitDevCmdActionOptions): Promise<void> => {
+    const deploymentMode = validiumMode ? contract.DeploymentMode.Validium : contract.DeploymentMode.Rollup;
     await initSetup({ skipEnvSetup, skipSubmodulesCheckout, deploymentMode, runObservability });
     await initDatabase({ skipVerifierDeployment: false, deploymentMode, deployerPrivateKeyArgs: [] });
     if (!skipTestTokenDeployment) {

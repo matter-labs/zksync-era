@@ -3,12 +3,20 @@ import { Command } from 'commander';
 import { up } from './up';
 import { announced } from './utils';
 import { initDevCmdAction, initHyperCmdAction } from './init';
+import * as contract from './contract';
 
 const reinitDevCmdAction = async (): Promise<void> => {
-    await announced('Setting up containers', up());
+    await announced('Setting up containers', up(false));
     // skipEnvSetup and skipSubmodulesCheckout, because we only want to compile
     // no ERC20 token deployment, because they are already deployed
-    await initDevCmdAction({ skipEnvSetup: true, skipSubmodulesCheckout: true, skipTestTokenDeployment: true });
+    await initDevCmdAction({
+        skipEnvSetup: true,
+        skipSubmodulesCheckout: true,
+        skipTestTokenDeployment: true,
+        deploymentMode: contract.DeploymentMode.Rollup,
+        validiumMode: false,
+        runObservability: false
+    });
 };
 
 type ReinitHyperCmdActionOptions = { baseTokenName?: string };

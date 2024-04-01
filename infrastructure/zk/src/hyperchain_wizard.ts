@@ -302,7 +302,7 @@ async function setHyperchainMetadata() {
         feeReceiver = undefined;
         feeReceiverAddress = richWallets[3].address;
 
-        await up(runObservability);
+        await up(false); //runObservability is false
         await announced('Ensuring databases are up', db.wait({ core: true, prover: false }));
     }
 
@@ -762,12 +762,15 @@ async function configDemoHyperchain(cmd: Command) {
     env.load();
 
     if (!cmd.skipEnvSetup) {
-        await up();
+        await up(false); // runObservability is false
     }
     await init.initDevCmdAction({
         skipEnvSetup: cmd.skipEnvSetup,
         skipSubmodulesCheckout: false,
-        testTokenOptions: { envFile: process.env.CHAIN_ETH_NETWORK! }
+        testTokenOptions: { envFile: process.env.CHAIN_ETH_NETWORK! },
+        deploymentMode: DeploymentMode.Rollup,
+        validiumMode: false,
+        runObservability: false
     });
 
     env.mergeInitToEnv();
@@ -821,7 +824,7 @@ initHyperchainCommand
     .option('--validium-mode')
     .action(async (cmd: Command) => {
         let deploymentMode = cmd.validiumMode !== undefined ? DeploymentMode.Validium : DeploymentMode.Rollup;
-        await initHyperchain(cmd.envName, cmd.runObservability, deploymentMode);
+        await initHyperchain(cmd.envName, deploymentMode);
     });
 initHyperchainCommand
     .command('docker-setup')
