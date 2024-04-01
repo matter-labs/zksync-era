@@ -32,7 +32,13 @@ pub mod gpu_prover {
     use zksync_queued_job_processor::{async_trait, JobProcessor};
     use zksync_types::{basic_fri_types::CircuitIdRoundTuple, prover_dal::SocketAddress};
     use zksync_vk_setup_data_server_fri::{keystore::Keystore, GoldilocksGpuProverSetupData};
-
+    use crate::{
+        metrics::METRICS,
+        utils::{
+            get_setup_data_key, save_proof, setup_metadata_to_setup_data_key, verify_proof,
+            GpuProverJob, ProverArtifacts, SharedWitnessVectorQueue,
+        },
+    };
     // Definition of the default transcript and tree hasher types
     type DefaultTranscript = GoldilocksPoisedon2Transcript;
     type DefaultTreeHasher = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;
