@@ -73,13 +73,16 @@ impl ProtoRepr for proto::Wallets {
     fn build(this: &Self::Type) -> Self {
         let (operator, blob_operator) = if let Some(eth_sender) = &this.eth_sender {
             let blob = eth_sender.blob_operator.as_ref().map(|blob| proto::Wallet {
-                address: Some(blob.address().to_string()),
-                private_key: blob.private_key().map(|a| a.to_string()),
+                address: Some(format!("{:?}", blob.address())),
+                private_key: blob.private_key().map(|a| format!("{:?}", a)),
             });
             (
                 Some(proto::Wallet {
-                    address: Some(eth_sender.operator.address().to_string()),
-                    private_key: eth_sender.operator.private_key().map(|a| a.to_string()),
+                    address: Some(format!("{:?}", eth_sender.operator.address())),
+                    private_key: eth_sender
+                        .operator
+                        .private_key()
+                        .map(|a| format!("{:?}", a)),
                 }),
                 blob,
             )
@@ -91,11 +94,11 @@ impl ProtoRepr for proto::Wallets {
             .state_keeper
             .as_ref()
             .map(|state_keeper| proto::Wallet {
-                address: Some(state_keeper.fee_account.address().to_string()),
+                address: Some(format!("{:?}", state_keeper.fee_account.address())),
                 private_key: state_keeper
                     .fee_account
                     .private_key()
-                    .map(|a| a.to_string()),
+                    .map(|a| format!("{:?}", a)),
             });
         Self {
             blob_operator,

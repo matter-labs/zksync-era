@@ -100,34 +100,44 @@ impl ProtoRepr for proto::Genesis {
             .shared_bridge
             .as_ref()
             .map(|shared_bridge| proto::SharedBridge {
-                bridgehub_proxy_addr: Some(shared_bridge.bridgehub_proxy_addr.to_string()),
-                state_transition_proxy_addr: Some(
-                    shared_bridge.state_transition_proxy_addr.to_string(),
-                ),
-                transparent_proxy_admin_addr: Some(
-                    shared_bridge.transparent_proxy_admin_addr.to_string(),
-                ),
+                bridgehub_proxy_addr: Some(format!("{:?}", shared_bridge.bridgehub_proxy_addr)),
+                state_transition_proxy_addr: Some(format!(
+                    "{:?}",
+                    shared_bridge.state_transition_proxy_addr
+                )),
+                transparent_proxy_admin_addr: Some(format!(
+                    "{:?}",
+                    shared_bridge.transparent_proxy_admin_addr,
+                )),
             });
 
         Self {
-            genesis_root: Some(this.genesis_root_hash.to_string()),
+            genesis_root: Some(format!("{:?}", this.genesis_root_hash)),
             genesis_rollup_leaf_index: Some(this.rollup_last_leaf_index),
-            genesis_batch_commitment: Some(this.genesis_root_hash.to_string()),
+            genesis_batch_commitment: Some(format!("{:?}", this.genesis_root_hash)),
             genesis_protocol_version: Some(this.protocol_version as u32),
-            default_aa_hash: Some(this.genesis_root_hash.to_string()),
-            bootloader_hash: Some(this.genesis_root_hash.to_string()),
-            fee_account: Some(this.fee_account.to_string()),
+            default_aa_hash: Some(format!("{:?}", this.default_aa_hash)),
+            bootloader_hash: Some(format!("{:?}", this.bootloader_hash)),
+            fee_account: Some(format!("{:?}", this.fee_account)),
             l1_chain_id: Some(this.l1_chain_id.0),
             l2_chain_id: Some(this.l2_chain_id.as_u64()),
             prover: Some(proto::Prover {
-                recursion_scheduler_level_vk_hash: Some(
-                    this.recursion_scheduler_level_vk_hash.to_string(),
-                ),
-                recursion_node_level_vk_hash: Some(this.recursion_node_level_vk_hash.to_string()),
-                recursion_leaf_level_vk_hash: Some(this.recursion_leaf_level_vk_hash.to_string()),
-                recursion_circuits_set_vks_hash: Some(
-                    this.recursion_circuits_set_vks_hash.to_string(),
-                ),
+                recursion_scheduler_level_vk_hash: Some(format!(
+                    "{:?}",
+                    this.recursion_scheduler_level_vk_hash
+                )),
+                recursion_node_level_vk_hash: Some(format!(
+                    "{:?}",
+                    this.recursion_node_level_vk_hash
+                )),
+                recursion_leaf_level_vk_hash: Some(format!(
+                    "{:?}",
+                    this.recursion_leaf_level_vk_hash
+                )),
+                recursion_circuits_set_vks_hash: Some(format!(
+                    "{:?}",
+                    this.recursion_circuits_set_vks_hash
+                )),
                 dummy_verifier: Some(this.dummy_verifier),
             }),
             shared_bridge,

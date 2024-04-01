@@ -62,24 +62,24 @@ impl ProtoRepr for proto::Contracts {
     fn build(this: &Self::Type) -> Self {
         Self {
             l1: Some(proto::L1 {
-                governance_addr: Some(this.governance_addr.to_string()),
-                verifier_addr: Some(this.verifier_addr.to_string()),
-                diamond_proxy_addr: Some(this.diamond_proxy_addr.to_string()),
-                validator_timelock_addr: Some(this.validator_timelock_addr.to_string()),
-                default_upgrade_addr: Some(this.default_upgrade_addr.to_string()),
-                multicall3_addr: Some(this.l1_multicall3_addr.to_string()),
+                governance_addr: Some(format!("{:?}", this.governance_addr)),
+                verifier_addr: Some(format!("{:?}", this.verifier_addr)),
+                diamond_proxy_addr: Some(format!("{:?}", this.diamond_proxy_addr)),
+                validator_timelock_addr: Some(format!("{:?}", this.validator_timelock_addr)),
+                default_upgrade_addr: Some(format!("{:?}", this.default_upgrade_addr)),
+                multicall3_addr: Some(format!("{:?}", this.l1_multicall3_addr)),
             }),
             l2: Some(proto::L2 {
-                testnet_paymaster_addr: this.l2_testnet_paymaster_addr.map(|a| a.to_string()),
+                testnet_paymaster_addr: this.l2_testnet_paymaster_addr.map(|a| format!("{:?}", a)),
             }),
             bridges: Some(proto::Bridges {
                 erc20: Some(proto::Bridge {
-                    l1_address: Some(this.l1_erc20_bridge_proxy_addr.to_string()),
-                    l2_address: Some(this.l2_erc20_bridge_addr.to_string()),
+                    l1_address: Some(format!("{:?}", this.l1_erc20_bridge_proxy_addr)),
+                    l2_address: Some(format!("{:?}", this.l2_erc20_bridge_addr)),
                 }),
                 weth: Some(proto::Bridge {
-                    l1_address: this.l1_weth_bridge_proxy_addr.map(|a| a.to_string()),
-                    l2_address: this.l2_weth_bridge_addr.map(|a| a.to_string()),
+                    l1_address: this.l1_weth_bridge_proxy_addr.map(|a| format!("{:?}", a)),
+                    l2_address: this.l2_weth_bridge_addr.map(|a| format!("{:?}", a)),
                 }),
             }),
         }

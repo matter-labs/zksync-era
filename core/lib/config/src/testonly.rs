@@ -159,7 +159,6 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             close_block_at_geometry_percentage: self.sample(rng),
             close_block_at_eth_params_percentage: self.sample(rng),
             close_block_at_gas_percentage: self.sample(rng),
-            fee_account_addr: rng.gen(),
             minimal_l2_gas_price: self.sample(rng),
             compute_overhead_part: self.sample(rng),
             pubdata_overhead_part: self.sample(rng),
@@ -172,9 +171,11 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             virtual_blocks_interval: self.sample(rng),
             virtual_blocks_per_miniblock: self.sample(rng),
             enum_index_migration_chunk_size: self.sample(rng),
-            bootloader_hash: rng.gen(),
-            default_aa_hash: rng.gen(),
-            l1_batch_commit_data_generator_mode: self.sample(rng),
+            // These values are not involved into files serialization skip them
+            fee_account_addr: None,
+            bootloader_hash: None,
+            default_aa_hash: None,
+            l1_batch_commit_data_generator_mode: Default::default(),
         }
     }
 }

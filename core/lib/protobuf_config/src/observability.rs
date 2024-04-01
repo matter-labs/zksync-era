@@ -33,13 +33,18 @@ impl ProtoRepr for proto::Observability {
     }
 
     fn build(this: &Self::Type) -> Self {
-        Self {
-            sentry: Some(proto::Sentry {
+        let sentry = if this.sentry_url.is_none() || this.sentry_environment.is_none() {
+            None
+        } else {
+            Some(proto::Sentry {
                 url: this.sentry_url.clone(),
-                environment: this.sentry_url.clone(),
+                environment: this.sentry_environment.clone(),
                 panic_interval: None,
                 error_interval: None,
-            }),
+            })
+        };
+        Self {
+            sentry,
             log_format: Some(this.log_format.clone()),
             opentelemetry: this.opentelemetry.as_ref().map(ProtoRepr::build),
             sporadic_crypto_errors_substrs: this.sporadic_crypto_errors_substrs.clone(),
