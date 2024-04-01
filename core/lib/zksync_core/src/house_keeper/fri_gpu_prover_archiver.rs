@@ -6,19 +6,19 @@ use crate::house_keeper::periodic_job::PeriodicJob;
 #[derive(Debug)]
 pub struct FriGpuProverArchiver {
     pool: ConnectionPool<Prover>,
-    reporting_interval_ms: u64,
+    reporting_interval_secs: u64,
     archiving_interval_secs: u64,
 }
 
 impl FriGpuProverArchiver {
     pub fn new(
         pool: ConnectionPool<Prover>,
-        reporting_interval_ms: u64,
+        reporting_interval_secs: u64,
         archiving_interval_secs: u64,
     ) -> Self {
         Self {
             pool,
-            reporting_interval_ms,
+            reporting_interval_secs,
             archiving_interval_secs,
         }
     }
@@ -46,6 +46,8 @@ impl PeriodicJob for FriGpuProverArchiver {
     }
 
     fn polling_interval_ms(&self) -> u64 {
-        self.reporting_interval_ms
+        self.reporting_interval_secs
+            .checked_mul(1000)
+            .expect("Overflow")
     }
 }
