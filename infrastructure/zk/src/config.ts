@@ -162,7 +162,4 @@ command
     .command('compile [environment]')
     .description('compile the config for a certain environment')
     .action(compileConfig);
-command
-    .command('export [environment]')
-    .description('export the config for a certain environment')
-    .action(exportConfig);
+command.command('export [environment]').description('export the config for a certain environment').action(exportConfig);
