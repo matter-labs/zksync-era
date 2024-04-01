@@ -423,7 +423,7 @@ impl<'a> SnapshotsApplier<'a> {
         )?;
         if miniblock.l1_batch_number != l1_batch_number {
             let err = anyhow::anyhow!(
-                "snapshpt miniblock returned by main node doesn't belong to expected L1 batch #{l1_batch_number}: {miniblock:?}"
+                "snapshot miniblock returned by main node doesn't belong to expected L1 batch #{l1_batch_number}: {miniblock:?}"
             );
             return Err(err.into());
         }

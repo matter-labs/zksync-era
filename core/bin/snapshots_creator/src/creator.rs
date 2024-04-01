@@ -203,7 +203,7 @@ impl SnapshotCreator {
         );
         let l1_batch_number = sealed_l1_batch_number - 1;
 
-        // Sanity check: the selected L1 batch should have Merkle tree data; otherwise, it would be impossible
+        // Sanity check: the selected L1 batch should have Merkle tree data; otherwise, it could be impossible
         // to recover from the generated snapshot.
         conn.blocks_dal()
             .get_l1_batch_tree_data(l1_batch_number)
@@ -211,7 +211,7 @@ impl SnapshotCreator {
             .with_context(|| {
                 format!(
                     "Snapshot L1 batch #{l1_batch_number} doesn't have tree data, meaning recovery from the snapshot \
-                     would be impossible. This should never happen"
+                     could be impossible. This should never happen"
                 )
             })?;
 
