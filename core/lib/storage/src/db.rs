@@ -21,7 +21,9 @@ use rocksdb::{
 };
 use thread_local::ThreadLocal;
 
-use crate::metrics::{RocksdbLabels, RocksdbProfilingLabels, RocksdbSizeMetrics, METRICS};
+use crate::metrics::{
+    RocksdbLabels, RocksdbProfilingLabels, RocksdbSizeMetrics, METRICS, PROF_METRICS,
+};
 
 /// Number of active RocksDB instances used to determine if it's safe to exit current process.
 /// Not properly dropped RocksDB instances can lead to DB corruption.
@@ -584,6 +586,11 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             user_key_comparisons: AtomicU64::new(0),
             block_cache_hits: AtomicU64::new(0),
             block_reads: AtomicU64::new(0),
+            gets_from_memtable: AtomicU64::new(0),
+            bloom_sst_hits: AtomicU64::new(0),
+            bloom_sst_misses: AtomicU64::new(0),
+            block_read_size: AtomicU64::new(0),
+            multiget_read_size: AtomicU64::new(0),
         }
     }
 }
@@ -617,7 +624,11 @@ pub struct ProfiledOperation {
     user_key_comparisons: AtomicU64,
     block_cache_hits: AtomicU64,
     block_reads: AtomicU64,
-    // FIXME: more metrics
+    gets_from_memtable: AtomicU64,
+    bloom_sst_hits: AtomicU64,
+    bloom_sst_misses: AtomicU64,
+    block_read_size: AtomicU64,
+    multiget_read_size: AtomicU64,
 }
 
 impl ProfiledOperation {
@@ -649,10 +660,19 @@ impl Drop for ProfiledOperation {
             db: self.db,
             operation: self.name,
         };
-        METRICS.user_key_comparisons[&labels]
+        PROF_METRICS.user_key_comparisons[&labels]
             .observe(self.user_key_comparisons.load(Ordering::Relaxed));
-        METRICS.block_cache_hits[&labels].observe(self.block_cache_hits.load(Ordering::Relaxed));
-        METRICS.block_reads[&labels].observe(self.block_reads.load(Ordering::Relaxed));
+        PROF_METRICS.block_cache_hits[&labels]
+            .observe(self.block_cache_hits.load(Ordering::Relaxed));
+        PROF_METRICS.block_reads[&labels].observe(self.block_reads.load(Ordering::Relaxed));
+        PROF_METRICS.gets_from_memtable[&labels]
+            .observe(self.gets_from_memtable.load(Ordering::Relaxed));
+        PROF_METRICS.bloom_sst_hits[&labels].observe(self.bloom_sst_hits.load(Ordering::Relaxed));
+        PROF_METRICS.bloom_sst_misses[&labels]
+            .observe(self.bloom_sst_misses.load(Ordering::Relaxed));
+        PROF_METRICS.block_read_size[&labels].observe(self.block_read_size.load(Ordering::Relaxed));
+        PROF_METRICS.multiget_read_size[&labels]
+            .observe(self.multiget_read_size.load(Ordering::Relaxed));
     }
 }
 
@@ -689,6 +709,27 @@ impl Drop for ProfileGuard {
         self.operation
             .block_cache_hits
             .fetch_add(count, Ordering::Relaxed);
+        let count = self.context.metric(perf::PerfMetric::GetFromMemtableCount);
+        self.operation
+            .gets_from_memtable
+            .fetch_add(count, Ordering::Relaxed);
+        let count = self.context.metric(perf::PerfMetric::BloomSstHitCount);
+        self.operation
+            .bloom_sst_hits
+            .fetch_add(count, Ordering::Relaxed);
+        let count = self.context.metric(perf::PerfMetric::BloomSstMissCount);
+        self.operation
+            .bloom_sst_misses
+            .fetch_add(count, Ordering::Relaxed);
+
+        let size = self.context.metric(perf::PerfMetric::BlockReadByte);
+        self.operation
+            .block_read_size
+            .fetch_add(size, Ordering::Relaxed);
+        let size = self.context.metric(perf::PerfMetric::MultigetReadBytes);
+        self.operation
+            .multiget_read_size
+            .fetch_add(size, Ordering::Relaxed);
 
         self.operation.is_profiling.get_or_default().set(false);
     }
