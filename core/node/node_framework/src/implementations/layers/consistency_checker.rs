@@ -12,13 +12,21 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+#[derive(Debug)]
 pub struct ConsistencyCheckerLayer {
     diamond_proxy_addr: Address,
+    max_batches_to_recheck: u32,
 }
 
 impl ConsistencyCheckerLayer {
-    pub fn new(diamond_proxy_addr: Address) -> ConsistencyCheckerLayer {
-        Self { diamond_proxy_addr }
+    pub fn new(
+        diamond_proxy_addr: Address,
+        max_batches_to_recheck: u32,
+    ) -> ConsistencyCheckerLayer {
+        Self {
+            diamond_proxy_addr,
+            max_batches_to_recheck,
+        }
     }
 }
 
@@ -42,11 +50,11 @@ impl WiringLayer for ConsistencyCheckerLayer {
 
         let consistency_checker = ConsistencyChecker::new(
             l1_client,
-            10, // TODO (BFT-97): Make it a part of a proper EN config
+            self.max_batches_to_recheck,
             singleton_pool,
             l1_batch_commit_data_generator,
         )
-        .map_err(|err| WiringError::Internal(err.into()))?
+        .map_err(|err| WiringError::Internal(err))?
         .with_diamond_proxy_addr(self.diamond_proxy_addr);
 
         let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
