@@ -157,6 +157,32 @@ impl FriGpuProverQueueDal<'_, '_> {
         .unwrap();
     }
 
+    pub async fn get_prover_instance_status(
+        &mut self,
+        address: SocketAddress,
+        zone: String,
+    ) -> Option<GpuProverInstanceStatus> {
+        sqlx::query!(
+            r#"
+            SELECT
+                instance_status
+            FROM
+                gpu_prover_queue_fri
+            WHERE
+                instance_host = $1::TEXT::inet
+                AND instance_port = $2
+                AND zone = $3
+            "#,
+            address.host.to_string(),
+            i32::from(address.port),
+            zone
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| GpuProverInstanceStatus::from_str(&row.instance_status))
+    }
+
     pub async fn archive_old_provers(&mut self, archiving_interval_secs: u64) -> usize {
         let archiving_interval =
             pg_interval_from_duration(Duration::from_secs(archiving_interval_secs));

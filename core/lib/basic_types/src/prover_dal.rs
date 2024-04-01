@@ -215,3 +215,15 @@ pub enum GpuProverInstanceStatus {
     // The instance is not alive anymore.
     Dead,
 }
+
+impl GpuProverInstanceStatus {
+    pub fn from_str(status: &str) -> Self {
+        match status {
+            "available" => Self::Available,
+            "full" => Self::Full,
+            "reserved" => Self::Reserved,
+            "dead" => Self::Dead,
+            _ => panic!("Unknown status: {}", status),
+        }
+    }
+}

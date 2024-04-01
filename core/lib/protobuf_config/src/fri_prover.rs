@@ -69,6 +69,11 @@ impl ProtoRepr for proto::FriProver {
                 .clone(),
             shall_save_to_public_bucket: *required(&self.shall_save_to_public_bucket)
                 .context("shall_save_to_public_bucket")?,
+            availability_check_interval_in_secs: required(
+                &self.availability_check_interval_in_secs,
+            )
+            .and_then(|x| Ok((*x).try_into()?))
+            .context("availability_check_interval_ms")?,
         })
     }
 
@@ -93,6 +98,9 @@ impl ProtoRepr for proto::FriProver {
             witness_vector_receiver_port: Some(this.witness_vector_receiver_port.into()),
             zone_read_url: Some(this.zone_read_url.clone()),
             shall_save_to_public_bucket: Some(this.shall_save_to_public_bucket),
+            availability_check_interval_in_secs: Some(
+                this.availability_check_interval_in_secs.into(),
+            ),
         }
     }
 }

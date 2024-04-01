@@ -33,6 +33,7 @@ mod tests {
             zone_read_url: "http://metadata.google.internal/computeMetadata/v1/instance/zone"
                 .to_string(),
             shall_save_to_public_bucket: true,
+            availability_check_interval_in_secs: 1_800,
         }
     }
 
@@ -53,6 +54,7 @@ mod tests {
             FRI_PROVER_WITNESS_VECTOR_RECEIVER_PORT="3316"
             FRI_PROVER_ZONE_READ_URL="http://metadata.google.internal/computeMetadata/v1/instance/zone"
             FRI_PROVER_SHALL_SAVE_TO_PUBLIC_BUCKET=true
+            FRI_PROVER_AVAILABILITY_CHECK_INTERVAL_IN_SECS="1800"
         "#;
         lock.set_env(config);
 

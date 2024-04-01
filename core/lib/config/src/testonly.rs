@@ -464,6 +464,7 @@ impl Distribution<configs::FriProverConfig> for EncodeDist {
             witness_vector_receiver_port: self.sample(rng),
             zone_read_url: self.sample(rng),
             shall_save_to_public_bucket: self.sample(rng),
+            availability_check_interval_in_secs: self.sample(rng),
         }
     }
 }

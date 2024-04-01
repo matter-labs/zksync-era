@@ -3,8 +3,8 @@ syntax = "proto3";
 package zksync.config.fri_prover;
 
 enum SetupLoadMode {
-  FROM_DISK = 0;
-  FROM_MEMORY = 1;
+    FROM_DISK = 0;
+    FROM_MEMORY = 1;
 }
 
 message FriProver {
@@ -21,4 +21,5 @@ message FriProver {
     optional uint32 witness_vector_receiver_port = 11; // required; u16
     optional string zone_read_url = 12; // required
     optional bool shall_save_to_public_bucket = 13; // required
+    optional uint32 availability_check_interval_in_secs = 14; // required; ms
 }
