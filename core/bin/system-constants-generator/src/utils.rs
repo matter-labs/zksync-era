@@ -6,7 +6,7 @@ use multivm::{
         SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
     },
     vm_latest::{
-        constants::{BLOCK_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
+        constants::{BATCH_COMPUTATIONAL_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
         BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, Vm, VmTracer,
         ZkSyncVmState,
     },
@@ -17,7 +17,9 @@ use zksync_contracts::{
     load_sys_contract, read_bootloader_code, read_sys_contract_bytecode, read_zbin_bytecode,
     BaseSystemContracts, ContractLanguage, SystemContractCode,
 };
-use zksync_state::{InMemoryStorage, StorageView, WriteStorage};
+use zksync_state::{
+    InMemoryStorage, StorageView, WriteStorage, IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID,
+};
 use zksync_types::{
     block::MiniblockHasher, ethabi::Token, fee::Fee, fee_model::BatchFeeInput, l1::L1Tx, l2::L2Tx,
     utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, L1BatchNumber,
@@ -222,9 +224,9 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
         zk_porter_available: ZKPORTER_IS_AVAILABLE,
         version: ProtocolVersionId::latest(),
         base_system_smart_contracts,
-        gas_limit: BLOCK_GAS_LIMIT,
+        computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         execution_mode: TxExecutionMode::VerifyExecute,
-        default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+        default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         chain_id: L2ChainId::default(),
     };
 
@@ -305,9 +307,9 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
         zk_porter_available: ZKPORTER_IS_AVAILABLE,
         version: ProtocolVersionId::latest(),
         base_system_smart_contracts: GAS_TEST_SYSTEM_CONTRACTS.clone(),
-        gas_limit: BLOCK_GAS_LIMIT,
+        computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         execution_mode: TxExecutionMode::VerifyExecute,
-        default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+        default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         chain_id: L2ChainId::default(),
     };
 

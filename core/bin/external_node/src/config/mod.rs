@@ -665,7 +665,7 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
             vm_execution_cache_misses_limit: config.optional.vm_execution_cache_misses_limit,
             // We set these values to the maximum since we don't know the actual values
             // and they will be enforced by the main node anyway.
-            max_allowed_l2_tx_gas_limit: u32::MAX,
+            max_allowed_l2_tx_gas_limit: u64::MAX,
             validation_computational_gas_limit: u32::MAX,
             chain_id: config.remote.l2_chain_id,
             l1_to_l2_transactions_compatibility_mode: config

@@ -4,7 +4,7 @@
 use std::time::{Duration, Instant};
 
 use itertools::Itertools;
-use multivm::utils::get_max_gas_per_pubdata_byte;
+use multivm::utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
     block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
@@ -326,6 +326,11 @@ impl MiniblockSealCommand {
             event_count = self.miniblock.events.len()
         );
 
+        let definite_vm_version = self
+            .protocol_version
+            .unwrap_or(ProtocolVersionId::last_potentially_undefined())
+            .into();
+
         let miniblock_header = MiniblockHeader {
             number: miniblock_number,
             timestamp: self.miniblock.timestamp,
@@ -337,12 +342,9 @@ impl MiniblockSealCommand {
             batch_fee_input: self.fee_input,
             base_system_contracts_hashes: self.base_system_contracts_hashes,
             protocol_version: self.protocol_version,
-            gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(
-                self.protocol_version
-                    .unwrap_or(ProtocolVersionId::last_potentially_undefined())
-                    .into(),
-            ),
+            gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(definite_vm_version),
             virtual_blocks: self.miniblock.virtual_blocks,
+            gas_limit: get_max_batch_gas_limit(definite_vm_version),
         };
 
         transaction

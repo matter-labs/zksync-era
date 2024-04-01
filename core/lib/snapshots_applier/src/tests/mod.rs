@@ -119,6 +119,7 @@ async fn applier_errors_after_genesis() {
         base_system_contracts_hashes: Default::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         virtual_blocks: 0,
+        gas_limit: 0,
     };
     storage
         .blocks_dal()

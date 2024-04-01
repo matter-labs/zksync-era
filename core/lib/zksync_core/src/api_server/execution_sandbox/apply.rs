@@ -12,7 +12,7 @@ use anyhow::Context as _;
 use multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface},
     utils::adjust_pubdata_price_for_tx,
-    vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryDisabled},
+    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryDisabled},
     VmInstance,
 };
 use tokio::runtime::Handle;
@@ -237,7 +237,7 @@ impl<'a> Sandbox<'a> {
             version: resolved_block_info.protocol_version,
             base_system_smart_contracts: base_system_contracts
                 .get_by_protocol_version(resolved_block_info.protocol_version),
-            gas_limit: BLOCK_GAS_LIMIT,
+            computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             execution_mode: execution_args.execution_mode,
             default_validation_computational_gas_limit: validation_computational_gas_limit,
             chain_id,

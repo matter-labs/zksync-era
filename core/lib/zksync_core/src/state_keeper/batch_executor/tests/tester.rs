@@ -234,7 +234,7 @@ impl Tester {
     ) -> (L1BatchEnv, SystemEnv) {
         let mut system_params = default_system_env();
         if let Some(vm_gas_limit) = self.config.vm_gas_limit {
-            system_params.gas_limit = vm_gas_limit;
+            system_params.computational_gas_limit = vm_gas_limit;
         }
         system_params.default_validation_computational_gas_limit =
             self.config.validation_computational_gas_limit;

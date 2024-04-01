@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use anyhow::Context;
 use multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode},
-    vm_latest::constants::BLOCK_GAS_LIMIT,
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
     zk_evm_latest::ethereum_types::H256,
 };
 use zksync_contracts::BaseSystemContracts;
@@ -59,7 +59,7 @@ pub fn l1_batch_params(
             zk_porter_available: ZKPORTER_IS_AVAILABLE,
             version: protocol_version,
             base_system_smart_contracts: base_system_contracts,
-            gas_limit: BLOCK_GAS_LIMIT,
+            computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             execution_mode: TxExecutionMode::VerifyExecute,
             default_validation_computational_gas_limit: validation_computational_gas_limit,
             chain_id,
