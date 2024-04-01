@@ -123,10 +123,6 @@ impl UpdatesManager {
             pubdata_input: finished_batch.pubdata_input.clone(),
         };
 
-        let events_queue = &finished_batch
-            .final_execution_state
-            .deduplicated_events_logs;
-
         let final_bootloader_memory = finished_batch
             .final_bootloader_memory
             .clone()
@@ -137,7 +133,6 @@ impl UpdatesManager {
                 &l1_batch,
                 &final_bootloader_memory,
                 self.pending_l1_gas_count(),
-                events_queue,
                 &finished_batch.final_execution_state.storage_refunds,
                 self.pending_execution_metrics().circuit_statistic,
             )
