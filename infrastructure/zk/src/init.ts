@@ -37,21 +37,24 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     if (runObservability) {
         await announced('Pulling observability repos', setupObservability());
     }
-
+    
     if (!process.env.CI && !skipEnvSetup) {
-        await announced('Pulling images', docker.pull());
-        await announced('Checking environment', checkEnv(runObservability));
-        await announced('Checking git hooks', env.gitHooks());
-        await announced('Remove old containers', down());
-        await announced('Create volumes', createVolumes());
-        await announced('Setting up containers', up(runObservability));
+    await announced('Setting up environment', async () => {
+        await docker.pull();
+        await checkEnv(runObservability);
+        await env.gitHooks();
+        await down();
+        await createVolumes();
+        await up(runObservability);
+});
     }
     if (!skipSubmodulesCheckout) {
-        await announced('Checkout system-contracts submodule', submoduleUpdate());
-    }
-    if (deploymentMode == contract.DeploymentMode.Validium) {
-        await announced('Checkout era-contracts for Validium mode', validiumSubmoduleCheckout());
-    }
+        await announced('Checkout submodules', async () => {
+    await Promise.all([
+        submoduleUpdate(),
+        deploymentMode == contract.DeploymentMode.Validium ? validiumSubmoduleCheckout() : Promise.resolve()
+    ]);
+});
 
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
