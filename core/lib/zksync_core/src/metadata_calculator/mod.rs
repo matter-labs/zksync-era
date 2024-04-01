@@ -91,6 +91,11 @@ impl MetadataCalculator {
             config.max_l1_batches_per_iter > 0,
             "Maximum L1 batches per iteration is misconfigured to be 0; please update it to positive value"
         );
+        if matches!(config.mode, MerkleTreeMode::Lightweight) && object_store.is_some() {
+            anyhow::bail!(
+                "Cannot run lightweight tree with an object store; the tree won't produce information to be stored in the store"
+            );
+        }
 
         let (_, health_updater) = ReactiveHealthCheck::new("tree");
         Ok(Self {

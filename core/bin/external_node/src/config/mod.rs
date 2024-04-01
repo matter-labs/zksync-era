@@ -166,6 +166,13 @@ pub struct OptionalENConfig {
     /// different node.
     #[serde(default)]
     pub filters_disabled: bool,
+    /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
+    /// In milliseconds. Default is 50 milliseconds.
+    #[serde(default = "OptionalENConfig::default_mempool_cache_update_interval")]
+    pub mempool_cache_update_interval: u64,
+    /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
+    #[serde(default = "OptionalENConfig::default_mempool_cache_size")]
+    pub mempool_cache_size: usize,
 
     // Health checks
     /// Time limit in milliseconds to mark a health check as slow and log the corresponding warning.
@@ -238,13 +245,12 @@ pub struct OptionalENConfig {
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
     #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
     pub miniblock_seal_queue_capacity: usize,
-    /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
-    /// In milliseconds. Default is 50 milliseconds.
-    #[serde(default = "OptionalENConfig::default_mempool_cache_update_interval")]
-    pub mempool_cache_update_interval: u64,
-    /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
-    #[serde(default = "OptionalENConfig::default_mempool_cache_size")]
-    pub mempool_cache_size: usize,
+    /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
+    /// Protective reads are never required by full nodes so far, not until such a node runs a full Merkle tree
+    /// (presumably, to participate in L1 batch proving).
+    /// By default, set to `true` as a temporary safety measure.
+    #[serde(default = "OptionalENConfig::default_protective_reads_persistence_enabled")]
+    pub protective_reads_persistence_enabled: bool,
     /// Address of the L1 diamond proxy contract used by the consistency checker to match with the origin of logs emitted
     /// by commit transactions. If not set, it will not be verified.
     // This is intentionally not a part of `RemoteENConfig` because fetching this info from the main node would defeat
@@ -357,6 +363,10 @@ impl OptionalENConfig {
 
     const fn default_miniblock_seal_queue_capacity() -> usize {
         10
+    }
+
+    const fn default_protective_reads_persistence_enabled() -> bool {
+        true
     }
 
     const fn default_mempool_cache_update_interval() -> u64 {
