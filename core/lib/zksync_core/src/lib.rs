@@ -71,6 +71,7 @@ use crate::{
         fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
         fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter,
         fri_prover_job_retry_manager::FriProverJobRetryManager,
+        fri_prover_jobs_archiver::FriProverJobArchiver,
         fri_prover_queue_monitor::FriProverStatsReporter,
         fri_scheduler_circuit_queuer::SchedulerCircuitQueuer,
         fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager,
@@ -1072,6 +1073,21 @@ async fn add_house_keeper_to_task_futures(
     );
     let task = fri_witness_generator_stats_reporter.run(stop_receiver.clone());
     task_futures.push(tokio::spawn(task));
+
+    // TODO(PLA-862): remove after fields become required
+    if house_keeper_config.fri_prover_job_archiver_enabled() {
+        let fri_prover_jobs_archiver = FriProverJobArchiver::new(
+            prover_connection_pool.clone(),
+            house_keeper_config
+                .fri_prover_job_archiver_reporting_interval_ms
+                .unwrap(),
+            house_keeper_config
+                .fri_prover_job_archiver_archiving_interval_secs
+                .unwrap(),
+        );
+        let task = fri_prover_jobs_archiver.run(stop_receiver.clone());
+        task_futures.push(tokio::spawn(task));
+    }
 
     let fri_prover_group_config = configs
         .fri_prover_group_config

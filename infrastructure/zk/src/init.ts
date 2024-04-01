@@ -37,7 +37,7 @@ const checkEnv = async (runObservability: boolean): Promise<void> => {
 // Initializes and updates the git submodule
 const submoduleUpdate = async (): Promise<void> => {
     await utils.exec('git submodule init');
-    await utils.exec('git submodule update --remote');
+    await utils.exec('git submodule update');
 };
 
 export async function validiumSubmoduleCheckout() {
@@ -96,8 +96,8 @@ const initSetup = async ({ skipSubmodulesCheckout, skipEnvSetup, deploymentMode,
 // Sets up the database, deploys the verifier (if set) and runs server genesis
 type InitDatabaseOptions = { skipVerifierDeployment: boolean, deployerPrivateKeyArgs : any[], deploymentMode: contract.DeploymentMode };
 const initDatabase = async ({ skipVerifierDeployment, deployerPrivateKeyArgs, deploymentMode }: InitDatabaseOptions): Promise<void> => {
-    await announced('Drop postgres db', db.drop({ server: true, prover: true }));
-    await announced('Setup postgres db', db.setup({ server: true, prover: true }));
+    await announced('Drop postgres db', db.drop({ core: true, prover: true }));
+    await announced('Setup postgres db', db.setup({ core: true, prover: true }));
     await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
     await announced('Clean backups', clean(`backups/${process.env.ZKSYNC_ENV!}`));
 

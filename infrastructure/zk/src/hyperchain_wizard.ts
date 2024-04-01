@@ -302,8 +302,8 @@ async function setHyperchainMetadata() {
         feeReceiver = undefined;
         feeReceiverAddress = richWallets[3].address;
 
-        await up('docker-compose-zkstack-common.yml');
-        await announced('Ensuring databases are up', db.wait({ server: true, prover: false }));
+        await up(runObservability);
+        await announced('Ensuring databases are up', db.wait({ core: true, prover: false }));
     }
 
     // testTokens and weth will be done for the shared bridge.

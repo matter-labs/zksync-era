@@ -351,9 +351,19 @@ impl BlockReverter {
             .block(BlockId::Number(BlockNumber::Pending))
             .await
             .unwrap()
-            .unwrap()
-            .base_fee_per_gas
-            .unwrap();
+            .map(|block| block.base_fee_per_gas.unwrap());
+        let base_fee = if let Some(base_fee) = base_fee {
+            base_fee
+        } else {
+            // Pending block doesn't exist, use the latest one.
+            web3.eth()
+                .block(BlockId::Number(BlockNumber::Latest))
+                .await
+                .unwrap()
+                .unwrap()
+                .base_fee_per_gas
+                .unwrap()
+        };
 
         let tx = TransactionParameters {
             to: eth_config.validator_timelock_addr.into(),
