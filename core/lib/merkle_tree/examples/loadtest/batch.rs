@@ -1,5 +1,7 @@
 //! `Database` implementation that flushes changes at the specified batches.
 
+use std::any::Any;
+
 use zksync_merkle_tree::{
     unstable::{DeserializeError, Manifest, Node, NodeKey, Root},
     Database, PatchSet, Patched,
@@ -37,6 +39,14 @@ impl Database for WithBatching<'_> {
         is_leaf: bool,
     ) -> Result<Option<Node>, DeserializeError> {
         self.inner.try_tree_node(key, is_leaf)
+    }
+
+    fn tree_nodes(&self, keys: &[(NodeKey, bool)]) -> Vec<Option<Node>> {
+        self.inner.tree_nodes(keys)
+    }
+
+    fn start_profiling(&self) -> Box<dyn Any> {
+        self.inner.start_profiling()
     }
 
     fn apply_patch(&mut self, patch: PatchSet) {

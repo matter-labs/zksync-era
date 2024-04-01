@@ -89,6 +89,7 @@ impl TreeUpdater {
         sorted_keys: &SortedKeys,
         db: &DB,
     ) -> Vec<Nibbles> {
+        let _profiling_guard = db.start_profiling();
         let LoadAncestorsResult {
             longest_prefixes,
             db_reads,
