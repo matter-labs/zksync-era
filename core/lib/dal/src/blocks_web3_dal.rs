@@ -7,7 +7,7 @@ use zksync_types::{
     l2_to_l1_log::L2ToL1Log,
     vm_trace::Call,
     web3::types::{BlockHeader, U64},
-    Bytes, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H160, H2048, H256, U256,
+    Bytes, L1BatchNumber, MiniblockNumber, H160, H2048, H256, U256,
 };
 use zksync_utils::bigdecimal_to_u256;
 
@@ -92,7 +92,9 @@ impl BlocksWeb3Dal<'_, '_> {
             }
 
             block.gas_limit =
-                (row.block_gas_limit.unwrap_or(LEGACY_BLOCK_GAS_LIMIT as i64) as u64).into();
+                (row.block_gas_limit
+                    .unwrap_or(i64::from(LEGACY_BLOCK_GAS_LIMIT)) as u64)
+                    .into();
 
             Some(block)
         });

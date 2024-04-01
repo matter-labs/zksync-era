@@ -469,7 +469,7 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
             gas_per_pubdata_limit: row.gas_per_pubdata_limit as u64,
             protocol_version,
             virtual_blocks: row.virtual_blocks as u32,
-            gas_limit: row.gas_limit.unwrap_or(LEGACY_BLOCK_GAS_LIMIT as i64) as u64,
+            gas_limit: row.gas_limit.unwrap_or(i64::from(LEGACY_BLOCK_GAS_LIMIT)) as u64,
         }
     }
 }

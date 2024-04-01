@@ -17,9 +17,7 @@ use zksync_contracts::{
     load_sys_contract, read_bootloader_code, read_sys_contract_bytecode, read_zbin_bytecode,
     BaseSystemContracts, ContractLanguage, SystemContractCode,
 };
-use zksync_state::{
-    InMemoryStorage, StorageView, WriteStorage, IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID,
-};
+use zksync_state::{InMemoryStorage, StorageView, WriteStorage};
 use zksync_types::{
     block::MiniblockHasher, ethabi::Token, fee::Fee, fee_model::BatchFeeInput, l1::L1Tx, l2::L2Tx,
     utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, L1BatchNumber,

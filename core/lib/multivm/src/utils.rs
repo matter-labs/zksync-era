@@ -1,6 +1,6 @@
 use zksync_types::{
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
-    L2ChainId, VmVersion, U256,
+    VmVersion, U256,
 };
 
 use crate::vm_latest::L1BatchEnv;

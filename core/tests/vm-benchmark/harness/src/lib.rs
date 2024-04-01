@@ -9,7 +9,7 @@ use multivm::{
 };
 use once_cell::sync::Lazy;
 use zksync_contracts::{deployer_contract, BaseSystemContracts};
-use zksync_state::{InMemoryStorage, StorageView, IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID};
+use zksync_state::{InMemoryStorage, StorageView};
 use zksync_types::{
     block::MiniblockHasher,
     ethabi::{encode, Token},

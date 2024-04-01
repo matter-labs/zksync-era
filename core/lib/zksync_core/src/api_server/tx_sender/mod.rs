@@ -739,7 +739,7 @@ impl TxSender {
                     "exceeds limit for published pubdata".to_string(),
                 ));
             }
-            pubdata_for_factory_deps * (gas_per_pubdata_byte as u64)
+            pubdata_for_factory_deps * gas_per_pubdata_byte
         };
 
         // We are using binary search to find the minimal values of gas_limit under which
