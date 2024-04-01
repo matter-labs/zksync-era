@@ -12,7 +12,7 @@ use vise::{Buckets, Collector, Counter, EncodeLabelSet, Family, Gauge, Histogram
 use crate::db::RocksDBInner;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
-struct DbLabel {
+pub(crate) struct DbLabel {
     db: &'static str,
 }
 
@@ -32,9 +32,33 @@ impl RocksdbLabels {
     pub(crate) fn new(db: &'static str, cf: &'static str) -> Self {
         Self { db, cf }
     }
+
+    pub(crate) fn for_level(self, level: usize) -> RocksdbLevelLabels {
+        RocksdbLevelLabels {
+            db: self.db,
+            cf: self.cf,
+            level,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
+pub(crate) struct RocksdbLevelLabels {
+    db: &'static str,
+    cf: &'static str,
+    level: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
+pub(crate) struct RocksdbProfilingLabels {
+    pub db: &'static str,
+    pub operation: &'static str,
 }
 
 const BYTE_SIZE_BUCKETS: Buckets = Buckets::exponential(65_536.0..=16.0 * 1_024.0 * 1_024.0, 2.0);
+const COUNT_BUCKETS: Buckets = Buckets::values(&[
+    1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1_000.0,
+]);
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "rocksdb")]
@@ -51,6 +75,16 @@ pub(crate) struct RocksdbMetrics {
     /// leads to a panic).
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
     stalled_write_duration: Family<DbLabel, Histogram<Duration>>,
+
+    /// Number of key comparisons per profiled operation.
+    #[metrics(buckets = COUNT_BUCKETS)]
+    pub user_key_comparisons: Family<RocksdbProfilingLabels, Histogram<u64>>,
+    /// Number of block cache hits per profiled operation.
+    #[metrics(buckets = COUNT_BUCKETS)]
+    pub block_cache_hits: Family<RocksdbProfilingLabels, Histogram<u64>>,
+    /// Number of block reads (including I/O) per profiled operation.
+    #[metrics(buckets = COUNT_BUCKETS)]
+    pub block_reads: Family<RocksdbProfilingLabels, Histogram<u64>>,
 }
 
 impl RocksdbMetrics {
@@ -102,6 +136,8 @@ pub(crate) struct RocksdbSizeMetrics {
     pub block_cache_size: Family<RocksdbLabels, Gauge<u64>>,
     /// Total size of index and Bloom filters in the column family of a RocksDB instance.
     pub index_and_filters_size: Family<RocksdbLabels, Gauge<u64>>,
+    /// Number of files at a certain level.
+    pub files_at_level: Family<RocksdbLevelLabels, Gauge<u64>>,
 }
 
 /// Weak refs to DB instances registered using [`RocksdbSizeMetrics::register()`].

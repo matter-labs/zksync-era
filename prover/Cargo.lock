@@ -7788,6 +7788,7 @@ dependencies = [
  "num_cpus",
  "once_cell",
  "rocksdb",
+ "thread_local",
  "tracing",
  "vise",
 ]

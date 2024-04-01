@@ -1,4 +1,5 @@
 use std::{
+    cell::Cell,
     collections::{HashMap, HashSet},
     ffi::CStr,
     fmt, iter,
@@ -6,17 +7,21 @@ use std::{
     num::NonZeroU32,
     ops,
     path::Path,
-    sync::{Arc, Condvar, Mutex},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Condvar, Mutex,
+    },
     thread,
     time::{Duration, Instant},
 };
 
 use rocksdb::{
-    properties, BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, DBPinnableSlice,
-    Direction, IteratorMode, Options, PrefixRange, ReadOptions, WriteOptions, DB,
+    perf, properties, BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor,
+    DBPinnableSlice, Direction, IteratorMode, Options, PrefixRange, ReadOptions, WriteOptions, DB,
 };
+use thread_local::ThreadLocal;
 
-use crate::metrics::{RocksdbLabels, RocksdbSizeMetrics, METRICS};
+use crate::metrics::{RocksdbLabels, RocksdbProfilingLabels, RocksdbSizeMetrics, METRICS};
 
 /// Number of active RocksDB instances used to determine if it's safe to exit current process.
 /// Not properly dropped RocksDB instances can lead to DB corruption.
@@ -104,6 +109,8 @@ pub(crate) struct RocksDBInner {
 
 impl RocksDBInner {
     pub(crate) fn collect_metrics(&self, metrics: &RocksdbSizeMetrics) {
+        const MAX_LEVEL: usize = 7;
+
         for &cf_name in &self.cf_names {
             let cf = self.db.cf_handle(cf_name).unwrap();
             // ^ `unwrap()` is safe (CF existence is checked during DB initialization)
@@ -156,6 +163,13 @@ impl RocksDBInner {
                 self.int_property(cf, properties::ESTIMATE_TABLE_READERS_MEM);
             if let Some(size) = index_and_filters_size {
                 metrics.index_and_filters_size[&labels].set(size);
+            }
+
+            for level in 0..=MAX_LEVEL {
+                let files_at_level = self.int_property(cf, &properties::num_files_at_level(level));
+                if let Some(files_at_level) = files_at_level {
+                    metrics.files_at_level[&labels.for_level(level)].set(files_at_level);
+                }
             }
         }
     }
@@ -560,6 +574,18 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             .fuse()
         // ^ unwrap() is safe for the same reasons as in `prefix_iterator_cf()`.
     }
+
+    /// Creates a new profiled operation.
+    pub fn new_profiled_operation(&self, name: &'static str) -> ProfiledOperation {
+        ProfiledOperation {
+            db: CF::DB_NAME,
+            name,
+            is_profiling: ThreadLocal::new(),
+            user_key_comparisons: AtomicU64::new(0),
+            block_cache_hits: AtomicU64::new(0),
+            block_reads: AtomicU64::new(0),
+        }
+    }
 }
 
 impl RocksDB<()> {
@@ -577,6 +603,94 @@ impl RocksDB<()> {
             num_instances = cvar.wait(num_instances).unwrap();
         }
         tracing::info!("All the RocksDB instances are dropped");
+    }
+}
+
+/// Profiling information for a logical I/O operation on RocksDB. Can be used to profile operations
+/// distributed in time, including on multiple threads.
+#[must_use = "`start_profiling()` should be called one or more times to actually perform profiling"]
+#[derive(Debug)]
+pub struct ProfiledOperation {
+    db: &'static str,
+    name: &'static str,
+    is_profiling: ThreadLocal<Cell<bool>>,
+    user_key_comparisons: AtomicU64,
+    block_cache_hits: AtomicU64,
+    block_reads: AtomicU64,
+    // FIXME: more metrics
+}
+
+impl ProfiledOperation {
+    /// Starts profiling RocksDB I/O operations until the returned guard is dropped.
+    ///
+    /// Returns `None` if operations are already being profiled for this operation on the current thread.
+    /// Not checking this would lead to logical errors, like the same operations being profiled multiple times.
+    pub fn start_profiling(self: &Arc<Self>) -> Option<ProfileGuard> {
+        if self.is_profiling.get_or_default().replace(true) {
+            // The profiling was already active on the current thread.
+            return None;
+        }
+
+        perf::set_perf_stats(perf::PerfStatsLevel::EnableCount);
+        let mut context = rocksdb::PerfContext::default();
+        context.reset();
+        Some(ProfileGuard {
+            operation: self.clone(),
+            context,
+        })
+    }
+}
+
+impl Drop for ProfiledOperation {
+    fn drop(&mut self) {
+        tracing::debug!("Profiled operation finished: {self:?}");
+
+        let labels = RocksdbProfilingLabels {
+            db: self.db,
+            operation: self.name,
+        };
+        METRICS.user_key_comparisons[&labels]
+            .observe(self.user_key_comparisons.load(Ordering::Relaxed));
+        METRICS.block_cache_hits[&labels].observe(self.block_cache_hits.load(Ordering::Relaxed));
+        METRICS.block_reads[&labels].observe(self.block_reads.load(Ordering::Relaxed));
+    }
+}
+
+#[must_use = "Guard will report metrics on drop"]
+pub struct ProfileGuard {
+    context: perf::PerfContext,
+    operation: Arc<ProfiledOperation>,
+}
+
+impl fmt::Debug for ProfileGuard {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ProfileGuard")
+            .field("operation", &self.operation)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Drop for ProfileGuard {
+    fn drop(&mut self) {
+        tracing::trace!("Obtained metrics: {}", self.context.report(true));
+
+        let count = self
+            .context
+            .metric(perf::PerfMetric::UserKeyComparisonCount);
+        self.operation
+            .user_key_comparisons
+            .fetch_add(count, Ordering::Relaxed);
+        let count = self.context.metric(perf::PerfMetric::BlockReadCount);
+        self.operation
+            .block_reads
+            .fetch_add(count, Ordering::Relaxed);
+        let count = self.context.metric(perf::PerfMetric::BlockCacheHitCount);
+        self.operation
+            .block_cache_hits
+            .fetch_add(count, Ordering::Relaxed);
+
+        self.operation.is_profiling.get_or_default().set(false);
     }
 }
 
@@ -741,5 +855,50 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(value, b"value2");
+    }
+
+    #[test]
+    fn profiling_basics() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = RocksDB::<NewColumnFamilies>::new(temp_dir.path())
+            .unwrap()
+            .with_sync_writes();
+
+        let mut batch = db.new_write_batch();
+        batch.put_cf(NewColumnFamilies::Default, b"test", b"value");
+        batch.put_cf(NewColumnFamilies::Default, b"test2", b"value2");
+        db.write(batch).unwrap();
+
+        let profiled_op = Arc::new(db.new_profiled_operation("test"));
+        assert_eq!(profiled_op.is_profiling.get().map(Cell::get), None);
+
+        {
+            let _guard = profiled_op.start_profiling();
+            assert_eq!(profiled_op.is_profiling.get().map(Cell::get), Some(true));
+            db.get_cf(NewColumnFamilies::Default, b"test")
+                .unwrap()
+                .unwrap();
+        }
+        assert_eq!(profiled_op.is_profiling.get().map(Cell::get), Some(false));
+        let key_comparisons = profiled_op.user_key_comparisons.load(Ordering::Relaxed);
+        assert!(key_comparisons > 0, "{key_comparisons}");
+
+        // Check enabling profiling on another thread.
+        let profiled_op_clone = profiled_op.clone();
+        thread::spawn(move || {
+            let _guard = profiled_op_clone.start_profiling();
+            db.get_cf(NewColumnFamilies::Default, b"test2")
+                .unwrap()
+                .unwrap();
+        })
+        .join()
+        .unwrap();
+
+        assert_eq!(profiled_op.is_profiling.get().map(Cell::get), Some(false));
+        let new_key_comparisons = profiled_op.user_key_comparisons.load(Ordering::Relaxed);
+        assert!(
+            new_key_comparisons > key_comparisons,
+            "{key_comparisons}, {new_key_comparisons}"
+        );
     }
 }
