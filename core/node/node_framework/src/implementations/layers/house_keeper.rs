@@ -9,6 +9,7 @@ use zksync_core::house_keeper::{
     fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
     fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter,
     fri_prover_job_retry_manager::FriProverJobRetryManager,
+    fri_prover_jobs_archiver::FriProverJobArchiver,
     fri_prover_queue_monitor::FriProverStatsReporter,
     fri_scheduler_circuit_queuer::SchedulerCircuitQueuer,
     fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager,
@@ -110,6 +111,21 @@ impl WiringLayer for HouseKeeperLayer {
         context.add_task(Box::new(WaitingToQueuedFriWitnessJobMoverTask {
             waiting_to_queued_fri_witness_job_mover,
         }));
+
+        if self.house_keeper_config.fri_prover_job_archiver_enabled() {
+            let fri_prover_job_archiver = FriProverJobArchiver::new(
+                prover_pool.clone(),
+                self.house_keeper_config
+                    .fri_prover_job_archiver_reporting_interval_ms
+                    .unwrap(),
+                self.house_keeper_config
+                    .fri_prover_job_archiver_archiving_interval_secs
+                    .unwrap(),
+            );
+            context.add_task(Box::new(FriProverJobArchiverTask {
+                fri_prover_job_archiver,
+            }));
+        }
 
         let scheduler_circuit_queuer = SchedulerCircuitQueuer::new(
             self.house_keeper_config.fri_witness_job_moving_interval_ms,
@@ -331,5 +347,21 @@ impl Task for FriProofCompressorJobRetryManagerTask {
         self.fri_proof_compressor_retry_manager
             .run(stop_receiver.0)
             .await
+    }
+}
+
+#[derive(Debug)]
+struct FriProverJobArchiverTask {
+    fri_prover_job_archiver: FriProverJobArchiver,
+}
+
+#[async_trait::async_trait]
+impl Task for FriProverJobArchiverTask {
+    fn name(&self) -> &'static str {
+        "fri_prover_job_archiver"
+    }
+
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.fri_prover_job_archiver.run(stop_receiver.0).await
     }
 }

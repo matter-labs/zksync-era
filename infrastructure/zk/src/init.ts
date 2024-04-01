@@ -55,8 +55,8 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
 
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
-    await announced('Drop postgres db', db.drop({ server: true, prover: true }));
-    await announced('Setup postgres db', db.setup({ server: true, prover: true }));
+    await announced('Drop postgres db', db.drop({ core: true, prover: true }));
+    await announced('Setup postgres db', db.setup({ core: true, prover: true }));
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
     await announced('Building contracts', contract.build());
@@ -92,8 +92,8 @@ export async function reinit(runObservability: boolean, deploymentMode: contract
     await announced('Setting up containers', up(runObservability));
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
-    await announced('Drop postgres db', db.drop({ server: true, prover: true }));
-    await announced('Setup postgres db', db.setup({ server: true, prover: true }));
+    await announced('Drop postgres db', db.drop({ core: true, prover: true }));
+    await announced('Setup postgres db', db.setup({ core: true, prover: true }));
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
     await announced('Building contracts', contract.build());
