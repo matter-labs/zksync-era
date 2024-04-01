@@ -27,6 +27,7 @@ impl MerkleTreePrunerHandle {
 /// objects implementing this trait can be passed to pruner main loop, they act as a source of info about up to which version the tree should be pruned
 pub trait RetainedVersionSource {
     /// Returns info up to which version (l1_batch) the tree should be pruned up to
+    #[allow(clippy::missing_errors_doc)]
     fn target_retained_version(&self, last_prunable_version: u64) -> anyhow::Result<u64>;
 }
 
@@ -180,6 +181,7 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
     }
 
     /// Runs this pruner indefinitely until it is aborted by dropping its handle.
+    #[allow(clippy::missing_panics_doc)]
     pub fn run(mut self, retained_version_source: &dyn RetainedVersionSource) {
         tracing::info!("Started Merkle tree pruner {self:?}");
         loop {
@@ -295,7 +297,7 @@ mod tests {
         let join_handle = thread::spawn(|| {
             pruner.run(&KeepConstantVersionsCount {
                 past_versions_to_keep: 0,
-            })
+            });
         });
 
         pruner_handle.abort();

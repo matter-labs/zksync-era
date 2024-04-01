@@ -8,7 +8,7 @@ use std::{
 };
 
 use anyhow::Context as _;
-use tokio::sync::watch;
+use tokio::{runtime::Handle, sync::watch};
 use zksync_config::configs::{
     chain::OperationsManagerConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
@@ -162,10 +162,11 @@ impl MetadataCalculator {
             tree_reader.clone().info().await
         );
         let (tree_pruner, pruner_handle) = tree.pruner();
-        let pruner_pool = pool.clone();
-        let join_handle = thread::spawn(move || {
-            tree_pruner.run(&KeepPruningSyncedWithDbPruning { pool: pruner_pool })
-        });
+        let pruner_version_source = KeepPruningSyncedWithDbPruning {
+            pool: pool.clone(),
+            rt_handle: Handle::current(),
+        };
+        let pruner_thread = thread::spawn(move || tree_pruner.run(&pruner_version_source));
         self.tree_reader.send_replace(Some(tree_reader));
 
         let updater = TreeUpdater::new(tree, self.max_l1_batches_per_iter, self.object_store);
@@ -174,8 +175,8 @@ impl MetadataCalculator {
             .await?;
 
         // line below requests pruner to stop
-        drop(pruner_handle);
-        join_handle.join().unwrap();
+        pruner_handle.abort();
+        pruner_thread.join().unwrap();
 
         Ok(())
     }
