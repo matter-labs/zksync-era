@@ -1,10 +1,12 @@
 pub mod circuit_breaker_checker;
 pub mod commitment_generator;
+pub mod consistency_checker;
 pub mod contract_verification_api;
 pub mod eth_sender;
 pub mod eth_watch;
 pub mod healtcheck_server;
 pub mod house_keeper;
+pub mod l1_batch_commit_data_generator;
 pub mod l1_gas;
 pub mod metadata_calculator;
 pub mod object_store;

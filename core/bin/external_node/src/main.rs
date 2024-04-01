@@ -306,7 +306,7 @@ async fn run_core(
     };
 
     let consistency_checker = ConsistencyChecker::new(
-        Box::new(eth_client),
+        Arc::new(eth_client),
         10, // TODO (BFT-97): Make it a part of a proper EN config
         singleton_pool_builder
             .build()
