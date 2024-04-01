@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
 use zksync_basic_types::prover_dal::{GpuProverInstanceStatus, SocketAddress};
 use zksync_db_connection::connection::Connection;
@@ -180,7 +180,7 @@ impl FriGpuProverQueueDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| GpuProverInstanceStatus::from_str(&row.instance_status))
+        .map(|row| GpuProverInstanceStatus::from_str(&row.instance_status).unwrap())
     }
 
     pub async fn archive_old_provers(&mut self, archiving_interval_secs: u64) -> usize {

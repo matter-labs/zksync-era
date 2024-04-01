@@ -1,5 +1,5 @@
 //! Types exposed by the prover DAL for general-purpose use.
-use std::{net::IpAddr, ops::Add};
+use std::{net::IpAddr, ops::Add, str::FromStr};
 
 use chrono::{DateTime, Duration, Utc};
 
@@ -216,14 +216,16 @@ pub enum GpuProverInstanceStatus {
     Dead,
 }
 
-impl GpuProverInstanceStatus {
-    pub fn from_str(status: &str) -> Self {
-        match status {
-            "available" => Self::Available,
-            "full" => Self::Full,
-            "reserved" => Self::Reserved,
-            "dead" => Self::Dead,
-            _ => panic!("Unknown status: {}", status),
+impl FromStr for GpuProverInstanceStatus {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "available" => Ok(Self::Available),
+            "full" => Ok(Self::Full),
+            "reserved" => Ok(Self::Reserved),
+            "dead" => Ok(Self::Dead),
+            _ => panic!("Unknown status: {}", s),
         }
     }
 }
