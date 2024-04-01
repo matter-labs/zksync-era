@@ -180,7 +180,7 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
     }
 
     /// Runs this pruner indefinitely until it is aborted by dropping its handle.
-    pub fn run(mut self, retained_version_source: Box<dyn RetainedVersionSource>) {
+    pub fn run(mut self, retained_version_source: &Box<dyn RetainedVersionSource>) {
         tracing::info!("Started Merkle tree pruner {self:?}");
         loop {
             let last_version = self.last_prunable_version();
@@ -407,7 +407,7 @@ mod tests {
         let new_keys_in_db: HashSet<_> = db.nodes_mut().map(|(key, _)| *key).collect();
         assert!(new_keys_in_db.is_superset(&keys_in_db));
 
-        let (pruner, _handle) = MerkleTreePruner::new(&mut db);
+        let (mut pruner, _handle) = MerkleTreePruner::new(&mut db);
         let stats = pruner
             .prune_up_to(pruner.last_prunable_version().unwrap())
             .unwrap();
