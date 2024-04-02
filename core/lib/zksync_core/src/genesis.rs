@@ -328,12 +328,6 @@ async fn insert_system_contracts(
             let hash = hash_bytecode(&contract.bytecode);
             let known_code_key = get_known_code_key(&hash);
             let marked_known_value = H256::from_low_u64_be(1u64);
-            println!(
-                "{:?} : {:?} : {:?}",
-                hex::encode(contract.account_id.address().as_bytes()),
-                hex::encode(hash.as_bytes()),
-                hex::encode(known_code_key.hashed_key().as_bytes())
-            );
             (
                 H256::default(),
                 vec![StorageLog::new_write_log(
