@@ -30,6 +30,7 @@ fn test_bytecode_publishing() {
     let DeployContractsTx { tx, .. } = account.get_deploy_tx(&counter, None, TxType::L2);
     vm.vm.push_transaction(tx);
     let result = vm.vm.execute(VmExecutionMode::OneTx);
+    println!("{:#?}", result.result);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
     vm.vm.execute(VmExecutionMode::Batch);

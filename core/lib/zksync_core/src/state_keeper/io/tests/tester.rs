@@ -2,7 +2,7 @@
 
 use std::{slice, sync::Arc, time::Duration};
 
-use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
+use multivm::vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT;
 use zksync_config::{
     configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode},
     GasAdjusterConfig,
@@ -24,25 +24,34 @@ use zksync_types::{
 use crate::{
     fee_model::MainNodeFeeInputProvider,
     genesis::create_genesis_l1_batch,
-    l1_gas_price::GasAdjuster,
+    l1_gas_price::{GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing},
     state_keeper::{MempoolGuard, MempoolIO},
     utils::testonly::{
         create_l1_batch, create_l2_transaction, create_miniblock, execute_l2_transaction,
+        DeploymentMode,
     },
 };
 
 #[derive(Debug)]
-pub(super) struct Tester {
+pub struct Tester {
     base_system_contracts: BaseSystemContracts,
     current_timestamp: u64,
+    pubdata_pricing: Arc<dyn PubdataPricing>,
 }
 
 impl Tester {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(deployment_mode: &DeploymentMode) -> Self {
         let base_system_contracts = BaseSystemContracts::load_from_disk();
+
+        let pubdata_pricing: Arc<dyn PubdataPricing> = match deployment_mode {
+            DeploymentMode::Validium => Arc::new(ValidiumPubdataPricing {}),
+            DeploymentMode::Rollup => Arc::new(RollupPubdataPricing {}),
+        };
+
         Self {
             base_system_contracts,
             current_timestamp: 0,
+            pubdata_pricing,
         }
     }
 
@@ -68,6 +77,7 @@ impl Tester {
             Arc::new(eth_client),
             gas_adjuster_config,
             PubdataSendingMode::Calldata,
+            self.pubdata_pricing.clone(),
         )
         .await
         .unwrap()
@@ -106,7 +116,7 @@ impl Tester {
             virtual_blocks_interval: 1,
             virtual_blocks_per_miniblock: 1,
             fee_account_addr: Address::repeat_byte(0x11), // Maintain implicit invariant: fee address is never `Address::zero()`
-            validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+            validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             ..StateKeeperConfig::for_tests()
         };
         let io = MempoolIO::new(

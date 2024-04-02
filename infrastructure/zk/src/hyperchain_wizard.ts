@@ -13,6 +13,7 @@ import fetch from 'node-fetch';
 import { up } from './up';
 import * as Handlebars from 'handlebars';
 import { ProverType, setupProver } from './prover_setup';
+import { DeploymentMode } from './contract';
 
 const title = chalk.blueBright;
 const warning = chalk.yellowBright;
@@ -44,7 +45,7 @@ export interface BasePromptOptions {
 }
 
 // An init command that allows configuring and spinning up a new hyperchain network.
-async function initHyperchain(runObservability: boolean) {
+async function initHyperchain(runObservability: boolean, deploymentMode: DeploymentMode) {
     await announced('Initializing hyperchain creation', setupConfiguration(runObservability));
 
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
@@ -66,7 +67,8 @@ async function initHyperchain(runObservability: boolean) {
             deploy: deployTestTokens,
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
         },
-        deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey, '--owner-address', governorAdrress]
+        deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey, '--owner-address', governorAdrress],
+        deploymentMode
     };
 
     await init(initArgs);
@@ -290,7 +292,7 @@ async function setHyperchainMetadata(runObservability: boolean) {
         feeReceiverAddress = richWallets[3].address;
 
         await up(runObservability);
-        await announced('Ensuring databases are up', db.wait({ server: true, prover: false }));
+        await announced('Ensuring databases are up', db.wait({ core: true, prover: false }));
     }
 
     await initializeTestERC20s();
@@ -813,7 +815,8 @@ async function configDemoHyperchain(cmd: Command) {
             deploy: deployTestTokens,
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
         },
-        deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey]
+        deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey],
+        deploymentMode: cmd.validiumMode !== undefined ? DeploymentMode.Validium : DeploymentMode.Rollup
     };
 
     if (!cmd.skipEnvSetup) {
@@ -869,8 +872,10 @@ initHyperchainCommand
     .command('init')
     .option('--run-observability')
     .description('Wizard for hyperchain creation/configuration')
+    .option('--validium-mode')
     .action(async (cmd: Command) => {
-        await initHyperchain(cmd.runObservability);
+        let deploymentMode = cmd.validiumMode !== undefined ? DeploymentMode.Validium : DeploymentMode.Rollup;
+        await initHyperchain(cmd.runObservability, deploymentMode);
     });
 initHyperchainCommand
     .command('docker-setup')
@@ -885,5 +890,6 @@ initHyperchainCommand
     .command('demo')
     .option('--prover <value>', 'Add a cpu or gpu prover to the hyperchain')
     .option('--skip-env-setup', 'Run env setup automatically (pull docker containers, etc)')
+    .option('--validium-mode')
     .description('Spin up a demo hyperchain with default settings for testing purposes')
     .action(configDemoHyperchain);

@@ -4,7 +4,7 @@ use zksync_types::{Address, Execute};
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     vm_latest::{
-        constants::BLOCK_GAS_LIMIT,
+        constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
         tests::{tester::VmTesterBuilder, utils::read_precompiles_contract},
         HistoryEnabled,
     },
@@ -19,7 +19,7 @@ fn test_keccak() {
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()
-        .with_gas_limit(BLOCK_GAS_LIMIT)
+        .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_custom_contracts(vec![(contract, address, true)])
         .build();
@@ -63,7 +63,7 @@ fn test_sha256() {
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()
-        .with_gas_limit(BLOCK_GAS_LIMIT)
+        .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_custom_contracts(vec![(contract, address, true)])
         .build();
@@ -105,7 +105,7 @@ fn test_ecrecover() {
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()
-        .with_gas_limit(BLOCK_GAS_LIMIT)
+        .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build();
 
