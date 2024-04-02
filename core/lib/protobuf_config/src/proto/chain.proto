@@ -15,7 +15,7 @@ message StateKeeper {
   optional uint64 miniblock_commit_deadline_ms = 3; // required; ms
   optional uint64 miniblock_seal_queue_capacity = 4; // required
   optional uint32 max_single_tx_gas = 5; // required; gwei?
-  optional uint32 max_allowed_l2_tx_gas_limit = 6; // required; wei?
+  optional uint64 max_allowed_l2_tx_gas_limit = 6; // required; wei?
   optional double reject_tx_at_geometry_percentage = 7; // required; %
   optional double reject_tx_at_eth_params_percentage = 8; // required; %
   optional double reject_tx_at_gas_percentage = 9; // required; %

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use multivm::{interface::ExecutionResult, vm_latest::constants::BLOCK_GAS_LIMIT};
+use multivm::{interface::ExecutionResult, vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT};
 use once_cell::sync::OnceCell;
 use zksync_dal::CoreDal;
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
@@ -218,7 +218,7 @@ impl DebugNamespace {
             fee_input: self.batch_fee_input,
             base_system_contracts: self.api_contracts.eth_call.clone(),
             caches: self.state.tx_sender.storage_caches().clone(),
-            validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+            validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             chain_id: sender_config.chain_id,
         }
     }

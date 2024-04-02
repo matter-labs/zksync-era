@@ -2,7 +2,7 @@
 
 use std::{slice, sync::Arc, time::Duration};
 
-use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
+use multivm::vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT;
 use zksync_config::{
     configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode, wallets::Wallets},
     GasAdjusterConfig,
@@ -115,7 +115,7 @@ impl Tester {
             minimal_l2_gas_price: self.minimal_l2_gas_price(),
             virtual_blocks_interval: 1,
             virtual_blocks_per_miniblock: 1,
-            validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+            validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             ..StateKeeperConfig::for_tests()
         };
         let wallets = Wallets::for_tests();

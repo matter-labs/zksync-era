@@ -76,6 +76,12 @@ pub struct MiniblockHeader {
     pub protocol_version: Option<ProtocolVersionId>,
     /// The maximal number of virtual blocks to be created in the miniblock.
     pub virtual_blocks: u32,
+
+    /// The formal value of the gas limit for the miniblock.
+    /// This value should bound the maximal amount of gas that can be spent by transactions in the miniblock.
+    /// Note, that it is an `u64`, i.e. while the computational limit for the bootloader is an `u32` a much larger
+    /// amount of gas can be spent on pubdata.
+    pub gas_limit: u64,
 }
 
 /// Data needed to execute a miniblock in the VM.
