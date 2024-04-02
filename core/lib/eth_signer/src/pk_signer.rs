@@ -1,7 +1,5 @@
 use secp256k1::SecretKey;
-use zksync_types::{
-    tx::primitives::PackedEthSignature, Address, EIP712TypedStructure, Eip712Domain, H256,
-};
+use zksync_types::{Address, EIP712TypedStructure, Eip712Domain, PackedEthSignature, H256};
 
 use crate::{
     raw_ethereum_tx::{Transaction, TransactionParameters},

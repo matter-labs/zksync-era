@@ -85,7 +85,7 @@ impl WiringLayer for HouseKeeperLayer {
         let fri_prover_job_retry_manager = FriProverJobRetryManager::new(
             self.fri_prover_config.max_attempts,
             self.fri_prover_config.proof_generation_timeout(),
-            self.house_keeper_config.fri_prover_job_retrying_interval_ms,
+            self.house_keeper_config.prover_job_retrying_interval_ms,
             prover_pool.clone(),
         );
         context.add_task(Box::new(FriProverJobRetryManagerTask {
@@ -97,7 +97,7 @@ impl WiringLayer for HouseKeeperLayer {
             self.fri_witness_generator_config
                 .witness_generation_timeouts(),
             self.house_keeper_config
-                .fri_witness_generator_job_retrying_interval_ms,
+                .witness_generator_job_retrying_interval_ms,
             prover_pool.clone(),
         );
         context.add_task(Box::new(FriWitnessGeneratorJobRetryManagerTask {
@@ -105,21 +105,21 @@ impl WiringLayer for HouseKeeperLayer {
         }));
 
         let waiting_to_queued_fri_witness_job_mover = WaitingToQueuedFriWitnessJobMover::new(
-            self.house_keeper_config.fri_witness_job_moving_interval_ms,
+            self.house_keeper_config.witness_job_moving_interval_ms,
             prover_pool.clone(),
         );
         context.add_task(Box::new(WaitingToQueuedFriWitnessJobMoverTask {
             waiting_to_queued_fri_witness_job_mover,
         }));
 
-        if self.house_keeper_config.fri_prover_job_archiver_enabled() {
+        if self.house_keeper_config.prover_job_archiver_enabled() {
             let fri_prover_job_archiver = FriProverJobArchiver::new(
                 prover_pool.clone(),
                 self.house_keeper_config
-                    .fri_prover_job_archiver_reporting_interval_ms
+                    .prover_job_archiver_reporting_interval_ms
                     .unwrap(),
                 self.house_keeper_config
-                    .fri_prover_job_archiver_archiving_interval_secs
+                    .prover_job_archiver_archiving_interval_secs
                     .unwrap(),
             );
             context.add_task(Box::new(FriProverJobArchiverTask {
@@ -128,7 +128,7 @@ impl WiringLayer for HouseKeeperLayer {
         }
 
         let scheduler_circuit_queuer = SchedulerCircuitQueuer::new(
-            self.house_keeper_config.fri_witness_job_moving_interval_ms,
+            self.house_keeper_config.witness_job_moving_interval_ms,
             prover_pool.clone(),
         );
         context.add_task(Box::new(SchedulerCircuitQueuerTask {
@@ -145,8 +145,7 @@ impl WiringLayer for HouseKeeperLayer {
         }));
 
         let fri_prover_stats_reporter = FriProverStatsReporter::new(
-            self.house_keeper_config
-                .fri_prover_stats_reporting_interval_ms,
+            self.house_keeper_config.prover_stats_reporting_interval_ms,
             prover_pool.clone(),
             replica_pool.clone(),
             self.fri_prover_group_config,
@@ -157,7 +156,7 @@ impl WiringLayer for HouseKeeperLayer {
 
         let fri_proof_compressor_stats_reporter = FriProofCompressorStatsReporter::new(
             self.house_keeper_config
-                .fri_proof_compressor_stats_reporting_interval_ms,
+                .proof_compressor_stats_reporting_interval_ms,
             prover_pool.clone(),
         );
         context.add_task(Box::new(FriProofCompressorStatsReporterTask {
@@ -168,7 +167,7 @@ impl WiringLayer for HouseKeeperLayer {
             self.fri_proof_compressor_config.max_attempts,
             self.fri_proof_compressor_config.generation_timeout(),
             self.house_keeper_config
-                .fri_proof_compressor_job_retrying_interval_ms,
+                .proof_compressor_job_retrying_interval_ms,
             prover_pool.clone(),
         );
         context.add_task(Box::new(FriProofCompressorJobRetryManagerTask {

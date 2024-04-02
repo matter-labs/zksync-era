@@ -11,11 +11,12 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
+        wallets::Wallets,
         FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, ObservabilityConfig,
         ProofDataHandlerConfig,
     },
-    ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
-    GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
+    ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, ETHConfig, ETHWatchConfig,
+    GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_core::{
     api_server::{
@@ -84,16 +85,20 @@ impl MainNodeBuilder {
     }
 
     fn add_pk_signing_client_layer(mut self) -> anyhow::Result<Self> {
+        let genesis = GenesisConfig::from_env()?;
+        let eth_config = ETHConfig::from_env()?;
+        let wallets = Wallets::from_env()?;
         self.node.add_layer(PKSigningEthClientLayer::new(
-            ETHSenderConfig::from_env()?,
+            eth_config,
             ContractsConfig::from_env()?,
-            ETHClientConfig::from_env()?,
+            genesis.l1_chain_id,
+            wallets.eth_sender.context("Eth sender configs")?,
         ));
         Ok(self)
     }
 
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
-        let eth_client_config = ETHClientConfig::from_env()?;
+        let eth_client_config = ETHConfig::from_env()?;
         let query_eth_client_layer = QueryEthClientLayer::new(eth_client_config.web3_url);
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
@@ -102,11 +107,16 @@ impl MainNodeBuilder {
     fn add_sequencer_l1_gas_layer(mut self) -> anyhow::Result<Self> {
         let gas_adjuster_config = GasAdjusterConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
-        let eth_sender_config = ETHSenderConfig::from_env()?;
+        let genesis_config = GenesisConfig::from_env()?;
+        let eth_sender_config = ETHConfig::from_env()?;
         let sequencer_l1_gas_layer = SequencerL1GasLayer::new(
             gas_adjuster_config,
+            genesis_config,
             state_keeper_config,
-            eth_sender_config.sender.pubdata_sending_mode,
+            eth_sender_config
+                .sender
+                .context("eth_sender")?
+                .pubdata_sending_mode,
         );
         self.node.add_layer(sequencer_l1_gas_layer);
         Ok(self)
@@ -132,11 +142,13 @@ impl MainNodeBuilder {
     }
 
     fn add_state_keeper_layer(mut self) -> anyhow::Result<Self> {
+        let wallets = Wallets::from_env()?;
         let mempool_io_layer = MempoolIOLayer::new(
             NetworkConfig::from_env()?,
             ContractsConfig::from_env()?,
             StateKeeperConfig::from_env()?,
             MempoolConfig::from_env()?,
+            wallets.state_keeper.context("State keeper wallets")?,
         );
         let main_node_batch_executor_builder_layer =
             MainBatchExecutorLayer::new(DBConfig::from_env()?, StateKeeperConfig::from_env()?);
@@ -178,6 +190,7 @@ impl MainNodeBuilder {
             initial_writes_cache_size: rpc_config.initial_writes_cache_size() as u64,
             latest_values_cache_size: rpc_config.latest_values_cache_size() as u64,
         };
+        let wallets = Wallets::from_env()?;
 
         // On main node we always use master pool sink.
         self.node.add_layer(TxSinkLayer::MasterPoolSink);
@@ -185,6 +198,11 @@ impl MainNodeBuilder {
             TxSenderConfig::new(
                 &state_keeper_config,
                 &rpc_config,
+                wallets
+                    .state_keeper
+                    .context("StateKeeper wallets")?
+                    .fee_account
+                    .address(),
                 network_config.zksync_network_id,
             ),
             postgres_storage_caches_config,
@@ -204,9 +222,9 @@ impl MainNodeBuilder {
     fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
         let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
         let contracts_config = ContractsConfig::from_env()?;
-        let network_config = NetworkConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
         let with_debug_namespace = state_keeper_config.save_call_traces;
+        let genesis_config = GenesisConfig::from_env()?;
 
         let mut namespaces = Namespace::DEFAULT.to_vec();
         if with_debug_namespace {
@@ -224,7 +242,7 @@ impl MainNodeBuilder {
         };
         self.node.add_layer(Web3ServerLayer::http(
             rpc_config.http_port,
-            InternalApiConfig::new(&network_config, &rpc_config, &contracts_config),
+            InternalApiConfig::new(&rpc_config, &contracts_config, &genesis_config),
             optional_config,
         ));
 
@@ -234,7 +252,7 @@ impl MainNodeBuilder {
     fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
         let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
         let contracts_config = ContractsConfig::from_env()?;
-        let network_config = NetworkConfig::from_env()?;
+        let genesis_config = GenesisConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
         let circuit_breaker_config = CircuitBreakerConfig::from_env()?;
         let with_debug_namespace = state_keeper_config.save_call_traces;
@@ -258,25 +276,26 @@ impl MainNodeBuilder {
         };
         self.node.add_layer(Web3ServerLayer::ws(
             rpc_config.ws_port,
-            InternalApiConfig::new(&network_config, &rpc_config, &contracts_config),
+            InternalApiConfig::new(&rpc_config, &contracts_config, &genesis_config),
             optional_config,
         ));
 
         Ok(self)
     }
     fn add_eth_sender_layer(mut self) -> anyhow::Result<Self> {
-        let state_keeper_config = StateKeeperConfig::from_env()?;
-        let eth_sender_config = ETHSenderConfig::from_env()?;
+        let eth_sender_config = ETHConfig::from_env()?;
         let contracts_config = ContractsConfig::from_env()?;
-        let eth_client_config = ETHClientConfig::from_env()?;
         let network_config = NetworkConfig::from_env()?;
+        let genesis_config = GenesisConfig::from_env()?;
+        let wallets = Wallets::from_env()?;
 
         self.node.add_layer(EthSenderLayer::new(
             eth_sender_config,
             contracts_config,
-            eth_client_config,
             network_config,
-            state_keeper_config.l1_batch_commit_data_generator_mode,
+            genesis_config.l1_chain_id,
+            wallets.eth_sender.context("Eth sender wallets")?,
+            genesis_config.l1_batch_commit_data_generator_mode,
         ));
 
         Ok(self)
@@ -315,7 +334,7 @@ impl MainNodeBuilder {
     }
 
     fn add_contract_verification_api_layer(mut self) -> anyhow::Result<Self> {
-        let config = ApiConfig::from_env()?.contract_verification;
+        let config = ContractVerifierConfig::from_env()?;
         self.node.add_layer(ContractVerificationApiLayer(config));
         Ok(self)
     }
