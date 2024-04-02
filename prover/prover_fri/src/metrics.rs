@@ -1,6 +1,8 @@
 use std::time::Duration;
 
-use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, LabeledFamily, Metrics};
+use vise::{
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Histogram, LabeledFamily, Metrics,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
 pub(crate) struct CircuitLabels {
@@ -36,6 +38,7 @@ pub(crate) struct ProverFriMetrics {
     pub witness_vector_blob_time: LabeledFamily<u64, Histogram<Duration>>,
     #[metrics(buckets = Buckets::LATENCIES, labels = ["circuit_type"])]
     pub blob_save_time: LabeledFamily<String, Histogram<Duration>>,
+    pub zombie_prover_instances_count: Counter,
 }
 
 #[vise::register]

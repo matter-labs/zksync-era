@@ -3,6 +3,8 @@ pub mod availability_checker {
     use prover_dal::{ConnectionPool, Prover, ProverDal};
     use zksync_types::prover_dal::{GpuProverInstanceStatus, SocketAddress};
 
+    use crate::metrics::METRICS;
+
     pub struct AvailabilityChecker {
         address: SocketAddress,
         zone: String,
@@ -40,6 +42,7 @@ pub mod availability_checker {
                     .await;
 
                 if status.is_none() || status.unwrap() == GpuProverInstanceStatus::Dead {
+                    METRICS.zombie_prover_instances_count.inc();
                     tracing::info!(
                         "Prover instance at address {:?}, availability zone {} was found marked as dead while being alive, shutting down",
                         self.address,
