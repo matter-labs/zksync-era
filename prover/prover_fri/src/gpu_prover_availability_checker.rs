@@ -6,7 +6,7 @@ pub mod availability_checker {
     pub struct AvailabilityChecker {
         address: SocketAddress,
         zone: String,
-        polling_interval_ms: u64,
+        polling_interval_secs: u32,
         pool: ConnectionPool<Prover>,
     }
 
@@ -14,13 +14,13 @@ pub mod availability_checker {
         pub fn new(
             address: SocketAddress,
             zone: String,
-            polling_interval_ms: u64,
+            polling_interval_secs: u32,
             pool: ConnectionPool<Prover>,
         ) -> Self {
             Self {
                 address,
                 zone,
-                polling_interval_ms,
+                polling_interval_secs,
                 pool,
             }
         }
@@ -48,8 +48,10 @@ pub mod availability_checker {
                     return Ok(());
                 }
 
-                tokio::time::sleep(std::time::Duration::from_millis(self.polling_interval_ms))
-                    .await;
+                tokio::time::sleep(std::time::Duration::from_secs(
+                    self.polling_interval_secs as u64,
+                ))
+                .await;
             }
 
             tracing::info!("Availability checker was shut down");
