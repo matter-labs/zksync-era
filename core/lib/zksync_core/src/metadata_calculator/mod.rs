@@ -2,6 +2,7 @@
 //! stores them in the DB.
 
 use std::{
+    num::NonZeroU32,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -35,6 +36,9 @@ mod updater;
 pub struct MetadataCalculatorConfig {
     /// Filesystem path to the RocksDB instance that stores the tree.
     pub db_path: String,
+    /// Maximum number of files concurrently opened by RocksDB. Useful to fit into OS limits; can be used
+    /// as a rudimentary way to control RAM usage of the tree.
+    pub max_open_files: Option<NonZeroU32>,
     /// Configuration of the Merkle tree mode.
     pub mode: MerkleTreeMode,
     /// Interval between polling Postgres for updates if no progress was made by the tree.
@@ -64,6 +68,7 @@ impl MetadataCalculatorConfig {
     ) -> Self {
         Self {
             db_path: merkle_tree_config.path.clone(),
+            max_open_files: None,
             mode: merkle_tree_config.mode,
             delay_interval: operation_config.delay_interval(),
             max_l1_batches_per_iter: merkle_tree_config.max_l1_batches_per_iter,

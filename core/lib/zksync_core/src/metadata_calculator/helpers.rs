@@ -72,6 +72,7 @@ pub(super) async fn create_db(config: MetadataCalculatorConfig) -> anyhow::Resul
 fn create_db_sync(config: &MetadataCalculatorConfig) -> anyhow::Result<RocksDBWrapper> {
     let path = Path::new(config.db_path.as_str());
     let &MetadataCalculatorConfig {
+        max_open_files,
         block_cache_capacity,
         include_indices_and_filters_in_block_cache,
         multi_get_chunk_size,
@@ -81,7 +82,7 @@ fn create_db_sync(config: &MetadataCalculatorConfig) -> anyhow::Result<RocksDBWr
     } = config;
 
     tracing::info!(
-        "Initializing Merkle tree database at `{path}` with {multi_get_chunk_size} multi-get chunk size, \
+        "Initializing Merkle tree database at `{path}` (max open files: {max_open_files:?}) with {multi_get_chunk_size} multi-get chunk size, \
          {block_cache_capacity}B block cache (indices & filters included: {include_indices_and_filters_in_block_cache:?}), \
          {memtable_capacity}B memtable capacity, \
          {stalled_writes_timeout:?} stalled writes timeout",
@@ -95,7 +96,7 @@ fn create_db_sync(config: &MetadataCalculatorConfig) -> anyhow::Result<RocksDBWr
             include_indices_and_filters_in_block_cache,
             large_memtable_capacity: Some(memtable_capacity),
             stalled_writes_retries: StalledWritesRetries::new(stalled_writes_timeout),
-            max_open_files: None,
+            max_open_files,
         },
     )?;
     if cfg!(test) {

@@ -1,4 +1,4 @@
-use std::{env, time::Duration};
+use std::{env, num::NonZeroU32, time::Duration};
 
 use anyhow::Context;
 use serde::Deserialize;
@@ -212,6 +212,9 @@ pub struct OptionalENConfig {
         default = "OptionalENConfig::default_max_l1_batches_per_tree_iter"
     )]
     pub max_l1_batches_per_tree_iter: usize,
+    /// Maximum number of files concurrently opened by Merkle tree RocksDB. Useful to fit into OS limits; can be used
+    /// as a rudimentary way to control RAM usage of the tree.
+    pub merkle_tree_max_open_files: Option<NonZeroU32>,
     /// Chunk size for multi-get operations. Can speed up loading data for the Merkle tree on some environments,
     /// but the effects vary wildly depending on the setup (e.g., the filesystem used).
     #[serde(default = "OptionalENConfig::default_merkle_tree_multi_get_chunk_size")]
