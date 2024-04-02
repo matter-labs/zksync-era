@@ -445,7 +445,7 @@ async fn getting_batch_version_with_genesis() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::load_genesis_params(GenesisConfig {
-        protocol_version: ProtocolVersionId::Version5 as u16,
+        protocol_version: Some(ProtocolVersionId::Version5 as u16),
         ..mock_genesis_config()
     })
     .unwrap();
