@@ -85,6 +85,7 @@ pub(crate) async fn create_miniblock(
         base_system_contracts_hashes: Default::default(),
         protocol_version: Some(Default::default()),
         virtual_blocks: 0,
+        gas_limit: 0,
     };
 
     conn.blocks_dal()

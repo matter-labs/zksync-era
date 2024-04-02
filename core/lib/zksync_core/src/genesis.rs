@@ -457,6 +457,7 @@ pub(crate) async fn create_genesis_l1_batch(
         base_system_contracts_hashes: base_system_contracts.hashes(),
         protocol_version: Some(protocol_version),
         virtual_blocks: 0,
+        gas_limit: 0,
     };
 
     let mut transaction = storage.start_transaction().await?;

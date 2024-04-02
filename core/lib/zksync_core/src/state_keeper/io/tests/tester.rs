@@ -2,7 +2,7 @@
 
 use std::{slice, sync::Arc, time::Duration};
 
-use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
+use multivm::vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT;
 use zksync_config::{
     configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode},
     GasAdjusterConfig,
@@ -116,7 +116,7 @@ impl Tester {
             virtual_blocks_interval: 1,
             virtual_blocks_per_miniblock: 1,
             fee_account_addr: Address::repeat_byte(0x11), // Maintain implicit invariant: fee address is never `Address::zero()`
-            validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+            validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             ..StateKeeperConfig::for_tests()
         };
         let io = MempoolIO::new(

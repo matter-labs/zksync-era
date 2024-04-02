@@ -104,7 +104,7 @@ pub struct StateKeeperConfig {
     /// The max number of gas to spend on an L1 tx before its batch should be sealed by the gas sealer.
     pub max_single_tx_gas: u32,
 
-    pub max_allowed_l2_tx_gas_limit: u32,
+    pub max_allowed_l2_tx_gas_limit: u64,
 
     /// Configuration option for tx to be rejected in case
     /// it takes more percentage of the block capacity than this value.
