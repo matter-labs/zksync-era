@@ -25,7 +25,7 @@ use crate::{
         batch_executor::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult},
         io::{IoCursor, L1BatchParams, MiniblockParams, PendingBatchData, StateKeeperIO},
         seal_criteria::{IoSealCriteria, SequencerSealer},
-        tests::{default_l1_batch_env, default_vm_block_result, BASE_SYSTEM_CONTRACTS},
+        tests::{default_l1_batch_env, default_vm_batch_result, BASE_SYSTEM_CONTRACTS},
         types::ExecutionMetricsForCriteria,
         updates::UpdatesManager,
         OutputHandler, StateKeeperOutputHandler, ZkSyncStateKeeper,
@@ -527,7 +527,7 @@ impl TestBatchExecutor {
                 }
                 Command::FinishBatch(resp) => {
                     // Blanket result, it doesn't really matter.
-                    resp.send(default_vm_block_result()).unwrap();
+                    resp.send(default_vm_batch_result()).unwrap();
                     return;
                 }
             }
@@ -595,7 +595,7 @@ pub(super) struct TestIO {
     /// requests until some other action happens.
     skipping_txs: bool,
     protocol_version: ProtocolVersionId,
-    previous_batch_protocol_version: ProtocolVersionId, // FIXME: not updated
+    previous_batch_protocol_version: ProtocolVersionId,
     protocol_upgrade_txs: HashMap<ProtocolVersionId, ProtocolUpgradeTx>,
 }
 
@@ -857,7 +857,7 @@ impl BatchExecutor for MockBatchExecutor {
                     Command::RollbackLastTx(_) => panic!("unexpected rollback"),
                     Command::FinishBatch(resp) => {
                         // Blanket result, it doesn't really matter.
-                        resp.send(default_vm_block_result()).unwrap();
+                        resp.send(default_vm_batch_result()).unwrap();
                         return;
                     }
                 }
