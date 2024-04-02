@@ -25,6 +25,7 @@ mod tests;
 
 pub use config::{Config, Secrets};
 
+/// Runs the consensus in the main node mode.
 pub async fn run_main_node(
     ctx: &ctx::Ctx,
     cfg: MainNodeConfig,
@@ -49,6 +50,8 @@ pub async fn run_main_node(
     .await
 }
 
+/// Runs the consensus in the fetcher mode (e.g. for the external node needs).
+/// The fetcher implementation may either be p2p or centralized.
 pub async fn run_fetcher(
     ctx: &ctx::Ctx,
     cfg: Option<(Config, Secrets)>,
