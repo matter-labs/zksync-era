@@ -25,11 +25,13 @@ mod metrics;
 mod tests;
 
 /// Type alias for smart contract source code cache.
-type FactoryDepsCache = LruCache<H256, Vec<u8>>;
+type FactoryDepsCache = LruCache<H256, (Vec<u8>, MiniblockNumber)>;
 
-impl CacheValue<H256> for Vec<u8> {
+impl CacheValue<H256> for (Vec<u8>, MiniblockNumber) {
     fn cache_weight(&self) -> u32 {
-        self.len().try_into().expect("Cached bytes are too large")
+        (self.0.len() + mem::size_of::<MiniblockNumber>())
+            .try_into()
+            .expect("Cached bytes are too large")
     }
 }
 
@@ -556,22 +558,25 @@ impl ReadStorage for PostgresStorage<'_> {
             .as_ref()
             .and_then(|caches| caches.factory_deps.get(&hash));
 
-        let result = cached_value.or_else(|| {
+        let value = cached_value.or_else(|| {
             let mut dal = self.connection.storage_web3_dal();
             let value = self
                 .rt_handle
-                .block_on(dal.get_factory_dep_unchecked(hash, self.miniblock_number))
+                .block_on(dal.get_factory_dep_and_miniblock_unchecked(hash, self.miniblock_number))
                 .expect("Failed executing `load_factory_dep`");
 
             if let Some(caches) = &self.caches {
                 // If we receive None, we won't cache it.
-                if let Some(dep) = value.clone() {
-                    caches.factory_deps.insert(hash, dep);
+                if let Some((dep, miniblock)) = value.clone() {
+                    caches.factory_deps.insert(hash, (dep, miniblock));
                 }
             };
 
             value
         });
+
+        let result =
+            value.and_then(|(dep, miniblock)| (miniblock <= self.miniblock_number).then_some(dep));
 
         latency.observe();
         result

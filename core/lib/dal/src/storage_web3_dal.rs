@@ -237,17 +237,17 @@ impl StorageWeb3Dal<'_, '_> {
         Ok(row.map(|row| row.bytecode))
     }
 
-    /// This method doesn't check if block with number equals to `block_number`
-    /// is present in the database. For such blocks `None` will be returned.
-    pub async fn get_factory_dep_unchecked(
+    /// This method doesn't check if block with number equals to `block_number` is present in the database.
+    pub async fn get_factory_dep_and_miniblock_unchecked(
         &mut self,
         hash: H256,
         block_number: MiniblockNumber,
-    ) -> sqlx::Result<Option<Vec<u8>>> {
+    ) -> sqlx::Result<Option<(Vec<u8>, MiniblockNumber)>> {
         let row = sqlx::query!(
             r#"
             SELECT
-                bytecode
+                bytecode,
+                miniblock_number
             FROM
                 factory_deps
             WHERE
@@ -260,7 +260,7 @@ impl StorageWeb3Dal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await?;
 
-        Ok(row.map(|row| row.bytecode))
+        Ok(row.map(|row| (row.bytecode, MiniblockNumber(row.miniblock_number as u32))))
     }
 }
 

@@ -231,6 +231,18 @@ fn test_factory_deps_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
         )
         .unwrap();
 
+    let mut contracts = HashMap::new();
+    contracts.insert(H256::from_low_u64_be(1), vec![1, 2, 3, 4]);
+    storage
+        .rt_handle
+        .block_on(
+            storage
+                .connection
+                .factory_deps_dal()
+                .insert_factory_deps(MiniblockNumber(1), &contracts),
+        )
+        .unwrap();
+
     // Create the storage that should have the cache filled.
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
@@ -243,7 +255,34 @@ fn test_factory_deps_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     // Fill the cache
     let dep = storage.load_factory_dep(zero_addr);
     assert_eq!(dep, Some(vec![1, 2, 3]));
-    assert_eq!(caches.factory_deps.get(&zero_addr), Some(vec![1, 2, 3]));
+    assert_eq!(
+        caches.factory_deps.get(&zero_addr),
+        Some((vec![1, 2, 3], MiniblockNumber(0)))
+    );
+
+    let dep = storage.load_factory_dep(H256::from_low_u64_be(1));
+    assert_eq!(dep, Some(vec![1, 2, 3, 4]));
+    assert_eq!(
+        caches.factory_deps.get(&H256::from_low_u64_be(1)),
+        Some((vec![1, 2, 3, 4], MiniblockNumber(1)))
+    );
+
+    // Create storage with `MiniblockNumber(0)`.
+    let mut storage = PostgresStorage::new(
+        storage.rt_handle,
+        storage.connection,
+        MiniblockNumber(0),
+        true,
+    )
+    .with_caches(caches.clone());
+
+    // First bytecode was published at miniblock 0, so it should be visible.
+    let dep = storage.load_factory_dep(zero_addr);
+    assert_eq!(dep, Some(vec![1, 2, 3]));
+
+    // Second bytecode was published at miniblock 1, so it shouldn't be visible.
+    let dep = storage.load_factory_dep(H256::from_low_u64_be(1));
+    assert!(dep.is_none());
 }
 
 #[tokio::test]
