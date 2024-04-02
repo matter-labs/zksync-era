@@ -215,12 +215,13 @@ async fn run_core(
             config::read_consensus_secrets().context("config::read_consensus_secrets()")?;
         let cfg = match (config, secrets) {
             (Some(cfg), Some(secrets)) => Some((cfg, secrets)),
-            (None, None) => None,
             (Some(_), None) => {
                 anyhow::bail!("Consensus config is specified, but secrets are missing")
             }
-            (None, Some(_)) => {
-                anyhow::bail!("Consensus secrets are specified, but config is missing")
+            (None, _) => {
+                // Secrets may be unconditionally embedded in some envs, but they are unused
+                // unless a consensus config is provided.
+                None
             }
         };
 
