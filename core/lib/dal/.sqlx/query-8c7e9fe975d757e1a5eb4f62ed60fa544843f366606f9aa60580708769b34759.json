@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                bytecode, miniblock_number\n            FROM\n                factory_deps\n            WHERE\n                bytecode_hash = $1\n                AND miniblock_number <= $2\n            ",
+  "query": "\n            SELECT\n                bytecode,\n                miniblock_number\n            FROM\n                factory_deps\n            WHERE\n                bytecode_hash = $1\n                AND miniblock_number <= $2\n            ",
   "describe": {
     "columns": [
       {
@@ -25,5 +25,5 @@
       false
     ]
   },
-  "hash": "900a84b236d35e152a515ef13af1c076d5248cea94d98ec506a5d9209f6ebfe1"
+  "hash": "8c7e9fe975d757e1a5eb4f62ed60fa544843f366606f9aa60580708769b34759"
 }
