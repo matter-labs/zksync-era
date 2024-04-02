@@ -13,7 +13,7 @@ use rand::{thread_rng, Rng};
 use zksync_dal::{Connection, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_types::{
-    block::{L1BatchHeader, MiniblockHeader},
+    block::{L1BatchHeader, L1BatchTreeData, MiniblockHeader},
     snapshots::{
         SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotStorageLog,
         SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
@@ -180,6 +180,16 @@ async fn create_l1_batch(
     written_keys.sort_unstable();
     conn.storage_logs_dedup_dal()
         .insert_initial_writes(l1_batch_number, &written_keys)
+        .await
+        .unwrap();
+    conn.blocks_dal()
+        .save_l1_batch_tree_data(
+            l1_batch_number,
+            &L1BatchTreeData {
+                hash: H256::zero(),
+                rollup_last_leaf_index: 1,
+            },
+        )
         .await
         .unwrap();
 }

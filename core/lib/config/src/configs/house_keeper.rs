@@ -16,4 +16,16 @@ pub struct HouseKeeperConfig {
     pub fri_prover_stats_reporting_interval_ms: u64,
     pub fri_proof_compressor_job_retrying_interval_ms: u64,
     pub fri_proof_compressor_stats_reporting_interval_ms: u64,
+    // TODO(PLA-862): Make these 2 variables required
+    pub fri_prover_job_archiver_reporting_interval_ms: Option<u64>,
+    pub fri_prover_job_archiver_archiving_interval_secs: Option<u64>,
+}
+
+impl HouseKeeperConfig {
+    pub fn fri_prover_job_archiver_enabled(&self) -> bool {
+        self.fri_prover_job_archiver_reporting_interval_ms.is_some()
+            && self
+                .fri_prover_job_archiver_archiving_interval_secs
+                .is_some()
+    }
 }

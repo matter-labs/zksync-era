@@ -95,8 +95,11 @@ async fn expected_tree_hash(pool: &ConnectionPool<Core>) -> H256 {
         .expect("No L1 batches in Postgres");
     let mut all_logs = vec![];
     for i in 0..=sealed_l1_batch_number.0 {
-        let logs = L1BatchWithLogs::new(&mut storage, L1BatchNumber(i)).await;
-        let logs = logs.unwrap().storage_logs;
+        let logs =
+            L1BatchWithLogs::new(&mut storage, L1BatchNumber(i), MerkleTreeMode::Lightweight)
+                .await
+                .unwrap();
+        let logs = logs.expect("no L1 batch").storage_logs;
         all_logs.extend(logs);
     }
     ZkSyncTree::process_genesis_batch(&all_logs).root_hash

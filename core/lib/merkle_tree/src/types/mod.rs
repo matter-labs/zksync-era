@@ -15,7 +15,7 @@ pub type Key = U256;
 pub type ValueHash = H256;
 
 /// Instruction to read or write a tree value at a certain key.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TreeInstruction<K = Key> {
     /// Read the current tree value at the specified key.
     Read(K),
@@ -46,7 +46,7 @@ impl<K: Copy> TreeInstruction<K> {
 }
 
 /// Entry in a Merkle tree associated with a key.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TreeEntry<K = Key> {
     /// Tree key.
     pub key: K,

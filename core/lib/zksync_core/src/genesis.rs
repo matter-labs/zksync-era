@@ -10,7 +10,7 @@ use multivm::{
     utils::get_max_gas_per_pubdata_byte,
     zk_evm_latest::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp},
 };
-use zksync_config::{GenesisConfig, PostgresConfig};
+use zksync_config::{configs::database::MerkleTreeMode, GenesisConfig, PostgresConfig};
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
 use zksync_dal::{Connection, Core, CoreDal, SqlxError};
 use zksync_db_connection::connection_pool::ConnectionPool;
@@ -201,10 +201,15 @@ pub async fn insert_genesis_batch(
     .await?;
     tracing::info!("chain_schema_genesis is complete");
 
-    let storage_logs = L1BatchWithLogs::new(&mut transaction, L1BatchNumber(0)).await;
-    let storage_logs = storage_logs
-        .context("genesis L1 batch disappeared from Postgres")?
-        .storage_logs;
+    let storage_logs = L1BatchWithLogs::new(
+        &mut transaction,
+        L1BatchNumber(0),
+        MerkleTreeMode::Lightweight,
+    )
+    .await
+    .context("failed fetching tree input for genesis L1 batch")?
+    .context("genesis L1 batch disappeared from Postgres")?;
+    let storage_logs = storage_logs.storage_logs;
     let metadata = ZkSyncTree::process_genesis_batch(&storage_logs);
     let genesis_root_hash = metadata.root_hash;
     let rollup_last_leaf_index = metadata.leaf_count + 1;
@@ -466,7 +471,6 @@ pub(crate) async fn create_genesis_l1_batch(
             &genesis_l1_batch_header,
             &[],
             BlockGasCount::default(),
-            &[],
             &[],
             Default::default(),
         )
