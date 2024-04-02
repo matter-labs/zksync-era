@@ -2,12 +2,17 @@
 
 #![allow(clippy::redundant_locals)]
 #![allow(clippy::needless_pass_by_ref_mut)]
+use std::sync::Arc;
+
+use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_concurrency::{ctx, error::Wrap as _, scope};
+use zksync_concurrency::{ctx, error::Wrap as _, limiter, scope, time};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
 use zksync_dal::{ConnectionPool, Core};
+
+use crate::sync_layer::{sync_action::ActionQueueSender, MainNodeClient, SyncState};
 
 pub use self::{fetcher::*, storage::Store};
 
@@ -43,6 +48,44 @@ pub async fn run_main_node(
         Ok(())
     })
     .await
+}
+
+pub async fn run_fetcher(
+    ctx: &ctx::Ctx,
+    cfg: Option<(Config, Secrets)>,
+    pool: ConnectionPool<Core>,
+    sync_state: SyncState,
+    main_node_client: Arc<dyn MainNodeClient>,
+    action_queue_sender: ActionQueueSender,
+    mut stop_receiver: watch::Receiver<bool>,
+) -> anyhow::Result<()> {
+    let fetcher = Fetcher {
+        store: Store(pool),
+        sync_state: sync_state.clone(),
+        client: main_node_client,
+        limiter: limiter::Limiter::new(
+            ctx,
+            limiter::Rate {
+                burst: 10,
+                refresh: time::Duration::milliseconds(30),
+            },
+        ),
+    };
+    let actions = action_queue_sender;
+    scope::run!(&ctx, |ctx, s| async {
+        s.spawn_bg(async {
+            let res = match cfg {
+                Some((cfg, secrets)) => fetcher.run_p2p(ctx, actions, cfg.p2p(&secrets)?).await,
+                None => fetcher.run_centralized(ctx, actions).await,
+            };
+            tracing::info!("Consensus actor stopped");
+            res
+        });
+        ctx.wait(stop_receiver.wait_for(|stop| *stop)).await??;
+        Ok(())
+    })
+    .await
+    .context("consensus actor")
 }
 
 /// Main node consensus config.

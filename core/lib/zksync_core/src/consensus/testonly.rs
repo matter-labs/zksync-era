@@ -305,7 +305,7 @@ impl StateKeeper {
     ) -> anyhow::Result<()> {
         Fetcher {
             store: self.store,
-            client: Box::new(client),
+            client: Arc::new(client),
             sync_state: SyncState::default(),
             limiter: unbounded_limiter(ctx),
         }
@@ -322,7 +322,7 @@ impl StateKeeper {
     ) -> anyhow::Result<()> {
         Fetcher {
             store: self.store,
-            client: Box::new(client),
+            client: Arc::new(client),
             sync_state: SyncState::default(),
             limiter: unbounded_limiter(ctx),
         }
