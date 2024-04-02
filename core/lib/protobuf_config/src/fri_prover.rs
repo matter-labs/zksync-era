@@ -69,7 +69,7 @@ impl ProtoRepr for proto::FriProver {
                 .clone(),
             shall_save_to_public_bucket: *required(&self.shall_save_to_public_bucket)
                 .context("shall_save_to_public_bucket")?,
-            availability_check_interval_in_secs: required(
+            availability_check_interval_in_secs: *required(
                 &self.availability_check_interval_in_secs,
             )
             .context("availability_check_interval_ms")?,
