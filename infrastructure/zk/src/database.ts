@@ -163,16 +163,20 @@ export async function wait(opts: DbOpts, tries: number = 4) {
     }
 }
 
-async function checkSqlxDataForDal(dalPath: DalPath, dbUrl: string) {
+async function prepareSqlxDataForDal(dalPath: DalPath, dbUrl: string, check: boolean) {
     process.chdir(dalPath);
-    await utils.spawn(`cargo sqlx prepare --check --database-url ${dbUrl} -- --tests`);
+    let check_string = '';
+    if (check) {
+        check_string = '--check';
+    }
+    await utils.spawn(`cargo sqlx prepare ${check_string} --database-url ${dbUrl} -- --tests`);
     process.chdir(process.env.ZKSYNC_HOME as string);
 }
 
-export async function checkSqlxData(opts: DbOpts) {
+export async function prepareSqlxData(opts: DbOpts, check: boolean) {
     let dals = getDals(opts);
     for (const [dalPath, dbUrl] of dals.entries()) {
-        await checkSqlxDataForDal(dalPath, dbUrl);
+        await prepareSqlxDataForDal(dalPath, dbUrl, check);
     }
 }
 
@@ -230,4 +234,14 @@ command
     .description('check sqlx-data.json is up to date')
     .option('-p, --prover')
     .option('-c, --core')
-    .action(checkSqlxData);
+    .action(async (cmd) => {
+        await prepareSqlxData(cmd, true);
+    });
+command
+    .command('prepare')
+    .description('check sqlx-data.json is up to date')
+    .option('-p, --prover')
+    .option('-c, --core')
+    .action(async (cmd) => {
+        await prepareSqlxData(cmd, false);
+    });

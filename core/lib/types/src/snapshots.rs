@@ -7,9 +7,7 @@ use zksync_basic_types::{AccountTreeId, L1BatchNumber, MiniblockNumber, H256};
 use zksync_protobuf::{required, ProtoFmt};
 use zksync_utils::u256_to_h256;
 
-use crate::{
-    commitment::L1BatchWithMetadata, Bytes, ProtocolVersionId, StorageKey, StorageValue, U256,
-};
+use crate::{Bytes, ProtocolVersionId, StorageKey, StorageValue, U256};
 
 /// Information about all snapshots persisted by the node.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,7 +60,6 @@ pub struct SnapshotHeader {
     /// Ordered by chunk IDs.
     pub storage_logs_chunks: Vec<SnapshotStorageLogsChunkMetadata>,
     pub factory_deps_filepath: String,
-    pub last_l1_batch_with_metadata: L1BatchWithMetadata,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
