@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use tower_http::cors::CorsLayer;
 use zksync_dal::{ConnectionPool, Core};
 
 #[derive(Debug, Clone)]
@@ -49,6 +50,7 @@ impl RestApi {
                 "/contract_verification/info/:address",
                 axum::routing::get(Self::verification_info),
             )
+            .layer(CorsLayer::permissive())
             .with_state(Arc::new(self))
     }
 }
