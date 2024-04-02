@@ -404,6 +404,7 @@ impl Distribution<configs::eth_sender::GasAdjusterConfig> for EncodeDist {
             pricing_formula_parameter_b: self.sample(rng),
             internal_l1_pricing_multiplier: self.sample(rng),
             internal_enforced_l1_gas_price: self.sample(rng),
+            internal_enforced_pubdata_price: self.sample(rng),
             poll_period: self.sample(rng),
             max_l1_gas_price: self.sample(rng),
             num_samples_for_blob_base_fee_estimate: self.sample(rng),

@@ -35,8 +35,8 @@ use crate::{
 
 #[derive(Debug, Clone, Copy)]
 struct RefundRequest {
-    refund: u32,
-    gas_spent_on_pubdata: u32,
+    refund: u64,
+    gas_spent_on_pubdata: u64,
     used_gas_per_pubdata_byte: u32,
 }
 
@@ -47,11 +47,11 @@ pub(crate) struct RefundsTracer<S> {
     // to provide the refund the user, where `x` is the refund proposed
     // by the bootloader itself.
     pending_refund_request: Option<RefundRequest>,
-    refund_gas: u32,
-    operator_refund: Option<u32>,
+    refund_gas: u64,
+    operator_refund: Option<u64>,
     timestamp_initial: Timestamp,
     timestamp_before_cycle: Timestamp,
-    gas_remaining_before: u32,
+    computational_gas_remaining_before: u32,
     spent_pubdata_counter_before: u32,
     l1_batch: L1BatchEnv,
     pubdata_published: u32,
@@ -66,7 +66,7 @@ impl<S> RefundsTracer<S> {
             operator_refund: None,
             timestamp_initial: Timestamp(0),
             timestamp_before_cycle: Timestamp(0),
-            gas_remaining_before: 0,
+            computational_gas_remaining_before: 0,
             spent_pubdata_counter_before: 0,
             l1_batch,
             pubdata_published: 0,
@@ -97,13 +97,13 @@ impl<S> RefundsTracer<S> {
 
     pub(crate) fn tx_body_refund(
         &self,
-        bootloader_refund: u32,
-        gas_spent_on_pubdata: u32,
-        tx_gas_limit: u32,
+        bootloader_refund: u64,
+        gas_spent_on_pubdata: u64,
+        tx_gas_limit: u64,
         current_ergs_per_pubdata_byte: u32,
         pubdata_published: u32,
         tx_hash: H256,
-    ) -> u32 {
+    ) -> u64 {
         let total_gas_spent = tx_gas_limit - bootloader_refund;
 
         let gas_spent_on_computation = total_gas_spent
@@ -155,7 +155,7 @@ impl<S> RefundsTracer<S> {
         tracing::trace!("Gas spent on pubdata: {}", gas_spent_on_pubdata);
         tracing::trace!("Pubdata published: {}", pubdata_published);
 
-        ceil_div_u256(refund_eth, effective_gas_price.into()).as_u32()
+        ceil_div_u256(refund_eth, effective_gas_price.into()).as_u64()
     }
 
     pub(crate) fn pubdata_published(&self) -> u32 {
@@ -174,11 +174,11 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for RefundsTracer<S> {
         self.timestamp_before_cycle = Timestamp(state.vm_local_state.timestamp);
         let hook = VmHook::from_opcode_memory(&state, &data);
         match hook {
-            VmHook::NotifyAboutRefund => self.refund_gas = get_vm_hook_params(memory)[0].as_u32(),
+            VmHook::NotifyAboutRefund => self.refund_gas = get_vm_hook_params(memory)[0].as_u64(),
             VmHook::AskOperatorForRefund => {
                 self.pending_refund_request = Some(RefundRequest {
-                    refund: get_vm_hook_params(memory)[0].as_u32(),
-                    gas_spent_on_pubdata: get_vm_hook_params(memory)[1].as_u32(),
+                    refund: get_vm_hook_params(memory)[0].as_u64(),
+                    gas_spent_on_pubdata: get_vm_hook_params(memory)[1].as_u64(),
                     used_gas_per_pubdata_byte: get_vm_hook_params(memory)[2].as_u32(),
                 })
             }
@@ -190,7 +190,8 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for RefundsTracer<S> {
 impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
     fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         self.timestamp_initial = Timestamp(state.local_state.timestamp);
-        self.gas_remaining_before = state.local_state.callstack.current.ergs_remaining;
+        self.computational_gas_remaining_before =
+            state.local_state.callstack.current.ergs_remaining;
         // TODO: maybe change the name of the field
         self.spent_pubdata_counter_before = state.local_state.pubdata_revert_counter.0 as u32;
     }
@@ -241,7 +242,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
                     tx_description_offset + TX_GAS_LIMIT_OFFSET,
                 )
                 .value
-                .as_u32();
+                .as_u64();
 
             assert!(
                 state.local_state.pubdata_revert_counter.0 >= 0,
@@ -271,7 +272,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
                 );
             }
 
-            let refund_to_propose = tx_body_refund + self.block_overhead_refund();
+            let refund_to_propose = tx_body_refund + (self.block_overhead_refund() as u64);
 
             let refund_slot = OPERATOR_REFUNDS_OFFSET + current_tx_index;
 

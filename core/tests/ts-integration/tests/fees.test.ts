@@ -128,9 +128,44 @@ testFees('Test fees', () => {
             );
         }
 
-        await setInternalL1GasPrice(alice._providerL2(), undefined, true);
-
         console.log(`Full report: \n\n${reports.join('\n\n')}`);
+    });
+
+    test('Test gas consumption under large L1 gas price', async () => {
+        // In this test we check that the server works fine when the required gasLimit is over u32::MAX.
+        // Under normal server behavior, the maximal gas spent on pubdata is around 120kb * 2^20 gas/byte = ~120 * 10^9 gas.
+
+        // In this test we will set gas per pubdata byte to its maximum value, while publishing a large L1->L2 message.
+
+        const minimalL2GasPrice = ethers.BigNumber.from(process.env.CHAIN_STATE_KEEPER_MINIMAL_L2_GAS_PRICE!);
+
+        // We want the total gas limit to be over u32::MAX, so we need the gas per pubdata to be 50k.
+        //
+        // Note, that in case, any sort of overhead is present in the l2 fair gas price calculation, the final
+        // gas per pubdata may be lower than 50_000. Here we assume that it is not the case, but we'll double check
+        // that the gasLimit is indeed over u32::MAX, which is the most important tested property.
+        const requiredPubdataPrice = minimalL2GasPrice.mul(100_000);
+
+        await setInternalL1GasPrice(alice._providerL2(), requiredPubdataPrice.toString());
+
+        const l1Messenger = new ethers.Contract(zksync.utils.L1_MESSENGER_ADDRESS, zksync.utils.L1_MESSENGER, alice);
+
+        const largeData = ethers.utils.randomBytes(90_000);
+        const estimatedGas = await l1Messenger.estimateGas.sendToL1(largeData);
+
+        expect(estimatedGas.gt(ethers.BigNumber.from(2).pow(32))).toBeTruthy();
+
+        const tx = await l1Messenger.sendToL1(largeData);
+
+        console.log(tx.gasLimit);
+        console.log(tx);
+
+        await tx.wait();
+
+        console.log('tmp');
+
+        // Returning the pubdata price to the default one
+        await setInternalL1GasPrice(alice._providerL2(), undefined, true);
     });
 
     afterAll(async () => {
@@ -227,7 +262,7 @@ async function setInternalL1GasPrice(provider: zksync.Provider, newPrice?: strin
     command = `DATABASE_MERKLE_TREE_MODE=full ${command}`;
     if (newPrice) {
         // We need to ensure that each transaction gets into its own batch for more fair comparison.
-        command = `CHAIN_STATE_KEEPER_TRANSACTION_SLOTS=1 ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE=${newPrice} ${command}`;
+        command = `CHAIN_STATE_KEEPER_TRANSACTION_SLOTS=1 ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE=${newPrice} ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_PUBDATA_PRICE=${newPrice} ${command}`;
     }
     const zkSyncServer = utils.background(command, [null, logs, logs]);
 

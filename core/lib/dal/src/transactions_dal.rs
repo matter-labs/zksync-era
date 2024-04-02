@@ -570,7 +570,8 @@ impl TransactionsDal<'_, '_> {
                             l1_indices_in_block.push(index_in_block as i32);
                             l1_errors.push(error.unwrap_or_default());
                             l1_execution_infos.push(serde_json::to_value(execution_info).unwrap());
-                            l1_refunded_gas.push(i64::from(*refunded_gas));
+                            l1_refunded_gas
+                                .push(i64::try_from(*refunded_gas).expect("Refund exceeds i64"));
                             l1_effective_gas_prices
                                 .push(u256_to_big_decimal(common_data.max_fee_per_gas));
                         }
@@ -607,7 +608,8 @@ impl TransactionsDal<'_, '_> {
                             ));
                             l2_gas_per_pubdata_limit
                                 .push(u256_to_big_decimal(common_data.fee.gas_per_pubdata_limit));
-                            l2_refunded_gas.push(i64::from(*refunded_gas));
+                            l2_refunded_gas
+                                .push(i64::try_from(*refunded_gas).expect("Refund exceeds i64"));
                         }
                         ExecuteTransactionCommon::ProtocolUpgrade(common_data) => {
                             upgrade_hashes.push(hash.0.to_vec());
@@ -615,7 +617,8 @@ impl TransactionsDal<'_, '_> {
                             upgrade_errors.push(error.unwrap_or_default());
                             upgrade_execution_infos
                                 .push(serde_json::to_value(execution_info).unwrap());
-                            upgrade_refunded_gas.push(i64::from(*refunded_gas));
+                            upgrade_refunded_gas
+                                .push(i64::try_from(*refunded_gas).expect("Refund exceeds i64"));
                             upgrade_effective_gas_prices
                                 .push(u256_to_big_decimal(common_data.max_fee_per_gas));
                         }

@@ -103,8 +103,8 @@ pub struct Call {
 
 impl Call {
     pub fn new_high_level(
-        gas: u32,
-        gas_used: u32,
+        gas: u64,
+        gas_used: u64,
         value: U256,
         input: Vec<u8>,
         output: Vec<u8>,
@@ -115,9 +115,10 @@ impl Call {
             r#type: CallType::Call(FarCallOpcode::Normal),
             from: Address::zero(),
             to: BOOTLOADER_ADDRESS,
-            parent_gas: gas,
-            gas,
-            gas_used,
+            // FIXME: this is totally not correct
+            parent_gas: gas.max(u32::MAX as u64) as u32,
+            gas: gas.max(u32::MAX as u64) as u32,
+            gas_used: gas_used.max(u32::MAX as u64) as u32,
             value,
             input,
             output,

@@ -179,6 +179,7 @@ impl ProtoRepr for proto::GasAdjuster {
             internal_l1_pricing_multiplier: *required(&self.internal_l1_pricing_multiplier)
                 .context("internal_l1_pricing_multiplier")?,
             internal_enforced_l1_gas_price: self.internal_enforced_l1_gas_price,
+            internal_enforced_pubdata_price: self.internal_enforced_pubdata_price,
             poll_period: *required(&self.poll_period).context("poll_period")?,
             max_l1_gas_price: self.max_l1_gas_price,
             num_samples_for_blob_base_fee_estimate: required(
@@ -202,6 +203,7 @@ impl ProtoRepr for proto::GasAdjuster {
             pricing_formula_parameter_b: Some(this.pricing_formula_parameter_b),
             internal_l1_pricing_multiplier: Some(this.internal_l1_pricing_multiplier),
             internal_enforced_l1_gas_price: this.internal_enforced_l1_gas_price,
+            internal_enforced_pubdata_price: this.internal_enforced_pubdata_price,
             poll_period: Some(this.poll_period),
             max_l1_gas_price: this.max_l1_gas_price,
             num_samples_for_blob_base_fee_estimate: Some(
