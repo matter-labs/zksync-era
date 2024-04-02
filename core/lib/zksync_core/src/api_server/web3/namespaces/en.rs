@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use zksync_config::GenesisConfig;
 use zksync_dal::CoreDal;
-use zksync_types::{api::en, tokens::TokenInfo, L1BatchNumber, MiniblockNumber, H256};
+use zksync_types::{api::en, tokens::TokenInfo, Address, L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::error::Web3Error;
 
 use crate::api_server::web3::{backend_jsonrpsee::MethodTracer, state::RpcState};
@@ -122,7 +122,18 @@ impl EnNamespace {
             recursion_leaf_level_vk_hash: verifier_config.params.recursion_leaf_level_vk_hash,
             recursion_scheduler_level_vk_hash: verifier_config.recursion_scheduler_level_vk_hash,
         };
-        dbg!(&config);
         Ok(config)
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub async fn tokens_whitelisted_for_paymaster_impl(&self) -> Result<Vec<Address>, Web3Error> {
+        Ok(self
+            .state
+            .tx_sender
+            .0
+            .tokens_whitelisted_for_paymaster_cache
+            .read()
+            .await
+            .clone())
     }
 }

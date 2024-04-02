@@ -4,7 +4,10 @@ use anyhow::Context as _;
 use clap::Parser;
 use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
-use tokio::{sync::watch, task};
+use tokio::{
+    sync::{watch, RwLock},
+    task,
+};
 use zksync_basic_types::L2ChainId;
 use zksync_concurrency::{ctx, limiter, scope, time};
 use zksync_config::configs::{chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode};
@@ -45,7 +48,7 @@ use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::ManagedTasks;
-use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
+use zksync_web3_decl::{jsonrpsee::http_client::HttpClient, namespaces::EnNamespaceClient};
 
 use crate::{
     config::{observability::observability_config_from_env, ExternalNodeConfig},
@@ -338,8 +341,14 @@ async fn init_tasks(
     let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
 
-    let (tx_sender, vm_barrier, cache_update_handle, proxy_cache_updater_handle) = {
-        let tx_proxy = TxProxy::new(main_node_client);
+    let (
+        tx_sender,
+        vm_barrier,
+        cache_update_handle,
+        proxy_cache_updater_handle,
+        whitelisted_tokens_update_handle,
+    ) = {
+        let tx_proxy = TxProxy::new(main_node_client.clone());
         let proxy_cache_updater_pool = singleton_pool_builder
             .build()
             .await
@@ -377,12 +386,33 @@ async fn init_tasks(
             )
         });
 
+        let tokens_whitelisted_for_paymaster_cache = Arc::new(RwLock::new(Vec::new())); // todo
+        let tokens_whitelisted_for_paymaster_cache_clone =
+            tokens_whitelisted_for_paymaster_cache.clone();
+        let whitelisted_tokens_update_task = task::spawn(async move {
+            loop {
+                match main_node_client.tokens_whitelisted_for_paymaster().await {
+                    Ok(tokens) => {
+                        *tokens_whitelisted_for_paymaster_cache_clone.write().await = tokens;
+                    }
+                    Err(err) => {
+                        tracing::error!(
+                            "Failed to query `tokens_whitelisted_for_paymaster`, error: {err:?}"
+                        );
+                    }
+                }
+
+                tokio::time::sleep(Duration::from_secs(60)).await;
+            }
+        });
+
         let tx_sender = tx_sender_builder
             .build(
                 fee_params_fetcher,
                 Arc::new(vm_concurrency_limiter),
                 ApiContracts::load_from_disk(), // TODO (BFT-138): Allow to dynamically reload API contracts
                 storage_caches,
+                tokens_whitelisted_for_paymaster_cache,
             )
             .await;
         (
@@ -390,6 +420,7 @@ async fn init_tasks(
             vm_barrier,
             cache_update_handle,
             proxy_cache_updater_handle,
+            whitelisted_tokens_update_task,
         )
     };
 
@@ -450,6 +481,7 @@ async fn init_tasks(
     task_handles.extend(ws_server_handles.tasks);
     task_handles.extend(cache_update_handle);
     task_handles.push(proxy_cache_updater_handle);
+    task_handles.push(whitelisted_tokens_update_handle);
     task_handles.extend([
         sk_handle,
         fee_address_migration_handle,

@@ -51,7 +51,7 @@ mod tests {
     use std::num::NonZeroU32;
 
     use super::*;
-    use crate::test_utils::{hash, EnvMutex};
+    use crate::test_utils::{addr, hash, EnvMutex};
 
     static MUTEX: EnvMutex = EnvMutex::new();
 
@@ -90,6 +90,10 @@ mod tests {
                 tree_api_url: None,
                 mempool_cache_update_interval: Some(50),
                 mempool_cache_size: Some(10000),
+                tokens_whitelisted_for_paymaster: Some(vec![
+                    addr("0x0000000000000000000000000000000000000001"),
+                    addr("0x0000000000000000000000000000000000000002"),
+                ]),
             },
             contract_verification: ContractVerificationApiConfig {
                 port: 3070,
@@ -126,6 +130,7 @@ mod tests {
             API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR=1.2
             API_WEB3_JSON_RPC_REQUEST_TIMEOUT=10
             API_WEB3_JSON_RPC_ACCOUNT_PKS="0x0000000000000000000000000000000000000000000000000000000000000001,0x0000000000000000000000000000000000000000000000000000000000000002"
+            API_WEB3_JSON_RPC_TOKENS_WHITELISTED_FOR_PAYMASTER="0x0000000000000000000000000000000000000001,0x0000000000000000000000000000000000000002"
             API_WEB3_JSON_RPC_ESTIMATE_GAS_SCALE_FACTOR=1.0
             API_WEB3_JSON_RPC_ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION=1000
             API_WEB3_JSON_RPC_L1_TO_L2_TRANSACTIONS_COMPATIBILITY_MODE=true

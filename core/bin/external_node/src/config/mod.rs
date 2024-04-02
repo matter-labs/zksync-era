@@ -682,6 +682,8 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
                 .optional
                 .l1_to_l2_transactions_compatibility_mode,
             max_pubdata_per_batch: config.remote.max_pubdata_per_batch,
+            // Does not matter for EN.
+            tokens_whitelisted_for_paymaster: None,
         }
     }
 }

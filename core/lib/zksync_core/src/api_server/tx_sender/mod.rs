@@ -8,6 +8,7 @@ use multivm::{
     utils::{adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead},
     vm_latest::constants::BLOCK_GAS_LIMIT,
 };
+use tokio::sync::RwLock;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{
@@ -181,6 +182,7 @@ impl TxSenderBuilder {
         vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
         api_contracts: ApiContracts,
         storage_caches: PostgresStorageCaches,
+        tokens_whitelisted_for_paymaster_cache: Arc<RwLock<Vec<Address>>>,
     ) -> TxSender {
         // Use noop sealer if no sealer was explicitly provided.
         let sealer = self.sealer.unwrap_or_else(|| Arc::new(NoopSealer));
@@ -193,6 +195,7 @@ impl TxSenderBuilder {
             api_contracts,
             vm_concurrency_limiter,
             storage_caches,
+            tokens_whitelisted_for_paymaster_cache,
             sealer,
             executor: TransactionExecutor::Real,
         }))
@@ -214,6 +217,7 @@ pub struct TxSenderConfig {
     pub l1_to_l2_transactions_compatibility_mode: bool,
     pub chain_id: L2ChainId,
     pub max_pubdata_per_batch: u64,
+    pub tokens_whitelisted_for_paymaster: Option<Vec<Address>>,
 }
 
 impl TxSenderConfig {
@@ -234,6 +238,9 @@ impl TxSenderConfig {
                 .l1_to_l2_transactions_compatibility_mode,
             chain_id,
             max_pubdata_per_batch: state_keeper_config.max_pubdata_per_batch,
+            tokens_whitelisted_for_paymaster: web3_json_config
+                .tokens_whitelisted_for_paymaster
+                .clone(),
         }
     }
 }
@@ -250,6 +257,8 @@ pub struct TxSenderInner {
     pub(super) vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
     // Caches used in VM execution.
     storage_caches: PostgresStorageCaches,
+    // Cache for whitelisted tokens.
+    pub(super) tokens_whitelisted_for_paymaster_cache: Arc<RwLock<Vec<Address>>>,
     /// Batch sealer used to check whether transaction can be executed by the sequencer.
     sealer: Arc<dyn ConditionalSealer>,
     pub(super) executor: TransactionExecutor,
@@ -392,6 +401,12 @@ impl TxSender {
                 .sender_config
                 .validation_computational_gas_limit,
             chain_id: self.0.sender_config.chain_id,
+            tokens_whitelisted_for_paymaster: self
+                .0
+                .tokens_whitelisted_for_paymaster_cache
+                .read()
+                .await
+                .clone(),
         }
     }
 
@@ -594,7 +609,7 @@ impl TxSender {
             }
         }
 
-        let shared_args = self.shared_args_for_gas_estimate(fee_model_params);
+        let shared_args = self.shared_args_for_gas_estimate(fee_model_params).await;
         let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
         let execution_args =
             TxExecutionArgs::for_gas_estimate(vm_execution_cache_misses_limit, &tx, base_fee);
@@ -615,7 +630,7 @@ impl TxSender {
         Ok((execution_output.vm, execution_output.metrics))
     }
 
-    fn shared_args_for_gas_estimate(&self, fee_input: BatchFeeInput) -> TxSharedArgs {
+    async fn shared_args_for_gas_estimate(&self, fee_input: BatchFeeInput) -> TxSharedArgs {
         let config = &self.0.sender_config;
 
         TxSharedArgs {
@@ -626,6 +641,12 @@ impl TxSender {
             base_system_contracts: self.0.api_contracts.estimate_gas.clone(),
             caches: self.storage_caches(),
             chain_id: config.chain_id,
+            tokens_whitelisted_for_paymaster: self
+                .0
+                .tokens_whitelisted_for_paymaster_cache
+                .read()
+                .await
+                .clone(),
         }
     }
 

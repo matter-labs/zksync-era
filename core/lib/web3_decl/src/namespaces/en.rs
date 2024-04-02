@@ -1,6 +1,6 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use zksync_config::GenesisConfig;
-use zksync_types::{api::en, tokens::TokenInfo, MiniblockNumber};
+use zksync_types::{api::en, tokens::TokenInfo, Address, MiniblockNumber};
 
 #[cfg_attr(
     all(feature = "client", feature = "server"),
@@ -35,4 +35,8 @@ pub trait EnNamespace {
     /// Get genesis configuration
     #[method(name = "genesisConfig")]
     async fn genesis_config(&self) -> RpcResult<GenesisConfig>;
+
+    /// Get tokens that are whitelisted and it can be used by paymasters.
+    #[method(name = "tokensWhitelistedForPaymaster")]
+    async fn tokens_whitelisted_for_paymaster(&self) -> RpcResult<Vec<Address>>;
 }
