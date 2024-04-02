@@ -107,7 +107,7 @@ struct PooledConnection<'a> {
 impl fmt::Debug for PooledConnection<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("PooledStorageProcessor")
+            .debug_struct("PooledConnection")
             .field("tags", &self.tags)
             .field("created_at", &self.created_at)
             .finish_non_exhaustive()
@@ -159,7 +159,7 @@ pub struct Connection<'a, DB: DbMarker> {
 }
 
 impl<'a, DB: DbMarker> Connection<'a, DB> {
-    /// Creates a `StorageProcessor` using a pool of connections.
+    /// Creates a `Connection` using a pool of connections.
     /// This method borrows one of the connections from the pool, and releases it
     /// after `drop`.
     pub(crate) fn from_pool(
@@ -198,7 +198,7 @@ impl<'a, DB: DbMarker> Connection<'a, DB> {
         })
     }
 
-    /// Checks if the `StorageProcessor` is currently within database transaction.
+    /// Checks if the `Connection` is currently within database transaction.
     pub fn in_transaction(&self) -> bool {
         matches!(self.inner, ConnectionInner::Transaction { .. })
     }
@@ -214,7 +214,7 @@ impl<'a, DB: DbMarker> Connection<'a, DB> {
                 .await
                 .map_err(|err| DalConnectionError::commit_transaction(err, tags.cloned()).into())
         } else {
-            panic!("StorageProcessor::commit can only be invoked after calling StorageProcessor::begin_transaction");
+            panic!("Connection::commit can only be invoked after calling Connection::begin_transaction");
         }
     }
 
