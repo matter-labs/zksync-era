@@ -5,6 +5,7 @@
 use std::fmt::Formatter;
 
 use anyhow::Context as _;
+use itertools::Itertools;
 use multivm::{
     circuit_sequencer_api_latest::sort_storage_access::sort_storage_access_queries,
     utils::get_max_gas_per_pubdata_byte,
@@ -24,7 +25,7 @@ use zksync_types::{
     },
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
-    get_code_key, get_system_context_init_logs,
+    get_code_key, get_known_code_key, get_system_context_init_logs,
     protocol_upgrade::{decode_set_chain_id_event, ProtocolVersion},
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
@@ -311,6 +312,29 @@ async fn insert_system_contracts(
 ) -> Result<(), GenesisError> {
     let system_context_init_logs = (H256::default(), get_system_context_init_logs(chain_id));
 
+    let known_code_storage_logs: Vec<_> = contracts
+        .iter()
+        .map(|contract| {
+            let hash = hash_bytecode(&contract.bytecode);
+            let known_code_key = get_known_code_key(&hash);
+            let marked_known_value = H256::from_low_u64_be(1u64);
+            println!(
+                "{:?} : {:?} : {:?}",
+                hex::encode(contract.account_id.address().as_bytes()),
+                hex::encode(hash.as_bytes()),
+                hex::encode(known_code_key.hashed_key().as_bytes())
+            );
+            (
+                H256::default(),
+                vec![StorageLog::new_write_log(
+                    known_code_key,
+                    marked_known_value,
+                )],
+            )
+        })
+        .dedup_by(|a, b| a.1 == b.1)
+        .collect();
+
     let storage_logs: Vec<_> = contracts
         .iter()
         .map(|contract| {
@@ -322,6 +346,7 @@ async fn insert_system_contracts(
             )
         })
         .chain(Some(system_context_init_logs))
+        .chain(known_code_storage_logs)
         .collect();
 
     let mut transaction = storage.start_transaction().await?;
