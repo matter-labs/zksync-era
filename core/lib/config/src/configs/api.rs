@@ -102,7 +102,7 @@ pub struct Web3JsonRpcConfig {
     pub mempool_cache_update_interval: Option<u64>,
     /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
     pub mempool_cache_size: Option<usize>,
-    /// List of L2 token addresses that are whitelisted to use by paymasters
+    /// List of L2 token addresses that are white-listed to use by paymasters
     /// (additionally to natively bridged tokens).
     pub tokens_whitelisted_for_paymaster: Option<Vec<Address>>,
 }

@@ -36,7 +36,7 @@ pub trait EnNamespace {
     #[method(name = "genesisConfig")]
     async fn genesis_config(&self) -> RpcResult<GenesisConfig>;
 
-    /// Get tokens that are whitelisted and it can be used by paymasters.
+    /// Get tokens that are white-listed and it can be used by paymasters.
     #[method(name = "tokensWhitelistedForPaymaster")]
     async fn tokens_whitelisted_for_paymaster(&self) -> RpcResult<Vec<Address>>;
 }

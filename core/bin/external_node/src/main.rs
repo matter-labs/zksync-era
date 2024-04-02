@@ -386,7 +386,7 @@ async fn init_tasks(
             )
         });
 
-        let tokens_whitelisted_for_paymaster_cache = Arc::new(RwLock::new(Vec::new())); // todo
+        let tokens_whitelisted_for_paymaster_cache = Arc::new(RwLock::new(Vec::new()));
         let tokens_whitelisted_for_paymaster_cache_clone =
             tokens_whitelisted_for_paymaster_cache.clone();
         let whitelisted_tokens_update_task = task::spawn(async move {

@@ -257,7 +257,7 @@ pub struct TxSenderInner {
     pub(super) vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
     // Caches used in VM execution.
     storage_caches: PostgresStorageCaches,
-    // Cache for whitelisted tokens.
+    // Cache for white-listed tokens.
     pub(super) tokens_whitelisted_for_paymaster_cache: Arc<RwLock<Vec<Address>>>,
     /// Batch sealer used to check whether transaction can be executed by the sequencer.
     sealer: Arc<dyn ConditionalSealer>,
