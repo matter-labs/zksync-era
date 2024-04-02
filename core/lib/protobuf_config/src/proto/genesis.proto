@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package zksync.config.genesis;
+
+enum L1BatchCommitDataGeneratorMode {
+  Rollup = 0;
+  Validium = 1;
+}
+
+message Prover {
+  optional string recursion_scheduler_level_vk_hash = 1; // required; H256
+  optional string recursion_node_level_vk_hash = 2; // required; H256
+  optional string recursion_leaf_level_vk_hash = 3; // required; H256
+  optional string recursion_circuits_set_vks_hash = 4; // required; H256
+  optional bool dummy_verifier = 5;
+}
+
+message SharedBridge {
+  optional string bridgehub_proxy_addr = 1; // optional; h160
+  optional string state_transition_proxy_addr = 2; // optional; h160
+  optional string transparent_proxy_admin_addr = 3; // optional; h160
+}
+
+message Genesis {
+  optional string genesis_root = 1; // optional; h256
+  optional uint64 genesis_rollup_leaf_index = 2; // optional;
+  optional string genesis_batch_commitment = 3; // optional; h256
+  optional uint32 genesis_protocol_version = 4; // optional;
+  optional string default_aa_hash = 5; // optional; h256
+  optional string bootloader_hash = 6; // optional; h256
+  optional uint64 l1_chain_id = 7; // optional;
+  optional uint64 l2_chain_id = 8; // optional;
+  optional string fee_account = 9; // h160
+  optional Prover prover = 10;
+  optional SharedBridge shared_bridge = 11;
+  optional L1BatchCommitDataGeneratorMode l1_batch_commit_data_generator_mode = 29; // optional, default to rollup
+}

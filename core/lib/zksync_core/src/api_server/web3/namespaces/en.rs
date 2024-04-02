@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_config::GenesisConfig;
+use zksync_config::{configs::genesis::SharedBridge, GenesisConfig};
 use zksync_dal::{CoreDal, DalError};
 use zksync_types::{api::en, tokens::TokenInfo, L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::error::Web3Error;
@@ -89,6 +89,29 @@ impl EnNamespace {
             .await
             .map_err(DalError::generalize)?
             .context("Genesis not finished")?;
+
+        let shared_bridge = if self.state.api_config.state_transition_proxy_addr.is_some() {
+            Some(SharedBridge {
+                bridgehub_proxy_addr: self
+                    .state
+                    .api_config
+                    .bridgehub_proxy_addr
+                    .context("Bridge proxy is not set with state_transition")?,
+                state_transition_proxy_addr: self
+                    .state
+                    .api_config
+                    .state_transition_proxy_addr
+                    .unwrap(),
+                transparent_proxy_admin_addr: self
+                    .state
+                    .api_config
+                    .transparent_proxy_admin_addr
+                    .context("transparent_proxy_admin_addr is not set with state_transition")?,
+            })
+        } else {
+            None
+        };
+
         let config = GenesisConfig {
             protocol_version,
             genesis_root_hash: H256::from_slice(
@@ -112,13 +135,20 @@ impl EnNamespace {
                     .default_aa_code_hash
                     .context("Genesis is not finished")?,
             ),
-            fee_account,
             l1_chain_id: self.state.api_config.l1_chain_id,
 
             l2_chain_id: self.state.api_config.l2_chain_id,
             recursion_node_level_vk_hash: verifier_config.params.recursion_node_level_vk_hash,
             recursion_leaf_level_vk_hash: verifier_config.params.recursion_leaf_level_vk_hash,
+            recursion_circuits_set_vks_hash: Default::default(),
             recursion_scheduler_level_vk_hash: verifier_config.recursion_scheduler_level_vk_hash,
+            fee_account,
+            shared_bridge,
+            dummy_verifier: self.state.api_config.dummy_verifier,
+            l1_batch_commit_data_generator_mode: self
+                .state
+                .api_config
+                .l1_batch_commit_data_generator_mode,
         };
         Ok(config)
     }

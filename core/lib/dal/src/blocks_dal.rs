@@ -604,11 +604,31 @@ impl BlocksDal<'_, '_> {
                     protocol_version,
                     virtual_blocks,
                     fair_pubdata_price,
+                    gas_limit,
                     created_at,
                     updated_at
                 )
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
+                (
+                    $1,
+                    $2,
+                    $3,
+                    $4,
+                    $5,
+                    $6,
+                    $7,
+                    $8,
+                    $9,
+                    $10,
+                    $11,
+                    $12,
+                    $13,
+                    $14,
+                    $15,
+                    $16,
+                    NOW(),
+                    NOW()
+                )
             "#,
             i64::from(miniblock_header.number.0),
             miniblock_header.timestamp as i64,
@@ -631,6 +651,7 @@ impl BlocksDal<'_, '_> {
             miniblock_header.protocol_version.map(|v| v as i32),
             i64::from(miniblock_header.virtual_blocks),
             miniblock_header.batch_fee_input.fair_pubdata_price() as i64,
+            miniblock_header.gas_limit as i64,
         )
         .execute(self.storage.conn())
         .await?;
@@ -656,7 +677,8 @@ impl BlocksDal<'_, '_> {
                 default_aa_code_hash,
                 protocol_version,
                 virtual_blocks,
-                fair_pubdata_price
+                fair_pubdata_price,
+                gas_limit
             FROM
                 miniblocks
             ORDER BY
@@ -703,7 +725,8 @@ impl BlocksDal<'_, '_> {
                 default_aa_code_hash,
                 protocol_version,
                 virtual_blocks,
-                fair_pubdata_price
+                fair_pubdata_price,
+                gas_limit
             FROM
                 miniblocks
             WHERE
