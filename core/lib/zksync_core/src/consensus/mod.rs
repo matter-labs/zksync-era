@@ -12,9 +12,8 @@ use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
 use zksync_dal::{ConnectionPool, Core};
 
-use crate::sync_layer::{sync_action::ActionQueueSender, MainNodeClient, SyncState};
-
 pub use self::{fetcher::*, storage::Store};
+use crate::sync_layer::{sync_action::ActionQueueSender, MainNodeClient, SyncState};
 
 mod config;
 mod fetcher;
