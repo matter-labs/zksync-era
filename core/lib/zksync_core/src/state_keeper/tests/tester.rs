@@ -11,7 +11,7 @@ use multivm::{
     interface::{
         ExecutionResult, L1BatchEnv, SystemEnv, TxExecutionMode, VmExecutionResultAndLogs,
     },
-    vm_latest::constants::BLOCK_GAS_LIMIT,
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use tokio::sync::{mpsc, watch};
 use zksync_contracts::BaseSystemContracts;
@@ -300,9 +300,9 @@ pub(crate) fn pending_batch_data(
             zk_porter_available: false,
             version: ProtocolVersionId::latest(),
             base_system_smart_contracts: BASE_SYSTEM_CONTRACTS.clone(),
-            gas_limit: BLOCK_GAS_LIMIT,
+            bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             execution_mode: TxExecutionMode::VerifyExecute,
-            default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+            default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             chain_id: L2ChainId::from(270),
         },
         pending_miniblocks,
@@ -721,7 +721,7 @@ impl StateKeeperIO for TestIO {
 
         let params = L1BatchParams {
             protocol_version: self.protocol_version,
-            validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+            validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             operator_address: self.fee_account,
             fee_input: self.fee_input,
             first_miniblock: MiniblockParams {

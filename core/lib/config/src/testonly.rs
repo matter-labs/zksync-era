@@ -36,19 +36,10 @@ impl Distribution<configs::chain::FeeModelVersion> for EncodeDist {
     }
 }
 
-impl Distribution<configs::AlertsConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::AlertsConfig {
-        configs::AlertsConfig {
-            sporadic_crypto_errors_substrs: self.sample_collect(rng),
-        }
-    }
-}
-
 impl Distribution<configs::ApiConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ApiConfig {
         configs::ApiConfig {
             web3_json_rpc: self.sample(rng),
-            contract_verification: self.sample(rng),
             prometheus: self.sample(rng),
             healthcheck: self.sample(rng),
             merkle_tree: self.sample(rng),
@@ -153,6 +144,7 @@ impl Distribution<configs::chain::L1BatchCommitDataGeneratorMode> for EncodeDist
 }
 
 impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
+    #[allow(deprecated)]
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::chain::StateKeeperConfig {
         configs::chain::StateKeeperConfig {
             transaction_slots: self.sample(rng),
@@ -167,7 +159,6 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             close_block_at_geometry_percentage: self.sample(rng),
             close_block_at_eth_params_percentage: self.sample(rng),
             close_block_at_gas_percentage: self.sample(rng),
-            fee_account_addr: rng.gen(),
             minimal_l2_gas_price: self.sample(rng),
             compute_overhead_part: self.sample(rng),
             pubdata_overhead_part: self.sample(rng),
@@ -180,9 +171,11 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             virtual_blocks_interval: self.sample(rng),
             virtual_blocks_per_miniblock: self.sample(rng),
             enum_index_migration_chunk_size: self.sample(rng),
-            bootloader_hash: rng.gen(),
-            default_aa_hash: rng.gen(),
-            l1_batch_commit_data_generator_mode: self.sample(rng),
+            // These values are not involved into files serialization skip them
+            fee_account_addr: None,
+            bootloader_hash: None,
+            default_aa_hash: None,
+            l1_batch_commit_data_generator_mode: Default::default(),
         }
     }
 }
@@ -225,49 +218,27 @@ impl Distribution<configs::ContractVerifierConfig> for EncodeDist {
             compilation_timeout: self.sample(rng),
             polling_interval: self.sample(rng),
             prometheus_port: self.sample(rng),
+            threads_per_server: self.sample(rng),
+            port: self.sample(rng),
+            url: self.sample(rng),
         }
     }
 }
 
 impl Distribution<configs::ContractsConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ContractsConfig {
+    fn sample<R: Rng + ?Sized>(&self, g: &mut R) -> configs::ContractsConfig {
         configs::ContractsConfig {
-            governance_addr: rng.gen(),
-            mailbox_facet_addr: rng.gen(),
-            executor_facet_addr: rng.gen(),
-            admin_facet_addr: rng.gen(),
-            getters_facet_addr: rng.gen(),
-            verifier_addr: rng.gen(),
-            diamond_init_addr: rng.gen(),
-            diamond_upgrade_init_addr: rng.gen(),
-            diamond_proxy_addr: rng.gen(),
-            validator_timelock_addr: rng.gen(),
-            genesis_tx_hash: rng.gen(),
-            l1_erc20_bridge_proxy_addr: rng.gen(),
-            l1_erc20_bridge_impl_addr: rng.gen(),
-            l2_erc20_bridge_addr: rng.gen(),
-            l1_weth_bridge_proxy_addr: rng.gen(),
-            l2_weth_bridge_addr: rng.gen(),
-            l1_allow_list_addr: rng.gen(),
-            l2_testnet_paymaster_addr: rng.gen(),
-            recursion_scheduler_level_vk_hash: rng.gen(),
-            recursion_node_level_vk_hash: rng.gen(),
-            recursion_leaf_level_vk_hash: rng.gen(),
-            recursion_circuits_set_vks_hash: rng.gen(),
-            l1_multicall3_addr: rng.gen(),
-            fri_recursion_scheduler_level_vk_hash: rng.gen(),
-            fri_recursion_node_level_vk_hash: rng.gen(),
-            fri_recursion_leaf_level_vk_hash: rng.gen(),
-            snark_wrapper_vk_hash: rng.gen(),
-            bridgehub_impl_addr: rng.gen(),
-            bridgehub_proxy_addr: rng.gen(),
-            state_transition_proxy_addr: rng.gen(),
-            state_transition_impl_addr: rng.gen(),
-            transparent_proxy_admin_addr: rng.gen(),
-            genesis_batch_commitment: rng.gen(),
-            genesis_rollup_leaf_index: self.sample(rng),
-            genesis_root: rng.gen(),
-            genesis_protocol_version: self.sample(rng),
+            governance_addr: g.gen(),
+            verifier_addr: g.gen(),
+            default_upgrade_addr: g.gen(),
+            diamond_proxy_addr: g.gen(),
+            validator_timelock_addr: g.gen(),
+            l1_erc20_bridge_proxy_addr: g.gen(),
+            l2_erc20_bridge_addr: g.gen(),
+            l1_weth_bridge_proxy_addr: g.gen(),
+            l2_weth_bridge_addr: g.gen(),
+            l2_testnet_paymaster_addr: g.gen(),
+            l1_multicall3_addr: g.gen(),
         }
     }
 }
@@ -317,24 +288,19 @@ impl Distribution<configs::database::PostgresConfig> for EncodeDist {
             statement_timeout_sec: self.sample(rng),
             long_connection_threshold_ms: self.sample(rng),
             slow_query_threshold_ms: self.sample(rng),
+            test_server_url: self.sample(rng),
+            test_prover_url: self.sample(rng),
         }
     }
 }
 
-impl Distribution<configs::ETHClientConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ETHClientConfig {
-        configs::ETHClientConfig {
-            chain_id: self.sample(rng),
-            web3_url: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::ETHSenderConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ETHSenderConfig {
-        configs::ETHSenderConfig {
+impl Distribution<configs::ETHConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ETHConfig {
+        configs::ETHConfig {
             sender: self.sample(rng),
             gas_adjuster: self.sample(rng),
+            watcher: self.sample(rng),
+            web3_url: self.sample(rng),
         }
     }
 }
@@ -593,15 +559,12 @@ impl Distribution<configs::house_keeper::HouseKeeperConfig> for EncodeDist {
             prover_stats_reporting_interval_ms: self.sample(rng),
             witness_job_moving_interval_ms: self.sample(rng),
             witness_generator_stats_reporting_interval_ms: self.sample(rng),
-            fri_witness_job_moving_interval_ms: self.sample(rng),
-            fri_prover_job_retrying_interval_ms: self.sample(rng),
-            fri_witness_generator_job_retrying_interval_ms: self.sample(rng),
             prover_db_pool_size: self.sample(rng),
-            fri_prover_stats_reporting_interval_ms: self.sample(rng),
-            fri_proof_compressor_job_retrying_interval_ms: self.sample(rng),
-            fri_proof_compressor_stats_reporting_interval_ms: self.sample(rng),
-            fri_prover_job_archiver_reporting_interval_ms: self.sample(rng),
-            fri_prover_job_archiver_archiving_interval_secs: self.sample(rng),
+            witness_generator_job_retrying_interval_ms: self.sample(rng),
+            proof_compressor_job_retrying_interval_ms: self.sample(rng),
+            proof_compressor_stats_reporting_interval_ms: self.sample(rng),
+            prover_job_archiver_reporting_interval_ms: self.sample(rng),
+            prover_job_archiver_archiving_interval_secs: self.sample(rng),
             fri_gpu_prover_archiver_reporting_interval_secs: self.sample(rng),
             fri_gpu_prover_archiver_archiving_interval_secs: self.sample(rng),
         }
@@ -652,6 +615,7 @@ impl Distribution<configs::SnapshotsCreatorConfig> for EncodeDist {
         configs::SnapshotsCreatorConfig {
             storage_logs_chunk_size: self.sample(rng),
             concurrent_queries_count: self.sample(rng),
+            object_store: self.sample(rng),
         }
     }
 }
@@ -692,6 +656,7 @@ impl Distribution<configs::ObservabilityConfig> for EncodeDist {
             sentry_environment: self.sample(rng),
             log_format: self.sample(rng),
             opentelemetry: self.sample(rng),
+            sporadic_crypto_errors_substrs: self.sample_collect(rng),
         }
     }
 }
@@ -720,6 +685,20 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             recursion_node_level_vk_hash: rng.gen(),
             recursion_leaf_level_vk_hash: rng.gen(),
             recursion_scheduler_level_vk_hash: rng.gen(),
+            recursion_circuits_set_vks_hash: rng.gen(),
+            shared_bridge: self.sample(rng),
+            dummy_verifier: rng.gen(),
+            l1_batch_commit_data_generator_mode: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::SharedBridge> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::SharedBridge {
+        configs::SharedBridge {
+            bridgehub_proxy_addr: rng.gen(),
+            state_transition_proxy_addr: rng.gen(),
+            transparent_proxy_admin_addr: rng.gen(),
         }
     }
 }

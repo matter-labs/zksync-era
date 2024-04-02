@@ -132,7 +132,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         },
     );
 
-    vm.local_state.callstack.current.ergs_remaining = system_env.gas_limit;
+    vm.local_state.callstack.current.ergs_remaining = system_env.bootloader_gas_limit;
 
     let initial_context = CallStackEntry {
         this_address: BOOTLOADER_ADDRESS,
@@ -147,7 +147,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         heap_bound: BOOTLOADER_MAX_MEMORY,
         aux_heap_bound: BOOTLOADER_MAX_MEMORY,
         exception_handler_location: INITIAL_FRAME_FORMAL_EH_LOCATION,
-        ergs_remaining: system_env.gas_limit,
+        ergs_remaining: system_env.bootloader_gas_limit,
         this_shard_id: 0,
         caller_shard_id: 0,
         code_shard_id: 0,

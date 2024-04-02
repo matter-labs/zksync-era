@@ -126,7 +126,7 @@ impl EthNamespace {
         let fee = self
             .state
             .tx_sender
-            .get_txs_fee_in_wei(tx.into(), scale_factor, acceptable_overestimation)
+            .get_txs_fee_in_wei(tx.into(), scale_factor, acceptable_overestimation as u64)
             .await?;
         Ok(fee.gas_limit)
     }

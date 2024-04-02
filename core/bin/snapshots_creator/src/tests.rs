@@ -27,10 +27,12 @@ use super::*;
 const TEST_CONFIG: SnapshotsCreatorConfig = SnapshotsCreatorConfig {
     storage_logs_chunk_size: 1_000_000,
     concurrent_queries_count: 10,
+    object_store: None,
 };
 const SEQUENTIAL_TEST_CONFIG: SnapshotsCreatorConfig = SnapshotsCreatorConfig {
     storage_logs_chunk_size: 1_000_000,
     concurrent_queries_count: 1,
+    object_store: None,
 };
 
 #[derive(Debug)]
@@ -149,6 +151,7 @@ async fn create_miniblock(
         base_system_contracts_hashes: Default::default(),
         protocol_version: Some(Default::default()),
         virtual_blocks: 0,
+        gas_limit: 0,
     };
 
     conn.blocks_dal()
