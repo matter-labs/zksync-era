@@ -181,7 +181,10 @@ impl<'a> ServiceContext<'a> {
                 T::name(),
                 type_name::<T>()
             );
-            return Err(WiringError::ResourceAlreadyProvided{id: ResourceId::of<T>(), name: T::name()});
+            return Err(WiringError::ResourceAlreadyProvided {
+                id: ResourceId::of::<T>(),
+                name: T::name(),
+            });
         }
         self.service.resources.insert(id, Box::new(resource));
         tracing::info!(
