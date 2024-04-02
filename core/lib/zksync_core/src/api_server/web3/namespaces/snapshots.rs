@@ -63,12 +63,6 @@ impl SnapshotsNamespace {
                 })
             })
             .collect();
-        let l1_batch_with_metadata = storage_processor
-            .blocks_dal()
-            .get_l1_batch_metadata(l1_batch_number)
-            .await
-            .context("get_l1_batch_metadata")?
-            .with_context(|| format!("missing metadata for L1 batch #{l1_batch_number}"))?;
         let (_, miniblock_number) = storage_processor
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(l1_batch_number)
@@ -80,7 +74,6 @@ impl SnapshotsNamespace {
             version: snapshot_metadata.version.into(),
             l1_batch_number: snapshot_metadata.l1_batch_number,
             miniblock_number,
-            last_l1_batch_with_metadata: l1_batch_with_metadata,
             storage_logs_chunks: chunks,
             factory_deps_filepath: snapshot_metadata.factory_deps_filepath,
         }))
