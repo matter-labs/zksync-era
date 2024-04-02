@@ -176,7 +176,12 @@ impl MetadataCalculator {
 
         // line below requests pruner to stop
         pruner_handle.abort();
-        pruner_thread.join().unwrap();
+        // we can't just join thread here as it may cause deadlock
+        // if tree pruner is currently executing async code, as join is blocking
+        tokio::task::spawn_blocking(|| {
+            pruner_thread.join().unwrap();
+        })
+        .await?;
 
         Ok(())
     }
