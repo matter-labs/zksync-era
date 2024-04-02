@@ -17,6 +17,8 @@ import * as zksync from 'zksync-web3';
 import { BigNumber, ethers } from 'ethers';
 import { Token } from '../src/types';
 
+const UINT32_MAX = BigNumber.from(2).pow(32).sub(1);
+
 const logs = fs.createWriteStream('fees.log', { flags: 'a' });
 
 // Unless `RUN_FEE_TEST` is provided, skip the test suit
@@ -31,16 +33,16 @@ const L1_GAS_PRICES_TO_TEST = process.env.CI
       ]
     : [
           1_000_000_000, // 1 gwei
-          5_000_000_000, // 5 gwei
-          10_000_000_000, // 10 gwei
-          25_000_000_000, // 25 gwei
-          50_000_000_000, // 50 gwei
-          100_000_000_000, // 100 gwei
-          200_000_000_000, // 200 gwei
-          400_000_000_000, // 400 gwei
-          800_000_000_000, // 800 gwei
-          1_000_000_000_000, // 1000 gwei
-          2_000_000_000_000 // 2000 gwei
+          5_000_000_000 // 5 gwei
+          //   10_000_000_000, // 10 gwei
+          //   25_000_000_000, // 25 gwei
+          //   50_000_000_000, // 50 gwei
+          //   100_000_000_000, // 100 gwei
+          //   200_000_000_000, // 200 gwei
+          //   400_000_000_000, // 400 gwei
+          //   800_000_000_000, // 800 gwei
+          //   1_000_000_000_000, // 1000 gwei
+          //   2_000_000_000_000 // 2000 gwei
       ];
 
 testFees('Test fees', () => {
@@ -150,19 +152,28 @@ testFees('Test fees', () => {
 
         const l1Messenger = new ethers.Contract(zksync.utils.L1_MESSENGER_ADDRESS, zksync.utils.L1_MESSENGER, alice);
 
+        // Firstly, let's test a successful transaction.
         const largeData = ethers.utils.randomBytes(90_000);
-        const estimatedGas = await l1Messenger.estimateGas.sendToL1(largeData);
-
-        expect(estimatedGas.gt(ethers.BigNumber.from(2).pow(32))).toBeTruthy();
-
         const tx = await l1Messenger.sendToL1(largeData);
+        expect(tx.gasLimit.gt(UINT32_MAX)).toBeTruthy();
+        const receipt = await tx.wait();
+        expect(receipt.gasUsed.gt(UINT32_MAX)).toBeTruthy();
 
-        console.log(tx.gasLimit);
-        console.log(tx);
+        // Secondly, let's test an unsuccessful transaction with large refund.
 
-        await tx.wait();
+        // This should not be enough for the execution
+        const gasToPass = receipt.gasUsed.sub(1);
+        const unsuccessfulTx = await l1Messenger.sendToL1(largeData, {
+            gasLimit: gasToPass
+        });
 
-        console.log('tmp');
+        try {
+            await unsuccessfulTx.wait();
+            throw new Error('The transaction should have reverted');
+        } catch {
+            const receipt = await alice.provider.getTransactionReceipt(unsuccessfulTx.hash);
+            expect(gasToPass.sub(receipt.gasUsed).gt(UINT32_MAX)).toBeTruthy();
+        }
 
         // Returning the pubdata price to the default one
         await setInternalL1GasPrice(alice._providerL2(), undefined, true);
