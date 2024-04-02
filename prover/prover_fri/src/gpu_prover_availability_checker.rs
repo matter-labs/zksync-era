@@ -28,7 +28,7 @@ pub mod availability_checker {
         }
 
         pub async fn run(
-            &self,
+            self,
             stop_receiver: tokio::sync::watch::Receiver<bool>,
         ) -> anyhow::Result<()> {
             while !*stop_receiver.borrow() {
