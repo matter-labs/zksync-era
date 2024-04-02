@@ -74,7 +74,8 @@ pub enum CallType {
 
 #[derive(Clone, Serialize, Deserialize)]
 /// Represents a call in the VM trace.
-pub struct Call {
+/// This struct is used
+pub struct LegacyCall {
     /// Type of the call.
     pub r#type: CallType,
     /// Address of the caller.
@@ -87,6 +88,35 @@ pub struct Call {
     pub gas: u32,
     /// Gas used by the call.
     pub gas_used: u32,
+    /// Value transferred.
+    pub value: U256,
+    /// Input data.
+    pub input: Vec<u8>,
+    /// Output data.
+    pub output: Vec<u8>,
+    /// Error message provided by vm or some unexpected errors.
+    pub error: Option<String>,
+    /// Revert reason.
+    pub revert_reason: Option<String>,
+    /// Subcalls.
+    pub calls: Vec<Call>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+/// Represents a call in the VM trace.
+pub struct Call {
+    /// Type of the call.
+    pub r#type: CallType,
+    /// Address of the caller.
+    pub from: Address,
+    /// Address of the callee.
+    pub to: Address,
+    /// Gas from the parent call.
+    pub parent_gas: u64,
+    /// Gas provided for the call.
+    pub gas: u64,
+    /// Gas used by the call.
+    pub gas_used: u64,
     /// Value transferred.
     pub value: U256,
     /// Input data.
@@ -115,16 +145,54 @@ impl Call {
             r#type: CallType::Call(FarCallOpcode::Normal),
             from: Address::zero(),
             to: BOOTLOADER_ADDRESS,
-            // FIXME: this is totally not correct
-            parent_gas: gas.max(u32::MAX as u64) as u32,
-            gas: gas.max(u32::MAX as u64) as u32,
-            gas_used: gas_used.max(u32::MAX as u64) as u32,
+            parent_gas: gas,
+            gas,
+            gas_used,
             value,
             input,
             output,
             error: None,
             revert_reason,
             calls,
+        }
+    }
+}
+
+impl From<LegacyCall> for Call {
+    fn from(legacy_call: LegacyCall) -> Self {
+        Self {
+            r#type: legacy_call.r#type,
+            from: legacy_call.from,
+            to: legacy_call.to,
+            parent_gas: legacy_call.parent_gas as u64,
+            gas: legacy_call.gas as u64,
+            gas_used: legacy_call.gas_used as u64,
+            value: legacy_call.value,
+            input: legacy_call.input,
+            output: legacy_call.output,
+            error: legacy_call.error,
+            revert_reason: legacy_call.revert_reason,
+            calls: legacy_call.calls,
+        }
+    }
+}
+
+impl From<Call> for LegacyCall {
+    fn from(call: Call) -> Self {
+        Self {
+            r#type: call.r#type,
+            from: call.from,
+            to: call.to,
+            // Here we do the unwrapping to be certain that no overflow happens
+            parent_gas: call.parent_gas.try_into().unwrap(),
+            gas: call.gas.try_into().unwrap(),
+            gas_used: call.gas_used.try_into().unwrap(),
+            value: call.value,
+            input: call.input,
+            output: call.output,
+            error: call.error,
+            revert_reason: call.revert_reason,
+            calls: call.calls,
         }
     }
 }

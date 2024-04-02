@@ -249,7 +249,6 @@ impl Tester {
         if storage.blocks_dal().is_genesis_needed().await.unwrap() {
             create_genesis_l1_batch(
                 &mut storage,
-                self.fee_account,
                 L2ChainId::from(CHAIN_ID),
                 ProtocolVersionId::latest(),
                 &BASE_SYSTEM_CONTRACTS,

@@ -225,10 +225,11 @@ impl TxSenderConfig {
     pub fn new(
         state_keeper_config: &StateKeeperConfig,
         web3_json_config: &Web3JsonRpcConfig,
+        fee_account_addr: Address,
         chain_id: L2ChainId,
     ) -> Self {
         Self {
-            fee_account_addr: state_keeper_config.fee_account_addr,
+            fee_account_addr,
             gas_price_scale_factor: web3_json_config.gas_price_scale_factor,
             max_nonce_ahead: web3_json_config.max_nonce_ahead,
             max_allowed_l2_tx_gas_limit: state_keeper_config.max_allowed_l2_tx_gas_limit,

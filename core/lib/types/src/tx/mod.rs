@@ -14,8 +14,8 @@ pub use self::{execute::Execute, tx_execution_info::ExecutionMetrics};
 use crate::{vm_trace::Call, Transaction};
 
 pub mod execute;
-pub mod primitives;
 pub mod tx_execution_info;
+pub use zksync_crypto_primitives as primitives;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransactionExecutionResult {
@@ -36,7 +36,6 @@ impl TransactionExecutionResult {
             None
         } else {
             Some(Call::new_high_level(
-                // FIXME: ensure to use u64 and decide the policy on tracing.
                 self.transaction.gas_limit().as_u64(),
                 self.transaction.gas_limit().as_u64() - self.refunded_gas,
                 self.transaction.execute.value,
