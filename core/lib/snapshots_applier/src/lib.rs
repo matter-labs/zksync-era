@@ -10,7 +10,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, SqlxError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_types::{
-    api::en::SyncBlock,
+    api,
     snapshots::{
         SnapshotFactoryDependencies, SnapshotHeader, SnapshotRecoveryStatus, SnapshotStorageLog,
         SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey, SnapshotVersion,
@@ -23,7 +23,7 @@ use zksync_utils::bytecode::hash_bytecode;
 use zksync_web3_decl::{
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     jsonrpsee::{core::client, http_client::HttpClient},
-    namespaces::{EnNamespaceClient, SnapshotsNamespaceClient},
+    namespaces::{EnNamespaceClient, SnapshotsNamespaceClient, ZksNamespaceClient},
 };
 
 use self::metrics::{InitialStage, StorageLogsChunksStage, METRICS};
@@ -91,10 +91,15 @@ impl From<EnrichedClientError> for SnapshotsApplierError {
 /// Main node API used by the [`SnapshotsApplier`].
 #[async_trait]
 pub trait SnapshotsApplierMainNodeClient: fmt::Debug + Send + Sync {
-    async fn fetch_l2_block(
+    async fn fetch_l1_batch_details(
+        &self,
+        number: L1BatchNumber,
+    ) -> EnrichedClientResult<Option<api::L1BatchDetails>>;
+
+    async fn fetch_l2_block_details(
         &self,
         number: MiniblockNumber,
-    ) -> EnrichedClientResult<Option<SyncBlock>>;
+    ) -> EnrichedClientResult<Option<api::BlockDetails>>;
 
     async fn fetch_newest_snapshot(&self) -> EnrichedClientResult<Option<SnapshotHeader>>;
 
@@ -106,12 +111,22 @@ pub trait SnapshotsApplierMainNodeClient: fmt::Debug + Send + Sync {
 
 #[async_trait]
 impl SnapshotsApplierMainNodeClient for HttpClient {
-    async fn fetch_l2_block(
+    async fn fetch_l1_batch_details(
+        &self,
+        number: L1BatchNumber,
+    ) -> EnrichedClientResult<Option<api::L1BatchDetails>> {
+        self.get_l1_batch_details(number)
+            .rpc_context("get_l1_batch_details")
+            .with_arg("number", &number)
+            .await
+    }
+
+    async fn fetch_l2_block_details(
         &self,
         number: MiniblockNumber,
-    ) -> EnrichedClientResult<Option<SyncBlock>> {
-        self.sync_l2_block(number, false)
-            .rpc_context("sync_l2_block")
+    ) -> EnrichedClientResult<Option<api::BlockDetails>> {
+        self.get_block_details(number)
+            .rpc_context("get_block_details")
             .with_arg("number", &number)
             .await
     }
@@ -387,26 +402,40 @@ impl<'a> SnapshotsApplier<'a> {
         );
         Self::check_snapshot_version(snapshot.version)?;
 
+        let l1_batch = main_node_client
+            .fetch_l1_batch_details(l1_batch_number)
+            .await?
+            .with_context(|| format!("L1 batch #{l1_batch_number} is missing on main node"))?;
+        let l1_batch_root_hash = l1_batch
+            .base
+            .root_hash
+            .context("snapshot L1 batch fetched from main node doesn't have root hash set")?;
         let miniblock = main_node_client
-            .fetch_l2_block(miniblock_number)
+            .fetch_l2_block_details(miniblock_number)
             .await?
             .with_context(|| format!("miniblock #{miniblock_number} is missing on main node"))?;
         let miniblock_hash = miniblock
-            .hash
+            .base
+            .root_hash
             .context("snapshot miniblock fetched from main node doesn't have hash set")?;
+        let protocol_version = miniblock.protocol_version.context(
+            "snapshot miniblock fetched from main node doesn't have protocol version set",
+        )?;
+        if miniblock.l1_batch_number != l1_batch_number {
+            let err = anyhow::anyhow!(
+                "snapshot miniblock returned by main node doesn't belong to expected L1 batch #{l1_batch_number}: {miniblock:?}"
+            );
+            return Err(err.into());
+        }
 
         Ok(SnapshotRecoveryStatus {
             l1_batch_number,
-            l1_batch_timestamp: snapshot.last_l1_batch_with_metadata.header.timestamp,
-            l1_batch_root_hash: snapshot.last_l1_batch_with_metadata.metadata.root_hash,
+            l1_batch_timestamp: l1_batch.base.timestamp,
+            l1_batch_root_hash,
             miniblock_number: snapshot.miniblock_number,
-            miniblock_timestamp: miniblock.timestamp,
+            miniblock_timestamp: miniblock.base.timestamp,
             miniblock_hash,
-            protocol_version: snapshot
-                .last_l1_batch_with_metadata
-                .header
-                .protocol_version
-                .unwrap(),
+            protocol_version,
             storage_logs_chunks_processed: vec![false; snapshot.storage_logs_chunks.len()],
         })
     }
