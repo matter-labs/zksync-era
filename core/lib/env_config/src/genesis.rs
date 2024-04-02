@@ -63,24 +63,12 @@ impl FromEnv for GenesisConfig {
 
         #[allow(deprecated)]
         Ok(GenesisConfig {
-            protocol_version: contracts_config
-                .genesis_protocol_version
-                .context("Protocol version is required for genesis")?,
-            genesis_root_hash: contracts_config
-                .genesis_root
-                .context("genesis_root_hash required for genesis")?,
-            rollup_last_leaf_index: contracts_config
-                .genesis_rollup_leaf_index
-                .context("rollup_last_leaf_index required for genesis")?,
-            genesis_commitment: contracts_config
-                .genesis_batch_commitment
-                .context("genesis_commitment required for genesis")?,
-            bootloader_hash: state_keeper
-                .bootloader_hash
-                .context("Bootloader hash required for genesis")?,
-            default_aa_hash: state_keeper
-                .default_aa_hash
-                .context("Default aa hash required for genesis")?,
+            protocol_version: contracts_config.genesis_protocol_version,
+            genesis_root_hash: contracts_config.genesis_root,
+            rollup_last_leaf_index: contracts_config.genesis_rollup_leaf_index,
+            genesis_commitment: contracts_config.genesis_batch_commitment,
+            bootloader_hash: state_keeper.bootloader_hash,
+            default_aa_hash: state_keeper.default_aa_hash,
             l1_chain_id: network_config.network.chain_id(),
             l2_chain_id: network_config.zksync_network_id,
             recursion_node_level_vk_hash: contracts_config.fri_recursion_node_level_vk_hash,
