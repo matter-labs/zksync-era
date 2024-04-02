@@ -10,7 +10,9 @@ mod sync_state;
 mod tests;
 
 pub use self::{
-    client::MainNodeClient, external_io::ExternalIO, sync_action::ActionQueue,
+    client::MainNodeClient,
+    external_io::ExternalIO,
+    sync_action::{ActionQueue, ActionQueueSender},
     sync_state::SyncState,
 };
 

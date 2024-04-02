@@ -219,7 +219,7 @@ async fn run_core(
                 anyhow::bail!("Consensus config is specified, but secrets are missing")
             }
             (None, _) => {
-                // Secrets may be unconditionally embedded in some envs, but they are unused
+                // Secrets may be unconditionally embedded in some environments, but they are unused
                 // unless a consensus config is provided.
                 None
             }
