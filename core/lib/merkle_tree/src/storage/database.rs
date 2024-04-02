@@ -147,7 +147,7 @@ impl Database for PatchSet {
     }
 
     fn start_profiling(&self, _operation: ProfiledTreeOperation) -> Box<dyn Any> {
-        Box::new(()) // no starts are collected
+        Box::new(()) // no stats are collected
     }
 
     fn apply_patch(&mut self, mut other: PatchSet) {
