@@ -22,7 +22,8 @@ use rocksdb::{
 use thread_local::ThreadLocal;
 
 use crate::metrics::{
-    RocksdbLabels, RocksdbProfilingLabels, RocksdbSizeMetrics, METRICS, PROF_METRICS,
+    BlockCacheKind, RocksdbBlockCacheLabels, RocksdbLabels, RocksdbProfilingLabels,
+    RocksdbSizeMetrics, METRICS, PROF_METRICS,
 };
 
 /// Number of active RocksDB instances used to determine if it's safe to exit current process.
@@ -283,6 +284,10 @@ pub struct RocksDBOptions {
     /// Byte capacity of the block cache (the main RocksDB cache for reads). If not set, default RocksDB
     /// cache options will be used.
     pub block_cache_capacity: Option<usize>,
+    /// If specified, RocksDB indices and Bloom filters will be managed by the block cache, rather than
+    /// being loaded entirely into RAM on the RocksDB initialization. The block cache capacity should be increased
+    /// correspondingly; otherwise, RocksDB performance can significantly degrade.
+    pub include_indices_and_filters_in_block_cache: bool,
     /// Byte capacity of memtables (recent, non-persisted changes to RocksDB) set for large CFs
     /// (as defined in [`NamedColumnFamily::requires_tuning()`]).
     /// Setting this to a reasonably large value (order of 512 MiB) is helpful for large DBs that experience
@@ -299,6 +304,7 @@ impl Default for RocksDBOptions {
     fn default() -> Self {
         Self {
             block_cache_capacity: None,
+            include_indices_and_filters_in_block_cache: false,
             large_memtable_capacity: None,
             stalled_writes_retries: StalledWritesRetries::new(Duration::from_secs(10)),
             max_open_files: None,
@@ -375,6 +381,11 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             if let Some(cache) = &caches.shared {
                 block_based_options.set_block_cache(cache);
             }
+            if options.include_indices_and_filters_in_block_cache {
+                block_based_options.set_cache_index_and_filter_blocks(true);
+                block_based_options.set_pin_l0_filter_and_index_blocks_in_cache(true);
+            }
+
             let memtable_capacity = options.large_memtable_capacity.filter(|_| requires_tuning);
             let cf_options = Self::rocksdb_options(memtable_capacity, Some(block_based_options));
             ColumnFamilyDescriptor::new(cf_name, cf_options)
@@ -586,6 +597,10 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             user_key_comparisons: AtomicU64::new(0),
             block_cache_hits: AtomicU64::new(0),
             block_reads: AtomicU64::new(0),
+            index_block_cache_hits: AtomicU64::new(0),
+            index_block_reads: AtomicU64::new(0),
+            filter_block_cache_hits: AtomicU64::new(0),
+            filter_block_reads: AtomicU64::new(0),
             gets_from_memtable: AtomicU64::new(0),
             bloom_sst_hits: AtomicU64::new(0),
             bloom_sst_misses: AtomicU64::new(0),
@@ -624,6 +639,10 @@ pub struct ProfiledOperation {
     user_key_comparisons: AtomicU64,
     block_cache_hits: AtomicU64,
     block_reads: AtomicU64,
+    index_block_cache_hits: AtomicU64,
+    index_block_reads: AtomicU64,
+    filter_block_cache_hits: AtomicU64,
+    filter_block_reads: AtomicU64,
     gets_from_memtable: AtomicU64,
     bloom_sst_hits: AtomicU64,
     bloom_sst_misses: AtomicU64,
@@ -650,6 +669,15 @@ impl ProfiledOperation {
             context,
         })
     }
+
+    fn block_cache_hits_and_reads(&self, kind: BlockCacheKind) -> (u64, u64) {
+        let (hits, reads) = match kind {
+            BlockCacheKind::All => (&self.block_cache_hits, &self.block_reads),
+            BlockCacheKind::Filters => (&self.filter_block_cache_hits, &self.filter_block_reads),
+            BlockCacheKind::Indices => (&self.index_block_cache_hits, &self.index_block_reads),
+        };
+        (hits.load(Ordering::Relaxed), reads.load(Ordering::Relaxed))
+    }
 }
 
 impl Drop for ProfiledOperation {
@@ -662,9 +690,6 @@ impl Drop for ProfiledOperation {
         };
         PROF_METRICS.user_key_comparisons[&labels]
             .observe(self.user_key_comparisons.load(Ordering::Relaxed));
-        PROF_METRICS.block_cache_hits[&labels]
-            .observe(self.block_cache_hits.load(Ordering::Relaxed));
-        PROF_METRICS.block_reads[&labels].observe(self.block_reads.load(Ordering::Relaxed));
         PROF_METRICS.gets_from_memtable[&labels]
             .observe(self.gets_from_memtable.load(Ordering::Relaxed));
         PROF_METRICS.bloom_sst_hits[&labels].observe(self.bloom_sst_hits.load(Ordering::Relaxed));
@@ -673,6 +698,24 @@ impl Drop for ProfiledOperation {
         PROF_METRICS.block_read_size[&labels].observe(self.block_read_size.load(Ordering::Relaxed));
         PROF_METRICS.multiget_read_size[&labels]
             .observe(self.multiget_read_size.load(Ordering::Relaxed));
+
+        for kind in [
+            BlockCacheKind::All,
+            BlockCacheKind::Filters,
+            BlockCacheKind::Indices,
+        ] {
+            let (hits, reads) = self.block_cache_hits_and_reads(kind);
+            if hits > 0 || reads > 0 {
+                // Do not report trivial hit / miss stats.
+                let labels = RocksdbBlockCacheLabels {
+                    db: self.db,
+                    operation: self.name,
+                    kind,
+                };
+                PROF_METRICS.block_cache_hits[&labels].observe(hits);
+                PROF_METRICS.block_reads[&labels].observe(reads);
+            }
+        }
     }
 }
 
@@ -680,6 +723,19 @@ impl Drop for ProfiledOperation {
 pub struct ProfileGuard {
     context: perf::PerfContext,
     operation: Arc<ProfiledOperation>,
+}
+
+impl ProfileGuard {
+    // Unfortunately, RocksDB doesn't expose all metrics via its C API, so we use this ugly hack to parse the missing metrics
+    // directly from the string representation.
+    fn parse_metrics_str(s: &str) -> HashMap<&str, u64> {
+        let metrics = s.split(',').filter_map(|part| {
+            let part = part.trim();
+            let (name, value) = part.split_once('=')?;
+            Some((name.trim(), value.trim().parse().ok()?))
+        });
+        metrics.collect()
+    }
 }
 
 impl fmt::Debug for ProfileGuard {
@@ -693,7 +749,9 @@ impl fmt::Debug for ProfileGuard {
 
 impl Drop for ProfileGuard {
     fn drop(&mut self) {
-        tracing::trace!("Obtained metrics: {}", self.context.report(true));
+        let metrics_string = self.context.report(true);
+        tracing::trace!("Obtained metrics: {metrics_string}");
+        let parsed_metrics = Self::parse_metrics_str(&metrics_string);
 
         let count = self
             .context
@@ -701,6 +759,7 @@ impl Drop for ProfileGuard {
         self.operation
             .user_key_comparisons
             .fetch_add(count, Ordering::Relaxed);
+
         let count = self.context.metric(perf::PerfMetric::BlockReadCount);
         self.operation
             .block_reads
@@ -709,6 +768,28 @@ impl Drop for ProfileGuard {
         self.operation
             .block_cache_hits
             .fetch_add(count, Ordering::Relaxed);
+
+        if let Some(&count) = parsed_metrics.get("block_cache_index_hit_count") {
+            self.operation
+                .index_block_cache_hits
+                .fetch_add(count, Ordering::Relaxed);
+        }
+        if let Some(&count) = parsed_metrics.get("index_block_read_count") {
+            self.operation
+                .index_block_reads
+                .fetch_add(count, Ordering::Relaxed);
+        }
+        if let Some(&count) = parsed_metrics.get("block_cache_filter_hit_count") {
+            self.operation
+                .filter_block_cache_hits
+                .fetch_add(count, Ordering::Relaxed);
+        }
+        if let Some(&count) = parsed_metrics.get("filter_block_read_count") {
+            self.operation
+                .filter_block_reads
+                .fetch_add(count, Ordering::Relaxed);
+        }
+
         let count = self.context.metric(perf::PerfMetric::GetFromMemtableCount);
         self.operation
             .gets_from_memtable
@@ -941,5 +1022,21 @@ mod tests {
             new_key_comparisons > key_comparisons,
             "{key_comparisons}, {new_key_comparisons}"
         );
+    }
+
+    #[test]
+    fn parsing_metrics_str() {
+        let metrics_str = "\
+            user_key_comparison_count = 3309113, block_cache_hit_count = 1625, block_read_count = 70834, \
+            block_read_byte = 6425766745, block_cache_index_hit_count = 180, index_block_read_count = 3978, \
+            block_cache_filter_hit_count = 105, filter_block_read_count = 8234, multiget_read_bytes = 30942097, \
+            get_from_memtable_count = 4300, bloom_sst_hit_count = 85326, bloom_sst_miss_count = 179904\
+        ";
+        let parsed = ProfileGuard::parse_metrics_str(metrics_str);
+
+        assert_eq!(parsed["block_cache_index_hit_count"], 180);
+        assert_eq!(parsed["index_block_read_count"], 3_978);
+        assert_eq!(parsed["block_cache_filter_hit_count"], 105);
+        assert_eq!(parsed["filter_block_read_count"], 8_234);
     }
 }

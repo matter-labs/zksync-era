@@ -7,7 +7,10 @@ use std::{
 };
 
 use once_cell::sync::Lazy;
-use vise::{Buckets, Collector, Counter, EncodeLabelSet, Family, Gauge, Histogram, Metrics, Unit};
+use vise::{
+    Buckets, Collector, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram,
+    Metrics, Unit,
+};
 
 use crate::db::RocksDBInner;
 
@@ -47,12 +50,6 @@ pub(crate) struct RocksdbLevelLabels {
     db: &'static str,
     cf: &'static str,
     level: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
-pub(crate) struct RocksdbProfilingLabels {
-    pub db: &'static str,
-    pub operation: &'static str,
 }
 
 const BYTE_SIZE_BUCKETS: Buckets = Buckets::exponential(65_536.0..=16.0 * 1_024.0 * 1_024.0, 2.0);
@@ -162,6 +159,27 @@ impl RocksdbSizeMetrics {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
+pub(crate) struct RocksdbProfilingLabels {
+    pub db: &'static str,
+    pub operation: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
+#[metrics(rename_all = "snake_case")]
+pub(crate) enum BlockCacheKind {
+    All,
+    Indices,
+    Filters,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
+pub(crate) struct RocksdbBlockCacheLabels {
+    pub db: &'static str,
+    pub operation: &'static str,
+    pub kind: BlockCacheKind,
+}
+
 const COUNT_BUCKETS: Buckets = Buckets::values(&[
     1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1_000.0, 2_000.0, 5_000.0, 10_000.0,
     20_000.0, 50_000.0, 100_000.0,
@@ -176,10 +194,10 @@ pub(crate) struct RocksdbProfilingMetrics {
     pub user_key_comparisons: Family<RocksdbProfilingLabels, Histogram<u64>>,
     /// Number of block cache hits per profiled operation.
     #[metrics(buckets = COUNT_BUCKETS)]
-    pub block_cache_hits: Family<RocksdbProfilingLabels, Histogram<u64>>,
+    pub block_cache_hits: Family<RocksdbBlockCacheLabels, Histogram<u64>>,
     /// Number of block reads (including I/O) per profiled operation.
     #[metrics(buckets = COUNT_BUCKETS)]
-    pub block_reads: Family<RocksdbProfilingLabels, Histogram<u64>>,
+    pub block_reads: Family<RocksdbBlockCacheLabels, Histogram<u64>>,
     /// Number of reads from memtables per profiled operation.
     #[metrics(buckets = COUNT_BUCKETS)]
     pub gets_from_memtable: Family<RocksdbProfilingLabels, Histogram<u64>>,

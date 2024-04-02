@@ -98,6 +98,7 @@ fn create_db_sync(
         path,
         RocksDBOptions {
             block_cache_capacity: Some(block_cache_capacity),
+            include_indices_and_filters_in_block_cache: false,
             large_memtable_capacity: Some(memtable_capacity),
             stalled_writes_retries: StalledWritesRetries::new(stalled_writes_timeout),
             max_open_files: None,
