@@ -220,6 +220,11 @@ pub struct OptionalENConfig {
     /// The default value is 128 MiB.
     #[serde(default = "OptionalENConfig::default_merkle_tree_block_cache_size_mb")]
     merkle_tree_block_cache_size_mb: usize,
+    /// If specified, RocksDB indices and Bloom filters will be managed by the block cache, rather than
+    /// being loaded entirely into RAM on the RocksDB initialization. The block cache capacity should be increased
+    /// correspondingly; otherwise, RocksDB performance can significantly degrade.
+    #[serde(default)]
+    pub merkle_tree_include_indices_and_filters_in_block_cache: bool,
     /// Byte capacity of memtables (recent, non-persisted changes to RocksDB). Setting this to a reasonably
     /// large value (order of 512 MiB) is helpful for large DBs that experience write stalls.
     #[serde(default = "OptionalENConfig::default_merkle_tree_memtable_capacity_mb")]

@@ -244,6 +244,9 @@ async fn init_tasks(
         max_l1_batches_per_iter: config.optional.max_l1_batches_per_tree_iter,
         multi_get_chunk_size: config.optional.merkle_tree_multi_get_chunk_size,
         block_cache_capacity: config.optional.merkle_tree_block_cache_size(),
+        include_indices_and_filters_in_block_cache: config
+            .optional
+            .merkle_tree_include_indices_and_filters_in_block_cache,
         memtable_capacity: config.optional.merkle_tree_memtable_capacity(),
         stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
     };

@@ -31,7 +31,7 @@ pub(crate) mod tests;
 mod updater;
 
 /// Configuration of [`MetadataCalculator`].
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MetadataCalculatorConfig {
     /// Filesystem path to the RocksDB instance that stores the tree.
     pub db_path: String,
@@ -46,6 +46,10 @@ pub struct MetadataCalculatorConfig {
     pub multi_get_chunk_size: usize,
     /// Capacity of RocksDB block cache in bytes. Reasonable values range from ~100 MiB to several GB.
     pub block_cache_capacity: usize,
+    /// If specified, RocksDB indices and Bloom filters will be managed by the block cache, rather than
+    /// being loaded entirely into RAM on the RocksDB initialization. The block cache capacity should be increased
+    /// correspondingly; otherwise, RocksDB performance can significantly degrade.
+    pub include_indices_and_filters_in_block_cache: bool,
     /// Capacity of RocksDB memtables. Can be set to a reasonably large value (order of 512 MiB)
     /// to mitigate write stalls.
     pub memtable_capacity: usize,
@@ -65,6 +69,7 @@ impl MetadataCalculatorConfig {
             max_l1_batches_per_iter: merkle_tree_config.max_l1_batches_per_iter,
             multi_get_chunk_size: merkle_tree_config.multi_get_chunk_size,
             block_cache_capacity: merkle_tree_config.block_cache_size(),
+            include_indices_and_filters_in_block_cache: false,
             memtable_capacity: merkle_tree_config.memtable_capacity(),
             stalled_writes_timeout: merkle_tree_config.stalled_writes_timeout(),
         }
@@ -123,15 +128,7 @@ impl MetadataCalculator {
             .update(MerkleTreeHealth::Initialization.into());
 
         let started_at = Instant::now();
-        let db = create_db(
-            self.config.db_path.clone().into(),
-            self.config.block_cache_capacity,
-            self.config.memtable_capacity,
-            self.config.stalled_writes_timeout,
-            self.config.multi_get_chunk_size,
-        )
-        .await
-        .with_context(|| {
+        let db = create_db(self.config.clone()).await.with_context(|| {
             format!(
                 "failed opening Merkle tree RocksDB with configuration {:?}",
                 self.config
