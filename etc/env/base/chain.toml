@@ -87,7 +87,7 @@ save_call_traces = true
 virtual_blocks_interval = 1
 virtual_blocks_per_miniblock = 1
 
-bootloader_hash = "0x010008cb244551e9a0fb7164cee311e35bf7c6e3746bde39f16a009bb6d1c47b"
+bootloader_hash = "0x0100089de9cd5508dba3540318886e90f8093c9f7cf192944299e79c6d139fa3"
 default_aa_hash = "0x01000563ee5d0abdf9fc65f748a700d2c377aadebc16d5bf21105f8a94eff028"
 
 [chain.operations_manager]
