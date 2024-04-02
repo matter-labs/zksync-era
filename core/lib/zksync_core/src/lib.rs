@@ -21,7 +21,7 @@ use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker,
     CircuitBreakerChecker, CircuitBreakers,
 };
-use zksync_concurrency::{ctx, scope};
+use zksync_concurrency::ctx;
 use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -543,24 +543,10 @@ pub async fn initialize_components(
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");
         let pool = connection_pool.clone();
-        let mut stop_receiver = stop_receiver.clone();
+        let stop_receiver = stop_receiver.clone();
         task_futures.push(tokio::spawn(async move {
-            scope::run!(&ctx::root(), |ctx, s| async {
-                s.spawn_bg(async {
-                    // Consensus is a new component.
-                    // For now in case of error we just log it and allow the server
-                    // to continue running.
-                    if let Err(err) = cfg.run(ctx, consensus::Store(pool)).await {
-                        tracing::error!(%err, "Consensus actor failed");
-                    } else {
-                        tracing::info!("Consensus actor stopped");
-                    }
-                    Ok(())
-                });
-                let _ = stop_receiver.wait_for(|stop| *stop).await?;
-                Ok(())
-            })
-            .await
+            let root_ctx = ctx::root();
+            consensus::run_main_node(&root_ctx, cfg, pool, stop_receiver).await
         }));
 
         let elapsed = started_at.elapsed();

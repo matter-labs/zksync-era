@@ -2,10 +2,12 @@
 
 #![allow(clippy::redundant_locals)]
 #![allow(clippy::needless_pass_by_ref_mut)]
+use tokio::sync::watch;
 use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
+use zksync_dal::{ConnectionPool, Core};
 
 pub use self::{fetcher::*, storage::Store};
 
@@ -18,6 +20,30 @@ pub(crate) mod testonly;
 mod tests;
 
 pub use config::{Config, Secrets};
+
+pub async fn run_main_node(
+    ctx: &ctx::Ctx,
+    cfg: MainNodeConfig,
+    pool: ConnectionPool<Core>,
+    mut stop_receiver: watch::Receiver<bool>,
+) -> anyhow::Result<()> {
+    scope::run!(ctx, |ctx, s| async {
+        s.spawn_bg(async {
+            // Consensus is a new component.
+            // For now in case of error we just log it and allow the server
+            // to continue running.
+            if let Err(err) = cfg.run(ctx, Store(pool)).await {
+                tracing::error!(%err, "Consensus actor failed");
+            } else {
+                tracing::info!("Consensus actor stopped");
+            }
+            Ok(())
+        });
+        let _ = stop_receiver.wait_for(|stop| *stop).await?;
+        Ok(())
+    })
+    .await
+}
 
 /// Main node consensus config.
 #[derive(Debug, Clone)]
