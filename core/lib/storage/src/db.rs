@@ -112,7 +112,7 @@ pub(crate) struct RocksDBInner {
 
 impl RocksDBInner {
     pub(crate) fn collect_metrics(&self, metrics: &RocksdbSizeMetrics) {
-        const MAX_LEVEL: usize = 7;
+        const MAX_LEVEL: usize = 6;
 
         for &cf_name in &self.cf_names {
             let cf = self.db.cf_handle(cf_name).unwrap();

@@ -52,7 +52,7 @@ pub(crate) struct RocksdbLevelLabels {
     level: usize,
 }
 
-const BYTE_SIZE_BUCKETS: Buckets = Buckets::exponential(65_536.0..=16.0 * 1_024.0 * 1_024.0, 2.0);
+const BYTE_SIZE_BUCKETS: Buckets = Buckets::exponential(4_096.0..=16.0 * 1_024.0 * 1_024.0, 2.0);
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "rocksdb")]
@@ -187,7 +187,7 @@ const COUNT_BUCKETS: Buckets = Buckets::values(&[
 
 /// Metrics related to profiling RocksDB I/O.
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "rocksdb_prof")]
+#[metrics(prefix = "rocksdb_profiling")]
 pub(crate) struct RocksdbProfilingMetrics {
     /// Number of key comparisons per profiled operation.
     #[metrics(buckets = COUNT_BUCKETS)]
