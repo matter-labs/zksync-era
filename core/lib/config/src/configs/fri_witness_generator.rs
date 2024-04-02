@@ -11,8 +11,8 @@ pub struct FriWitnessGeneratorConfig {
     pub generation_timeout_in_secs: u16,
     pub basic_generation_timeout_in_secs: Option<u16>,
     pub leaf_generation_timeout_in_secs: Option<u16>,
-    pub node_generation_timeout_in_secs: Option<u16>,
     pub scheduler_generation_timeout_in_secs: Option<u16>,
+    pub node_generation_timeout_in_secs: Option<u16>,
     /// Max attempts for generating witness
     pub max_attempts: u32,
     // Percentage of the blocks that gets proven in the range [0.0, 1.0]

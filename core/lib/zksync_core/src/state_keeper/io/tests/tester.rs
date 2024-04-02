@@ -2,9 +2,9 @@
 
 use std::{slice, sync::Arc, time::Duration};
 
-use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
+use multivm::vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT;
 use zksync_config::{
-    configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode},
+    configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode, wallets::Wallets},
     GasAdjusterConfig,
 };
 use zksync_contracts::BaseSystemContracts;
@@ -18,7 +18,7 @@ use zksync_types::{
     protocol_version::L1VerifierConfig,
     system_contracts::get_system_smart_contracts,
     tx::TransactionExecutionResult,
-    Address, L2ChainId, MiniblockNumber, PriorityOpId, ProtocolVersionId, H256,
+    L2ChainId, MiniblockNumber, PriorityOpId, ProtocolVersionId, H256,
 };
 
 use crate::{
@@ -115,15 +115,16 @@ impl Tester {
             minimal_l2_gas_price: self.minimal_l2_gas_price(),
             virtual_blocks_interval: 1,
             virtual_blocks_per_miniblock: 1,
-            fee_account_addr: Address::repeat_byte(0x11), // Maintain implicit invariant: fee address is never `Address::zero()`
-            validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+            validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             ..StateKeeperConfig::for_tests()
         };
+        let wallets = Wallets::for_tests();
         let io = MempoolIO::new(
             mempool.clone(),
             Arc::new(batch_fee_input_provider),
             pool,
             &config,
+            wallets.state_keeper.unwrap().fee_account.address(),
             Duration::from_secs(1),
             L2ChainId::from(270),
         )
@@ -142,7 +143,6 @@ impl Tester {
         if storage.blocks_dal().is_genesis_needed().await.unwrap() {
             create_genesis_l1_batch(
                 &mut storage,
-                Address::repeat_byte(0x01),
                 L2ChainId::from(270),
                 ProtocolVersionId::latest(),
                 &self.base_system_contracts,
