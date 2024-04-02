@@ -29,7 +29,7 @@ impl Resource for TxSinkResource {
 pub struct TreeApiClientResource(pub Arc<dyn TreeApiClient>);
 
 impl Resource for TreeApiClientResource {
-    fn resource_id() -> ResourceId {
+    fn name() -> String {
         "api/tree_api_client".into()
     }
 }

@@ -28,7 +28,7 @@ impl Resource for BatchExecutorResource {
 pub struct OutputHandlerResource(pub Unique<OutputHandler>);
 
 impl Resource for OutputHandlerResource {
-    fn resource_id() -> ResourceId {
+    fn name() -> String {
         "state_keeper/output_handler".into()
     }
 }

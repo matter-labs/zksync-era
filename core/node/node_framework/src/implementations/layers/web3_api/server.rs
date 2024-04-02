@@ -116,12 +116,12 @@ impl WiringLayer for Web3ServerLayer {
         let tx_sender = context.get_resource::<TxSenderResource>().await?.0;
         let sync_state = match context.get_resource::<SyncStateResource>().await {
             Ok(sync_state) => Some(sync_state.0),
-            Err(WiringError::ResourceLacking(_)) => None,
+            Err(WiringError::ResourceLacking { .. }) => None,
             Err(err) => return Err(err),
         };
         let tree_api_client = match context.get_resource::<TreeApiClientResource>().await {
             Ok(client) => Some(client.0),
-            Err(WiringError::ResourceLacking(_)) => None,
+            Err(WiringError::ResourceLacking { .. }) => None,
             Err(err) => return Err(err),
         };
 
