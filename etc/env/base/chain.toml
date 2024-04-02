@@ -71,7 +71,7 @@ max_gas_per_batch = 200000000
 # Note, the max at this moment is 252 kb
 max_pubdata_per_batch = 100000
 
-# The version of the fee model to use. 
+# The version of the fee model to use.
 # - `V1`, the first model that was used in zkSync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
 # Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the costs that come from
 # processing the batch on L1.
@@ -87,9 +87,8 @@ save_call_traces = true
 virtual_blocks_interval = 1
 virtual_blocks_per_miniblock = 1
 
-bootloader_hash = "0x010008cb037f780742bcf34e05ff9b1a3140061de045a40192eb0424585521af"
-default_aa_hash = "0x01000563322a8444108dc763ebd80fb18ae14d2ec5c0fb5057a090023cd3d4a4"
-
+bootloader_hash = "0x010008cb244551e9a0fb7164cee311e35bf7c6e3746bde39f16a009bb6d1c47b"
+default_aa_hash = "0x01000563ee5d0abdf9fc65f748a700d2c377aadebc16d5bf21105f8a94eff028"
 
 [chain.operations_manager]
 # Sleep time when there is no new input data
