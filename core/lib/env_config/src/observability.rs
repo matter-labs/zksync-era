@@ -39,12 +39,17 @@ impl FromEnv for ObservabilityConfig {
             (Some(level), Some(endpoint)) => Some(OpentelemetryConfig { level, endpoint }),
             _ => None,
         };
+        let sporadic_crypto_errors_substrs = std::env::var("ALERTS_SPORADIC_CRYPTO_ERRORS_SUBSTRS")
+            .ok()
+            .map(|a| a.split(',').map(|a| a.to_string()).collect())
+            .unwrap_or_default();
 
         Ok(ObservabilityConfig {
             sentry_url,
             sentry_environment,
             log_format,
             opentelemetry,
+            sporadic_crypto_errors_substrs,
         })
     }
 }

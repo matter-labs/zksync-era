@@ -400,6 +400,7 @@ impl MempoolIO {
         batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
         pool: ConnectionPool<Core>,
         config: &StateKeeperConfig,
+        fee_account: Address,
         delay_interval: Duration,
         chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
@@ -426,7 +427,7 @@ impl MempoolIO {
             filter: L2TxFilter::default(),
             // ^ Will be initialized properly on the first newly opened batch
             l1_batch_params_provider,
-            fee_account: config.fee_account_addr,
+            fee_account,
             validation_computational_gas_limit: config.validation_computational_gas_limit,
             max_allowed_tx_gas_limit: config.max_allowed_l2_tx_gas_limit.into(),
             delay_interval,

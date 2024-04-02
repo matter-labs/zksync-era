@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use zksync_config::{
-    configs::chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
+    configs::{
+        chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
+        wallets,
+    },
     ContractsConfig,
 };
 use zksync_core::state_keeper::{
@@ -28,6 +31,7 @@ pub struct MempoolIOLayer {
     contracts_config: ContractsConfig,
     state_keeper_config: StateKeeperConfig,
     mempool_config: MempoolConfig,
+    wallets: wallets::StateKeeper,
 }
 
 impl MempoolIOLayer {
@@ -36,12 +40,14 @@ impl MempoolIOLayer {
         contracts_config: ContractsConfig,
         state_keeper_config: StateKeeperConfig,
         mempool_config: MempoolConfig,
+        wallets: wallets::StateKeeper,
     ) -> Self {
         Self {
             network_config,
             contracts_config,
             state_keeper_config,
             mempool_config,
+            wallets,
         }
     }
 
@@ -111,6 +117,7 @@ impl WiringLayer for MempoolIOLayer {
             batch_fee_input_provider,
             mempool_db_pool,
             &self.state_keeper_config,
+            self.wallets.fee_account.address(),
             self.mempool_config.delay_interval(),
             self.network_config.zksync_network_id,
         )

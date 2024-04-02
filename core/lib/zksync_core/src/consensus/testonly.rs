@@ -402,9 +402,9 @@ impl StateKeeperRunner {
             s.spawn_bg(async {
                 // Spawn HTTP server.
                 let cfg = InternalApiConfig::new(
-                    &configs::chain::NetworkConfig::for_tests(),
                     &configs::api::Web3JsonRpcConfig::for_tests(),
                     &configs::contracts::ContractsConfig::for_tests(),
+                    &configs::GenesisConfig::for_tests(),
                 );
                 let mut server = spawn_http_server(
                     cfg,

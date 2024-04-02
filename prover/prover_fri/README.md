@@ -54,7 +54,7 @@ installation as a pre-requisite, alongside these machine specs:
 2. Run the server. In the root of the repository:
 
    ```console
-   zk server --components=api,eth,tree,state_keeper,housekeeper,proof_data_handler
+   zk server --components=api,eth,tree,state_keeper,housekeeper,commitment_generator,proof_data_handler
    ```
 
    Note that it will produce a first l1 batch that can be proven (should be batch 0).
@@ -139,7 +139,7 @@ Machine specs:
 4. Run the sequencer/operator. In the root of the repository:
 
    ```console
-   zk server --components=api,eth,tree,state_keeper,housekeeper,proof_data_handler
+   zk server --components=api,eth,tree,state_keeper,housekeeper,commitment_generator,proof_data_handler
    ```
 
    to produce blocks to be proven
