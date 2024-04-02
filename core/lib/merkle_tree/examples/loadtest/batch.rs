@@ -3,7 +3,7 @@
 use std::any::Any;
 
 use zksync_merkle_tree::{
-    unstable::{DeserializeError, Manifest, Node, NodeKey, Root},
+    unstable::{DeserializeError, Manifest, Node, NodeKey, ProfiledTreeOperation, Root},
     Database, PatchSet, Patched,
 };
 
@@ -45,8 +45,8 @@ impl Database for WithBatching<'_> {
         self.inner.tree_nodes(keys)
     }
 
-    fn start_profiling(&self) -> Box<dyn Any> {
-        self.inner.start_profiling()
+    fn start_profiling(&self, operation: ProfiledTreeOperation) -> Box<dyn Any> {
+        self.inner.start_profiling(operation)
     }
 
     fn apply_patch(&mut self, patch: PatchSet) {

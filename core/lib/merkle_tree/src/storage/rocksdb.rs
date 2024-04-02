@@ -18,7 +18,10 @@ use crate::{
         database::{PruneDatabase, PrunePatchSet},
         Database, NodeKeys, PatchSet,
     },
-    types::{InternalNode, LeafNode, Manifest, Nibbles, Node, NodeKey, Root, StaleNodeKey},
+    types::{
+        InternalNode, LeafNode, Manifest, Nibbles, Node, NodeKey, ProfiledTreeOperation, Root,
+        StaleNodeKey,
+    },
 };
 
 /// RocksDB column families used by the tree.
@@ -212,7 +215,7 @@ impl Database for RocksDBWrapper {
             .unwrap_or_else(|err| panic!("{err}"))
     }
 
-    fn start_profiling(&self) -> Box<dyn Any> {
+    fn start_profiling(&self, operation: ProfiledTreeOperation) -> Box<dyn Any> {
         struct Guard {
             profiled_operation: Arc<ThreadLocal<LocalProfiledOperation>>,
             _guard: ProfileGuard,
@@ -224,10 +227,9 @@ impl Database for RocksDBWrapper {
             }
         }
 
-        let profiled_operation = Arc::new(self.db.new_profiled_operation("load_ancestors"));
-        let guard = profiled_operation
-            .start_profiling()
-            .expect("cannot start profiling: another operation is already being profiled on the same DB / thread");
+        let profiled_operation = Arc::new(self.db.new_profiled_operation(operation.as_str()));
+        let guard = profiled_operation.start_profiling().unwrap();
+        // ^ `unwrap()` is safe: the operation has just been created
         *self.profiled_operation.get_or_default().borrow_mut() = Some(profiled_operation);
         Box::new(Guard {
             profiled_operation: self.profiled_operation.clone(),
