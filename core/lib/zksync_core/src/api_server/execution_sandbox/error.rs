@@ -13,6 +13,8 @@ pub(crate) enum SandboxExecutionError {
     PrePaymasterPreparationFailed(String),
     #[error("From is not an account")]
     FromIsNotAnAccount,
+    #[error("Gas limit incompatible with protocol version")]
+    GasLimitIncompatibleWithProtocolVersion,
     #[error("Bootloader failure: {0}")]
     BootloaderFailure(String),
     #[error("Revert: {0}")]
