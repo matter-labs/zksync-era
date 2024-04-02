@@ -176,7 +176,7 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
         self
     }
 
-    pub(crate) fn with_computational_gas_limit(mut self, gas_limit: u32) -> Self {
+    pub(crate) fn with_bootloader_gas_limit(mut self, gas_limit: u32) -> Self {
         self.system_env.bootloader_gas_limit = gas_limit;
         self
     }

@@ -20,7 +20,7 @@ fn test_prestate_tracer() {
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()
-        .with_computational_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
+        .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build();
 
@@ -56,7 +56,7 @@ fn test_prestate_tracer_diff_mode() {
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()
-        .with_computational_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
+        .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build();
     let contract = read_simple_transfer_contract();
