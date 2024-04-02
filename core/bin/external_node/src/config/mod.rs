@@ -166,6 +166,13 @@ pub struct OptionalENConfig {
     /// different node.
     #[serde(default)]
     pub filters_disabled: bool,
+    /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
+    /// In milliseconds. Default is 50 milliseconds.
+    #[serde(default = "OptionalENConfig::default_mempool_cache_update_interval")]
+    pub mempool_cache_update_interval: u64,
+    /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
+    #[serde(default = "OptionalENConfig::default_mempool_cache_size")]
+    pub mempool_cache_size: usize,
 
     // Health checks
     /// Time limit in milliseconds to mark a health check as slow and log the corresponding warning.
@@ -238,13 +245,12 @@ pub struct OptionalENConfig {
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
     #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
     pub miniblock_seal_queue_capacity: usize,
-    /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
-    /// In milliseconds. Default is 50 milliseconds.
-    #[serde(default = "OptionalENConfig::default_mempool_cache_update_interval")]
-    pub mempool_cache_update_interval: u64,
-    /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
-    #[serde(default = "OptionalENConfig::default_mempool_cache_size")]
-    pub mempool_cache_size: usize,
+    /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
+    /// Protective reads are never required by full nodes so far, not until such a node runs a full Merkle tree
+    /// (presumably, to participate in L1 batch proving).
+    /// By default, set to `true` as a temporary safety measure.
+    #[serde(default = "OptionalENConfig::default_protective_reads_persistence_enabled")]
+    pub protective_reads_persistence_enabled: bool,
     /// Address of the L1 diamond proxy contract used by the consistency checker to match with the origin of logs emitted
     /// by commit transactions. If not set, it will not be verified.
     // This is intentionally not a part of `RemoteENConfig` because fetching this info from the main node would defeat
@@ -253,6 +259,19 @@ pub struct OptionalENConfig {
 
     #[serde(default = "OptionalENConfig::default_l1_batch_commit_data_generator_mode")]
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct ApiComponentConfig {
+    /// Address of the tree API used by this EN in case it does not have a
+    /// local tree component running and in this case needs to send requests
+    /// to some external tree API.
+    pub tree_api_url: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct TreeComponentConfig {
+    pub api_port: Option<u16>,
 }
 
 impl OptionalENConfig {
@@ -357,6 +376,10 @@ impl OptionalENConfig {
 
     const fn default_miniblock_seal_queue_capacity() -> usize {
         10
+    }
+
+    const fn default_protective_reads_persistence_enabled() -> bool {
+        true
     }
 
     const fn default_mempool_cache_update_interval() -> u64 {
@@ -544,6 +567,8 @@ pub struct ExternalNodeConfig {
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
     pub consensus: Option<consensus::Config>,
+    pub api_component: ApiComponentConfig,
+    pub tree_component: TreeComponentConfig,
 }
 
 impl ExternalNodeConfig {
@@ -556,6 +581,14 @@ impl ExternalNodeConfig {
 
         let optional = envy::prefixed("EN_")
             .from_env::<OptionalENConfig>()
+            .context("could not load external node config")?;
+
+        let api_component_config = envy::prefixed("EN_API")
+            .from_env::<ApiComponentConfig>()
+            .context("could not load external node config")?;
+
+        let tree_component_config = envy::prefixed("EN_TREE")
+            .from_env::<TreeComponentConfig>()
             .context("could not load external node config")?;
 
         let client = HttpClientBuilder::default()
@@ -609,6 +642,8 @@ impl ExternalNodeConfig {
             required,
             optional,
             consensus: read_consensus_config().context("read_consensus_config()")?,
+            tree_component: tree_component_config,
+            api_component: api_component_config,
         })
     }
 }

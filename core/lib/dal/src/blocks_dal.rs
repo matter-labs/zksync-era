@@ -15,7 +15,6 @@ use zksync_types::{
     block::{BlockGasCount, L1BatchHeader, L1BatchTreeData, MiniblockHeader},
     circuit::CircuitStatistic,
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
-    zk_evm_types::LogQuery,
     Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, U256,
 };
 
@@ -397,42 +396,6 @@ impl BlocksDal<'_, '_> {
         Ok(Some(storage_refunds))
     }
 
-    pub async fn get_events_queue(
-        &mut self,
-        number: L1BatchNumber,
-    ) -> anyhow::Result<Option<Vec<LogQuery>>> {
-        let Some(row) = sqlx::query!(
-            r#"
-            SELECT
-                serialized_events_queue_bytea,
-                serialized_events_queue
-            FROM
-                events_queue
-            WHERE
-                l1_batch_number = $1
-            "#,
-            i64::from(number.0)
-        )
-        .instrument("get_events_queue")
-        .report_latency()
-        .with_arg("number", &number)
-        .fetch_optional(self.storage)
-        .await?
-        else {
-            return Ok(None);
-        };
-
-        let events = if let Some(serialized_events_queue_bytea) = row.serialized_events_queue_bytea
-        {
-            bincode::deserialize(&serialized_events_queue_bytea)
-                .context("invalid value for serialized_events_queue_bytea in the DB")?
-        } else {
-            serde_json::from_value(row.serialized_events_queue)
-                .context("invalid value for serialized_events_queue in the DB")?
-        };
-        Ok(Some(events))
-    }
-
     pub async fn set_eth_tx_id(
         &mut self,
         number_range: ops::RangeInclusive<L1BatchNumber>,
@@ -500,7 +463,6 @@ impl BlocksDal<'_, '_> {
         header: &L1BatchHeader,
         initial_bootloader_contents: &[(usize, U256)],
         predicted_block_gas: BlockGasCount,
-        events_queue: &[LogQuery],
         storage_refunds: &[u32],
         predicted_circuits_by_type: CircuitStatistic, // predicted number of circuits for each circuit type
     ) -> anyhow::Result<()> {
@@ -607,20 +569,6 @@ impl BlocksDal<'_, '_> {
         .execute(transaction.conn())
         .await?;
 
-        let events_queue =
-            bincode::serialize(events_queue).expect("failed to serialize events_queue to bytes");
-        sqlx::query!(
-            r#"
-            INSERT INTO
-                events_queue (l1_batch_number, serialized_events_queue, serialized_events_queue_bytea)
-            VALUES
-                ($1, '{}', $2)
-            "#,
-            i64::from(header.number.0),
-            &events_queue
-        )
-        .execute(transaction.conn())
-        .await?;
         transaction.commit().await?;
 
         Ok(())
@@ -2454,15 +2402,8 @@ impl BlocksDal<'_, '_> {
     }
 
     pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> anyhow::Result<()> {
-        self.insert_l1_batch(
-            header,
-            &[],
-            Default::default(),
-            &[],
-            &[],
-            Default::default(),
-        )
-        .await
+        self.insert_l1_batch(header, &[], Default::default(), &[], Default::default())
+            .await
     }
 
     /// Deletes all miniblocks and L1 batches, including the genesis ones. Should only be used in tests.
@@ -2569,7 +2510,7 @@ mod tests {
             execute: 10,
         };
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], Default::default())
+            .insert_l1_batch(&header, &[], predicted_gas, &[], Default::default())
             .await
             .unwrap();
 
@@ -2577,7 +2518,7 @@ mod tests {
         header.timestamp += 100;
         predicted_gas += predicted_gas;
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], Default::default())
+            .insert_l1_batch(&header, &[], predicted_gas, &[], Default::default())
             .await
             .unwrap();
 

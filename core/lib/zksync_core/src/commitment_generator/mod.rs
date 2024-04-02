@@ -48,16 +48,9 @@ impl CommitmentGenerator {
             .connection_pool
             .connection_tagged("commitment_generator")
             .await?;
-        let events_queue_from_db = connection
-            .blocks_dal()
-            .get_events_queue(l1_batch_number)
-            .await?
-            .with_context(|| format!("Events queue is missing for L1 batch #{l1_batch_number}"))?;
 
         // Calculate events queue using VM events.
-        // For now we only check that it results in the same set of events that are saved in `events_queue` DB table.
-        // Later, `events_queue` table will be removed and this will be the only way to get events queue.
-        let events_queue_calculated = {
+        let events_queue = {
             let events = connection
                 .events_dal()
                 .get_vm_events_for_l1_batch(l1_batch_number)
@@ -65,10 +58,6 @@ impl CommitmentGenerator {
                 .with_context(|| format!("Events are missing for L1 batch #{l1_batch_number}"))?;
             convert_vm_events_to_log_queries(&events)
         };
-
-        if events_queue_from_db != events_queue_calculated {
-            tracing::error!("Events queue mismatch for L1 batch #{l1_batch_number}");
-        }
 
         let initial_bootloader_contents = connection
             .blocks_dal()
@@ -83,7 +72,7 @@ impl CommitmentGenerator {
             tokio::task::spawn_blocking(move || {
                 let latency = METRICS.events_queue_commitment_latency.start();
                 let events_queue_commitment =
-                    events_queue_commitment(&events_queue_from_db, protocol_version)
+                    events_queue_commitment(&events_queue, protocol_version)
                         .context("Events queue commitment is required for post-boojum batch")?;
                 latency.observe();
 
