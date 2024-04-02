@@ -5,7 +5,10 @@ use std::{cmp, sync::Arc, time::Instant};
 use anyhow::Context as _;
 use multivm::{
     interface::VmExecutionResultAndLogs,
-    utils::{adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead},
+    utils::{
+        adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
+        get_max_batch_gas_limit,
+    },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
@@ -284,14 +287,15 @@ impl TxSender {
     #[tracing::instrument(skip(self, tx))]
     pub async fn submit_tx(&self, tx: L2Tx) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::Validate].start();
-        self.validate_tx(&tx).await?;
+        let mut connection = self.acquire_replica_connection().await?;
+        let protocol_verison = pending_protocol_version(&mut connection).await?;
+        self.validate_tx(&tx, protocol_verison).await?;
         stage_latency.observe();
 
         let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::DryRun].start();
         let shared_args = self.shared_args().await;
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
-        let mut connection = self.acquire_replica_connection().await?;
         let block_args = BlockArgs::pending(&mut connection).await?;
         drop(connection);
 
@@ -395,12 +399,21 @@ impl TxSender {
         }
     }
 
-    async fn validate_tx(&self, tx: &L2Tx) -> Result<(), SubmitTxError> {
+    async fn validate_tx(
+        &self,
+        tx: &L2Tx,
+        protocol_version: ProtocolVersionId,
+    ) -> Result<(), SubmitTxError> {
         // This check is intended to ensure that the gas-related values will be safe to convert to u64 in the future computations.
         let max_gas = U256::from(u64::MAX);
         if tx.common_data.fee.gas_limit > max_gas
             || tx.common_data.fee.gas_per_pubdata_limit > max_gas
         {
+            return Err(SubmitTxError::GasLimitIsTooBig);
+        }
+
+        let max_allowed_gas_limit = get_max_batch_gas_limit(protocol_version.into());
+        if tx.common_data.fee.gas_limit > max_allowed_gas_limit.into() {
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
 

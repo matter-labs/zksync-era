@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use anyhow::Context as _;
 use multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface},
-    utils::{adjust_pubdata_price_for_tx, get_max_batch_gas_limit},
+    utils::adjust_pubdata_price_for_tx,
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryDisabled},
     VmInstance,
 };
@@ -35,7 +35,7 @@ use zksync_utils::{h256_to_u256, time::seconds_since_epoch, u256_to_h256};
 
 use super::{
     vm_metrics::{self, SandboxStage, SANDBOX_METRICS},
-    BlockArgs, SandboxExecutionError, TxExecutionArgs, TxSharedArgs, VmPermit,
+    BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
 
 type BoxedVm<'a> = Box<VmInstance<StorageView<PostgresStorage<'a>>, HistoryDisabled>>;
@@ -259,8 +259,7 @@ impl<'a> Sandbox<'a> {
         mut self,
         tx: &Transaction,
         adjust_pubdata_price: bool,
-    ) -> Result<(BoxedVm<'a>, StoragePtr<StorageView<PostgresStorage<'a>>>), SandboxExecutionError>
-    {
+    ) -> (BoxedVm<'a>, StoragePtr<StorageView<PostgresStorage<'a>>>) {
         self.setup_storage_view(tx);
         let protocol_version = self.system_env.version;
         if adjust_pubdata_price {
@@ -272,11 +271,6 @@ impl<'a> Sandbox<'a> {
             );
         };
 
-        let max_allowed_gas_limit = get_max_batch_gas_limit(protocol_version.into());
-        if tx.gas_limit() > max_allowed_gas_limit.into() {
-            return Err(SandboxExecutionError::GasLimitIncompatibleWithProtocolVersion);
-        }
-
         let storage_view = self.storage_view.to_rc_ptr();
         let vm = Box::new(VmInstance::new_with_specific_version(
             self.l1_batch_env,
@@ -285,7 +279,7 @@ impl<'a> Sandbox<'a> {
             protocol_version.into_api_vm_version(),
         ));
 
-        Ok((vm, storage_view))
+        (vm, storage_view)
     }
 }
 
@@ -325,7 +319,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         execution_args,
         block_args,
     ))?;
-    let (mut vm, storage_view) = sandbox.into_vm(&tx, adjust_pubdata_price)?;
+    let (mut vm, storage_view) = sandbox.into_vm(&tx, adjust_pubdata_price);
 
     SANDBOX_METRICS.sandbox[&SandboxStage::Initialization].observe(stage_started_at.elapsed());
     span.exit();

@@ -145,9 +145,6 @@ impl From<SandboxExecutionError> for SubmitTxError {
             SandboxExecutionError::FailedToPayForTransaction(reason) => {
                 Self::FailedToChargeFee(reason)
             }
-            SandboxExecutionError::GasLimitIncompatibleWithProtocolVersion => {
-                Self::GasLimitIsTooBig
-            }
         }
     }
 }
