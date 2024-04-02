@@ -141,7 +141,7 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
                 zk_porter_available: false,
                 version: ProtocolVersionId::latest(),
                 base_system_smart_contracts: BaseSystemContracts::playground(),
-                computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
+                bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
                 execution_mode: TxExecutionMode::VerifyExecute,
                 default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
                 chain_id: L2ChainId::from(270),
@@ -177,7 +177,7 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
     }
 
     pub(crate) fn with_computational_gas_limit(mut self, gas_limit: u32) -> Self {
-        self.system_env.computational_gas_limit = gas_limit;
+        self.system_env.bootloader_gas_limit = gas_limit;
         self
     }
 

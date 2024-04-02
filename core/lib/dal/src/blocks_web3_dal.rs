@@ -77,6 +77,11 @@ impl BlocksWeb3Dal<'_, '_> {
                     base_fee_per_gas: bigdecimal_to_u256(row.base_fee_per_gas),
                     timestamp: (row.timestamp as u64).into(),
                     l1_batch_timestamp: row.l1_batch_timestamp.map(U256::from),
+                    gas_limit: (row
+                        .block_gas_limit
+                        .unwrap_or(i64::from(LEGACY_BLOCK_GAS_LIMIT))
+                        as u64)
+                        .into(),
                     // TODO: include logs
                     ..api::Block::default()
                 }
@@ -90,11 +95,6 @@ impl BlocksWeb3Dal<'_, '_> {
             if let Some(tx_hash) = &row.tx_hash {
                 block.transactions.push(H256::from_slice(tx_hash));
             }
-
-            block.gas_limit =
-                (row.block_gas_limit
-                    .unwrap_or(i64::from(LEGACY_BLOCK_GAS_LIMIT)) as u64)
-                    .into();
 
             Some(block)
         });
