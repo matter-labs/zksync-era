@@ -117,19 +117,28 @@ impl<'a> ServiceContext<'a> {
 
         // Check whether the resource is already available.
         if let Some(resource) = self.service.resources.get(&ResourceId::of::<T>()) {
-            tracing::info!("Layer {} has requested resource {}", self.layer, T::name());
+            tracing::info!(
+                "Layer {} has requested resource {} of type {}",
+                self.layer,
+                T::name(),
+                type_name::<T>()
+            );
             return Ok(downcast_clone(resource));
         }
 
         tracing::info!(
-            "Layer {} has requested resource {}, but it is not available",
+            "Layer {} has requested resource {} of type {}, but it is not available",
             self.layer,
-            T::name()
+            T::name(),
+            type_name::<T>()
         );
 
         // No such resource.
         // The requester is allowed to decide whether this is an error or not.
-        Err(WiringError::ResourceLacking(T::name()))
+        Err(WiringError::ResourceLacking {
+            name: T::name(),
+            id: ResourceId::of::<T>(),
+        })
     }
 
     /// Attempts to retrieve the resource with the specified name.
@@ -167,11 +176,12 @@ impl<'a> ServiceContext<'a> {
         let id = ResourceId::of::<T>();
         if self.service.resources.contains_key(&id) {
             tracing::warn!(
-                "Layer {} has attempted to provide resource {}, but it is already available",
+                "Layer {} has attempted to provide resource {} of type {}, but it is already available",
                 self.layer,
-                T::name()
+                T::name(),
+                type_name::<T>()
             );
-            return Err(WiringError::ResourceAlreadyProvided(T::name()));
+            return Err(WiringError::ResourceAlreadyProvided{id: ResourceId::of<T>(), name: T::name()});
         }
         self.service.resources.insert(id, Box::new(resource));
         tracing::info!(
