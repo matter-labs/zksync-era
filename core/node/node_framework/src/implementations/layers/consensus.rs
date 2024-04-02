@@ -25,9 +25,9 @@ pub enum Mode {
 
 #[derive(Debug)]
 pub struct ConsensusLayer {
-    mode: Mode,
-    config: Option<consensus::Config>,
-    secrets: Option<consensus::Secrets>,
+    pub mode: Mode,
+    pub config: Option<consensus::Config>,
+    pub secrets: Option<consensus::Secrets>,
 }
 
 #[async_trait::async_trait]
