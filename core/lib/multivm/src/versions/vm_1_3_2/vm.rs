@@ -180,6 +180,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             // It's not applicable for vm 1.3.2
             deduplicated_events_logs: vec![],
             storage_refunds: vec![],
+            pubdata_costs: Vec::new(),
         }
     }
 
