@@ -1,7 +1,11 @@
 use serde::{Deserialize, Serialize};
 use zksync_system_constants::{BLOB1_LINEAR_HASH_KEY, PUBDATA_CHUNK_PUBLISHER_ADDRESS};
 
-use crate::{commitment::SerializeCommitment, Address, ProtocolVersionId, H256};
+use crate::{
+    blob::{num_blobs_created, num_blobs_required},
+    commitment::SerializeCommitment,
+    Address, ProtocolVersionId, H256,
+};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, Eq)]
 pub struct L2ToL1Log {
@@ -80,8 +84,8 @@ pub fn parse_system_logs_for_blob_hashes(
     protocol_version: &ProtocolVersionId,
     system_logs: &[SystemL2ToL1Log],
 ) -> Vec<H256> {
-    let num_required_blobs = protocol_version.into_num_blobs_required() as u32;
-    let num_created_blobs = protocol_version.into_num_blobs_created() as u32;
+    let num_required_blobs = num_blobs_required(&protocol_version) as u32;
+    let num_created_blobs = num_blobs_created(&protocol_version) as u32;
 
     if num_created_blobs == 0 {
         return vec![H256::zero(); num_required_blobs as usize];
@@ -100,6 +104,11 @@ pub fn parse_system_logs_for_blob_hashes(
 
     blob_hashes.sort_unstable_by_key(|(k, _)| *k);
     let mut blob_hashes = blob_hashes.iter().map(|(_, v)| *v).collect::<Vec<H256>>();
+    assert_eq!(
+        blob_hashes.len(),
+        num_created_blobs as usize,
+        "Not enough blob linear hashes"
+    );
     blob_hashes.resize(num_required_blobs as usize, H256::zero());
     blob_hashes
 }

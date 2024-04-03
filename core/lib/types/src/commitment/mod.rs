@@ -18,6 +18,7 @@ use zksync_system_constants::{
 use zksync_utils::u256_to_h256;
 
 use crate::{
+    blob::num_blobs_required,
     block::{L1BatchHeader, L1BatchTreeData},
     l2_to_l1_log::{
         l2_to_l1_logs_tree_size, parse_system_logs_for_blob_hashes, L2ToL1Log, SystemL2ToL1Log,
@@ -711,7 +712,7 @@ impl CommitmentInput {
                     bootloader_initial_content_commitment: H256::zero(),
                 },
                 blob_commitments: {
-                    let num_blobs = protocol_version.into_num_blobs_required();
+                    let num_blobs = num_blobs_required(&protocol_version);
 
                     vec![H256::zero(); num_blobs]
                 },

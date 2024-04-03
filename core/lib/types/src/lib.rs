@@ -24,6 +24,7 @@ pub use crate::{Nonce, H256, U256, U64};
 pub type SerialId = u64;
 
 pub mod aggregated_operations;
+pub mod blob;
 pub mod block;
 pub mod circuit;
 pub mod commitment;
