@@ -47,38 +47,6 @@ struct L1SystemConfig {
     required_l2_gas_price_per_pubdata: u64,
 }
 
-pub fn generate_l1_contracts_system_config(gas_constants: &IntrinsicSystemGasConstants) -> String {
-    // Currently this value is hardcoded here as a constant.
-    // L1->L2 txs are free for now and thus this value is unused on L1 contract, so it's ok.
-    // Though, maybe it's worth to use some other approach when users will pay for L1->L2 txs.
-    const FAIR_L2_GAS_PRICE_ON_L1_CONTRACT: u64 = 250_000_000;
-
-    let l1_contracts_config = L1SystemConfig {
-        l2_tx_max_gas_limit: MAX_TX_ERGS_LIMIT,
-        max_pubdata_per_batch: MAX_VM_PUBDATA_PER_BATCH as u32,
-        priority_tx_max_pubdata: (L1_TX_DECREASE * (MAX_VM_PUBDATA_PER_BATCH as f64)) as u32,
-        fair_l2_gas_price: FAIR_L2_GAS_PRICE_ON_L1_CONTRACT,
-        l1_gas_per_pubdata_byte: L1_GAS_PER_PUBDATA_BYTE,
-        block_overhead_l1_gas: BLOCK_OVERHEAD_L1_GAS,
-        max_transactions_in_block: get_bootloader_max_txs_in_batch(
-            ProtocolVersionId::latest().into(),
-        ) as u32,
-        bootloader_tx_encoding_space: get_bootloader_encoding_space(
-            ProtocolVersionId::latest().into(),
-        ),
-        l1_tx_intrinsic_l2_gas: gas_constants.l1_tx_intrinsic_gas,
-        l1_tx_intrinsic_pubdata: gas_constants.l1_tx_intrinsic_pubdata,
-        l1_tx_min_l2_gas_base: gas_constants.l1_tx_min_gas_base,
-        l1_tx_delta_544_encoding_bytes: gas_constants.l1_tx_delta_544_encoding_bytes,
-        l1_tx_delta_factory_deps_l2_gas: gas_constants.l1_tx_delta_factory_dep_gas,
-        l1_tx_delta_factory_deps_pubdata: gas_constants.l1_tx_delta_factory_dep_pubdata,
-        max_new_factory_deps: MAX_NEW_FACTORY_DEPS as u32,
-        required_l2_gas_price_per_pubdata: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
-    };
-
-    serde_json::to_string_pretty(&l1_contracts_config).unwrap()
-}
-
 // Params needed for L2 system contracts
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -99,29 +67,66 @@ struct L2SystemConfig {
     ecrecover_cost_gas: u32,
 }
 
-pub fn generate_l2_contracts_system_config(gas_constants: &IntrinsicSystemGasConstants) -> String {
-    let l2_contracts_config = L2SystemConfig {
-        guaranteed_pubdata_bytes: GUARANTEED_PUBDATA_IN_TX,
-        max_pubdata_per_batch: MAX_VM_PUBDATA_PER_BATCH as u32,
-        max_transactions_in_block: get_bootloader_max_txs_in_batch(
-            ProtocolVersionId::latest().into(),
-        ) as u32,
-        block_overhead_l1_gas: BLOCK_OVERHEAD_L1_GAS,
-        l2_tx_intrinsic_gas: gas_constants.l2_tx_intrinsic_gas,
-        l2_tx_intrinsic_pubdata: gas_constants.l2_tx_intrinsic_pubdata,
-        l1_tx_intrinsic_l2_gas: gas_constants.l1_tx_intrinsic_gas,
-        l1_tx_intrinsic_pubdata: gas_constants.l1_tx_intrinsic_pubdata,
-        max_gas_per_transaction: MAX_TX_ERGS_LIMIT,
-        bootloader_memory_for_txs: get_bootloader_encoding_space(
-            ProtocolVersionId::latest().into(),
-        ),
-        refund_gas: gas_constants.l2_tx_gas_for_refund_transfer,
-        keccak_round_cost_gas: KECCAK256_CIRCUIT_COST_IN_ERGS,
-        sha256_round_cost_gas: SHA256_CIRCUIT_COST_IN_ERGS,
-        ecrecover_cost_gas: ECRECOVER_CIRCUIT_COST_IN_ERGS,
+fn generate_system_config<T: Serialize>(
+    gas_constants: &IntrinsicSystemGasConstants,
+    config_type: ConfigType,
+) -> String {
+    // Currently this value is hardcoded here as a constant.
+    // L1->L2 txs are free for now and thus this value is unused on L1 contract, so it's ok.
+    // Though, maybe it's worth to use some other approach when users will pay for L1->L2 txs.
+    const FAIR_L2_GAS_PRICE_ON_L1_CONTRACT: u64 = 250_000_000;
+
+    let system_config = match config_type {
+        ConfigType::L1 => T::serialize(&L1SystemConfig {
+            l2_tx_max_gas_limit: MAX_TX_ERGS_LIMIT,
+            max_pubdata_per_batch: MAX_VM_PUBDATA_PER_BATCH as u32,
+            priority_tx_max_pubdata: (L1_TX_DECREASE * (MAX_VM_PUBDATA_PER_BATCH as f64)) as u32,
+            fair_l2_gas_price: FAIR_L2_GAS_PRICE_ON_L1_CONTRACT,
+            l1_gas_per_pubdata_byte: L1_GAS_PER_PUBDATA_BYTE,
+            block_overhead_l1_gas: BLOCK_OVERHEAD_L1_GAS,
+            max_transactions_in_block: get_bootloader_max_txs_in_batch(
+                ProtocolVersionId::latest().into(),
+            ) as u32,
+            bootloader_tx_encoding_space: get_bootloader_encoding_space(
+                ProtocolVersionId::latest().into(),
+            ),
+            l1_tx_intrinsic_l2_gas: gas_constants.l1_tx_intrinsic_gas,
+            l1_tx_intrinsic_pubdata: gas_constants.l1_tx_intrinsic_pubdata,
+            l1_tx_min_l2_gas_base: gas_constants.l1_tx_min_gas_base,
+            l1_tx_delta_544_encoding_bytes: gas_constants.l1_tx_delta_544_encoding_bytes,
+            l1_tx_delta_factory_deps_l2_gas: gas_constants.l1_tx_delta_factory_dep_gas,
+            l1_tx_delta_factory_deps_pubdata: gas_constants.l1_tx_delta_factory_dep_pubdata,
+            max_new_factory_deps: MAX_NEW_FACTORY_DEPS as u32,
+            required_l2_gas_price_per_pubdata: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+        }),
+        ConfigType::L2 => T::serialize(&L2SystemConfig {
+            guaranteed_pubdata_bytes: GUARANTEED_PUBDATA_IN_TX,
+            max_pubdata_per_batch: MAX_VM_PUBDATA_PER_BATCH as u32,
+            max_transactions_in_block: get_bootloader_max_txs_in_batch(
+                ProtocolVersionId::latest().into(),
+            ) as u32,
+            block_overhead_l1_gas: BLOCK_OVERHEAD_L1_GAS,
+            l2_tx_intrinsic_gas: gas_constants.l2_tx_intrinsic_gas,
+            l2_tx_intrinsic_pubdata: gas_constants.l2_tx_intrinsic_pubdata,
+            l1_tx_intrinsic_l2_gas: gas_constants.l1_tx_intrinsic_gas,
+            l1_tx_intrinsic_pubdata: gas_constants.l1_tx_intrinsic_pubdata,
+            max_gas_per_transaction: MAX_TX_ERGS_LIMIT,
+            bootloader_memory_for_txs: get_bootloader_encoding_space(
+                ProtocolVersionId::latest().into(),
+            ),
+            refund_gas: gas_constants.l2_tx_gas_for_refund_transfer,
+            keccak_round_cost_gas: KECCAK256_CIRCUIT_COST_IN_ERGS,
+            sha256_round_cost_gas: SHA256_CIRCUIT_COST_IN_ERGS,
+            ecrecover_cost_gas: ECRECOVER_CIRCUIT_COST_IN_ERGS,
+        }),
     };
 
-    serde_json::to_string_pretty(&l2_contracts_config).unwrap()
+    serde_json::to_string_pretty(&system_config).unwrap()
+}
+
+enum ConfigType {
+    L1,
+    L2,
 }
 
 // We allow L1 transactions to have only a fraction of the maximum gas limit/pubdata for L2 transactions
@@ -225,12 +230,18 @@ fn update_rust_system_constants(intrinsic_gas_constants: &IntrinsicSystemGasCons
 }
 
 fn update_l1_system_constants(intrinsic_gas_constants: &IntrinsicSystemGasConstants) {
-    let l1_system_config = generate_l1_contracts_system_config(intrinsic_gas_constants);
+    let l1_system_config = generate_system_config::<serde_json::ser::PrettyFormatter<_>>(
+        intrinsic_gas_constants,
+        ConfigType::L1,
+    );
     save_file("contracts/SystemConfig.json", l1_system_config);
 }
 
 fn update_l2_system_constants(intrinsic_gas_constants: &IntrinsicSystemGasConstants) {
-    let l2_system_config = generate_l2_contracts_system_config(intrinsic_gas_constants);
+    let l2_system_config = generate_system_config::<serde_json::ser::PrettyFormatter<_>>(
+        intrinsic_gas_constants,
+        ConfigType::L2,
+    );
     save_file(
         "contracts/system-contracts/SystemConfig.json",
         l2_system_config,
