@@ -3,7 +3,7 @@ use zksync_db_connection::connection_pool::ConnectionPool;
 
 use crate::{house_keeper::periodic_job::PeriodicJob, metrics::HOUSE_KEEPER_METRICS};
 
-/// FriGpuProverArchiver is a task that periodically archives old fri gpu prover records.
+/// FriGpuProverArchiver is a task that periodically archives old fri GPU prover records.
 /// The task will archive the `dead` prover records that have not been updated for a certain amount of time.
 #[derive(Debug)]
 pub struct FriGpuProverArchiver {
