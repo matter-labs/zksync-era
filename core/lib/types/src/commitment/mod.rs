@@ -12,15 +12,17 @@ use serde::{Deserialize, Serialize};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::{
-    BLOB1_LINEAR_HASH_KEY, BLOB2_LINEAR_HASH_KEY, KNOWN_CODES_STORAGE_ADDRESS,
-    L2_TO_L1_LOGS_TREE_ROOT_KEY, PUBDATA_CHUNK_PUBLISHER_ADDRESS, STATE_DIFF_HASH_KEY,
+    KNOWN_CODES_STORAGE_ADDRESS, L2_TO_L1_LOGS_TREE_ROOT_KEY, STATE_DIFF_HASH_KEY,
     ZKPORTER_IS_AVAILABLE,
 };
 use zksync_utils::u256_to_h256;
 
 use crate::{
     block::{L1BatchHeader, L1BatchTreeData},
-    l2_to_l1_log::{l2_to_l1_logs_tree_size, L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
+    l2_to_l1_log::{
+        l2_to_l1_logs_tree_size, parse_system_logs_for_blob_hashes, L2ToL1Log, SystemL2ToL1Log,
+        UserL2ToL1Log,
+    },
     web3::signing::keccak256,
     writes::{
         compress_state_diffs, InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord,
@@ -280,8 +282,8 @@ enum L1BatchAuxiliaryOutput {
         state_diffs_compressed: Vec<u8>,
         state_diffs_hash: H256,
         aux_commitments: AuxCommitments,
-        blob_linear_hashes: [H256; 2],
-        blob_commitments: [H256; 2],
+        blob_linear_hashes: Vec<H256>,
+        blob_commitments: Vec<H256>,
     },
 }
 
@@ -354,30 +356,8 @@ impl L1BatchAuxiliaryOutput {
                 let state_diffs_hash = H256::from(keccak256(&(state_diffs_packed)));
                 let state_diffs_compressed = compress_state_diffs(state_diffs);
 
-                let blob_linear_hashes = if common_input.protocol_version.is_post_1_4_2() {
-                    let blob1_linear_hash = system_logs.iter().find_map(|log| {
-                        (log.0.sender == PUBDATA_CHUNK_PUBLISHER_ADDRESS
-                            && log.0.key == H256::from_low_u64_be(BLOB1_LINEAR_HASH_KEY as u64))
-                        .then_some(log.0.value)
-                    });
-                    let blob2_linear_hash = system_logs.iter().find_map(|log| {
-                        (log.0.sender == PUBDATA_CHUNK_PUBLISHER_ADDRESS
-                            && log.0.key == H256::from_low_u64_be(BLOB2_LINEAR_HASH_KEY as u64))
-                        .then_some(log.0.value)
-                    });
-                    match (&blob1_linear_hash, &blob2_linear_hash) {
-                        (Some(_), None) | (None, Some(_)) => {
-                            panic!("Only one blob hash was found in system logs")
-                        }
-                        _ => {}
-                    }
-                    [
-                        blob1_linear_hash.unwrap_or_else(H256::zero),
-                        blob2_linear_hash.unwrap_or_else(H256::zero),
-                    ]
-                } else {
-                    [H256::zero(), H256::zero()]
-                };
+                let blob_linear_hashes =
+                    parse_system_logs_for_blob_hashes(&common_input.protocol_version, &system_logs);
 
                 // Sanity checks. System logs are empty for the genesis batch, so we can't do checks for it.
                 if !system_logs.is_empty() {
@@ -460,10 +440,10 @@ impl L1BatchAuxiliaryOutput {
                     result.extend(H256::zero().as_bytes());
                     result.extend(H256::zero().as_bytes());
                 } else if common.protocol_version.is_post_1_4_2() {
-                    result.extend(blob_linear_hashes[0].as_bytes());
-                    result.extend(blob_commitments[0].as_bytes());
-                    result.extend(blob_linear_hashes[1].as_bytes());
-                    result.extend(blob_commitments[1].as_bytes());
+                    for i in 0..blob_commitments.len() {
+                        result.extend(blob_linear_hashes[i].as_bytes());
+                        result.extend(blob_commitments[i].as_bytes());
+                    }
                 }
             }
         }
@@ -492,17 +472,23 @@ pub struct L1BatchMetaParameters {
 }
 
 impl L1BatchMetaParameters {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        const SERIALIZED_SIZE: usize = 4 + 1 + 32 + 32;
+    pub fn to_bytes(&self, protocol_version: &ProtocolVersionId) -> Vec<u8> {
+        const SERIALIZED_SIZE: usize = 1 + 32 + 32 + 32;
         let mut result = Vec::with_capacity(SERIALIZED_SIZE);
         result.push(self.zkporter_is_available as u8);
         result.extend(self.bootloader_code_hash.as_bytes());
         result.extend(self.default_aa_code_hash.as_bytes());
+
+        if protocol_version.is_post_1_5_0() {
+            // EVM simulator hash for now is the same as the default AA hash.
+            result.extend(self.default_aa_code_hash.as_bytes());
+        }
+
         result
     }
 
-    pub fn hash(&self) -> H256 {
-        H256::from_slice(&keccak256(&self.to_bytes()))
+    pub fn hash(&self, protocol_version: &ProtocolVersionId) -> H256 {
+        H256::from_slice(&keccak256(&self.to_bytes(protocol_version)))
     }
 }
 
@@ -606,7 +592,9 @@ impl L1BatchCommitment {
         let mut result = vec![];
         let pass_through_data_hash = self.pass_through_data.hash();
         result.extend_from_slice(pass_through_data_hash.as_bytes());
-        let metadata_hash = self.meta_parameters.hash();
+        let metadata_hash = self
+            .meta_parameters
+            .hash(&self.auxiliary_output.common().protocol_version);
         result.extend_from_slice(metadata_hash.as_bytes());
         let auxiliary_output_hash = self.auxiliary_output.hash();
         result.extend_from_slice(auxiliary_output_hash.as_bytes());
@@ -681,7 +669,7 @@ pub enum CommitmentInput {
         system_logs: Vec<SystemL2ToL1Log>,
         state_diffs: Vec<StateDiffRecord>,
         aux_commitments: AuxCommitments,
-        blob_commitments: [H256; 2],
+        blob_commitments: Vec<H256>,
     },
 }
 
@@ -722,7 +710,11 @@ impl CommitmentInput {
                     events_queue_commitment: H256::zero(),
                     bootloader_initial_content_commitment: H256::zero(),
                 },
-                blob_commitments: [H256::zero(), H256::zero()],
+                blob_commitments: {
+                    let num_blobs = protocol_version.into_num_blobs_required();
+
+                    vec![H256::zero(); num_blobs]
+                },
             }
         }
     }

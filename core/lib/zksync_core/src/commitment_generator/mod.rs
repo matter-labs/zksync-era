@@ -230,9 +230,12 @@ impl CommitmentGenerator {
                     format!("`pubdata_input` is missing for L1 batch #{l1_batch_number}")
                 })?;
 
-                pubdata_to_blob_commitments(&pubdata_input)
+                pubdata_to_blob_commitments(
+                    protocol_version.into_num_blobs_required(),
+                    &pubdata_input,
+                )
             } else {
-                [H256::zero(), H256::zero()]
+                vec![H256::zero(); protocol_version.into_num_blobs_required()]
             };
 
             CommitmentInput::PostBoojum {
