@@ -659,12 +659,11 @@ describe('web3 API compatibility tests', () => {
             from: alice.address,
             nonce: senderNonce,
             gasLimit: ethers.BigNumber.from(300000),
+            gasPrice,
             data: '0x',
             value: 0,
             chainId,
             type: 113,
-            maxPriorityFeePerGas: gasPrice,
-            maxFeePerGas: gasPrice,
             customData: {
                 gasPerPubdata: '0'
             }

@@ -183,8 +183,7 @@ describe('System behavior checks', () => {
             from: alice.address,
             data: '0x',
             value: 0,
-            maxFeePerGas: 12000,
-            maxPriorityFeePerGas: 100,
+            gasPrice: 12000,
             customData: {
                 gasPerPubdata: zksync.utils.DEFAULT_GAS_PER_PUBDATA_LIMIT
             }
@@ -292,6 +291,7 @@ describe('System behavior checks', () => {
     });
 
     // TODO (SMA-1713): the test is flaky.
+    // NOTE: it does the same thing as the upgrade test, so consider removing it.
     test.skip('Should test forceDeploy', async () => {
         // Testing forcedDeploys involves small upgrades of smart contacts.
         // Thus, it is not appropriate to do them anywhere else except for localhost.
