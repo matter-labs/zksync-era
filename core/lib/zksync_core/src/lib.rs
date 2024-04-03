@@ -546,7 +546,7 @@ pub async fn initialize_components(
         let stop_receiver = stop_receiver.clone();
         task_futures.push(tokio::spawn(async move {
             let root_ctx = ctx::root();
-            consensus::run_main_node(&root_ctx, cfg, pool, stop_receiver).await
+            consensus::era::run_main_node(&root_ctx, cfg, pool, stop_receiver).await
         }));
 
         let elapsed = started_at.elapsed();

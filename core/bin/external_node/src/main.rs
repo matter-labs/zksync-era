@@ -231,7 +231,7 @@ async fn run_core(
         let stop_receiver = stop_receiver.clone();
         async move {
             let ctx = ctx::root();
-            consensus::run_fetcher(
+            consensus::era::run_fetcher(
                 &ctx,
                 cfg,
                 pool,

@@ -116,8 +116,13 @@ impl Task for MainNodeConsensusTask {
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         let root_ctx = ctx::root();
-        zksync_core::consensus::run_main_node(&root_ctx, self.config, self.pool, stop_receiver.0)
-            .await
+        zksync_core::consensus::era::run_main_node(
+            &root_ctx,
+            self.config,
+            self.pool,
+            stop_receiver.0,
+        )
+        .await
     }
 }
 
@@ -138,7 +143,7 @@ impl Task for FetcherTask {
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         let root_ctx = ctx::root();
-        zksync_core::consensus::run_fetcher(
+        zksync_core::consensus::era::run_fetcher(
             &root_ctx,
             self.config,
             self.pool,
