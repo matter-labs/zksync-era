@@ -177,8 +177,9 @@ impl ObservabilityBuilder {
         otlp_endpoint: String,
         service_name: String,
     ) -> Result<Self, OpenTelemetryLevelFormatError> {
+        let opentelemetry_level = opentelemetry_level.parse()?;
         self.opentelemetry_options = Some(OpenTelemetryOptions {
-            opentelemetry_level: opentelemetry_level.parse()?,
+            opentelemetry_level,
             otlp_endpoint,
             service_name,
         });
