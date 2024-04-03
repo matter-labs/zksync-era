@@ -237,17 +237,14 @@ async fn run_core(
             // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
             let ctx = ctx::root();
             scope::run!(&ctx, |ctx, s| async move {
-                s.spawn_bg(async move {
-                    consensus::era::run_fetcher(
-                        ctx,
-                        cfg,
-                        pool,
-                        sync_state,
-                        main_node_client,
-                        action_queue_sender,
-                    )
-                    .await
-                });
+                s.spawn_bg(consensus::era::run_fetcher(
+                    ctx,
+                    cfg,
+                    pool,
+                    sync_state,
+                    main_node_client,
+                    action_queue_sender,
+                ));
                 ctx.wait(stop_receiver.wait_for(|stop| *stop)).await??;
                 Ok(())
             })

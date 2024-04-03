@@ -156,17 +156,14 @@ impl Task for FetcherTask {
         // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
         let root_ctx = ctx::root();
         scope::run!(&root_ctx, |ctx, s| async {
-            s.spawn_bg(async move {
-                zksync_core::consensus::era::run_fetcher(
-                    &root_ctx,
-                    self.config,
-                    self.pool,
-                    self.sync_state,
-                    self.main_node_client,
-                    self.action_queue_sender,
-                )
-                .await
-            });
+            s.spawn_bg(zksync_core::consensus::era::run_fetcher(
+                &root_ctx,
+                self.config,
+                self.pool,
+                self.sync_state,
+                self.main_node_client,
+                self.action_queue_sender,
+            ));
             ctx.wait(stop_receiver.0.wait_for(|stop| *stop)).await??;
             Ok(())
         })
