@@ -43,7 +43,7 @@ pub mod availability_checker {
 
                 match status {
                     None => {
-                        METRICS.zombie_prover_instances_count[KillingReason::Absent].inc();
+                        METRICS.zombie_prover_instances_count[&KillingReason::Absent].inc();
                         tracing::info!(
                             "Prover instance at address {:?}, availability zone {} was not found in the database, shutting down",
                             self.address,
@@ -52,7 +52,7 @@ pub mod availability_checker {
                         return Ok(());
                     }
                     Some(GpuProverInstanceStatus::Dead) => {
-                        METRICS.zombie_prover_instances_count[KillingReason::Dead].inc();
+                        METRICS.zombie_prover_instances_count[&KillingReason::Dead].inc();
                         tracing::info!(
                             "Prover instance at address {:?}, availability zone {} was found marked as dead, shutting down",
                             self.address,
