@@ -24,7 +24,7 @@ use zksync_types::{
 };
 use zksync_web3_decl::namespaces::{EthNamespaceClient, ZksNamespaceClient};
 
-use crate::{
+use crate::sdk::{
     error::ClientError,
     operations::SyncTransactionHandle,
     utils::{is_token_eth, load_contract},
@@ -309,7 +309,6 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         Ok(transaction_hash)
     }
 
-    #[cfg(feature = "mint")]
     pub async fn mint_erc20(
         &self,
         token_address: Address,
