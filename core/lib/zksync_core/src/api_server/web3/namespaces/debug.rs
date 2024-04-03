@@ -220,11 +220,11 @@ impl DebugNamespace {
             caches: self.state.tx_sender.storage_caches().clone(),
             validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             chain_id: sender_config.chain_id,
-            tokens_whitelisted_for_paymaster: self
+            whitelisted_tokens_for_aa: self
                 .state
                 .tx_sender
                 .0
-                .tokens_whitelisted_for_paymaster_cache
+                .whitelisted_tokens_for_aa_cache
                 .read()
                 .await
                 .clone(),

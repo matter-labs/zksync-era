@@ -4,10 +4,6 @@ package zksync.config.api;
 
 import "zksync/config/utils.proto";
 
-message Addresses {
-  repeated bytes addresses = 1; // H160
-}
-
 message Web3JsonRpc {
   optional uint32 http_port = 1; // required; u16
   optional string http_url = 2; // required
@@ -38,7 +34,7 @@ message Web3JsonRpc {
   optional bool filters_disabled = 27; // optional
   optional uint64 mempool_cache_update_interval = 28; // optional
   optional uint64 mempool_cache_size = 29; // optional
-  optional Addresses tokens_whitelisted_for_paymaster = 30; // optional
+  repeated string whitelisted_tokens_for_aa = 30; // optional
 }
 
 

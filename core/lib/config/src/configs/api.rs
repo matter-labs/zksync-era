@@ -102,7 +102,8 @@ pub struct Web3JsonRpcConfig {
     pub mempool_cache_size: Option<usize>,
     /// List of L2 token addresses that are white-listed to use by paymasters
     /// (additionally to natively bridged tokens).
-    pub tokens_whitelisted_for_paymaster: Option<Vec<Address>>,
+    #[serde(default)]
+    pub whitelisted_tokens_for_aa: Vec<Address>,
 }
 
 impl Web3JsonRpcConfig {
@@ -140,7 +141,7 @@ impl Web3JsonRpcConfig {
             mempool_cache_update_interval: Default::default(),
             mempool_cache_size: Default::default(),
             tree_api_url: None,
-            tokens_whitelisted_for_paymaster: None,
+            whitelisted_tokens_for_aa: Default::default(),
         }
     }
 

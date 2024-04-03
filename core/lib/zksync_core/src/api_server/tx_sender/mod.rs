@@ -185,7 +185,7 @@ impl TxSenderBuilder {
         vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
         api_contracts: ApiContracts,
         storage_caches: PostgresStorageCaches,
-        tokens_whitelisted_for_paymaster_cache: Arc<RwLock<Vec<Address>>>,
+        whitelisted_tokens_for_aa_cache: Arc<RwLock<Vec<Address>>>,
     ) -> TxSender {
         // Use noop sealer if no sealer was explicitly provided.
         let sealer = self.sealer.unwrap_or_else(|| Arc::new(NoopSealer));
@@ -198,7 +198,7 @@ impl TxSenderBuilder {
             api_contracts,
             vm_concurrency_limiter,
             storage_caches,
-            tokens_whitelisted_for_paymaster_cache,
+            whitelisted_tokens_for_aa_cache,
             sealer,
             executor: TransactionExecutor::Real,
         }))
@@ -220,7 +220,7 @@ pub struct TxSenderConfig {
     pub l1_to_l2_transactions_compatibility_mode: bool,
     pub chain_id: L2ChainId,
     pub max_pubdata_per_batch: u64,
-    pub tokens_whitelisted_for_paymaster: Option<Vec<Address>>,
+    pub whitelisted_tokens_for_aa: Vec<Address>,
 }
 
 impl TxSenderConfig {
@@ -242,9 +242,7 @@ impl TxSenderConfig {
                 .l1_to_l2_transactions_compatibility_mode,
             chain_id,
             max_pubdata_per_batch: state_keeper_config.max_pubdata_per_batch,
-            tokens_whitelisted_for_paymaster: web3_json_config
-                .tokens_whitelisted_for_paymaster
-                .clone(),
+            whitelisted_tokens_for_aa: web3_json_config.whitelisted_tokens_for_aa.clone(),
         }
     }
 }
@@ -262,7 +260,7 @@ pub struct TxSenderInner {
     // Caches used in VM execution.
     storage_caches: PostgresStorageCaches,
     // Cache for white-listed tokens.
-    pub(super) tokens_whitelisted_for_paymaster_cache: Arc<RwLock<Vec<Address>>>,
+    pub(super) whitelisted_tokens_for_aa_cache: Arc<RwLock<Vec<Address>>>,
     /// Batch sealer used to check whether transaction can be executed by the sequencer.
     sealer: Arc<dyn ConditionalSealer>,
     pub(super) executor: TransactionExecutor,
@@ -406,12 +404,7 @@ impl TxSender {
                 .sender_config
                 .validation_computational_gas_limit,
             chain_id: self.0.sender_config.chain_id,
-            tokens_whitelisted_for_paymaster: self
-                .0
-                .tokens_whitelisted_for_paymaster_cache
-                .read()
-                .await
-                .clone(),
+            whitelisted_tokens_for_aa: self.0.whitelisted_tokens_for_aa_cache.read().await.clone(),
         }
     }
 
@@ -656,12 +649,7 @@ impl TxSender {
             base_system_contracts: self.0.api_contracts.estimate_gas.clone(),
             caches: self.storage_caches(),
             chain_id: config.chain_id,
-            tokens_whitelisted_for_paymaster: self
-                .0
-                .tokens_whitelisted_for_paymaster_cache
-                .read()
-                .await
-                .clone(),
+            whitelisted_tokens_for_aa: self.0.whitelisted_tokens_for_aa_cache.read().await.clone(),
         }
     }
 

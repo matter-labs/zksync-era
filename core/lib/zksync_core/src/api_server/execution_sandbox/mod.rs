@@ -218,7 +218,7 @@ pub(crate) struct TxSharedArgs {
     pub caches: PostgresStorageCaches,
     pub validation_computational_gas_limit: u32,
     pub chain_id: L2ChainId,
-    pub tokens_whitelisted_for_paymaster: Vec<Address>,
+    pub whitelisted_tokens_for_aa: Vec<Address>,
 }
 
 impl TxSharedArgs {
@@ -231,7 +231,7 @@ impl TxSharedArgs {
             caches: PostgresStorageCaches::new(1, 1),
             validation_computational_gas_limit: u32::MAX,
             chain_id: L2ChainId::default(),
-            tokens_whitelisted_for_paymaster: Vec::new(),
+            whitelisted_tokens_for_aa: Vec::new(),
         }
     }
 }

@@ -124,20 +124,13 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .map(|x| x.try_into())
                 .transpose()
                 .context("mempool_cache_size")?,
-            tokens_whitelisted_for_paymaster: self
-                .tokens_whitelisted_for_paymaster
-                .as_ref()
-                .map(|addresses| {
-                    addresses
-                        .addresses
-                        .iter()
-                        .enumerate()
-                        .map(|(i, k)| parse_h160(k).context(i))
-                        .collect::<Result<_, _>>()
-                        .context("addresses")
-                })
-                .transpose()
-                .context("tokens_whitelisted_for_paymaster")?,
+            whitelisted_tokens_for_aa: self
+                .whitelisted_tokens_for_aa
+                .iter()
+                .enumerate()
+                .map(|(i, k)| parse_h160(k).context(i))
+                .collect::<Result<Vec<_>, _>>()
+                .context("account_pks")?,
         })
     }
     fn build(this: &Self::Type) -> Self {
@@ -191,11 +184,11 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .websocket_requests_per_minute_limit
                 .map(|x| x.into()),
             tree_api_url: this.tree_api_url.clone(),
-            tokens_whitelisted_for_paymaster: this.tokens_whitelisted_for_paymaster.as_ref().map(
-                |addresses| proto::Addresses {
-                    addresses: addresses.iter().map(|k| k.as_bytes().into()).collect(),
-                },
-            ),
+            whitelisted_tokens_for_aa: this
+                .whitelisted_tokens_for_aa
+                .iter()
+                .map(|k| format!("{:?}", k))
+                .collect(),
         }
     }
 }

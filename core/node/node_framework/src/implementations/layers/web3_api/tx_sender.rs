@@ -93,11 +93,7 @@ impl WiringLayer for TxSenderLayer {
         }));
 
         // Build `TxSender`.
-        let tokens_whitelisted_for_paymaster = self
-            .tx_sender_config
-            .tokens_whitelisted_for_paymaster
-            .clone()
-            .unwrap_or_default();
+        let whitelisted_tokens_for_aa = self.tx_sender_config.whitelisted_tokens_for_aa.clone();
         let mut tx_sender = TxSenderBuilder::new(self.tx_sender_config, replica_pool, tx_sink);
         if let Some(sealer) = sealer {
             tx_sender = tx_sender.with_sealer(sealer);
@@ -108,7 +104,7 @@ impl WiringLayer for TxSenderLayer {
                 Arc::new(vm_concurrency_limiter),
                 self.api_contracts,
                 storage_caches,
-                Arc::new(RwLock::new(tokens_whitelisted_for_paymaster)),
+                Arc::new(RwLock::new(whitelisted_tokens_for_aa)),
             )
             .await;
         context.insert_resource(TxSenderResource(tx_sender))?;

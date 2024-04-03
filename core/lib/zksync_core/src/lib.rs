@@ -1208,10 +1208,7 @@ async fn build_tx_sender(
             ApiContracts::load_from_disk(),
             storage_caches,
             Arc::new(RwLock::new(
-                web3_json_config
-                    .tokens_whitelisted_for_paymaster
-                    .clone()
-                    .unwrap_or_default(),
+                web3_json_config.whitelisted_tokens_for_aa.clone(),
             )),
         )
         .await;

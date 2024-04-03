@@ -54,7 +54,7 @@ impl TransactionExecutor {
             &mut connection,
             &tx,
             computational_gas_limit,
-            &shared_args.tokens_whitelisted_for_paymaster,
+            &shared_args.whitelisted_tokens_for_aa,
         )
         .await
         .context("failed getting validation params")?;
@@ -124,7 +124,7 @@ async fn get_validation_params(
     connection: &mut Connection<'_, Core>,
     tx: &L2Tx,
     computational_gas_limit: u32,
-    tokens_whitelisted_for_paymaster: &[Address],
+    whitelisted_tokens_for_aa: &[Address],
 ) -> anyhow::Result<ValidationTracerParams> {
     let method_latency = EXECUTION_METRICS.get_validation_params.start();
     let user_address = tx.common_data.initiator_address;
@@ -139,7 +139,7 @@ async fn get_validation_params(
         .context("failed getting addresses of L2 tokens")?;
     let all_tokens: Vec<_> = all_bridged_tokens
         .iter()
-        .chain(tokens_whitelisted_for_paymaster)
+        .chain(whitelisted_tokens_for_aa)
         .collect();
     EXECUTION_METRICS.tokens_amount.set(all_tokens.len());
 

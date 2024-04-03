@@ -40,8 +40,8 @@ impl EnNamespaceServer for EnNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn tokens_whitelisted_for_paymaster(&self) -> RpcResult<Vec<Address>> {
-        self.tokens_whitelisted_for_paymaster_impl()
+    async fn whitelisted_tokens_for_aa(&self) -> RpcResult<Vec<Address>> {
+        self.whitelisted_tokens_for_aa_impl()
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

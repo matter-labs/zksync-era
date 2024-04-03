@@ -430,23 +430,26 @@ async fn run_api(
             )
         });
 
-        let tokens_whitelisted_for_paymaster_cache = Arc::new(RwLock::new(Vec::new()));
-        let tokens_whitelisted_for_paymaster_cache_clone =
-            tokens_whitelisted_for_paymaster_cache.clone();
+        let whitelisted_tokens_for_aa_cache = Arc::new(RwLock::new(Vec::new()));
+        let whitelisted_tokens_for_aa_cache_clone = whitelisted_tokens_for_aa_cache.clone();
+        let mut stop_receiver_for_task = stop_receiver.clone();
         let whitelisted_tokens_update_task = task::spawn(async move {
             loop {
-                match main_node_client.tokens_whitelisted_for_paymaster().await {
+                match main_node_client.whitelisted_tokens_for_aa().await {
                     Ok(tokens) => {
-                        *tokens_whitelisted_for_paymaster_cache_clone.write().await = tokens;
+                        *whitelisted_tokens_for_aa_cache_clone.write().await = tokens;
                     }
                     Err(err) => {
                         tracing::error!(
-                            "Failed to query `tokens_whitelisted_for_paymaster`, error: {err:?}"
+                            "Failed to query `whitelisted_tokens_for_aa`, error: {err:?}"
                         );
                     }
                 }
 
-                tokio::time::sleep(Duration::from_secs(60)).await;
+                // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
+                tokio::time::timeout(Duration::from_secs(60), stop_receiver_for_task.changed())
+                    .await
+                    .ok();
             }
         });
 
@@ -456,7 +459,7 @@ async fn run_api(
                 Arc::new(vm_concurrency_limiter),
                 ApiContracts::load_from_disk(), // TODO (BFT-138): Allow to dynamically reload API contracts
                 storage_caches,
-                tokens_whitelisted_for_paymaster_cache,
+                whitelisted_tokens_for_aa_cache,
             )
             .await;
         (

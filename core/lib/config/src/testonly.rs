@@ -79,8 +79,7 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             tree_api_url: self.sample(rng),
             mempool_cache_update_interval: self.sample(rng),
             mempool_cache_size: self.sample(rng),
-            tokens_whitelisted_for_paymaster: self
-                .sample_opt(|| self.sample_range(rng).map(|_| rng.gen()).collect()),
+            whitelisted_tokens_for_aa: self.sample_range(rng).map(|_| rng.gen()).collect(),
         }
     }
 }

@@ -158,12 +158,12 @@ impl EnNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn tokens_whitelisted_for_paymaster_impl(&self) -> Result<Vec<Address>, Web3Error> {
+    pub async fn whitelisted_tokens_for_aa_impl(&self) -> Result<Vec<Address>, Web3Error> {
         Ok(self
             .state
             .tx_sender
             .0
-            .tokens_whitelisted_for_paymaster_cache
+            .whitelisted_tokens_for_aa_cache
             .read()
             .await
             .clone())
