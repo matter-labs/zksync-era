@@ -134,6 +134,11 @@ testFees('Test fees', () => {
     });
 
     test('Test gas consumption under large L1 gas price', async () => {
+        if (process.env.CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE === 'Validium') {
+            // We skip this test for Validium mode, since L1 gas price has little impact on the gasLimit in this mode.
+            return;
+        }
+
         // In this test we check that the server works fine when the required gasLimit is over u32::MAX.
         // Under normal server behavior, the maximal gas spent on pubdata is around 120kb * 2^20 gas/byte = ~120 * 10^9 gas.
 
