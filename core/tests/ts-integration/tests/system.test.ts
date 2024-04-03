@@ -424,7 +424,7 @@ describe('System behavior checks', () => {
 
     it('should reject transaction with huge gas limit', async () => {
         await expect(
-            alice.sendTransaction({ to: alice.address, gasLimit: ethers.BigNumber.from(2).pow(32) })
+            alice.sendTransaction({ to: alice.address, gasLimit: ethers.BigNumber.from(2).pow(51) })
         ).toBeRejected('exceeds block gas limit');
     });
 
