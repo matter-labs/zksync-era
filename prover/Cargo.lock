@@ -7942,7 +7942,6 @@ dependencies = [
  "secp256k1",
  "serde",
  "serde_json",
- "serde_with",
  "strum",
  "thiserror",
  "zksync_basic_types",

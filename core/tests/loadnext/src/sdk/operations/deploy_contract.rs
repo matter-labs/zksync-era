@@ -4,7 +4,7 @@ use zksync_types::{
 };
 use zksync_utils::bytecode::hash_bytecode;
 
-use crate::{
+use crate::sdk::{
     error::ClientError, operations::SyncTransactionHandle, wallet::Wallet, zksync_types::fee::Fee,
     EthNamespaceClient, ZksNamespaceClient,
 };

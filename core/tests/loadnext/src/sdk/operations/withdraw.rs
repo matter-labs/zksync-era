@@ -4,7 +4,7 @@ use zksync_types::{
     web3::ethabi, Address, Nonce, L2_ETH_TOKEN_ADDRESS, U256,
 };
 
-use crate::{
+use crate::sdk::{
     error::ClientError,
     operations::{ExecuteContractBuilder, SyncTransactionHandle},
     wallet::Wallet,
