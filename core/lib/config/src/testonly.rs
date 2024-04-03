@@ -567,7 +567,7 @@ impl Distribution<configs::house_keeper::HouseKeeperConfig> for EncodeDist {
             prover_job_archiver_reporting_interval_ms: self.sample(rng),
             prover_job_archiver_archiving_interval_secs: self.sample(rng),
             fri_gpu_prover_archiver_archiving_interval_ms: self.sample(rng),
-            fri_gpu_prover_archiver_archiving_interval_secs: self.sample(rng),
+            fri_gpu_prover_archiver_archive_after_secs: self.sample(rng),
         }
     }
 }

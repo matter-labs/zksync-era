@@ -39,7 +39,7 @@ impl PeriodicJob for FriProverJobArchiver {
             .await;
         tracing::info!("Archived {:?} fri prover jobs", archived_jobs);
         HOUSE_KEEPER_METRICS
-            .prover_job_archived_amount
+            .prover_job_archived
             .inc_by(archived_jobs as u64);
         Ok(())
     }

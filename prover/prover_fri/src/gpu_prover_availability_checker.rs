@@ -1,14 +1,18 @@
 #[cfg(feature = "gpu")]
 pub mod availability_checker {
+    use std::time::Duration;
+
     use prover_dal::{ConnectionPool, Prover, ProverDal};
     use zksync_types::prover_dal::{GpuProverInstanceStatus, SocketAddress};
 
     use crate::metrics::{KillingReason, METRICS};
 
+    /// Availability checker is a task that periodically checks the status of the prover instance in the database.
+    /// If the prover instance is not found in the database or marked as dead, the availability checker will shut down the prover.
     pub struct AvailabilityChecker {
         address: SocketAddress,
         zone: String,
-        polling_interval_secs: u32,
+        polling_interval: Duration,
         pool: ConnectionPool<Prover>,
     }
 
@@ -22,7 +26,7 @@ pub mod availability_checker {
             Self {
                 address,
                 zone,
-                polling_interval_secs,
+                polling_interval: Duration::from_secs(polling_interval_secs as u64),
                 pool,
             }
         }
@@ -41,6 +45,7 @@ pub mod availability_checker {
                     .get_prover_instance_status(self.address.clone(), self.zone.clone())
                     .await;
 
+                // If the prover instance is not found in the database or marked as dead, we should shut down the prover
                 match status {
                     None => {
                         METRICS.zombie_prover_instances_count[&KillingReason::Absent].inc();
@@ -65,10 +70,7 @@ pub mod availability_checker {
                     Some(_) => (),
                 }
 
-                tokio::time::sleep(std::time::Duration::from_secs(
-                    self.polling_interval_secs as u64,
-                ))
-                .await;
+                tokio::time::sleep(self.polling_interval).await;
             }
 
             tracing::info!("Availability checker was shut down");
