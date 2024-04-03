@@ -173,7 +173,7 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
             MemoryType::StaticMemory => {
                 // While `MemoryType::StaticMemory` is formally supported by vm@1.5.0, it is never
                 // used in the system contracts.
-                todo!("Not supported")
+                unreachable!()
             }
         }
 

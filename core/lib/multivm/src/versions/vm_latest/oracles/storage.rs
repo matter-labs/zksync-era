@@ -38,7 +38,7 @@ use crate::{
 /// We employ the following rules for cold/warm storage rules:
 /// - We price a single "I/O" access as 2k ergs. This means that reading a single storage slot
 /// would cost 2k ergs, while writing to it would 4k ergs (since it involves both reading during execution and writing at the end of it).
-/// - Thereafter, "warm" reads cosst 30 ergs, while "warm" writes cost 60 ergs. Warm writes to account for the fact that they may be reverted
+/// - Thereafter, "warm" reads cosst 30 ergs, while "warm" writes cost 60 ergs. Warm writes to account cost more for the fact that they may be reverted
 /// and so require more RAM to store them.
 
 /// If a write is after a read, we do not take into account the cost for reading the initial value from storage.
@@ -187,7 +187,6 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         storage_log_query.log_query.rollback = true;
         self.storage_frames_stack
             .push_rollback(Box::new(storage_log_query), query.timestamp);
-        storage_log_query.log_query.rollback = false;
     }
 
     fn record_transient_storage_read(&mut self, query: LogQuery) {
@@ -423,9 +422,10 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         let refund = if partial_query.aux_byte == TRANSIENT_STORAGE_AUX_BYTE {
             // Any transient access is warm. Also, no refund needs to be provided as it is already cheap
             StorageAccessRefund::Warm { ergs: 0 }
-        } else {
-            assert!(partial_query.aux_byte == STORAGE_AUX_BYTE);
+        } else if partial_query.aux_byte == STORAGE_AUX_BYTE {
             self.get_storage_access_refund(partial_query)
+        } else {
+            unreachable!()
         };
 
         self.returned_refunds.apply_historic_record(

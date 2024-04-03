@@ -133,7 +133,7 @@ testFees('Test fees', () => {
         console.log(`Full report: \n\n${reports.join('\n\n')}`);
     });
 
-    test.skip('Test gas consumption under large L1 gas price', async () => {
+    test('Test gas consumption under large L1 gas price', async () => {
         // In this test we check that the server works fine when the required gasLimit is over u32::MAX.
         // Under normal server behavior, the maximal gas spent on pubdata is around 120kb * 2^20 gas/byte = ~120 * 10^9 gas.
 
@@ -178,12 +178,12 @@ testFees('Test fees', () => {
             const receipt = await alice.provider.getTransactionReceipt(unsuccessfulTx.hash);
             expect(gasToPass.sub(receipt.gasUsed).gt(UINT32_MAX)).toBeTruthy();
         }
-
-        // Returning the pubdata price to the default one
-        await setInternalL1GasPrice(alice._providerL2(), undefined, undefined, true);
     });
 
     afterAll(async () => {
+        // Returning the pubdata price to the default one
+        await setInternalL1GasPrice(alice._providerL2(), undefined, undefined, true);
+
         await testMaster.deinitialize();
     });
 });

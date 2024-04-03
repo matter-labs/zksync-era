@@ -39,6 +39,7 @@ pub(crate) const UMA_READ_RAM_CYCLES: u32 = 3;
 pub(crate) const PRECOMPILE_RAM_CYCLES: u32 = 1;
 pub(crate) const PRECOMPILE_LOG_DEMUXER_CYCLES: u32 = 1;
 
+pub(crate) const LOG_DECOMMIT_RAM_CYCLES: u32 = 1;
 pub(crate) const LOG_DECOMMIT_DECOMMITTER_SORTER_CYCLES: u32 = 1;
 
 const GEOMETRY_CONFIG: GeometryConfig = get_geometry_config();

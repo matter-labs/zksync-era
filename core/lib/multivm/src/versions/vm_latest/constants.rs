@@ -112,7 +112,7 @@ pub const BOOTLOADER_HEAP_PAGE: u32 = heap_page_from_base(MemoryPage(INITIAL_BAS
 /// The 'type' / 'opcode' is put into VM_HOOK_POSITION slot,
 /// and VM_HOOKS_PARAMS_COUNT parameters (each 32 bytes) are put in the slots before.
 /// So the layout looks like this:
-/// `[param 0][param 1][vmhook opcode]`
+/// `[param 0][param 1][param 2][vmhook opcode]`
 pub const VM_HOOK_POSITION: u32 = RESULT_SUCCESS_FIRST_SLOT - 1;
 pub const VM_HOOK_PARAMS_COUNT: u32 = 3;
 pub const VM_HOOK_PARAMS_START_POSITION: u32 = VM_HOOK_POSITION - VM_HOOK_PARAMS_COUNT;
@@ -150,16 +150,14 @@ pub(crate) const TX_OPERATOR_L2_BLOCK_INFO_SLOTS: usize =
 pub(crate) const COMPRESSED_BYTECODES_OFFSET: usize =
     TX_OPERATOR_L2_BLOCK_INFO_OFFSET + TX_OPERATOR_L2_BLOCK_INFO_SLOTS;
 
-/// The maximal gas limit that gets passed into an L1->L2 transaction.
+/// The maximal gas limit that gets passed as compute for an L2 transaction. This is also the maximal limit allowed
+/// for L1->L2 transactions.
 ///
 /// It is equal to the `MAX_GAS_PER_TRANSACTION` in the bootloader.
-/// We need to limit the number of gas that can be passed into the L1->L2 transaction due to the fact
+/// For L2 transaction we need to limit the amount of gas that can be spent on compute while the rest can only be spent on pubdata.
+/// For L1->L2 transactions We need to limit the number of gas that can be passed into the L1->L2 transaction due to the fact
 /// that unlike L2 transactions they can not be rejected by the operator and must be executed. In turn,
 /// this means that if a transaction spends more than `MAX_GAS_PER_TRANSACTION`, it use up all the limited resources of a batch.
-///
-/// It the gas limit cap on Mailbox for a priority transactions should generally be low enough to never cross that boundary, since
-/// artificially limiting the gas price is bad UX. However, during the transition between the pre-1.4.1 fee model and the 1.4.1 one,
-/// we need to process such transactions somehow.
 pub(crate) const TX_MAX_COMPUTE_GAS_LIMIT: usize = 80_000_000;
 
 /// The amount of gas to be charged for occupying a single slot of a transaction.

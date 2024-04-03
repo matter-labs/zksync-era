@@ -165,6 +165,7 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
         mut partial_query: DecommittmentQuery,
     ) -> anyhow::Result<DecommittmentQuery> {
         let (stored_hash, length) = stored_hash_from_query(&partial_query);
+        partial_query.decommitted_length = length;
 
         if let Some(memory_page) = self
             .decommitted_code_hashes
@@ -174,12 +175,10 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
         {
             partial_query.is_fresh = false;
             partial_query.memory_page = MemoryPage(memory_page);
-            partial_query.decommitted_length = length;
 
             Ok(partial_query)
         } else {
             partial_query.is_fresh = true;
-            partial_query.decommitted_length = length;
 
             Ok(partial_query)
         }

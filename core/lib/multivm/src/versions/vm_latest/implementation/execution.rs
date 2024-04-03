@@ -80,7 +80,6 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         let statistics = self.get_statistics(
             timestamp_initial,
             cycles_initial,
-            &tx_tracer,
             gas_remaining_before,
             gas_remaining_after,
             pubdata_published,
