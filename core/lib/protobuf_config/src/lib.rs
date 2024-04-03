@@ -24,7 +24,6 @@ mod object_store;
 mod observability;
 mod proof_data_handler;
 mod snapshots_creator;
-mod witness_generator;
 
 pub mod proto;
 #[cfg(test)]
