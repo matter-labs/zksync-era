@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use zksync_concurrency::{ctx, limiter, time};
+use zksync_concurrency::ctx;
 use zksync_dal::{ConnectionPool, Core};
 
 use super::{
@@ -47,13 +47,6 @@ pub async fn run_fetcher(
         store: Store(pool),
         sync_state: sync_state.clone(),
         client: main_node_client,
-        limiter: limiter::Limiter::new(
-            ctx,
-            limiter::Rate {
-                burst: 10,
-                refresh: time::Duration::milliseconds(30),
-            },
-        ),
     };
     let res = match cfg {
         Some((cfg, secrets)) => fetcher.run_p2p(ctx, actions, cfg.p2p(&secrets)?).await,

@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context as _;
 use rand::Rng;
-use zksync_concurrency::{ctx, error::Wrap as _, limiter, scope, sync, time};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, sync};
 use zksync_config::{configs, GenesisConfig};
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
@@ -14,8 +14,8 @@ use zksync_types::{
     ProtocolVersionId, H256,
 };
 use zksync_web3_decl::{
+    client::L2Client,
     error::{EnrichedClientError, EnrichedClientResult},
-    jsonrpsee::http_client::HttpClient,
 };
 
 use crate::{
@@ -169,17 +169,6 @@ pub(super) struct StateKeeperRunner {
     addr: sync::watch::Sender<Option<std::net::SocketAddr>>,
 }
 
-// Limiter with infinite refresh rate.
-fn unbounded_limiter(ctx: &ctx::Ctx) -> limiter::Limiter {
-    limiter::Limiter::new(
-        ctx,
-        limiter::Rate {
-            burst: 1,
-            refresh: time::Duration::ZERO,
-        },
-    )
-}
-
 impl StateKeeper {
     /// Constructs and initializes a new `StateKeeper`.
     /// Caller has to run `StateKeeperRunner.run()` task in the background.
@@ -289,25 +278,25 @@ impl StateKeeper {
     }
 
     /// Connects to the json RPC endpoint exposed by the state keeper.
-    pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<HttpClient> {
-        let addr: std::net::SocketAddr =
-            sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some)
-                .await?
-                .unwrap();
-        Ok(<dyn MainNodeClient>::json_rpc(&format!("http://{addr}/")).context("json_rpc()")?)
+    pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<L2Client> {
+        let addr = sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some)
+            .await?
+            .unwrap();
+        Ok(L2Client::http(&format!("http://{addr}/"))
+            .context("json_rpc()")?
+            .build())
     }
 
     /// Runs the centralized fetcher.
     pub async fn run_centralized_fetcher(
         self,
         ctx: &ctx::Ctx,
-        client: HttpClient,
+        client: L2Client,
     ) -> anyhow::Result<()> {
         Fetcher {
             store: self.store,
             client: Arc::new(client),
             sync_state: SyncState::default(),
-            limiter: unbounded_limiter(ctx),
         }
         .run_centralized(ctx, self.actions_sender)
         .await
@@ -317,14 +306,13 @@ impl StateKeeper {
     pub async fn run_p2p_fetcher(
         self,
         ctx: &ctx::Ctx,
-        client: HttpClient,
+        client: L2Client,
         cfg: P2PConfig,
     ) -> anyhow::Result<()> {
         Fetcher {
             store: self.store,
             client: Arc::new(client),
             sync_state: SyncState::default(),
-            limiter: unbounded_limiter(ctx),
         }
         .run_p2p(ctx, self.actions_sender, cfg)
         .await
