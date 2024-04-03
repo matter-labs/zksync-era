@@ -2,6 +2,7 @@
 # Values of this file are updated automatically by the contract deploy script.
 
 [contracts]
+GENESIS_PROTOCOL_VERSION = 21
 DEV_PROTOCOL_VERSION=true
 SHARED_BRIDGE_UPGRADE_STORAGE_SWITCH="0"
 VERIFIER_ADDR="0xDAbb67b676F5b01FcC8997Cc8439846D0d8078ca"
