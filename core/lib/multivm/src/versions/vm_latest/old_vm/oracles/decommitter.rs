@@ -157,7 +157,7 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
     for DecommitterOracle<B, S, H>
 {
     /// Prepares the decommitment query for the given bytecode hash.
-    /// The main purpose of this method is to tell the VM whether this bytecode is fresh (i.e. decommittedfor the first time)
+    /// The main purpose of this method is to tell the VM whether this bytecode is fresh (i.e. decommitted for the first time)
     /// or not.
     fn prepare_to_decommit(
         &mut self,
