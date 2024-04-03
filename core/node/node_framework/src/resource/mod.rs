@@ -15,15 +15,9 @@ mod unique;
 /// since the same resource may be requested by several tasks and thus it would be an additional
 /// bound on most methods that work with [`Resource`].
 pub trait Resource: 'static + Send + Sync + std::any::Any {
-    /// Unique identifier of the resource.
-    /// Used to fetch the resource from the provider.
-    ///
-    /// It is recommended to name resources in form of `<scope>/<name>`, where `<scope>` is the name of the task
-    /// that will use this resource, or 'common' in case it is used by several tasks, and `<name>` is the name
-    /// of the resource itself.
-    fn resource_id() -> ResourceId;
-
     fn on_resource_wired(&mut self) {}
+
+    fn name() -> String;
 }
 
 /// Internal, object-safe version of [`Resource`].
@@ -49,7 +43,7 @@ impl fmt::Debug for dyn StoredResource {
 
 impl<T: Resource> StoredResource for T {
     fn stored_resource_id(&self) -> ResourceId {
-        T::resource_id()
+        ResourceId::of::<T>()
     }
 
     fn stored_resource_wired(&mut self) {
