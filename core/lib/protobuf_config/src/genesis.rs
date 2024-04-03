@@ -42,23 +42,34 @@ impl ProtoRepr for proto::Genesis {
             None
         };
         Ok(Self::Type {
-            protocol_version: required(&self.genesis_protocol_version)
-                .map(|x| *x as u16)
-                .context("protocol_version")?,
-            genesis_root_hash: required(&self.genesis_root)
-                .and_then(|x| parse_h256(x))
-                .context("genesis_root_hash")?,
-            rollup_last_leaf_index: *required(&self.genesis_rollup_leaf_index)
-                .context("rollup_last_leaf_index")?,
-            genesis_commitment: required(&self.genesis_batch_commitment)
-                .and_then(|x| parse_h256(x))
-                .context("genesis_commitment")?,
-            bootloader_hash: required(&self.bootloader_hash)
-                .and_then(|x| parse_h256(x))
-                .context("bootloader_hash")?,
-            default_aa_hash: required(&self.default_aa_hash)
-                .and_then(|x| parse_h256(x))
-                .context("default_aa_hash")?,
+            protocol_version: Some(
+                required(&self.genesis_protocol_version)
+                    .map(|x| *x as u16)
+                    .context("protocol_version")?,
+            ),
+            genesis_root_hash: Some(
+                required(&self.genesis_root)
+                    .and_then(|x| parse_h256(x))
+                    .context("genesis_root_hash")?,
+            ),
+            rollup_last_leaf_index: Some(
+                *required(&self.genesis_rollup_leaf_index).context("rollup_last_leaf_index")?,
+            ),
+            genesis_commitment: Some(
+                required(&self.genesis_batch_commitment)
+                    .and_then(|x| parse_h256(x))
+                    .context("genesis_commitment")?,
+            ),
+            bootloader_hash: Some(
+                required(&self.bootloader_hash)
+                    .and_then(|x| parse_h256(x))
+                    .context("bootloader_hash")?,
+            ),
+            default_aa_hash: Some(
+                required(&self.default_aa_hash)
+                    .and_then(|x| parse_h256(x))
+                    .context("default_aa_hash")?,
+            ),
             l1_chain_id: required(&self.l1_chain_id)
                 .map(|x| L1ChainId(*x))
                 .context("l1_chain_id")?,
@@ -112,12 +123,12 @@ impl ProtoRepr for proto::Genesis {
             });
 
         Self {
-            genesis_root: Some(format!("{:?}", this.genesis_root_hash)),
-            genesis_rollup_leaf_index: Some(this.rollup_last_leaf_index),
-            genesis_batch_commitment: Some(format!("{:?}", this.genesis_root_hash)),
-            genesis_protocol_version: Some(this.protocol_version as u32),
-            default_aa_hash: Some(format!("{:?}", this.default_aa_hash)),
-            bootloader_hash: Some(format!("{:?}", this.bootloader_hash)),
+            genesis_root: this.genesis_root_hash.map(|x| format!("{:?}", x)),
+            genesis_rollup_leaf_index: this.rollup_last_leaf_index,
+            genesis_batch_commitment: this.genesis_root_hash.map(|x| format!("{:?}", x)),
+            genesis_protocol_version: this.protocol_version.map(|x| x as u32),
+            default_aa_hash: this.default_aa_hash.map(|x| format!("{:?}", x)),
+            bootloader_hash: this.bootloader_hash.map(|x| format!("{:?}", x)),
             fee_account: Some(format!("{:?}", this.fee_account)),
             l1_chain_id: Some(this.l1_chain_id.0),
             l2_chain_id: Some(this.l2_chain_id.as_u64()),
