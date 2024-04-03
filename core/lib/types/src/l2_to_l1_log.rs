@@ -104,11 +104,6 @@ pub fn parse_system_logs_for_blob_hashes(
 
     blob_hashes.sort_unstable_by_key(|(k, _)| *k);
     let mut blob_hashes = blob_hashes.iter().map(|(_, v)| *v).collect::<Vec<H256>>();
-    assert_eq!(
-        blob_hashes.len(),
-        num_created_blobs as usize,
-        "Not enough blob linear hashes"
-    );
     blob_hashes.resize(num_required_blobs as usize, H256::zero());
     blob_hashes
 }
