@@ -13,16 +13,16 @@ pub struct HouseKeeperConfig {
     pub prover_db_pool_size: u32,
     pub proof_compressor_job_retrying_interval_ms: u64,
     pub proof_compressor_stats_reporting_interval_ms: u64,
-    pub prover_job_archiver_reporting_interval_ms: Option<u64>,
-    pub prover_job_archiver_archiving_interval_secs: Option<u64>,
+    pub prover_job_archiver_archiving_interval_ms: Option<u64>,
+    pub prover_job_archiver_archive_after_secs: Option<u64>,
     pub fri_gpu_prover_archiver_archiving_interval_ms: Option<u64>,
     pub fri_gpu_prover_archiver_archive_after_secs: Option<u64>,
 }
 
 impl HouseKeeperConfig {
-    pub fn prover_job_archiver_enabled(&self) -> bool {
-        self.prover_job_archiver_reporting_interval_ms.is_some()
-            && self.prover_job_archiver_archiving_interval_secs.is_some()
+    pub fn prover_job_archiver_params(&self) -> Option<(u64, u64)> {
+        self.prover_job_archiver_archiving_interval_ms
+            .zip(self.prover_job_archiver_archive_after_secs)
     }
 
     pub fn fri_gpu_prover_archiver_params(&self) -> Option<(u64, u64)> {
