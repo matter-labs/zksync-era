@@ -312,6 +312,8 @@ impl ObservabilityBuilder {
             None
         };
 
+        // We use backtrace capture in `json_panic_handler` so we have to have it always enabled
+        std::env::set_var("RUST_BACKTRACE", "1");
         ObservabilityGuard {
             _sentry_guard: sentry_guard,
         }

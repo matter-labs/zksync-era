@@ -310,6 +310,3 @@ observability:
     - "Can't free memory of DeviceBuf"
     - "value: PoisonError"
 
-# Probably we can initialize it without envs
-#RUST_BACKTRACE: full
-#RUST_LIB_BACKTRACE: 1
