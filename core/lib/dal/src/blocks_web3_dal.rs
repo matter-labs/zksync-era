@@ -13,13 +13,14 @@ use zksync_utils::bigdecimal_to_u256;
 
 use crate::{
     models::{
-        storage_block::{ResolvedL1BatchForMiniblock, StorageBlockDetails, StorageL1BatchDetails},
+        storage_block::{
+            ResolvedL1BatchForMiniblock, StorageBlockDetails, StorageL1BatchDetails,
+            LEGACY_BLOCK_GAS_LIMIT,
+        },
         storage_transaction::CallTrace,
     },
     Core, CoreDal,
 };
-
-const BLOCK_GAS_LIMIT: u32 = u32::MAX;
 
 #[derive(Debug)]
 pub struct BlocksWeb3Dal<'a, 'c> {
@@ -39,9 +40,10 @@ impl BlocksWeb3Dal<'_, '_> {
                 miniblocks.l1_batch_number,
                 miniblocks.timestamp,
                 miniblocks.base_fee_per_gas,
+                miniblocks.gas_limit AS "block_gas_limit?",
                 prev_miniblock.hash AS "parent_hash?",
                 l1_batches.timestamp AS "l1_batch_timestamp?",
-                transactions.gas_limit AS "gas_limit?",
+                transactions.gas_limit AS "transaction_gas_limit?",
                 transactions.refunded_gas AS "refunded_gas?",
                 transactions.hash AS "tx_hash?"
             FROM
@@ -72,21 +74,28 @@ impl BlocksWeb3Dal<'_, '_> {
                     uncles_hash: EMPTY_UNCLES_HASH,
                     number: (row.number as u64).into(),
                     l1_batch_number: row.l1_batch_number.map(|number| (number as u64).into()),
-                    gas_limit: BLOCK_GAS_LIMIT.into(),
                     base_fee_per_gas: bigdecimal_to_u256(row.base_fee_per_gas),
                     timestamp: (row.timestamp as u64).into(),
                     l1_batch_timestamp: row.l1_batch_timestamp.map(U256::from),
+                    gas_limit: (row
+                        .block_gas_limit
+                        .unwrap_or(i64::from(LEGACY_BLOCK_GAS_LIMIT))
+                        as u64)
+                        .into(),
                     // TODO: include logs
                     ..api::Block::default()
                 }
             });
 
-            if let (Some(gas_limit), Some(refunded_gas)) = (row.gas_limit, row.refunded_gas) {
+            if let (Some(gas_limit), Some(refunded_gas)) =
+                (row.transaction_gas_limit, row.refunded_gas)
+            {
                 block.gas_used += bigdecimal_to_u256(gas_limit) - U256::from(refunded_gas as u64);
             }
             if let Some(tx_hash) = &row.tx_hash {
                 block.transactions.push(H256::from_slice(tx_hash));
             }
+
             Some(block)
         });
 
@@ -226,11 +235,12 @@ impl BlocksWeb3Dal<'_, '_> {
                         (
                             SELECT MAX(number) FROM miniblocks
                             WHERE l1_batch_number = (
-                                SELECT MAX(number) FROM l1_batches
+                                SELECT number FROM l1_batches
                                 JOIN eth_txs ON
                                     l1_batches.eth_execute_tx_id = eth_txs.id
                                 WHERE
                                     eth_txs.confirmed_eth_tx_history_id IS NOT NULL
+                                ORDER BY number DESC LIMIT 1
                             )
                         ),
                         0

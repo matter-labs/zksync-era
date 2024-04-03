@@ -12,8 +12,6 @@ impl ProtoRepr for proto::Api {
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             web3_json_rpc: read_required_repr(&self.web3_json_rpc).context("web3_json_rpc")?,
-            contract_verification: read_required_repr(&self.contract_verification)
-                .context("contract_verification")?,
             prometheus: read_required_repr(&self.prometheus).context("prometheus")?,
             healthcheck: read_required_repr(&self.healthcheck).context("healthcheck")?,
             merkle_tree: read_required_repr(&self.merkle_tree).context("merkle_tree")?,
@@ -23,7 +21,6 @@ impl ProtoRepr for proto::Api {
     fn build(this: &Self::Type) -> Self {
         Self {
             web3_json_rpc: Some(ProtoRepr::build(&this.web3_json_rpc)),
-            contract_verification: Some(ProtoRepr::build(&this.contract_verification)),
             prometheus: Some(ProtoRepr::build(&this.prometheus)),
             healthcheck: Some(ProtoRepr::build(&this.healthcheck)),
             merkle_tree: Some(ProtoRepr::build(&this.merkle_tree)),
@@ -34,6 +31,19 @@ impl ProtoRepr for proto::Api {
 impl ProtoRepr for proto::Web3JsonRpc {
     type Type = api::Web3JsonRpcConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
+        let account_pks = self
+            .account_pks
+            .iter()
+            .enumerate()
+            .map(|(i, k)| parse_h256(k).context(i))
+            .collect::<Result<Vec<_>, _>>()
+            .context("account_pks")?;
+        let account_pks = if account_pks.is_empty() {
+            None
+        } else {
+            Some(account_pks)
+        };
+
         Ok(Self::Type {
             http_port: required(&self.http_port)
                 .and_then(|p| Ok((*p).try_into()?))
@@ -52,19 +62,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
             gas_price_scale_factor: *required(&self.gas_price_scale_factor)
                 .context("gas_price_scale_factor")?,
             request_timeout: self.request_timeout,
-            account_pks: self
-                .account_pks
-                .as_ref()
-                .map(|keys| {
-                    keys.keys
-                        .iter()
-                        .enumerate()
-                        .map(|(i, k)| parse_h256(k).context(i))
-                        .collect::<Result<_, _>>()
-                        .context("keys")
-                })
-                .transpose()
-                .context("account_pks")?,
+            account_pks,
             estimate_gas_scale_factor: *required(&self.estimate_gas_scale_factor)
                 .context("estimate_gas_scale_factor")?,
             estimate_gas_acceptable_overestimation: *required(
@@ -158,9 +156,11 @@ impl ProtoRepr for proto::Web3JsonRpc {
             max_nonce_ahead: Some(this.max_nonce_ahead),
             gas_price_scale_factor: Some(this.gas_price_scale_factor),
             request_timeout: this.request_timeout,
-            account_pks: this.account_pks.as_ref().map(|keys| proto::PrivateKeys {
-                keys: keys.iter().map(|k| k.as_bytes().into()).collect(),
-            }),
+            account_pks: this
+                .account_pks
+                .as_ref()
+                .map(|keys| keys.iter().map(|k| format!("{:?}", k)).collect())
+                .unwrap_or_default(),
             estimate_gas_scale_factor: Some(this.estimate_gas_scale_factor),
             estimate_gas_acceptable_overestimation: Some(
                 this.estimate_gas_acceptable_overestimation,
@@ -196,24 +196,6 @@ impl ProtoRepr for proto::Web3JsonRpc {
                     addresses: addresses.iter().map(|k| k.as_bytes().into()).collect(),
                 },
             ),
-        }
-    }
-}
-
-impl ProtoRepr for proto::ContractVerificationApi {
-    type Type = api::ContractVerificationApiConfig;
-    fn read(&self) -> anyhow::Result<Self::Type> {
-        Ok(Self::Type {
-            port: required(&self.port)
-                .and_then(|p| Ok((*p).try_into()?))
-                .context("port")?,
-            url: required(&self.url).context("url")?.clone(),
-        })
-    }
-    fn build(this: &Self::Type) -> Self {
-        Self {
-            port: Some(this.port.into()),
-            url: Some(this.url.clone()),
         }
     }
 }

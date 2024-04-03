@@ -51,7 +51,7 @@ export async function revertReason(txHash: string, web3url?: string) {
 export async function catLogs(exitCode?: number) {
     utils.allowFailSync(() => {
         console.log('\nSERVER LOGS:\n', fs.readFileSync('server.log').toString());
-        console.log('\nPROVER LOGS:\n', fs.readFileSync('dummy_prover.log').toString());
+        console.log('\nPROVER LOGS:\n', fs.readFileSync('dummy_verifier.log').toString());
     });
     if (exitCode !== undefined) {
         process.exit(exitCode);

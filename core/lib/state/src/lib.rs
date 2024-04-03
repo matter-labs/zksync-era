@@ -29,7 +29,7 @@ mod witness;
 
 pub use self::{
     cache::sequential_cache::SequentialCache,
-    in_memory::{InMemoryStorage, IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID},
+    in_memory::InMemoryStorage,
     postgres::{PostgresStorage, PostgresStorageCaches, PostgresStorageCachesTask},
     rocksdb::{RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily},
     shadow_storage::ShadowStorage,
