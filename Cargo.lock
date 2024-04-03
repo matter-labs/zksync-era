@@ -8650,6 +8650,7 @@ dependencies = [
  "tracing",
  "vlog",
  "zksync_circuit_breaker",
+ "zksync_concurrency",
  "zksync_config",
  "zksync_contracts",
  "zksync_core",
