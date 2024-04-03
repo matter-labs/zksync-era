@@ -215,3 +215,7 @@ zksync_types = { path = "core/lib/types" }
 zksync_utils = { path = "core/lib/utils" }
 zksync_web3_decl = { path = "core/lib/web3_decl" }
 zksync_crypto_primitives = { path = "core/lib/crypto_primitives" }
+
+[patch."https://github.com/matter-labs/vise.git"]
+vise = { path = "../vise/crates/vise" }
+vise-exporter = { path = "../vise/crates/vise-exporter" }

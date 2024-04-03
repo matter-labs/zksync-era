@@ -20,6 +20,7 @@ pub use self::helpers::LazyAsyncTreeReader;
 pub(crate) use self::helpers::{AsyncTreeReader, L1BatchWithLogs, MerkleTreeInfo};
 use self::{
     helpers::{create_db, Delayer, GenericAsyncTree, MerkleTreeHealth},
+    metrics::{ConfigLabels, METRICS},
     updater::TreeUpdater,
 };
 
@@ -87,6 +88,14 @@ impl MetadataCalculator {
         config: MetadataCalculatorConfig,
         object_store: Option<Arc<dyn ObjectStore>>,
     ) -> anyhow::Result<Self> {
+        if let Err(err) = METRICS.config.set(ConfigLabels::new(&config)) {
+            tracing::warn!(
+                "Cannot set config {:?}; it's already set to {:?}",
+                err.into_inner(),
+                METRICS.config.get()
+            );
+        }
+
         anyhow::ensure!(
             config.max_l1_batches_per_iter > 0,
             "Maximum L1 batches per iteration is misconfigured to be 0; please update it to positive value"
