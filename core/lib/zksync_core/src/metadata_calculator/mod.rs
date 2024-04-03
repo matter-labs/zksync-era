@@ -53,6 +53,8 @@ pub struct MetadataCalculatorConfig {
     pub memtable_capacity: usize,
     /// Timeout to wait for the Merkle tree database to run compaction on stalled writes.
     pub stalled_writes_timeout: Duration,
+    /// Time between consecutive tree pruner loop iterations
+    pub tree_pruner_polling_interval: Duration,
 }
 
 impl MetadataCalculatorConfig {
@@ -69,6 +71,7 @@ impl MetadataCalculatorConfig {
             block_cache_capacity: merkle_tree_config.block_cache_size(),
             memtable_capacity: merkle_tree_config.memtable_capacity(),
             stalled_writes_timeout: merkle_tree_config.stalled_writes_timeout(),
+            tree_pruner_polling_interval: Duration::from_secs(5),
         }
     }
 }
@@ -149,6 +152,7 @@ impl MetadataCalculator {
     }
 
     async fn loop_pruning_tree(
+        &self,
         pool: ConnectionPool<Core>,
         tree_pruner: MerkleTreePruner<RocksDBWrapper>,
         pruner_handle: MerkleTreePrunerHandle,
@@ -171,6 +175,7 @@ impl MetadataCalculator {
                 pruner_thread.await?;
                 return Ok(());
             }
+            tokio::time::sleep(self.config.tree_pruner_polling_interval).await;
         }
     }
 
@@ -192,8 +197,9 @@ impl MetadataCalculator {
             tree_reader.clone().info().await
         );
 
-        let (tree_pruner, pruner_handle) = tree.pruner();
-        let pruner = Self::loop_pruning_tree(
+        let (mut tree_pruner, pruner_handle) = tree.pruner();
+        tree_pruner.set_poll_interval(self.config.tree_pruner_polling_interval);
+        let pruner = self.loop_pruning_tree(
             pool.clone(),
             tree_pruner,
             pruner_handle,

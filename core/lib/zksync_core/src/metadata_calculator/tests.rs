@@ -398,8 +398,9 @@ async fn setup_calculator_with_options(
     pool: &ConnectionPool<Core>,
     object_store: Option<Arc<dyn ObjectStore>>,
 ) -> MetadataCalculator {
-    let calculator_config =
+    let mut calculator_config =
         MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_config);
+    calculator_config.tree_pruner_polling_interval = Duration::ZERO;
     let metadata_calculator = MetadataCalculator::new(calculator_config, object_store)
         .await
         .unwrap();
