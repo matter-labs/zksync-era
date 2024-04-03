@@ -194,7 +194,7 @@ a stricter limit, the system maintains stability and security.
 
 From the Virtual Machine (VM) point of view, there is only a bootloader. When executing transactions, we insert the
 transaction into the bootloader memory and let it run until it reaches the end of the instructions related to that
-transaction (for more details, refer to the 'Life of a Call' article).
+transaction (for more details, refer to the ['Life of a Call'](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/advanced/how_call_works.md) article).
 
 To calculate the gas used by a transaction, we record the amount of gas used by the VM before the transaction execution
 and subtract it from the remaining gas after the execution. This difference gives us the actual gas used by the
