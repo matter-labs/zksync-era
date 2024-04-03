@@ -6,20 +6,20 @@ use crate::{house_keeper::periodic_job::PeriodicJob, metrics::HOUSE_KEEPER_METRI
 #[derive(Debug)]
 pub struct FriGpuProverArchiver {
     pool: ConnectionPool<Prover>,
-    reporting_interval_secs: u64,
-    archiving_interval_secs: u64,
+    archiving_interval_ms: u64,
+    archive_prover_after_secs: u64,
 }
 
 impl FriGpuProverArchiver {
     pub fn new(
         pool: ConnectionPool<Prover>,
-        reporting_interval_secs: u64,
-        archiving_interval_secs: u64,
+        archiving_interval_ms: u64,
+        archive_prover_after_secs: u64,
     ) -> Self {
         Self {
             pool,
-            reporting_interval_secs,
-            archiving_interval_secs,
+            archiving_interval_ms,
+            archive_prover_after_secs,
         }
     }
 }
@@ -35,7 +35,7 @@ impl PeriodicJob for FriGpuProverArchiver {
             .await
             .unwrap()
             .fri_gpu_prover_queue_dal()
-            .archive_old_provers(self.archiving_interval_secs)
+            .archive_old_provers(self.archive_prover_after_secs)
             .await;
         tracing::info!("Archived {:?} fri gpu prover records", archived_provers);
         HOUSE_KEEPER_METRICS
@@ -45,8 +45,6 @@ impl PeriodicJob for FriGpuProverArchiver {
     }
 
     fn polling_interval_ms(&self) -> u64 {
-        self.reporting_interval_secs
-            .checked_mul(1000)
-            .expect("Overflow")
+        self.archiving_interval_ms
     }
 }

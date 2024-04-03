@@ -11,5 +11,5 @@ proof_compressor_job_retrying_interval_ms = 30000
 proof_compressor_stats_reporting_interval_ms = 10000
 prover_job_archiver_reporting_interval_ms = 1800000
 prover_job_archiver_archiving_interval_ms = 172800
-fri_gpu_prover_archiver_reporting_interval_secs = 86400
-fri_gpu_prover_archiver_archiving_interval_secs = 172800
+fri_gpu_prover_archiver_archiving_interval_secs = 86400000
+fri_gpu_prover_archiver_archive_after_secs = 172800

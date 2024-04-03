@@ -225,7 +225,7 @@ impl FromStr for GpuProverInstanceStatus {
             "full" => Ok(Self::Full),
             "reserved" => Ok(Self::Reserved),
             "dead" => Ok(Self::Dead),
-            _ => panic!("Unknown status: {}", s),
+            _ => Err(()),
         }
     }
 }

@@ -183,9 +183,9 @@ impl FriGpuProverQueueDal<'_, '_> {
         .map(|row| GpuProverInstanceStatus::from_str(&row.instance_status).unwrap())
     }
 
-    pub async fn archive_old_provers(&mut self, archiving_interval_secs: u64) -> usize {
-        let archiving_interval =
-            pg_interval_from_duration(Duration::from_secs(archiving_interval_secs));
+    pub async fn archive_old_provers(&mut self, archive_prover_after_secs: u64) -> usize {
+        let prover_max_age =
+            pg_interval_from_duration(Duration::from_secs(archive_prover_after_secs));
 
         sqlx::query_scalar!(
             r#"
@@ -205,7 +205,7 @@ impl FriGpuProverQueueDal<'_, '_> {
             )
             SELECT COUNT(*) FROM deleted
             "#,
-            &archiving_interval
+            &prover_max_age
         )
         .fetch_one(self.storage.conn())
         .await

@@ -1127,7 +1127,7 @@ async fn add_house_keeper_to_task_futures(
         let fri_gpu_prover_jobs_archiver = FriGpuProverArchiver::new(
             prover_connection_pool.clone(),
             house_keeper_config
-                .fri_gpu_prover_archiver_reporting_interval_secs
+                .fri_gpu_prover_archiver_archiving_interval_ms
                 .unwrap(),
             house_keeper_config
                 .fri_gpu_prover_archiver_archiving_interval_secs

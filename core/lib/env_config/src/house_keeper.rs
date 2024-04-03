@@ -29,8 +29,8 @@ mod tests {
             proof_compressor_stats_reporting_interval_ms: 10_000,
             prover_job_archiver_reporting_interval_ms: Some(1_800_000),
             prover_job_archiver_archiving_interval_secs: Some(172_800),
-            fri_gpu_prover_archiver_reporting_interval_secs: Some(86_400),
-            fri_gpu_prover_archiver_archiving_interval_secs: Some(172_800),
+            fri_gpu_prover_archiver_archiving_interval_ms: Some(86_400),
+            fri_gpu_prover_archiver_archive_after_secs: Some(172_800),
         }
     }
 
@@ -52,8 +52,8 @@ mod tests {
             HOUSE_KEEPER_PROOF_COMPRESSOR_JOB_RETRYING_INTERVAL_MS="30000"
             HOUSE_KEEPER_PROVER_JOB_ARCHIVER_REPORTING_INTERVAL_MS="1800000"
             HOUSE_KEEPER_PROVER_JOB_ARCHIVER_ARCHIVING_INTERVAL_SECS="172800"
-            HOUSE_KEEPER_FRI_GPU_PROVER_ARCHIVER_REPORTING_INTERVAL_SECS="86400"
-            HOUSE_KEEPER_FRI_GPU_PROVER_ARCHIVER_ARCHIVING_INTERVAL_SECS="172800"
+            HOUSE_KEEPER_FRI_GPU_PROVER_ARCHIVER_ARCHIVING_INTERVAL_SECS="86400000"
+            HOUSE_KEEPER_FRI_GPU_PROVER_ARCHIVER_ARCHIVE_AFTER_SECS="172800"
         "#;
         lock.set_env(config);
 
