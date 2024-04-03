@@ -21,7 +21,7 @@ use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker,
     CircuitBreakerChecker, CircuitBreakers,
 };
-use zksync_concurrency::ctx;
+use zksync_concurrency::{ctx, scope};
 use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -543,10 +543,20 @@ pub async fn initialize_components(
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");
         let pool = connection_pool.clone();
-        let stop_receiver = stop_receiver.clone();
+        let mut stop_receiver = stop_receiver.clone();
         task_futures.push(tokio::spawn(async move {
+            // We instantiate the root context here, since the consensus task is the only user of the
+            // structured concurrency framework.
+            // Note, however, that awaiting for the `stop_receiver` is related to the root context behavior,
+            // not the consensus task itself. There may have been any number of tasks running in the root context,
+            // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
             let root_ctx = ctx::root();
-            consensus::era::run_main_node(&root_ctx, cfg, pool, stop_receiver).await
+            scope::run!(&root_ctx, |ctx, s| async move {
+                s.spawn_bg(consensus::era::run_main_node(ctx, cfg, pool));
+                let _ = stop_receiver.wait_for(|stop| *stop).await?;
+                Ok(())
+            })
+            .await
         }));
 
         let elapsed = started_at.elapsed();

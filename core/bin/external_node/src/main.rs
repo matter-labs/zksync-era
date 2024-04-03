@@ -8,7 +8,7 @@ use tokio::{
     sync::watch,
     task::{self, JoinHandle},
 };
-use zksync_concurrency::ctx;
+use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{
     api::MerkleTreeApiConfig, chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode,
 };
@@ -228,19 +228,31 @@ async fn run_core(
         let pool = connection_pool.clone();
         let sync_state = sync_state.clone();
         let main_node_client = Arc::new(main_node_client.clone());
-        let stop_receiver = stop_receiver.clone();
+        let mut stop_receiver = stop_receiver.clone();
         async move {
+            // We instantiate the root context here, since the consensus task is the only user of the
+            // structured concurrency framework.
+            // Note, however, that awaiting for the `stop_receiver` is related to the root context behavior,
+            // not the consensus task itself. There may have been any number of tasks running in the root context,
+            // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
             let ctx = ctx::root();
-            consensus::era::run_fetcher(
-                &ctx,
-                cfg,
-                pool,
-                sync_state,
-                main_node_client,
-                action_queue_sender,
-                stop_receiver,
-            )
+            scope::run!(&ctx, |ctx, s| async move {
+                s.spawn_bg(async move {
+                    consensus::era::run_fetcher(
+                        ctx,
+                        cfg,
+                        pool,
+                        sync_state,
+                        main_node_client,
+                        action_queue_sender,
+                    )
+                    .await
+                });
+                ctx.wait(stop_receiver.wait_for(|stop| *stop)).await??;
+                Ok(())
+            })
             .await
+            .context("consensus actor")
         }
     }));
 

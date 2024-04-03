@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use zksync_concurrency::ctx;
+use anyhow::Context as _;
+use zksync_concurrency::{ctx, scope};
 use zksync_core::{
     consensus::{self, MainNodeConfig},
     sync_layer::{ActionQueueSender, MainNodeClient, SyncState},
@@ -114,14 +115,19 @@ impl Task for MainNodeConsensusTask {
         "consensus"
     }
 
-    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+    async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        // We instantiate the root context here, since the consensus task is the only user of the
+        // structured concurrency framework (`MainNodeConsensusTask` and `FetcherTask` are considered mutually
+        // exclusive).
+        // Note, however, that awaiting for the `stop_receiver` is related to the root context behavior,
+        // not the consensus task itself. There may have been any number of tasks running in the root context,
+        // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
         let root_ctx = ctx::root();
-        zksync_core::consensus::era::run_main_node(
-            &root_ctx,
-            self.config,
-            self.pool,
-            stop_receiver.0,
-        )
+        scope::run!(&root_ctx, |ctx, s| async move {
+            s.spawn_bg(consensus::era::run_main_node(ctx, self.config, self.pool));
+            let _ = stop_receiver.0.wait_for(|stop| *stop).await?;
+            Ok(())
+        })
         .await
     }
 }
@@ -141,17 +147,30 @@ impl Task for FetcherTask {
         "consensus_fetcher"
     }
 
-    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+    async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        // We instantiate the root context here, since the consensus task is the only user of the
+        // structured concurrency framework (`MainNodeConsensusTask` and `FetcherTask` are considered mutually
+        // exclusive).
+        // Note, however, that awaiting for the `stop_receiver` is related to the root context behavior,
+        // not the consensus task itself. There may have been any number of tasks running in the root context,
+        // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
         let root_ctx = ctx::root();
-        zksync_core::consensus::era::run_fetcher(
-            &root_ctx,
-            self.config,
-            self.pool,
-            self.sync_state,
-            self.main_node_client,
-            self.action_queue_sender,
-            stop_receiver.0,
-        )
+        scope::run!(&root_ctx, |ctx, s| async {
+            s.spawn_bg(async move {
+                zksync_core::consensus::era::run_fetcher(
+                    &root_ctx,
+                    self.config,
+                    self.pool,
+                    self.sync_state,
+                    self.main_node_client,
+                    self.action_queue_sender,
+                )
+                .await
+            });
+            ctx.wait(stop_receiver.0.wait_for(|stop| *stop)).await??;
+            Ok(())
+        })
         .await
+        .context("consensus actor")
     }
 }
