@@ -14,7 +14,7 @@ use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::Prover;
 use temp_config_store::Secrets;
 use tokio::{
-    sync::{oneshot, watch, RwLock},
+    sync::{oneshot, watch},
     task::JoinHandle,
 };
 use zksync_circuit_breaker::{
@@ -1207,9 +1207,6 @@ async fn build_tx_sender(
             Arc::new(vm_concurrency_limiter),
             ApiContracts::load_from_disk(),
             storage_caches,
-            Arc::new(RwLock::new(
-                web3_json_config.whitelisted_tokens_for_aa.clone(),
-            )),
         )
         .await;
     (tx_sender, vm_barrier)

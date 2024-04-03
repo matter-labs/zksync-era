@@ -223,11 +223,8 @@ impl DebugNamespace {
             whitelisted_tokens_for_aa: self
                 .state
                 .tx_sender
-                .0
-                .whitelisted_tokens_for_aa_cache
-                .read()
-                .await
-                .clone(),
+                .read_whitelisted_tokens_for_aa_cache()
+                .await,
         }
     }
 }

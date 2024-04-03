@@ -454,12 +454,12 @@ async fn run_api(
         });
 
         let tx_sender = tx_sender_builder
+            .with_whitelisted_tokens_for_aa(whitelisted_tokens_for_aa_cache)
             .build(
                 fee_params_fetcher,
                 Arc::new(vm_concurrency_limiter),
                 ApiContracts::load_from_disk(), // TODO (BFT-138): Allow to dynamically reload API contracts
                 storage_caches,
-                whitelisted_tokens_for_aa_cache,
             )
             .await;
         (
