@@ -237,7 +237,7 @@ impl StorageWeb3Dal<'_, '_> {
         Ok(row.map(|row| row.bytecode))
     }
 
-    /// Given factory dep hash, returns `bytecode` and `miniblock_number` at which it was inserted.
+    /// Given bytecode hash, returns `bytecode` and `miniblock_number` at which it was inserted.
     pub async fn get_factory_dep(
         &mut self,
         hash: H256,
