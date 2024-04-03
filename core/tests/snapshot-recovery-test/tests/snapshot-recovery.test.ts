@@ -81,9 +81,15 @@ describe('snapshot recovery', () => {
     const STORAGE_LOG_SAMPLE_PROBABILITY = 0.1;
 
     const homeDir = process.env.ZKSYNC_HOME!!;
+
+    const externalNodeEnvProfile =
+        'ext-node' +
+        (process.env.DEPLOYMENT_MODE === 'Validium' ? '-validium' : '') +
+        (process.env.IN_DOCKER ? '-docker' : '');
+    console.log('Using external node env profile', externalNodeEnvProfile);
     const externalNodeEnv = {
         ...process.env,
-        ZKSYNC_ENV: process.env.IN_DOCKER ? 'ext-node-docker' : 'ext-node'
+        ZKSYNC_ENV: externalNodeEnvProfile
     };
 
     let snapshotMetadata: GetSnapshotResponse;
@@ -364,7 +370,10 @@ async function getExternalNodeHealth() {
         if (e instanceof FetchError && e.code === 'ECONNREFUSED') {
             displayedError = '(connection refused)'; // Don't spam logs with "connection refused" messages
         }
-        console.log('Request to EN health check server failed', displayedError);
+        console.log(
+            `Request to EN health check server failed ${displayedError}, in CI you can see more details 
+            in "Show snapshot-creator.log logs" and "Show contract_verifier.log logs" steps`
+        );
         return null;
     }
 }

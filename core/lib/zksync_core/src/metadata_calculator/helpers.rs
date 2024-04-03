@@ -1,7 +1,7 @@
 //! Various helpers for the metadata calculator.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     future,
     future::Future,
     path::{Path, PathBuf},
@@ -129,7 +129,7 @@ pub(super) struct AsyncTree {
 
 impl AsyncTree {
     const INCONSISTENT_MSG: &'static str =
-        "`AsyncTree` is in inconsistent state, which could occur after one of its async methods was cancelled";
+        "`AsyncTree` is in inconsistent state, which could occur after one of its async methods was cancelled or returned an error";
 
     pub fn new(db: RocksDBWrapper, mode: MerkleTreeMode) -> Self {
         let tree = match mode {
@@ -148,6 +148,10 @@ impl AsyncTree {
 
     fn as_mut(&mut self) -> &mut ZkSyncTree {
         self.inner.as_mut().expect(Self::INCONSISTENT_MSG)
+    }
+
+    pub fn mode(&self) -> MerkleTreeMode {
+        self.mode
     }
 
     pub fn reader(&self) -> AsyncTreeReader {
@@ -170,32 +174,45 @@ impl AsyncTree {
         self.as_ref().root_hash()
     }
 
+    /// Returned errors are unrecoverable; the tree must not be used after an error is returned.
     pub async fn process_l1_batch(
         &mut self,
-        storage_logs: Vec<TreeInstruction<StorageKey>>,
-    ) -> TreeMetadata {
-        let mut tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
+        batch: L1BatchWithLogs,
+    ) -> anyhow::Result<TreeMetadata> {
+        anyhow::ensure!(
+            batch.mode == self.mode,
+            "Cannot process L1 batch with mode {:?} in tree with mode {:?}",
+            batch.mode,
+            self.mode
+        );
+        let batch_number = batch.header.number;
+
+        let mut tree = self.inner.take().context(Self::INCONSISTENT_MSG)?;
         let (tree, metadata) = tokio::task::spawn_blocking(move || {
-            let metadata = tree.process_l1_batch(&storage_logs);
+            let metadata = tree.process_l1_batch(&batch.storage_logs);
             (tree, metadata)
         })
         .await
-        .unwrap();
+        .with_context(|| {
+            format!("Merkle tree panicked when processing L1 batch #{batch_number}")
+        })?;
 
         self.inner = Some(tree);
-        metadata
+        Ok(metadata)
     }
 
-    pub async fn save(&mut self) {
-        let mut tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
+    /// Returned errors are unrecoverable; the tree must not be used after an error is returned.
+    pub async fn save(&mut self) -> anyhow::Result<()> {
+        let mut tree = self.inner.take().context(Self::INCONSISTENT_MSG)?;
         self.inner = Some(
             tokio::task::spawn_blocking(|| {
                 tree.save();
                 tree
             })
             .await
-            .unwrap(),
+            .context("Merkle tree panicked during saving")?,
         );
+        Ok(())
     }
 
     pub fn revert_logs(&mut self, last_l1_batch_to_keep: L1BatchNumber) {
@@ -205,7 +222,7 @@ impl AsyncTree {
 
 /// Async version of [`ZkSyncTreeReader`].
 #[derive(Debug, Clone)]
-pub(crate) struct AsyncTreeReader {
+pub struct AsyncTreeReader {
     inner: ZkSyncTreeReader,
     mode: MerkleTreeMode,
 }
@@ -244,7 +261,7 @@ impl LazyAsyncTreeReader {
     }
 
     /// Waits until the tree is initialized and returns a reader for it.
-    pub(crate) async fn wait(mut self) -> AsyncTreeReader {
+    pub async fn wait(mut self) -> AsyncTreeReader {
         loop {
             if let Some(reader) = self.0.borrow().clone() {
                 break reader;
@@ -282,7 +299,7 @@ impl AsyncTreeRecovery {
             .recovered_version()
     }
 
-    /// Returns an entry for the specified key.
+    /// Returns an entry for the specified keys.
     pub async fn entries(&mut self, keys: Vec<Key>) -> Vec<TreeEntry> {
         let tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
         let (entry, tree) = tokio::task::spawn_blocking(move || (tree.entries(&keys), tree))
@@ -395,38 +412,58 @@ impl Delayer {
 pub(crate) struct L1BatchWithLogs {
     pub header: L1BatchHeader,
     pub storage_logs: Vec<TreeInstruction<StorageKey>>,
+    mode: MerkleTreeMode,
 }
 
 impl L1BatchWithLogs {
     pub async fn new(
         storage: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
-    ) -> Option<Self> {
-        tracing::debug!("Loading storage logs data for L1 batch #{l1_batch_number}");
+        mode: MerkleTreeMode,
+    ) -> anyhow::Result<Option<Self>> {
+        tracing::debug!(
+            "Loading storage logs data for L1 batch #{l1_batch_number} for {mode:?} tree"
+        );
         let load_changes_latency = METRICS.start_stage(TreeUpdateStage::LoadChanges);
 
         let header_latency = METRICS.start_load_stage(LoadChangesStage::LoadL1BatchHeader);
-        let header = storage
+        let Some(header) = storage
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
             .await
-            .unwrap()?;
+            .context("cannot fetch L1 batch header")?
+        else {
+            return Ok(None);
+        };
         header_latency.observe();
 
-        let protective_reads_latency =
-            METRICS.start_load_stage(LoadChangesStage::LoadProtectiveReads);
-        let protective_reads = storage
-            .storage_logs_dedup_dal()
-            .get_protective_reads_for_l1_batch(l1_batch_number)
-            .await;
-        protective_reads_latency.observe_with_count(protective_reads.len());
+        let protective_reads = match mode {
+            MerkleTreeMode::Full => {
+                let protective_reads_latency =
+                    METRICS.start_load_stage(LoadChangesStage::LoadProtectiveReads);
+                let protective_reads = storage
+                    .storage_logs_dedup_dal()
+                    .get_protective_reads_for_l1_batch(l1_batch_number)
+                    .await
+                    .context("cannot fetch protective reads")?;
+                if protective_reads.is_empty() {
+                    tracing::warn!(
+                        "Protective reads for L1 batch #{l1_batch_number} are empty. This is highly unlikely \
+                         and could be caused by disabling protective reads persistence in state keeper"
+                    );
+                }
+                protective_reads_latency.observe_with_count(protective_reads.len());
+                protective_reads
+            }
+            MerkleTreeMode::Lightweight => HashSet::new(),
+        };
 
         let touched_slots_latency = METRICS.start_load_stage(LoadChangesStage::LoadTouchedSlots);
         let mut touched_slots = storage
             .storage_logs_dal()
             .get_touched_slots_for_l1_batch(l1_batch_number)
             .await
-            .unwrap();
+            .context("cannot fetch touched slots")?;
         touched_slots_latency.observe_with_count(touched_slots.len());
 
         let leaf_indices_latency = METRICS.start_load_stage(LoadChangesStage::LoadLeafIndices);
@@ -436,7 +473,7 @@ impl L1BatchWithLogs {
             .storage_logs_dal()
             .get_l1_batches_and_indices_for_initial_writes(&hashed_keys_for_writes)
             .await
-            .unwrap();
+            .context("cannot fetch initial writes batch numbers and indices")?;
         leaf_indices_latency.observe_with_count(hashed_keys_for_writes.len());
 
         let mut storage_logs = BTreeMap::new();
@@ -444,7 +481,9 @@ impl L1BatchWithLogs {
             touched_slots.remove(&storage_key);
             // ^ As per deduplication rules, all keys in `protective_reads` haven't *really* changed
             // in the considered L1 batch. Thus, we can remove them from `touched_slots` in order to simplify
-            // their further processing.
+            // their further processing. This is not a required step; the logic below works fine without it.
+            // Indeed, extra no-op updates that could be added to `storage_logs` as a consequence of no filtering,
+            // are removed on the Merkle tree level (see the tree domain wrapper).
             let log = TreeInstruction::Read(storage_key);
             storage_logs.insert(storage_key, log);
         }
@@ -468,10 +507,11 @@ impl L1BatchWithLogs {
         }
 
         load_changes_latency.observe();
-        Some(Self {
+        Ok(Some(Self {
             header,
             storage_logs: storage_logs.into_values().collect(),
-        })
+            mode,
+        }))
     }
 }
 
@@ -502,7 +542,8 @@ mod tests {
             let protective_reads = storage
                 .storage_logs_dedup_dal()
                 .get_protective_reads_for_l1_batch(l1_batch_number)
-                .await;
+                .await
+                .unwrap();
             let touched_slots = storage
                 .storage_logs_dal()
                 .get_touched_slots_for_l1_batch(l1_batch_number)
@@ -554,6 +595,7 @@ mod tests {
             Some(Self {
                 header,
                 storage_logs: storage_logs.into_values().collect(),
+                mode: MerkleTreeMode::Full,
             })
         }
     }
@@ -572,9 +614,11 @@ mod tests {
         let mut storage = pool.connection().await.unwrap();
         for l1_batch_number in 0..=5 {
             let l1_batch_number = L1BatchNumber(l1_batch_number);
-            let batch_with_logs = L1BatchWithLogs::new(&mut storage, l1_batch_number)
-                .await
-                .unwrap();
+            let batch_with_logs =
+                L1BatchWithLogs::new(&mut storage, l1_batch_number, MerkleTreeMode::Full)
+                    .await
+                    .unwrap()
+                    .expect("no L1 batch");
             let slow_batch_with_logs = L1BatchWithLogs::slow(&mut storage, l1_batch_number)
                 .await
                 .unwrap();
@@ -624,43 +668,57 @@ mod tests {
         tree: &mut AsyncTree,
         l1_batch_number: L1BatchNumber,
     ) {
-        let l1_batch_with_logs = L1BatchWithLogs::new(storage, l1_batch_number)
-            .await
-            .unwrap();
+        let l1_batch_with_logs =
+            L1BatchWithLogs::new(storage, l1_batch_number, MerkleTreeMode::Full)
+                .await
+                .unwrap()
+                .expect("no L1 batch");
+        let mut lightweight_l1_batch_with_logs =
+            L1BatchWithLogs::new(storage, l1_batch_number, MerkleTreeMode::Lightweight)
+                .await
+                .unwrap()
+                .expect("no L1 batch");
         let slow_l1_batch_with_logs = L1BatchWithLogs::slow(storage, l1_batch_number)
             .await
             .unwrap();
 
         // Sanity check: L1 batch headers must be identical
         assert_eq!(l1_batch_with_logs.header, slow_l1_batch_with_logs.header);
+        assert_eq!(
+            lightweight_l1_batch_with_logs.header,
+            slow_l1_batch_with_logs.header
+        );
 
-        tree.save().await; // Necessary for `reset()` below to work properly
-        let tree_metadata = tree.process_l1_batch(l1_batch_with_logs.storage_logs).await;
+        tree.save().await.unwrap(); // Necessary for `reset()` below to work properly
+        let tree_metadata = tree.process_l1_batch(l1_batch_with_logs).await.unwrap();
+        tree.as_mut().reset();
+        lightweight_l1_batch_with_logs.mode = tree.mode; // Manually override the mode so that processing won't panic
+        let lightweight_tree_metadata = tree
+            .process_l1_batch(lightweight_l1_batch_with_logs)
+            .await
+            .unwrap();
         tree.as_mut().reset();
         let slow_tree_metadata = tree
-            .process_l1_batch(slow_l1_batch_with_logs.storage_logs)
-            .await;
-        assert_eq!(tree_metadata.root_hash, slow_tree_metadata.root_hash);
-        assert_eq!(
-            tree_metadata.rollup_last_leaf_index,
-            slow_tree_metadata.rollup_last_leaf_index
-        );
-        assert_eq!(
-            tree_metadata.initial_writes,
-            slow_tree_metadata.initial_writes
-        );
-        assert_eq!(
-            tree_metadata.initial_writes,
-            slow_tree_metadata.initial_writes
-        );
-        assert_eq!(
-            tree_metadata.repeated_writes,
-            slow_tree_metadata.repeated_writes
-        );
+            .process_l1_batch(slow_l1_batch_with_logs)
+            .await
+            .unwrap();
+        assert_metadata_eq(&tree_metadata, &slow_tree_metadata);
+        assert_metadata_eq(&lightweight_tree_metadata, &slow_tree_metadata);
         assert_equivalent_witnesses(
             tree_metadata.witness.unwrap(),
             slow_tree_metadata.witness.unwrap(),
         );
+    }
+
+    fn assert_metadata_eq(actual: &TreeMetadata, expected: &TreeMetadata) {
+        assert_eq!(actual.root_hash, expected.root_hash);
+        assert_eq!(
+            actual.rollup_last_leaf_index,
+            expected.rollup_last_leaf_index
+        );
+        assert_eq!(actual.initial_writes, expected.initial_writes);
+        assert_eq!(actual.initial_writes, expected.initial_writes);
+        assert_eq!(actual.repeated_writes, expected.repeated_writes);
     }
 
     fn assert_equivalent_witnesses(lhs: PrepareBasicCircuitsJob, rhs: PrepareBasicCircuitsJob) {
@@ -743,9 +801,11 @@ mod tests {
             .await
             .unwrap();
 
-        let l1_batch_with_logs = L1BatchWithLogs::new(&mut storage, L1BatchNumber(2))
-            .await
-            .unwrap();
+        let l1_batch_with_logs =
+            L1BatchWithLogs::new(&mut storage, L1BatchNumber(2), MerkleTreeMode::Full)
+                .await
+                .unwrap()
+                .expect("no L1 batch");
         // Check that we have protective reads transformed into read logs
         let read_logs_count = l1_batch_with_logs
             .storage_logs
@@ -753,6 +813,28 @@ mod tests {
             .filter(|log| matches!(log, TreeInstruction::Read(_)))
             .count();
         assert_eq!(read_logs_count, 7);
+
+        let light_l1_batch_with_logs =
+            L1BatchWithLogs::new(&mut storage, L1BatchNumber(2), MerkleTreeMode::Lightweight)
+                .await
+                .unwrap()
+                .expect("no L1 batch");
+        assert!(light_l1_batch_with_logs
+            .storage_logs
+            .iter()
+            .all(|log| matches!(log, TreeInstruction::Write(_))));
+        // Check that write instructions are equivalent for the full and light L1 batches (light logs may include extra no-op writes).
+        let write_logs: HashSet<_> = l1_batch_with_logs
+            .storage_logs
+            .into_iter()
+            .filter(|log| matches!(log, TreeInstruction::Write(_)))
+            .collect();
+        let light_write_logs: HashSet<_> =
+            light_l1_batch_with_logs.storage_logs.into_iter().collect();
+        assert!(
+            light_write_logs.is_superset(&write_logs),
+            "full={write_logs:?}, light={light_write_logs:?}"
+        );
 
         let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
         let mut tree = create_tree(&temp_dir).await;

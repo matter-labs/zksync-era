@@ -39,6 +39,7 @@ pub(crate) fn create_miniblock(number: u32) -> MiniblockHeader {
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         virtual_blocks: 1,
+        gas_limit: 0,
     }
 }
 
@@ -186,6 +187,7 @@ impl Snapshot {
             base_system_contracts_hashes: contracts.hashes(),
             protocol_version: Some(genesis_params.protocol_version()),
             virtual_blocks: 1,
+            gas_limit: 0,
         };
         Snapshot {
             l1_batch,
@@ -344,4 +346,10 @@ impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
     fn get_fee_model_params(&self) -> FeeParams {
         self.0
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum DeploymentMode {
+    Validium,
+    Rollup,
 }

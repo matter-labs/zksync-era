@@ -2,6 +2,7 @@
 
 #![allow(clippy::redundant_locals)]
 #![allow(clippy::needless_pass_by_ref_mut)]
+
 use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
@@ -10,6 +11,7 @@ use zksync_consensus_storage::BlockStore;
 pub use self::{fetcher::*, storage::Store};
 
 mod config;
+pub mod era;
 mod fetcher;
 mod storage;
 #[cfg(test)]

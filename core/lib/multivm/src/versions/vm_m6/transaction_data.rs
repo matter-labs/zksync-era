@@ -243,14 +243,14 @@ impl TransactionData {
 }
 
 pub(crate) fn derive_overhead(
-    gas_limit: u32,
+    gas_limit: u64,
     gas_price_per_pubdata: u32,
     encoded_len: usize,
     coefficients: OverheadCoefficients,
 ) -> u32 {
     // Even if the gas limit is greater than the `MAX_TX_ERGS_LIMIT`, we assume that everything beyond `MAX_TX_ERGS_LIMIT`
     // will be spent entirely on publishing bytecodes and so we derive the overhead solely based on the capped value
-    let gas_limit = std::cmp::min(MAX_TX_ERGS_LIMIT, gas_limit);
+    let gas_limit = std::cmp::min(MAX_TX_ERGS_LIMIT as u64, gas_limit);
 
     // Using large U256 type to avoid overflow
     let max_block_overhead = U256::from(block_overhead_gas(gas_price_per_pubdata));
@@ -477,7 +477,7 @@ pub fn get_amortized_overhead(
     if limit_after_deducting_overhead.as_u64() > MAX_L2_TX_GAS_LIMIT {
         // We derive the same overhead that would exist for the `MAX_L2_TX_GAS_LIMIT` ergs
         derive_overhead(
-            MAX_L2_TX_GAS_LIMIT as u32,
+            MAX_L2_TX_GAS_LIMIT,
             gas_per_pubdata_byte_limit,
             encoded_len.as_usize(),
             coefficients,
@@ -518,7 +518,7 @@ mod tests {
         // is >= than the overhead proposed by the operator.
         let is_overhead_accepted = |suggested_overhead: u32| {
             let derived_overhead = derive_overhead(
-                total_gas_limit - suggested_overhead,
+                (total_gas_limit - suggested_overhead) as u64,
                 gas_per_pubdata_byte_limit,
                 encoded_len,
                 coefficients,
@@ -572,7 +572,7 @@ mod tests {
 
         // Relatively big parameters
         let max_tx_overhead = derive_overhead(
-            MAX_TX_ERGS_LIMIT,
+            MAX_TX_ERGS_LIMIT as u64,
             5000,
             10000,
             OverheadCoefficients::new_l2(),

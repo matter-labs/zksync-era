@@ -1,7 +1,14 @@
 use std::{str::FromStr, time::Duration};
 
-use serde::Deserialize;
-use zksync_basic_types::{network::Network, Address, L2ChainId, H256};
+use serde::{Deserialize, Serialize};
+use zksync_basic_types::{
+    network::Network,
+    web3::{
+        contract::{tokens::Detokenize, Error as Web3ContractError},
+        ethabi, Error as Web3ApiError,
+    },
+    Address, L2ChainId, H256, U256,
+};
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct NetworkConfig {
@@ -45,6 +52,41 @@ impl Default for FeeModelVersion {
     }
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum L1BatchCommitDataGeneratorMode {
+    #[default]
+    Rollup,
+    Validium,
+}
+
+// The cases are extracted from the `PubdataPricingMode` enum in the L1 contracts,
+// And knowing that, in Ethereum, the response is the index of the enum case.
+// 0 corresponds to Rollup case,
+// 1 corresponds to Validium case,
+// Other values are incorrect.
+impl Detokenize for L1BatchCommitDataGeneratorMode {
+    fn from_tokens(tokens: Vec<ethabi::Token>) -> Result<Self, Web3ContractError> {
+        fn error(tokens: &[ethabi::Token]) -> Web3ContractError {
+            Web3ContractError::Api(Web3ApiError::Decoder(format!(
+                "L1BatchCommitDataGeneratorMode::from_tokens: {tokens:?}"
+            )))
+        }
+
+        match tokens.as_slice() {
+            [ethabi::Token::Uint(enum_value)] => {
+                if enum_value == &U256::zero() {
+                    Ok(L1BatchCommitDataGeneratorMode::Rollup)
+                } else if enum_value == &U256::one() {
+                    Ok(L1BatchCommitDataGeneratorMode::Validium)
+                } else {
+                    Err(error(&tokens))
+                }
+            }
+            _ => Err(error(&tokens)),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Clone, PartialEq, Default)]
 pub struct StateKeeperConfig {
     /// The max number of slots for txs in a block before it should be sealed by the slots sealer.
@@ -62,7 +104,7 @@ pub struct StateKeeperConfig {
     /// The max number of gas to spend on an L1 tx before its batch should be sealed by the gas sealer.
     pub max_single_tx_gas: u32,
 
-    pub max_allowed_l2_tx_gas_limit: u32,
+    pub max_allowed_l2_tx_gas_limit: u64,
 
     /// Configuration option for tx to be rejected in case
     /// it takes more percentage of the block capacity than this value.
@@ -79,9 +121,9 @@ pub struct StateKeeperConfig {
     pub close_block_at_eth_params_percentage: f64,
     /// Denotes the percentage of L1 gas used in L2 block that triggers L2 block seal.
     pub close_block_at_gas_percentage: f64,
-
-    pub fee_account_addr: Address,
-
+    /// Fee account address. Value is deprecated and it's used only for generating wallets struct
+    #[deprecated(note = "Use Wallets::fee_account::address instead")]
+    pub fee_account_addr: Option<Address>,
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
     /// as potentially premium for congestion.
     pub minimal_l2_gas_price: u64,
@@ -113,16 +155,22 @@ pub struct StateKeeperConfig {
     /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
     pub enum_index_migration_chunk_size: Option<usize>,
 
-    // Base system contract hash, required only for genesis file, it's temporary solution
+    // Base system contract hashes, required only for generating genesis config.
     // #PLA-811
+    #[deprecated(note = "Use GenesisConfig::bootloader_hash instead")]
     pub bootloader_hash: Option<H256>,
+    #[deprecated(note = "Use GenesisConfig::default_aa_hash instead")]
     pub default_aa_hash: Option<H256>,
+    #[deprecated(note = "Use GenesisConfig::l1_batch_commit_data_generator_mode instead")]
+    #[serde(default)]
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
 
 impl StateKeeperConfig {
     /// Creates a config object suitable for use in unit tests.
     /// Values mostly repeat the values used in the localhost environment.
     pub fn for_tests() -> Self {
+        #[allow(deprecated)]
         Self {
             transaction_slots: 250,
             block_commit_deadline_ms: 2500,
@@ -136,8 +184,9 @@ impl StateKeeperConfig {
             close_block_at_geometry_percentage: 0.95,
             close_block_at_eth_params_percentage: 0.95,
             close_block_at_gas_percentage: 0.95,
-            fee_account_addr: Address::from_str("0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7")
-                .unwrap(),
+            fee_account_addr: Some(
+                Address::from_str("0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7").unwrap(),
+            ),
             compute_overhead_part: 0.0,
             pubdata_overhead_part: 1.0,
             batch_overhead_l1_gas: 800_000,
@@ -152,6 +201,7 @@ impl StateKeeperConfig {
             enum_index_migration_chunk_size: None,
             bootloader_hash: None,
             default_aa_hash: None,
+            l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
         }
     }
 

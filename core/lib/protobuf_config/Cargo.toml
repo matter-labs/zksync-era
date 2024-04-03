@@ -23,6 +23,7 @@ anyhow.workspace = true
 pretty_assertions.workspace = true
 prost.workspace = true
 rand.workspace = true
+hex = "0.4.3"
 
 [build-dependencies]
 zksync_protobuf_build.workspace = true

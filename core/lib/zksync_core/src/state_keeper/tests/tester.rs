@@ -11,7 +11,7 @@ use multivm::{
     interface::{
         ExecutionResult, L1BatchEnv, SystemEnv, TxExecutionMode, VmExecutionResultAndLogs,
     },
-    vm_latest::constants::BLOCK_GAS_LIMIT,
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use tokio::sync::{mpsc, watch};
 use zksync_contracts::BaseSystemContracts;
@@ -25,7 +25,7 @@ use crate::{
         batch_executor::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult},
         io::{IoCursor, L1BatchParams, MiniblockParams, PendingBatchData, StateKeeperIO},
         seal_criteria::{IoSealCriteria, SequencerSealer},
-        tests::{default_l1_batch_env, default_vm_block_result, BASE_SYSTEM_CONTRACTS},
+        tests::{default_l1_batch_env, default_vm_batch_result, BASE_SYSTEM_CONTRACTS},
         types::ExecutionMetricsForCriteria,
         updates::UpdatesManager,
         OutputHandler, StateKeeperOutputHandler, ZkSyncStateKeeper,
@@ -300,9 +300,9 @@ pub(crate) fn pending_batch_data(
             zk_porter_available: false,
             version: ProtocolVersionId::latest(),
             base_system_smart_contracts: BASE_SYSTEM_CONTRACTS.clone(),
-            gas_limit: BLOCK_GAS_LIMIT,
+            bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             execution_mode: TxExecutionMode::VerifyExecute,
-            default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+            default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             chain_id: L2ChainId::from(270),
         },
         pending_miniblocks,
@@ -527,7 +527,7 @@ impl TestBatchExecutor {
                 }
                 Command::FinishBatch(resp) => {
                     // Blanket result, it doesn't really matter.
-                    resp.send(default_vm_block_result()).unwrap();
+                    resp.send(default_vm_batch_result()).unwrap();
                     return;
                 }
             }
@@ -595,7 +595,7 @@ pub(super) struct TestIO {
     /// requests until some other action happens.
     skipping_txs: bool,
     protocol_version: ProtocolVersionId,
-    previous_batch_protocol_version: ProtocolVersionId, // FIXME: not updated
+    previous_batch_protocol_version: ProtocolVersionId,
     protocol_upgrade_txs: HashMap<ProtocolVersionId, ProtocolUpgradeTx>,
 }
 
@@ -721,7 +721,7 @@ impl StateKeeperIO for TestIO {
 
         let params = L1BatchParams {
             protocol_version: self.protocol_version,
-            validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+            validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             operator_address: self.fee_account,
             fee_input: self.fee_input,
             first_miniblock: MiniblockParams {
@@ -857,7 +857,7 @@ impl BatchExecutor for MockBatchExecutor {
                     Command::RollbackLastTx(_) => panic!("unexpected rollback"),
                     Command::FinishBatch(resp) => {
                         // Blanket result, it doesn't really matter.
-                        resp.send(default_vm_block_result()).unwrap();
+                        resp.send(default_vm_batch_result()).unwrap();
                         return;
                     }
                 }

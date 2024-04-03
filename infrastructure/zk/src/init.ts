@@ -26,8 +26,13 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
         testTokens,
         governorPrivateKeyArgs,
         deployerPrivateKeyArgs,
-        deployerL2ContractInput
+        deployerL2ContractInput,
+        deploymentMode
     } = initArgs;
+
+    await announced(
+        `Initializing in ${deploymentMode == contract.DeploymentMode.Validium ? 'Validium mode' : 'Roll-up mode'}`
+    );
 
     if (runObservability) {
         await announced('Pulling observability repos', setupObservability());
@@ -44,21 +49,24 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     if (!skipSubmodulesCheckout) {
         await announced('Checkout system-contracts submodule', submoduleUpdate());
     }
+    if (deploymentMode == contract.DeploymentMode.Validium) {
+        await announced('Checkout era-contracts for Validium mode', validiumSubmoduleCheckout());
+    }
 
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
-    await announced('Drop postgres db', db.drop({ server: true, prover: true }));
-    await announced('Setup postgres db', db.setup({ server: true, prover: true }));
+    await announced('Drop postgres db', db.drop({ core: true, prover: true }));
+    await announced('Setup postgres db', db.setup({ core: true, prover: true }));
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
     await announced('Building contracts', contract.build());
     if (testTokens.deploy) {
         await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev', '', '', '', testTokens.args));
     }
-    await announced('Deploying L1 verifier', contract.deployVerifier(deployerPrivateKeyArgs));
+    await announced('Deploying L1 verifier', contract.deployVerifier(deployerPrivateKeyArgs, deploymentMode));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
-    await announced('Deploying L1 contracts', contract.redeployL1(deployerPrivateKeyArgs));
+    await announced('Deploying L1 contracts', contract.redeployL1(deployerPrivateKeyArgs, deploymentMode));
     await announced('Initializing validator', contract.initializeValidator(governorPrivateKeyArgs));
     await announced(
         'Deploying L2 contracts',
@@ -77,19 +85,22 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
 
 // A smaller version of `init` that "resets" the localhost environment, for which `init` was already called before.
 // It does less and runs much faster.
-export async function reinit(runObservability: boolean) {
+export async function reinit(runObservability: boolean, deploymentMode: contract.DeploymentMode) {
+    await announced(
+        `Initializing in ${deploymentMode == contract.DeploymentMode.Validium ? 'Validium mode' : 'Roll-up mode'}`
+    );
     await announced('Setting up containers', up(runObservability));
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
-    await announced('Drop postgres db', db.drop({ server: true, prover: true }));
-    await announced('Setup postgres db', db.setup({ server: true, prover: true }));
+    await announced('Drop postgres db', db.drop({ core: true, prover: true }));
+    await announced('Setup postgres db', db.setup({ core: true, prover: true }));
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
     await announced('Building contracts', contract.build());
-    await announced('Deploying L1 verifier', contract.deployVerifier([]));
+    await announced('Deploying L1 verifier', contract.deployVerifier([], deploymentMode));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
-    await announced('Deploying L1 contracts', contract.redeployL1([]));
+    await announced('Deploying L1 contracts', contract.redeployL1([], deploymentMode));
     await announced('Deploying L2 contracts', contract.deployL2([], true, true));
     await announced('Initializing L2 WETH token', contract.initializeWethToken());
     await announced('Initializing governance', contract.initializeGovernance());
@@ -97,14 +108,21 @@ export async function reinit(runObservability: boolean) {
 }
 
 // A lightweight version of `init` that sets up local databases, generates genesis and deploys precompiled contracts
-export async function lightweightInit() {
+export async function lightweightInit(runObservability: boolean, deploymentMode: contract.DeploymentMode) {
+    await announced(
+        `Initializing in ${deploymentMode == contract.DeploymentMode.Validium ? 'Validium mode' : 'Roll-up mode'}`
+    );
+    if (deploymentMode == contract.DeploymentMode.Validium) {
+        await announced('Checkout era-contracts for Validium mode', validiumSubmoduleCheckout());
+    }
+    await announced(`Setting up containers`, up(runObservability));
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
-    await announced('Deploying L1 verifier', contract.deployVerifier([]));
+    await announced('Deploying L1 verifier', contract.deployVerifier([], deploymentMode));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromBinary());
     await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev', '', '', '', []));
-    await announced('Deploying L1 contracts', contract.redeployL1([]));
+    await announced('Deploying L1 contracts', contract.redeployL1([], deploymentMode));
     await announced('Initializing validator', contract.initializeValidator());
     await announced('Deploying L2 contracts', contract.deployL2([], true, false));
     await announced('Initializing governance', contract.initializeGovernance());
@@ -130,6 +148,10 @@ export async function announced(fn: string, promise: Promise<void> | void) {
 export async function submoduleUpdate() {
     await utils.exec('git submodule init');
     await utils.exec('git submodule update');
+}
+
+export async function validiumSubmoduleCheckout() {
+    await utils.exec(`cd contracts && git checkout origin/feat_validium_mode`);
 }
 
 // clone dockprom and zksync-era dashboards
@@ -181,6 +203,7 @@ export interface InitArgs {
         deploy: boolean;
         args: any[];
     };
+    deploymentMode: contract.DeploymentMode;
 }
 
 const DEFAULT_ARGS: InitArgs = {
@@ -190,13 +213,15 @@ const DEFAULT_ARGS: InitArgs = {
     governorPrivateKeyArgs: [],
     deployerPrivateKeyArgs: [],
     deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
-    testTokens: { deploy: true, args: [] }
+    testTokens: { deploy: true, args: [] },
+    deploymentMode: contract.DeploymentMode.Rollup
 };
 
 export const initCommand = new Command('init')
     .option('--skip-submodules-checkout')
     .option('--skip-env-setup')
     .option('--run-observability')
+    .option('--validium-mode')
     .description('perform zksync network initialization for development')
     .action(async (cmd: Command) => {
         const initArgs: InitArgs = {
@@ -206,16 +231,27 @@ export const initCommand = new Command('init')
             governorPrivateKeyArgs: [],
             deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
             testTokens: { deploy: true, args: [] },
-            deployerPrivateKeyArgs: []
+            deployerPrivateKeyArgs: [],
+            deploymentMode:
+                cmd.validiumMode !== undefined ? contract.DeploymentMode.Validium : contract.DeploymentMode.Rollup
         };
         await init(initArgs);
     });
 export const reinitCommand = new Command('reinit')
     .description('"reinitializes" network. Runs faster than `init`, but requires `init` to be executed prior')
     .option('--run-observability')
-    .action(async (cmd) => {
-        await reinit(cmd.runObservability);
+    .option('--validium-mode')
+    .action(async (cmd: Command) => {
+        let deploymentMode =
+            cmd.validiumMode !== undefined ? contract.DeploymentMode.Validium : contract.DeploymentMode.Rollup;
+        await reinit(cmd.runObservability, deploymentMode);
     });
 export const lightweightInitCommand = new Command('lightweight-init')
     .description('perform lightweight zksync network initialization for development')
-    .action(lightweightInit);
+    .option('--run-observability')
+    .option('--validium-mode')
+    .action(async (cmd: Command) => {
+        let deploymentMode =
+            cmd.validiumMode !== undefined ? contract.DeploymentMode.Validium : contract.DeploymentMode.Rollup;
+        await lightweightInit(cmd.runObservability, deploymentMode);
+    });

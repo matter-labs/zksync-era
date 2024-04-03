@@ -102,7 +102,7 @@ impl ZksNamespace {
         Ok(self
             .state
             .tx_sender
-            .get_txs_fee_in_wei(tx, scale_factor, acceptable_overestimation)
+            .get_txs_fee_in_wei(tx, scale_factor, acceptable_overestimation as u64)
             .await?)
     }
 
