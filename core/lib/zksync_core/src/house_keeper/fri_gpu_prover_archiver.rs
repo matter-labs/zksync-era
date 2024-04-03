@@ -1,7 +1,7 @@
 use prover_dal::{Prover, ProverDal};
 use zksync_db_connection::connection_pool::ConnectionPool;
 
-use crate::house_keeper::periodic_job::PeriodicJob;
+use crate::{house_keeper::periodic_job::PeriodicJob, metrics::HOUSE_KEEPER_METRICS};
 
 #[derive(Debug)]
 pub struct FriGpuProverArchiver {
@@ -38,10 +38,9 @@ impl PeriodicJob for FriGpuProverArchiver {
             .archive_old_provers(self.archiving_interval_secs)
             .await;
         tracing::info!("Archived {:?} fri gpu prover records", archived_provers);
-        metrics::counter!(
-            "server.prover_fri.archived_provers",
-            archived_provers as u64
-        );
+        HOUSE_KEEPER_METRICS
+            .gpu_prover_archived_amount
+            .inc_by(archived_provers as u64);
         Ok(())
     }
 

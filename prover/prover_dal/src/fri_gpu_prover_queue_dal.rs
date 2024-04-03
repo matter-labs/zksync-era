@@ -197,7 +197,7 @@ impl FriGpuProverQueueDal<'_, '_> {
                         instance_status = 'reserved'
                         AND updated_at < NOW() - $1::INTERVAL
                     )
-                RETURNING *
+                RETURNING *, NOW() AS archived_at
             ),
             inserted_count AS (
                 INSERT INTO gpu_prover_queue_fri_archive

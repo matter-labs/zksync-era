@@ -3,7 +3,7 @@ pub mod availability_checker {
     use prover_dal::{ConnectionPool, Prover, ProverDal};
     use zksync_types::prover_dal::{GpuProverInstanceStatus, SocketAddress};
 
-    use crate::metrics::METRICS;
+    use crate::metrics::{KillingReason, METRICS};
 
     pub struct AvailabilityChecker {
         address: SocketAddress,
@@ -41,14 +41,26 @@ pub mod availability_checker {
                     .get_prover_instance_status(self.address.clone(), self.zone.clone())
                     .await;
 
-                if status.is_none() || status.unwrap() == GpuProverInstanceStatus::Dead {
-                    METRICS.zombie_prover_instances_count.inc();
-                    tracing::info!(
-                        "Prover instance at address {:?}, availability zone {} was found marked as dead while being alive, shutting down",
-                        self.address,
-                        self.zone
-                    );
-                    return Ok(());
+                match status {
+                    None => {
+                        METRICS.zombie_prover_instances_count[KillingReason::Absent].inc();
+                        tracing::info!(
+                            "Prover instance at address {:?}, availability zone {} was not found in the database, shutting down",
+                            self.address,
+                            self.zone
+                        );
+                        return Ok(());
+                    }
+                    Some(GpuProverInstanceStatus::Dead) => {
+                        METRICS.zombie_prover_instances_count[KillingReason::Dead].inc();
+                        tracing::info!(
+                            "Prover instance at address {:?}, availability zone {} was found marked as dead, shutting down",
+                            self.address,
+                            self.zone
+                        );
+                        return Ok(());
+                    }
+                    Some(_) => (),
                 }
 
                 tokio::time::sleep(std::time::Duration::from_secs(

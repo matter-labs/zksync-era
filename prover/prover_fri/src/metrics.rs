@@ -17,6 +17,13 @@ pub(crate) enum Layer {
     Base,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
+#[metrics(label = "reason", rename_all = "snake_case")]
+pub(crate) enum KillingReason {
+    Dead,
+    Absent,
+}
+
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "prover_fri_prover")]
 pub(crate) struct ProverFriMetrics {
@@ -38,7 +45,7 @@ pub(crate) struct ProverFriMetrics {
     pub witness_vector_blob_time: LabeledFamily<u64, Histogram<Duration>>,
     #[metrics(buckets = Buckets::LATENCIES, labels = ["circuit_type"])]
     pub blob_save_time: LabeledFamily<String, Histogram<Duration>>,
-    pub zombie_prover_instances_count: Counter,
+    pub zombie_prover_instances_count: Family<KillingReason, Counter>,
 }
 
 #[vise::register]
