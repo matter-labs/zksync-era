@@ -78,7 +78,7 @@ pub fn l2_to_l1_logs_tree_size(protocol_version: ProtocolVersionId) -> usize {
 /// Returns the blob hashes parsed out from the system logs
 pub fn parse_system_logs_for_blob_hashes(
     protocol_version: &ProtocolVersionId,
-    system_logs: &Vec<SystemL2ToL1Log>,
+    system_logs: &[SystemL2ToL1Log],
 ) -> Vec<H256> {
     let num_required_blobs = protocol_version.into_num_blobs_required() as u32;
     let num_created_blobs = protocol_version.into_num_blobs_created() as u32;
