@@ -8,7 +8,7 @@ use tokio::{
     sync::watch,
     task::{self, JoinHandle},
 };
-use zksync_concurrency::{ctx, limiter, scope, time};
+use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{
     api::MerkleTreeApiConfig, chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode,
 };
@@ -210,37 +210,41 @@ async fn run_core(
     .await?;
 
     task_handles.push(tokio::spawn({
-        let ctx = ctx::root();
-        let cfg = config.consensus.clone();
-        let mut stop_receiver = stop_receiver.clone();
-        let fetcher = consensus::Fetcher {
-            store: consensus::Store(connection_pool.clone()),
-            sync_state: sync_state.clone(),
-            client: Box::new(main_node_client.clone()),
-            limiter: limiter::Limiter::new(
-                &ctx,
-                limiter::Rate {
-                    burst: 10,
-                    refresh: time::Duration::milliseconds(30),
-                },
-            ),
+        let config = config.consensus.clone();
+        let secrets =
+            config::read_consensus_secrets().context("config::read_consensus_secrets()")?;
+        let cfg = match (config, secrets) {
+            (Some(cfg), Some(secrets)) => Some((cfg, secrets)),
+            (Some(_), None) => {
+                anyhow::bail!("Consensus config is specified, but secrets are missing")
+            }
+            (None, _) => {
+                // Secrets may be unconditionally embedded in some environments, but they are unused
+                // unless a consensus config is provided.
+                None
+            }
         };
-        let actions = action_queue_sender;
+
+        let pool = connection_pool.clone();
+        let sync_state = sync_state.clone();
+        let main_node_client = Arc::new(main_node_client.clone());
+        let mut stop_receiver = stop_receiver.clone();
         async move {
-            scope::run!(&ctx, |ctx, s| async {
-                s.spawn_bg(async {
-                    let res = match cfg {
-                        Some(cfg) => {
-                            let secrets = config::read_consensus_secrets()
-                                .context("config::read_consensus_secrets()")?
-                                .context("consensus secrets missing")?;
-                            fetcher.run_p2p(ctx, actions, cfg.p2p(&secrets)?).await
-                        }
-                        None => fetcher.run_centralized(ctx, actions).await,
-                    };
-                    tracing::info!("Consensus actor stopped");
-                    res
-                });
+            // We instantiate the root context here, since the consensus task is the only user of the
+            // structured concurrency framework.
+            // Note, however, that awaiting for the `stop_receiver` is related to the root context behavior,
+            // not the consensus task itself. There may have been any number of tasks running in the root context,
+            // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
+            let ctx = ctx::root();
+            scope::run!(&ctx, |ctx, s| async move {
+                s.spawn_bg(consensus::era::run_fetcher(
+                    ctx,
+                    cfg,
+                    pool,
+                    sync_state,
+                    main_node_client,
+                    action_queue_sender,
+                ));
                 ctx.wait(stop_receiver.wait_for(|stop| *stop)).await??;
                 Ok(())
             })

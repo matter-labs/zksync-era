@@ -71,6 +71,8 @@ pub enum GenesisError {
     DBError(#[from] SqlxError),
     #[error("Error: {0}")]
     Other(#[from] anyhow::Error),
+    #[error("Field: {0} required for genesis")]
+    MalformedConfig(&'static str),
 }
 
 #[derive(Debug, Clone)]
@@ -97,8 +99,12 @@ impl GenesisParams {
         system_contracts: Vec<DeployedContract>,
     ) -> Result<GenesisParams, GenesisError> {
         let base_system_contracts_hashes = BaseSystemContractsHashes {
-            bootloader: config.bootloader_hash,
-            default_aa: config.default_aa_hash,
+            bootloader: config
+                .bootloader_hash
+                .ok_or(GenesisError::MalformedConfig("bootloader_hash"))?,
+            default_aa: config
+                .default_aa_hash
+                .ok_or(GenesisError::MalformedConfig("default_aa_hash"))?,
         };
         if base_system_contracts_hashes != base_system_contracts.hashes() {
             return Err(GenesisError::BaseSystemContractsHashes(Box::new(
@@ -112,8 +118,9 @@ impl GenesisParams {
         // if the version doesn't exist
         let _: ProtocolVersionId = config
             .protocol_version
+            .ok_or(GenesisError::MalformedConfig("protocol_version"))?
             .try_into()
-            .map_err(|_| GenesisError::ProtocolVersion(config.protocol_version))?;
+            .map_err(|_| GenesisError::ProtocolVersion(config.protocol_version.unwrap()))?;
         Ok(GenesisParams {
             base_system_contracts,
             system_contracts,
@@ -140,6 +147,7 @@ impl GenesisParams {
         // It's impossible to instantiate Genesis params with wrong protocol version
         self.config
             .protocol_version
+            .expect("Protocol version must be set")
             .try_into()
             .expect("Protocol version must be correctly initialized for genesis")
     }
@@ -153,12 +161,12 @@ pub fn mock_genesis_config() -> GenesisConfig {
     let first_l1_verifier_config = L1VerifierConfig::default();
 
     GenesisConfig {
-        protocol_version: ProtocolVersionId::latest() as u16,
-        genesis_root_hash: Default::default(),
-        rollup_last_leaf_index: 26,
+        protocol_version: Some(ProtocolVersionId::latest() as u16),
+        genesis_root_hash: Some(Default::default()),
+        rollup_last_leaf_index: Some(26),
         genesis_commitment: Default::default(),
-        bootloader_hash: base_system_contracts_hashes.bootloader,
-        default_aa_hash: base_system_contracts_hashes.default_aa,
+        bootloader_hash: Some(base_system_contracts_hashes.bootloader),
+        default_aa_hash: Some(base_system_contracts_hashes.default_aa),
         l1_chain_id: L1ChainId(9),
         l2_chain_id: L2ChainId::default(),
         recursion_node_level_vk_hash: first_l1_verifier_config.params.recursion_node_level_vk_hash,
@@ -221,8 +229,14 @@ pub async fn insert_genesis_batch(
     let rollup_last_leaf_index = metadata.leaf_count + 1;
 
     let base_system_contract_hashes = BaseSystemContractsHashes {
-        bootloader: genesis_params.config.bootloader_hash,
-        default_aa: genesis_params.config.default_aa_hash,
+        bootloader: genesis_params
+            .config
+            .bootloader_hash
+            .ok_or(GenesisError::MalformedConfig("bootloader"))?,
+        default_aa: genesis_params
+            .config
+            .default_aa_hash
+            .ok_or(GenesisError::MalformedConfig("default_aa_hash"))?,
     };
     let commitment_input = CommitmentInput::for_genesis_batch(
         genesis_root_hash,
@@ -268,23 +282,34 @@ pub async fn ensure_genesis_state(
         commitment,
         rollup_last_leaf_index,
     } = insert_genesis_batch(&mut transaction, genesis_params).await?;
-    if genesis_params.config.genesis_root_hash != root_hash {
-        return Err(GenesisError::RootHash(
-            genesis_params.config.genesis_root_hash,
-            root_hash,
-        ));
+
+    let expected_root_hash = genesis_params
+        .config
+        .genesis_root_hash
+        .ok_or(GenesisError::MalformedConfig("genesis_root_hash"))?;
+    let expected_commitment = genesis_params
+        .config
+        .genesis_commitment
+        .ok_or(GenesisError::MalformedConfig("expected_commitment"))?;
+    let expected_rollup_last_leaf_index =
+        genesis_params
+            .config
+            .rollup_last_leaf_index
+            .ok_or(GenesisError::MalformedConfig(
+                "expected_rollup_last_leaf_index",
+            ))?;
+
+    if expected_root_hash != root_hash {
+        return Err(GenesisError::RootHash(expected_root_hash, root_hash));
     }
 
-    if genesis_params.config.genesis_commitment != commitment {
-        return Err(GenesisError::Commitment(
-            genesis_params.config.genesis_commitment,
-            commitment,
-        ));
+    if expected_commitment != commitment {
+        return Err(GenesisError::Commitment(expected_commitment, commitment));
     }
 
-    if genesis_params.config.rollup_last_leaf_index != rollup_last_leaf_index {
+    if expected_rollup_last_leaf_index != rollup_last_leaf_index {
         return Err(GenesisError::LeafIndexes(
-            genesis_params.config.rollup_last_leaf_index,
+            expected_rollup_last_leaf_index,
             rollup_last_leaf_index,
         ));
     }
@@ -665,7 +690,7 @@ mod tests {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
         let params = GenesisParams::load_genesis_params(GenesisConfig {
-            protocol_version: ProtocolVersionId::Version10 as u16,
+            protocol_version: Some(ProtocolVersionId::Version10 as u16),
             ..mock_genesis_config()
         })
         .unwrap();

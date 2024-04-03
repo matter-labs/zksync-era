@@ -3,7 +3,7 @@ use zksync_types::{
     fee::Fee, l2::L2Tx, transaction_request::PaymasterParams, Address, Nonce, U256,
 };
 
-use crate::{
+use crate::sdk::{
     error::ClientError, operations::SyncTransactionHandle, wallet::Wallet, EthNamespaceClient,
     ZksNamespaceClient,
 };

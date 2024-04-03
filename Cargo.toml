@@ -49,8 +49,6 @@ members = [
     "core/tests/loadnext",
     "core/tests/vm-benchmark",
     "core/tests/vm-benchmark/harness",
-    # SDK section
-    "sdk/zksync-rs",
 ]
 resolver = "2"
 
