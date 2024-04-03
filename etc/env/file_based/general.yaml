@@ -170,6 +170,7 @@ prover:
   witness_vector_generator_thread_count: 5
   queue_capacity: 10
   witness_vector_receiver_port: 3316
+  availability_check_interval_in_secs: 10000
   zone_read_url: http://metadata.google.internal/computeMetadata/v1/instance/zone
   shall_save_to_public_bucket: true
 witness_generator:
@@ -287,7 +288,9 @@ house_keeper:
   proof_compressor_job_retrying_interval_ms: 30000
   proof_compressor_stats_reporting_interval_ms: 10000
   prover_job_archiver_reporting_interval_ms: 1800000
-  prover_job_archiver_archiving_interval_secs: 15
+  prover_job_archiver_archiving_interval_secs: 172800
+  fri_gpu_prover_archiver_reporting_interval_secs: 86400
+  fri_gpu_prover_archiver_archiving_interval_secs: 172800
 
 prometheus:
   listener_port: 3312

@@ -19,6 +19,7 @@ pub(crate) enum Layer {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "reason", rename_all = "snake_case")]
+#[allow(dead_code)]
 pub(crate) enum KillingReason {
     Dead,
     Absent,
