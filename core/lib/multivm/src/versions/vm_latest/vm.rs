@@ -131,7 +131,8 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                 .into_iter()
                 .map(GlueInto::glue_into)
                 .collect(),
-            storage_refunds: self.state.storage.returned_refunds.inner().clone(),
+            storage_refunds: self.state.storage.returned_io_refunds.inner().clone(),
+            pubdata_costs: self.state.storage.returned_pubdata_costs.inner().clone(),
         }
     }
 

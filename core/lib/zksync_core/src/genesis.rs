@@ -504,6 +504,7 @@ pub(crate) async fn create_genesis_l1_batch(
             &[],
             BlockGasCount::default(),
             &[],
+            &[],
             Default::default(),
         )
         .await?;

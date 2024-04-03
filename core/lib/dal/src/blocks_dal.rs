@@ -12,14 +12,17 @@ use zksync_db_connection::{
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::{BlockGasCount, L1BatchHeader, L1BatchTreeData, MiniblockHeader},
+    block::{BlockGasCount, L1BatchHeader, L1BatchTreeData, MiniblockHeader, StorageOracleInfo},
     circuit::CircuitStatistic,
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
     Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, U256,
 };
 
 use crate::{
-    models::storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
+    models::{
+        storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
+        storage_oracle_info::DbStorageOracleInfo,
+    },
     Core, CoreDal,
 };
 
@@ -365,14 +368,16 @@ impl BlocksDal<'_, '_> {
         Ok(Some(heap))
     }
 
-    pub async fn get_storage_refunds(
+    pub async fn get_storage_oracle_info(
         &mut self,
         number: L1BatchNumber,
-    ) -> anyhow::Result<Option<Vec<u32>>> {
-        let Some(row) = sqlx::query!(
+    ) -> anyhow::Result<Option<StorageOracleInfo>> {
+        let storage_oracle_info = sqlx::query_as!(
+            DbStorageOracleInfo,
             r#"
             SELECT
-                storage_refunds
+                storage_refunds,
+                pubdata_costs
             FROM
                 l1_batches
             WHERE
@@ -384,16 +389,9 @@ impl BlocksDal<'_, '_> {
         .report_latency()
         .with_arg("number", &number)
         .fetch_optional(self.storage)
-        .await?
-        else {
-            return Ok(None);
-        };
-        let Some(storage_refunds) = row.storage_refunds else {
-            return Ok(None);
-        };
+        .await?;
 
-        let storage_refunds: Vec<_> = storage_refunds.into_iter().map(|n| n as u32).collect();
-        Ok(Some(storage_refunds))
+        Ok(storage_oracle_info.and_then(DbStorageOracleInfo::into_optional_batch_oracle_info))
     }
 
     pub async fn set_eth_tx_id(
@@ -464,6 +462,7 @@ impl BlocksDal<'_, '_> {
         initial_bootloader_contents: &[(usize, U256)],
         predicted_block_gas: BlockGasCount,
         storage_refunds: &[u32],
+        pubdata_costs: &[i32],
         predicted_circuits_by_type: CircuitStatistic, // predicted number of circuits for each circuit type
     ) -> anyhow::Result<()> {
         let priority_onchain_data: Vec<Vec<u8>> = header
@@ -490,6 +489,7 @@ impl BlocksDal<'_, '_> {
         let used_contract_hashes = serde_json::to_value(&header.used_contract_hashes)
             .expect("failed to serialize used_contract_hashes to JSON value");
         let storage_refunds: Vec<_> = storage_refunds.iter().copied().map(i64::from).collect();
+        let pubdata_costs: Vec<_> = pubdata_costs.iter().copied().map(i64::from).collect();
 
         let mut transaction = self.storage.start_transaction().await?;
         sqlx::query!(
@@ -514,6 +514,7 @@ impl BlocksDal<'_, '_> {
                     protocol_version,
                     system_logs,
                     storage_refunds,
+                    pubdata_costs,
                     pubdata_input,
                     predicted_circuits_by_type,
                     created_at,
@@ -541,6 +542,7 @@ impl BlocksDal<'_, '_> {
                     $18,
                     $19,
                     $20,
+                    $21,
                     NOW(),
                     NOW()
                 )
@@ -563,6 +565,7 @@ impl BlocksDal<'_, '_> {
             header.protocol_version.map(|v| v as i32),
             &system_logs,
             &storage_refunds,
+            &pubdata_costs,
             pubdata_input,
             serde_json::to_value(predicted_circuits_by_type).unwrap(),
         )
@@ -2402,8 +2405,15 @@ impl BlocksDal<'_, '_> {
     }
 
     pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> anyhow::Result<()> {
-        self.insert_l1_batch(header, &[], Default::default(), &[], Default::default())
-            .await
+        self.insert_l1_batch(
+            header,
+            &[],
+            Default::default(),
+            &[],
+            &[],
+            Default::default(),
+        )
+        .await
     }
 
     /// Deletes all miniblocks and L1 batches, including the genesis ones. Should only be used in tests.
@@ -2510,7 +2520,7 @@ mod tests {
             execute: 10,
         };
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], Default::default())
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], Default::default())
             .await
             .unwrap();
 
@@ -2518,7 +2528,7 @@ mod tests {
         header.timestamp += 100;
         predicted_gas += predicted_gas;
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], Default::default())
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], Default::default())
             .await
             .unwrap();
 

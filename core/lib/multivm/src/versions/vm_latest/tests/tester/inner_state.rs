@@ -56,7 +56,8 @@ pub(crate) struct StorageOracleInnerState<H: HistoryMode> {
 
     pub(crate) paid_changes: HistoryRecorder<HashMap<StorageKey, u32>, H>,
     pub(crate) initial_values: HistoryRecorder<HashMap<StorageKey, U256>, H>,
-    pub(crate) returned_refunds: HistoryRecorder<Vec<u32>, H>,
+    pub(crate) returned_io_refunds: HistoryRecorder<Vec<u32>, H>,
+    pub(crate) returned_pubdata_costs: HistoryRecorder<Vec<i32>, H>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -113,7 +114,8 @@ impl<S: WriteStorage, H: CommonHistoryMode> Vm<S, H> {
             frames_stack: self.state.storage.storage_frames_stack.clone(),
             paid_changes: self.state.storage.paid_changes.clone(),
             initial_values: self.state.storage.initial_values.clone(),
-            returned_refunds: self.state.storage.returned_refunds.clone(),
+            returned_io_refunds: self.state.storage.returned_io_refunds.clone(),
+            returned_pubdata_costs: self.state.storage.returned_pubdata_costs.clone(),
         };
         let local_state = self.state.local_state.clone();
 

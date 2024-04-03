@@ -596,12 +596,17 @@ async fn generate_witness(
         .map(|hash| u256_to_h256(*hash))
         .collect();
 
-    let storage_refunds = connection
+    let storage_oracle_info = connection
         .blocks_dal()
-        .get_storage_refunds(input.block_number)
+        .get_storage_oracle_info(input.block_number)
         .await
         .unwrap()
         .unwrap();
+    let StorageOracleInfo {
+        storage_refunds,
+        pubdata_costs,
+    } = storage_oracle_info;
+    let pubdata_costs = pubdata_costs.expect("v1.5.0 requires pubdata_costs to be present");
 
     let mut used_bytecodes = connection
         .factory_deps_dal()
@@ -678,7 +683,7 @@ async fn generate_witness(
 
         let vm_storage_oracle: VmStorageOracle<StorageView<PostgresStorage<'_>>, HistoryDisabled> =
             VmStorageOracle::new(storage_view.clone());
-        let storage_oracle = StorageOracle::new(vm_storage_oracle, storage_refunds);
+        let storage_oracle = StorageOracle::new(vm_storage_oracle, storage_refunds, pubdata_costs);
 
         let (scheduler_witness, block_witness) = zkevm_test_harness::external_calls::run(
             Address::zero(),

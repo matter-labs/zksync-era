@@ -85,8 +85,12 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
     // for unused slots.
     pub(crate) initial_values: HistoryRecorder<HashMap<StorageKey, U256>, H>,
 
-    // Storage refunds that oracle has returned in `estimate_refunds_for_write`.
-    pub(crate) returned_refunds: HistoryRecorder<Vec<u32>, H>,
+    // Storage I/O refunds that oracle has returned in `get_access_refund`.
+    pub(crate) returned_io_refunds: HistoryRecorder<Vec<u32>, H>,
+
+    // The pubdata costs that oracle has returned in `execute_partial_query`.
+    // Note, that these can be negative, since the user may rollback some storage changes.
+    pub(crate) returned_pubdata_costs: HistoryRecorder<Vec<i32>, H>,
 
     // Keeps track of storage keys that were ever written to. This is needed for circuits tracer, this is why
     // we dont roll this value back in case of a panicked frame.
@@ -105,7 +109,8 @@ impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
             .rollback_to_timestamp(timestamp);
         self.paid_changes.rollback_to_timestamp(timestamp);
         self.initial_values.rollback_to_timestamp(timestamp);
-        self.returned_refunds.rollback_to_timestamp(timestamp);
+        self.returned_io_refunds.rollback_to_timestamp(timestamp);
+        self.returned_pubdata_costs.rollback_to_timestamp(timestamp);
         self.written_storage_keys.rollback_to_timestamp(timestamp);
         self.read_storage_keys.rollback_to_timestamp(timestamp);
     }
@@ -120,7 +125,8 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             transient_storage_frames_stack: Default::default(),
             paid_changes: Default::default(),
             initial_values: Default::default(),
-            returned_refunds: Default::default(),
+            returned_io_refunds: Default::default(),
+            returned_pubdata_costs: Default::default(),
             written_storage_keys: Default::default(),
             read_storage_keys: Default::default(),
         }
@@ -132,7 +138,8 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         self.storage_frames_stack.delete_history();
         self.paid_changes.delete_history();
         self.initial_values.delete_history();
-        self.returned_refunds.delete_history();
+        self.returned_io_refunds.delete_history();
+        self.returned_pubdata_costs.delete_history();
         self.written_storage_keys.delete_history();
         self.read_storage_keys.delete_history();
     }
@@ -409,6 +416,9 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
             unreachable!();
         }
 
+        self.returned_pubdata_costs
+            .apply_historic_record(VectorHistoryEvent::Push(pubdata_cost.0), query.timestamp);
+
         (query, pubdata_cost)
     }
 
@@ -428,7 +438,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
             unreachable!()
         };
 
-        self.returned_refunds.apply_historic_record(
+        self.returned_io_refunds.apply_historic_record(
             VectorHistoryEvent::Push(refund.refund()),
             partial_query.timestamp,
         );
