@@ -29,6 +29,7 @@ struct TimestampedFactoryDep {
     bytecode: Vec<u8>,
     inserted_at: MiniblockNumber,
 }
+
 /// Type alias for smart contract source code cache.
 type FactoryDepsCache = LruCache<H256, TimestampedFactoryDep>;
 
@@ -584,13 +585,12 @@ impl ReadStorage for PostgresStorage<'_> {
             value
         });
 
-        let result = value
-            .filter(|timestamped_factory_dep| {
-                timestamped_factory_dep.inserted_at <= self.miniblock_number
-            })
-            .map(|timestamped_factory_dep| timestamped_factory_dep.bytecode);
         latency.observe();
-        result
+        Some(
+            value
+                .filter(|dep| dep.inserted_at <= self.miniblock_number)?
+                .bytecode,
+        )
     }
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
