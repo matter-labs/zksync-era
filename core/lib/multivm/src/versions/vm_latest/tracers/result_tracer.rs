@@ -38,7 +38,7 @@ enum Result {
 #[derive(Debug, Copy, Clone)]
 enum FarCallTracker {
     NoFarCallObserved,
-    FarCallOserved(usize),
+    FarCallObserved(usize),
     ReturndataObserved(FatPointer),
 }
 
@@ -53,16 +53,16 @@ impl FarCallTracker {
     fn far_call_observed(&mut self, local_state: &VmLocalStateData<'_>) {
         match &self {
             FarCallTracker::NoFarCallObserved => {
-                *self = FarCallTracker::FarCallOserved(
+                *self = FarCallTracker::FarCallObserved(
                     local_state.vm_local_state.callstack.inner.len(),
                 );
             }
-            FarCallTracker::FarCallOserved(_) => {
+            FarCallTracker::FarCallObserved(_) => {
                 panic!("Two far calls from bootloader in a row is not possible")
             }
             FarCallTracker::ReturndataObserved(_) => {
                 // Now we forget about the load returndata
-                *self = FarCallTracker::FarCallOserved(
+                *self = FarCallTracker::FarCallObserved(
                     local_state.vm_local_state.callstack.inner.len(),
                 );
             }
@@ -71,7 +71,7 @@ impl FarCallTracker {
 
     // should be called after opcode is executed
     fn return_observed(&mut self, local_state: &VmLocalStateData<'_>) {
-        if let FarCallTracker::FarCallOserved(x) = &self {
+        if let FarCallTracker::FarCallObserved(x) = &self {
             if *x != local_state.vm_local_state.callstack.inner.len() {
                 return;
             }
