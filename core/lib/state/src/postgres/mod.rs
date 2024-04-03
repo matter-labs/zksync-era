@@ -24,12 +24,17 @@ mod metrics;
 #[cfg(test)]
 mod tests;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TimestampedFactoryDep {
+    bytecode: Vec<u8>,
+    inserted_at: MiniblockNumber,
+}
 /// Type alias for smart contract source code cache.
-type FactoryDepsCache = LruCache<H256, (Vec<u8>, MiniblockNumber)>;
+type FactoryDepsCache = LruCache<H256, TimestampedFactoryDep>;
 
-impl CacheValue<H256> for (Vec<u8>, MiniblockNumber) {
+impl CacheValue<H256> for TimestampedFactoryDep {
     fn cache_weight(&self) -> u32 {
-        (self.0.len() + mem::size_of::<MiniblockNumber>())
+        (self.bytecode.len() + mem::size_of::<MiniblockNumber>())
             .try_into()
             .expect("Cached bytes are too large")
     }
@@ -562,22 +567,28 @@ impl ReadStorage for PostgresStorage<'_> {
             let mut dal = self.connection.storage_web3_dal();
             let value = self
                 .rt_handle
-                .block_on(dal.get_factory_dep_and_miniblock_unchecked(hash, self.miniblock_number))
-                .expect("Failed executing `load_factory_dep`");
+                .block_on(dal.get_factory_dep(hash))
+                .expect("Failed executing `load_factory_dep`")
+                .map(|(bytecode, inserted_at)| TimestampedFactoryDep {
+                    bytecode,
+                    inserted_at,
+                });
 
             if let Some(caches) = &self.caches {
                 // If we receive None, we won't cache it.
-                if let Some((dep, miniblock)) = value.clone() {
-                    caches.factory_deps.insert(hash, (dep, miniblock));
+                if let Some(value) = value.clone() {
+                    caches.factory_deps.insert(hash, value);
                 }
             };
 
             value
         });
 
-        let result =
-            value.and_then(|(dep, miniblock)| (miniblock <= self.miniblock_number).then_some(dep));
-
+        let result = value
+            .filter(|timestamped_factory_dep| {
+                timestamped_factory_dep.inserted_at <= self.miniblock_number
+            })
+            .map(|timestamped_factory_dep| timestamped_factory_dep.bytecode);
         latency.observe();
         result
     }

@@ -96,26 +96,29 @@ where
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{MiniblockNumber, H256};
+    use zksync_types::H256;
 
     use crate::cache::{lru_cache::LruCache, *};
 
+    impl CacheValue<H256> for Vec<u8> {
+        fn cache_weight(&self) -> u32 {
+            self.len().try_into().expect("Cached bytes are too large")
+        }
+    }
+
     #[test]
     fn cache_with_zero_capacity() {
-        let zero_cache = LruCache::<H256, (Vec<u8>, MiniblockNumber)>::new("test", 0);
-        zero_cache.insert(H256::zero(), (vec![1, 2, 3], MiniblockNumber(0)));
+        let zero_cache = LruCache::<H256, Vec<u8>>::new("test", 0);
+        zero_cache.insert(H256::zero(), vec![1, 2, 3]);
         assert_eq!(zero_cache.get(&H256::zero()), None);
 
         // The zero-capacity `MokaBase` cache can actually contain items temporarily!
-        let not_quite_zero_cache = MokaBase::<H256, (Vec<u8>, MiniblockNumber)>::builder()
+        let not_quite_zero_cache = MokaBase::<H256, Vec<u8>>::builder()
             .weigher(|_, value| value.cache_weight())
             .max_capacity(0)
             .build();
-        not_quite_zero_cache.insert(H256::zero(), (vec![1, 2, 3], MiniblockNumber(0)));
-        assert_eq!(
-            not_quite_zero_cache.get(&H256::zero()),
-            Some((vec![1, 2, 3], MiniblockNumber(0)))
-        );
+        not_quite_zero_cache.insert(H256::zero(), vec![1, 2, 3]);
+        assert_eq!(not_quite_zero_cache.get(&H256::zero()), Some(vec![1, 2, 3]));
         // The item is evicted after the first access.
         assert_eq!(not_quite_zero_cache.get(&H256::zero()), None);
     }

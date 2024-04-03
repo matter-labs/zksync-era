@@ -257,14 +257,20 @@ fn test_factory_deps_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     assert_eq!(dep, Some(vec![1, 2, 3]));
     assert_eq!(
         caches.factory_deps.get(&zero_addr),
-        Some((vec![1, 2, 3], MiniblockNumber(0)))
+        Some(TimestampedFactoryDep {
+            bytecode: vec![1, 2, 3],
+            inserted_at: MiniblockNumber(0)
+        })
     );
 
     let dep = storage.load_factory_dep(H256::from_low_u64_be(1));
     assert_eq!(dep, Some(vec![1, 2, 3, 4]));
     assert_eq!(
         caches.factory_deps.get(&H256::from_low_u64_be(1)),
-        Some((vec![1, 2, 3, 4], MiniblockNumber(1)))
+        Some(TimestampedFactoryDep {
+            bytecode: vec![1, 2, 3, 4],
+            inserted_at: MiniblockNumber(1)
+        })
     );
 
     // Create storage with `MiniblockNumber(0)`.

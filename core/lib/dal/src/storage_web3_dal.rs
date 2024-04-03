@@ -237,11 +237,10 @@ impl StorageWeb3Dal<'_, '_> {
         Ok(row.map(|row| row.bytecode))
     }
 
-    /// This method doesn't check if block with number equals to `block_number` is present in the database.
-    pub async fn get_factory_dep_and_miniblock_unchecked(
+    /// Given factory dep hash, returns `bytecode` and `miniblock_number` at which it was inserted.
+    pub async fn get_factory_dep(
         &mut self,
         hash: H256,
-        block_number: MiniblockNumber,
     ) -> sqlx::Result<Option<(Vec<u8>, MiniblockNumber)>> {
         let row = sqlx::query!(
             r#"
@@ -252,10 +251,8 @@ impl StorageWeb3Dal<'_, '_> {
                 factory_deps
             WHERE
                 bytecode_hash = $1
-                AND miniblock_number <= $2
             "#,
             hash.as_bytes(),
-            i64::from(block_number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?;
