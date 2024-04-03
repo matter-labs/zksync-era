@@ -200,7 +200,7 @@ describe('Upgrade test', function () {
         const scheduleUpgrade = await govWallet.sendTransaction({
             to: governanceContract.address,
             data: scheduleTransparentOperation
-        })
+        });
         await scheduleUpgrade.wait();
 
         // Wait for server to process L1 event.
@@ -240,15 +240,14 @@ describe('Upgrade test', function () {
             data: executeOperation
         });
         await execute.wait();
-
     });
 
     step('Finalize upgrade on the target chain', async () => {
         // Send finalize tx.
         const finalize = await govWallet.sendTransaction({
-                to: mainContract.address,
-                data: finalizeOperation
-            })
+            to: mainContract.address,
+            data: finalizeOperation
+        });
         await finalize.wait();
 
         let bootloaderHashL1 = await mainContract.getL2BootloaderBytecodeHash();
@@ -402,7 +401,7 @@ async function prepareUpgradeCalldata(
             params.l1ContractsUpgradeCalldata ?? '0x',
             params.postUpgradeCalldata ?? '0x',
             params.upgradeTimestamp,
-            newProtocolVersion,
+            newProtocolVersion
         ]
     ]);
 
@@ -414,10 +413,11 @@ async function prepareUpgradeCalldata(
     };
 
     // Prepare calldata for upgrading STM
-    const stmUpgradeCalldata = STATE_TRANSITON_MANAGER.encodeFunctionData(
-        'setNewVersionUpgrade', 
-        [upgradeParam, oldProtocolVersion, newProtocolVersion]
-    );
+    const stmUpgradeCalldata = STATE_TRANSITON_MANAGER.encodeFunctionData('setNewVersionUpgrade', [
+        upgradeParam,
+        oldProtocolVersion,
+        newProtocolVersion
+    ]);
 
     const call = {
         target: stmAddress,
@@ -438,9 +438,12 @@ async function prepareUpgradeCalldata(
 
     // Get transaction data of the `execute`
     const executeOperation = GOVERNANCE_ABI.encodeFunctionData('execute', [governanceOperation]);
-    
+
     // Execute this upgrade on a specific chain under this STM.
-    const finalizeOperation = ADMIN_FACET_ABI.encodeFunctionData('upgradeChainFromVersion', [oldProtocolVersion, upgradeParam]);
+    const finalizeOperation = ADMIN_FACET_ABI.encodeFunctionData('upgradeChainFromVersion', [
+        oldProtocolVersion,
+        upgradeParam
+    ]);
 
     return {
         scheduleTransparentOperation,
