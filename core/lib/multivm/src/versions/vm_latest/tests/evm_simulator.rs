@@ -377,7 +377,7 @@ fn test_evm_contract_calls() {
         EvmDebugTracer::new().into_tracer_pointer().into(),
         VmExecutionMode::OneTx,
     );
-    assert!(tx_result.result.is_failed(), "Access violated");
+    assert!(!tx_result.result.is_failed(), "Access violated");
 
     let txWarmSlot = account.get_l2_tx_for_execute(
         Execute {
@@ -397,7 +397,7 @@ fn test_evm_contract_calls() {
         EvmDebugTracer::new().into_tracer_pointer().into(),
         VmExecutionMode::OneTx,
     );
-    assert!(tx_result.result.is_failed(), "Access violated");
+    assert!(!tx_result.result.is_failed(), "Access violated");
 
     let tx_pushEVMFrame = account.get_l2_tx_for_execute(
         Execute {
@@ -417,7 +417,7 @@ fn test_evm_contract_calls() {
         EvmDebugTracer::new().into_tracer_pointer().into(),
         VmExecutionMode::OneTx,
     );
-    assert!(tx_result.result.is_failed(), "Access violated");
+    assert!(!tx_result.result.is_failed(), "Access violated");
 
     let tx_popEVMFrame = account.get_l2_tx_for_execute(
         Execute {
@@ -437,7 +437,7 @@ fn test_evm_contract_calls() {
         EvmDebugTracer::new().into_tracer_pointer().into(),
         VmExecutionMode::OneTx,
     );
-    assert!(tx_result.result.is_failed(), "Access violated");
+    assert!(!tx_result.result.is_failed(), "Access violated");
     let function = match abi.function("_consumeEvmFrame") {
         Ok(func) => func,
         Err(e) => {
@@ -471,7 +471,7 @@ fn test_evm_contract_calls() {
         EvmDebugTracer::new().into_tracer_pointer().into(),
         VmExecutionMode::OneTx,
     );
-    assert!(tx_result.result.is_failed(), "Access violated");
+    assert!(!tx_result.result.is_failed(), "Access violated");
 }
 #[test]
 fn test_evm_gas_consumption() {

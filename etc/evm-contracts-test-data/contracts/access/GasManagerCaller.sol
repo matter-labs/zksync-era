@@ -5,91 +5,19 @@ import {EVM_GAS_MANAGER, INF_PASS_GAS} from "./Constants.sol";
 
 
 contract GasManagerCaller {
-    function warmAccount(address _addr) public returns (bool isWarm) {
-        bytes4 selector = EVM_GAS_MANAGER.warmAccount.selector;
-        address addr = address(EVM_GAS_MANAGER);
-        assembly {
-            mstore(0, selector)
-            mstore(4, _addr)
-
-            let success := call(gas(), addr, 0, 0, 36, 0, 32)
-
-            if iszero(success) {
-                // This error should never happen
-                revert(0, 0)
-            }
-
-            isWarm := mload(0)
-        }
+    function warmAccount(address _addr) public {
+        EVM_GAS_MANAGER.warmAccount(_addr);
     }
-    function warmSlot(uint256 key, uint256 currentValue) public returns (bool isWarm, uint256 originalValue) {
-        bytes4 selector = EVM_GAS_MANAGER.warmSlot.selector;
-        address addr = address(EVM_GAS_MANAGER);
-        assembly {
-            mstore(0, selector)
-            mstore(4, key)
-            mstore(36, currentValue)
-
-            let success := call(gas(), addr, 0, 0, 68, 0, 64)
-
-            if iszero(success) {
-                // This error should never happen
-                revert(0, 0)
-            }
-
-            isWarm := mload(0)
-            originalValue := mload(32)
-        }
+    function warmSlot(uint256 key, uint256 currentValue) public {
+        EVM_GAS_MANAGER.warmSlot(key, currentValue);
     }
      function _pushEVMFrame(uint256 _passGas, bool _isStatic) public {
-        bytes4 selector = EVM_GAS_MANAGER.pushEVMFrame.selector;
-        address addr = address(EVM_GAS_MANAGER);
-        assembly {
-            mstore(0, selector)
-            mstore(4, _passGas)
-            mstore(36, _isStatic)
-
-            let success := call(gas(), addr, 0, 0, 68, 0, 0)
-
-            if iszero(success) {
-                // This error should never happen
-                revert(0, 0)
-            }
-        }
+        EVM_GAS_MANAGER.pushEVMFrame(_passGas, _isStatic);
     }
     function _popEVMFrame() public {
-        bytes4 selector = EVM_GAS_MANAGER.popEVMFrame.selector;
-        address addr = address(EVM_GAS_MANAGER);
-        assembly {
-            mstore(0, selector)
-
-            let success := call(gas(), addr, 0, 0, 4, 0, 0)
-
-            if iszero(success) {
-                // This error should never happen
-                revert(0, 0)
-            }
-        }
+        EVM_GAS_MANAGER.popEVMFrame();
     }
-    function _consumeEvmFrame() public returns (uint256 _passGas, bool isStatic, bool callerEVM) {
-        bytes4 selector = EVM_GAS_MANAGER.consumeEvmFrame.selector;
-        address addr = address(EVM_GAS_MANAGER);
-        assembly {
-            mstore(0, selector)
-
-            let success := call(gas(), addr, 0, 0, 4, 0, 64)
-
-            if iszero(success) {
-                // This error should never happen
-                revert(0, 0)
-            }
-
-            _passGas := mload(0)
-            isStatic := mload(32)
-        }
-
-        if (_passGas != INF_PASS_GAS) {
-            callerEVM = true;
-        }
+    function _consumeEvmFrame() public {
+        EVM_GAS_MANAGER.consumeEvmFrame();
     }
 }
