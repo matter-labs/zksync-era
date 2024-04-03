@@ -115,28 +115,30 @@ impl EnNamespace {
         };
 
         let config = GenesisConfig {
-            protocol_version,
-            genesis_root_hash: H256::from_slice(
+            protocol_version: Some(protocol_version),
+            genesis_root_hash: Some(H256::from_slice(
                 &genesis_batch.hash.context("Genesis is not finished")?,
+            )),
+            rollup_last_leaf_index: Some(
+                genesis_batch
+                    .rollup_last_leaf_index
+                    .context("Genesis is not finished")? as u64,
             ),
-            rollup_last_leaf_index: genesis_batch
-                .rollup_last_leaf_index
-                .context("Genesis is not finished")? as u64,
-            genesis_commitment: H256::from_slice(
+            genesis_commitment: Some(H256::from_slice(
                 &genesis_batch
                     .commitment
                     .context("Genesis is not finished")?,
-            ),
-            bootloader_hash: H256::from_slice(
+            )),
+            bootloader_hash: Some(H256::from_slice(
                 &genesis_batch
                     .bootloader_code_hash
                     .context("Genesis is not finished")?,
-            ),
-            default_aa_hash: H256::from_slice(
+            )),
+            default_aa_hash: Some(H256::from_slice(
                 &genesis_batch
                     .default_aa_code_hash
                     .context("Genesis is not finished")?,
-            ),
+            )),
             l1_chain_id: self.state.api_config.l1_chain_id,
 
             l2_chain_id: self.state.api_config.l2_chain_id,

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, limiter, scope, time};
 use zksync_consensus_executor as executor;
@@ -18,7 +20,7 @@ pub type P2PConfig = executor::Config;
 pub struct Fetcher {
     pub store: Store,
     pub sync_state: SyncState,
-    pub client: Box<dyn MainNodeClient>,
+    pub client: Arc<dyn MainNodeClient>,
     /// Rate limiter for `client.fetch_l2_block` requests.
     pub limiter: limiter::Limiter,
 }

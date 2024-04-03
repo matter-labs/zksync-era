@@ -548,18 +548,14 @@ pub async fn initialize_components(
         let pool = connection_pool.clone();
         let mut stop_receiver = stop_receiver.clone();
         task_futures.push(tokio::spawn(async move {
-            scope::run!(&ctx::root(), |ctx, s| async {
-                s.spawn_bg(async {
-                    // Consensus is a new component.
-                    // For now in case of error we just log it and allow the server
-                    // to continue running.
-                    if let Err(err) = cfg.run(ctx, consensus::Store(pool)).await {
-                        tracing::error!(%err, "Consensus actor failed");
-                    } else {
-                        tracing::info!("Consensus actor stopped");
-                    }
-                    Ok(())
-                });
+            // We instantiate the root context here, since the consensus task is the only user of the
+            // structured concurrency framework.
+            // Note, however, that awaiting for the `stop_receiver` is related to the root context behavior,
+            // not the consensus task itself. There may have been any number of tasks running in the root context,
+            // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
+            let root_ctx = ctx::root();
+            scope::run!(&root_ctx, |ctx, s| async move {
+                s.spawn_bg(consensus::era::run_main_node(ctx, cfg, pool));
                 let _ = stop_receiver.wait_for(|stop| *stop).await?;
                 Ok(())
             })
