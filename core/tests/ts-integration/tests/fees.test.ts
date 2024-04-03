@@ -28,21 +28,21 @@ const testFees = process.env.RUN_FEE_TEST ? describe : describe.skip;
 // For CI we use only 2 gas prices to not slow it down too much.
 const L1_GAS_PRICES_TO_TEST = process.env.CI
     ? [
-        5_000_000_000, // 5 gwei
-        10_000_000_000 // 10 gwei
+          5_000_000_000, // 5 gwei
+          10_000_000_000 // 10 gwei
       ]
     : [
-        1_000_000_000, // 1 gwei
-        5_000_000_000, // 5 gwei
-        10_000_000_000, // 10 gwei
-        25_000_000_000, // 25 gwei
-        50_000_000_000, // 50 gwei
-        100_000_000_000, // 100 gwei
-        200_000_000_000, // 200 gwei
-        400_000_000_000, // 400 gwei
-        800_000_000_000, // 800 gwei
-        1_000_000_000_000, // 1000 gwei
-        2_000_000_000_000 // 2000 gwei
+          1_000_000_000, // 1 gwei
+          5_000_000_000, // 5 gwei
+          10_000_000_000, // 10 gwei
+          25_000_000_000, // 25 gwei
+          50_000_000_000, // 50 gwei
+          100_000_000_000, // 100 gwei
+          200_000_000_000, // 200 gwei
+          400_000_000_000, // 400 gwei
+          800_000_000_000, // 800 gwei
+          1_000_000_000_000, // 1000 gwei
+          2_000_000_000_000 // 2000 gwei
       ];
 
 testFees('Test fees', () => {
@@ -148,7 +148,11 @@ testFees('Test fees', () => {
         // that the gasLimit is indeed over u32::MAX, which is the most important tested property.
         const requiredPubdataPrice = minimalL2GasPrice.mul(100_000);
 
-        await setInternalL1GasPrice(alice._providerL2(), requiredPubdataPrice.toString(), requiredPubdataPrice.toString());
+        await setInternalL1GasPrice(
+            alice._providerL2(),
+            requiredPubdataPrice.toString(),
+            requiredPubdataPrice.toString()
+        );
 
         const l1Messenger = new ethers.Contract(zksync.utils.L1_MESSENGER_ADDRESS, zksync.utils.L1_MESSENGER, alice);
 
@@ -264,9 +268,9 @@ async function killServerAndWaitForShutdown(provider: zksync.Provider) {
 }
 
 async function setInternalL1GasPrice(
-    provider: zksync.Provider, 
+    provider: zksync.Provider,
     newL1GasPrice?: string,
-    newPubdataPrice?: string, 
+    newPubdataPrice?: string,
     disconnect?: boolean
 ) {
     // Make sure server isn't running.
