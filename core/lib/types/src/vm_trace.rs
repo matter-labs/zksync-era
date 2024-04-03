@@ -151,23 +151,36 @@ impl From<LegacyCall> for Call {
     }
 }
 
-impl From<Call> for LegacyCall {
-    fn from(call: Call) -> Self {
-        Self {
+#[derive(Debug, Clone)]
+pub struct LegacyCallConversionOverflowError;
+
+impl TryFrom<Call> for LegacyCall {
+    type Error = LegacyCallConversionOverflowError;
+
+    fn try_from(call: Call) -> Result<Self, LegacyCallConversionOverflowError> {
+        Ok(Self {
             r#type: call.r#type,
             from: call.from,
             to: call.to,
-            // Here we do the unwrapping to be certain that no overflow happens
-            parent_gas: call.parent_gas.try_into().unwrap(),
-            gas: call.gas.try_into().unwrap(),
-            gas_used: call.gas_used.try_into().unwrap(),
+            parent_gas: call
+                .parent_gas
+                .try_into()
+                .map_err(|_| LegacyCallConversionOverflowError)?,
+            gas: call
+                .gas
+                .try_into()
+                .map_err(|_| LegacyCallConversionOverflowError)?,
+            gas_used: call
+                .gas_used
+                .try_into()
+                .map_err(|_| LegacyCallConversionOverflowError)?,
             value: call.value,
             input: call.input,
             output: call.output,
             error: call.error,
             revert_reason: call.revert_reason,
             calls: call.calls,
-        }
+        })
     }
 }
 
