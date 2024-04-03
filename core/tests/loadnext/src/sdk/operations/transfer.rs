@@ -1,7 +1,7 @@
 use zksync_eth_signer::EthereumSigner;
 use zksync_types::{fee::Fee, l2::L2Tx, Address, Nonce, L2_ETH_TOKEN_ADDRESS, U256};
 
-use crate::{
+use crate::sdk::{
     error::ClientError,
     ethereum::ierc20_contract,
     operations::SyncTransactionHandle,

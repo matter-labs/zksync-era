@@ -15,8 +15,8 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType, api, L1BatchNumber, MiniblockNumber, H256,
 };
 use zksync_web3_decl::{
+    client::L2Client,
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
-    jsonrpsee::http_client::HttpClient,
     namespaces::ZksNamespaceClient,
 };
 
@@ -86,7 +86,7 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
 }
 
 #[async_trait]
-impl MainNodeClient for HttpClient {
+impl MainNodeClient for L2Client {
     async fn resolve_l1_batch_to_miniblock(
         &self,
         number: L1BatchNumber,
@@ -254,8 +254,12 @@ pub struct BatchStatusUpdater {
 impl BatchStatusUpdater {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(client: HttpClient, pool: ConnectionPool<Core>) -> Self {
-        Self::from_parts(Box::new(client), pool, Self::DEFAULT_SLEEP_INTERVAL)
+    pub fn new(client: L2Client, pool: ConnectionPool<Core>) -> Self {
+        Self::from_parts(
+            Box::new(client.for_component("batch_status_updater")),
+            pool,
+            Self::DEFAULT_SLEEP_INTERVAL,
+        )
     }
 
     fn from_parts(

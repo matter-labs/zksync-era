@@ -23,13 +23,16 @@ use zksync_core::{
         tx_sender::{ApiContracts, TxSenderConfig},
         web3::{state::InternalApiConfig, Namespace},
     },
+    consensus,
     metadata_calculator::MetadataCalculatorConfig,
+    temp_config_store::decode_yaml,
 };
 use zksync_env_config::FromEnv;
 use zksync_node_framework::{
     implementations::layers::{
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
+        consensus::{ConsensusLayer, Mode as ConsensusMode},
         contract_verification_api::ContractVerificationApiLayer,
         eth_sender::EthSenderLayer,
         eth_watch::EthWatchLayer,
@@ -339,6 +342,39 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_consensus_layer(mut self) -> anyhow::Result<Self> {
+        // Copy-pasted from the zksync_server codebase.
+
+        fn read_consensus_secrets() -> anyhow::Result<Option<consensus::Secrets>> {
+            // Read public config.
+            let Ok(path) = std::env::var("CONSENSUS_SECRETS_PATH") else {
+                return Ok(None);
+            };
+            let secrets = std::fs::read_to_string(&path).context(path)?;
+            Ok(Some(decode_yaml(&secrets).context("failed decoding YAML")?))
+        }
+
+        fn read_consensus_config() -> anyhow::Result<Option<consensus::Config>> {
+            // Read public config.
+            let Ok(path) = std::env::var("CONSENSUS_CONFIG_PATH") else {
+                return Ok(None);
+            };
+            let cfg = std::fs::read_to_string(&path).context(path)?;
+            Ok(Some(decode_yaml(&cfg).context("failed decoding YAML")?))
+        }
+
+        let config = read_consensus_config().context("read_consensus_config()")?;
+        let secrets = read_consensus_secrets().context("read_consensus_secrets()")?;
+
+        self.node.add_layer(ConsensusLayer {
+            mode: ConsensusMode::Main,
+            config,
+            secrets,
+        });
+
+        Ok(self)
+    }
+
     fn build(mut self) -> Result<ZkStackService, ZkStackServiceError> {
         self.node.build()
     }
@@ -376,6 +412,7 @@ fn main() -> anyhow::Result<()> {
         .add_house_keeper_layer()?
         .add_commitment_generator_layer()?
         .add_contract_verification_api_layer()?
+        .add_consensus_layer()?
         .build()?
         .run()?;
 

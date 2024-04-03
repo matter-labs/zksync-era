@@ -4,8 +4,7 @@ use std::time::{Duration, Instant};
 
 use zksync_types::{
     api::{BlockNumber, TransactionReceipt},
-    l2::L2Tx,
-    Bytes, L2ChainId, H256,
+    H256,
 };
 
 pub use self::{
@@ -14,20 +13,12 @@ pub use self::{
     transfer::{create_transfer_calldata, TransferBuilder},
     withdraw::WithdrawBuilder,
 };
-use crate::{error::ClientError, EthNamespaceClient};
+use crate::sdk::{error::ClientError, EthNamespaceClient};
 
 mod deploy_contract;
 mod execute_contract;
 mod transfer;
 mod withdraw;
-
-/// Encodes transaction into a bytes sequence in accordance
-/// with the zkSync L2 protocol contract.
-///
-/// Used for estimating fees and submitting transactions.
-pub fn encode_transaction(tx: &L2Tx, chain_id: L2ChainId) -> Result<Bytes, ClientError> {
-    Ok(tx.get_rlp_bytes(chain_id))
-}
 
 /// Handle for transaction, providing an interface to control its execution.
 /// For obtained handle it's possible to set the polling interval, commit timeout

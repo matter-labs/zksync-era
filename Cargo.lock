@@ -3351,7 +3351,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vlog",
- "zksync",
  "zksync_config",
  "zksync_contracts",
  "zksync_eth_client",
@@ -7924,24 +7923,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync"
-version = "0.4.0"
-dependencies = [
- "anyhow",
- "hex",
- "num",
- "serde_json",
- "thiserror",
- "tokio",
- "zksync_config",
- "zksync_eth_client",
- "zksync_eth_signer",
- "zksync_types",
- "zksync_utils",
- "zksync_web3_decl",
-]
-
-[[package]]
 name = "zksync_basic_types"
 version = "0.1.0"
 dependencies = [
@@ -8256,7 +8237,6 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_db_connection",
- "zksync_env_config",
  "zksync_eth_client",
  "zksync_eth_signer",
  "zksync_health_check",
@@ -8267,7 +8247,6 @@ dependencies = [
  "zksync_object_store",
  "zksync_protobuf",
  "zksync_protobuf_build",
- "zksync_protobuf_config",
  "zksync_prover_interface",
  "zksync_queued_job_processor",
  "zksync_state",
@@ -8465,7 +8444,6 @@ dependencies = [
 name = "zksync_l1_contract_interface"
 version = "0.1.0"
 dependencies = [
- "circuit_sequencer_api 0.1.0",
  "codegen 0.1.0",
  "hex",
  "kzg",
@@ -8541,6 +8519,7 @@ dependencies = [
  "tracing",
  "vlog",
  "zksync_circuit_breaker",
+ "zksync_concurrency",
  "zksync_config",
  "zksync_contracts",
  "zksync_core",
@@ -8778,7 +8757,6 @@ dependencies = [
  "secp256k1",
  "serde",
  "serde_json",
- "serde_with",
  "strum",
  "thiserror",
  "tokio",
@@ -8820,12 +8798,20 @@ name = "zksync_web3_decl"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
+ "async-trait",
+ "futures 0.3.28",
  "jsonrpsee",
  "pin-project-lite",
+ "rand 0.8.5",
  "rlp",
  "serde",
  "serde_json",
+ "test-casing",
  "thiserror",
+ "tokio",
+ "tracing",
+ "vise",
  "zksync_config",
  "zksync_types",
 ]
