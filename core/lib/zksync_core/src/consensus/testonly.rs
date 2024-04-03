@@ -295,7 +295,7 @@ impl StateKeeper {
     ) -> anyhow::Result<()> {
         Fetcher {
             store: self.store,
-            client: Box::new(client),
+            client: Arc::new(client),
             sync_state: SyncState::default(),
         }
         .run_centralized(ctx, self.actions_sender)
@@ -311,7 +311,7 @@ impl StateKeeper {
     ) -> anyhow::Result<()> {
         Fetcher {
             store: self.store,
-            client: Box::new(client),
+            client: Arc::new(client),
             sync_state: SyncState::default(),
         }
         .run_p2p(ctx, self.actions_sender, cfg)

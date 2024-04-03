@@ -235,11 +235,12 @@ impl BlocksWeb3Dal<'_, '_> {
                         (
                             SELECT MAX(number) FROM miniblocks
                             WHERE l1_batch_number = (
-                                SELECT MAX(number) FROM l1_batches
+                                SELECT number FROM l1_batches
                                 JOIN eth_txs ON
                                     l1_batches.eth_execute_tx_id = eth_txs.id
                                 WHERE
                                     eth_txs.confirmed_eth_tx_history_id IS NOT NULL
+                                ORDER BY number DESC LIMIT 1
                             )
                         ),
                         0
