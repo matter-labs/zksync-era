@@ -44,12 +44,15 @@ impl FromEnv for ObservabilityConfig {
             .map(|a| a.split(',').map(|a| a.to_string()).collect())
             .unwrap_or_default();
 
+        let log_directives = std::env::var("RUST_LOG").ok();
+
         Ok(ObservabilityConfig {
             sentry_url,
             sentry_environment,
             log_format,
             opentelemetry,
             sporadic_crypto_errors_substrs,
+            log_directives,
         })
     }
 }
