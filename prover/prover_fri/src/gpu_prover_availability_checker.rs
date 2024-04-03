@@ -49,6 +49,7 @@ pub mod availability_checker {
                             self.address,
                             self.zone
                         );
+                        // After returning from the task, it will shut down all the other tasks
                         return Ok(());
                     }
                     Some(GpuProverInstanceStatus::Dead) => {
@@ -58,6 +59,7 @@ pub mod availability_checker {
                             self.address,
                             self.zone
                         );
+                        // After returning from the task, it will shut down all the other tasks
                         return Ok(());
                     }
                     Some(_) => (),

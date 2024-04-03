@@ -1123,15 +1123,13 @@ async fn add_house_keeper_to_task_futures(
         task_futures.push(tokio::spawn(task));
     }
 
-    if house_keeper_config.fri_gpu_prover_archiver_enabled() {
+    if let Some((archiving_interval, archive_after)) =
+        house_keeper_config.fri_gpu_prover_archiver_params()
+    {
         let fri_gpu_prover_jobs_archiver = FriGpuProverArchiver::new(
             prover_connection_pool.clone(),
-            house_keeper_config
-                .fri_gpu_prover_archiver_archiving_interval_ms
-                .unwrap(),
-            house_keeper_config
-                .fri_gpu_prover_archiver_archiving_interval_secs
-                .unwrap(),
+            archiving_interval,
+            archive_after,
         );
         let task = fri_gpu_prover_jobs_archiver.run(stop_receiver.clone());
         task_futures.push(tokio::spawn(task));

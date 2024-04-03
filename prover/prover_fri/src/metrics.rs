@@ -21,7 +21,9 @@ pub(crate) enum Layer {
 #[metrics(label = "reason", rename_all = "snake_case")]
 #[allow(dead_code)]
 pub(crate) enum KillingReason {
+    /// Prover was found with Dead status in the database
     Dead,
+    /// Prover was not found in the database
     Absent,
 }
 

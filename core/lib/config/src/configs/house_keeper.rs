@@ -25,8 +25,8 @@ impl HouseKeeperConfig {
             && self.prover_job_archiver_archiving_interval_secs.is_some()
     }
 
-    pub fn fri_gpu_prover_archiver_enabled(&self) -> bool {
-        self.fri_gpu_prover_archiver_archiving_interval_ms.is_some()
-            && self.fri_gpu_prover_archiver_archive_after_secs.is_some()
+    pub fn fri_gpu_prover_archiver_params(&self) -> Option<(u64, u64)> {
+        self.fri_gpu_prover_archiver_archiving_interval_ms
+            .zip(self.fri_gpu_prover_archiver_archive_after_secs)
     }
 }

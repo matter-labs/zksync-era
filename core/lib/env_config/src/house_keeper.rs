@@ -29,7 +29,9 @@ mod tests {
             proof_compressor_stats_reporting_interval_ms: 10_000,
             prover_job_archiver_reporting_interval_ms: Some(1_800_000),
             prover_job_archiver_archiving_interval_secs: Some(172_800),
-            fri_gpu_prover_archiver_archiving_interval_ms: Some(86_400),
+            // 24 hours
+            fri_gpu_prover_archiver_archiving_interval_ms: Some(86_400_000),
+            // 48 hours
             fri_gpu_prover_archiver_archive_after_secs: Some(172_800),
         }
     }
