@@ -1,13 +1,17 @@
 use anyhow::Context as _;
-use zksync_config::{configs::eth_sender::SenderConfig, ETHSenderConfig, GasAdjusterConfig};
+use zksync_config::{
+    configs::eth_sender::SenderConfig, ETHConfig, ETHWatchConfig, GasAdjusterConfig,
+};
 
 use crate::{envy_load, FromEnv};
 
-impl FromEnv for ETHSenderConfig {
+impl FromEnv for ETHConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
-            sender: SenderConfig::from_env().context("SenderConfig")?,
-            gas_adjuster: GasAdjusterConfig::from_env().context("GasAdjusterConfig")?,
+            sender: SenderConfig::from_env().ok(),
+            gas_adjuster: GasAdjusterConfig::from_env().ok(),
+            watcher: ETHWatchConfig::from_env().ok(),
+            web3_url: std::env::var("ETH_CLIENT_WEB3_URL").context("ETH_CLIENT_WEB3_URL")?,
         })
     }
 }
@@ -35,9 +39,9 @@ mod tests {
 
     static MUTEX: EnvMutex = EnvMutex::new();
 
-    fn expected_config() -> ETHSenderConfig {
-        ETHSenderConfig {
-            sender: SenderConfig {
+    fn expected_config() -> ETHConfig {
+        ETHConfig {
+            sender: Some(SenderConfig {
                 aggregated_proof_sizes: vec![1, 5],
                 aggregated_block_commit_deadline: 30,
                 aggregated_block_prove_deadline: 3_000,
@@ -57,8 +61,8 @@ mod tests {
                 max_acceptable_priority_fee_in_gwei: 100_000_000_000,
                 proof_loading_mode: ProofLoadingMode::OldProofFromDb,
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
-            },
-            gas_adjuster: GasAdjusterConfig {
+            }),
+            gas_adjuster: Some(GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
                 max_base_fee_samples: 10000,
                 pricing_formula_parameter_a: 1.5,
@@ -70,14 +74,22 @@ mod tests {
                 num_samples_for_blob_base_fee_estimate: 10,
                 internal_pubdata_pricing_multiplier: 1.0,
                 max_blob_base_fee: None,
-            },
+            }),
+            watcher: Some(ETHWatchConfig {
+                confirmations_for_eth_event: Some(0),
+                eth_node_poll_interval: 300,
+            }),
+            web3_url: "http://127.0.0.1:8545".to_string(),
         }
     }
 
     #[test]
+    #[allow(deprecated)]
     fn from_env() {
         let mut lock = MUTEX.lock();
         let config = r#"
+            ETH_WATCH_CONFIRMATIONS_FOR_ETH_EVENT = "0"
+            ETH_WATCH_ETH_NODE_POLL_INTERVAL = "30"
             ETH_SENDER_SENDER_WAIT_CONFIRMATIONS="1"
             ETH_SENDER_SENDER_TX_POLL_PERIOD="3"
             ETH_SENDER_SENDER_AGGREGATE_TX_POLL_PERIOD="3"
@@ -107,13 +119,15 @@ mod tests {
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
             ETH_SENDER_SENDER_PROOF_LOADING_MODE="OldProofFromDb"
             ETH_SENDER_SENDER_PUBDATA_SENDING_MODE="Calldata"
+            ETH_CLIENT_WEB3_URL="http://127.0.0.1:8545"
+
         "#;
         lock.set_env(config);
 
-        let actual = ETHSenderConfig::from_env().unwrap();
+        let actual = ETHConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
         assert_eq!(
-            actual.sender.private_key().unwrap(),
+            actual.sender.unwrap().private_key().unwrap(),
             hash("27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be")
         );
     }

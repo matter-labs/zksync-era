@@ -46,6 +46,7 @@ pub(crate) fn create_miniblock_header(number: u32) -> MiniblockHeader {
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(protocol_version),
         virtual_blocks: 1,
+        gas_limit: 0,
     }
 }
 
