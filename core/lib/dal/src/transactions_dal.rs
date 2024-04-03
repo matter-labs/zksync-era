@@ -16,7 +16,7 @@ use zksync_types::{
     tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
     vm_trace::Call,
     Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, MiniblockNumber, PriorityOpId,
-    Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
+    ProtocolVersionId, Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_utils::u256_to_big_decimal;
 
@@ -1305,35 +1305,25 @@ impl TransactionsDal<'_, '_> {
     }
 
     pub async fn get_call_trace(&mut self, tx_hash: H256) -> anyhow::Result<Option<Call>> {
-        let miniblock_number = sqlx::query!(
+        let protocol_version: Option<ProtocolVersionId> = sqlx::query!(
             r#"
             SELECT
-                miniblock_number
+                protocol_version
             FROM
-                transactions
+                miniblocks
+                LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number
             WHERE
-                hash = $1
+                transactions.hash = $1
             "#,
             tx_hash.as_bytes()
         )
         .fetch_optional(self.storage.conn())
         .await?
-        .and_then(|row| {
-            row.miniblock_number
-                .map(|number| MiniblockNumber(number as u32))
-        });
+        .and_then(|row| row.protocol_version.map(|v| (v as u16).try_into().unwrap()));
 
-        let Some(miniblock_number) = miniblock_number else {
+        let Some(protocol_version) = protocol_version else {
             return Ok(None);
         };
-
-        // It is safe to unwrap here since miniblock must exist
-        let protocol_version = self
-            .storage
-            .blocks_dal()
-            .get_miniblock_protocol_version_id(miniblock_number)
-            .await?
-            .unwrap();
 
         Ok(sqlx::query_as!(
             CallTrace,

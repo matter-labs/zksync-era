@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                protocol_version\n            FROM\n                miniblocks\n            LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number\n            WHERE\n                transactions.hash = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "protocol_version",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "8c0d7543e68c547c2603b5ec76a7b57bc4b330b9db9f7aa4776b25373e31a0e9"
+}
