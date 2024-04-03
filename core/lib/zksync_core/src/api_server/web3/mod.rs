@@ -520,6 +520,12 @@ impl ApiServer {
             ApiTransport::WebSocket(addr) => ("WS", false, addr),
         };
         let transport_label = (&transport).into();
+        API_METRICS.observe_config(
+            transport_label,
+            self.polling_interval,
+            &self.config,
+            &self.optional,
+        );
 
         tracing::info!(
             "Waiting for at least one L1 batch in Postgres to start {transport_str} API server"

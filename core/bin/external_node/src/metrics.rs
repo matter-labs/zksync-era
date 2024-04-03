@@ -9,3 +9,6 @@ pub(crate) struct EnMetrics {
 
 #[vise::register]
 pub(crate) static EN_METRICS: vise::Global<EnMetrics> = vise::Global::new();
+
+// FIXME: commit, rust version (?), L1 / L2 chain ID
+// FIXME: protocol_version -> gauge
