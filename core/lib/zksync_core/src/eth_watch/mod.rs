@@ -50,7 +50,8 @@ pub struct EthWatch {
 
 impl EthWatch {
     pub async fn new(
-        diamond_proxy_address: Address,
+        diamond_proxy_addr: Address,
+        state_transition_manager_address: Option<Address>,
         governance_contract: Option<Contract>,
         mut client: Box<dyn EthClient>,
         pool: ConnectionPool,
@@ -74,7 +75,7 @@ impl EthWatch {
 
         if let Some(governance_contract) = governance_contract {
             let governance_upgrades_processor = GovernanceUpgradesEventProcessor::new(
-                diamond_proxy_address,
+                state_transition_manager_address.unwrap_or(diamond_proxy_addr),
                 state.last_seen_version_id,
                 &governance_contract,
             );
@@ -193,19 +194,22 @@ pub async fn start_eth_watch(
     config: ETHWatchConfig,
     pool: ConnectionPool,
     eth_gateway: Arc<dyn EthInterface>,
-    state_transition_chain_contract_addr: Address,
+    diamond_proxy_addr: Address,
+    state_transition_manager_addr: Option<Address>,
     governance: (Contract, Address),
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<JoinHandle<anyhow::Result<()>>> {
     let eth_client = EthHttpQueryClient::new(
         eth_gateway,
-        state_transition_chain_contract_addr,
+        diamond_proxy_addr,
+        state_transition_manager_addr,
         Some(governance.1),
         config.confirmations_for_eth_event,
     );
 
     let eth_watch = EthWatch::new(
-        state_transition_chain_contract_addr,
+        diamond_proxy_addr,
+        state_transition_manager_addr,
         Some(governance.0),
         Box::new(eth_client),
         pool,

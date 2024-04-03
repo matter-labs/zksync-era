@@ -574,7 +574,9 @@ pub async fn initialize_components(
         tracing::info!("initialized State Keeper in {elapsed:?}");
     }
 
-    let state_transition_chain_contract = contracts_config.diamond_proxy_addr;
+    let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
+    let state_transition_manager_addr = contracts_config.state_transition_proxy_addr;
+
     if components.contains(&Component::Consensus) {
         let cfg = configs
             .consensus_config
@@ -631,7 +633,8 @@ pub async fn initialize_components(
                 eth_watch_config,
                 eth_watch_pool,
                 Arc::new(query_client.clone()),
-                state_transition_chain_contract,
+                diamond_proxy_addr,
+                state_transition_manager_addr,
                 governance,
                 stop_receiver.clone(),
             )
@@ -672,7 +675,7 @@ pub async fn initialize_components(
             Arc::new(eth_client),
             contracts_config.validator_timelock_addr,
             contracts_config.l1_multicall3_addr,
-            state_transition_chain_contract,
+            diamond_proxy_addr,
             configs
                 .network_config
                 .as_ref()
