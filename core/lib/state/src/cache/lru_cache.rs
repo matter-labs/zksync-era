@@ -1,9 +1,10 @@
 use std::hash::Hash;
 
 use crate::cache::{
-    metrics::{Method, RequestOutcome, METRICS},
+    metrics::{CacheConfig, Method, RequestOutcome, METRICS},
     CacheValue, MokaBase,
 };
+
 /// Cache implementation that uses LRU eviction policy.
 #[derive(Debug, Clone)]
 pub struct LruCache<K: Eq + Hash, V> {
@@ -22,6 +23,14 @@ where
     ///
     /// Panics if an invalid cache capacity is provided.
     pub fn new(name: &'static str, capacity: u64) -> Self {
+        if let Err(err) = METRICS.lru_config[&name].set(CacheConfig { capacity }) {
+            tracing::warn!(
+                "LRU cache `{name}` was already created with config {:?}; new config: {:?}",
+                METRICS.lru_config[&name].get(),
+                err.into_inner()
+            );
+        }
+
         let cache = if capacity == 0 {
             None
         } else {

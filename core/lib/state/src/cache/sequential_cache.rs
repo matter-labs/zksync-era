@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::cache::metrics::{Method, RequestOutcome, METRICS};
+use crate::cache::metrics::{CacheConfig, Method, RequestOutcome, METRICS};
 
 /// A generic cache structure for storing key-value pairs in sequential order.
 /// It allows for non-unique keys and supports efficient retrieval of values based on a key
@@ -27,6 +27,17 @@ impl<K: Ord + Copy, V: Clone> SequentialCache<K, V> {
     /// Panics if `capacity` is 0.
     pub fn new(name: &'static str, capacity: usize) -> Self {
         assert!(capacity > 0, "Cache capacity must be greater than 0");
+
+        if let Err(err) = METRICS.sequential_config[&name].set(CacheConfig {
+            capacity: capacity as u64,
+        }) {
+            tracing::warn!(
+                "Sequential cache `{name}` was already created with config {:?}; new config: {:?}",
+                METRICS.lru_config[&name].get(),
+                err.into_inner()
+            );
+        }
+
         SequentialCache {
             name,
             data: VecDeque::with_capacity(capacity),
