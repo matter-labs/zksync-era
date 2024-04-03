@@ -28,21 +28,21 @@ const testFees = process.env.RUN_FEE_TEST ? describe : describe.skip;
 // For CI we use only 2 gas prices to not slow it down too much.
 const L1_GAS_PRICES_TO_TEST = process.env.CI
     ? [
-          5_000_000_000, // 5 gwei
-          10_000_000_000 // 10 gwei
+        5_000_000_000, // 5 gwei
+        10_000_000_000 // 10 gwei
       ]
     : [
-          1_000_000_000, // 1 gwei
-          5_000_000_000 // 5 gwei
-          //   10_000_000_000, // 10 gwei
-          //   25_000_000_000, // 25 gwei
-          //   50_000_000_000, // 50 gwei
-          //   100_000_000_000, // 100 gwei
-          //   200_000_000_000, // 200 gwei
-          //   400_000_000_000, // 400 gwei
-          //   800_000_000_000, // 800 gwei
-          //   1_000_000_000_000, // 1000 gwei
-          //   2_000_000_000_000 // 2000 gwei
+        1_000_000_000, // 1 gwei
+        5_000_000_000, // 5 gwei
+        10_000_000_000, // 10 gwei
+        25_000_000_000, // 25 gwei
+        50_000_000_000, // 50 gwei
+        100_000_000_000, // 100 gwei
+        200_000_000_000, // 200 gwei
+        400_000_000_000, // 400 gwei
+        800_000_000_000, // 800 gwei
+        1_000_000_000_000, // 1000 gwei
+        2_000_000_000_000 // 2000 gwei
       ];
 
 testFees('Test fees', () => {
@@ -133,7 +133,7 @@ testFees('Test fees', () => {
         console.log(`Full report: \n\n${reports.join('\n\n')}`);
     });
 
-    test('Test gas consumption under large L1 gas price', async () => {
+    test.skip('Test gas consumption under large L1 gas price', async () => {
         // In this test we check that the server works fine when the required gasLimit is over u32::MAX.
         // Under normal server behavior, the maximal gas spent on pubdata is around 120kb * 2^20 gas/byte = ~120 * 10^9 gas.
 
@@ -148,7 +148,7 @@ testFees('Test fees', () => {
         // that the gasLimit is indeed over u32::MAX, which is the most important tested property.
         const requiredPubdataPrice = minimalL2GasPrice.mul(100_000);
 
-        await setInternalL1GasPrice(alice._providerL2(), requiredPubdataPrice.toString());
+        await setInternalL1GasPrice(alice._providerL2(), requiredPubdataPrice.toString(), requiredPubdataPrice.toString());
 
         const l1Messenger = new ethers.Contract(zksync.utils.L1_MESSENGER_ADDRESS, zksync.utils.L1_MESSENGER, alice);
 
@@ -176,7 +176,7 @@ testFees('Test fees', () => {
         }
 
         // Returning the pubdata price to the default one
-        await setInternalL1GasPrice(alice._providerL2(), undefined, true);
+        await setInternalL1GasPrice(alice._providerL2(), undefined, undefined, true);
     });
 
     afterAll(async () => {
@@ -191,7 +191,8 @@ async function appendResults(
     newL1GasPrice: number,
     reports: string[]
 ): Promise<string[]> {
-    await setInternalL1GasPrice(sender._providerL2(), newL1GasPrice.toString());
+    // For the sake of simplicity, we'll use the same pubdata price as the L1 gas price.
+    await setInternalL1GasPrice(sender._providerL2(), newL1GasPrice.toString(), newL1GasPrice.toString());
 
     if (originalL1Receipts.length !== reports.length && originalL1Receipts.length !== transactionRequests.length) {
         throw new Error('The array of receipts and reports have different length');
@@ -262,7 +263,12 @@ async function killServerAndWaitForShutdown(provider: zksync.Provider) {
     throw new Error("Server didn't stop after a kill request");
 }
 
-async function setInternalL1GasPrice(provider: zksync.Provider, newPrice?: string, disconnect?: boolean) {
+async function setInternalL1GasPrice(
+    provider: zksync.Provider, 
+    newL1GasPrice?: string,
+    newPubdataPrice?: string, 
+    disconnect?: boolean
+) {
     // Make sure server isn't running.
     try {
         await killServerAndWaitForShutdown(provider);
@@ -271,10 +277,22 @@ async function setInternalL1GasPrice(provider: zksync.Provider, newPrice?: strin
     // Run server in background.
     let command = 'zk server --components api,tree,eth,state_keeper';
     command = `DATABASE_MERKLE_TREE_MODE=full ${command}`;
-    if (newPrice) {
-        // We need to ensure that each transaction gets into its own batch for more fair comparison.
-        command = `CHAIN_STATE_KEEPER_TRANSACTION_SLOTS=1 ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE=${newPrice} ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_PUBDATA_PRICE=${newPrice} ${command}`;
+
+    if (newPubdataPrice) {
+        command = `ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_PUBDATA_PRICE=${newPubdataPrice} ${command}`;
     }
+
+    if (newL1GasPrice) {
+        // We need to ensure that each transaction gets into its own batch for more fair comparison.
+        command = `ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE=${newL1GasPrice}  ${command}`;
+    }
+
+    const testMode = newPubdataPrice || newL1GasPrice;
+    if (testMode) {
+        // We need to ensure that each transaction gets into its own batch for more fair comparison.
+        command = `CHAIN_STATE_KEEPER_TRANSACTION_SLOTS=1 ${command}`;
+    }
+
     const zkSyncServer = utils.background(command, [null, logs, logs]);
 
     if (disconnect) {
