@@ -50,6 +50,7 @@ export async function waitForServer() {
  */
 export async function loadTestEnvironment(): Promise<TestEnvironment> {
     const network = process.env.CHAIN_ETH_NETWORK || 'localhost';
+    const baseTokenAddress = process.env.CONTRACTS_BASE_TOKEN_ADDR!;
 
     let mainWalletPK;
     if (network == 'localhost') {
@@ -82,7 +83,7 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
         token = tokens[0];
     }
     const weth = tokens.find((token: { symbol: string }) => token.symbol == 'WETH')!;
-    const baseToken = tokens.find((token: { symbol: string }) => token.symbol == 'BAT')!;
+    const baseToken = tokens.find((token: { address: string }) => token.address == baseTokenAddress)!;
 
     // `waitForServer` is expected to be executed. Otherwise this call may throw.
     const l2TokenAddress = await new zksync.Wallet(
@@ -97,7 +98,7 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(weth.address);
 
-    const baseTokenAddress = L2_ETH_TOKEN_ADDRESS;
+    const baseTokenAddressL2 = L2_ETH_TOKEN_ADDRESS;
 
     return {
         network,
@@ -125,7 +126,7 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
             symbol: baseToken.symbol,
             decimals: baseToken.decimals,
             l1Address: baseToken.address,
-            l2Address: baseTokenAddress
+            l2Address: baseTokenAddressL2
         }
     };
 }
