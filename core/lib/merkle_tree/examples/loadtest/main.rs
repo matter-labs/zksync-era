@@ -14,8 +14,8 @@ use tempfile::TempDir;
 use tracing_subscriber::EnvFilter;
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
-    Database, HashTree, KeepConstantVersionsCount, MerkleTree, MerkleTreePruner, PatchSet,
-    RocksDBWrapper, TreeEntry, TreeInstruction,
+    Database, HashTree, MerkleTree, MerkleTreePruner, PatchSet, RocksDBWrapper, TreeEntry,
+    TreeInstruction,
 };
 use zksync_storage::{RocksDB, RocksDBOptions};
 use zksync_types::{AccountTreeId, Address, StorageKey, H256, U256};
@@ -104,11 +104,7 @@ impl Cli {
             if self.prune {
                 let (mut pruner, pruner_handle) = MerkleTreePruner::new(rocksdb.clone());
                 pruner.set_poll_interval(Duration::from_secs(10));
-                let pruner_thread = thread::spawn(|| {
-                    pruner.run(&KeepConstantVersionsCount {
-                        past_versions_to_keep: 0,
-                    })
-                });
+                let pruner_thread = thread::spawn(|| pruner.run());
                 pruner_handles = Some((pruner_handle, pruner_thread));
             }
             _temp_dir = Some(dir);
@@ -159,6 +155,11 @@ impl Cli {
                 let output = tree.extend(kvs.collect());
                 output.root_hash
             };
+
+            if let Some((ref pruner_handle, _)) = pruner_handles {
+                pruner_handle.set_target_retained_version(version);
+            }
+
             let elapsed = start.elapsed();
             tracing::info!("Processed block #{version} in {elapsed:?}, root hash = {root_hash:?}");
         }

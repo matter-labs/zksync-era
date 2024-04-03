@@ -51,9 +51,7 @@ use zksync_crypto::hasher::blake2::Blake2Hasher;
 pub use crate::{
     errors::NoVersionError,
     hasher::{HashTree, TreeRangeDigest},
-    pruning::{
-        KeepConstantVersionsCount, MerkleTreePruner, MerkleTreePrunerHandle, RetainedVersionSource,
-    },
+    pruning::{MerkleTreePruner, MerkleTreePrunerHandle},
     storage::{
         Database, MerkleTreeColumnFamily, PatchSet, Patched, PruneDatabase, PrunePatchSet,
         RocksDBWrapper,

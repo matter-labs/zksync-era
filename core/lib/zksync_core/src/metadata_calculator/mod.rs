@@ -3,19 +3,20 @@
 
 use std::{
     sync::Arc,
-    thread,
     time::{Duration, Instant},
 };
 
 use anyhow::Context as _;
-use tokio::{runtime::Handle, sync::watch};
+use tokio::sync::watch;
 use zksync_config::configs::{
     chain::OperationsManagerConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
-use zksync_dal::{ConnectionPool, Core};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
+use zksync_merkle_tree::{MerkleTreePruner, MerkleTreePrunerHandle, RocksDBWrapper};
 use zksync_object_store::ObjectStore;
+use zksync_types::L1BatchNumber;
 
 pub use self::helpers::LazyAsyncTreeReader;
 pub(crate) use self::helpers::{AsyncTreeReader, L1BatchWithLogs, MerkleTreeInfo};
@@ -23,11 +24,9 @@ use self::{
     helpers::{create_db, Delayer, GenericAsyncTree, MerkleTreeHealth},
     updater::TreeUpdater,
 };
-use crate::metadata_calculator::pruning::KeepPruningSyncedWithDbPruning;
 
 mod helpers;
 mod metrics;
-mod pruning;
 mod recovery;
 #[cfg(test)]
 pub(crate) mod tests;
@@ -149,6 +148,32 @@ impl MetadataCalculator {
         Ok(GenericAsyncTree::new(db, self.config.mode).await)
     }
 
+    async fn loop_pruning_tree(
+        pool: ConnectionPool<Core>,
+        tree_pruner: MerkleTreePruner<RocksDBWrapper>,
+        pruner_handle: MerkleTreePrunerHandle,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<()> {
+        let pruner_thread = tokio::task::spawn_blocking(|| tree_pruner.run());
+        loop {
+            let mut storage = pool.connection_tagged("tree_pruner").await?;
+            // TODO update this code once db pruning is merged
+            let _ = storage
+                .blocks_dal()
+                .get_earliest_l1_batch_number()
+                .await?
+                .unwrap_or(L1BatchNumber(0));
+
+            pruner_handle.set_target_retained_version(0);
+
+            if *stop_receiver.borrow() {
+                pruner_handle.abort();
+                pruner_thread.await?;
+                return Ok(());
+            }
+        }
+    }
+
     pub async fn run(
         self,
         pool: ConnectionPool<Core>,
@@ -166,12 +191,14 @@ impl MetadataCalculator {
             "Merkle tree is initialized and ready to process L1 batches: {:?}",
             tree_reader.clone().info().await
         );
+
         let (tree_pruner, pruner_handle) = tree.pruner();
-        let pruner_version_source = KeepPruningSyncedWithDbPruning {
-            pool: pool.clone(),
-            rt_handle: Handle::current(),
-        };
-        let pruner_thread = thread::spawn(move || tree_pruner.run(&pruner_version_source));
+        let pruner = Self::loop_pruning_tree(
+            pool.clone(),
+            tree_pruner,
+            pruner_handle,
+            stop_receiver.clone(),
+        );
         self.tree_reader.send_replace(Some(tree_reader));
 
         let updater = TreeUpdater::new(tree, self.max_l1_batches_per_iter, self.object_store);
@@ -179,14 +206,7 @@ impl MetadataCalculator {
             .loop_updating_tree(self.delayer, &pool, stop_receiver, self.health_updater)
             .await?;
 
-        // line below requests pruner to stop
-        pruner_handle.abort();
-        // we can't just join thread here as it may cause deadlock
-        // if tree pruner is currently executing async code, as join is blocking
-        tokio::task::spawn_blocking(|| {
-            pruner_thread.join().unwrap();
-        })
-        .await?;
+        pruner.await?;
 
         Ok(())
     }
