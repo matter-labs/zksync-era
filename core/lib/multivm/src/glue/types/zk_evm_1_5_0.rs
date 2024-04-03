@@ -74,56 +74,6 @@ impl GlueFrom<zksync_types::zk_evm_types::FarCallOpcode>
     }
 }
 
-// Special for `zk_evm_1_5_0`: it re-used the same sorting function from `zkevm_test_harness` as the `v1.3.3` used.
-// To continue calling this functions, we need to add the conversion for `Timestamp` and `LogQuery`.
-impl GlueFrom<zk_evm_1_5_0::aux_structures::Timestamp> for zk_evm_1_4_1::aux_structures::Timestamp {
-    fn glue_from(timestamp: zk_evm_1_5_0::aux_structures::Timestamp) -> Self {
-        zk_evm_1_4_1::aux_structures::Timestamp(timestamp.0)
-    }
-}
-
-impl GlueFrom<zk_evm_1_5_0::aux_structures::LogQuery> for zk_evm_1_4_1::aux_structures::LogQuery {
-    fn glue_from(query: zk_evm_1_5_0::aux_structures::LogQuery) -> Self {
-        zk_evm_1_4_1::aux_structures::LogQuery {
-            address: query.address,
-            key: query.key,
-            written_value: query.written_value,
-            timestamp: query.timestamp.glue_into(),
-            shard_id: query.shard_id,
-            rollback: query.rollback,
-            tx_number_in_block: query.tx_number_in_block,
-            aux_byte: query.aux_byte,
-            read_value: query.read_value,
-            rw_flag: query.rw_flag,
-            is_service: query.is_service,
-        }
-    }
-}
-
-impl GlueFrom<zk_evm_1_4_1::aux_structures::Timestamp> for zk_evm_1_5_0::aux_structures::Timestamp {
-    fn glue_from(timestamp: zk_evm_1_4_1::aux_structures::Timestamp) -> Self {
-        zk_evm_1_5_0::aux_structures::Timestamp(timestamp.0)
-    }
-}
-
-impl GlueFrom<zk_evm_1_4_1::aux_structures::LogQuery> for zk_evm_1_5_0::aux_structures::LogQuery {
-    fn glue_from(query: zk_evm_1_4_1::aux_structures::LogQuery) -> Self {
-        zk_evm_1_5_0::aux_structures::LogQuery {
-            address: query.address,
-            key: query.key,
-            written_value: query.written_value,
-            timestamp: query.timestamp.glue_into(),
-            shard_id: query.shard_id,
-            rollback: query.rollback,
-            tx_number_in_block: query.tx_number_in_block,
-            aux_byte: query.aux_byte,
-            read_value: query.read_value,
-            rw_flag: query.rw_flag,
-            is_service: query.is_service,
-        }
-    }
-}
-
 impl GlueFrom<zk_evm_1_5_0::reference_impls::event_sink::EventMessage>
     for zksync_types::l2_to_l1_log::L2ToL1Log
 {

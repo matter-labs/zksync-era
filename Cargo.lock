@@ -8064,9 +8064,11 @@ version = "0.1.0"
 dependencies = [
  "circuit_sequencer_api 0.1.40",
  "circuit_sequencer_api 0.1.41",
+ "circuit_sequencer_api 0.1.50",
  "multivm",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zk_evm 1.4.1",
+ "zk_evm 1.5.0",
  "zksync_types",
  "zksync_utils",
 ]
