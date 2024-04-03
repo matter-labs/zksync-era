@@ -50,7 +50,7 @@ export async function waitForServer() {
  */
 export async function loadTestEnvironment(): Promise<TestEnvironment> {
     const network = process.env.CHAIN_ETH_NETWORK || 'localhost';
-    const baseTokenAddress = process.env.CONTRACTS_BASE_TOKEN_ADDR!;
+    let baseTokenAddress = process.env.CONTRACTS_BASE_TOKEN_ADDR!;
 
     let mainWalletPK;
     if (network == 'localhost') {
@@ -122,10 +122,10 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
             l2Address: l2WethAddress
         },
         baseToken: {
-            name: baseToken.name,
-            symbol: baseToken.symbol,
-            decimals: baseToken.decimals,
-            l1Address: baseToken.address,
+            name: baseToken?.name || token.name,
+            symbol: baseToken?.symbol || token.symbol,
+            decimals: baseToken?.decimals || token.decimals,
+            l1Address: baseToken?.address || token.address,
             l2Address: baseTokenAddressL2
         }
     };
