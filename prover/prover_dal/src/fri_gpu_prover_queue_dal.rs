@@ -193,10 +193,7 @@ impl FriGpuProverQueueDal<'_, '_> {
                 DELETE FROM gpu_prover_queue_fri
                 WHERE
                     instance_status = 'dead'
-                    OR (
-                        instance_status = 'reserved'
                         AND updated_at < NOW() - $1::INTERVAL
-                    )
                 RETURNING *, NOW() AS archived_at
             ),
             inserted_count AS (
