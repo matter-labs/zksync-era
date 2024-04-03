@@ -6,7 +6,7 @@ use zksync_types::{
     Nonce, PackedEthSignature, L2_ETH_TOKEN_ADDRESS, U256,
 };
 
-use crate::{operations::create_transfer_calldata, types::TransactionRequest};
+use crate::sdk::{operations::create_transfer_calldata, types::TransactionRequest};
 
 fn signing_failed_error(err: impl ToString) -> SignerError {
     SignerError::SigningFailed(err.to_string())
