@@ -22,7 +22,7 @@ use zksync_utils::u256_to_big_decimal;
 
 use crate::{
     models::storage_transaction::{CallTrace, StorageTransaction},
-    Core,
+    Core, CoreDal,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -500,6 +500,13 @@ impl TransactionsDal<'_, '_> {
     ) {
         {
             let mut transaction = self.storage.start_transaction().await.unwrap();
+            let protocol_version = transaction
+                .blocks_dal()
+                .get_miniblock_protocol_version_id(miniblock_number)
+                .await
+                .unwrap()
+                .unwrap();
+
             let mut l1_hashes = Vec::with_capacity(transactions.len());
             let mut l1_indices_in_block = Vec::with_capacity(transactions.len());
             let mut l1_errors = Vec::with_capacity(transactions.len());
@@ -560,7 +567,8 @@ impl TransactionsDal<'_, '_> {
                     };
 
                     if let Some(call_trace) = tx_res.call_trace() {
-                        bytea_call_traces.push(bincode::serialize(&call_trace).unwrap());
+                        bytea_call_traces
+                            .push(CallTrace::from_call(call_trace, protocol_version).call_trace);
                         call_traces_tx_hashes.push(hash.0.to_vec());
                     }
 
@@ -570,7 +578,8 @@ impl TransactionsDal<'_, '_> {
                             l1_indices_in_block.push(index_in_block as i32);
                             l1_errors.push(error.unwrap_or_default());
                             l1_execution_infos.push(serde_json::to_value(execution_info).unwrap());
-                            l1_refunded_gas.push(i64::from(*refunded_gas));
+                            l1_refunded_gas
+                                .push(i64::try_from(*refunded_gas).expect("Refund exceeds i64"));
                             l1_effective_gas_prices
                                 .push(u256_to_big_decimal(common_data.max_fee_per_gas));
                         }
@@ -607,7 +616,8 @@ impl TransactionsDal<'_, '_> {
                             ));
                             l2_gas_per_pubdata_limit
                                 .push(u256_to_big_decimal(common_data.fee.gas_per_pubdata_limit));
-                            l2_refunded_gas.push(i64::from(*refunded_gas));
+                            l2_refunded_gas
+                                .push(i64::try_from(*refunded_gas).expect("Refund exceeds i64"));
                         }
                         ExecuteTransactionCommon::ProtocolUpgrade(common_data) => {
                             upgrade_hashes.push(hash.0.to_vec());
@@ -615,7 +625,8 @@ impl TransactionsDal<'_, '_> {
                             upgrade_errors.push(error.unwrap_or_default());
                             upgrade_execution_infos
                                 .push(serde_json::to_value(execution_info).unwrap());
-                            upgrade_refunded_gas.push(i64::from(*refunded_gas));
+                            upgrade_refunded_gas
+                                .push(i64::try_from(*refunded_gas).expect("Refund exceeds i64"));
                             upgrade_effective_gas_prices
                                 .push(u256_to_big_decimal(common_data.max_fee_per_gas));
                         }
@@ -1293,7 +1304,37 @@ impl TransactionsDal<'_, '_> {
         }
     }
 
-    pub async fn get_call_trace(&mut self, tx_hash: H256) -> sqlx::Result<Option<Call>> {
+    pub async fn get_call_trace(&mut self, tx_hash: H256) -> anyhow::Result<Option<Call>> {
+        let miniblock_number = sqlx::query!(
+            r#"
+            SELECT
+                miniblock_number
+            FROM
+                transactions
+            WHERE
+                hash = $1
+            "#,
+            tx_hash.as_bytes()
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        .and_then(|row| {
+            row.miniblock_number
+                .map(|number| MiniblockNumber(number as u32))
+        });
+
+        let Some(miniblock_number) = miniblock_number else {
+            return Ok(None);
+        };
+
+        // It is safe to unwrap here since miniblock must exist
+        let protocol_version = self
+            .storage
+            .blocks_dal()
+            .get_miniblock_protocol_version_id(miniblock_number)
+            .await?
+            .unwrap();
+
         Ok(sqlx::query_as!(
             CallTrace,
             r#"
@@ -1308,7 +1349,7 @@ impl TransactionsDal<'_, '_> {
         )
         .fetch_optional(self.storage.conn())
         .await?
-        .map(Into::into))
+        .map(|call_trace| call_trace.into_call(protocol_version)))
     }
 
     pub(crate) async fn get_tx_by_hash(&mut self, hash: H256) -> Option<Transaction> {

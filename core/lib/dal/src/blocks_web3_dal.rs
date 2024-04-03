@@ -458,7 +458,17 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_traces_for_miniblock(
         &mut self,
         block_number: MiniblockNumber,
-    ) -> sqlx::Result<Vec<Call>> {
+    ) -> anyhow::Result<Vec<Call>> {
+        let protocol_version = self
+            .storage
+            .blocks_dal()
+            .get_miniblock_protocol_version_id(block_number)
+            .await?;
+
+        let Some(protocol_version) = protocol_version else {
+            return Ok(vec![]);
+        };
+
         Ok(sqlx::query_as!(
             CallTrace,
             r#"
@@ -477,7 +487,7 @@ impl BlocksWeb3Dal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?
         .into_iter()
-        .map(Call::from)
+        .map(|call_trace| call_trace.into_call(protocol_version))
         .collect())
     }
 
