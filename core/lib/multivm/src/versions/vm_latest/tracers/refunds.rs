@@ -192,7 +192,6 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
         self.timestamp_initial = Timestamp(state.local_state.timestamp);
         self.computational_gas_remaining_before =
             state.local_state.callstack.current.ergs_remaining;
-        // TODO: maybe change the name of the field
         self.spent_pubdata_counter_before = state.local_state.pubdata_revert_counter.0 as u32;
     }
 
