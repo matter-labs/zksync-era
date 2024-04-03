@@ -84,8 +84,8 @@ pub fn parse_system_logs_for_blob_hashes(
     protocol_version: &ProtocolVersionId,
     system_logs: &[SystemL2ToL1Log],
 ) -> Vec<H256> {
-    let num_required_blobs = num_blobs_required(&protocol_version) as u32;
-    let num_created_blobs = num_blobs_created(&protocol_version) as u32;
+    let num_required_blobs = num_blobs_required(protocol_version) as u32;
+    let num_created_blobs = num_blobs_created(protocol_version) as u32;
 
     if num_created_blobs == 0 {
         return vec![H256::zero(); num_required_blobs as usize];
