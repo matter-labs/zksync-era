@@ -170,9 +170,10 @@ testFees('Test fees', () => {
 
         // Secondly, let's test an unsuccessful transaction with large refund.
 
-        // This should not be enough for the execution
-        const gasToPass = receipt.gasUsed.sub(1);
-        const unsuccessfulTx = await l1Messenger.sendToL1(largeData, {
+        // The size of the data has increased, so the previous gas limit is not enough.
+        const largerData = ethers.utils.randomBytes(91_000);
+        const gasToPass = receipt.gasUsed;
+        const unsuccessfulTx = await l1Messenger.sendToL1(largerData, {
             gasLimit: gasToPass
         });
 
