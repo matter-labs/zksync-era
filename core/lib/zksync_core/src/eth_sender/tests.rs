@@ -984,7 +984,8 @@ async fn insert_genesis_protocol_version(tester: &EthSenderTester) {
         .await
         .protocol_versions_dal()
         .save_protocol_version_with_tx(Default::default())
-        .await;
+        .await
+        .unwrap();
 }
 
 async fn insert_l1_batch(tester: &EthSenderTester, number: L1BatchNumber) -> L1BatchHeader {

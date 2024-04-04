@@ -281,8 +281,9 @@ async fn processing_storage_logs_when_sealing_miniblock() {
     let mut conn = connection_pool.connection().await.unwrap();
     conn.protocol_versions_dal()
         .save_protocol_version_with_tx(Default::default())
-        .await;
-    seal_command.seal(&mut conn).await;
+        .await
+        .unwrap();
+    seal_command.seal(&mut conn).await.unwrap();
 
     // Manually mark the miniblock as executed so that getting touched slots from it works
     conn.blocks_dal()
@@ -363,8 +364,9 @@ async fn processing_events_when_sealing_miniblock() {
     let mut conn = pool.connection().await.unwrap();
     conn.protocol_versions_dal()
         .save_protocol_version_with_tx(Default::default())
-        .await;
-    seal_command.seal(&mut conn).await;
+        .await
+        .unwrap();
+    seal_command.seal(&mut conn).await.unwrap();
 
     let logs = conn
         .events_web3_dal()

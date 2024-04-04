@@ -105,7 +105,8 @@ async fn applier_errors_after_genesis() {
     storage
         .protocol_versions_dal()
         .save_protocol_version_with_tx(ProtocolVersion::default())
-        .await;
+        .await
+        .unwrap();
     let genesis_miniblock = MiniblockHeader {
         number: MiniblockNumber(0),
         timestamp: 0,

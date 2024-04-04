@@ -366,7 +366,7 @@ async fn store_miniblock(
     storage
         .transactions_dal()
         .mark_txs_as_executed_in_miniblock(new_miniblock.number, transaction_results, 1.into())
-        .await;
+        .await?;
     Ok(new_miniblock)
 }
 

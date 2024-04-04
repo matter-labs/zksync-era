@@ -105,7 +105,8 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
             storage
                 .protocol_versions_dal()
                 .save_protocol_version_with_tx(new_version)
-                .await;
+                .await
+                .unwrap();
         }
         metrics::histogram!("eth_watcher.poll_eth_node", stage_start.elapsed(), "stage" => "persist_upgrades");
 

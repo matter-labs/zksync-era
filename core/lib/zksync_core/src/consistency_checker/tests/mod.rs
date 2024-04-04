@@ -476,7 +476,8 @@ async fn checker_processes_pre_boojum_batches(
     storage
         .protocol_versions_dal()
         .save_protocol_version_with_tx(ProtocolVersion::default())
-        .await;
+        .await
+        .unwrap();
 
     let l1_batches: Vec<_> = (1..=5)
         .map(create_pre_boojum_l1_batch_with_metadata)
@@ -554,7 +555,8 @@ async fn checker_functions_after_snapshot_recovery(
     storage
         .protocol_versions_dal()
         .save_protocol_version_with_tx(ProtocolVersion::default())
-        .await;
+        .await
+        .unwrap();
 
     let l1_batch = create_l1_batch_with_metadata(99);
 
@@ -775,7 +777,8 @@ async fn checker_detects_incorrect_tx_data(
         storage
             .protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
     } else {
         insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await

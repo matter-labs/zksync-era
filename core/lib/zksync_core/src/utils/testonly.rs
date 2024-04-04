@@ -291,7 +291,8 @@ pub(crate) async fn recover(
                 base_system_contracts_hashes: snapshot.l1_batch.base_system_contracts_hashes,
                 ..ProtocolVersion::default()
             })
-            .await;
+            .await
+            .unwrap();
     }
     storage
         .factory_deps_dal()

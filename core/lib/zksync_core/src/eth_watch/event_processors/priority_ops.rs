@@ -92,7 +92,8 @@ impl EventProcessor for PriorityOpsEventProcessor {
             storage
                 .transactions_dal()
                 .insert_transaction_l1(new_op, eth_block)
-                .await;
+                .await
+                .unwrap();
         }
         stage_latency.observe();
         self.next_expected_priority_id = last_new.serial_id().next();

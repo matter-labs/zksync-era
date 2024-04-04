@@ -3,6 +3,7 @@
 
 use std::time::{Duration, Instant};
 
+use anyhow::Context as _;
 use itertools::Itertools;
 use multivm::utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte};
 use zksync_dal::{Connection, Core, CoreDal};
@@ -46,14 +47,14 @@ impl UpdatesManager {
         storage: &mut Connection<'_, Core>,
         l2_erc20_bridge_addr: Address,
         insert_protective_reads: bool,
-    ) {
+    ) -> anyhow::Result<()> {
         let started_at = Instant::now();
         let finished_batch = self
             .l1_batch
             .finished
             .as_ref()
-            .expect("L1 batch is not actually finished");
-        let mut transaction = storage.start_transaction().await.unwrap();
+            .context("L1 batch is not actually finished")?;
+        let mut transaction = storage.start_transaction().await?;
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FictiveMiniblock);
         // Seal fictive miniblock with last events and storage logs.
@@ -61,7 +62,10 @@ impl UpdatesManager {
             l2_erc20_bridge_addr,
             false, // fictive miniblocks don't have txs, so it's fine to pass `false` here.
         );
-        miniblock_command.seal_inner(&mut transaction, true).await;
+        miniblock_command
+            .seal_inner(&mut transaction, true)
+            .await
+            .context("failed persisting fictive miniblock")?;
         progress.observe(None);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::LogDeduplication);
@@ -136,16 +140,14 @@ impl UpdatesManager {
                 &finished_batch.final_execution_state.storage_refunds,
                 self.pending_execution_metrics().circuit_statistic,
             )
-            .await
-            .unwrap();
+            .await?;
         progress.observe(None);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::SetL1BatchNumberForMiniblocks);
         transaction
             .blocks_dal()
             .mark_miniblocks_as_executed_in_l1_batch(self.l1_batch.number)
-            .await
-            .unwrap();
+            .await?;
         progress.observe(None);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::MarkTxsAsExecutedInL1Batch);
@@ -155,7 +157,7 @@ impl UpdatesManager {
                 self.l1_batch.number,
                 &self.l1_batch.executed_transactions,
             )
-            .await;
+            .await?;
         progress.observe(None);
 
         let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) = finished_batch
@@ -168,8 +170,7 @@ impl UpdatesManager {
             transaction
                 .storage_logs_dedup_dal()
                 .insert_protective_reads(self.l1_batch.number, &protective_reads)
-                .await
-                .unwrap();
+                .await?;
             progress.observe(protective_reads.len());
         }
 
@@ -186,8 +187,7 @@ impl UpdatesManager {
         let non_initial_writes = transaction
             .storage_logs_dedup_dal()
             .filter_written_slots(&deduplicated_writes_hashed_keys)
-            .await
-            .expect("cannot filter out previously written VM storage slots");
+            .await?;
         progress.observe(deduplicated_writes.len());
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertInitialWrites);
@@ -202,23 +202,23 @@ impl UpdatesManager {
         transaction
             .storage_logs_dedup_dal()
             .insert_initial_writes(self.l1_batch.number, &written_storage_keys)
-            .await
-            .unwrap();
+            .await?;
         progress.observe(deduplicated_writes.len());
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::CommitL1Batch);
-        transaction.commit().await.unwrap();
+        transaction.commit().await?;
         progress.observe(None);
 
         let writes_metrics = self.storage_writes_deduplicator.metrics();
         // Sanity check metrics.
-        assert_eq!(
-            deduplicated_writes.len(),
-            writes_metrics.initial_storage_writes + writes_metrics.repeated_storage_writes,
+        anyhow::ensure!(
+            deduplicated_writes.len()
+                == writes_metrics.initial_storage_writes + writes_metrics.repeated_storage_writes,
             "Results of in-flight and common deduplications are mismatched"
         );
 
         self.report_l1_batch_metrics(started_at, &writes_metrics);
+        Ok(())
     }
 
     fn report_l1_batch_metrics(
@@ -249,13 +249,20 @@ impl UpdatesManager {
 }
 
 impl MiniblockSealCommand {
-    pub(super) async fn seal(&self, storage: &mut Connection<'_, Core>) {
-        self.seal_inner(storage, false).await;
+    pub(super) async fn seal(&self, storage: &mut Connection<'_, Core>) -> anyhow::Result<()> {
+        self.seal_inner(storage, false)
+            .await
+            .with_context(|| format!("failed sealing miniblock #{}", self.miniblock.number))
     }
 
-    async fn insert_transactions(&self, transaction: &mut Connection<'_, Core>) {
+    async fn insert_transactions(
+        &self,
+        transaction: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<()> {
         for tx_result in &self.miniblock.executed_transactions {
             let tx = tx_result.transaction.clone();
+            let tx_hash = tx.hash();
+
             match &tx.common_data {
                 ExecuteTransactionCommon::L1(_) => {
                     // `unwrap` is safe due to the check above
@@ -264,7 +271,8 @@ impl MiniblockSealCommand {
                     transaction
                         .transactions_dal()
                         .insert_transaction_l1(l1_tx, l1_block_number)
-                        .await;
+                        .await
+                        .with_context(|| format!("failed persisting L1 transaction {tx_hash:?}"))?;
                 }
                 ExecuteTransactionCommon::L2(_) => {
                     // `unwrap` is safe due to the check above
@@ -274,7 +282,7 @@ impl MiniblockSealCommand {
                         .transactions_dal()
                         .insert_transaction_l2(l2_tx, Default::default())
                         .await
-                        .unwrap();
+                        .with_context(|| format!("failed persisting L2 transaction {tx_hash:?}"))?;
                 }
                 ExecuteTransactionCommon::ProtocolUpgrade(_) => {
                     // `unwrap` is safe due to the check above
@@ -282,10 +290,14 @@ impl MiniblockSealCommand {
                     transaction
                         .transactions_dal()
                         .insert_system_transaction(protocol_system_upgrade_tx)
-                        .await;
+                        .await
+                        .with_context(|| {
+                            format!("failed persisting protocol upgrade transaction {tx_hash:?}")
+                        })?;
                 }
             }
         }
+        Ok(())
     }
 
     /// Seals a miniblock with the given number.
@@ -297,13 +309,20 @@ impl MiniblockSealCommand {
     /// one for sending fees to the operator).
     ///
     /// `l2_erc20_bridge_addr` is required to extract the information on newly added tokens.
-    async fn seal_inner(&self, storage: &mut Connection<'_, Core>, is_fictive: bool) {
-        self.assert_valid_miniblock(is_fictive);
+    async fn seal_inner(
+        &self,
+        storage: &mut Connection<'_, Core>,
+        is_fictive: bool,
+    ) -> anyhow::Result<()> {
+        self.ensure_valid_miniblock(is_fictive)
+            .context("miniblock is invalid")?;
 
-        let mut transaction = storage.start_transaction().await.unwrap();
+        let mut transaction = storage.start_transaction().await?;
         if self.pre_insert_txs {
             let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::PreInsertTxs, is_fictive);
-            self.insert_transactions(&mut transaction).await;
+            self.insert_transactions(&mut transaction)
+                .await
+                .context("failed persisting transactions in miniblock")?;
             progress.observe(Some(self.miniblock.executed_transactions.len()));
         }
 
@@ -326,7 +345,7 @@ impl MiniblockSealCommand {
 
         let definite_vm_version = self
             .protocol_version
-            .unwrap_or(ProtocolVersionId::last_potentially_undefined())
+            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined)
             .into();
 
         let miniblock_header = MiniblockHeader {
@@ -348,8 +367,7 @@ impl MiniblockSealCommand {
         transaction
             .blocks_dal()
             .insert_miniblock(&miniblock_header)
-            .await
-            .unwrap();
+            .await?;
         progress.observe(None);
 
         let progress =
@@ -361,7 +379,7 @@ impl MiniblockSealCommand {
                 &self.miniblock.executed_transactions,
                 self.base_fee_per_gas.into(),
             )
-            .await;
+            .await?;
         progress.observe(self.miniblock.executed_transactions.len());
 
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::InsertStorageLogs, is_fictive);
@@ -370,8 +388,7 @@ impl MiniblockSealCommand {
         transaction
             .storage_logs_dal()
             .insert_storage_logs(miniblock_number, &write_logs)
-            .await
-            .unwrap();
+            .await?;
         progress.observe(write_log_count);
 
         #[allow(deprecated)] // Will be removed shortly
@@ -392,8 +409,7 @@ impl MiniblockSealCommand {
             transaction
                 .factory_deps_dal()
                 .insert_factory_deps(miniblock_number, new_factory_deps)
-                .await
-                .unwrap();
+                .await?;
         }
         progress.observe(new_factory_deps_count);
 
@@ -403,11 +419,7 @@ impl MiniblockSealCommand {
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::InsertTokens, is_fictive);
         let added_tokens_len = added_tokens.len();
         if !added_tokens.is_empty() {
-            transaction
-                .tokens_dal()
-                .add_tokens(&added_tokens)
-                .await
-                .unwrap();
+            transaction.tokens_dal().add_tokens(&added_tokens).await?;
         }
         progress.observe(added_tokens_len);
 
@@ -456,11 +468,11 @@ impl MiniblockSealCommand {
                 CURRENT_VIRTUAL_BLOCK_INFO_POSITION,
             ))
             .await
-            .expect("failed getting virtual block info from VM state");
+            .context("failed getting virtual block info from VM state")?;
         let (current_l2_virtual_block_number, _) =
             unpack_block_info(h256_to_u256(current_l2_virtual_block_info));
 
-        transaction.commit().await.unwrap();
+        transaction.commit().await?;
         progress.observe(None);
 
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::ReportTxMetrics, is_fictive);
@@ -468,11 +480,22 @@ impl MiniblockSealCommand {
         progress.observe(Some(self.miniblock.executed_transactions.len()));
 
         self.report_miniblock_metrics(started_at, current_l2_virtual_block_number);
+        Ok(())
     }
 
     /// Performs several sanity checks to make sure that the miniblock is valid.
-    fn assert_valid_miniblock(&self, is_fictive: bool) {
-        assert_eq!(self.miniblock.executed_transactions.is_empty(), is_fictive);
+    fn ensure_valid_miniblock(&self, is_fictive: bool) -> anyhow::Result<()> {
+        if is_fictive {
+            anyhow::ensure!(
+                self.miniblock.executed_transactions.is_empty(),
+                "fictive miniblock must not have transactions"
+            );
+        } else {
+            anyhow::ensure!(
+                !self.miniblock.executed_transactions.is_empty(),
+                "non-fictive miniblock must have at least one transaction"
+            );
+        }
 
         let first_tx_index = self.first_tx_index;
         let next_tx_index = first_tx_index + self.miniblock.executed_transactions.len();
@@ -484,12 +507,19 @@ impl MiniblockSealCommand {
 
         for event in &self.miniblock.events {
             let tx_index = event.location.1 as usize;
-            assert!(tx_index_range.contains(&tx_index));
+            anyhow::ensure!(
+                tx_index_range.contains(&tx_index),
+                "event transaction index {tx_index} is outside of the expected range {tx_index_range:?}"
+            );
         }
         for storage_log in &self.miniblock.storage_logs {
             let tx_index = storage_log.log_query.tx_number_in_block as usize;
-            assert!(tx_index_range.contains(&tx_index));
+            anyhow::ensure!(
+                tx_index_range.contains(&tx_index),
+                "log transaction index {tx_index} is outside of the expected range {tx_index_range:?}"
+            );
         }
+        Ok(())
     }
 
     fn extract_deduplicated_write_logs(&self, is_fictive: bool) -> Vec<(H256, Vec<StorageLog>)> {

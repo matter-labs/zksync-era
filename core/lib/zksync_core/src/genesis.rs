@@ -512,7 +512,7 @@ pub(crate) async fn create_genesis_l1_batch(
     transaction
         .protocol_versions_dal()
         .save_protocol_version_with_tx(version)
-        .await;
+        .await?;
     transaction
         .blocks_dal()
         .insert_l1_batch(
@@ -628,7 +628,7 @@ pub async fn save_set_chain_id_tx(
     storage
         .protocol_versions_dal()
         .save_genesis_upgrade_with_tx(version_id, upgrade_tx)
-        .await;
+        .await?;
     Ok(())
 }
 

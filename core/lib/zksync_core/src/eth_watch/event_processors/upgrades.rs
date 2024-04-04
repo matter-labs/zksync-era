@@ -76,7 +76,8 @@ impl EventProcessor for UpgradesEventProcessor {
             storage
                 .protocol_versions_dal()
                 .save_protocol_version_with_tx(new_version)
-                .await;
+                .await
+                .unwrap();
         }
         stage_latency.observe();
         self.last_seen_version_id = last_id;

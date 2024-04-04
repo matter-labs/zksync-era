@@ -182,7 +182,8 @@ mod tests {
         storage
             .protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
         for number in 0..5 {
             let miniblock = create_miniblock(number);
             storage

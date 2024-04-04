@@ -17,7 +17,7 @@ pub trait EventProcessor: 'static + fmt::Debug + Send + Sync {
         storage: &mut Connection<'_, Core>,
         client: &dyn EthClient,
         events: Vec<Log>,
-    ) -> Result<(), Error>;
+    ) -> Result<(), Error>; // FIXME: improve error handling
 
     /// Relevant topic which defines what events to be processed
     fn relevant_topic(&self) -> H256;
