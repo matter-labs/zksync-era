@@ -1,9 +1,9 @@
-import {Command} from 'commander';
+import { Command } from 'commander';
 
-import {up} from './up';
-import {announced} from './utils';
-import {initDevCmdAction, initHyperCmdAction} from './init';
-import {DeploymentMode} from "./contract";
+import { up } from './up';
+import { announced } from './utils';
+import { initDevCmdAction, initHyperCmdAction } from './init';
+import { DeploymentMode } from './contract';
 
 const reinitDevCmdAction = async (): Promise<void> => {
     await announced('Setting up containers', up(false));
@@ -19,11 +19,11 @@ const reinitDevCmdAction = async (): Promise<void> => {
     });
 };
 
-type ReinitHyperCmdActionOptions = { baseTokenName?: string, deploymentMode: DeploymentMode };
-const reinitHyperCmdAction = async ({baseTokenName, deploymentMode}: ReinitHyperCmdActionOptions): Promise<void> => {
+type ReinitHyperCmdActionOptions = { baseTokenName?: string; deploymentMode: DeploymentMode };
+const reinitHyperCmdAction = async ({ baseTokenName, deploymentMode }: ReinitHyperCmdActionOptions): Promise<void> => {
     // skipSetupCompletely, because we only want to compile
     // bumpChainId, because we want to reinitialize hyperchain with a new chain id
-    await initHyperCmdAction({skipSetupCompletely: true, bumpChainId: true, runObservability: false, deploymentMode});
+    await initHyperCmdAction({ skipSetupCompletely: true, bumpChainId: true, runObservability: false, deploymentMode });
 };
 
 export const reinitCommand = new Command('reinit')

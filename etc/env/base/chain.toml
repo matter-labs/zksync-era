@@ -87,8 +87,8 @@ save_call_traces = true
 virtual_blocks_interval = 1
 virtual_blocks_per_miniblock = 1
 
-bootloader_hash = "0x010007ede999d096c84553fb514d3d6ca76fbf39789dda76bfeda9f3ae06236e"
-default_aa_hash = "0x0100055b041eb28aff6e3a6e0f37c31fd053fc9ef142683b05e5f0aee6934066"
+bootloader_hash = "0x010008095dfd6a873af3909665f4d7929d3bf86baf725277618f85135e4054d2"
+default_aa_hash = "0x0100055be0b42ec7b676a62a67507bad5db7b30ccbce9640ba9db9e37cc8d499"
 
 [chain.operations_manager]
 # Sleep time when there is no new input data
