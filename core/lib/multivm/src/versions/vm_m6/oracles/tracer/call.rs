@@ -108,8 +108,8 @@ impl<H: HistoryMode> CallTracer<H> {
             .inner
             .last()
             .map(|call| call.ergs_remaining + current.ergs_remaining)
-            .unwrap_or(current.ergs_remaining);
-        current_call.parent_gas = parent_gas as u64;
+            .unwrap_or(current.ergs_remaining) as u64;
+        current_call.parent_gas = parent_gas;
     }
 
     fn handle_near_call_op_code(

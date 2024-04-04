@@ -163,8 +163,7 @@ async fn is_fee_address_migrated(
     storage
         .blocks_dal()
         .is_fee_address_migrated(miniblock)
-        .await
-        .with_context(|| format!("Failed getting fee address for miniblock #{miniblock}"))?
+        .await?
         .with_context(|| format!("Miniblock #{miniblock} disappeared"))
 }
 

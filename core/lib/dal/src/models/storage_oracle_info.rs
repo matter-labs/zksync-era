@@ -1,6 +1,6 @@
 use zksync_types::block::StorageOracleInfo;
 
-/// Projection of the `l1_batches` table corresponding to [`L1BatchHeader`].
+/// The structure represents the storage oracle info stored in the database.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub(crate) struct DbStorageOracleInfo {
     pub storage_refunds: Option<Vec<i64>>,

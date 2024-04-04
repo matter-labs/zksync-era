@@ -32,7 +32,9 @@ pub struct CurrentExecutionState {
     /// Refunds returned by `StorageOracle`.
     pub storage_refunds: Vec<u32>,
     /// Pubdata costs returned by `StorageOracle`.
-    /// This field is only used since `v1.5.0`. For all the previous versions this field is an empty vector.
+    /// This field is non-empty only starting from v1.5.0.
+    /// Note, that it is a signed integer, because the pubdata costs can be negative, e.g. in case
+    /// the user rolls back a state diff.
     pub pubdata_costs: Vec<i32>,
 }
 

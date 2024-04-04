@@ -84,7 +84,7 @@ impl<S> RefundsTracer<S> {
         self.pending_refund_request = None;
     }
 
-    fn block_overhead_refund(&mut self) -> u32 {
+    fn block_overhead_refund(&mut self) -> u64 {
         0
     }
 

@@ -3,9 +3,10 @@ use std::{collections::HashMap, fmt, time::Duration};
 use anyhow::Context as _;
 use bigdecimal::BigDecimal;
 use itertools::Itertools;
-use sqlx::{error, types::chrono::NaiveDateTime};
+use sqlx::types::chrono::NaiveDateTime;
 use zksync_db_connection::{
-    connection::Connection, instrument::InstrumentExt, utils::pg_interval_from_duration,
+    connection::Connection, error::DalResult, instrument::InstrumentExt,
+    utils::pg_interval_from_duration,
 };
 use zksync_types::{
     block::MiniblockExecutionData,
@@ -16,7 +17,7 @@ use zksync_types::{
     tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
     vm_trace::Call,
     Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, MiniblockNumber, PriorityOpId,
-    Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
+    ProtocolVersionId, Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_utils::u256_to_big_decimal;
 
@@ -433,7 +434,7 @@ impl TransactionsDal<'_, '_> {
                 // In this case we identify it as Duplicate
                 // Note, this error can happen because of the race condition (tx can be taken by several
                 // API servers, that simultaneously start execute it and try to inserted to DB)
-                if let error::Error::Database(ref error) = err {
+                if let sqlx::Error::Database(error) = &err {
                     if let Some(constraint) = error.constraint() {
                         if constraint == "transactions_pkey" {
                             tracing::debug!(
@@ -505,7 +506,7 @@ impl TransactionsDal<'_, '_> {
                 .get_miniblock_protocol_version_id(miniblock_number)
                 .await
                 .unwrap()
-                .unwrap();
+                .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
             let mut l1_hashes = Vec::with_capacity(transactions.len());
             let mut l1_indices_in_block = Vec::with_capacity(transactions.len());
@@ -1304,36 +1305,25 @@ impl TransactionsDal<'_, '_> {
         }
     }
 
-    pub async fn get_call_trace(&mut self, tx_hash: H256) -> anyhow::Result<Option<Call>> {
-        let miniblock_number = sqlx::query!(
+    pub async fn get_call_trace(&mut self, tx_hash: H256) -> DalResult<Option<Call>> {
+        let protocol_version: ProtocolVersionId = sqlx::query!(
             r#"
             SELECT
-                miniblock_number
+                protocol_version
             FROM
                 transactions
+                LEFT JOIN miniblocks ON transactions.miniblock_number = miniblocks.number
             WHERE
-                hash = $1
+                transactions.hash = $1
             "#,
             tx_hash.as_bytes()
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_call_trace")
+        .with_arg("tx_hash", &tx_hash)
+        .fetch_optional(self.storage)
         .await?
-        .and_then(|row| {
-            row.miniblock_number
-                .map(|number| MiniblockNumber(number as u32))
-        });
-
-        let Some(miniblock_number) = miniblock_number else {
-            return Ok(None);
-        };
-
-        // It is safe to unwrap here since miniblock must exist
-        let protocol_version = self
-            .storage
-            .blocks_dal()
-            .get_miniblock_protocol_version_id(miniblock_number)
-            .await?
-            .unwrap();
+        .and_then(|row| row.protocol_version.map(|v| (v as u16).try_into().unwrap()))
+        .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
         Ok(sqlx::query_as!(
             CallTrace,
@@ -1347,7 +1337,9 @@ impl TransactionsDal<'_, '_> {
             "#,
             tx_hash.as_bytes()
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_call_trace")
+        .with_arg("tx_hash", &tx_hash)
+        .fetch_optional(self.storage)
         .await?
         .map(|call_trace| call_trace.into_call(protocol_version)))
     }

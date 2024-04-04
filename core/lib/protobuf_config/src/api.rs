@@ -5,7 +5,7 @@ use zksync_protobuf::{
     required,
 };
 
-use crate::{parse_h256, proto::api as proto};
+use crate::{parse_h160, parse_h256, proto::api as proto};
 
 impl ProtoRepr for proto::Api {
     type Type = ApiConfig;
@@ -124,6 +124,13 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .map(|x| x.try_into())
                 .transpose()
                 .context("mempool_cache_size")?,
+            whitelisted_tokens_for_aa: self
+                .whitelisted_tokens_for_aa
+                .iter()
+                .enumerate()
+                .map(|(i, k)| parse_h160(k).context(i))
+                .collect::<Result<Vec<_>, _>>()
+                .context("account_pks")?,
         })
     }
     fn build(this: &Self::Type) -> Self {
@@ -177,6 +184,11 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .websocket_requests_per_minute_limit
                 .map(|x| x.into()),
             tree_api_url: this.tree_api_url.clone(),
+            whitelisted_tokens_for_aa: this
+                .whitelisted_tokens_for_aa
+                .iter()
+                .map(|k| format!("{:?}", k))
+                .collect(),
         }
     }
 }

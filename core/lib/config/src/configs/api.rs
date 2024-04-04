@@ -1,7 +1,7 @@
 use std::{net::SocketAddr, num::NonZeroU32, time::Duration};
 
 use serde::Deserialize;
-use zksync_basic_types::H256;
+use zksync_basic_types::{Address, H256};
 
 pub use crate::configs::PrometheusConfig;
 
@@ -100,6 +100,10 @@ pub struct Web3JsonRpcConfig {
     pub mempool_cache_update_interval: Option<u64>,
     /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
     pub mempool_cache_size: Option<usize>,
+    /// List of L2 token addresses that are white-listed to use by paymasters
+    /// (additionally to natively bridged tokens).
+    #[serde(default)]
+    pub whitelisted_tokens_for_aa: Vec<Address>,
 }
 
 impl Web3JsonRpcConfig {
@@ -137,6 +141,7 @@ impl Web3JsonRpcConfig {
             mempool_cache_update_interval: Default::default(),
             mempool_cache_size: Default::default(),
             tree_api_url: None,
+            whitelisted_tokens_for_aa: Default::default(),
         }
     }
 

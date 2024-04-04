@@ -39,6 +39,7 @@ pub struct CircuitStatistic {
     pub keccak256: f32,
     pub ecrecover: f32,
     pub sha256: f32,
+    #[serde(default)]
     pub secp256k1_verify: f32,
 }
 

@@ -601,12 +601,8 @@ async fn generate_witness(
         .get_storage_oracle_info(input.block_number)
         .await
         .unwrap()
-        .unwrap();
-    let StorageOracleInfo {
-        storage_refunds,
-        pubdata_costs,
-    } = storage_oracle_info;
-    let pubdata_costs = pubdata_costs.expect("v1.5.0 requires pubdata_costs to be present");
+        .unwrap()
+        .storage_refunds;
 
     let mut used_bytecodes = connection
         .factory_deps_dal()

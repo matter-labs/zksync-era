@@ -556,7 +556,7 @@ impl CallTrace {
 
     pub(crate) fn from_call(call: Call, protocol_version: ProtocolVersionId) -> Self {
         let call_trace = if protocol_version.is_pre_1_5_0() {
-            bincode::serialize(&LegacyCall::from(call))
+            bincode::serialize(&LegacyCall::try_from(call).unwrap())
         } else {
             bincode::serialize(&call)
         }
