@@ -333,8 +333,9 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
     let metrics = result.get_execution_metrics(None);
 
     VmSpentResourcesResult {
-        gas_consumed: result.statistics.gas_used,
-        total_gas_paid: total_gas_paid_upfront.as_u32() - total_gas_refunded,
+        // It is assumed that the entire `gas_used` was spent on computation and so it safe to convert to u32
+        gas_consumed: result.statistics.gas_used as u32,
+        total_gas_paid: total_gas_paid_upfront.as_u32() - total_gas_refunded as u32,
         pubdata_published: metrics.size() as u32,
         total_pubdata_paid: 0,
     }

@@ -5,7 +5,7 @@ use clap::Parser;
 use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{
-    sync::watch,
+    sync::{watch, RwLock},
     task::{self, JoinHandle},
 };
 use zksync_concurrency::{ctx, scope};
@@ -51,7 +51,7 @@ use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
-use zksync_web3_decl::client::L2Client;
+use zksync_web3_decl::{client::L2Client, namespaces::EnNamespaceClient};
 
 use crate::{
     config::{observability::observability_config_from_env, ExternalNodeConfig},
@@ -387,8 +387,14 @@ async fn run_api(
         }
     };
 
-    let (tx_sender, vm_barrier, cache_update_handle, proxy_cache_updater_handle) = {
-        let tx_proxy = TxProxy::new(main_node_client);
+    let (
+        tx_sender,
+        vm_barrier,
+        cache_update_handle,
+        proxy_cache_updater_handle,
+        whitelisted_tokens_update_handle,
+    ) = {
+        let tx_proxy = TxProxy::new(main_node_client.clone());
         let proxy_cache_updater_pool = singleton_pool_builder
             .build()
             .await
@@ -426,7 +432,31 @@ async fn run_api(
             )
         });
 
+        let whitelisted_tokens_for_aa_cache = Arc::new(RwLock::new(Vec::new()));
+        let whitelisted_tokens_for_aa_cache_clone = whitelisted_tokens_for_aa_cache.clone();
+        let mut stop_receiver_for_task = stop_receiver.clone();
+        let whitelisted_tokens_update_task = task::spawn(async move {
+            loop {
+                match main_node_client.whitelisted_tokens_for_aa().await {
+                    Ok(tokens) => {
+                        *whitelisted_tokens_for_aa_cache_clone.write().await = tokens;
+                    }
+                    Err(err) => {
+                        tracing::error!(
+                            "Failed to query `whitelisted_tokens_for_aa`, error: {err:?}"
+                        );
+                    }
+                }
+
+                // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
+                tokio::time::timeout(Duration::from_secs(60), stop_receiver_for_task.changed())
+                    .await
+                    .ok();
+            }
+        });
+
         let tx_sender = tx_sender_builder
+            .with_whitelisted_tokens_for_aa(whitelisted_tokens_for_aa_cache)
             .build(
                 fee_params_fetcher,
                 Arc::new(vm_concurrency_limiter),
@@ -439,6 +469,7 @@ async fn run_api(
             vm_barrier,
             cache_update_handle,
             proxy_cache_updater_handle,
+            whitelisted_tokens_update_task,
         )
     };
 
@@ -490,6 +521,7 @@ async fn run_api(
 
     task_futures.extend(cache_update_handle);
     task_futures.push(proxy_cache_updater_handle);
+    task_futures.push(whitelisted_tokens_update_handle);
 
     Ok(())
 }
@@ -874,8 +906,7 @@ async fn main() -> anyhow::Result<()> {
         let sealed_l1_batch_number = connection
             .blocks_dal()
             .get_sealed_l1_batch_number()
-            .await
-            .context("Failed getting sealed L1 batch number")?
+            .await?
             .context(
                 "Cannot roll back pending L1 batch since there are no L1 batches in Postgres",
             )?;

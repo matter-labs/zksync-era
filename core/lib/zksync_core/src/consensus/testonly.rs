@@ -8,7 +8,7 @@ use zksync_concurrency::{ctx, error::Wrap as _, scope, sync};
 use zksync_config::{configs, GenesisConfig};
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::CoreDal;
+use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
     api, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
     ProtocolVersionId, H256,
@@ -324,20 +324,20 @@ async fn calculate_mock_metadata(ctx: &ctx::Ctx, store: &Store) -> ctx::Result<(
     let Some(last) = ctx
         .wait(conn.0.blocks_dal().get_sealed_l1_batch_number())
         .await?
-        .context("get_sealed_l1_batch_number()")?
+        .map_err(DalError::generalize)?
     else {
         return Ok(());
     };
     let prev = ctx
         .wait(conn.0.blocks_dal().get_last_l1_batch_number_with_metadata())
         .await?
-        .context("get_last_l1_batch_number_with_metadata()")?;
+        .map_err(DalError::generalize)?;
     let mut first = match prev {
         Some(prev) => prev + 1,
         None => ctx
             .wait(conn.0.blocks_dal().get_earliest_l1_batch_number())
             .await?
-            .context("get_earliest_l1_batch_number()")?
+            .map_err(DalError::generalize)?
             .context("batches disappeared")?,
     };
     while first <= last {

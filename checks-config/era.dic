@@ -190,6 +190,7 @@ sorted_timestamps
 known_bytecodes
 returndata
 namespaces
+natively
 StateDiffRecord
 BYTES_PER_ENUMERATION_INDEX
 derived_key
@@ -927,3 +928,4 @@ StorageMarker
 SIGINT
 opentelemetry
 PubdataSendingMode
+FriGpuProverArchiver

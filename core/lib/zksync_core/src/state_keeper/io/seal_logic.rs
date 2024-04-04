@@ -134,6 +134,7 @@ impl UpdatesManager {
                 &final_bootloader_memory,
                 self.pending_l1_gas_count(),
                 &finished_batch.final_execution_state.storage_refunds,
+                &finished_batch.final_execution_state.pubdata_costs,
                 self.pending_execution_metrics().circuit_statistic,
             )
             .await

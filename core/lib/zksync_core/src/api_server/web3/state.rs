@@ -8,6 +8,7 @@ use std::{
 };
 
 use anyhow::Context as _;
+use futures::TryFutureExt;
 use lru::LruCache;
 use tokio::sync::{watch, Mutex};
 use vise::GaugeGuard;
@@ -15,7 +16,7 @@ use zksync_config::{
     configs::{api::Web3JsonRpcConfig, chain::L1BatchCommitDataGeneratorMode, ContractsConfig},
     GenesisConfig,
 };
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_types::{
     api, l2::L2Tx, transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2ChainId,
     MiniblockNumber, H256, U256, U64,
@@ -279,6 +280,18 @@ impl RpcState {
         self.tx_sender.0.tx_sink.as_ref()
     }
 
+    /// Acquires a DB connection mapping possible errors.
+    // `track_caller` is necessary to correctly record call location. `async fn`s don't support it yet,
+    // thus manual de-sugaring.
+    #[track_caller]
+    pub(crate) fn acquire_connection(
+        &self,
+    ) -> impl Future<Output = Result<Connection<'_, Core>, Web3Error>> + '_ {
+        self.connection_pool
+            .connection_tagged("api")
+            .map_err(|err| err.generalize().into())
+    }
+
     /// Resolves the specified block ID to a block number, which is guaranteed to be present in the node storage.
     pub(crate) async fn resolve_block(
         &self,
@@ -344,7 +357,7 @@ impl RpcState {
 
         let block_number = block_number.unwrap_or(api::BlockNumber::Latest);
         let block_id = api::BlockId::Number(block_number);
-        let mut conn = self.connection_pool.connection_tagged("api").await?;
+        let mut conn = self.acquire_connection().await?;
         Ok(self.resolve_block(&mut conn, block_id).await.unwrap())
         // ^ `unwrap()` is safe: `resolve_block_id(api::BlockId::Number(_))` can only return `None`
         // if called with an explicit number, and we've handled this case earlier.
@@ -364,8 +377,7 @@ impl RpcState {
         match (filter.block_hash, filter.from_block, filter.to_block) {
             (Some(block_hash), None, None) => {
                 let block_number = self
-                    .connection_pool
-                    .connection_tagged("api")
+                    .acquire_connection()
                     .await?
                     .blocks_web3_dal()
                     .resolve_block_id(api::BlockId::Hash(block_hash))
@@ -389,8 +401,7 @@ impl RpcState {
         filter: &Filter,
     ) -> Result<MiniblockNumber, Web3Error> {
         let pending_block = self
-            .connection_pool
-            .connection_tagged("api")
+            .acquire_connection()
             .await?
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
@@ -414,8 +425,7 @@ impl RpcState {
         if call_request.nonce.is_some() {
             return Ok(());
         }
-        let mut connection = self.connection_pool.connection_tagged("api").await?;
-
+        let mut connection = self.acquire_connection().await?;
         let latest_block_id = api::BlockId::Number(api::BlockNumber::Latest);
         let latest_block_number = self.resolve_block(&mut connection, latest_block_id).await?;
 
@@ -424,7 +434,7 @@ impl RpcState {
             .storage_web3_dal()
             .get_address_historical_nonce(from, latest_block_number)
             .await
-            .context("get_address_historical_nonce")?;
+            .map_err(DalError::generalize)?;
         call_request.nonce = Some(address_historical_nonce);
         Ok(())
     }

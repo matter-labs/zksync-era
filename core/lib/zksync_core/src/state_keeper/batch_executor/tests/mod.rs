@@ -457,7 +457,7 @@ async fn bootloader_tip_out_of_gas() {
             finished_batch
                 .block_tip_execution_result
                 .statistics
-                .gas_used
+                .computational_gas_used
                 - 10,
         ),
         validation_computational_gas_limit: u32::MAX,

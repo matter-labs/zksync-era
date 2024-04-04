@@ -79,8 +79,7 @@ impl ExternalIO {
             .await?
             .factory_deps_dal()
             .get_factory_dep(hash)
-            .await
-            .with_context(|| format!("failed getting bytecode for hash {hash:?}"))?;
+            .await?;
 
         Ok(match bytecode {
             Some(bytecode) => SystemContractCode {

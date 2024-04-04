@@ -79,6 +79,7 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             tree_api_url: self.sample(rng),
             mempool_cache_update_interval: self.sample(rng),
             mempool_cache_size: self.sample(rng),
+            whitelisted_tokens_for_aa: self.sample_range(rng).map(|_| rng.gen()).collect(),
         }
     }
 }
@@ -171,6 +172,7 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             virtual_blocks_interval: self.sample(rng),
             virtual_blocks_per_miniblock: self.sample(rng),
             enum_index_migration_chunk_size: self.sample(rng),
+            max_circuits_per_batch: self.sample(rng),
             // These values are not involved into files serialization skip them
             fee_account_addr: None,
             bootloader_hash: None,
@@ -430,6 +432,7 @@ impl Distribution<configs::FriProverConfig> for EncodeDist {
             witness_vector_receiver_port: self.sample(rng),
             zone_read_url: self.sample(rng),
             shall_save_to_public_bucket: self.sample(rng),
+            availability_check_interval_in_secs: self.sample(rng),
             object_store: self.sample(rng),
         }
     }
@@ -563,8 +566,10 @@ impl Distribution<configs::house_keeper::HouseKeeperConfig> for EncodeDist {
             witness_generator_job_retrying_interval_ms: self.sample(rng),
             proof_compressor_job_retrying_interval_ms: self.sample(rng),
             proof_compressor_stats_reporting_interval_ms: self.sample(rng),
-            prover_job_archiver_reporting_interval_ms: self.sample(rng),
-            prover_job_archiver_archiving_interval_secs: self.sample(rng),
+            prover_job_archiver_archiving_interval_ms: self.sample(rng),
+            prover_job_archiver_archive_after_secs: self.sample(rng),
+            fri_gpu_prover_archiver_archiving_interval_ms: self.sample(rng),
+            fri_gpu_prover_archiver_archive_after_secs: self.sample(rng),
         }
     }
 }
