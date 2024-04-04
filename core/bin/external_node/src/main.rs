@@ -58,15 +58,15 @@ use crate::{
     config::{observability::observability_config_from_env, ExternalNodeConfig},
     helpers::MainNodeHealthCheck,
     init::ensure_storage_initialized,
+    metrics::RUST_METRICS,
 };
 
 mod config;
 mod helpers;
 mod init;
+mod metadata;
 mod metrics;
 mod version_sync_task;
-
-const RELEASE_MANIFEST: &str = include_str!("../../../../.github/release-please/manifest.json");
 
 /// Creates the state keeper configured to work in the external node mode.
 #[allow(clippy::too_many_arguments)]
@@ -501,32 +501,11 @@ async fn init_tasks(
     stop_receiver: watch::Receiver<bool>,
     components: &HashSet<Component>,
 ) -> anyhow::Result<()> {
-    let release_manifest: serde_json::Value = serde_json::from_str(RELEASE_MANIFEST)
-        .context("releuse manifest is a valid json document")?;
-    let release_manifest_version = release_manifest["core"].as_str().context(
-        "a release-please manifest with \"core\" version field was specified at build time",
-    )?;
-
-    let version = semver::Version::parse(release_manifest_version)
-        .context("version in manifest is a correct semver format")?;
-    let pool = connection_pool.clone();
-    task_handles.push(tokio::spawn(async move {
-        loop {
-            let protocol_version = pool
-                .connection()
-                .await
-                .unwrap()
-                .protocol_versions_dal()
-                .last_used_version_id()
-                .await
-                .map(|version| version as u16);
-
-            EN_METRICS.version[&(format!("{}", version), protocol_version)].set(1);
-
-            tokio::time::sleep(Duration::from_secs(10)).await;
-        }
-    }));
-
+    RUST_METRICS.initialize();
+    EN_METRICS.observe_config(config);
+    let protocol_version_update_task =
+        EN_METRICS.run_protocol_version_updates(connection_pool.clone(), stop_receiver.clone());
+    task_handles.push(tokio::spawn(protocol_version_update_task));
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
 
     // Run the components.

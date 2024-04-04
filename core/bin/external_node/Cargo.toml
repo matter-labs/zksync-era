@@ -44,3 +44,6 @@ clap = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 semver.workspace = true
 tracing.workspace = true
+
+[build-dependencies]
+rustc_version.workspace = true
