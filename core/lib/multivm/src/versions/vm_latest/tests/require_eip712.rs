@@ -108,7 +108,6 @@ async fn test_require_eip712() {
 
     vm.vm.push_transaction(transaction);
     let result = vm.vm.execute(VmExecutionMode::OneTx);
-    println!("{:#?}", result.result);
     assert!(!result.result.is_failed());
 
     assert_eq!(

@@ -767,13 +767,9 @@ impl TxSender {
                 .await
                 .context("estimate_gas step failed")?;
 
-            println!("\nRESULT {:#?}\n", result.result);
-
             // It is assumed that there is no overflow here
             (result.statistics.pubdata_published as u64) * gas_per_pubdata_byte
         };
-
-        println!("\n{:#?}\n", additional_gas_for_pubdata);
 
         // We are using binary search to find the minimal values of gas_limit under which
         // the transaction succeeds
