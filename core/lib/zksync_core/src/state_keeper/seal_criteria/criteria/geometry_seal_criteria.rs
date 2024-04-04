@@ -182,7 +182,7 @@ mod tests {
         let protocol_version = ProtocolVersionId::latest();
         let block_execution_metrics = ExecutionMetrics {
             circuit_statistic: CircuitStatistic {
-                main_vm: (CircuitsCriterion::limit_per_block(protocol_version) / 2) as f32,
+                main_vm: (CircuitsCriterion::limit_per_block(protocol_version) / 5) as f32,
                 ..CircuitStatistic::default()
             },
             ..ExecutionMetrics::default()
