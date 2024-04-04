@@ -1,5 +1,3 @@
-use std::fmt;
-
 use multivm::utils::{
     circuit_statistics_bootloader_batch_tip_overhead, get_max_batch_base_layer_circuits,
 };
@@ -21,7 +19,7 @@ impl SealCriterion for CircuitsCriterion {
         &self,
         config: &StateKeeperConfig,
         _block_open_timestamp_ms: u128,
-        tx_count: usize,
+        _tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
@@ -58,9 +56,7 @@ impl SealCriterion for CircuitsCriterion {
         } else if used_circuits_batch + batch_tip_circuit_overhead >= config.max_circuits_per_batch
         {
             SealResolution::ExcludeAndSeal
-        } else if used_circuits_batch + batch_tip_circuit_overhead
-            >= include_and_seal_bound as usize
-        {
+        } else if used_circuits_batch + batch_tip_circuit_overhead >= include_and_seal_bound {
             SealResolution::IncludeAndSeal
         } else {
             SealResolution::NoSeal
@@ -73,14 +69,17 @@ impl SealCriterion for CircuitsCriterion {
 }
 #[cfg(test)]
 mod tests {
-    use zksync_types::circuit::CircuitStatistic;
+    use zksync_types::{circuit::CircuitStatistic, tx::ExecutionMetrics};
 
     use super::*;
+
+    const MAX_CIRCUITS_PER_BATCH: usize = 100;
 
     fn get_config() -> StateKeeperConfig {
         StateKeeperConfig {
             close_block_at_geometry_percentage: 0.9,
             reject_tx_at_geometry_percentage: 0.9,
+            max_circuits_per_batch: MAX_CIRCUITS_PER_BATCH,
             ..Default::default()
         }
     }
@@ -175,7 +174,7 @@ mod tests {
         let protocol_version = ProtocolVersionId::latest();
         let block_execution_metrics = ExecutionMetrics {
             circuit_statistic: CircuitStatistic {
-                main_vm: (CircuitsCriterion::limit_per_block(protocol_version) / 2) as f32,
+                main_vm: (MAX_CIRCUITS_PER_BATCH / 2) as f32,
                 ..CircuitStatistic::default()
             },
             ..ExecutionMetrics::default()
@@ -188,7 +187,7 @@ mod tests {
 
         let block_execution_metrics = ExecutionMetrics {
             circuit_statistic: CircuitStatistic {
-                main_vm: (CircuitsCriterion::limit_per_block(protocol_version)
+                main_vm: (MAX_CIRCUITS_PER_BATCH
                     - 1
                     - circuit_statistics_bootloader_batch_tip_overhead(
                         ProtocolVersionId::latest().into(),
@@ -206,7 +205,7 @@ mod tests {
 
         let block_execution_metrics = ExecutionMetrics {
             circuit_statistic: CircuitStatistic {
-                main_vm: CircuitsCriterion::limit_per_block(protocol_version) as f32,
+                main_vm: MAX_CIRCUITS_PER_BATCH as f32,
                 ..CircuitStatistic::default()
             },
             ..ExecutionMetrics::default()
@@ -220,7 +219,7 @@ mod tests {
 
         let tx_execution_metrics = ExecutionMetrics {
             circuit_statistic: CircuitStatistic {
-                main_vm: CircuitsCriterion::limit_per_block(protocol_version) as f32
+                main_vm: MAX_CIRCUITS_PER_BATCH as f32
                     * config.reject_tx_at_geometry_percentage as f32
                     + 1.0,
                 ..CircuitStatistic::default()
