@@ -953,68 +953,76 @@ impl TransactionsDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn mark_tx_as_rejected(&mut self, transaction_hash: H256, error: &str) {
-        {
-            // If the rejected tx has been replaced, it means that this tx hash does not exist in the database
-            // and we will update nothing.
-            // These txs don't affect the state, so we can just easily skip this update.
-            sqlx::query!(
-                r#"
-                UPDATE transactions
-                SET
-                    error = $1,
-                    updated_at = NOW()
-                WHERE
-                    hash = $2
-                "#,
-                error,
-                transaction_hash.0.to_vec()
-            )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
-        }
+    pub async fn mark_tx_as_rejected(
+        &mut self,
+        transaction_hash: H256,
+        error: &str,
+    ) -> DalResult<()> {
+        // If the rejected tx has been replaced, it means that this tx hash does not exist in the database
+        // and we will update nothing.
+        // These txs don't affect the state, so we can just easily skip this update.
+        sqlx::query!(
+            r#"
+            UPDATE transactions
+            SET
+                error = $1,
+                updated_at = NOW()
+            WHERE
+                hash = $2
+            "#,
+            error,
+            transaction_hash.as_bytes()
+        )
+        .instrument("mark_tx_as_rejected")
+        .with_arg("transaction_hash", &transaction_hash)
+        .execute(self.storage)
+        .await?;
+        Ok(())
     }
 
-    pub async fn reset_transactions_state(&mut self, miniblock_number: MiniblockNumber) {
-        {
-            let tx_hashes = sqlx::query!(
-                r#"
-                UPDATE transactions
-                SET
-                    l1_batch_number = NULL,
-                    miniblock_number = NULL,
-                    error = NULL,
-                    index_in_block = NULL,
-                    execution_info = '{}'
-                WHERE
-                    miniblock_number > $1
-                RETURNING
-                    hash
-                "#,
-                i64::from(miniblock_number.0)
-            )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap();
-            sqlx::query!(
-                r#"
-                DELETE FROM call_traces
-                WHERE
-                    tx_hash = ANY ($1)
-                "#,
-                &tx_hashes
-                    .iter()
-                    .map(|tx| tx.hash.clone())
-                    .collect::<Vec<Vec<u8>>>()
-            )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
-        }
+    pub async fn reset_transactions_state(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+    ) -> DalResult<()> {
+        let hash_rows = sqlx::query!(
+            r#"
+            UPDATE transactions
+            SET
+                l1_batch_number = NULL,
+                miniblock_number = NULL,
+                error = NULL,
+                index_in_block = NULL,
+                execution_info = '{}'
+            WHERE
+                miniblock_number > $1
+            RETURNING
+                hash
+            "#,
+            i64::from(miniblock_number.0)
+        )
+        .instrument("reset_transactions_state#get_tx_hashes")
+        .with_arg("miniblock_number", &miniblock_number)
+        .fetch_all(self.storage)
+        .await?;
+
+        let tx_hashes: Vec<_> = hash_rows.iter().map(|row| &row.hash[..]).collect();
+        sqlx::query!(
+            r#"
+            DELETE FROM call_traces
+            WHERE
+                tx_hash = ANY ($1)
+            "#,
+            &tx_hashes as &[&[u8]]
+        )
+        .instrument("reset_transactions_state")
+        .with_arg("miniblock_number", &miniblock_number)
+        .with_arg("tx_hashes.len", &tx_hashes.len())
+        .execute(self.storage)
+        .await?;
+        Ok(())
     }
 
-    pub async fn remove_stuck_txs(&mut self, stuck_tx_timeout: Duration) -> sqlx::Result<usize> {
+    pub async fn remove_stuck_txs(&mut self, stuck_tx_timeout: Duration) -> DalResult<usize> {
         let stuck_tx_timeout = pg_interval_from_duration(stuck_tx_timeout);
         let rows = sqlx::query!(
             r#"
@@ -1029,7 +1037,9 @@ impl TransactionsDal<'_, '_> {
             "#,
             stuck_tx_timeout
         )
-        .fetch_all(self.storage.conn())
+        .instrument("remove_stuck_txs")
+        .with_arg("stuck_tx_timeout", &stuck_tx_timeout)
+        .fetch_all(self.storage)
         .await?;
 
         Ok(rows.len())
@@ -1044,7 +1054,7 @@ impl TransactionsDal<'_, '_> {
         gas_per_pubdata: u32,
         fee_per_gas: u64,
         limit: usize,
-    ) -> sqlx::Result<Vec<Transaction>> {
+    ) -> DalResult<Vec<Transaction>> {
         let stashed_addresses: Vec<_> = stashed_accounts.iter().map(Address::as_bytes).collect();
         sqlx::query!(
             r#"
@@ -1059,7 +1069,9 @@ impl TransactionsDal<'_, '_> {
             "#,
             &stashed_addresses as &[&[u8]],
         )
-        .execute(self.storage.conn())
+        .instrument("sync_mempool#update_stashed")
+        .with_arg("stashed_addresses.len", &stashed_addresses.len())
+        .execute(self.storage)
         .await?;
 
         let purged_addresses: Vec<_> = purged_accounts.iter().map(Address::as_bytes).collect();
@@ -1072,7 +1084,9 @@ impl TransactionsDal<'_, '_> {
             "#,
             &purged_addresses as &[&[u8]]
         )
-        .execute(self.storage.conn())
+        .instrument("sync_mempool#delete_purged")
+        .with_arg("purged_addresses.len", &purged_addresses.len())
+        .execute(self.storage)
         .await?;
 
         // Note, that transactions are updated in order of their hashes to avoid deadlocks with other UPDATE queries.
@@ -1124,7 +1138,11 @@ impl TransactionsDal<'_, '_> {
             BigDecimal::from(gas_per_pubdata),
             i32::from(PROTOCOL_UPGRADE_TX_TYPE)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("sync_mempool")
+        .with_arg("fee_per_gas", &fee_per_gas)
+        .with_arg("gas_per_pubdata", &gas_per_pubdata)
+        .with_arg("limit", &limit)
+        .fetch_all(self.storage)
         .await?;
 
         let transactions = transactions.into_iter().map(|tx| tx.into()).collect();

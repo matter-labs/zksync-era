@@ -259,7 +259,8 @@ impl BlockReverter {
         transaction
             .transactions_dal()
             .reset_transactions_state(last_miniblock_to_keep)
-            .await;
+            .await
+            .expect("failed resetting transaction state");
         tracing::info!("rolling back events...");
         transaction
             .events_dal()

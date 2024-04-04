@@ -596,7 +596,8 @@ mod tests {
         // Reject the transaction with nonce 1, so that it'd be not taken into account.
         conn.transactions_dal()
             .mark_tx_as_rejected(tx_by_nonce[&1].hash(), "oops")
-            .await;
+            .await
+            .unwrap();
         let next_nonce = conn
             .transactions_web3_dal()
             .next_nonce_by_initiator_account(initiator, 0)
