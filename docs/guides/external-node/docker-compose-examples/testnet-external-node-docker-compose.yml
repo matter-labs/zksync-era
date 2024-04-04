@@ -7,7 +7,7 @@ services:
       - 127.0.0.1:5432:5432
     volumes:
       - type: bind
-        source: volumes/postgres-testnet-sepolia-external-node
+        source: volumes/testnet-external-node-postgres
         target: /var/lib/postgresql/data
     healthcheck:
       interval: 1s
@@ -21,6 +21,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - type: bind
+        source: volumes/testnet-external-node-state-keeper
+        target: /usr/src/zksync/db/ext-node/state_keeper
+      - type: bind
+        source: volumes/testnet-external-node-merkle-tree
+        target: /usr/src/zksync/db/ext-node/lightweight
     expose:
       - 3060
       - 3061
