@@ -5,7 +5,9 @@ use bigdecimal::BigDecimal;
 use itertools::Itertools;
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_db_connection::{
-    connection::Connection, error::DalResult, instrument::InstrumentExt,
+    connection::Connection,
+    error::DalResult,
+    instrument::{InstrumentExt, Instrumented},
     utils::pg_interval_from_duration,
 };
 use zksync_types::{
@@ -519,311 +521,28 @@ impl TransactionsDal<'_, '_> {
             .await?
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
-        let mut l1_hashes = Vec::with_capacity(transactions.len());
-        let mut l1_indices_in_block = Vec::with_capacity(transactions.len());
-        let mut l1_errors = Vec::with_capacity(transactions.len());
-        let mut l1_execution_infos = Vec::with_capacity(transactions.len());
-        let mut l1_refunded_gas = Vec::with_capacity(transactions.len());
-        let mut l1_effective_gas_prices = Vec::with_capacity(transactions.len());
-
-        let mut upgrade_hashes = Vec::new();
-        let mut upgrade_indices_in_block = Vec::new();
-        let mut upgrade_errors = Vec::new();
-        let mut upgrade_execution_infos = Vec::new();
-        let mut upgrade_refunded_gas = Vec::new();
-        let mut upgrade_effective_gas_prices = Vec::new();
-
-        let mut l2_hashes = Vec::with_capacity(transactions.len());
-        let mut l2_values = Vec::with_capacity(transactions.len());
-        let mut l2_contract_addresses = Vec::with_capacity(transactions.len());
-        let mut l2_paymaster = Vec::with_capacity(transactions.len());
-        let mut l2_paymaster_input = Vec::with_capacity(transactions.len());
-        let mut l2_indices_in_block = Vec::with_capacity(transactions.len());
-        let mut l2_initiators = Vec::with_capacity(transactions.len());
-        let mut l2_nonces = Vec::with_capacity(transactions.len());
-        let mut l2_signatures = Vec::with_capacity(transactions.len());
-        let mut l2_tx_formats = Vec::with_capacity(transactions.len());
-        let mut l2_errors = Vec::with_capacity(transactions.len());
-        let mut l2_effective_gas_prices = Vec::with_capacity(transactions.len());
-        let mut l2_execution_infos = Vec::with_capacity(transactions.len());
-        let mut l2_inputs = Vec::with_capacity(transactions.len());
-        let mut l2_datas = Vec::with_capacity(transactions.len());
-        let mut l2_gas_limits = Vec::with_capacity(transactions.len());
-        let mut l2_max_fees_per_gas = Vec::with_capacity(transactions.len());
-        let mut l2_max_priority_fees_per_gas = Vec::with_capacity(transactions.len());
-        let mut l2_gas_per_pubdata_limit = Vec::with_capacity(transactions.len());
-        let mut l2_refunded_gas = Vec::with_capacity(transactions.len());
-
         let mut call_traces_tx_hashes = Vec::with_capacity(transactions.len());
         let mut bytea_call_traces = Vec::with_capacity(transactions.len());
-        transactions
-            .iter()
-            .enumerate()
-            .for_each(|(index_in_block, tx_res)| {
-                let TransactionExecutionResult {
-                    hash,
-                    execution_info,
-                    transaction,
-                    execution_status,
-                    refunded_gas,
-                    ..
-                } = tx_res;
-
-                // Bootloader currently doesn't return detailed errors.
-                let error = match execution_status {
-                    TxExecutionStatus::Success => None,
-                    // The string error used here is copied from the previous version.
-                    // It is applied to every failed transaction -
-                    // currently detailed errors are not supported.
-                    TxExecutionStatus::Failure => Some("Bootloader-based tx failed".to_owned()),
-                };
-
-                if let Some(call_trace) = tx_res.call_trace() {
-                    bytea_call_traces
-                        .push(CallTrace::from_call(call_trace, protocol_version).call_trace);
-                    call_traces_tx_hashes.push(hash.0.to_vec());
-                }
-
-                match &transaction.common_data {
-                    ExecuteTransactionCommon::L1(common_data) => {
-                        l1_hashes.push(hash.0.to_vec());
-                        l1_indices_in_block.push(index_in_block as i32);
-                        l1_errors.push(error.unwrap_or_default());
-                        l1_execution_infos.push(serde_json::to_value(execution_info).unwrap());
-                        // FIXME: propagate errors
-                        l1_refunded_gas
-                            .push(i64::try_from(*refunded_gas).expect("Refund exceeds i64"));
-                        l1_effective_gas_prices
-                            .push(u256_to_big_decimal(common_data.max_fee_per_gas));
-                    }
-                    ExecuteTransactionCommon::L2(common_data) => {
-                        let data = serde_json::to_value(&transaction.execute).unwrap();
-                        l2_values.push(u256_to_big_decimal(transaction.execute.value));
-                        l2_contract_addresses
-                            .push(transaction.execute.contract_address.as_bytes().to_vec());
-                        l2_paymaster_input
-                            .push(common_data.paymaster_params.paymaster_input.clone());
-                        l2_paymaster
-                            .push(common_data.paymaster_params.paymaster.as_bytes().to_vec());
-                        l2_hashes.push(hash.0.to_vec());
-                        l2_indices_in_block.push(index_in_block as i32);
-                        l2_initiators.push(transaction.initiator_account().0.to_vec());
-                        l2_nonces.push(common_data.nonce.0 as i32);
-                        l2_signatures.push(common_data.signature.clone());
-                        l2_tx_formats.push(common_data.transaction_type as i32);
-                        l2_errors.push(error.unwrap_or_default());
-                        let l2_effective_gas_price = common_data
-                            .fee
-                            .get_effective_gas_price(block_base_fee_per_gas);
-                        l2_effective_gas_prices.push(u256_to_big_decimal(l2_effective_gas_price));
-                        l2_execution_infos.push(serde_json::to_value(execution_info).unwrap());
-                        // Normally input data is mandatory
-                        l2_inputs.push(common_data.input_data().unwrap_or_default());
-                        l2_datas.push(data);
-                        l2_gas_limits.push(u256_to_big_decimal(common_data.fee.gas_limit));
-                        l2_max_fees_per_gas
-                            .push(u256_to_big_decimal(common_data.fee.max_fee_per_gas));
-                        l2_max_priority_fees_per_gas.push(u256_to_big_decimal(
-                            common_data.fee.max_priority_fee_per_gas,
-                        ));
-                        l2_gas_per_pubdata_limit
-                            .push(u256_to_big_decimal(common_data.fee.gas_per_pubdata_limit));
-                        l2_refunded_gas
-                            .push(i64::try_from(*refunded_gas).expect("Refund exceeds i64"));
-                    }
-                    ExecuteTransactionCommon::ProtocolUpgrade(common_data) => {
-                        upgrade_hashes.push(hash.0.to_vec());
-                        upgrade_indices_in_block.push(index_in_block as i32);
-                        upgrade_errors.push(error.unwrap_or_default());
-                        upgrade_execution_infos.push(serde_json::to_value(execution_info).unwrap());
-                        upgrade_refunded_gas
-                            .push(i64::try_from(*refunded_gas).expect("Refund exceeds i64"));
-                        upgrade_effective_gas_prices
-                            .push(u256_to_big_decimal(common_data.max_fee_per_gas));
-                    }
-                }
-            });
-
-        if !l2_hashes.is_empty() {
-            // Update L2 txs
-
-            // Due to the current tx replacement model, it's possible that tx has been replaced,
-            // but the original was executed in memory,
-            // so we have to update all fields for tx from fields stored in memory.
-            // Note, that transactions are updated in order of their hashes to avoid deadlocks with other UPDATE queries.
-            sqlx::query!(
-                r#"
-                UPDATE transactions
-                SET
-                    hash = data_table.hash,
-                    signature = data_table.signature,
-                    gas_limit = data_table.gas_limit,
-                    max_fee_per_gas = data_table.max_fee_per_gas,
-                    max_priority_fee_per_gas = data_table.max_priority_fee_per_gas,
-                    gas_per_pubdata_limit = data_table.gas_per_pubdata_limit,
-                    input = data_table.input,
-                    data = data_table.data,
-                    tx_format = data_table.tx_format,
-                    miniblock_number = $21,
-                    index_in_block = data_table.index_in_block,
-                    error = NULLIF(data_table.error, ''),
-                    effective_gas_price = data_table.effective_gas_price,
-                    execution_info = data_table.new_execution_info,
-                    refunded_gas = data_table.refunded_gas,
-                    value = data_table.value,
-                    contract_address = data_table.contract_address,
-                    paymaster = data_table.paymaster,
-                    paymaster_input = data_table.paymaster_input,
-                    in_mempool = FALSE,
-                    updated_at = NOW()
-                FROM
-                    (
-                        SELECT
-                            data_table_temp.*
-                        FROM
-                            (
-                                SELECT
-                                    UNNEST($1::bytea[]) AS initiator_address,
-                                    UNNEST($2::INT[]) AS nonce,
-                                    UNNEST($3::bytea[]) AS hash,
-                                    UNNEST($4::bytea[]) AS signature,
-                                    UNNEST($5::NUMERIC[]) AS gas_limit,
-                                    UNNEST($6::NUMERIC[]) AS max_fee_per_gas,
-                                    UNNEST($7::NUMERIC[]) AS max_priority_fee_per_gas,
-                                    UNNEST($8::NUMERIC[]) AS gas_per_pubdata_limit,
-                                    UNNEST($9::INT[]) AS tx_format,
-                                    UNNEST($10::INTEGER[]) AS index_in_block,
-                                    UNNEST($11::VARCHAR[]) AS error,
-                                    UNNEST($12::NUMERIC[]) AS effective_gas_price,
-                                    UNNEST($13::jsonb[]) AS new_execution_info,
-                                    UNNEST($14::bytea[]) AS input,
-                                    UNNEST($15::jsonb[]) AS data,
-                                    UNNEST($16::BIGINT[]) AS refunded_gas,
-                                    UNNEST($17::NUMERIC[]) AS value,
-                                    UNNEST($18::bytea[]) AS contract_address,
-                                    UNNEST($19::bytea[]) AS paymaster,
-                                    UNNEST($20::bytea[]) AS paymaster_input
-                            ) AS data_table_temp
-                            JOIN transactions ON transactions.initiator_address = data_table_temp.initiator_address
-                            AND transactions.nonce = data_table_temp.nonce
-                        ORDER BY
-                            transactions.hash
-                    ) AS data_table
-                WHERE
-                    transactions.initiator_address = data_table.initiator_address
-                    AND transactions.nonce = data_table.nonce
-                "#,
-                &l2_initiators,
-                &l2_nonces,
-                &l2_hashes,
-                &l2_signatures,
-                &l2_gas_limits,
-                &l2_max_fees_per_gas,
-                &l2_max_priority_fees_per_gas,
-                &l2_gas_per_pubdata_limit,
-                &l2_tx_formats,
-                &l2_indices_in_block,
-                &l2_errors,
-                &l2_effective_gas_prices,
-                &l2_execution_infos,
-                &l2_inputs as &[&[u8]],
-                &l2_datas,
-                &l2_refunded_gas,
-                &l2_values,
-                &l2_contract_addresses,
-                &l2_paymaster,
-                &l2_paymaster_input,
-                miniblock_number.0 as i32,
-            )
-            .instrument("mark_txs_as_executed_in_miniblock#update_l2_txs")
-            .with_arg("miniblock_number", &miniblock_number)
-            .with_arg("l1_txs.len", &l2_hashes.len())
-            .execute(&mut transaction)
-            .await?;
+        for tx_res in transactions {
+            if let Some(call_trace) = tx_res.call_trace() {
+                bytea_call_traces
+                    .push(CallTrace::from_call(call_trace, protocol_version).call_trace);
+                call_traces_tx_hashes.push(tx_res.hash.as_bytes());
+            }
         }
 
-        // We can't replace l1 transaction, so we simply write the execution result
-        if !l1_hashes.is_empty() {
-            sqlx::query!(
-                r#"
-                UPDATE transactions
-                SET
-                    miniblock_number = $1,
-                    index_in_block = data_table.index_in_block,
-                    error = NULLIF(data_table.error, ''),
-                    in_mempool = FALSE,
-                    execution_info = execution_info || data_table.new_execution_info,
-                    refunded_gas = data_table.refunded_gas,
-                    effective_gas_price = data_table.effective_gas_price,
-                    updated_at = NOW()
-                FROM
-                    (
-                        SELECT
-                            UNNEST($2::bytea[]) AS hash,
-                            UNNEST($3::INTEGER[]) AS index_in_block,
-                            UNNEST($4::VARCHAR[]) AS error,
-                            UNNEST($5::jsonb[]) AS new_execution_info,
-                            UNNEST($6::BIGINT[]) AS refunded_gas,
-                            UNNEST($7::NUMERIC[]) AS effective_gas_price
-                    ) AS data_table
-                WHERE
-                    transactions.hash = data_table.hash
-                "#,
-                miniblock_number.0 as i32,
-                &l1_hashes,
-                &l1_indices_in_block,
-                &l1_errors,
-                &l1_execution_infos,
-                &l1_refunded_gas,
-                &l1_effective_gas_prices,
-            )
-            .instrument("mark_txs_as_executed_in_miniblock#update_l1_txs")
-            .with_arg("miniblock_number", &miniblock_number)
-            .with_arg("l1_txs.len", &l1_hashes.len())
-            .execute(&mut transaction)
+        transaction
+            .transactions_dal()
+            .handle_executed_l2_transactions(miniblock_number, block_base_fee_per_gas, transactions)
             .await?;
-        }
-
-        if !upgrade_hashes.is_empty() {
-            sqlx::query!(
-                r#"
-                UPDATE transactions
-                SET
-                    miniblock_number = $1,
-                    index_in_block = data_table.index_in_block,
-                    error = NULLIF(data_table.error, ''),
-                    in_mempool = FALSE,
-                    execution_info = execution_info || data_table.new_execution_info,
-                    refunded_gas = data_table.refunded_gas,
-                    effective_gas_price = data_table.effective_gas_price,
-                    updated_at = NOW()
-                FROM
-                    (
-                        SELECT
-                            UNNEST($2::bytea[]) AS hash,
-                            UNNEST($3::INTEGER[]) AS index_in_block,
-                            UNNEST($4::VARCHAR[]) AS error,
-                            UNNEST($5::jsonb[]) AS new_execution_info,
-                            UNNEST($6::BIGINT[]) AS refunded_gas,
-                            UNNEST($7::NUMERIC[]) AS effective_gas_price
-                    ) AS data_table
-                WHERE
-                    transactions.hash = data_table.hash
-                "#,
-                miniblock_number.0 as i32,
-                &upgrade_hashes,
-                &upgrade_indices_in_block,
-                &upgrade_errors,
-                &upgrade_execution_infos,
-                &upgrade_refunded_gas,
-                &upgrade_effective_gas_prices,
-            )
-            .instrument("mark_txs_as_executed_in_miniblock#insert_upgrades")
-            .with_arg("miniblock_number", &miniblock_number)
-            .with_arg("upgrade_hashes", &upgrade_hashes)
-            .execute(&mut transaction)
+        transaction
+            .transactions_dal()
+            .handle_executed_l1_transactions(miniblock_number, transactions)
             .await?;
-        }
+        transaction
+            .transactions_dal()
+            .handle_executed_upgrade_transactions(miniblock_number, transactions)
+            .await?;
 
         if !bytea_call_traces.is_empty() {
             sqlx::query!(
@@ -836,7 +555,7 @@ impl TransactionsDal<'_, '_> {
                 FROM
                     UNNEST($1::bytea[], $2::bytea[]) AS u (tx_hash, call_trace)
                 "#,
-                &call_traces_tx_hashes,
+                &call_traces_tx_hashes as &[&[u8]],
                 &bytea_call_traces
             )
             .instrument("insert_call_tracer")
@@ -846,6 +565,392 @@ impl TransactionsDal<'_, '_> {
         }
 
         transaction.commit().await
+    }
+
+    // Bootloader currently doesn't return detailed errors.
+    fn map_transaction_error(tx_res: &TransactionExecutionResult) -> &'static str {
+        match &tx_res.execution_status {
+            TxExecutionStatus::Success => "",
+            // The string error used here is copied from the previous version.
+            // It is applied to every failed transaction -
+            // currently detailed errors are not supported.
+            TxExecutionStatus::Failure => "Bootloader-based tx failed",
+        }
+    }
+
+    async fn handle_executed_l2_transactions(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+        block_base_fee_per_gas: U256,
+        transactions: &[TransactionExecutionResult],
+    ) -> DalResult<()> {
+        let l2_txs_len = transactions
+            .iter()
+            .filter(|tx_res| {
+                matches!(
+                    tx_res.transaction.common_data,
+                    ExecuteTransactionCommon::L2(_)
+                )
+            })
+            .count();
+        if l2_txs_len == 0 {
+            return Ok(());
+        }
+
+        let instrumentation = Instrumented::new("mark_txs_as_executed_in_miniblock#update_l2_txs")
+            .with_arg("miniblock_number", &miniblock_number)
+            .with_arg("l2_txs.len", &l2_txs_len);
+
+        let mut l2_hashes = Vec::with_capacity(l2_txs_len);
+        let mut l2_values = Vec::with_capacity(l2_txs_len);
+        let mut l2_contract_addresses = Vec::with_capacity(l2_txs_len);
+        let mut l2_paymaster = Vec::with_capacity(l2_txs_len);
+        let mut l2_paymaster_input = Vec::with_capacity(l2_txs_len);
+        let mut l2_indices_in_block = Vec::with_capacity(l2_txs_len);
+        let mut l2_initiators = Vec::with_capacity(l2_txs_len);
+        let mut l2_nonces = Vec::with_capacity(l2_txs_len);
+        let mut l2_signatures = Vec::with_capacity(l2_txs_len);
+        let mut l2_tx_formats = Vec::with_capacity(l2_txs_len);
+        let mut l2_errors = Vec::with_capacity(l2_txs_len);
+        let mut l2_effective_gas_prices = Vec::with_capacity(l2_txs_len);
+        let mut l2_execution_infos = Vec::with_capacity(l2_txs_len);
+        let mut l2_inputs = Vec::with_capacity(l2_txs_len);
+        let mut l2_datas = Vec::with_capacity(l2_txs_len);
+        let mut l2_gas_limits = Vec::with_capacity(l2_txs_len);
+        let mut l2_max_fees_per_gas = Vec::with_capacity(l2_txs_len);
+        let mut l2_max_priority_fees_per_gas = Vec::with_capacity(l2_txs_len);
+        let mut l2_gas_per_pubdata_limit = Vec::with_capacity(l2_txs_len);
+        let mut l2_refunded_gas = Vec::with_capacity(l2_txs_len);
+
+        for (index_in_block, tx_res) in transactions.iter().enumerate() {
+            let transaction = &tx_res.transaction;
+            let ExecuteTransactionCommon::L2(common_data) = &transaction.common_data else {
+                continue;
+            };
+
+            let data = serde_json::to_value(&transaction.execute).map_err(|err| {
+                instrumentation.arg_error(
+                    &format!("transactions[{index_in_block}].transaction.execute"),
+                    err,
+                )
+            })?;
+            let l2_execution_info = serde_json::to_value(tx_res.execution_info).map_err(|err| {
+                instrumentation.arg_error(
+                    &format!("transactions[{index_in_block}].execution_info"),
+                    err,
+                )
+            })?;
+            let refunded_gas = i64::try_from(tx_res.refunded_gas).map_err(|err| {
+                instrumentation
+                    .arg_error(&format!("transactions[{index_in_block}].refunded_gas"), err)
+            })?;
+
+            l2_values.push(u256_to_big_decimal(transaction.execute.value));
+            l2_contract_addresses.push(transaction.execute.contract_address.as_bytes());
+            l2_paymaster_input.push(&common_data.paymaster_params.paymaster_input[..]);
+            l2_paymaster.push(common_data.paymaster_params.paymaster.as_bytes());
+            l2_hashes.push(tx_res.hash.as_bytes());
+            l2_indices_in_block.push(index_in_block as i32);
+            l2_initiators.push(transaction.initiator_account().0);
+            l2_nonces.push(common_data.nonce.0 as i32);
+            l2_signatures.push(&common_data.signature[..]);
+            l2_tx_formats.push(common_data.transaction_type as i32);
+            l2_errors.push(Self::map_transaction_error(tx_res));
+            let l2_effective_gas_price = common_data
+                .fee
+                .get_effective_gas_price(block_base_fee_per_gas);
+            l2_effective_gas_prices.push(u256_to_big_decimal(l2_effective_gas_price));
+            l2_execution_infos.push(l2_execution_info);
+            // Normally input data is mandatory
+            l2_inputs.push(common_data.input_data().unwrap_or_default());
+            l2_datas.push(data);
+            l2_gas_limits.push(u256_to_big_decimal(common_data.fee.gas_limit));
+            l2_max_fees_per_gas.push(u256_to_big_decimal(common_data.fee.max_fee_per_gas));
+            l2_max_priority_fees_per_gas.push(u256_to_big_decimal(
+                common_data.fee.max_priority_fee_per_gas,
+            ));
+            l2_gas_per_pubdata_limit
+                .push(u256_to_big_decimal(common_data.fee.gas_per_pubdata_limit));
+            l2_refunded_gas.push(refunded_gas);
+        }
+
+        // Due to the current tx replacement model, it's possible that tx has been replaced,
+        // but the original was executed in memory,
+        // so we have to update all fields for tx from fields stored in memory.
+        // Note, that transactions are updated in order of their hashes to avoid deadlocks with other UPDATE queries.
+        let query = sqlx::query!(
+            r#"
+            UPDATE transactions
+            SET
+                hash = data_table.hash,
+                signature = data_table.signature,
+                gas_limit = data_table.gas_limit,
+                max_fee_per_gas = data_table.max_fee_per_gas,
+                max_priority_fee_per_gas = data_table.max_priority_fee_per_gas,
+                gas_per_pubdata_limit = data_table.gas_per_pubdata_limit,
+                input = data_table.input,
+                data = data_table.data,
+                tx_format = data_table.tx_format,
+                miniblock_number = $21,
+                index_in_block = data_table.index_in_block,
+                error = NULLIF(data_table.error, ''),
+                effective_gas_price = data_table.effective_gas_price,
+                execution_info = data_table.new_execution_info,
+                refunded_gas = data_table.refunded_gas,
+                value = data_table.value,
+                contract_address = data_table.contract_address,
+                paymaster = data_table.paymaster,
+                paymaster_input = data_table.paymaster_input,
+                in_mempool = FALSE,
+                updated_at = NOW()
+            FROM
+                (
+                    SELECT
+                        data_table_temp.*
+                    FROM
+                        (
+                            SELECT
+                                UNNEST($1::bytea[]) AS initiator_address,
+                                UNNEST($2::INT[]) AS nonce,
+                                UNNEST($3::bytea[]) AS hash,
+                                UNNEST($4::bytea[]) AS signature,
+                                UNNEST($5::NUMERIC[]) AS gas_limit,
+                                UNNEST($6::NUMERIC[]) AS max_fee_per_gas,
+                                UNNEST($7::NUMERIC[]) AS max_priority_fee_per_gas,
+                                UNNEST($8::NUMERIC[]) AS gas_per_pubdata_limit,
+                                UNNEST($9::INT[]) AS tx_format,
+                                UNNEST($10::INTEGER[]) AS index_in_block,
+                                UNNEST($11::VARCHAR[]) AS error,
+                                UNNEST($12::NUMERIC[]) AS effective_gas_price,
+                                UNNEST($13::jsonb[]) AS new_execution_info,
+                                UNNEST($14::bytea[]) AS input,
+                                UNNEST($15::jsonb[]) AS data,
+                                UNNEST($16::BIGINT[]) AS refunded_gas,
+                                UNNEST($17::NUMERIC[]) AS value,
+                                UNNEST($18::bytea[]) AS contract_address,
+                                UNNEST($19::bytea[]) AS paymaster,
+                                UNNEST($20::bytea[]) AS paymaster_input
+                        ) AS data_table_temp
+                        JOIN transactions ON transactions.initiator_address = data_table_temp.initiator_address
+                        AND transactions.nonce = data_table_temp.nonce
+                    ORDER BY
+                        transactions.hash
+                ) AS data_table
+            WHERE
+                transactions.initiator_address = data_table.initiator_address
+                AND transactions.nonce = data_table.nonce
+            "#,
+            &l2_initiators as &[[u8; 20]],
+            &l2_nonces,
+            &l2_hashes as &[&[u8]],
+            &l2_signatures as &[&[u8]],
+            &l2_gas_limits,
+            &l2_max_fees_per_gas,
+            &l2_max_priority_fees_per_gas,
+            &l2_gas_per_pubdata_limit,
+            &l2_tx_formats,
+            &l2_indices_in_block,
+            &l2_errors as &[&str],
+            &l2_effective_gas_prices,
+            &l2_execution_infos,
+            &l2_inputs as &[&[u8]],
+            &l2_datas,
+            &l2_refunded_gas,
+            &l2_values,
+            &l2_contract_addresses as &[&[u8]],
+            &l2_paymaster as &[&[u8]],
+            &l2_paymaster_input as &[&[u8]],
+            miniblock_number.0 as i32,
+        );
+
+        instrumentation.with(query).execute(self.storage).await?;
+        Ok(())
+    }
+
+    async fn handle_executed_l1_transactions(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+        transactions: &[TransactionExecutionResult],
+    ) -> DalResult<()> {
+        let l1_txs_len = transactions
+            .iter()
+            .filter(|tx_res| {
+                matches!(
+                    tx_res.transaction.common_data,
+                    ExecuteTransactionCommon::L1(_)
+                )
+            })
+            .count();
+        if l1_txs_len == 0 {
+            return Ok(());
+        }
+
+        let instrumentation = Instrumented::new("mark_txs_as_executed_in_miniblock#update_l1_txs")
+            .with_arg("miniblock_number", &miniblock_number)
+            .with_arg("l1_txs.len", &l1_txs_len);
+
+        let mut l1_hashes = Vec::with_capacity(l1_txs_len);
+        let mut l1_indices_in_block = Vec::with_capacity(l1_txs_len);
+        let mut l1_errors = Vec::with_capacity(l1_txs_len);
+        let mut l1_execution_infos = Vec::with_capacity(l1_txs_len);
+        let mut l1_refunded_gas = Vec::with_capacity(l1_txs_len);
+        let mut l1_effective_gas_prices = Vec::with_capacity(l1_txs_len);
+
+        for (index_in_block, tx_res) in transactions.iter().enumerate() {
+            let transaction = &tx_res.transaction;
+            let ExecuteTransactionCommon::L1(common_data) = &transaction.common_data else {
+                continue;
+            };
+
+            let l1_execution_info = serde_json::to_value(tx_res.execution_info).map_err(|err| {
+                instrumentation.arg_error(
+                    &format!("transactions[{index_in_block}].execution_info"),
+                    err,
+                )
+            })?;
+            let refunded_gas = i64::try_from(tx_res.refunded_gas).map_err(|err| {
+                instrumentation
+                    .arg_error(&format!("transactions[{index_in_block}].refunded_gas"), err)
+            })?;
+
+            l1_hashes.push(tx_res.hash.as_bytes());
+            l1_indices_in_block.push(index_in_block as i32);
+            l1_errors.push(Self::map_transaction_error(tx_res));
+            l1_execution_infos.push(l1_execution_info);
+            l1_refunded_gas.push(refunded_gas);
+            l1_effective_gas_prices.push(u256_to_big_decimal(common_data.max_fee_per_gas));
+        }
+
+        let query = sqlx::query!(
+            r#"
+            UPDATE transactions
+            SET
+                miniblock_number = $1,
+                index_in_block = data_table.index_in_block,
+                error = NULLIF(data_table.error, ''),
+                in_mempool = FALSE,
+                execution_info = execution_info || data_table.new_execution_info,
+                refunded_gas = data_table.refunded_gas,
+                effective_gas_price = data_table.effective_gas_price,
+                updated_at = NOW()
+            FROM
+                (
+                    SELECT
+                        UNNEST($2::bytea[]) AS hash,
+                        UNNEST($3::INTEGER[]) AS index_in_block,
+                        UNNEST($4::VARCHAR[]) AS error,
+                        UNNEST($5::jsonb[]) AS new_execution_info,
+                        UNNEST($6::BIGINT[]) AS refunded_gas,
+                        UNNEST($7::NUMERIC[]) AS effective_gas_price
+                ) AS data_table
+            WHERE
+                transactions.hash = data_table.hash
+            "#,
+            miniblock_number.0 as i32,
+            &l1_hashes as &[&[u8]],
+            &l1_indices_in_block,
+            &l1_errors as &[&str],
+            &l1_execution_infos,
+            &l1_refunded_gas,
+            &l1_effective_gas_prices,
+        );
+
+        instrumentation.with(query).execute(self.storage).await?;
+        Ok(())
+    }
+
+    async fn handle_executed_upgrade_transactions(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+        transactions: &[TransactionExecutionResult],
+    ) -> DalResult<()> {
+        let upgrade_txs_len = transactions
+            .iter()
+            .filter(|tx_res| {
+                matches!(
+                    tx_res.transaction.common_data,
+                    ExecuteTransactionCommon::ProtocolUpgrade(_)
+                )
+            })
+            .count();
+        if upgrade_txs_len == 0 {
+            return Ok(());
+        }
+
+        let instrumentation =
+            Instrumented::new("mark_txs_as_executed_in_miniblock#update_upgrade_txs")
+                .with_arg("miniblock_number", &miniblock_number)
+                .with_arg("upgrade_txs.len", &upgrade_txs_len);
+
+        let mut upgrade_hashes = Vec::new();
+        let mut upgrade_indices_in_block = Vec::new();
+        let mut upgrade_errors = Vec::new();
+        let mut upgrade_execution_infos = Vec::new();
+        let mut upgrade_refunded_gas = Vec::new();
+        let mut upgrade_effective_gas_prices = Vec::new();
+
+        for (index_in_block, tx_res) in transactions.iter().enumerate() {
+            let transaction = &tx_res.transaction;
+            let ExecuteTransactionCommon::ProtocolUpgrade(common_data) = &transaction.common_data
+            else {
+                continue;
+            };
+
+            let execution_info = serde_json::to_value(tx_res.execution_info).map_err(|err| {
+                instrumentation.arg_error(
+                    &format!("transactions[{index_in_block}].execution_info"),
+                    err,
+                )
+            })?;
+            let refunded_gas = i64::try_from(tx_res.refunded_gas).map_err(|err| {
+                instrumentation
+                    .arg_error(&format!("transactions[{index_in_block}].refunded_gas"), err)
+            })?;
+
+            upgrade_hashes.push(tx_res.hash.as_bytes());
+            upgrade_indices_in_block.push(index_in_block as i32);
+            upgrade_errors.push(Self::map_transaction_error(tx_res));
+            upgrade_execution_infos.push(execution_info);
+            upgrade_refunded_gas.push(refunded_gas);
+            upgrade_effective_gas_prices.push(u256_to_big_decimal(common_data.max_fee_per_gas));
+        }
+
+        let query = sqlx::query!(
+            r#"
+            UPDATE transactions
+            SET
+                miniblock_number = $1,
+                index_in_block = data_table.index_in_block,
+                error = NULLIF(data_table.error, ''),
+                in_mempool = FALSE,
+                execution_info = execution_info || data_table.new_execution_info,
+                refunded_gas = data_table.refunded_gas,
+                effective_gas_price = data_table.effective_gas_price,
+                updated_at = NOW()
+            FROM
+                (
+                    SELECT
+                        UNNEST($2::bytea[]) AS hash,
+                        UNNEST($3::INTEGER[]) AS index_in_block,
+                        UNNEST($4::VARCHAR[]) AS error,
+                        UNNEST($5::jsonb[]) AS new_execution_info,
+                        UNNEST($6::BIGINT[]) AS refunded_gas,
+                        UNNEST($7::NUMERIC[]) AS effective_gas_price
+                ) AS data_table
+            WHERE
+                transactions.hash = data_table.hash
+            "#,
+            miniblock_number.0 as i32,
+            &upgrade_hashes as &[&[u8]],
+            &upgrade_indices_in_block,
+            &upgrade_errors as &[&str],
+            &upgrade_execution_infos,
+            &upgrade_refunded_gas,
+            &upgrade_effective_gas_prices,
+        );
+
+        instrumentation.with(query).execute(self.storage).await?;
+        Ok(())
     }
 
     pub async fn mark_tx_as_rejected(&mut self, transaction_hash: H256, error: &str) {
