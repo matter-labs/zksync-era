@@ -213,3 +213,8 @@ zksync_types = { path = "core/lib/types" }
 zksync_utils = { path = "core/lib/utils" }
 zksync_web3_decl = { path = "core/lib/web3_decl" }
 zksync_crypto_primitives = { path = "core/lib/crypto_primitives" }
+
+# Framework and components
+zksync_node_framework = { path = "core/node/node_framework" }
+zksync_eth_watch = { path = "core/node/eth_watch" }
+zksync_shared_metrics = { path = "core/node/shared_metrics" }

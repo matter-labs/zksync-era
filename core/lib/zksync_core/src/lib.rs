@@ -43,9 +43,11 @@ use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},
     BoundEthInterface,
 };
+use zksync_eth_watch::start_eth_watch;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
+use zksync_shared_metrics::{InitStage, APP_METRICS};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{fee_model::FeeModelConfig, L2ChainId};
 
@@ -67,7 +69,6 @@ use crate::{
         },
         Aggregator, EthTxAggregator, EthTxManager,
     },
-    eth_watch::start_eth_watch,
     genesis::GenesisParams,
     house_keeper::{
         blocks_state_reporter::L1BatchMetricsReporter,
@@ -86,7 +87,6 @@ use crate::{
         GasAdjusterSingleton, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
     },
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
-    metrics::{InitStage, APP_METRICS},
     state_keeper::{
         create_state_keeper, MempoolFetcher, MempoolGuard, OutputHandler, SequencerSealer,
         StateKeeperPersistence,
@@ -101,14 +101,12 @@ pub mod commitment_generator;
 pub mod consensus;
 pub mod consistency_checker;
 pub mod eth_sender;
-pub mod eth_watch;
 pub mod fee_model;
 pub mod gas_tracker;
 pub mod genesis;
 pub mod house_keeper;
 pub mod l1_gas_price;
 pub mod metadata_calculator;
-mod metrics;
 pub mod proof_data_handler;
 pub mod proto;
 pub mod reorg_detector;

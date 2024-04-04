@@ -5,15 +5,13 @@ use std::time::Instant;
 use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
 use zksync_dal::{ConnectionPool, Core};
+use zksync_shared_metrics::{BlockStage, APP_METRICS};
 use zksync_types::Address;
 
-use crate::{
-    metrics::{BlockStage, APP_METRICS},
-    state_keeper::{
-        io::StateKeeperOutputHandler,
-        metrics::{MiniblockQueueStage, MINIBLOCK_METRICS},
-        updates::{MiniblockSealCommand, UpdatesManager},
-    },
+use crate::state_keeper::{
+    io::StateKeeperOutputHandler,
+    metrics::{MiniblockQueueStage, MINIBLOCK_METRICS},
+    updates::{MiniblockSealCommand, UpdatesManager},
 };
 
 /// A command together with the return address allowing to track command processing completion.

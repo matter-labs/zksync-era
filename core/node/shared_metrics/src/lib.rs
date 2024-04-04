@@ -8,7 +8,7 @@ use zksync_types::aggregated_operations::AggregatedActionType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage")]
-pub(crate) enum InitStage {
+pub enum InitStage {
     HttpApi,
     WsApi,
     ContractVerificationApi,
@@ -39,7 +39,7 @@ impl fmt::Display for InitStage {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum BlockL1Stage {
+pub enum BlockL1Stage {
     Saved,
     Mined,
 }
@@ -47,7 +47,7 @@ pub(crate) enum BlockL1Stage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
 #[allow(clippy::enum_variant_names)]
-pub(crate) enum L1StageLatencyLabel {
+pub enum L1StageLatencyLabel {
     UncommittedBlock,
     UnprovedBlock,
     UnexecutedBlock,
@@ -55,7 +55,7 @@ pub(crate) enum L1StageLatencyLabel {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage")]
-pub(crate) enum BlockStage {
+pub enum BlockStage {
     Sealed,
     Tree,
     MetadataCalculated,
@@ -84,7 +84,7 @@ impl fmt::Display for BlockStage {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage")]
-pub(crate) enum TxStage {
+pub enum TxStage {
     Mempool(L2TxSubmissionResult),
     Proxied,
     StateKeeper,
@@ -120,13 +120,13 @@ impl TxStage {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
-pub(crate) enum MiniblockStage {
+pub enum MiniblockStage {
     Sealed,
 }
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server")]
-pub(crate) struct AppMetrics {
+pub struct AppMetrics {
     /// Latency to initialize a specific server component.
     pub init_latency: Family<InitStage, Gauge<Duration>>,
     pub block_number: Family<BlockStage, Gauge<u64>>,
@@ -144,12 +144,12 @@ pub(crate) struct AppMetrics {
 }
 
 #[vise::register]
-pub(crate) static APP_METRICS: vise::Global<AppMetrics> = vise::Global::new();
+pub static APP_METRICS: vise::Global<AppMetrics> = vise::Global::new();
 
 /// Type of VM interaction with the storage. Used both for API server and state keeper metrics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "interaction", rename_all = "snake_case")]
-pub(crate) enum InteractionType {
+pub enum InteractionType {
     Missed,
     GetValue,
     SetValue,
@@ -158,7 +158,7 @@ pub(crate) enum InteractionType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "component", rename_all = "snake_case")]
-pub(crate) enum CheckerComponent {
+pub enum CheckerComponent {
     ConsistencyChecker,
     ReorgDetector,
 }
@@ -166,7 +166,7 @@ pub(crate) enum CheckerComponent {
 /// General-purpose external node metrics.
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "external_node")]
-pub(crate) struct ExternalNodeMetrics {
+pub struct ExternalNodeMetrics {
     #[metrics(buckets = Buckets::LATENCIES)]
     pub update_batch_statuses: Histogram<Duration>,
     #[metrics(buckets = Buckets::LATENCIES)]
@@ -182,4 +182,4 @@ pub(crate) struct ExternalNodeMetrics {
 }
 
 #[vise::register]
-pub(crate) static EN_METRICS: vise::Global<ExternalNodeMetrics> = vise::Global::new();
+pub static EN_METRICS: vise::Global<ExternalNodeMetrics> = vise::Global::new();
