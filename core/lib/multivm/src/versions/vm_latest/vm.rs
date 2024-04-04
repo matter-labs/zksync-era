@@ -133,6 +133,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                 .map(GlueInto::glue_into)
                 .collect(),
             storage_refunds: self.state.storage.returned_refunds.inner().clone(),
+            // TODO: fix this line as soon as v1.5.0 is supported
             pubdata_costs: Vec::new(),
         }
     }

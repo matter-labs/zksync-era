@@ -91,6 +91,7 @@ pub struct StorageOracleInfo {
     // Pubdata costs are available only since v1.5.0, so we allow them to be optional.
     pub pubdata_costs: Option<Vec<i32>>,
 }
+
 /// Data needed to execute a miniblock in the VM.
 #[derive(Debug)]
 pub struct MiniblockExecutionData {
