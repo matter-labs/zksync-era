@@ -29,7 +29,7 @@ struct ContractsForGenesis {
     pub state_transition_proxy_addr: Option<Address>,
     pub state_transition_impl_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Option<Address>,
-    pub l1_shared_bridge_addr: Option<Address>,
+    pub l1_shared_bridge_proxy_addr: Option<Address>,
     pub l2_shared_bridge_addr: Option<Address>,
 }
 
@@ -53,17 +53,17 @@ impl FromEnv for GenesisConfig {
             Some(SharedBridge {
                 bridgehub_proxy_addr: contracts_config
                     .bridgehub_proxy_addr
-                    .context("Must be specified with state_transition_proxy_addr")?,
+                    .context("Must be specified with bridgehub_proxy_addr")?,
                 state_transition_proxy_addr,
                 transparent_proxy_admin_addr: contracts_config
                     .transparent_proxy_admin_addr
-                    .context("Must be specified with state_transition_proxy_addr")?,
+                    .context("Must be specified with transparent_proxy_admin_addr")?,
                 l2_shared_bridge_addr: contracts_config
                     .l2_shared_bridge_addr
-                    .context("Must be specified with state_transition_proxy_addr")?,
+                    .context("Must be specified with l2_shared_bridge_addr")?,
                 l1_shared_bridge_addr: contracts_config
-                    .l1_shared_bridge_addr
-                    .context("Must be specified with state_transition_proxy_addr")?,
+                    .l1_shared_bridge_proxy_addr
+                    .context("Must be specified with l1_shared_bridge_addr")?,
             })
         } else {
             None
