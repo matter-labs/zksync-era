@@ -26,7 +26,7 @@ fn test_max_depth() {
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()
-        .with_gas_limit(BLOCK_GAS_LIMIT)
+        .with_bootloader_gas_limit(BLOCK_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_custom_contracts(vec![(contarct, address, true)])
         .build();
@@ -58,7 +58,7 @@ fn test_basic_behavior() {
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()
-        .with_gas_limit(BLOCK_GAS_LIMIT)
+        .with_bootloader_gas_limit(BLOCK_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_custom_contracts(vec![(contarct, address, true)])
         .build();

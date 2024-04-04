@@ -12,8 +12,6 @@ impl FromEnv for ApiConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             web3_json_rpc: Web3JsonRpcConfig::from_env().context("Web3JsonRpcConfig")?,
-            contract_verification: ContractVerificationApiConfig::from_env()
-                .context("ContractVerificationApiConfig")?,
             prometheus: PrometheusConfig::from_env().context("PrometheusConfig")?,
             healthcheck: HealthCheckConfig::from_env().context("HealthCheckConfig")?,
             merkle_tree: MerkleTreeApiConfig::from_env().context("MerkleTreeApiConfig")?,
@@ -51,7 +49,7 @@ mod tests {
     use std::num::NonZeroU32;
 
     use super::*;
-    use crate::test_utils::{hash, EnvMutex};
+    use crate::test_utils::{addr, hash, EnvMutex};
 
     static MUTEX: EnvMutex = EnvMutex::new();
 
@@ -90,10 +88,10 @@ mod tests {
                 tree_api_url: None,
                 mempool_cache_update_interval: Some(50),
                 mempool_cache_size: Some(10000),
-            },
-            contract_verification: ContractVerificationApiConfig {
-                port: 3070,
-                url: "http://127.0.0.1:3070".into(),
+                whitelisted_tokens_for_aa: vec![
+                    addr("0x0000000000000000000000000000000000000001"),
+                    addr("0x0000000000000000000000000000000000000002"),
+                ],
             },
             prometheus: PrometheusConfig {
                 listener_port: 3312,
@@ -126,6 +124,7 @@ mod tests {
             API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR=1.2
             API_WEB3_JSON_RPC_REQUEST_TIMEOUT=10
             API_WEB3_JSON_RPC_ACCOUNT_PKS="0x0000000000000000000000000000000000000000000000000000000000000001,0x0000000000000000000000000000000000000000000000000000000000000002"
+            API_WEB3_JSON_RPC_WHITELISTED_TOKENS_FOR_AA="0x0000000000000000000000000000000000000001,0x0000000000000000000000000000000000000002"
             API_WEB3_JSON_RPC_ESTIMATE_GAS_SCALE_FACTOR=1.0
             API_WEB3_JSON_RPC_ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION=1000
             API_WEB3_JSON_RPC_L1_TO_L2_TRANSACTIONS_COMPATIBILITY_MODE=true

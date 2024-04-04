@@ -10,7 +10,7 @@ pub struct CircuitBreakersResource {
 }
 
 impl Resource for CircuitBreakersResource {
-    fn resource_id() -> crate::resource::ResourceId {
+    fn name() -> String {
         "common/circuit_breakers".into()
     }
 }

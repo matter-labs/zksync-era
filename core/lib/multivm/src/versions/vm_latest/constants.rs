@@ -139,8 +139,14 @@ pub const RESULT_SUCCESS_FIRST_SLOT: u32 =
 /// How many gas bootloader is allowed to spend within one block.
 /// Note that this value doesn't correspond to the gas limit of any particular transaction
 /// (except for the fact that, of course, gas limit for each transaction should be <= `BLOCK_GAS_LIMIT`).
-pub const BLOCK_GAS_LIMIT: u32 =
+pub const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 =
     zk_evm_1_4_1::zkevm_opcode_defs::system_params::VM_INITIAL_FRAME_ERGS;
+
+/// The maximal number of gas that is supposed to be spent in a batch. This value is displayed in the system context as well
+/// as the API for each batch.
+/// Using any number that fits into `i64` is fine with regard to any popular eth node implementation, but we also desire to use
+/// values that fit into safe JS numbers just in case for compatibility.
+pub const BATCH_GAS_LIMIT: u64 = 1 << 50;
 
 /// How many gas is allowed to spend on a single transaction in eth_call method
 pub const ETH_CALL_GAS_LIMIT: u32 = MAX_L2_TX_GAS_LIMIT as u32;

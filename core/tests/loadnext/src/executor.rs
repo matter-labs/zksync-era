@@ -2,14 +2,6 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use futures::{channel::mpsc, future, SinkExt};
-use zksync::{
-    ethereum::{PriorityOpHolder, DEFAULT_PRIORITY_FEE},
-    utils::{
-        get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
-    },
-    web3::types::TransactionReceipt,
-    EthNamespaceClient, EthereumProvider, ZksNamespaceClient,
-};
 use zksync_eth_client::{BoundEthInterface, EthInterface, Options};
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
@@ -25,6 +17,14 @@ use crate::{
     constants::*,
     report::ReportBuilder,
     report_collector::{LoadtestResult, ReportCollector},
+    sdk::{
+        ethereum::{PriorityOpHolder, DEFAULT_PRIORITY_FEE},
+        utils::{
+            get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
+        },
+        web3::types::TransactionReceipt,
+        EthNamespaceClient, EthereumProvider, ZksNamespaceClient,
+    },
     utils::format_eth,
 };
 
