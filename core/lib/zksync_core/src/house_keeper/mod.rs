@@ -1,4 +1,5 @@
 pub mod blocks_state_reporter;
+pub mod fri_gpu_prover_archiver;
 pub mod fri_proof_compressor_job_retry_manager;
 pub mod fri_proof_compressor_queue_monitor;
 pub mod fri_prover_job_retry_manager;

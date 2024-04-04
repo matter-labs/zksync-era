@@ -2,13 +2,13 @@ use std::{
     collections::HashMap,
     convert::{Into, TryInto},
     ops,
-    ops::RangeInclusive,
 };
 
 use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use zksync_db_connection::{
-    connection::Connection, instrument::InstrumentExt, interpolate_query, match_query_as,
+    connection::Connection, error::DalResult, instrument::InstrumentExt, interpolate_query,
+    match_query_as,
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
@@ -20,6 +20,7 @@ use zksync_types::{
 
 use crate::{
     models::{
+        parse_protocol_version,
         storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
         storage_oracle_info::DbStorageOracleInfo,
     },
@@ -34,7 +35,7 @@ pub struct BlocksDal<'a, 'c> {
 impl BlocksDal<'_, '_> {
     pub async fn get_consistency_checker_last_processed_l1_batch(
         &mut self,
-    ) -> sqlx::Result<L1BatchNumber> {
+    ) -> DalResult<L1BatchNumber> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -53,7 +54,7 @@ impl BlocksDal<'_, '_> {
     pub async fn set_consistency_checker_last_processed_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE consistency_checker_info
@@ -71,7 +72,7 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn is_genesis_needed(&mut self) -> sqlx::Result<bool> {
+    pub async fn is_genesis_needed(&mut self) -> DalResult<bool> {
         let count = sqlx::query!(
             r#"
             SELECT
@@ -80,13 +81,14 @@ impl BlocksDal<'_, '_> {
                 l1_batches
             "#
         )
-        .fetch_one(self.storage.conn())
+        .instrument("is_genesis_needed")
+        .fetch_one(self.storage)
         .await?
         .count;
         Ok(count == 0)
     }
 
-    pub async fn get_sealed_l1_batch_number(&mut self) -> sqlx::Result<Option<L1BatchNumber>> {
+    pub async fn get_sealed_l1_batch_number(&mut self) -> DalResult<Option<L1BatchNumber>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -103,7 +105,7 @@ impl BlocksDal<'_, '_> {
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
-    pub async fn get_sealed_miniblock_number(&mut self) -> sqlx::Result<Option<MiniblockNumber>> {
+    pub async fn get_sealed_miniblock_number(&mut self) -> DalResult<Option<MiniblockNumber>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -121,7 +123,7 @@ impl BlocksDal<'_, '_> {
     }
 
     /// Returns the number of the earliest L1 batch present in the DB, or `None` if there are no L1 batches.
-    pub async fn get_earliest_l1_batch_number(&mut self) -> sqlx::Result<Option<L1BatchNumber>> {
+    pub async fn get_earliest_l1_batch_number(&mut self) -> DalResult<Option<L1BatchNumber>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -140,7 +142,7 @@ impl BlocksDal<'_, '_> {
 
     pub async fn get_last_l1_batch_number_with_metadata(
         &mut self,
-    ) -> sqlx::Result<Option<L1BatchNumber>> {
+    ) -> DalResult<Option<L1BatchNumber>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -161,7 +163,7 @@ impl BlocksDal<'_, '_> {
 
     pub async fn get_next_l1_batch_ready_for_commitment_generation(
         &mut self,
-    ) -> sqlx::Result<Option<L1BatchNumber>> {
+    ) -> DalResult<Option<L1BatchNumber>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -189,7 +191,7 @@ impl BlocksDal<'_, '_> {
     /// or `None` if there are no such L1 batches.
     pub async fn get_earliest_l1_batch_number_with_metadata(
         &mut self,
-    ) -> sqlx::Result<Option<L1BatchNumber>> {
+    ) -> DalResult<Option<L1BatchNumber>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -211,7 +213,7 @@ impl BlocksDal<'_, '_> {
     pub async fn get_l1_batches_for_eth_tx_id(
         &mut self,
         eth_tx_id: u32,
-    ) -> sqlx::Result<Vec<L1BatchHeader>> {
+    ) -> DalResult<Vec<L1BatchHeader>> {
         let l1_batches = sqlx::query_as!(
             StorageL1BatchHeader,
             r#"
@@ -251,7 +253,7 @@ impl BlocksDal<'_, '_> {
     pub async fn get_storage_l1_batch(
         &mut self,
         number: L1BatchNumber,
-    ) -> sqlx::Result<Option<StorageL1Batch>> {
+    ) -> DalResult<Option<StorageL1Batch>> {
         sqlx::query_as!(
             StorageL1Batch,
             r#"
@@ -304,7 +306,7 @@ impl BlocksDal<'_, '_> {
     pub async fn get_l1_batch_header(
         &mut self,
         number: L1BatchNumber,
-    ) -> sqlx::Result<Option<L1BatchHeader>> {
+    ) -> DalResult<Option<L1BatchHeader>> {
         Ok(sqlx::query_as!(
             StorageL1BatchHeader,
             r#"
@@ -657,9 +659,7 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_last_sealed_miniblock_header(
-        &mut self,
-    ) -> sqlx::Result<Option<MiniblockHeader>> {
+    pub async fn get_last_sealed_miniblock_header(&mut self) -> DalResult<Option<MiniblockHeader>> {
         let header = sqlx::query_as!(
             StorageMiniblockHeader,
             r#"
@@ -688,7 +688,8 @@ impl BlocksDal<'_, '_> {
                 1
             "#,
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_last_sealed_miniblock_header")
+        .fetch_optional(self.storage)
         .await?;
 
         let Some(header) = header else {
@@ -706,7 +707,7 @@ impl BlocksDal<'_, '_> {
     pub async fn get_miniblock_header(
         &mut self,
         miniblock_number: MiniblockNumber,
-    ) -> sqlx::Result<Option<MiniblockHeader>> {
+    ) -> DalResult<Option<MiniblockHeader>> {
         let header = sqlx::query_as!(
             StorageMiniblockHeader,
             r#"
@@ -734,7 +735,9 @@ impl BlocksDal<'_, '_> {
             "#,
             i64::from(miniblock_number.0),
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_miniblock_header")
+        .with_arg("miniblock_number", &miniblock_number)
+        .fetch_optional(self.storage)
         .await?;
 
         let Some(header) = header else {
@@ -752,7 +755,7 @@ impl BlocksDal<'_, '_> {
     pub async fn mark_miniblocks_as_executed_in_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE miniblocks
@@ -763,7 +766,9 @@ impl BlocksDal<'_, '_> {
             "#,
             l1_batch_number.0 as i32,
         )
-        .execute(self.storage.conn())
+        .instrument("mark_miniblocks_as_executed_in_l1_batch")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .execute(self.storage)
         .await?;
         Ok(())
     }
@@ -937,7 +942,7 @@ impl BlocksDal<'_, '_> {
 
     pub async fn get_last_committed_to_eth_l1_batch(
         &mut self,
-    ) -> anyhow::Result<Option<L1BatchWithMetadata>> {
+    ) -> DalResult<Option<L1BatchWithMetadata>> {
         // We can get 0 block for the first transaction
         let block = sqlx::query_as!(
             StorageL1Batch,
@@ -995,9 +1000,7 @@ impl BlocksDal<'_, '_> {
             return Ok(None);
         }
 
-        self.get_l1_batch_with_metadata(block)
-            .await
-            .context("get_l1_batch_with_metadata()")
+        self.get_l1_batch_with_metadata(block).await
     }
 
     /// Returns the number of the last L1 batch for which an Ethereum commit tx was sent and confirmed.
@@ -1657,7 +1660,7 @@ impl BlocksDal<'_, '_> {
     pub async fn get_l1_batch_state_root(
         &mut self,
         number: L1BatchNumber,
-    ) -> sqlx::Result<Option<H256>> {
+    ) -> DalResult<Option<H256>> {
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -1669,7 +1672,9 @@ impl BlocksDal<'_, '_> {
             "#,
             i64::from(number.0)
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_l1_batch_state_root")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
         .await?
         .and_then(|row| row.hash)
         .map(|hash| H256::from_slice(&hash)))
@@ -1705,23 +1710,17 @@ impl BlocksDal<'_, '_> {
     pub async fn get_l1_batch_metadata(
         &mut self,
         number: L1BatchNumber,
-    ) -> anyhow::Result<Option<L1BatchWithMetadata>> {
-        let Some(l1_batch) = self
-            .get_storage_l1_batch(number)
-            .await
-            .context("get_storage_l1_batch()")?
-        else {
+    ) -> DalResult<Option<L1BatchWithMetadata>> {
+        let Some(l1_batch) = self.get_storage_l1_batch(number).await? else {
             return Ok(None);
         };
-        self.get_l1_batch_with_metadata(l1_batch)
-            .await
-            .context("get_l1_batch_with_metadata")
+        self.get_l1_batch_with_metadata(l1_batch).await
     }
 
     pub async fn get_l1_batch_tree_data(
         &mut self,
         number: L1BatchNumber,
-    ) -> anyhow::Result<Option<L1BatchTreeData>> {
+    ) -> DalResult<Option<L1BatchTreeData>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -1734,8 +1733,11 @@ impl BlocksDal<'_, '_> {
             "#,
             i64::from(number.0)
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_l1_batch_tree_data")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
         .await?;
+
         Ok(row.and_then(|row| {
             Some(L1BatchTreeData {
                 hash: H256::from_slice(&row.hash?),
@@ -1747,11 +1749,10 @@ impl BlocksDal<'_, '_> {
     pub async fn get_l1_batch_with_metadata(
         &mut self,
         storage_batch: StorageL1Batch,
-    ) -> anyhow::Result<Option<L1BatchWithMetadata>> {
+    ) -> DalResult<Option<L1BatchWithMetadata>> {
         let unsorted_factory_deps = self
             .get_l1_batch_factory_deps(L1BatchNumber(storage_batch.number as u32))
-            .await
-            .context("get_l1_batch_factory_deps()")?;
+            .await?;
         let header: L1BatchHeader = storage_batch.clone().into();
         let Ok(metadata) = storage_batch.try_into() else {
             return Ok(None);
@@ -1773,7 +1774,7 @@ impl BlocksDal<'_, '_> {
     pub async fn get_l1_batch_factory_deps(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<HashMap<H256, Vec<u8>>> {
+    ) -> DalResult<HashMap<H256, Vec<u8>>> {
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -1787,7 +1788,9 @@ impl BlocksDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_l1_batch_factory_deps")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(|row| (H256::from_slice(&row.bytecode_hash), row.bytecode))
@@ -1797,50 +1800,52 @@ impl BlocksDal<'_, '_> {
     pub async fn delete_initial_writes(
         &mut self,
         last_batch_to_keep: L1BatchNumber,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         self.delete_initial_writes_inner(Some(last_batch_to_keep))
             .await
     }
 
-    pub async fn delete_initial_writes_inner(
+    async fn delete_initial_writes_inner(
         &mut self,
         last_batch_to_keep: Option<L1BatchNumber>,
-    ) -> sqlx::Result<()> {
-        let block_number = last_batch_to_keep.map_or(-1, |number| i64::from(number.0));
+    ) -> DalResult<()> {
+        let l1_batch_number = last_batch_to_keep.map_or(-1, |number| i64::from(number.0));
         sqlx::query!(
             r#"
             DELETE FROM initial_writes
             WHERE
                 l1_batch_number > $1
             "#,
-            block_number
+            l1_batch_number
         )
-        .execute(self.storage.conn())
+        .instrument("delete_initial_writes")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .execute(self.storage)
         .await?;
         Ok(())
     }
+
     /// Deletes all L1 batches from the storage so that the specified batch number is the last one left.
-    pub async fn delete_l1_batches(
-        &mut self,
-        last_batch_to_keep: L1BatchNumber,
-    ) -> sqlx::Result<()> {
+    pub async fn delete_l1_batches(&mut self, last_batch_to_keep: L1BatchNumber) -> DalResult<()> {
         self.delete_l1_batches_inner(Some(last_batch_to_keep)).await
     }
 
     async fn delete_l1_batches_inner(
         &mut self,
         last_batch_to_keep: Option<L1BatchNumber>,
-    ) -> sqlx::Result<()> {
-        let block_number = last_batch_to_keep.map_or(-1, |number| i64::from(number.0));
+    ) -> DalResult<()> {
+        let l1_batch_number = last_batch_to_keep.map_or(-1, |number| i64::from(number.0));
         sqlx::query!(
             r#"
             DELETE FROM l1_batches
             WHERE
                 number > $1
             "#,
-            block_number
+            l1_batch_number
         )
-        .execute(self.storage.conn())
+        .instrument("delete_l1_batches")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .execute(self.storage)
         .await?;
         Ok(())
     }
@@ -1849,7 +1854,7 @@ impl BlocksDal<'_, '_> {
     pub async fn delete_miniblocks(
         &mut self,
         last_miniblock_to_keep: MiniblockNumber,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         self.delete_miniblocks_inner(Some(last_miniblock_to_keep))
             .await
     }
@@ -1857,7 +1862,7 @@ impl BlocksDal<'_, '_> {
     async fn delete_miniblocks_inner(
         &mut self,
         last_miniblock_to_keep: Option<MiniblockNumber>,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         let block_number = last_miniblock_to_keep.map_or(-1, |number| i64::from(number.0));
         sqlx::query!(
             r#"
@@ -1867,18 +1872,21 @@ impl BlocksDal<'_, '_> {
             "#,
             block_number
         )
-        .execute(self.storage.conn())
+        .instrument("delete_miniblocks")
+        .with_arg("block_number", &block_number)
+        .execute(self.storage)
         .await?;
         Ok(())
     }
 
-    async fn delete_logs_inner(&mut self) -> sqlx::Result<()> {
+    async fn delete_logs_inner(&mut self) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM storage_logs
             "#,
         )
-        .execute(self.storage.conn())
+        .instrument("delete_logs")
+        .execute(self.storage)
         .await?;
         Ok(())
     }
@@ -1920,7 +1928,7 @@ impl BlocksDal<'_, '_> {
     pub async fn get_miniblock_range_of_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<Option<(MiniblockNumber, MiniblockNumber)>> {
+    ) -> DalResult<Option<(MiniblockNumber, MiniblockNumber)>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -1933,8 +1941,11 @@ impl BlocksDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-        .fetch_one(self.storage.conn())
+        .instrument("get_miniblock_range_of_l1_batch")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_one(self.storage)
         .await?;
+
         let Some(min) = row.min else { return Ok(None) };
         let Some(max) = row.max else { return Ok(None) };
         Ok(Some((
@@ -2024,8 +2035,8 @@ impl BlocksDal<'_, '_> {
     pub async fn get_batch_protocol_version_id(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<ProtocolVersionId>> {
-        let Some(row) = sqlx::query!(
+    ) -> DalResult<Option<ProtocolVersionId>> {
+        Ok(sqlx::query!(
             r#"
             SELECT
                 protocol_version
@@ -2036,67 +2047,18 @@ impl BlocksDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-        .fetch_optional(self.storage.conn())
+        .try_map(|row| row.protocol_version.map(parse_protocol_version).transpose())
+        .instrument("get_batch_protocol_version_id")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_optional(self.storage)
         .await?
-        else {
-            return Ok(None);
-        };
-        let Some(v) = row.protocol_version else {
-            return Ok(None);
-        };
-        Ok(Some((v as u16).try_into()?))
-    }
-
-    pub async fn get_miniblock_protocol_version_id(
-        &mut self,
-        miniblock_number: MiniblockNumber,
-    ) -> anyhow::Result<Option<ProtocolVersionId>> {
-        let Some(row) = sqlx::query!(
-            r#"
-            SELECT
-                protocol_version
-            FROM
-                miniblocks
-            WHERE
-                number = $1
-            "#,
-            i64::from(miniblock_number.0)
-        )
-        .fetch_optional(self.storage.conn())
-        .await?
-        else {
-            return Ok(None);
-        };
-        let Some(v) = row.protocol_version else {
-            return Ok(None);
-        };
-        Ok(Some((v as u16).try_into()?))
-    }
-
-    pub async fn get_miniblock_timestamp(
-        &mut self,
-        miniblock_number: MiniblockNumber,
-    ) -> sqlx::Result<Option<u64>> {
-        Ok(sqlx::query!(
-            r#"
-            SELECT
-                timestamp
-            FROM
-                miniblocks
-            WHERE
-                number = $1
-            "#,
-            i64::from(miniblock_number.0)
-        )
-        .fetch_optional(self.storage.conn())
-        .await?
-        .map(|row| row.timestamp as u64))
+        .flatten())
     }
 
     pub async fn set_protocol_version_for_pending_miniblocks(
         &mut self,
         id: ProtocolVersionId,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE miniblocks
@@ -2107,7 +2069,9 @@ impl BlocksDal<'_, '_> {
             "#,
             id as i32,
         )
-        .execute(self.storage.conn())
+        .instrument("set_protocol_version_for_pending_miniblocks")
+        .with_arg("id", &id)
+        .execute(self.storage)
         .await?;
         Ok(())
     }
@@ -2115,7 +2079,7 @@ impl BlocksDal<'_, '_> {
     pub async fn get_fee_address_for_miniblock(
         &mut self,
         number: MiniblockNumber,
-    ) -> sqlx::Result<Option<Address>> {
+    ) -> DalResult<Option<Address>> {
         let Some(mut fee_account_address) = self.raw_fee_address_for_miniblock(number).await?
         else {
             return Ok(None);
@@ -2131,7 +2095,7 @@ impl BlocksDal<'_, '_> {
     async fn raw_fee_address_for_miniblock(
         &mut self,
         number: MiniblockNumber,
-    ) -> sqlx::Result<Option<Address>> {
+    ) -> DalResult<Option<Address>> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
@@ -2143,7 +2107,9 @@ impl BlocksDal<'_, '_> {
             "#,
             number.0 as i32
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("raw_fee_address_for_miniblock")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
         .await?
         else {
             return Ok(None);
@@ -2195,7 +2161,7 @@ impl BlocksDal<'_, '_> {
 
     pub async fn reset_protocol_version_for_l1_batches(
         &mut self,
-        l1_batch_range: RangeInclusive<L1BatchNumber>,
+        l1_batch_range: ops::RangeInclusive<L1BatchNumber>,
         protocol_version: ProtocolVersionId,
     ) -> sqlx::Result<()> {
         sqlx::query!(
@@ -2217,7 +2183,7 @@ impl BlocksDal<'_, '_> {
 
     pub async fn reset_protocol_version_for_miniblocks(
         &mut self,
-        miniblock_range: RangeInclusive<MiniblockNumber>,
+        miniblock_range: ops::RangeInclusive<MiniblockNumber>,
         protocol_version: ProtocolVersionId,
     ) -> sqlx::Result<()> {
         sqlx::query!(
@@ -2245,7 +2211,7 @@ impl BlocksDal<'_, '_> {
         &mut self,
         fee_address: &mut Address,
         miniblock_number: MiniblockNumber,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         if *fee_address != Address::default() {
             return Ok(());
         }
@@ -2265,7 +2231,9 @@ impl BlocksDal<'_, '_> {
             "#,
             miniblock_number.0 as i32
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("maybe_load_fee_address")
+        .with_arg("miniblock_number", &miniblock_number)
+        .fetch_optional(self.storage)
         .await?
         else {
             return Ok(());
@@ -2280,7 +2248,7 @@ impl BlocksDal<'_, '_> {
     pub async fn is_fee_address_migrated(
         &mut self,
         number: MiniblockNumber,
-    ) -> sqlx::Result<Option<bool>> {
+    ) -> DalResult<Option<bool>> {
         Ok(self
             .raw_fee_address_for_miniblock(number)
             .await?

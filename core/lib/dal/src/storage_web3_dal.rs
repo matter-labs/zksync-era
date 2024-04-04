@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use zksync_db_connection::{connection::Connection, instrument::InstrumentExt};
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, storage_key_for_standard_token_balance},
@@ -21,7 +21,7 @@ impl StorageWeb3Dal<'_, '_> {
         &mut self,
         address: Address,
         block_number: MiniblockNumber,
-    ) -> sqlx::Result<U256> {
+    ) -> DalResult<U256> {
         let nonce_key = get_nonce_key(&address);
         let nonce_value = self
             .get_historical_value_unchecked(&nonce_key, block_number)
@@ -34,7 +34,7 @@ impl StorageWeb3Dal<'_, '_> {
     pub async fn get_nonces_for_addresses(
         &mut self,
         addresses: &[Address],
-    ) -> sqlx::Result<HashMap<Address, Nonce>> {
+    ) -> DalResult<HashMap<Address, Nonce>> {
         let nonce_keys: HashMap<_, _> = addresses
             .iter()
             .map(|address| (get_nonce_key(address).hashed_key(), *address))
@@ -59,7 +59,7 @@ impl StorageWeb3Dal<'_, '_> {
         token_id: AccountTreeId,
         account_id: AccountTreeId,
         block_number: MiniblockNumber,
-    ) -> sqlx::Result<U256> {
+    ) -> DalResult<U256> {
         let key = storage_key_for_standard_token_balance(token_id, account_id.address());
         let balance = self
             .get_historical_value_unchecked(&key, block_number)
@@ -68,14 +68,14 @@ impl StorageWeb3Dal<'_, '_> {
     }
 
     /// Gets the current value for the specified `key`.
-    pub async fn get_value(&mut self, key: &StorageKey) -> sqlx::Result<H256> {
+    pub async fn get_value(&mut self, key: &StorageKey) -> DalResult<H256> {
         self.get_historical_value_unchecked(key, MiniblockNumber(u32::MAX))
             .await
     }
 
     /// Gets the current values for the specified `hashed_keys`. The returned map has requested hashed keys as keys
     /// and current storage values as values.
-    pub async fn get_values(&mut self, hashed_keys: &[H256]) -> sqlx::Result<HashMap<H256, H256>> {
+    pub async fn get_values(&mut self, hashed_keys: &[H256]) -> DalResult<HashMap<H256, H256>> {
         let storage_map = self
             .storage
             .storage_logs_dal()
@@ -93,7 +93,7 @@ impl StorageWeb3Dal<'_, '_> {
         &mut self,
         key: &StorageKey,
         block_number: MiniblockNumber,
-    ) -> sqlx::Result<H256> {
+    ) -> DalResult<H256> {
         let hashed_key = key.hashed_key();
 
         sqlx::query!(
@@ -117,6 +117,7 @@ impl StorageWeb3Dal<'_, '_> {
         .instrument("get_historical_value_unchecked")
         .report_latency()
         .with_arg("key", &hashed_key)
+        .with_arg("block_number", &block_number)
         .fetch_optional(self.storage)
         .await
         .map(|option_row| {
@@ -174,7 +175,7 @@ impl StorageWeb3Dal<'_, '_> {
     pub async fn get_l1_batch_number_for_initial_write(
         &mut self,
         key: &StorageKey,
-    ) -> Result<Option<L1BatchNumber>, SqlxError> {
+    ) -> DalResult<Option<L1BatchNumber>> {
         let hashed_key = key.hashed_key();
         let row = sqlx::query!(
             r#"
@@ -203,7 +204,7 @@ impl StorageWeb3Dal<'_, '_> {
         &mut self,
         address: Address,
         block_number: MiniblockNumber,
-    ) -> sqlx::Result<Option<Vec<u8>>> {
+    ) -> DalResult<Option<Vec<u8>>> {
         let hashed_key = get_code_key(&address).hashed_key();
         let row = sqlx::query!(
             r#"
@@ -232,35 +233,35 @@ impl StorageWeb3Dal<'_, '_> {
             i64::from(block_number.0),
             FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_contract_code_unchecked")
+        .with_arg("address", &address)
+        .with_arg("block_number", &block_number)
+        .fetch_optional(self.storage)
         .await?;
         Ok(row.map(|row| row.bytecode))
     }
 
-    /// This method doesn't check if block with number equals to `block_number`
-    /// is present in the database. For such blocks `None` will be returned.
-    pub async fn get_factory_dep_unchecked(
+    /// Given bytecode hash, returns `bytecode` and `miniblock_number` at which it was inserted.
+    pub async fn get_factory_dep(
         &mut self,
         hash: H256,
-        block_number: MiniblockNumber,
-    ) -> sqlx::Result<Option<Vec<u8>>> {
+    ) -> sqlx::Result<Option<(Vec<u8>, MiniblockNumber)>> {
         let row = sqlx::query!(
             r#"
             SELECT
-                bytecode
+                bytecode,
+                miniblock_number
             FROM
                 factory_deps
             WHERE
                 bytecode_hash = $1
-                AND miniblock_number <= $2
             "#,
             hash.as_bytes(),
-            i64::from(block_number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?;
 
-        Ok(row.map(|row| row.bytecode))
+        Ok(row.map(|row| (row.bytecode, MiniblockNumber(row.miniblock_number as u32))))
     }
 }
 

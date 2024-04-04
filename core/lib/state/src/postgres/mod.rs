@@ -24,12 +24,20 @@ mod metrics;
 #[cfg(test)]
 mod tests;
 
-/// Type alias for smart contract source code cache.
-type FactoryDepsCache = LruCache<H256, Vec<u8>>;
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TimestampedFactoryDep {
+    bytecode: Vec<u8>,
+    inserted_at: MiniblockNumber,
+}
 
-impl CacheValue<H256> for Vec<u8> {
+/// Type alias for smart contract source code cache.
+type FactoryDepsCache = LruCache<H256, TimestampedFactoryDep>;
+
+impl CacheValue<H256> for TimestampedFactoryDep {
     fn cache_weight(&self) -> u32 {
-        self.len().try_into().expect("Cached bytes are too large")
+        (self.bytecode.len() + mem::size_of::<MiniblockNumber>())
+            .try_into()
+            .expect("Cached bytes are too large")
     }
 }
 
@@ -185,10 +193,7 @@ impl ValuesCache {
             let modified_keys = connection
                 .storage_logs_dal()
                 .modified_keys_in_miniblocks(miniblocks.clone())
-                .await
-                .with_context(|| {
-                    format!("failed loading modified keys for miniblocks {miniblocks:?}")
-                })?;
+                .await?;
 
             let elapsed = update_latency.observe();
             CACHE_METRICS
@@ -556,17 +561,21 @@ impl ReadStorage for PostgresStorage<'_> {
             .as_ref()
             .and_then(|caches| caches.factory_deps.get(&hash));
 
-        let result = cached_value.or_else(|| {
+        let value = cached_value.or_else(|| {
             let mut dal = self.connection.storage_web3_dal();
             let value = self
                 .rt_handle
-                .block_on(dal.get_factory_dep_unchecked(hash, self.miniblock_number))
-                .expect("Failed executing `load_factory_dep`");
+                .block_on(dal.get_factory_dep(hash))
+                .expect("Failed executing `load_factory_dep`")
+                .map(|(bytecode, inserted_at)| TimestampedFactoryDep {
+                    bytecode,
+                    inserted_at,
+                });
 
             if let Some(caches) = &self.caches {
                 // If we receive None, we won't cache it.
-                if let Some(dep) = value.clone() {
-                    caches.factory_deps.insert(hash, dep);
+                if let Some(value) = value.clone() {
+                    caches.factory_deps.insert(hash, value);
                 }
             };
 
@@ -574,7 +583,11 @@ impl ReadStorage for PostgresStorage<'_> {
         });
 
         latency.observe();
-        result
+        Some(
+            value
+                .filter(|dep| dep.inserted_at <= self.miniblock_number)?
+                .bytecode,
+        )
     }
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {

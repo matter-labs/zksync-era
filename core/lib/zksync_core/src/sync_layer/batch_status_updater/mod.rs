@@ -65,8 +65,8 @@ enum UpdaterError {
     Internal(#[from] anyhow::Error),
 }
 
-impl From<zksync_dal::SqlxError> for UpdaterError {
-    fn from(err: zksync_dal::SqlxError) -> Self {
+impl From<zksync_dal::DalError> for UpdaterError {
+    fn from(err: zksync_dal::DalError) -> Self {
         Self::Internal(err.into())
     }
 }
