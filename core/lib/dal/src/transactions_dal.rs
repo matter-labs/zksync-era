@@ -3,9 +3,10 @@ use std::{collections::HashMap, fmt, time::Duration};
 use anyhow::Context as _;
 use bigdecimal::BigDecimal;
 use itertools::Itertools;
-use sqlx::{error, types::chrono::NaiveDateTime};
+use sqlx::types::chrono::NaiveDateTime;
 use zksync_db_connection::{
-    connection::Connection, instrument::InstrumentExt, utils::pg_interval_from_duration,
+    connection::Connection, error::DalResult, instrument::InstrumentExt,
+    utils::pg_interval_from_duration,
 };
 use zksync_types::{
     block::MiniblockExecutionData,
@@ -433,7 +434,7 @@ impl TransactionsDal<'_, '_> {
                 // In this case we identify it as Duplicate
                 // Note, this error can happen because of the race condition (tx can be taken by several
                 // API servers, that simultaneously start execute it and try to inserted to DB)
-                if let error::Error::Database(ref error) = err {
+                if let sqlx::Error::Database(error) = &err {
                     if let Some(constraint) = error.constraint() {
                         if constraint == "transactions_pkey" {
                             tracing::debug!(
@@ -1304,7 +1305,7 @@ impl TransactionsDal<'_, '_> {
         }
     }
 
-    pub async fn get_call_trace(&mut self, tx_hash: H256) -> anyhow::Result<Option<Call>> {
+    pub async fn get_call_trace(&mut self, tx_hash: H256) -> DalResult<Option<Call>> {
         let protocol_version: ProtocolVersionId = sqlx::query!(
             r#"
             SELECT
@@ -1317,7 +1318,9 @@ impl TransactionsDal<'_, '_> {
             "#,
             tx_hash.as_bytes()
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_call_trace")
+        .with_arg("tx_hash", &tx_hash)
+        .fetch_optional(self.storage)
         .await?
         .and_then(|row| row.protocol_version.map(|v| (v as u16).try_into().unwrap()))
         .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
@@ -1334,7 +1337,9 @@ impl TransactionsDal<'_, '_> {
             "#,
             tx_hash.as_bytes()
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_call_trace")
+        .with_arg("tx_hash", &tx_hash)
+        .fetch_optional(self.storage)
         .await?
         .map(|call_trace| call_trace.into_call(protocol_version)))
     }

@@ -185,10 +185,7 @@ impl ValuesCache {
             let modified_keys = connection
                 .storage_logs_dal()
                 .modified_keys_in_miniblocks(miniblocks.clone())
-                .await
-                .with_context(|| {
-                    format!("failed loading modified keys for miniblocks {miniblocks:?}")
-                })?;
+                .await?;
 
             let elapsed = update_latency.observe();
             CACHE_METRICS

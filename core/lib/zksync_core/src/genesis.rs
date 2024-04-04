@@ -13,8 +13,7 @@ use multivm::{
 };
 use zksync_config::{configs::database::MerkleTreeMode, GenesisConfig, PostgresConfig};
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
-use zksync_dal::{ConnectionPool, Core, CoreDal, SqlxError};
-use zksync_db_connection::connection::Connection;
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_eth_client::{clients::QueryClient, EthInterface};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
@@ -68,7 +67,7 @@ pub enum GenesisError {
     #[error("Wrong protocol version")]
     ProtocolVersion(u16),
     #[error("DB Error: {0}")]
-    DBError(#[from] SqlxError),
+    DBError(#[from] DalError),
     #[error("Error: {0}")]
     Other(#[from] anyhow::Error),
     #[error("Field: {0} required for genesis")]

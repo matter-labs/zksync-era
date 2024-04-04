@@ -1,5 +1,6 @@
 use zksync_db_connection::{
-    connection::Connection, instrument::InstrumentExt, interpolate_query, match_query_as,
+    connection::Connection, error::DalResult, instrument::InstrumentExt, interpolate_query,
+    match_query_as,
 };
 use zksync_system_constants::EMPTY_UNCLES_HASH;
 use zksync_types::{
@@ -125,7 +126,7 @@ impl BlocksWeb3Dal<'_, '_> {
         &mut self,
         from_block: MiniblockNumber,
         limit: usize,
-    ) -> sqlx::Result<(Vec<H256>, Option<MiniblockNumber>)> {
+    ) -> DalResult<(Vec<H256>, Option<MiniblockNumber>)> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -143,7 +144,10 @@ impl BlocksWeb3Dal<'_, '_> {
             i64::from(from_block.0),
             limit as i32
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_block_hashes_since")
+        .with_arg("from_block", &from_block)
+        .with_arg("limit", &limit)
+        .fetch_all(self.storage)
         .await?;
 
         let last_block_number = rows.last().map(|row| MiniblockNumber(row.number as u32));
@@ -155,7 +159,7 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_block_headers_after(
         &mut self,
         from_block: MiniblockNumber,
-    ) -> sqlx::Result<Vec<BlockHeader>> {
+    ) -> DalResult<Vec<BlockHeader>> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -171,7 +175,9 @@ impl BlocksWeb3Dal<'_, '_> {
             "#,
             i64::from(from_block.0),
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_block_headers_after")
+        .with_arg("from_block", &from_block)
+        .fetch_all(self.storage)
         .await?;
 
         let blocks = rows.into_iter().map(|row| BlockHeader {
@@ -351,8 +357,8 @@ impl BlocksWeb3Dal<'_, '_> {
 
     pub async fn get_l2_to_l1_logs(
         &mut self,
-        block_number: L1BatchNumber,
-    ) -> sqlx::Result<Vec<L2ToL1Log>> {
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<Vec<L2ToL1Log>> {
         let raw_logs = sqlx::query!(
             r#"
             SELECT
@@ -362,9 +368,11 @@ impl BlocksWeb3Dal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            i64::from(block_number.0)
+            i64::from(l1_batch_number.0)
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_l2_to_l1_logs")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_optional(self.storage)
         .await?
         .map(|row| row.l2_to_l1_logs)
         .unwrap_or_default();
@@ -378,7 +386,7 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_l1_batch_number_of_miniblock(
         &mut self,
         miniblock_number: MiniblockNumber,
-    ) -> sqlx::Result<Option<L1BatchNumber>> {
+    ) -> DalResult<Option<L1BatchNumber>> {
         let number: Option<i64> = sqlx::query!(
             r#"
             SELECT
@@ -390,7 +398,9 @@ impl BlocksWeb3Dal<'_, '_> {
             "#,
             i64::from(miniblock_number.0)
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_l1_batch_number_of_miniblock")
+        .with_arg("miniblock_number", &miniblock_number)
+        .fetch_optional(self.storage)
         .await?
         .and_then(|row| row.l1_batch_number);
 
@@ -400,7 +410,7 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_miniblock_range_of_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<Option<(MiniblockNumber, MiniblockNumber)>> {
+    ) -> DalResult<Option<(MiniblockNumber, MiniblockNumber)>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -413,7 +423,9 @@ impl BlocksWeb3Dal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-        .fetch_one(self.storage.conn())
+        .instrument("get_miniblock_range_of_l1_batch")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_one(self.storage)
         .await?;
 
         Ok(match (row.min, row.max) {
@@ -428,7 +440,7 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_l1_batch_info_for_tx(
         &mut self,
         tx_hash: H256,
-    ) -> sqlx::Result<Option<(L1BatchNumber, u16)>> {
+    ) -> DalResult<Option<(L1BatchNumber, u16)>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -441,7 +453,9 @@ impl BlocksWeb3Dal<'_, '_> {
             "#,
             tx_hash.as_bytes()
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_l1_batch_info_for_tx")
+        .with_arg("tx_hash", &tx_hash)
+        .fetch_optional(self.storage)
         .await?;
 
         let result = row.and_then(|row| match (row.l1_batch_number, row.l1_batch_tx_index) {
@@ -458,7 +472,7 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_traces_for_miniblock(
         &mut self,
         block_number: MiniblockNumber,
-    ) -> anyhow::Result<Vec<Call>> {
+    ) -> DalResult<Vec<Call>> {
         let protocol_version = self
             .storage
             .blocks_dal()
@@ -481,7 +495,9 @@ impl BlocksWeb3Dal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_traces_for_miniblock")
+        .with_arg("block_number", &block_number)
+        .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(|call_trace| call_trace.into_call(protocol_version))
@@ -494,7 +510,7 @@ impl BlocksWeb3Dal<'_, '_> {
         &mut self,
         newest_block: MiniblockNumber,
         block_count: u64,
-    ) -> sqlx::Result<Vec<U256>> {
+    ) -> DalResult<Vec<U256>> {
         let result: Vec<_> = sqlx::query!(
             r#"
             SELECT
@@ -511,7 +527,10 @@ impl BlocksWeb3Dal<'_, '_> {
             i64::from(newest_block.0),
             block_count as i64
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_fee_history")
+        .with_arg("newest_block", &newest_block)
+        .with_arg("block_count", &block_count)
+        .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(|row| bigdecimal_to_u256(row.base_fee_per_gas))
@@ -523,7 +542,7 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_block_details(
         &mut self,
         block_number: MiniblockNumber,
-    ) -> sqlx::Result<Option<api::BlockDetails>> {
+    ) -> DalResult<Option<api::BlockDetails>> {
         let storage_block_details = sqlx::query_as!(
             StorageBlockDetails,
             r#"
@@ -597,7 +616,7 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_l1_batch_details(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<Option<api::L1BatchDetails>> {
+    ) -> DalResult<Option<api::L1BatchDetails>> {
         let l1_batch_details: Option<StorageL1BatchDetails> = sqlx::query_as!(
             StorageL1BatchDetails,
             r#"

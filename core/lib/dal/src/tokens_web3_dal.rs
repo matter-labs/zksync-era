@@ -1,4 +1,4 @@
-use zksync_db_connection::connection::Connection;
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{
     tokens::{TokenInfo, TokenMetadata},
     Address, MiniblockNumber,
@@ -36,7 +36,7 @@ pub struct TokensWeb3Dal<'a, 'c> {
 
 impl TokensWeb3Dal<'_, '_> {
     /// Returns information about well-known tokens.
-    pub async fn get_well_known_tokens(&mut self) -> sqlx::Result<Vec<TokenInfo>> {
+    pub async fn get_well_known_tokens(&mut self) -> DalResult<Vec<TokenInfo>> {
         let records = sqlx::query_as!(
             StorageTokenInfo,
             r#"
@@ -54,7 +54,8 @@ impl TokensWeb3Dal<'_, '_> {
                 symbol
             "#
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_well_known_tokens")
+        .fetch_all(self.storage)
         .await?;
 
         Ok(records.into_iter().map(Into::into).collect())
@@ -64,7 +65,7 @@ impl TokensWeb3Dal<'_, '_> {
     pub async fn get_all_tokens(
         &mut self,
         at_miniblock: Option<MiniblockNumber>,
-    ) -> sqlx::Result<Vec<TokenInfo>> {
+    ) -> DalResult<Vec<TokenInfo>> {
         let records = sqlx::query_as!(
             StorageTokenInfo,
             r#"
@@ -80,7 +81,10 @@ impl TokensWeb3Dal<'_, '_> {
                 symbol
             "#
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_all_tokens")
+        .with_arg("at_miniblock", &at_miniblock)
+        .report_latency()
+        .fetch_all(self.storage)
         .await?;
 
         let mut all_tokens: Vec<_> = records.into_iter().map(TokenInfo::from).collect();

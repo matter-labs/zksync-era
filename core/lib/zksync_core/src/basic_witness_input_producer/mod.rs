@@ -118,8 +118,7 @@ impl JobProcessor for BasicWitnessInputProducer {
         let l1_batch_to_process = connection
             .basic_witness_input_producer_dal()
             .get_next_basic_witness_input_producer_job()
-            .await
-            .context("failed to get next basic witness input producer job")?;
+            .await?;
         Ok(l1_batch_to_process.map(|number| (number, number)))
     }
 
@@ -187,8 +186,7 @@ impl JobProcessor for BasicWitnessInputProducer {
         transaction
             .basic_witness_input_producer_dal()
             .mark_job_as_successful(job_id, started_at, &object_path)
-            .await
-            .context("failed to mark job as successful for BasicWitnessInputProducer")?;
+            .await?;
         transaction
             .commit()
             .await
