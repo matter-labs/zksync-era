@@ -176,23 +176,24 @@ async fn main() -> anyhow::Result<()> {
         genesis_init(genesis.clone(), &postgres_config)
             .await
             .context("genesis_init")?;
+
+        if opt.set_chain_id {
+            let eth_client = configs.eth.as_ref().context("eth config")?;
+
+            if let Some(shared_bridge) = &genesis.shared_bridge {
+                genesis::save_set_chain_id_tx(
+                    &eth_client.web3_url,
+                    contracts_config.diamond_proxy_addr,
+                    shared_bridge.state_transition_proxy_addr,
+                    &postgres_config,
+                )
+                .await
+                .context("Failed to save SetChainId upgrade transaction")?;
+            }
+        }
+
         if opt.genesis {
             return Ok(());
-        }
-    }
-
-    if opt.set_chain_id {
-        let eth_client = configs.eth.as_ref().context("eth config")?;
-
-        if let Some(shared_bridge) = &genesis.shared_bridge {
-            genesis::save_set_chain_id_tx(
-                &eth_client.web3_url,
-                contracts_config.diamond_proxy_addr,
-                shared_bridge.state_transition_proxy_addr,
-                &postgres_config,
-            )
-            .await
-            .context("Failed to save SetChainId upgrade transaction")?;
         }
     }
 
