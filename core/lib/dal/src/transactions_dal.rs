@@ -57,210 +57,213 @@ pub struct TransactionsDal<'c, 'a> {
 type TxLocations = Vec<(MiniblockNumber, Vec<(H256, u32, u16)>)>;
 
 impl TransactionsDal<'_, '_> {
-    pub async fn insert_transaction_l1(&mut self, tx: L1Tx, l1_block_number: L1BlockNumber) {
-        {
-            let contract_address = tx.execute.contract_address.as_bytes();
-            let tx_hash = tx.hash();
-            let tx_hash_bytes = tx_hash.as_bytes();
-            let json_data = serde_json::to_value(&tx.execute)
-                .unwrap_or_else(|_| panic!("cannot serialize tx {:?} to json", tx.hash()));
-            let gas_limit = u256_to_big_decimal(tx.common_data.gas_limit);
-            let max_fee_per_gas = u256_to_big_decimal(tx.common_data.max_fee_per_gas);
-            let full_fee = u256_to_big_decimal(tx.common_data.full_fee);
-            let layer_2_tip_fee = u256_to_big_decimal(tx.common_data.layer_2_tip_fee);
-            let sender = tx.common_data.sender.as_bytes();
-            let serial_id = tx.serial_id().0 as i64;
-            let gas_per_pubdata_limit = u256_to_big_decimal(tx.common_data.gas_per_pubdata_limit);
-            let value = u256_to_big_decimal(tx.execute.value);
-            let tx_format = tx.common_data.tx_format() as i32;
-            let empty_address = Address::default();
+    pub async fn insert_transaction_l1(
+        &mut self,
+        tx: L1Tx,
+        l1_block_number: L1BlockNumber,
+    ) -> DalResult<()> {
+        let contract_address = tx.execute.contract_address.as_bytes();
+        let tx_hash = tx.hash();
+        let tx_hash_bytes = tx_hash.as_bytes();
+        let json_data = serde_json::to_value(&tx.execute)
+            .unwrap_or_else(|_| panic!("cannot serialize tx {:?} to json", tx.hash()));
+        let gas_limit = u256_to_big_decimal(tx.common_data.gas_limit);
+        let max_fee_per_gas = u256_to_big_decimal(tx.common_data.max_fee_per_gas);
+        let full_fee = u256_to_big_decimal(tx.common_data.full_fee);
+        let layer_2_tip_fee = u256_to_big_decimal(tx.common_data.layer_2_tip_fee);
+        let sender = tx.common_data.sender.as_bytes();
+        let serial_id = tx.serial_id().0 as i64;
+        let gas_per_pubdata_limit = u256_to_big_decimal(tx.common_data.gas_per_pubdata_limit);
+        let value = u256_to_big_decimal(tx.execute.value);
+        let tx_format = tx.common_data.tx_format() as i32;
+        let empty_address = Address::default();
 
-            let to_mint = u256_to_big_decimal(tx.common_data.to_mint);
-            let refund_recipient = tx.common_data.refund_recipient.as_bytes();
+        let to_mint = u256_to_big_decimal(tx.common_data.to_mint);
+        let refund_recipient = tx.common_data.refund_recipient.as_bytes();
 
-            let secs = (tx.received_timestamp_ms / 1000) as i64;
-            let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
-            #[allow(deprecated)]
-            let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
+        let secs = (tx.received_timestamp_ms / 1000) as i64;
+        let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
+        #[allow(deprecated)]
+        let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
 
-            sqlx::query!(
-                r#"
-                INSERT INTO
-                    transactions (
-                        hash,
-                        is_priority,
-                        initiator_address,
-                        gas_limit,
-                        max_fee_per_gas,
-                        gas_per_pubdata_limit,
-                        data,
-                        priority_op_id,
-                        full_fee,
-                        layer_2_tip_fee,
-                        contract_address,
-                        l1_block_number,
-                        value,
-                        paymaster,
-                        paymaster_input,
-                        tx_format,
-                        l1_tx_mint,
-                        l1_tx_refund_recipient,
-                        received_at,
-                        created_at,
-                        updated_at
-                    )
-                VALUES
-                    (
-                        $1,
-                        TRUE,
-                        $2,
-                        $3,
-                        $4,
-                        $5,
-                        $6,
-                        $7,
-                        $8,
-                        $9,
-                        $10,
-                        $11,
-                        $12,
-                        $13,
-                        $14,
-                        $15,
-                        $16,
-                        $17,
-                        $18,
-                        NOW(),
-                        NOW()
-                    )
-                ON CONFLICT (hash) DO NOTHING
-                "#,
-                tx_hash_bytes,
-                sender,
-                gas_limit,
-                max_fee_per_gas,
-                gas_per_pubdata_limit,
-                json_data,
-                serial_id,
-                full_fee,
-                layer_2_tip_fee,
-                contract_address,
-                l1_block_number.0 as i32,
-                value,
-                empty_address.as_bytes(),
-                &[] as &[u8],
-                tx_format,
-                to_mint,
-                refund_recipient,
-                received_at,
-            )
-            .fetch_optional(self.storage.conn())
-            .await
-            .unwrap();
-        }
+        sqlx::query!(
+            r#"
+            INSERT INTO
+                transactions (
+                    hash,
+                    is_priority,
+                    initiator_address,
+                    gas_limit,
+                    max_fee_per_gas,
+                    gas_per_pubdata_limit,
+                    data,
+                    priority_op_id,
+                    full_fee,
+                    layer_2_tip_fee,
+                    contract_address,
+                    l1_block_number,
+                    value,
+                    paymaster,
+                    paymaster_input,
+                    tx_format,
+                    l1_tx_mint,
+                    l1_tx_refund_recipient,
+                    received_at,
+                    created_at,
+                    updated_at
+                )
+            VALUES
+                (
+                    $1,
+                    TRUE,
+                    $2,
+                    $3,
+                    $4,
+                    $5,
+                    $6,
+                    $7,
+                    $8,
+                    $9,
+                    $10,
+                    $11,
+                    $12,
+                    $13,
+                    $14,
+                    $15,
+                    $16,
+                    $17,
+                    $18,
+                    NOW(),
+                    NOW()
+                )
+            ON CONFLICT (hash) DO NOTHING
+            "#,
+            tx_hash_bytes,
+            sender,
+            gas_limit,
+            max_fee_per_gas,
+            gas_per_pubdata_limit,
+            json_data,
+            serial_id,
+            full_fee,
+            layer_2_tip_fee,
+            contract_address,
+            l1_block_number.0 as i32,
+            value,
+            empty_address.as_bytes(),
+            &[] as &[u8],
+            tx_format,
+            to_mint,
+            refund_recipient,
+            received_at,
+        )
+        .instrument("insert_transaction_l1")
+        .with_arg("tx_hash", &tx_hash)
+        .fetch_optional(self.storage)
+        .await?;
+        Ok(())
     }
 
-    pub async fn insert_system_transaction(&mut self, tx: ProtocolUpgradeTx) {
-        {
-            let contract_address = tx.execute.contract_address.as_bytes().to_vec();
-            let tx_hash = tx.common_data.hash().0.to_vec();
-            let json_data = serde_json::to_value(&tx.execute).unwrap_or_else(|_| {
-                panic!("cannot serialize tx {:?} to json", tx.common_data.hash())
-            });
-            let upgrade_id = tx.common_data.upgrade_id as i32;
-            let gas_limit = u256_to_big_decimal(tx.common_data.gas_limit);
-            let max_fee_per_gas = u256_to_big_decimal(tx.common_data.max_fee_per_gas);
-            let sender = tx.common_data.sender.0.to_vec();
-            let gas_per_pubdata_limit = u256_to_big_decimal(tx.common_data.gas_per_pubdata_limit);
-            let value = u256_to_big_decimal(tx.execute.value);
-            let tx_format = tx.common_data.tx_format() as i32;
-            let l1_block_number = tx.common_data.eth_block as i32;
+    pub async fn insert_system_transaction(&mut self, tx: ProtocolUpgradeTx) -> DalResult<()> {
+        let contract_address = tx.execute.contract_address.as_bytes().to_vec();
+        let tx_hash = tx.common_data.hash().0.to_vec();
+        let json_data = serde_json::to_value(&tx.execute)
+            .unwrap_or_else(|_| panic!("cannot serialize tx {:?} to json", tx.common_data.hash()));
+        let upgrade_id = tx.common_data.upgrade_id as i32;
+        let gas_limit = u256_to_big_decimal(tx.common_data.gas_limit);
+        let max_fee_per_gas = u256_to_big_decimal(tx.common_data.max_fee_per_gas);
+        let sender = tx.common_data.sender.0.to_vec();
+        let gas_per_pubdata_limit = u256_to_big_decimal(tx.common_data.gas_per_pubdata_limit);
+        let value = u256_to_big_decimal(tx.execute.value);
+        let tx_format = tx.common_data.tx_format() as i32;
+        let l1_block_number = tx.common_data.eth_block as i32;
 
-            let to_mint = u256_to_big_decimal(tx.common_data.to_mint);
-            let refund_recipient = tx.common_data.refund_recipient.as_bytes().to_vec();
+        let to_mint = u256_to_big_decimal(tx.common_data.to_mint);
+        let refund_recipient = tx.common_data.refund_recipient.as_bytes().to_vec();
 
-            let secs = (tx.received_timestamp_ms / 1000) as i64;
-            let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
+        let secs = (tx.received_timestamp_ms / 1000) as i64;
+        let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
 
-            #[allow(deprecated)]
-            let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
+        #[allow(deprecated)]
+        let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
 
-            sqlx::query!(
-                r#"
-                INSERT INTO
-                    transactions (
-                        hash,
-                        is_priority,
-                        initiator_address,
-                        gas_limit,
-                        max_fee_per_gas,
-                        gas_per_pubdata_limit,
-                        data,
-                        upgrade_id,
-                        contract_address,
-                        l1_block_number,
-                        value,
-                        paymaster,
-                        paymaster_input,
-                        tx_format,
-                        l1_tx_mint,
-                        l1_tx_refund_recipient,
-                        received_at,
-                        created_at,
-                        updated_at
-                    )
-                VALUES
-                    (
-                        $1,
-                        TRUE,
-                        $2,
-                        $3,
-                        $4,
-                        $5,
-                        $6,
-                        $7,
-                        $8,
-                        $9,
-                        $10,
-                        $11,
-                        $12,
-                        $13,
-                        $14,
-                        $15,
-                        $16,
-                        NOW(),
-                        NOW()
-                    )
-                ON CONFLICT (hash) DO NOTHING
-                "#,
-                tx_hash,
-                sender,
-                gas_limit,
-                max_fee_per_gas,
-                gas_per_pubdata_limit,
-                json_data,
-                upgrade_id,
-                contract_address,
-                l1_block_number,
-                value,
-                &Address::default().0.to_vec(),
-                &vec![],
-                tx_format,
-                to_mint,
-                refund_recipient,
-                received_at,
-            )
-            .fetch_optional(self.storage.conn())
-            .await
-            .unwrap();
-        }
+        sqlx::query!(
+            r#"
+            INSERT INTO
+                transactions (
+                    hash,
+                    is_priority,
+                    initiator_address,
+                    gas_limit,
+                    max_fee_per_gas,
+                    gas_per_pubdata_limit,
+                    data,
+                    upgrade_id,
+                    contract_address,
+                    l1_block_number,
+                    value,
+                    paymaster,
+                    paymaster_input,
+                    tx_format,
+                    l1_tx_mint,
+                    l1_tx_refund_recipient,
+                    received_at,
+                    created_at,
+                    updated_at
+                )
+            VALUES
+                (
+                    $1,
+                    TRUE,
+                    $2,
+                    $3,
+                    $4,
+                    $5,
+                    $6,
+                    $7,
+                    $8,
+                    $9,
+                    $10,
+                    $11,
+                    $12,
+                    $13,
+                    $14,
+                    $15,
+                    $16,
+                    NOW(),
+                    NOW()
+                )
+            ON CONFLICT (hash) DO NOTHING
+            "#,
+            tx_hash,
+            sender,
+            gas_limit,
+            max_fee_per_gas,
+            gas_per_pubdata_limit,
+            json_data,
+            upgrade_id,
+            contract_address,
+            l1_block_number,
+            value,
+            &Address::default().0.to_vec(),
+            &vec![],
+            tx_format,
+            to_mint,
+            refund_recipient,
+            received_at,
+        )
+        .instrument("insert_system_transaction")
+        .with_arg("tx_hash", &tx_hash)
+        .fetch_optional(self.storage)
+        .await?;
+        Ok(())
     }
 
     pub async fn insert_transaction_l2(
         &mut self,
         tx: L2Tx,
         exec_info: TransactionExecutionMetrics,
-    ) -> sqlx::Result<L2TxSubmissionResult> {
+    ) -> DalResult<L2TxSubmissionResult> {
         let tx_hash = tx.hash();
         let is_duplicate = sqlx::query!(
             r#"
@@ -273,7 +276,9 @@ impl TransactionsDal<'_, '_> {
             "#,
             tx_hash.as_bytes(),
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("insert_transaction_l2#is_duplicate")
+        .with_arg("tx_hash", &tx_hash)
+        .fetch_optional(self.storage)
         .await?
         .is_some();
 
@@ -416,9 +421,11 @@ impl TransactionsDal<'_, '_> {
             exec_info.contracts_used as i32,
             received_at
         )
-            .fetch_optional(self.storage.conn())
-            .await
-            .map(|option_record| option_record.map(|record| record.is_replaced));
+        .instrument("insert_transaction_l2")
+        .with_arg("tx_hash", &tx_hash)
+        .fetch_optional(self.storage)
+        .await
+        .map(|option_record| option_record.map(|record| record.is_replaced));
 
         let l2_tx_insertion_result = match query_result {
             Ok(option_query_result) => match option_query_result {
@@ -434,7 +441,7 @@ impl TransactionsDal<'_, '_> {
                 // In this case we identify it as Duplicate
                 // Note, this error can happen because of the race condition (tx can be taken by several
                 // API servers, that simultaneously start execute it and try to inserted to DB)
-                if let sqlx::Error::Database(error) = &err {
+                if let sqlx::Error::Database(error) = err.inner() {
                     if let Some(constraint) = error.constraint() {
                         if constraint == "transactions_pkey" {
                             tracing::debug!(
@@ -1350,7 +1357,8 @@ mod tests {
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(1))
             .await

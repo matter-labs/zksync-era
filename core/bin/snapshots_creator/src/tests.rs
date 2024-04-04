@@ -204,7 +204,8 @@ async fn prepare_postgres(
 ) -> ExpectedOutputs {
     conn.protocol_versions_dal()
         .save_protocol_version_with_tx(ProtocolVersion::default())
-        .await;
+        .await
+        .unwrap();
 
     let mut outputs = ExpectedOutputs::default();
     for block_number in 0..block_count {
