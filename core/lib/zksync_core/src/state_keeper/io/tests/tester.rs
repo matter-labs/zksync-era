@@ -126,8 +126,6 @@ impl Tester {
             &config,
             wallets.state_keeper.unwrap().fee_account.address(),
             Duration::from_secs(1),
-            l2_shared_bridge_addr,
-            BLOCK_GAS_LIMIT,
             L2ChainId::from(270),
         )
         .await
