@@ -28,7 +28,7 @@ impl SealCriterion for CircuitsCriterion {
             get_max_batch_base_layer_circuits(protocol_version.into());
         assert!(
             config.max_circuits_per_batch <= max_allowed_base_layer_circuits,
-            "Configured max_circuits_per_batch ({}) must be lower than the bootloader constant MAX_BASE_LAYER_CIRCUITS={} for protocol version {}",
+            "Configured max_circuits_per_batch ({}) must be lower than the constant MAX_BASE_LAYER_CIRCUITS={} for protocol version {}",
             config.max_circuits_per_batch, max_allowed_base_layer_circuits, protocol_version as u16
         );
 
