@@ -36,6 +36,8 @@ pub mod availability_checker {
             stop_receiver: tokio::sync::watch::Receiver<bool>,
         ) -> anyhow::Result<()> {
             while !*stop_receiver.borrow() {
+                tokio::time::sleep(self.polling_interval).await;
+
                 let status = self
                     .pool
                     .connection()
@@ -69,8 +71,6 @@ pub mod availability_checker {
                     }
                     Some(_) => (),
                 }
-
-                tokio::time::sleep(self.polling_interval).await;
             }
 
             tracing::info!("Availability checker was shut down");
