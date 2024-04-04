@@ -8,7 +8,7 @@ use zksync_types::{
     fee::Fee,
     l1::{OpProcessingType, PriorityQueueType},
     l2::TransactionType,
-    protocol_version::ProtocolUpgradeTxCommonData,
+    protocol_upgrade::ProtocolUpgradeTxCommonData,
     transaction_request::PaymasterParams,
     vm_trace::Call,
     web3::types::U64,
@@ -437,7 +437,7 @@ impl From<StorageTransactionDetails> for TransactionDetails {
                 .gas_limit
                 .expect("gas limit is mandatory for transaction"),
         );
-        let gas_refunded = U256::from(tx_details.refunded_gas as u32);
+        let gas_refunded = U256::from(tx_details.refunded_gas as u64);
         let fee = (gas_limit - gas_refunded) * effective_gas_price;
 
         let gas_per_pubdata =

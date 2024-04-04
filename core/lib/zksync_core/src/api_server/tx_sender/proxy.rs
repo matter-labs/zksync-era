@@ -6,7 +6,7 @@ use std::{
 };
 
 use tokio::sync::{watch, RwLock};
-use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
+use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Core, CoreDal};
 use zksync_types::{
     api::{BlockId, Transaction, TransactionDetails, TransactionId},
     fee::TransactionExecutionMetrics,
@@ -14,8 +14,8 @@ use zksync_types::{
     Address, Nonce, H256,
 };
 use zksync_web3_decl::{
+    client::L2Client,
     error::{ClientRpcContext, EnrichedClientResult, Web3Error},
-    jsonrpsee::http_client::HttpClient,
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
@@ -64,7 +64,7 @@ impl TxCache {
 
     async fn run_updates(
         self,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         const UPDATE_INTERVAL: Duration = Duration::from_secs(1);
@@ -79,7 +79,7 @@ impl TxCache {
                 let inner = self.inner.read().await;
                 inner.nonces_by_account.keys().copied().collect()
             };
-            let mut storage = pool.access_storage_tagged("api").await?;
+            let mut storage = pool.connection_tagged("api").await?;
             let nonces_for_accounts = storage
                 .storage_web3_dal()
                 .get_nonces_for_addresses(&addresses)
@@ -109,13 +109,13 @@ impl TxCache {
 #[derive(Debug)]
 pub struct TxProxy {
     tx_cache: TxCache,
-    client: HttpClient,
+    client: L2Client,
 }
 
 impl TxProxy {
-    pub fn new(client: HttpClient) -> Self {
+    pub fn new(client: L2Client) -> Self {
         Self {
-            client,
+            client: client.for_component("tx_proxy"),
             tx_cache: TxCache::default(),
         }
     }
@@ -204,7 +204,7 @@ impl TxProxy {
 
     pub fn run_account_nonce_sweeper(
         &self,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
         stop_receiver: watch::Receiver<bool>,
     ) -> impl Future<Output = anyhow::Result<()>> {
         let tx_cache = self.tx_cache.clone();

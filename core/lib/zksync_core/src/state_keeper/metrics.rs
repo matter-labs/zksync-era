@@ -21,16 +21,6 @@ use crate::metrics::InteractionType;
 pub(crate) enum TxExecutionStage {
     Execution,
     TxRollback,
-    #[metrics(name = "dryrun_make_snapshot")]
-    DryRunMakeSnapshot,
-    #[metrics(name = "dryrun_execute_block_tip")]
-    DryRunExecuteBlockTip,
-    #[metrics(name = "dryrun_get_execution_metrics")]
-    DryRunGetExecutionMetrics,
-    #[metrics(name = "dryrun_rollback_to_the_latest_snapshot")]
-    DryRunRollbackToLatestSnapshot,
-    #[metrics(name = "dryrun_rollback")]
-    DryRunRollback,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
@@ -185,7 +175,6 @@ pub(super) static AGGREGATION_METRICS: vise::Global<TxAggregationMetrics> = vise
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
 pub(super) enum L1BatchSealStage {
-    VmFinalization,
     FictiveMiniblock,
     LogDeduplication,
     InsertL1BatchHeader,

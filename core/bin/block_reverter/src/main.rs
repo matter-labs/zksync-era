@@ -2,13 +2,12 @@ use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
 use zksync_config::{
-    configs::ObservabilityConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig,
-    PostgresConfig,
+    configs::ObservabilityConfig, ContractsConfig, DBConfig, ETHConfig, PostgresConfig,
 };
 use zksync_core::block_reverter::{
     BlockReverter, BlockReverterEthConfig, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole,
 };
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::FromEnv;
 use zksync_types::{L1BatchNumber, U256};
 
@@ -87,16 +86,19 @@ async fn main() -> anyhow::Result<()> {
     }
     let _guard = builder.build();
 
-    let eth_sender = ETHSenderConfig::from_env().context("ETHSenderConfig::from_env()")?;
+    let eth_sender = ETHConfig::from_env().context("ETHSenderConfig::from_env()")?;
     let db_config = DBConfig::from_env().context("DBConfig::from_env()")?;
-    let eth_client = ETHClientConfig::from_env().context("ETHClientConfig::from_env()")?;
-    let default_priority_fee_per_gas =
-        U256::from(eth_sender.gas_adjuster.default_priority_fee_per_gas);
+    let default_priority_fee_per_gas = U256::from(
+        eth_sender
+            .gas_adjuster
+            .context("gas_adjuster")?
+            .default_priority_fee_per_gas,
+    );
     let contracts = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let config = BlockReverterEthConfig::new(eth_sender, contracts, eth_client.web3_url.clone());
+    let config = BlockReverterEthConfig::new(eth_sender, contracts);
 
-    let connection_pool = ConnectionPool::builder(
+    let connection_pool = ConnectionPool::<Core>::builder(
         postgres_config.master_url()?,
         postgres_config.max_connections()?,
     )

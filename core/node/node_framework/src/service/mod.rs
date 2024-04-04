@@ -1,16 +1,21 @@
-use std::{collections::HashMap, fmt, time::Duration};
+use std::{collections::HashMap, time::Duration};
 
+use anyhow::Context;
 use futures::{future::BoxFuture, FutureExt};
 use tokio::{runtime::Runtime, sync::watch};
+use zksync_utils::panic_extractor::try_extract_panic_message;
 
-pub use self::{context::ServiceContext, stop_receiver::StopReceiver};
+use self::runnables::Runnables;
+pub use self::{context::ServiceContext, error::ZkStackServiceError, stop_receiver::StopReceiver};
 use crate::{
     resource::{ResourceId, StoredResource},
-    task::Task,
+    service::runnables::TaskReprs,
     wiring_layer::{WiringError, WiringLayer},
 };
 
 mod context;
+mod error;
+mod runnables;
 mod stop_receiver;
 #[cfg(test)]
 mod tests;
@@ -18,47 +23,40 @@ mod tests;
 // A reasonable amount of time for any task to finish the shutdown process
 const TASK_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// "Manager" class for a set of tasks. Collects all the resources and tasks,
-/// then runs tasks until completion.
-///
-/// Initialization flow:
-/// - Service instance is created with access to the resource provider.
-/// - Wiring layers are added to the service. At this step, tasks are not created yet.
-/// - Once the `run` method is invoked, service
-///   - invokes a `wire` method on each added wiring layer. If any of the layers fails,
-///     the service will return an error. If no layers have added a task, the service will
-///     also return an error.
-///   - waits for any of the tasks to finish.
-///   - sends stop signal to all the tasks.
-///   - waits for the remaining tasks to finish.
-///   - calls `after_node_shutdown` hook for every task that has provided it.
-///   - returns the result of the task that has finished.
-pub struct ZkStackService {
-    /// Cache of resources that have been requested at least by one task.
-    resources: HashMap<ResourceId, Box<dyn StoredResource>>,
+/// A builder for [`ZkStackService`].
+#[derive(Default, Debug)]
+pub struct ZkStackServiceBuilder {
     /// List of wiring layers.
     layers: Vec<Box<dyn WiringLayer>>,
-    /// Tasks added to the service.
-    tasks: Vec<Box<dyn Task>>,
-
-    /// Sender used to stop the tasks.
-    stop_sender: watch::Sender<bool>,
-    /// Tokio runtime used to spawn tasks.
-    runtime: Runtime,
 }
 
-impl fmt::Debug for ZkStackService {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ZkStackService").finish_non_exhaustive()
+impl ZkStackServiceBuilder {
+    pub fn new() -> Self {
+        Self { layers: Vec::new() }
     }
-}
 
-impl ZkStackService {
-    pub fn new() -> anyhow::Result<Self> {
+    /// Adds a wiring layer.
+    /// During the [`run`](ZkStackService::run) call the service will invoke
+    /// `wire` method of every layer in the order they were added.
+    ///
+    /// This method may be invoked multiple times with the same layer type, but the
+    /// layer will only be stored once (meaning that 2nd attempt to add the same layer will be ignored).
+    /// This may be useful if the same layer is a prerequisite for multiple other layers: it is safe
+    /// to add it multiple times, and it will only be wired once.
+    pub fn add_layer<T: WiringLayer>(&mut self, layer: T) -> &mut Self {
+        if !self
+            .layers
+            .iter()
+            .any(|existing_layer| existing_layer.layer_name() == layer.layer_name())
+        {
+            self.layers.push(Box::new(layer));
+        }
+        self
+    }
+
+    pub fn build(&mut self) -> Result<ZkStackService, ZkStackServiceError> {
         if tokio::runtime::Handle::try_current().is_ok() {
-            anyhow::bail!(
-                "Detected a Tokio Runtime. ZkStackService manages its own runtime and does not support nested runtimes"
-            );
+            return Err(ZkStackServiceError::RuntimeDetected);
         }
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -66,27 +64,37 @@ impl ZkStackService {
             .unwrap();
 
         let (stop_sender, _stop_receiver) = watch::channel(false);
-        let self_ = Self {
-            resources: HashMap::default(),
-            layers: Vec::new(),
-            tasks: Vec::new(),
+
+        Ok(ZkStackService {
+            layers: std::mem::take(&mut self.layers),
+            resources: Default::default(),
+            runnables: Default::default(),
             stop_sender,
             runtime,
-        };
-
-        Ok(self_)
+        })
     }
+}
 
-    /// Adds a wiring layer.
-    /// During the [`run`](ZkStackService::run) call the service will invoke
-    /// `wire` method of every layer in the order they were added.
-    pub fn add_layer<T: WiringLayer>(&mut self, layer: T) -> &mut Self {
-        self.layers.push(Box::new(layer));
-        self
-    }
+/// "Manager" class for a set of tasks. Collects all the resources and tasks,
+/// then runs tasks until completion.
+#[derive(Debug)]
+pub struct ZkStackService {
+    /// Cache of resources that have been requested at least by one task.
+    resources: HashMap<ResourceId, Box<dyn StoredResource>>,
+    /// List of wiring layers.
+    layers: Vec<Box<dyn WiringLayer>>,
+    /// Different kinds of tasks for the service.
+    runnables: Runnables,
 
+    /// Sender used to stop the tasks.
+    stop_sender: watch::Sender<bool>,
+    /// Tokio runtime used to spawn tasks.
+    runtime: Runtime,
+}
+
+impl ZkStackService {
     /// Runs the system.
-    pub fn run(mut self) -> anyhow::Result<()> {
+    pub fn run(mut self) -> Result<(), ZkStackServiceError> {
         // Initialize tasks.
         let wiring_layers = std::mem::take(&mut self.layers);
 
@@ -95,6 +103,7 @@ impl ZkStackService {
         let runtime_handle = self.runtime.handle().clone();
         for layer in wiring_layers {
             let name = layer.layer_name().to_string();
+            // We must process wiring layers sequentially and in the same order as they were added.
             let task_result =
                 runtime_handle.block_on(layer.wire(ServiceContext::new(&name, &mut self)));
             if let Err(err) = task_result {
@@ -108,62 +117,62 @@ impl ZkStackService {
 
         // Report all the errors we've met during the init.
         if !errors.is_empty() {
-            for (task, error) in errors {
-                tracing::error!("Task {task} can't be initialized: {error}");
+            for (layer, error) in &errors {
+                tracing::error!("Wiring layer {layer} can't be initialized: {error}");
             }
-            anyhow::bail!("One or more task weren't able to start");
+            return Err(ZkStackServiceError::Wiring(errors));
         }
 
-        let mut tasks = Vec::new();
-        for task in std::mem::take(&mut self.tasks) {
-            let name = task.name().to_string();
-            let after_node_shutdown = task.after_node_shutdown();
-            let task_future = Box::pin(task.run(self.stop_receiver()));
-            let task_repr = TaskRepr {
-                name,
-                task: Some(task_future),
-                after_node_shutdown,
-            };
-            tasks.push(task_repr);
+        if self.runnables.is_empty() {
+            return Err(ZkStackServiceError::NoTasks);
         }
-        if tasks.is_empty() {
-            anyhow::bail!("No tasks to run");
-        }
+
+        let only_oneshot_tasks = self.runnables.is_oneshot_only();
+
+        // Barrier that will only be lifted once all the preconditions are met.
+        // It will be awaited by the tasks before they start running and by the preconditions once they are fulfilled.
+        let task_barrier = self.runnables.task_barrier();
+
+        // Collect long-running tasks.
+        let stop_receiver = StopReceiver(self.stop_sender.subscribe());
+        let TaskReprs {
+            mut long_running_tasks,
+            oneshot_tasks,
+        } = self
+            .runnables
+            .prepare_tasks(task_barrier.clone(), stop_receiver.clone());
 
         // Wiring is now complete.
         for resource in self.resources.values_mut() {
             resource.stored_resource_wired();
         }
+        tracing::info!("Wiring complete");
+
+        // Create a system task that is cancellation-aware and will only exit on either oneshot task failure or
+        // stop signal.
+        let oneshot_runner_system_task =
+            oneshot_runner_task(oneshot_tasks, stop_receiver, only_oneshot_tasks);
+        long_running_tasks.push(oneshot_runner_system_task);
 
         // Prepare tasks for running.
         let rt_handle = self.runtime.handle().clone();
-        let join_handles: Vec<_> = tasks
-            .iter_mut()
-            .map(|task| {
-                let task = task.task.take().expect(
-                    "Tasks are created by the node and must be Some prior to calling this method",
-                );
-                rt_handle.spawn(task).fuse()
-            })
+        let join_handles: Vec<_> = long_running_tasks
+            .into_iter()
+            .map(|task| rt_handle.spawn(task).fuse())
             .collect();
 
         // Run the tasks until one of them exits.
-        let (resolved, resolved_idx, remaining) = self
+        let (resolved, _, remaining) = self
             .runtime
             .block_on(futures::future::select_all(join_handles));
-        let resolved_task_name = tasks[resolved_idx].name.clone();
-        let failure = match resolved {
-            Ok(Ok(())) => {
-                tracing::info!("Task {resolved_task_name} completed");
-                false
-            }
-            Ok(Err(err)) => {
-                tracing::error!("Task {resolved_task_name} exited with an error: {err}");
-                true
-            }
-            Err(_) => {
-                tracing::error!("Task {resolved_task_name} panicked");
-                true
+        let result = match resolved {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(err)) => Err(err).context("Task failed"),
+            Err(panic_err) => {
+                let panic_msg = try_extract_panic_message(panic_err);
+                Err(anyhow::format_err!(
+                    "One of the tasks panicked: {panic_msg}"
+                ))
             }
         };
 
@@ -187,37 +196,47 @@ impl ZkStackService {
             tracing::info!("Remaining tasks finished without reaching timeouts");
         }
 
-        // Call after_node_shutdown hooks.
-        let local_set = tokio::task::LocalSet::new();
-        let join_handles = tasks.iter_mut().filter_map(|task| {
-            task.after_node_shutdown
-                .take()
-                .map(|task| local_set.spawn_local(task))
+        result?;
+        Ok(())
+    }
+}
+
+fn oneshot_runner_task(
+    oneshot_tasks: Vec<BoxFuture<'static, anyhow::Result<()>>>,
+    mut stop_receiver: StopReceiver,
+    only_oneshot_tasks: bool,
+) -> BoxFuture<'static, anyhow::Result<()>> {
+    Box::pin(async move {
+        let oneshot_tasks = oneshot_tasks.into_iter().map(|fut| async move {
+            // Spawn each oneshot task as a separate tokio task.
+            // This way we can handle the cases when such a task panics and propagate the message
+            // to the service.
+            let handle = tokio::runtime::Handle::current();
+            match handle.spawn(fut).await {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(err)) => Err(err),
+                Err(panic_err) => {
+                    let panic_msg = try_extract_panic_message(panic_err);
+                    Err(anyhow::format_err!("Oneshot task panicked: {panic_msg}"))
+                }
+            }
         });
-        local_set.block_on(&self.runtime, futures::future::join_all(join_handles));
 
-        if failure {
-            anyhow::bail!("Task {resolved_task_name} failed");
-        } else {
-            Ok(())
+        match futures::future::try_join_all(oneshot_tasks).await {
+            Err(err) => Err(err),
+            Ok(_) if only_oneshot_tasks => {
+                // We only run oneshot tasks in this service, so we can exit now.
+                Ok(())
+            }
+            Ok(_) => {
+                // All oneshot tasks have exited and we have at least one long-running task.
+                // Simply wait for the stop signal.
+                stop_receiver.0.changed().await.ok();
+                Ok(())
+            }
         }
-    }
-
-    pub(crate) fn stop_receiver(&self) -> StopReceiver {
-        StopReceiver(self.stop_sender.subscribe())
-    }
-}
-
-struct TaskRepr {
-    name: String,
-    task: Option<BoxFuture<'static, anyhow::Result<()>>>,
-    after_node_shutdown: Option<BoxFuture<'static, ()>>,
-}
-
-impl fmt::Debug for TaskRepr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TaskRepr")
-            .field("name", &self.name)
-            .finish_non_exhaustive()
-    }
+        // Note that we don't have to `select` on the stop signal explicitly:
+        // Each prerequisite is given a stop signal, and if everyone respects it, this future
+        // will still resolve once the stop signal is received.
+    })
 }

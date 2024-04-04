@@ -124,6 +124,7 @@ stdout
 GCS
 websocket
 struct
+struct's
 localhost
 TOML
 config
@@ -915,5 +916,14 @@ shivini
 balancer
 lookups
 stateful
+getPubdataPricingMode
+Uint
+implementors
 WIP
+oneshot
 p2p
+StorageProcessor
+StorageMarker
+SIGINT
+opentelemetry
+PubdataSendingMode

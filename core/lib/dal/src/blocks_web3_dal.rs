@@ -1,3 +1,6 @@
+use zksync_db_connection::{
+    connection::Connection, instrument::InstrumentExt, interpolate_query, match_query_as,
+};
 use zksync_system_constants::EMPTY_UNCLES_HASH;
 use zksync_types::{
     api,
@@ -9,19 +12,19 @@ use zksync_types::{
 use zksync_utils::bigdecimal_to_u256;
 
 use crate::{
-    instrument::InstrumentExt,
     models::{
-        storage_block::{ResolvedL1BatchForMiniblock, StorageBlockDetails, StorageL1BatchDetails},
+        storage_block::{
+            ResolvedL1BatchForMiniblock, StorageBlockDetails, StorageL1BatchDetails,
+            LEGACY_BLOCK_GAS_LIMIT,
+        },
         storage_transaction::CallTrace,
     },
-    StorageProcessor,
+    Core, CoreDal,
 };
-
-const BLOCK_GAS_LIMIT: u32 = u32::MAX;
 
 #[derive(Debug)]
 pub struct BlocksWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl BlocksWeb3Dal<'_, '_> {
@@ -37,9 +40,10 @@ impl BlocksWeb3Dal<'_, '_> {
                 miniblocks.l1_batch_number,
                 miniblocks.timestamp,
                 miniblocks.base_fee_per_gas,
+                miniblocks.gas_limit AS "block_gas_limit?",
                 prev_miniblock.hash AS "parent_hash?",
                 l1_batches.timestamp AS "l1_batch_timestamp?",
-                transactions.gas_limit AS "gas_limit?",
+                transactions.gas_limit AS "transaction_gas_limit?",
                 transactions.refunded_gas AS "refunded_gas?",
                 transactions.hash AS "tx_hash?"
             FROM
@@ -70,21 +74,28 @@ impl BlocksWeb3Dal<'_, '_> {
                     uncles_hash: EMPTY_UNCLES_HASH,
                     number: (row.number as u64).into(),
                     l1_batch_number: row.l1_batch_number.map(|number| (number as u64).into()),
-                    gas_limit: BLOCK_GAS_LIMIT.into(),
                     base_fee_per_gas: bigdecimal_to_u256(row.base_fee_per_gas),
                     timestamp: (row.timestamp as u64).into(),
                     l1_batch_timestamp: row.l1_batch_timestamp.map(U256::from),
+                    gas_limit: (row
+                        .block_gas_limit
+                        .unwrap_or(i64::from(LEGACY_BLOCK_GAS_LIMIT))
+                        as u64)
+                        .into(),
                     // TODO: include logs
                     ..api::Block::default()
                 }
             });
 
-            if let (Some(gas_limit), Some(refunded_gas)) = (row.gas_limit, row.refunded_gas) {
+            if let (Some(gas_limit), Some(refunded_gas)) =
+                (row.transaction_gas_limit, row.refunded_gas)
+            {
                 block.gas_used += bigdecimal_to_u256(gas_limit) - U256::from(refunded_gas as u64);
             }
             if let Some(tx_hash) = &row.tx_hash {
                 block.transactions.push(H256::from_slice(tx_hash));
             }
+
             Some(block)
         });
 
@@ -224,11 +235,12 @@ impl BlocksWeb3Dal<'_, '_> {
                         (
                             SELECT MAX(number) FROM miniblocks
                             WHERE l1_batch_number = (
-                                SELECT MAX(number) FROM l1_batches
+                                SELECT number FROM l1_batches
                                 JOIN eth_txs ON
                                     l1_batches.eth_execute_tx_id = eth_txs.id
                                 WHERE
                                     eth_txs.confirmed_eth_tx_history_id IS NOT NULL
+                                ORDER BY number DESC LIMIT 1
                             )
                         ),
                         0
@@ -654,13 +666,13 @@ mod tests {
             create_miniblock_header, create_snapshot_recovery, mock_execution_result,
             mock_l2_transaction,
         },
-        ConnectionPool,
+        ConnectionPool, Core,
     };
 
     #[tokio::test]
     async fn getting_web3_block_and_tx_count() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
@@ -707,8 +719,8 @@ mod tests {
 
     #[tokio::test]
     async fn resolving_earliest_block_id() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
 
         let miniblock_number = conn
             .blocks_web3_dal()
@@ -733,8 +745,8 @@ mod tests {
 
     #[tokio::test]
     async fn resolving_latest_block_id() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -799,8 +811,8 @@ mod tests {
 
     #[tokio::test]
     async fn resolving_pending_block_id_for_snapshot_recovery() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         let snapshot_recovery = create_snapshot_recovery();
         conn.snapshot_recovery_dal()
             .insert_initial_recovery_status(&snapshot_recovery)
@@ -817,8 +829,8 @@ mod tests {
 
     #[tokio::test]
     async fn resolving_block_by_hash() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -846,8 +858,8 @@ mod tests {
 
     #[tokio::test]
     async fn getting_traces_for_block() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -861,7 +873,8 @@ mod tests {
         for (i, tx) in transactions.into_iter().enumerate() {
             conn.transactions_dal()
                 .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
-                .await;
+                .await
+                .unwrap();
             let mut tx_result = mock_execution_result(tx);
             tx_result.call_traces.push(Call {
                 from: Address::from_low_u64_be(i as u64),

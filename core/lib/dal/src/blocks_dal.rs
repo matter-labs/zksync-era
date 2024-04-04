@@ -2,31 +2,72 @@ use std::{
     collections::HashMap,
     convert::{Into, TryInto},
     ops,
+    ops::RangeInclusive,
 };
 
 use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
+use zksync_db_connection::{
+    connection::Connection, instrument::InstrumentExt, interpolate_query, match_query_as,
+};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, L1BatchTreeData, MiniblockHeader},
     circuit::CircuitStatistic,
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
-    zk_evm_types::LogQuery,
     Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, U256,
 };
 
 use crate::{
-    instrument::InstrumentExt,
     models::storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
-    StorageProcessor,
+    Core, CoreDal,
 };
 
 #[derive(Debug)]
 pub struct BlocksDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl BlocksDal<'_, '_> {
+    pub async fn get_consistency_checker_last_processed_l1_batch(
+        &mut self,
+    ) -> sqlx::Result<L1BatchNumber> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                last_processed_l1_batch AS "last_processed_l1_batch!"
+            FROM
+                consistency_checker_info
+            "#
+        )
+        .instrument("get_consistency_checker_last_processed_l1_batch")
+        .report_latency()
+        .fetch_one(self.storage)
+        .await?;
+        Ok(L1BatchNumber(row.last_processed_l1_batch as u32))
+    }
+
+    pub async fn set_consistency_checker_last_processed_l1_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE consistency_checker_info
+            SET
+                last_processed_l1_batch = $1,
+                updated_at = NOW()
+            "#,
+            l1_batch_number.0 as i32,
+        )
+        .instrument("set_consistency_checker_last_processed_l1_batch")
+        .report_latency()
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
     pub async fn is_genesis_needed(&mut self) -> sqlx::Result<bool> {
         let count = sqlx::query!(
             r#"
@@ -355,42 +396,6 @@ impl BlocksDal<'_, '_> {
         Ok(Some(storage_refunds))
     }
 
-    pub async fn get_events_queue(
-        &mut self,
-        number: L1BatchNumber,
-    ) -> anyhow::Result<Option<Vec<LogQuery>>> {
-        let Some(row) = sqlx::query!(
-            r#"
-            SELECT
-                serialized_events_queue_bytea,
-                serialized_events_queue
-            FROM
-                events_queue
-            WHERE
-                l1_batch_number = $1
-            "#,
-            i64::from(number.0)
-        )
-        .instrument("get_events_queue")
-        .report_latency()
-        .with_arg("number", &number)
-        .fetch_optional(self.storage)
-        .await?
-        else {
-            return Ok(None);
-        };
-
-        let events = if let Some(serialized_events_queue_bytea) = row.serialized_events_queue_bytea
-        {
-            bincode::deserialize(&serialized_events_queue_bytea)
-                .context("invalid value for serialized_events_queue_bytea in the DB")?
-        } else {
-            serde_json::from_value(row.serialized_events_queue)
-                .context("invalid value for serialized_events_queue in the DB")?
-        };
-        Ok(Some(events))
-    }
-
     pub async fn set_eth_tx_id(
         &mut self,
         number_range: ops::RangeInclusive<L1BatchNumber>,
@@ -458,7 +463,6 @@ impl BlocksDal<'_, '_> {
         header: &L1BatchHeader,
         initial_bootloader_contents: &[(usize, U256)],
         predicted_block_gas: BlockGasCount,
-        events_queue: &[LogQuery],
         storage_refunds: &[u32],
         predicted_circuits_by_type: CircuitStatistic, // predicted number of circuits for each circuit type
     ) -> anyhow::Result<()> {
@@ -565,20 +569,6 @@ impl BlocksDal<'_, '_> {
         .execute(transaction.conn())
         .await?;
 
-        let events_queue =
-            bincode::serialize(events_queue).expect("failed to serialize events_queue to bytes");
-        sqlx::query!(
-            r#"
-            INSERT INTO
-                events_queue (l1_batch_number, serialized_events_queue, serialized_events_queue_bytea)
-            VALUES
-                ($1, '{}', $2)
-            "#,
-            i64::from(header.number.0),
-            &events_queue
-        )
-        .execute(transaction.conn())
-        .await?;
         transaction.commit().await?;
 
         Ok(())
@@ -610,11 +600,31 @@ impl BlocksDal<'_, '_> {
                     protocol_version,
                     virtual_blocks,
                     fair_pubdata_price,
+                    gas_limit,
                     created_at,
                     updated_at
                 )
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
+                (
+                    $1,
+                    $2,
+                    $3,
+                    $4,
+                    $5,
+                    $6,
+                    $7,
+                    $8,
+                    $9,
+                    $10,
+                    $11,
+                    $12,
+                    $13,
+                    $14,
+                    $15,
+                    $16,
+                    NOW(),
+                    NOW()
+                )
             "#,
             i64::from(miniblock_header.number.0),
             miniblock_header.timestamp as i64,
@@ -637,6 +647,7 @@ impl BlocksDal<'_, '_> {
             miniblock_header.protocol_version.map(|v| v as i32),
             i64::from(miniblock_header.virtual_blocks),
             miniblock_header.batch_fee_input.fair_pubdata_price() as i64,
+            miniblock_header.gas_limit as i64,
         )
         .execute(self.storage.conn())
         .await?;
@@ -664,7 +675,8 @@ impl BlocksDal<'_, '_> {
                 default_aa_code_hash,
                 protocol_version,
                 virtual_blocks,
-                fair_pubdata_price
+                fair_pubdata_price,
+                gas_limit
             FROM
                 miniblocks
             ORDER BY
@@ -710,7 +722,8 @@ impl BlocksDal<'_, '_> {
                 default_aa_code_hash,
                 protocol_version,
                 virtual_blocks,
-                fair_pubdata_price
+                fair_pubdata_price,
+                gas_limit
             FROM
                 miniblocks
             WHERE
@@ -1856,6 +1869,17 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
+    async fn delete_logs_inner(&mut self) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+            DELETE FROM storage_logs
+            "#,
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
+
     /// Returns sum of predicted gas costs on the given L1 batch range.
     /// Panics if the sum doesn't fit into `u32`.
     pub async fn get_l1_batches_predicted_gas(
@@ -2144,6 +2168,71 @@ impl BlocksDal<'_, '_> {
         .await?
         .map(|row| row.virtual_blocks as u32))
     }
+
+    pub async fn get_first_l1_batch_number_for_version(
+        &mut self,
+        protocol_version: ProtocolVersionId,
+    ) -> sqlx::Result<Option<L1BatchNumber>> {
+        Ok(sqlx::query!(
+            r#"
+            SELECT
+                MIN(number) AS "min?"
+            FROM
+                l1_batches
+            WHERE
+                protocol_version = $1
+            "#,
+            protocol_version as i32
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        .and_then(|row| row.min)
+        .map(|min| L1BatchNumber(min as u32)))
+    }
+
+    pub async fn reset_protocol_version_for_l1_batches(
+        &mut self,
+        l1_batch_range: RangeInclusive<L1BatchNumber>,
+        protocol_version: ProtocolVersionId,
+    ) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE l1_batches
+            SET
+                protocol_version = $1
+            WHERE
+                number BETWEEN $2 AND $3
+            "#,
+            protocol_version as i32,
+            i64::from(l1_batch_range.start().0),
+            i64::from(l1_batch_range.end().0),
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
+
+    pub async fn reset_protocol_version_for_miniblocks(
+        &mut self,
+        miniblock_range: RangeInclusive<MiniblockNumber>,
+        protocol_version: ProtocolVersionId,
+    ) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE miniblocks
+            SET
+                protocol_version = $1
+            WHERE
+                number BETWEEN $2 AND $3
+            "#,
+            protocol_version as i32,
+            i64::from(miniblock_range.start().0),
+            i64::from(miniblock_range.end().0),
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
 }
 
 /// Temporary methods for migrating `fee_account_address`.
@@ -2313,15 +2402,8 @@ impl BlocksDal<'_, '_> {
     }
 
     pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> anyhow::Result<()> {
-        self.insert_l1_batch(
-            header,
-            &[],
-            Default::default(),
-            &[],
-            &[],
-            Default::default(),
-        )
-        .await
+        self.insert_l1_batch(header, &[], Default::default(), &[], Default::default())
+            .await
     }
 
     /// Deletes all miniblocks and L1 batches, including the genesis ones. Should only be used in tests.
@@ -2335,6 +2417,9 @@ impl BlocksDal<'_, '_> {
         self.delete_initial_writes_inner(None)
             .await
             .context("delete_initial_writes_inner()")?;
+        self.delete_logs_inner()
+            .await
+            .context("delete_logs_inner()")?;
         Ok(())
     }
 }
@@ -2348,12 +2433,12 @@ mod tests {
     };
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool};
+    use crate::{tests::create_miniblock_header, ConnectionPool, Core, CoreDal};
 
     #[tokio::test]
     async fn loading_l1_batch_header() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -2408,8 +2493,8 @@ mod tests {
 
     #[tokio::test]
     async fn getting_predicted_gas() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -2425,7 +2510,7 @@ mod tests {
             execute: 10,
         };
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], Default::default())
+            .insert_l1_batch(&header, &[], predicted_gas, &[], Default::default())
             .await
             .unwrap();
 
@@ -2433,7 +2518,7 @@ mod tests {
         header.timestamp += 100;
         predicted_gas += predicted_gas;
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], Default::default())
+            .insert_l1_batch(&header, &[], predicted_gas, &[], Default::default())
             .await
             .unwrap();
 
@@ -2469,8 +2554,8 @@ mod tests {
     #[allow(deprecated)] // that's the whole point
     #[tokio::test]
     async fn checking_fee_account_address_in_l1_batches() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         assert!(conn
             .blocks_dal()
             .check_l1_batches_have_fee_account_address()
@@ -2481,8 +2566,8 @@ mod tests {
     #[allow(deprecated)] // that's the whole point
     #[tokio::test]
     async fn ensuring_fee_account_address_for_miniblocks() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;

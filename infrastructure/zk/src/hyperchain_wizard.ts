@@ -13,6 +13,7 @@ import fetch from 'node-fetch';
 import { up } from './up';
 import * as Handlebars from 'handlebars';
 import { ProverType, setupProver } from './prover_setup';
+import { DeploymentMode } from './contract';
 import { announced } from './utils';
 
 const title = chalk.blueBright;
@@ -48,9 +49,8 @@ export interface BasePromptOptions {
 let isLocalhost = false;
 
 // An init command that allows configuring and spinning up a new hyperchain network.
-async function initHyperchain(envName: string) {
-    await announced('Initializing hyperchain creation', setupConfiguration(envName));
-
+async function initHyperchain(envName: string, runObservability: boolean, deploymentMode: DeploymentMode) {
+    await announced('Initializing hyperchain creation', setupConfiguration(envName, runObservability));
     await init.initHyperCmdAction({ skipSetupCompletely: false, bumpChainId: true });
 
     // if we used matterlabs/geth network, we need custom ENV file for hyperchain compose parts
@@ -301,8 +301,8 @@ async function setHyperchainMetadata() {
         feeReceiver = undefined;
         feeReceiverAddress = richWallets[3].address;
 
-        await up('docker-compose-zkstack-common.yml');
-        await announced('Ensuring databases are up', db.wait({ server: true, prover: false }));
+        await up(runObservability);
+        await announced('Ensuring databases are up', db.wait({ core: true, prover: false }));
     }
 
     // testTokens and weth will be done for the shared bridge.
@@ -817,8 +817,10 @@ initHyperchainCommand
     .command('init')
     .option('--env-name <env-name>', 'chain name to use for initialization')
     .description('Wizard for hyperchain creation/configuration')
+    .option('--validium-mode')
     .action(async (cmd: Command) => {
-        initHyperchain(cmd.envName);
+        let deploymentMode = cmd.validiumMode !== undefined ? DeploymentMode.Validium : DeploymentMode.Rollup;
+        await initHyperchain(cmd.envName, cmd.runObservability, deploymentMode);
     });
 initHyperchainCommand
     .command('docker-setup')
@@ -833,5 +835,6 @@ initHyperchainCommand
     .command('demo')
     .option('--prover <value>', 'Add a cpu or gpu prover to the hyperchain')
     .option('--skip-env-setup', 'Run env setup automatically (pull docker containers, etc)')
+    .option('--validium-mode')
     .description('Spin up a demo hyperchain with default settings for testing purposes')
     .action(configDemoHyperchain);

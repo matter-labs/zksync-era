@@ -99,7 +99,7 @@ pub fn state_transition_manager_contract() -> Contract {
 }
 
 pub fn state_transition_chain_contract() -> Contract {
-    load_contract(STATE_TRANSITION_CHAIN_CONTRACT_FILE)
+    load_contract(STATE_TRANSITION_CONTRACT_FILE)
 }
 
 pub fn diamond_init_contract() -> Contract {

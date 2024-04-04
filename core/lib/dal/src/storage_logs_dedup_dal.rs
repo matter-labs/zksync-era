@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use sqlx::types::chrono::Utc;
+use zksync_db_connection::connection::Connection;
 use zksync_types::{
     snapshots::SnapshotStorageLog, zk_evm_types::LogQuery, AccountTreeId, Address, L1BatchNumber,
     StorageKey, H256,
@@ -8,11 +9,11 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 pub use crate::models::storage_log::DbInitialWrite;
-use crate::StorageProcessor;
+use crate::Core;
 
 #[derive(Debug)]
 pub struct StorageLogsDedupDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl StorageLogsDedupDal<'_, '_> {
@@ -121,8 +122,8 @@ impl StorageLogsDedupDal<'_, '_> {
     pub async fn get_protective_reads_for_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> HashSet<StorageKey> {
-        sqlx::query!(
+    ) -> sqlx::Result<HashSet<StorageKey>> {
+        let rows = sqlx::query!(
             r#"
             SELECT
                 address,
@@ -135,16 +136,17 @@ impl StorageLogsDedupDal<'_, '_> {
             i64::from(l1_batch_number.0)
         )
         .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|row| {
-            StorageKey::new(
-                AccountTreeId::new(Address::from_slice(&row.address)),
-                H256::from_slice(&row.key),
-            )
-        })
-        .collect()
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                StorageKey::new(
+                    AccountTreeId::new(Address::from_slice(&row.address)),
+                    H256::from_slice(&row.key),
+                )
+            })
+            .collect())
     }
 
     async fn max_enumeration_index(&mut self) -> sqlx::Result<Option<u64>> {

@@ -34,7 +34,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use futures::future;
 use tokio::sync::{watch, Mutex, Semaphore};
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::TreeEntry;
 use zksync_types::{
@@ -120,11 +120,14 @@ impl SnapshotParameters {
     /// (i.e., not changed after a node restart).
     const DESIRED_CHUNK_SIZE: u64 = 200_000;
 
-    async fn new(pool: &ConnectionPool, recovery: &SnapshotRecoveryStatus) -> anyhow::Result<Self> {
+    async fn new(
+        pool: &ConnectionPool<Core>,
+        recovery: &SnapshotRecoveryStatus,
+    ) -> anyhow::Result<Self> {
         let miniblock = recovery.miniblock_number;
         let expected_root_hash = recovery.l1_batch_root_hash;
 
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.connection().await?;
         let log_count = storage
             .storage_logs_dal()
             .get_storage_logs_row_count(miniblock)
@@ -156,7 +159,7 @@ impl GenericAsyncTree {
     /// if necessary.
     pub async fn ensure_ready(
         self,
-        pool: &ConnectionPool,
+        pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
         health_updater: &HealthUpdater,
     ) -> anyhow::Result<Option<AsyncTree>> {
@@ -207,7 +210,7 @@ impl AsyncTreeRecovery {
         mut self,
         snapshot: SnapshotParameters,
         mut options: RecoveryOptions<'_>,
-        pool: &ConnectionPool,
+        pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<AsyncTree>> {
         let chunk_count = options.chunk_count;
@@ -218,7 +221,7 @@ impl AsyncTreeRecovery {
             "Recovering Merkle tree from Postgres snapshot in {chunk_count} concurrent chunks"
         );
 
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.connection().await?;
         let remaining_chunks = self
             .filter_chunks(&mut storage, snapshot.miniblock, &chunks)
             .await?;
@@ -268,7 +271,7 @@ impl AsyncTreeRecovery {
     /// Filters out `key_chunks` for which recovery was successfully performed.
     async fn filter_chunks(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         snapshot_miniblock: MiniblockNumber,
         key_chunks: &[ops::RangeInclusive<H256>],
     ) -> anyhow::Result<Vec<ops::RangeInclusive<H256>>> {
@@ -315,12 +318,12 @@ impl AsyncTreeRecovery {
         tree: &Mutex<AsyncTreeRecovery>,
         snapshot_miniblock: MiniblockNumber,
         key_chunk: ops::RangeInclusive<H256>,
-        pool: &ConnectionPool,
+        pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         let acquire_connection_latency =
             RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::AcquireConnection].start();
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.connection().await?;
         acquire_connection_latency.observe();
 
         if *stop_receiver.borrow() {
@@ -389,9 +392,9 @@ impl AsyncTreeRecovery {
 }
 
 async fn get_snapshot_recovery(
-    pool: &ConnectionPool,
+    pool: &ConnectionPool<Core>,
 ) -> anyhow::Result<Option<SnapshotRecoveryStatus>> {
-    let mut storage = pool.access_storage_tagged("metadata_calculator").await?;
+    let mut storage = pool.connection_tagged("metadata_calculator").await?;
     Ok(storage
         .snapshot_recovery_dal()
         .get_applied_snapshot_status()

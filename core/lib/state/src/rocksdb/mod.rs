@@ -30,7 +30,7 @@ use std::{
 use anyhow::Context as _;
 use itertools::{Either, Itertools};
 use tokio::sync::watch;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Connection, Core, CoreDal};
 use zksync_storage::{db::NamedColumnFamily, RocksDB};
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256, U256};
 use zksync_utils::{h256_to_u256, u256_to_h256};
@@ -54,10 +54,14 @@ fn deserialize_l1_batch_number(bytes: &[u8]) -> u32 {
     u32::from_le_bytes(bytes)
 }
 
+/// RocksDB column families used by the state keeper.
 #[derive(Debug, Clone, Copy)]
-enum StateKeeperColumnFamily {
+pub enum StateKeeperColumnFamily {
+    /// Column family containing tree state information.
     State,
+    /// Column family containing contract contents.
     Contracts,
+    /// Column family containing bytecodes for new contracts that a certain contract may deploy.
     FactoryDeps,
 }
 
@@ -136,9 +140,20 @@ pub struct RocksdbStorage {
 /// Builder of [`RocksdbStorage`]. The storage data is inaccessible until the storage is [`Self::synchronize()`]d
 /// with Postgres.
 #[derive(Debug)]
-pub struct RocksbStorageBuilder(RocksdbStorage);
+pub struct RocksdbStorageBuilder(RocksdbStorage);
 
-impl RocksbStorageBuilder {
+impl RocksdbStorageBuilder {
+    /// Create a builder from an existing RocksDB instance.
+    pub fn from_rocksdb(value: RocksDB<StateKeeperColumnFamily>) -> Self {
+        RocksdbStorageBuilder(RocksdbStorage {
+            db: value,
+            pending_patch: InMemoryStorage::default(),
+            enum_index_migration_chunk_size: 100,
+            #[cfg(test)]
+            listener: RocksdbStorageEventListener::default(),
+        })
+    }
+
     /// Enables enum indices migration.
     pub fn enable_enum_index_migration(&mut self, chunk_size: usize) {
         self.0.enum_index_migration_chunk_size = chunk_size;
@@ -165,7 +180,7 @@ impl RocksbStorageBuilder {
     ///   in Postgres.
     pub async fn synchronize(
         self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<RocksdbStorage>> {
         let mut inner = self.0;
@@ -183,7 +198,7 @@ impl RocksbStorageBuilder {
     /// Propagates RocksDB and Postgres errors.
     pub async fn rollback(
         mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         last_l1_batch_to_keep: L1BatchNumber,
     ) -> anyhow::Result<()> {
         self.0.rollback(storage, last_l1_batch_to_keep).await
@@ -208,10 +223,10 @@ impl RocksdbStorage {
     /// # Errors
     ///
     /// Propagates RocksDB I/O errors.
-    pub async fn builder(path: &Path) -> anyhow::Result<RocksbStorageBuilder> {
+    pub async fn builder(path: &Path) -> anyhow::Result<RocksdbStorageBuilder> {
         Self::new(path.to_path_buf())
             .await
-            .map(RocksbStorageBuilder)
+            .map(RocksdbStorageBuilder)
     }
 
     async fn new(path: PathBuf) -> anyhow::Result<Self> {
@@ -230,7 +245,7 @@ impl RocksdbStorage {
 
     async fn update_from_postgres(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Result<(), RocksdbSyncError> {
         let mut current_l1_batch_number = self
@@ -316,7 +331,7 @@ impl RocksdbStorage {
     async fn apply_storage_logs(
         &mut self,
         storage_logs: HashMap<StorageKey, H256>,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
         let db = self.db.clone();
         let processed_logs =
@@ -357,7 +372,7 @@ impl RocksdbStorage {
 
     async fn save_missing_enum_indices(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
         let (true, Some(start_from)) = (
             self.enum_index_migration_chunk_size > 0,
@@ -481,7 +496,7 @@ impl RocksdbStorage {
 
     async fn rollback(
         &mut self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut Connection<'_, Core>,
         last_l1_batch_to_keep: L1BatchNumber,
     ) -> anyhow::Result<()> {
         tracing::info!("Rolling back state keeper storage to L1 batch #{last_l1_batch_to_keep}...");
@@ -599,7 +614,7 @@ impl RocksdbStorage {
     /// # Panics
     ///
     /// Panics on RocksDB errors.
-    async fn l1_batch_number(&self) -> Option<L1BatchNumber> {
+    pub async fn l1_batch_number(&self) -> Option<L1BatchNumber> {
         let cf = StateKeeperColumnFamily::State;
         let db = self.db.clone();
         let number_bytes =
@@ -637,6 +652,11 @@ impl RocksdbStorage {
             Some(cursor) => Some(H256::from_slice(&cursor)),
             None => Some(H256::zero()),
         }
+    }
+
+    /// Converts self into the underlying RocksDB primitive
+    pub fn into_rocksdb(self) -> RocksDB<StateKeeperColumnFamily> {
+        self.db
     }
 }
 

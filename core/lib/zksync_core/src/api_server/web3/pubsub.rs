@@ -1,13 +1,14 @@
 //! (Largely) backend-agnostic logic for dealing with Web3 subscriptions.
 
-use anyhow::Context as _;
+use anyhow::{Context as _, Error};
+use chrono::NaiveDateTime;
 use futures::FutureExt;
 use tokio::{
     sync::{broadcast, mpsc, watch},
     task::JoinHandle,
     time::{interval, Duration},
 };
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{MiniblockNumber, H128, H256};
 use zksync_web3_decl::{
     jsonrpsee::{
@@ -51,7 +52,7 @@ pub(super) enum PubSubEvent {
 #[derive(Debug)]
 struct PubSubNotifier {
     sender: broadcast::Sender<Vec<PubSubResult>>,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Core>,
     polling_interval: Duration,
     events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
@@ -60,9 +61,9 @@ impl PubSubNotifier {
     async fn get_starting_miniblock_number(&self) -> anyhow::Result<MiniblockNumber> {
         let mut storage = self
             .connection_pool
-            .access_storage_tagged("api")
+            .connection_tagged("api")
             .await
-            .context("access_storage_tagged")?;
+            .context("connection_tagged")?;
         let sealed_miniblock_number = storage
             .blocks_dal()
             .get_sealed_miniblock_number()
@@ -127,9 +128,9 @@ impl PubSubNotifier {
         last_block_number: MiniblockNumber,
     ) -> anyhow::Result<Vec<BlockHeader>> {
         self.connection_pool
-            .access_storage_tagged("api")
+            .connection_tagged("api")
             .await
-            .context("access_storage_tagged")?
+            .context("connection_tagged")?
             .blocks_web3_dal()
             .get_block_headers_after(last_block_number)
             .await
@@ -147,12 +148,15 @@ impl PubSubNotifier {
             timer.tick().await;
 
             let db_latency = PUB_SUB_METRICS.db_poll_latency[&SubscriptionType::Txs].start();
-            let (new_txs, new_last_time) = self.new_txs(last_time).await?;
+            let new_txs = self.new_txs(last_time).await?;
             db_latency.observe();
 
-            if let Some(new_last_time) = new_last_time {
-                last_time = new_last_time;
-                let new_txs = new_txs.into_iter().map(PubSubResult::TxHash).collect();
+            if let Some((new_last_time, _)) = new_txs.last() {
+                last_time = *new_last_time;
+                let new_txs = new_txs
+                    .into_iter()
+                    .map(|(_, tx_hash)| PubSubResult::TxHash(tx_hash))
+                    .collect();
                 self.send_pub_sub_results(new_txs, SubscriptionType::Txs);
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(SubscriptionType::Txs));
@@ -160,14 +164,11 @@ impl PubSubNotifier {
         Ok(())
     }
 
-    async fn new_txs(
-        &self,
-        last_time: chrono::NaiveDateTime,
-    ) -> anyhow::Result<(Vec<H256>, Option<chrono::NaiveDateTime>)> {
+    async fn new_txs(&self, last_time: NaiveDateTime) -> Result<Vec<(NaiveDateTime, H256)>, Error> {
         self.connection_pool
-            .access_storage_tagged("api")
+            .connection_tagged("api")
             .await
-            .context("access_storage_tagged")?
+            .context("connection_tagged")?
             .transactions_web3_dal()
             .get_pending_txs_hashes_after(last_time, None)
             .await
@@ -205,9 +206,9 @@ impl PubSubNotifier {
 
     async fn new_logs(&self, last_block_number: MiniblockNumber) -> anyhow::Result<Vec<Log>> {
         self.connection_pool
-            .access_storage_tagged("api")
+            .connection_tagged("api")
             .await
-            .context("access_storage_tagged")?
+            .context("connection_tagged")?
             .events_web3_dal()
             .get_all_logs(last_block_number)
             .await
@@ -415,7 +416,7 @@ impl EthSubscribe {
     /// Spawns notifier tasks. This should be called once per instance.
     pub fn spawn_notifiers(
         &self,
-        connection_pool: ConnectionPool,
+        connection_pool: ConnectionPool<Core>,
         polling_interval: Duration,
         stop_receiver: watch::Receiver<bool>,
     ) -> Vec<JoinHandle<anyhow::Result<()>>> {

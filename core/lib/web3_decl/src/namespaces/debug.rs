@@ -1,6 +1,7 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
+    debug_flat_call::DebugCallFlat,
     transaction_request::CallRequest,
 };
 
@@ -25,6 +26,12 @@ pub trait DebugNamespace {
         block: BlockNumber,
         options: Option<TracerConfig>,
     ) -> RpcResult<Vec<ResultDebugCall>>;
+    #[method(name = "traceBlockByNumber.callFlatTracer")]
+    async fn trace_block_by_number_flat(
+        &self,
+        block: BlockNumber,
+        options: Option<TracerConfig>,
+    ) -> RpcResult<Vec<DebugCallFlat>>;
     #[method(name = "traceBlockByHash")]
     async fn trace_block_by_hash(
         &self,
