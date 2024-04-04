@@ -397,7 +397,6 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
             PubdataCost(0)
         };
 
-        // TODO: make it more beautiful and do not repeat this `if`
         if query.aux_byte == TRANSIENT_STORAGE_AUX_BYTE {
             if query.rw_flag {
                 self.write_transient_storage_value(query);

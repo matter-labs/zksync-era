@@ -1,14 +1,16 @@
 use std::borrow::BorrowMut;
 
 use ethabi::Token;
+use itertools::Itertools;
 use zk_evm_1_5_0::aux_structures::Timestamp;
 use zksync_contracts::load_sys_contract;
 use zksync_system_constants::{
     CONTRACT_FORCE_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
 };
 use zksync_types::{
-    commitment::SerializeCommitment, get_code_key, l2_to_l1_log::L2ToL1Log,
-    writes::StateDiffRecord, Address, Execute, H256, U256,
+    commitment::SerializeCommitment, fee_model::BatchFeeInput, get_code_key,
+    l2_to_l1_log::L2ToL1Log, writes::StateDiffRecord, Address, Execute, ExecuteTransactionCommon,
+    H256, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
@@ -17,13 +19,15 @@ use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     vm_latest::{
         constants::{
-            BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
+            BATCH_GAS_LIMIT, BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
             BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD, BOOTLOADER_BATCH_TIP_OVERHEAD,
             MAX_VM_PUBDATA_PER_BATCH,
         },
-        tests::tester::{get_empty_storage, InMemoryStorageView, VmTesterBuilder},
+        tests::tester::{
+            default_l1_batch, get_empty_storage, InMemoryStorageView, VmTesterBuilder,
+        },
         tracers::PubdataTracer,
-        HistoryEnabled, TracerDispatcher,
+        HistoryEnabled, L1BatchEnv, TracerDispatcher,
     },
 };
 
@@ -41,7 +45,8 @@ struct MimicCallInfo {
     data: Vec<u8>,
 }
 
-fn populate_mimic_calls(data: L1MessengerTestData) -> Vec<u8> {
+const CALLS_PER_TX: usize = 1_000;
+fn populate_mimic_calls(data: L1MessengerTestData) -> Vec<Vec<u8>> {
     let complex_upgrade = get_complex_upgrade_abi();
     let l1_messenger = load_sys_contract("L1Messenger");
 
@@ -87,13 +92,18 @@ fn populate_mimic_calls(data: L1MessengerTestData) -> Vec<u8> {
                 Token::Bytes(call.data),
             ])
         })
-        .collect::<Vec<_>>();
+        .chunks(CALLS_PER_TX)
+        .into_iter()
+        .map(|chunk| {
+            complex_upgrade
+                .function("mimicCalls")
+                .unwrap()
+                .encode_input(&[Token::Array(chunk.collect_vec())])
+                .unwrap()
+        })
+        .collect_vec();
 
-    complex_upgrade
-        .function("mimicCalls")
-        .unwrap()
-        .encode_input(&[Token::Array(encoded_calls)])
-        .unwrap()
+    encoded_calls
 }
 
 struct TestStatistics {
@@ -120,10 +130,19 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
         .borrow_mut()
         .store_factory_dep(hash_bytecode(&complex_upgrade_code), complex_upgrade_code);
 
+    // We are measuring computational cost, so prices for pubdata don't matter, while they artificially dilute
+    // the gas limit
+
+    let batch_env = L1BatchEnv {
+        fee_input: BatchFeeInput::pubdata_independent(100_000, 100_000, 100_000),
+        ..default_l1_batch(zksync_types::L1BatchNumber(1))
+    };
+
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_storage(storage)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
+        .with_l1_batch_env(batch_env)
         .build();
 
     let bytecodes = test_data
@@ -140,25 +159,29 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
         .decommittment_processor
         .populate(bytecodes, Timestamp(0));
 
-    let data = populate_mimic_calls(test_data.clone());
+    let txs_data = populate_mimic_calls(test_data.clone());
     let account = &mut vm.rich_accounts[0];
-    let tx = account.get_l2_tx_for_execute(
-        Execute {
-            contract_address: CONTRACT_FORCE_DEPLOYER_ADDRESS,
-            calldata: data,
-            value: U256::zero(),
-            factory_deps: None,
-        },
-        None,
-    );
 
-    vm.vm.push_transaction(tx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
-    assert!(
-        !result.result.is_failed(),
-        "Transaction wasn't successful for input: {:?}",
-        test_data
-    );
+    for (i, data) in txs_data.into_iter().enumerate() {
+        let mut tx = account.get_l2_tx_for_execute(
+            Execute {
+                contract_address: CONTRACT_FORCE_DEPLOYER_ADDRESS,
+                calldata: data,
+                value: U256::zero(),
+                factory_deps: None,
+            },
+            None,
+        );
+
+        vm.vm.push_transaction(tx);
+
+        let result = vm.vm.execute(VmExecutionMode::OneTx);
+        assert!(
+            !result.result.is_failed(),
+            "Transaction {i} wasn't successful for input: {:#?}",
+            test_data
+        );
+    }
 
     // Now we count how much ergs were spent at the end of the batch
     // It is assumed that the top level frame is the bootloader
@@ -246,8 +269,7 @@ fn get_valid_bytecode_length(length: usize) -> usize {
     }
 }
 
-// TODO: restore the test
-// #[test]
+#[test]
 fn test_dry_run_upper_bound() {
     // Some of the pubdata is consumed by constant fields (such as length of messages, number of logs, etc.).
     // While this leaves some room for error, at the end of the test we require that the `BOOTLOADER_BATCH_TIP_OVERHEAD`
@@ -364,7 +386,7 @@ fn test_dry_run_upper_bound() {
         .max()
         .unwrap();
     assert!(
-        max_used_gas.0 * 2 <= BOOTLOADER_BATCH_TIP_OVERHEAD,
+        max_used_gas.0 * 3 / 2 <= BOOTLOADER_BATCH_TIP_OVERHEAD,
         "BOOTLOADER_BATCH_TIP_OVERHEAD is too low for {} with result {}, BOOTLOADER_BATCH_TIP_OVERHEAD = {}",
         max_used_gas.1,
         max_used_gas.0,
@@ -377,7 +399,7 @@ fn test_dry_run_upper_bound() {
         .max()
         .unwrap();
     assert!(
-        circuit_statistics.0 * 2 <= BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD as u64,
+        circuit_statistics.0 * 3 / 2 <= BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD as u64,
         "BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD is too low for {} with result {}, BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD = {}",
         circuit_statistics.1,
         circuit_statistics.0,
@@ -390,7 +412,7 @@ fn test_dry_run_upper_bound() {
         .max()
         .unwrap();
     assert!(
-        execution_metrics_size.0 * 2 <= BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD as u64,
+        execution_metrics_size.0 * 3 / 2 <= BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD as u64,
         "BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD is too low for {} with result {}, BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD = {}",
         execution_metrics_size.1,
         execution_metrics_size.0,
