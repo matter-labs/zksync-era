@@ -158,14 +158,14 @@ impl TransactionsWeb3Dal<'_, '_> {
             [
                 r#"
                 SELECT
-                    transactions.hash AS "tx_hash!",
+                    transactions.hash AS tx_hash,
                     transactions.index_in_block AS index_in_block,
                     transactions.miniblock_number AS block_number,
                     transactions.nonce AS nonce,
                     transactions.signature AS signature,
-                    transactions.initiator_address AS "initiator_address!",
+                    transactions.initiator_address AS initiator_address,
                     transactions.tx_format AS tx_format,
-                    transactions.value AS "value!",
+                    transactions.value AS value,
                     transactions.gas_limit AS gas_limit,
                     transactions.max_fee_per_gas AS max_fee_per_gas,
                     transactions.max_priority_fee_per_gas AS max_priority_fee_per_gas,
