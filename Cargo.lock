@@ -8730,7 +8730,7 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "chrono",
- "circuit_sequencer_api 0.1.50",
+ "circuit_sequencer_api 0.1.42",
  "serde",
  "serde_with",
  "strum",
