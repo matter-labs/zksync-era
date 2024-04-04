@@ -430,6 +430,7 @@ impl Distribution<configs::FriProverConfig> for EncodeDist {
             witness_vector_receiver_port: self.sample(rng),
             zone_read_url: self.sample(rng),
             shall_save_to_public_bucket: self.sample(rng),
+            availability_check_interval_in_secs: self.sample(rng),
             object_store: self.sample(rng),
         }
     }
@@ -563,8 +564,10 @@ impl Distribution<configs::house_keeper::HouseKeeperConfig> for EncodeDist {
             witness_generator_job_retrying_interval_ms: self.sample(rng),
             proof_compressor_job_retrying_interval_ms: self.sample(rng),
             proof_compressor_stats_reporting_interval_ms: self.sample(rng),
-            prover_job_archiver_reporting_interval_ms: self.sample(rng),
-            prover_job_archiver_archiving_interval_secs: self.sample(rng),
+            prover_job_archiver_archiving_interval_ms: self.sample(rng),
+            prover_job_archiver_archive_after_secs: self.sample(rng),
+            fri_gpu_prover_archiver_archiving_interval_ms: self.sample(rng),
+            fri_gpu_prover_archiver_archive_after_secs: self.sample(rng),
         }
     }
 }
