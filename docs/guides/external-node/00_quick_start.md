@@ -37,5 +37,5 @@ section)**
 
 ## Advanced setup
 
-If you need monitoring, backups, to recover from DB dump or a more customised postgres settings, etc, please see:
+If you need monitoring, backups, to recover from DB dump or a more customized postgres settings, etc, please see:
 [ansible-en-role repo](https://github.com/matter-labs/ansible-en-role)
