@@ -7,7 +7,7 @@ use zksync_types::{
     l2_to_l1_log::L2ToL1Log,
     vm_trace::Call,
     web3::types::{BlockHeader, U64},
-    Bytes, L1BatchNumber, MiniblockNumber, H160, H2048, H256, U256,
+    Bytes, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H160, H2048, H256, U256,
 };
 use zksync_utils::bigdecimal_to_u256;
 
@@ -463,11 +463,8 @@ impl BlocksWeb3Dal<'_, '_> {
             .storage
             .blocks_dal()
             .get_miniblock_protocol_version_id(block_number)
-            .await?;
-
-        let Some(protocol_version) = protocol_version else {
-            return Ok(vec![]);
-        };
+            .await?
+            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
         Ok(sqlx::query_as!(
             CallTrace,

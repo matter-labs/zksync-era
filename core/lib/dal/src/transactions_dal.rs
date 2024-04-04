@@ -505,7 +505,7 @@ impl TransactionsDal<'_, '_> {
                 .get_miniblock_protocol_version_id(miniblock_number)
                 .await
                 .unwrap()
-                .unwrap();
+                .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
             let mut l1_hashes = Vec::with_capacity(transactions.len());
             let mut l1_indices_in_block = Vec::with_capacity(transactions.len());
@@ -1305,13 +1305,13 @@ impl TransactionsDal<'_, '_> {
     }
 
     pub async fn get_call_trace(&mut self, tx_hash: H256) -> anyhow::Result<Option<Call>> {
-        let protocol_version: Option<ProtocolVersionId> = sqlx::query!(
+        let protocol_version: ProtocolVersionId = sqlx::query!(
             r#"
             SELECT
                 protocol_version
             FROM
-                miniblocks
-                LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number
+                transactions
+                LEFT JOIN miniblocks ON transactions.miniblock_number = miniblocks.number
             WHERE
                 transactions.hash = $1
             "#,
@@ -1319,11 +1319,8 @@ impl TransactionsDal<'_, '_> {
         )
         .fetch_optional(self.storage.conn())
         .await?
-        .and_then(|row| row.protocol_version.map(|v| (v as u16).try_into().unwrap()));
-
-        let Some(protocol_version) = protocol_version else {
-            return Ok(None);
-        };
+        .and_then(|row| row.protocol_version.map(|v| (v as u16).try_into().unwrap()))
+        .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
         Ok(sqlx::query_as!(
             CallTrace,
