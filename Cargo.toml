@@ -152,6 +152,7 @@ url = "2"
 web3 = "0.19.0"
 
 # "Internal" dependencies
+# TODO: use the v1.5.0 circuit_sequencer_api once the prover is integrated
 circuit_sequencer_api = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.2" }
 circuit_sequencer_api_1_3_3 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3" }
 circuit_sequencer_api_1_4_0 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0" }

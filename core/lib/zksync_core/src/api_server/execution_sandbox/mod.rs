@@ -162,54 +162,6 @@ async fn get_pending_state(
     Ok((block_id, resolved_block_number))
 }
 
-/// Returns the number of the pubdata that the transaction will spend on factory deps.
-#[allow(dead_code)]
-pub(super) async fn get_pubdata_for_factory_deps(
-    _vm_permit: &VmPermit,
-    connection_pool: &ConnectionPool<Core>,
-    factory_deps: &[Vec<u8>],
-    storage_caches: PostgresStorageCaches,
-) -> anyhow::Result<u32> {
-    if factory_deps.is_empty() {
-        return Ok(0); // Shortcut for the common case allowing to not acquire DB connections etc.
-    }
-
-    let mut storage = connection_pool
-        .connection_tagged("api")
-        .await
-        .context("failed acquiring DB connection")?;
-    let (_, block_number) = get_pending_state(&mut storage).await?;
-    drop(storage);
-
-    let rt_handle = Handle::current();
-    let connection_pool = connection_pool.clone();
-    let factory_deps = factory_deps.to_vec();
-    tokio::task::spawn_blocking(move || {
-        let connection = rt_handle
-            .block_on(connection_pool.connection_tagged("api"))
-            .context("failed acquiring DB connection")?;
-        let storage = PostgresStorage::new(rt_handle, connection, block_number, false)
-            .with_caches(storage_caches);
-        let mut storage_view = StorageView::new(storage);
-
-        let effective_lengths = factory_deps.iter().map(|bytecode| {
-            if storage_view.is_bytecode_known(&hash_bytecode(bytecode)) {
-                return 0;
-            }
-
-            let length = if let Ok(compressed) = compress_bytecode(bytecode) {
-                compressed.len()
-            } else {
-                bytecode.len()
-            };
-            length as u32 + PUBLISH_BYTECODE_OVERHEAD
-        });
-        anyhow::Ok(effective_lengths.sum())
-    })
-    .await
-    .context("computing pubdata dependencies size panicked")?
-}
-
 /// Arguments for VM execution not specific to a particular transaction.
 #[derive(Debug, Clone)]
 pub(crate) struct TxSharedArgs {
