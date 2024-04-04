@@ -11,6 +11,7 @@ use multivm::{
     },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
+use tokio::sync::RwLock;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{
@@ -157,6 +158,8 @@ pub struct TxSenderBuilder {
     tx_sink: Arc<dyn TxSink>,
     /// Batch sealer used to check whether transaction can be executed by the sequencer.
     sealer: Option<Arc<dyn ConditionalSealer>>,
+    /// Cache for tokens that are white-listed for AA.
+    whitelisted_tokens_for_aa_cache: Option<Arc<RwLock<Vec<Address>>>>,
 }
 
 impl TxSenderBuilder {
@@ -170,11 +173,17 @@ impl TxSenderBuilder {
             replica_connection_pool,
             tx_sink,
             sealer: None,
+            whitelisted_tokens_for_aa_cache: None,
         }
     }
 
     pub fn with_sealer(mut self, sealer: Arc<dyn ConditionalSealer>) -> Self {
         self.sealer = Some(sealer);
+        self
+    }
+
+    pub fn with_whitelisted_tokens_for_aa(mut self, cache: Arc<RwLock<Vec<Address>>>) -> Self {
+        self.whitelisted_tokens_for_aa_cache = Some(cache);
         self
     }
 
@@ -187,6 +196,10 @@ impl TxSenderBuilder {
     ) -> TxSender {
         // Use noop sealer if no sealer was explicitly provided.
         let sealer = self.sealer.unwrap_or_else(|| Arc::new(NoopSealer));
+        let whitelisted_tokens_for_aa_cache =
+            self.whitelisted_tokens_for_aa_cache.unwrap_or_else(|| {
+                Arc::new(RwLock::new(self.config.whitelisted_tokens_for_aa.clone()))
+            });
 
         TxSender(Arc::new(TxSenderInner {
             sender_config: self.config,
@@ -196,6 +209,7 @@ impl TxSenderBuilder {
             api_contracts,
             vm_concurrency_limiter,
             storage_caches,
+            whitelisted_tokens_for_aa_cache,
             sealer,
             executor: TransactionExecutor::Real,
         }))
@@ -217,6 +231,7 @@ pub struct TxSenderConfig {
     pub l1_to_l2_transactions_compatibility_mode: bool,
     pub chain_id: L2ChainId,
     pub max_pubdata_per_batch: u64,
+    pub whitelisted_tokens_for_aa: Vec<Address>,
 }
 
 impl TxSenderConfig {
@@ -238,6 +253,7 @@ impl TxSenderConfig {
                 .l1_to_l2_transactions_compatibility_mode,
             chain_id,
             max_pubdata_per_batch: state_keeper_config.max_pubdata_per_batch,
+            whitelisted_tokens_for_aa: web3_json_config.whitelisted_tokens_for_aa.clone(),
         }
     }
 }
@@ -254,6 +270,8 @@ pub struct TxSenderInner {
     pub(super) vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
     // Caches used in VM execution.
     storage_caches: PostgresStorageCaches,
+    // Cache for white-listed tokens.
+    pub(super) whitelisted_tokens_for_aa_cache: Arc<RwLock<Vec<Address>>>,
     /// Batch sealer used to check whether transaction can be executed by the sequencer.
     sealer: Arc<dyn ConditionalSealer>,
     pub(super) executor: TransactionExecutor,
@@ -275,6 +293,10 @@ impl TxSender {
 
     pub(crate) fn storage_caches(&self) -> PostgresStorageCaches {
         self.0.storage_caches.clone()
+    }
+
+    pub(crate) async fn read_whitelisted_tokens_for_aa_cache(&self) -> Vec<Address> {
+        self.0.whitelisted_tokens_for_aa_cache.read().await.clone()
     }
 
     async fn acquire_replica_connection(&self) -> anyhow::Result<Connection<'_, Core>> {
@@ -397,6 +419,7 @@ impl TxSender {
                 .sender_config
                 .validation_computational_gas_limit,
             chain_id: self.0.sender_config.chain_id,
+            whitelisted_tokens_for_aa: self.read_whitelisted_tokens_for_aa_cache().await,
         }
     }
 
@@ -607,7 +630,7 @@ impl TxSender {
             }
         }
 
-        let shared_args = self.shared_args_for_gas_estimate(fee_model_params);
+        let shared_args = self.shared_args_for_gas_estimate(fee_model_params).await;
         let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
         let execution_args =
             TxExecutionArgs::for_gas_estimate(vm_execution_cache_misses_limit, &tx, base_fee);
@@ -628,7 +651,7 @@ impl TxSender {
         Ok((execution_output.vm, execution_output.metrics))
     }
 
-    fn shared_args_for_gas_estimate(&self, fee_input: BatchFeeInput) -> TxSharedArgs {
+    async fn shared_args_for_gas_estimate(&self, fee_input: BatchFeeInput) -> TxSharedArgs {
         let config = &self.0.sender_config;
 
         TxSharedArgs {
@@ -639,6 +662,7 @@ impl TxSender {
             base_system_contracts: self.0.api_contracts.estimate_gas.clone(),
             caches: self.storage_caches(),
             chain_id: config.chain_id,
+            whitelisted_tokens_for_aa: self.read_whitelisted_tokens_for_aa_cache().await,
         }
     }
 
