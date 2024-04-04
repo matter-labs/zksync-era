@@ -63,7 +63,7 @@ impl TxSink for MasterPoolSink {
                     submission_res_handle
                 })
                 .map_err(|err| anyhow::format_err!(err).into()),
-            Err(err) => Err(err.into()),
+            Err(err) => Err(err.generalize().into()),
         };
 
         self.inflight_requests

@@ -19,6 +19,7 @@ use sqlx::{
 
 use crate::{
     connection::{Connection, ConnectionTags, DbMarker, TracedConnections},
+    error::{DalConnectionError, DalResult},
     metrics::CONNECTION_METRICS,
 };
 
@@ -333,7 +334,7 @@ impl<DB: DbMarker> ConnectionPool<DB> {
     ///
     /// This method is intended to be used in crucial contexts, where the
     /// database access is must-have (e.g. block committer).
-    pub async fn connection(&self) -> anyhow::Result<Connection<'_, DB>> {
+    pub async fn connection(&self) -> DalResult<Connection<'_, DB>> {
         self.connection_inner(None).await
     }
 
@@ -347,7 +348,7 @@ impl<DB: DbMarker> ConnectionPool<DB> {
     pub fn connection_tagged(
         &self,
         requester: &'static str,
-    ) -> impl Future<Output = anyhow::Result<Connection<'_, DB>>> + '_ {
+    ) -> impl Future<Output = DalResult<Connection<'_, DB>>> + '_ {
         let location = Location::caller();
         async move {
             let tags = ConnectionTags {
@@ -361,12 +362,9 @@ impl<DB: DbMarker> ConnectionPool<DB> {
     async fn connection_inner(
         &self,
         tags: Option<ConnectionTags>,
-    ) -> anyhow::Result<Connection<'_, DB>> {
+    ) -> DalResult<Connection<'_, DB>> {
         let acquire_latency = CONNECTION_METRICS.acquire.start();
-        let conn = self
-            .acquire_connection_retried(tags.as_ref())
-            .await
-            .context("acquire_connection_retried()")?;
+        let conn = self.acquire_connection_retried(tags.as_ref()).await?;
         let elapsed = acquire_latency.observe();
         if let Some(tags) = &tags {
             CONNECTION_METRICS.acquire_tagged[&tags.requester].observe(elapsed);
@@ -382,7 +380,7 @@ impl<DB: DbMarker> ConnectionPool<DB> {
     async fn acquire_connection_retried(
         &self,
         tags: Option<&ConnectionTags>,
-    ) -> anyhow::Result<PoolConnection<Postgres>> {
+    ) -> DalResult<PoolConnection<Postgres>> {
         const DB_CONNECTION_RETRIES: usize = 3;
         const AVG_BACKOFF_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -410,21 +408,10 @@ impl<DB: DbMarker> ConnectionPool<DB> {
         }
 
         // Attempting to get the pooled connection for the last time
-        match self.inner.acquire().await {
-            Ok(conn) => Ok(conn),
-            Err(err) => {
-                Self::report_connection_error(&err);
-                let tags_display = ConnectionTags::display(tags);
-                if let Some(traced_connections) = &self.traced_connections {
-                    anyhow::bail!(
-                        "Run out of retries getting a DB connection ({tags_display}), last error: {err}\n\
-                         Active connections: {traced_connections:#?}"
-                    );
-                } else {
-                    anyhow::bail!("Run out of retries getting a DB connection ({tags_display}), last error: {err}");
-                }
-            }
-        }
+        self.inner.acquire().await.map_err(|err| {
+            Self::report_connection_error(&err);
+            DalConnectionError::acquire_connection(err, tags.cloned()).into()
+        })
     }
 
     fn report_connection_error(err: &sqlx::Error) {

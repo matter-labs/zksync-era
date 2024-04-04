@@ -208,6 +208,7 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             // It's not applicable for `vm6`
             deduplicated_events_logs: vec![],
             storage_refunds: vec![],
+            pubdata_costs: vec![],
             user_l2_to_l1_logs: l2_to_l1_logs,
         }
     }

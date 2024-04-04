@@ -127,12 +127,14 @@ impl ProtocolVersionId {
     }
 
     pub fn is_pre_1_5_0(&self) -> bool {
-        // TODO: review this when we actually deploy 1.5.0
+        // In the current codebase all the protocol versions are pre-1.5.0.
+        // This method will be updated once the v1.5.0 is added to the server
         true
     }
 
     pub fn is_post_1_5_0(&self) -> bool {
-        // TODO: review this when we actually deploy 1.5.0
+        // In the current codebase all the protocol versions are pre-1.5.0.
+        // This method will be updated once the v1.5.0 is added to the server
         false
     }
 }
