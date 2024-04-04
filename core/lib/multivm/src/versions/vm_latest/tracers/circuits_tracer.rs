@@ -75,7 +75,7 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
                 self.statistics.log_demuxer_cycles += PRECOMPILE_LOG_DEMUXER_CYCLES;
             }
             Opcode::Log(LogOpcode::Decommit) => {
-                // Note, that for decommit log demuxer is not used.
+                // Note, that for decommit the log demuxer circuit is not used.
                 self.statistics.ram_permutation_cycles += LOG_DECOMMIT_RAM_CYCLES;
                 self.statistics.code_decommitter_sorter_cycles +=
                     LOG_DECOMMIT_DECOMMITTER_SORTER_CYCLES;

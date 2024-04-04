@@ -773,7 +773,7 @@ impl TxSender {
             // For L2 transactions, we estimate the amount of gas needed to cover for the pubdata by creating a transaction with infinite gas limit.
             // And getting how much pubdata it used.
 
-            // In theory, if the transaction has failed with such large gas limit, we could've returned an API error here rightaway,
+            // In theory, if the transaction has failed with such large gas limit, we could have returned an API error here right away,
             // but doing it later on keeps the code more lean.
             let (result, _) = self
                 .estimate_gas_step(

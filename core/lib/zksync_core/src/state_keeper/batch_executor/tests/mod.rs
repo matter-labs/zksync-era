@@ -225,7 +225,7 @@ async fn reject_tx() {
 }
 
 /// Checks that tx with too big gas limit is correctly processed.
-/// When processed in the bootloader, no more than 80MM gas can be used within the execution context.
+/// When processed in the bootloader, no more than 80M gas can be used within the execution context.
 #[tokio::test]
 async fn too_big_gas_limit() {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;

@@ -21,7 +21,7 @@ fn test_sekp256r1() {
 
     let account = &mut vm.rich_accounts[0];
 
-    // The digest, secret key and public key were copied from the following test suit: https://github.com/hyperledger/besu/blob/b6a6402be90339367d5bcabcd1cfd60df4832465/crypto/algorithms/src/test/java/org/hyperledger/besu/crypto/SECP256R1Test.java#L36
+    // The digest, secret key and public key were copied from the following test suit: `https://github.com/hyperledger/besu/blob/b6a6402be90339367d5bcabcd1cfd60df4832465/crypto/algorithms/src/test/java/org/hyperledger/besu/crypto/SECP256R1Test.java#L36`
     let sk = p256::SecretKey::from_slice(
         &hex::decode("519b423d715f8b581f4fa8ee59f4771a5b44c8130b4e3eacca54a56dda72b464").unwrap(),
     )

@@ -38,7 +38,7 @@ use crate::{
 /// We employ the following rules for cold/warm storage rules:
 /// - We price a single "I/O" access as 2k ergs. This means that reading a single storage slot
 /// would cost 2k ergs, while writing to it would 4k ergs (since it involves both reading during execution and writing at the end of it).
-/// - Thereafter, "warm" reads cosst 30 ergs, while "warm" writes cost 60 ergs. Warm writes to account cost more for the fact that they may be reverted
+/// - Thereafter, "warm" reads cost 30 ergs, while "warm" writes cost 60 ergs. Warm writes to account cost more for the fact that they may be reverted
 /// and so require more RAM to store them.
 
 const WARM_READ_REFUND: u32 = STORAGE_ACCESS_COLD_READ_COST - STORAGE_ACCESS_WARM_READ_COST;
@@ -88,10 +88,10 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
     pub(crate) returned_pubdata_costs: HistoryRecorder<Vec<i32>, H>,
 
     // Keeps track of storage keys that were ever written to. This is needed for circuits tracer, this is why
-    // we dont roll this value back in case of a panicked frame.
+    // we don't roll this value back in case of a panicked frame.
     pub(crate) written_storage_keys: HistoryRecorder<HashMap<StorageKey, ()>, HistoryEnabled>,
     // Keeps track of storage keys that were ever read. This is needed for circuits tracer, this is why
-    // we dont roll this value back in case of a panicked frame.
+    // we don't roll this value back in case of a panicked frame.
     // Note, that it is a superset of `written_storage_keys`, since every written key was also read at some point.
     pub(crate) read_storage_keys: HistoryRecorder<HashMap<StorageKey, ()>, HistoryEnabled>,
 }

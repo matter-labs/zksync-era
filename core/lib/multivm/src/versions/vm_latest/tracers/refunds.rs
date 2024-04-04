@@ -246,7 +246,6 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
             self.pubdata_published =
                 current_counter.saturating_sub(self.spent_pubdata_counter_before);
 
-            // let current_ergs_per_pubdata_byte = 0;
             let tx_body_refund = self.tx_body_refund(
                 bootloader_refund.refund,
                 bootloader_refund.gas_spent_on_pubdata,
