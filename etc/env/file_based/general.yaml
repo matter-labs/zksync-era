@@ -88,6 +88,7 @@ state_keeper:
   save_call_traces: true
   virtual_blocks_interval: 1
   virtual_blocks_per_miniblock: 1
+  max_circuits_per_batch: 24100
 mempool:
   delay_interval: 100
   sync_interval_ms: 10
