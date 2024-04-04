@@ -13,7 +13,7 @@ use crate::{
         StorageApiTransaction, StorageTransaction, StorageTransactionDetails,
         StorageTransactionReceipt,
     },
-    Core, CoreDal, SqlxError,
+    Core, CoreDal,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -33,7 +33,7 @@ impl TransactionsWeb3Dal<'_, '_> {
     pub async fn get_transaction_receipts(
         &mut self,
         hashes: &[H256],
-    ) -> Result<Vec<TransactionReceipt>, SqlxError> {
+    ) -> DalResult<Vec<TransactionReceipt>> {
         let hash_bytes: Vec<_> = hashes.iter().map(H256::as_bytes).collect();
         let mut receipts: Vec<TransactionReceipt> = sqlx::query_as!(
             StorageTransactionReceipt,
@@ -80,7 +80,9 @@ impl TransactionsWeb3Dal<'_, '_> {
             FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
             &hash_bytes as &[&[u8]]
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_transaction_receipts")
+        .with_arg("hashes.len", &hashes.len())
+        .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(Into::into)

@@ -447,7 +447,7 @@ async fn store_events(
             MiniblockNumber(miniblock_number),
             &[(tx_location, events.iter().collect())],
         )
-        .await;
+        .await?;
     Ok((tx_location, events))
 }
 

@@ -434,7 +434,7 @@ impl MiniblockSealCommand {
         transaction
             .events_dal()
             .save_events(miniblock_number, &miniblock_events)
-            .await;
+            .await?;
         progress.observe(miniblock_event_count);
 
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::ExtractL2ToL1Logs, is_fictive);
@@ -457,7 +457,7 @@ impl MiniblockSealCommand {
         transaction
             .events_dal()
             .save_user_l2_to_l1_logs(miniblock_number, &user_l2_to_l1_logs)
-            .await;
+            .await?;
         progress.observe(user_l2_to_l1_log_count);
 
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::CommitMiniblock, is_fictive);
