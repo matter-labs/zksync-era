@@ -1,4 +1,4 @@
-import { Command } from 'commander';
+import {Command} from 'commander';
 import * as utils from './utils';
 import * as env from './env';
 import fs from 'fs';
@@ -110,7 +110,7 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean): Pr
 }
 
 // for testnet and development purposes it is ok to deploy contracts form L1.
-export async function deployL2ThroughL1({ includePaymaster }: { includePaymaster: boolean }): Promise<void> {
+export async function deployL2ThroughL1({includePaymaster}: { includePaymaster: boolean }): Promise<void> {
     await utils.confirmAction();
 
     const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
@@ -148,11 +148,11 @@ export async function deployL2ThroughL1({ includePaymaster }: { includePaymaster
     updateContractsEnv(`etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`, l2DeployLog, l2DeploymentEnvVars);
 }
 
-async function _deployL1({ onlyVerifier }: { onlyVerifier: boolean }): Promise<void> {
+async function _deployL1(onlyVerifier: boolean, deploymentMode: DeploymentMode): Promise<void> {
     await utils.confirmAction();
 
     const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    const args = [privateKey ? `--private-key ${privateKey}` : '', onlyVerifier ? '--only-verifier' : ''];
+    const args = [privateKey ? `--private-key ${privateKey}` : '', onlyVerifier ? '--only-verifier' : '', deploymentMode == DeploymentMode.Validium ? '--validium' : ''];
 
     // In the localhost setup scenario we don't have the workspace,
     // so we have to `--cwd` into the required directory.
@@ -212,14 +212,8 @@ export enum DeploymentMode {
     Validium = 1
 }
 
-export async function redeployL1(args: any[], deploymentMode: DeploymentMode) {
-    if (deploymentMode == DeploymentMode.Validium) {
-        await deployL1([...args, '--validium-mode']);
-    } else if (deploymentMode == DeploymentMode.Rollup) {
-        await deployL1(args);
-    } else {
-        throw new Error('Invalid deployment mode');
-    }
+export async function redeployL1(verifierOnly: boolean, deploymentMode: DeploymentMode) {
+    await _deployL1(verifierOnly, deploymentMode);
     await verifyL1Contracts();
 }
 
@@ -247,7 +241,7 @@ export async function erc20BridgeFinish(args: any[] = []): Promise<void> {
     await utils.spawn(`${baseCommandL1} erc20-finish-deployment-on-chain ${args.join(' ')} | tee -a deployL2.log`);
 }
 
-export async function registerHyperchain({ baseTokenName }: { baseTokenName?: string }): Promise<void> {
+export async function registerHyperchain({baseTokenName}: { baseTokenName?: string }): Promise<void> {
     await utils.confirmAction();
 
     const privateKey = process.env.GOVERNOR_PRIVATE_KEY;
@@ -278,8 +272,20 @@ export async function registerHyperchain({ baseTokenName }: { baseTokenName?: st
 }
 
 export async function deployVerifier(): Promise<void> {
-    await _deployL1({ onlyVerifier: true });
+    // Deploy mode doesn't matter here
+    await _deployL1(true, DeploymentMode.Rollup);
 }
+
+export async function deployL1(args: [string]): Promise<void> {
+    let mode;
+    if (args.includes("validium")) {
+        mode = DeploymentMode.Validium;
+    } else {
+        mode = DeploymentMode.Rollup;
+    }
+    await _deployL1(false, mode);
+}
+
 
 export const command = new Command('contract').description('contract management');
 

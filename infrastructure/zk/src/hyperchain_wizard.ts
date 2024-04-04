@@ -1,8 +1,8 @@
-import { Command } from 'commander';
+import {Command} from 'commander';
 import enquirer from 'enquirer';
-import { BigNumber, ethers, utils } from 'ethers';
+import {BigNumber, ethers, utils} from 'ethers';
 import chalk from 'chalk';
-import { compileConfig, pushConfig } from './config';
+import {compileConfig, pushConfig} from './config';
 import * as init from './init';
 import * as server from './server';
 import * as docker from './docker';
@@ -10,11 +10,11 @@ import * as db from './database';
 import * as env from './env';
 import * as fs from 'fs';
 import fetch from 'node-fetch';
-import { up } from './up';
+import {up} from './up';
 import * as Handlebars from 'handlebars';
-import { ProverType, setupProver } from './prover_setup';
-import { DeploymentMode } from './contract';
-import { announced } from './utils';
+import {ProverType, setupProver} from './prover_setup';
+import {DeploymentMode} from './contract';
+import {announced} from './utils';
 
 const title = chalk.blueBright;
 const warning = chalk.yellowBright;
@@ -51,7 +51,7 @@ let isLocalhost = false;
 // An init command that allows configuring and spinning up a new hyperchain network.
 async function initHyperchain(envName: string, runObservability: boolean, deploymentMode: DeploymentMode) {
     await announced('Initializing hyperchain creation', setupConfiguration(envName, runObservability));
-    await init.initHyperCmdAction({ skipSetupCompletely: false, bumpChainId: true });
+    await init.initHyperCmdAction({skipSetupCompletely: false, bumpChainId: true, runObservability, deploymentMode});
 
     // if we used matterlabs/geth network, we need custom ENV file for hyperchain compose parts
     // This breaks `zk status prover` command, but neccessary for working in isolated docker-network
@@ -79,7 +79,7 @@ async function initHyperchain(envName: string, runObservability: boolean, deploy
     await announced('Start server', startServer());
 }
 
-async function setupConfiguration(envName: string) {
+async function setupConfiguration(envName: string, runObservability: boolean) {
     if (!envName) {
         const CONFIGURE = 'Configure new chain';
         const USE_EXISTING = 'Use existing configuration';
@@ -95,7 +95,7 @@ async function setupConfiguration(envName: string) {
         const results: any = await enquirer.prompt(questions);
 
         if (results.config === CONFIGURE) {
-            await announced('Setting hyperchain configuration', setHyperchainMetadata());
+            await announced('Setting hyperchain configuration', setHyperchainMetadata(runObservability));
             await announced('Validating information and balances to deploy hyperchain', checkReadinessToDeploy());
         } else {
             const envName = await selectHyperchainConfiguration();
@@ -107,7 +107,7 @@ async function setupConfiguration(envName: string) {
     }
 }
 
-async function setHyperchainMetadata() {
+async function setHyperchainMetadata(runObservability: boolean) {
     const BASE_NETWORKS = [
         BaseNetwork.LOCALHOST,
         BaseNetwork.LOCALHOST_CUSTOM,
@@ -302,7 +302,7 @@ async function setHyperchainMetadata() {
         feeReceiverAddress = richWallets[3].address;
 
         await up(runObservability);
-        await announced('Ensuring databases are up', db.wait({ core: true, prover: false }));
+        await announced('Ensuring databases are up', db.wait({core: true, prover: false}));
     }
 
     // testTokens and weth will be done for the shared bridge.
@@ -761,12 +761,15 @@ async function configDemoHyperchain(cmd: Command) {
     env.load();
 
     if (!cmd.skipEnvSetup) {
-        await up();
+        await up(false);
     }
     await init.initDevCmdAction({
         skipEnvSetup: cmd.skipEnvSetup,
         skipSubmodulesCheckout: false,
-        testTokenOptions: { envFile: process.env.CHAIN_ETH_NETWORK! }
+        testTokenOptions: {envFile: process.env.CHAIN_ETH_NETWORK!},
+        // TODO set the proper values
+        runObservability: false,
+        deploymentMode: DeploymentMode.Rollup
     });
 
     env.mergeInitToEnv();
