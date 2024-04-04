@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use zksync_config::{configs::genesis::SharedBridge, GenesisConfig};
 use zksync_dal::{CoreDal, DalError};
-use zksync_types::{api::en, tokens::TokenInfo, L1BatchNumber, MiniblockNumber, H256};
+use zksync_types::{api::en, tokens::TokenInfo, Address, L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::error::Web3Error;
 
 use crate::api_server::web3::{backend_jsonrpsee::MethodTracer, state::RpcState};
@@ -153,5 +153,14 @@ impl EnNamespace {
                 .l1_batch_commit_data_generator_mode,
         };
         Ok(config)
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub async fn whitelisted_tokens_for_aa_impl(&self) -> Result<Vec<Address>, Web3Error> {
+        Ok(self
+            .state
+            .tx_sender
+            .read_whitelisted_tokens_for_aa_cache()
+            .await)
     }
 }
