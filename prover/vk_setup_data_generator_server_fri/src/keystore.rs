@@ -297,6 +297,24 @@ impl Keystore {
         })
     }
 
+    fn create_setup_data_directory(&self) -> anyhow::Result<()> {
+        let setup_data_path = Path::new(
+            self.setup_data_path
+                .as_ref()
+                .expect("Setup data path not set"),
+        );
+        std::fs::create_dir(setup_data_path).context("create_setup_data_directory()")
+    }
+
+    fn is_setup_data_directory_present(&self) -> bool {
+        Path::new(
+            self.setup_data_path
+                .as_ref()
+                .expect("Setup data path not set"),
+        )
+        .exists()
+    }
+
     pub fn is_setup_data_present(&self, key: &ProverServiceDataKey) -> bool {
         Path::new(&self.get_file_path(key.clone(), ProverServiceDataType::SetupData)).exists()
     }
@@ -306,6 +324,9 @@ impl Keystore {
         key: ProverServiceDataKey,
         serialized_setup_data: &Vec<u8>,
     ) -> anyhow::Result<()> {
+        if !self.is_setup_data_directory_present() {
+            self.create_setup_data_directory()?;
+        }
         let filepath = self.get_file_path(key.clone(), ProverServiceDataType::SetupData);
         tracing::info!("saving {:?} setup data to: {}", key, filepath);
         std::fs::write(filepath.clone(), serialized_setup_data)
