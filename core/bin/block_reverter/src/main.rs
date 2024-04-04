@@ -73,6 +73,7 @@ enum Command {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let command = Cli::parse().command;
     let observability_config =
         ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
     let log_format: vlog::LogFormat = observability_config
@@ -99,7 +100,6 @@ async fn main() -> anyhow::Result<()> {
     );
     let contracts = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let command = Cli::parse().command;
     let operator_address = if let Command::Display {
         operator_address, ..
     } = &command
