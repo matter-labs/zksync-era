@@ -280,7 +280,8 @@ async fn remove_stuck_txs() {
             &[mock_execution_result(executed_tx.clone())],
             U256::from(1),
         )
-        .await;
+        .await
+        .unwrap();
 
     // Get all txs
     transactions_dal.reset_mempool().await.unwrap();

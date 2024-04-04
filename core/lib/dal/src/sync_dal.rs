@@ -178,7 +178,8 @@ mod tests {
                 &[mock_execution_result(tx.clone())],
                 1.into(),
             )
-            .await;
+            .await
+            .unwrap();
 
         let block = conn
             .sync_dal()

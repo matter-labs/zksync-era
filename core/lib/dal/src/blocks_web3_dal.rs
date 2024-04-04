@@ -910,7 +910,8 @@ mod tests {
         }
         conn.transactions_dal()
             .mark_txs_as_executed_in_miniblock(MiniblockNumber(1), &tx_results, 1.into())
-            .await;
+            .await
+            .unwrap();
 
         let traces = conn
             .blocks_web3_dal()
