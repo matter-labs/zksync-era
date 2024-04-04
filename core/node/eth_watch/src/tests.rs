@@ -12,8 +12,11 @@ use zksync_types::{
     Transaction, H256, U256,
 };
 
-use super::client::Error;
-use crate::{client::EthClient, event_processors::upgrades::UPGRADE_PROPOSAL_SIGNATURE, EthWatch};
+use crate::{
+    client::{EthClient, EthClientError},
+    event_processors::upgrades::UPGRADE_PROPOSAL_SIGNATURE,
+    EthWatch,
+};
 
 #[derive(Debug)]
 struct FakeEthClientData {
@@ -116,7 +119,7 @@ impl EthClient for FakeEthClient {
         from: BlockNumber,
         to: BlockNumber,
         _retries_left: usize,
-    ) -> Result<Vec<Log>, Error> {
+    ) -> Result<Vec<Log>, EthClientError> {
         let from = self.block_to_number(from).await;
         let to = self.block_to_number(to).await;
         let mut logs = vec![];
@@ -136,11 +139,11 @@ impl EthClient for FakeEthClient {
 
     fn set_topics(&mut self, _topics: Vec<Hash>) {}
 
-    async fn scheduler_vk_hash(&self, _verifier_address: Address) -> Result<H256, Error> {
+    async fn scheduler_vk_hash(&self, _verifier_address: Address) -> Result<H256, EthClientError> {
         Ok(H256::zero())
     }
 
-    async fn finalized_block_number(&self) -> Result<u64, Error> {
+    async fn finalized_block_number(&self) -> Result<u64, EthClientError> {
         Ok(self.inner.read().await.last_finalized_block_number)
     }
 }
@@ -211,7 +214,8 @@ async fn test_normal_operation_l1_txs() {
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
-    .await;
+    .await
+    .unwrap();
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -259,7 +263,8 @@ async fn test_normal_operation_upgrades() {
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
-    .await;
+    .await
+    .unwrap();
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -303,7 +308,8 @@ async fn test_normal_operation_upgrades() {
         .protocol_versions_dal()
         .get_protocol_upgrade_tx(ProtocolVersionId::next())
         .await
-        .unwrap();
+        .unwrap()
+        .expect("no upgrade transaction");
     assert_eq!(tx.common_data.upgrade_id, ProtocolVersionId::next());
 }
 
@@ -320,7 +326,8 @@ async fn test_gap_in_upgrades() {
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
-    .await;
+    .await
+    .unwrap();
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -359,7 +366,8 @@ async fn test_normal_operation_governance_upgrades() {
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
-    .await;
+    .await
+    .unwrap();
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -403,7 +411,8 @@ async fn test_normal_operation_governance_upgrades() {
         .protocol_versions_dal()
         .get_protocol_upgrade_tx(ProtocolVersionId::next())
         .await
-        .unwrap();
+        .unwrap()
+        .expect("no protocol upgrade transaction");
     assert_eq!(tx.common_data.upgrade_id, ProtocolVersionId::next());
 }
 
@@ -421,7 +430,8 @@ async fn test_gap_in_single_batch() {
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
-    .await;
+    .await
+    .unwrap();
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -451,7 +461,8 @@ async fn test_gap_between_batches() {
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
-    .await;
+    .await
+    .unwrap();
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -486,7 +497,8 @@ async fn test_overlapping_batches() {
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
-    .await;
+    .await
+    .unwrap();
 
     let mut storage = connection_pool.connection().await.unwrap();
     client

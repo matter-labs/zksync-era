@@ -6,8 +6,8 @@ use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_types::{l1::L1Tx, web3::types::Log, PriorityOpId, H256};
 
 use crate::{
-    client::{Error, EthClient},
-    event_processors::EventProcessor,
+    client::EthClient,
+    event_processors::{EventProcessor, EventProcessorError},
     metrics::{PollStage, METRICS},
 };
 
@@ -37,13 +37,14 @@ impl EventProcessor for PriorityOpsEventProcessor {
         storage: &mut Connection<'_, Core>,
         _client: &dyn EthClient,
         events: Vec<Log>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), EventProcessorError> {
         let mut priority_ops = Vec::new();
         for event in events
             .into_iter()
             .filter(|event| event.topics[0] == self.new_priority_request_signature)
         {
-            let tx = L1Tx::try_from(event).map_err(|err| Error::LogParse(format!("{}", err)))?;
+            let tx = L1Tx::try_from(event)
+                .map_err(|err| EventProcessorError::log_parse(err, "priority op"))?;
             priority_ops.push(tx);
         }
 

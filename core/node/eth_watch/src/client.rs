@@ -1,7 +1,8 @@
 use std::{fmt, sync::Arc};
 
 use zksync_contracts::verifier_contract;
-use zksync_eth_client::{CallFunctionArgs, Error as EthClientError, EthInterface};
+pub(super) use zksync_eth_client::Error as EthClientError;
+use zksync_eth_client::{CallFunctionArgs, EthInterface};
 use zksync_types::{
     ethabi::Contract,
     web3::{
@@ -14,22 +15,6 @@ use zksync_types::{
 
 use super::metrics::METRICS;
 
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("Log parsing failed: {0}")]
-    LogParse(String),
-    #[error("Eth client error: {0}")]
-    EthClient(#[from] EthClientError),
-    #[error("Infinite recursion caused by too many responses")]
-    InfiniteRecursion,
-}
-
-impl From<web3::contract::Error> for Error {
-    fn from(err: web3::contract::Error) -> Self {
-        Self::EthClient(err.into())
-    }
-}
-
 #[async_trait::async_trait]
 pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     /// Returns events in a given block range.
@@ -38,11 +23,11 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         from: BlockNumber,
         to: BlockNumber,
         retries_left: usize,
-    ) -> Result<Vec<Log>, Error>;
+    ) -> Result<Vec<Log>, EthClientError>;
     /// Returns finalized L1 block number.
-    async fn finalized_block_number(&self) -> Result<u64, Error>;
+    async fn finalized_block_number(&self) -> Result<u64, EthClientError>;
     /// Returns scheduler verification key hash by verifier address.
-    async fn scheduler_vk_hash(&self, verifier_address: Address) -> Result<H256, Error>;
+    async fn scheduler_vk_hash(&self, verifier_address: Address) -> Result<H256, EthClientError>;
     /// Sets list of topics to return events for.
     fn set_topics(&mut self, topics: Vec<H256>);
 }
@@ -90,7 +75,7 @@ impl EthHttpQueryClient {
         from: BlockNumber,
         to: BlockNumber,
         topics: Vec<H256>,
-    ) -> Result<Vec<Log>, Error> {
+    ) -> Result<Vec<Log>, EthClientError> {
         let filter = FilterBuilder::default()
             .address(
                 [Some(self.zksync_contract_addr), self.governance_address]
@@ -103,20 +88,17 @@ impl EthHttpQueryClient {
             .to_block(to)
             .topics(Some(topics), None, None, None)
             .build();
-
-        self.client.logs(filter, "watch").await.map_err(Into::into)
+        self.client.logs(filter, "watch").await
     }
 }
 
 #[async_trait::async_trait]
 impl EthClient for EthHttpQueryClient {
-    async fn scheduler_vk_hash(&self, verifier_address: Address) -> Result<H256, Error> {
+    async fn scheduler_vk_hash(&self, verifier_address: Address) -> Result<H256, EthClientError> {
         // New verifier returns the hash of the verification key.
-
         let args = CallFunctionArgs::new("verificationKeyHash", ())
             .for_contract(verifier_address, self.verifier_contract_abi.clone());
         let vk_hash_tokens = self.client.call_contract_function(args).await?;
-
         Ok(H256::from_tokens(vk_hash_tokens)?)
     }
 
@@ -125,13 +107,13 @@ impl EthClient for EthHttpQueryClient {
         from: BlockNumber,
         to: BlockNumber,
         retries_left: usize,
-    ) -> Result<Vec<Log>, Error> {
+    ) -> Result<Vec<Log>, EthClientError> {
         let latency = METRICS.get_priority_op_events.start();
         let mut result = self.get_filter_logs(from, to, self.topics.clone()).await;
 
         // This code is compatible with both Infura and Alchemy API providers.
         // Note: we don't handle rate-limits here - assumption is that we're never going to hit them.
-        if let Err(Error::EthClient(EthClientError::EthereumGateway(err))) = &result {
+        if let Err(EthClientError::EthereumGateway(err)) = &result {
             tracing::warn!("Provider returned error message: {:?}", err);
             let err_message = err.to_string();
             let err_code = if let web3::Error::Rpc(err) = err {
@@ -173,14 +155,9 @@ impl EthClient for EthHttpQueryClient {
 
                 // safety check to prevent infinite recursion (quite unlikely)
                 if from_number >= mid {
-                    return Err(Error::InfiniteRecursion);
+                    return result;
                 }
-                tracing::warn!(
-                    "Splitting block range in half: {:?} - {:?} - {:?}",
-                    from,
-                    mid,
-                    to
-                );
+                tracing::warn!("Splitting block range in half: {from:?} - {mid:?} - {to:?}");
                 let mut first_half = self
                     .get_events(from, BlockNumber::Number(mid), RETRY_LIMIT)
                     .await?;
@@ -200,7 +177,7 @@ impl EthClient for EthHttpQueryClient {
         result
     }
 
-    async fn finalized_block_number(&self) -> Result<u64, Error> {
+    async fn finalized_block_number(&self) -> Result<u64, EthClientError> {
         if let Some(confirmations) = self.confirmations_for_eth_event {
             let latest_block_number = self.client.block_number("watch").await?.as_u64();
             Ok(latest_block_number.saturating_sub(confirmations))

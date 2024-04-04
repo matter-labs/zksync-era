@@ -1,11 +1,12 @@
 use std::convert::TryFrom;
 
-use zksync_dal::{Connection, Core, CoreDal};
+use anyhow::Context as _;
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_types::{web3::types::Log, ProtocolUpgrade, ProtocolVersionId, H256};
 
 use crate::{
-    client::{Error, EthClient},
-    event_processors::EventProcessor,
+    client::EthClient,
+    event_processors::{EventProcessor, EventProcessorError},
     metrics::{PollStage, METRICS},
 };
 
@@ -35,14 +36,14 @@ impl EventProcessor for UpgradesEventProcessor {
         storage: &mut Connection<'_, Core>,
         client: &dyn EthClient,
         events: Vec<Log>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), EventProcessorError> {
         let mut upgrades = Vec::new();
         for event in events
             .into_iter()
             .filter(|event| event.topics[0] == UPGRADE_PROPOSAL_SIGNATURE)
         {
             let upgrade = ProtocolUpgrade::try_from(event)
-                .map_err(|err| Error::LogParse(format!("{:?}", err)))?;
+                .map_err(|err| EventProcessorError::log_parse(err, "protocol upgrade"))?;
             // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
             let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
                 Some(client.scheduler_vk_hash(address).await?)
@@ -71,13 +72,14 @@ impl EventProcessor for UpgradesEventProcessor {
                 .protocol_versions_dal()
                 .load_previous_version(upgrade.id)
                 .await
-                .expect("Expected previous version to be present in DB");
+                .map_err(DalError::generalize)?
+                .context("expected previous version to be present in DB")?;
             let new_version = previous_version.apply_upgrade(upgrade, scheduler_vk_hash);
             storage
                 .protocol_versions_dal()
                 .save_protocol_version_with_tx(&new_version)
                 .await
-                .unwrap();
+                .map_err(DalError::generalize)?;
         }
         stage_latency.observe();
         self.last_seen_version_id = last_id;
