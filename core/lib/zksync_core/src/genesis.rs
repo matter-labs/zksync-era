@@ -626,10 +626,13 @@ pub async fn save_set_chain_id_tx(
     );
     let (version_id, upgrade_tx) =
         decode_set_chain_id_event(logs.remove(0)).context("Chain id event is incorrect")?;
+
+    tracing::info!("New version id {:?}", version_id);
     storage
         .protocol_versions_dal()
         .save_genesis_upgrade_with_tx(version_id, upgrade_tx)
         .await;
+
     Ok(())
 }
 
