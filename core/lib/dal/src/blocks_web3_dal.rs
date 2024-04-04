@@ -1,4 +1,3 @@
-use zksync_consensus_roles::proto;
 use zksync_db_connection::{
     connection::Connection, error::DalResult, instrument::InstrumentExt, interpolate_query,
     match_query_as,

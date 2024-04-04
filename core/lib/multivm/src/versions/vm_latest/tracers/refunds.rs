@@ -4,16 +4,10 @@ use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics
 use zk_evm_1_5_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
-    zkevm_opcode_defs::system_params::L1_MESSAGE_PUBDATA_BYTES,
 };
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_system_constants::{PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS};
-use zksync_types::{
-    event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
-    l2_to_l1_log::L2ToL1Log,
-    L1BatchNumber, H256, U256,
-};
-use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256};
+use zksync_types::{H256, U256};
+use zksync_utils::ceil_div_u256;
 
 use crate::{
     interface::{
@@ -23,7 +17,7 @@ use crate::{
     vm_latest::{
         bootloader_state::BootloaderState,
         constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},
-        old_vm::{events::merge_events, history_recorder::HistoryMode, memory::SimpleMemory},
+        old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::{
             traits::VmTracer,
             utils::{get_vm_hook_params, VmHook},

@@ -9,8 +9,7 @@ use zksync_system_constants::{
 };
 use zksync_types::{
     commitment::SerializeCommitment, fee_model::BatchFeeInput, get_code_key,
-    l2_to_l1_log::L2ToL1Log, writes::StateDiffRecord, Address, Execute, ExecuteTransactionCommon,
-    H256, U256,
+    l2_to_l1_log::L2ToL1Log, writes::StateDiffRecord, Address, Execute, H256, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
@@ -19,7 +18,7 @@ use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     vm_latest::{
         constants::{
-            BATCH_GAS_LIMIT, BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
+            BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
             BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD, BOOTLOADER_BATCH_TIP_OVERHEAD,
             MAX_VM_PUBDATA_PER_BATCH,
         },
@@ -163,7 +162,7 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
     let account = &mut vm.rich_accounts[0];
 
     for (i, data) in txs_data.into_iter().enumerate() {
-        let mut tx = account.get_l2_tx_for_execute(
+        let tx = account.get_l2_tx_for_execute(
             Execute {
                 contract_address: CONTRACT_FORCE_DEPLOYER_ADDRESS,
                 calldata: data,
