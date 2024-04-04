@@ -284,7 +284,8 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
             .await
@@ -351,7 +352,8 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
         let snapshot_recovery = create_snapshot_recovery();
         conn.snapshot_recovery_dal()
             .insert_initial_recovery_status(&snapshot_recovery)

@@ -2411,7 +2411,8 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
 
         let mut header = L1BatchHeader::new(
             L1BatchNumber(1),
@@ -2467,7 +2468,8 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
         let mut header = L1BatchHeader::new(
             L1BatchNumber(1),
             100,
@@ -2540,7 +2542,8 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
 
         for number in [1, 2] {
             let l1_batch = L1BatchHeader::new(

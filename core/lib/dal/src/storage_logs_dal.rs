@@ -822,7 +822,8 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
 
         let account = AccountTreeId::new(Address::repeat_byte(1));
         let first_key = StorageKey::new(account, H256::zero());
@@ -945,7 +946,8 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
 
         let account = AccountTreeId::new(Address::repeat_byte(1));
         let logs: Vec<_> = (0_u8..10)
@@ -995,7 +997,8 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
 
         let account = AccountTreeId::new(Address::repeat_byte(1));
         let mut logs: Vec<_> = [0_u8, 1, 2, 3]
@@ -1095,7 +1098,8 @@ mod tests {
     async fn prepare_tree_entries(conn: &mut Connection<'_, Core>, count: u8) -> Vec<H256> {
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
 
         let account = AccountTreeId::new(Address::repeat_byte(1));
         let logs: Vec<_> = (0..count)

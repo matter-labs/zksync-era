@@ -698,7 +698,8 @@ mod tests {
             .unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
         let header = MiniblockHeader {
             l1_tx_count: 3,
             l2_tx_count: 5,
@@ -749,7 +750,8 @@ mod tests {
 
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
             .await
@@ -768,7 +770,8 @@ mod tests {
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
 
         let miniblock_number = conn
             .blocks_web3_dal()
@@ -852,7 +855,8 @@ mod tests {
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
             .await
@@ -881,7 +885,8 @@ mod tests {
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(1))
             .await

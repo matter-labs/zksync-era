@@ -2,7 +2,7 @@ use std::convert::TryInto;
 
 use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
-use zksync_db_connection::connection::Connection;
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolVersion},
     protocol_version::{L1VerifierConfig, VerifierParams},
@@ -27,7 +27,7 @@ impl ProtocolVersionsDal<'_, '_> {
         l1_verifier_config: L1VerifierConfig,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         tx_hash: Option<H256>,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -67,20 +67,30 @@ impl ProtocolVersionsDal<'_, '_> {
             base_system_contracts_hashes.default_aa.as_bytes(),
             tx_hash.as_ref().map(H256::as_bytes),
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("save_protocol_version")
+        .with_arg("id", &id)
+        .with_arg(
+            "base_system_contracts_hashes",
+            &base_system_contracts_hashes,
+        )
+        .with_arg("tx_hash", &tx_hash)
+        .execute(self.storage)
+        .await?;
+        Ok(())
     }
 
-    pub async fn save_protocol_version_with_tx(&mut self, version: ProtocolVersion) {
+    pub async fn save_protocol_version_with_tx(
+        &mut self,
+        version: ProtocolVersion,
+    ) -> DalResult<()> {
         let tx_hash = version.tx.as_ref().map(|tx| tx.common_data.hash());
 
-        let mut db_transaction = self.storage.start_transaction().await.unwrap();
+        let mut db_transaction = self.storage.start_transaction().await?;
         if let Some(tx) = version.tx {
             db_transaction
                 .transactions_dal()
                 .insert_system_transaction(tx)
-                .await;
+                .await?;
         }
 
         db_transaction
@@ -92,12 +102,15 @@ impl ProtocolVersionsDal<'_, '_> {
                 version.base_system_contracts_hashes,
                 tx_hash,
             )
-            .await;
-
-        db_transaction.commit().await.unwrap();
+            .await?;
+        db_transaction.commit().await
     }
 
-    async fn save_genesis_upgrade_tx_hash(&mut self, id: ProtocolVersionId, tx_hash: Option<H256>) {
+    async fn save_genesis_upgrade_tx_hash(
+        &mut self,
+        id: ProtocolVersionId,
+        tx_hash: Option<H256>,
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE protocol_versions
@@ -109,9 +122,12 @@ impl ProtocolVersionsDal<'_, '_> {
             tx_hash.as_ref().map(H256::as_bytes),
             id as i32,
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("save_genesis_upgrade_tx_hash")
+        .with_arg("id", &id)
+        .with_arg("tx_hash", &tx_hash)
+        .execute(self.storage)
+        .await?;
+        Ok(())
     }
 
     /// Attaches a transaction used to set ChainId to the genesis protocol version.
@@ -120,22 +136,18 @@ impl ProtocolVersionsDal<'_, '_> {
         &mut self,
         id: ProtocolVersionId,
         tx: ProtocolUpgradeTx,
-    ) {
+    ) -> DalResult<()> {
         let tx_hash = Some(tx.common_data.hash());
-
-        let mut db_transaction = self.storage.start_transaction().await.unwrap();
-
+        let mut db_transaction = self.storage.start_transaction().await?;
         db_transaction
             .transactions_dal()
             .insert_system_transaction(tx)
-            .await;
-
+            .await?;
         db_transaction
             .protocol_versions_dal()
             .save_genesis_upgrade_tx_hash(id, tx_hash)
-            .await;
-
-        db_transaction.commit().await.unwrap();
+            .await?;
+        db_transaction.commit().await
     }
 
     pub async fn protocol_version_id_by_timestamp(

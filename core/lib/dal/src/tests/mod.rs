@@ -222,7 +222,8 @@ async fn remove_stuck_txs() {
     let mut protocol_versions_dal = ProtocolVersionsDal { storage };
     protocol_versions_dal
         .save_protocol_version_with_tx(Default::default())
-        .await;
+        .await
+        .unwrap();
 
     let storage = protocol_versions_dal.storage;
     let mut transactions_dal = TransactionsDal { storage };
@@ -246,7 +247,8 @@ async fn remove_stuck_txs() {
     tx.received_timestamp_ms = unix_timestamp_ms() - Duration::new(1000, 0).as_millis() as u64;
     transactions_dal
         .insert_transaction_l1(tx, L1BlockNumber(1))
-        .await;
+        .await
+        .unwrap();
 
     // Old executed tx
     let mut executed_tx = mock_l2_transaction();

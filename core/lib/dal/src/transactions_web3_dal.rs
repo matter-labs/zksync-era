@@ -451,7 +451,8 @@ mod tests {
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
         let tx = mock_l2_transaction();
         let tx_hash = tx.hash();
         prepare_transactions(&mut conn, vec![tx]).await;
@@ -501,7 +502,8 @@ mod tests {
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
 
         let tx1 = mock_l2_transaction();
         let tx1_hash = tx1.hash();
@@ -529,7 +531,8 @@ mod tests {
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
         let tx = mock_l2_transaction();
         let tx_hash = tx.hash();
         prepare_transactions(&mut conn, vec![tx]).await;
@@ -556,7 +559,8 @@ mod tests {
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .await
+            .unwrap();
 
         let initiator = Address::repeat_byte(1);
         let next_nonce = conn
