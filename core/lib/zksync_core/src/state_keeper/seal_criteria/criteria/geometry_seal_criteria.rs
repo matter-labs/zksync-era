@@ -33,7 +33,7 @@ impl SealCriterion for CircuitsCriterion {
         );
 
         let batch_tip_circuit_overhead =
-            circuit_statistics_bootloader_batch_tip_overhead(ProtocolVersionId::latest().into());
+            circuit_statistics_bootloader_batch_tip_overhead(protocol_version.into());
 
         // Double checking that it is possible to seal batches
         assert!(
