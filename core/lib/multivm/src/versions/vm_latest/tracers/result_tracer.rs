@@ -35,17 +35,13 @@ enum Result {
 }
 
 /// Responsible for tracing the far calls from the bootloader.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Default)]
+#[allow(clippy::enum_variant_names)]
 enum FarCallTracker {
+    #[default]
     NoFarCallObserved,
     FarCallObserved(usize),
     ReturndataObserved(FatPointer),
-}
-
-impl Default for FarCallTracker {
-    fn default() -> Self {
-        FarCallTracker::NoFarCallObserved
-    }
 }
 
 impl FarCallTracker {
@@ -86,8 +82,6 @@ impl FarCallTracker {
 
             *self =
                 FarCallTracker::ReturndataObserved(FatPointer::from_u256(returndata_pointer.value));
-        } else {
-            return;
         }
     }
 

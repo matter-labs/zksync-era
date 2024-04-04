@@ -402,6 +402,6 @@ pub fn get_max_batch_gas_limit(version: VmVersion) -> u64 {
         }
         VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::BLOCK_GAS_LIMIT as u64,
         VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::BLOCK_GAS_LIMIT as u64,
-        VmVersion::Vm1_5_0 => crate::vm_latest::constants::BATCH_GAS_LIMIT as u64,
+        VmVersion::Vm1_5_0 => crate::vm_latest::constants::BATCH_GAS_LIMIT,
     }
 }

@@ -283,100 +283,107 @@ fn test_dry_run_upper_bound() {
     // 3. Lots of small bytecodes / one large bytecode.
     // 4. Lots of storage slot updates.
 
-    let mut statistics = Vec::new();
-
-    // max logs
-    statistics.push(StatisticsTagged {
-        statistics: execute_test(L1MessengerTestData {
-            l2_to_l1_logs: MAX_EFFECTIVE_PUBDATA_PER_BATCH / L2ToL1Log::SERIALIZED_SIZE,
-            ..Default::default()
-        }),
-        tag: "max_logs".to_string(),
-    });
-
-    // max messages
-    statistics.push(StatisticsTagged {
-        statistics: execute_test(L1MessengerTestData {
-            // Each L2->L1 message is accompanied by a Log + its length, which is a 4 byte number,
-            // so the max number of pubdata is bound by it
-            messages: vec![
-                vec![0; 0];
-                MAX_EFFECTIVE_PUBDATA_PER_BATCH / (L2ToL1Log::SERIALIZED_SIZE + 4)
-            ],
-            ..Default::default()
-        }),
-        tag: "max_messages".to_string(),
-    });
-
-    // long message
-    statistics.push(StatisticsTagged {
-        statistics: execute_test(L1MessengerTestData {
-            // Each L2->L1 message is accompanied by a Log, so the max number of pubdata is bound by it
-            messages: vec![vec![0; MAX_EFFECTIVE_PUBDATA_PER_BATCH]; 1],
-            ..Default::default()
-        }),
-        tag: "long_message".to_string(),
-    });
-
-    // max bytecodes
-    statistics.push(StatisticsTagged {
-        statistics: execute_test(L1MessengerTestData {
-            // Each bytecode must be at least 32 bytes long.
-            // Each uncompressed bytecode is accompanied by its length, which is a 4 byte number
-            bytecodes: vec![vec![0; 32]; MAX_EFFECTIVE_PUBDATA_PER_BATCH / (32 + 4)],
-            ..Default::default()
-        }),
-        tag: "max_bytecodes".to_string(),
-    });
-
-    // long bytecode
-    statistics.push(StatisticsTagged {
-        statistics: execute_test(L1MessengerTestData {
-            bytecodes: vec![vec![0; get_valid_bytecode_length(MAX_EFFECTIVE_PUBDATA_PER_BATCH)]; 1],
-            ..Default::default()
-        }),
-        tag: "long_bytecode".to_string(),
-    });
-
-    // lots of small repeated writes
-    statistics.push(StatisticsTagged {
-        statistics: execute_test(L1MessengerTestData {
-            // In theory each state diff can require only 5 bytes to be published (enum index + 4 bytes for the key)
-            state_diffs: generate_state_diffs(true, true, MAX_EFFECTIVE_PUBDATA_PER_BATCH / 5),
-            ..Default::default()
-        }),
-        tag: "small_repeated_writes".to_string(),
-    });
-
-    // lots of big repeated writes
-    statistics.push(StatisticsTagged {
-        statistics: execute_test(L1MessengerTestData {
-            // Each big repeated write will approximately require 4 bytes for key + 1 byte for encoding type + 32 bytes for value
-            state_diffs: generate_state_diffs(true, false, MAX_EFFECTIVE_PUBDATA_PER_BATCH / 37),
-            ..Default::default()
-        }),
-        tag: "big_repeated_writes".to_string(),
-    });
-
-    // lots of small initial writes
-    statistics.push(StatisticsTagged {
-        statistics: execute_test(L1MessengerTestData {
-            // Each small initial write will take at least 32 bytes for derived key + 1 bytes encoding zeroing out
-            state_diffs: generate_state_diffs(false, true, MAX_EFFECTIVE_PUBDATA_PER_BATCH / 33),
-            ..Default::default()
-        }),
-        tag: "small_initial_writes".to_string(),
-    });
-
-    // lots of large initial writes
-    statistics.push(StatisticsTagged {
-        statistics: execute_test(L1MessengerTestData {
-            // Each big write will take at least 32 bytes for derived key + 1 byte for encoding type + 32 bytes for value
-            state_diffs: generate_state_diffs(false, false, MAX_EFFECTIVE_PUBDATA_PER_BATCH / 65),
-            ..Default::default()
-        }),
-        tag: "big_initial_writes".to_string(),
-    });
+    let statistics = vec![
+        // max logs
+        StatisticsTagged {
+            statistics: execute_test(L1MessengerTestData {
+                l2_to_l1_logs: MAX_EFFECTIVE_PUBDATA_PER_BATCH / L2ToL1Log::SERIALIZED_SIZE,
+                ..Default::default()
+            }),
+            tag: "max_logs".to_string(),
+        },
+        // max messages
+        StatisticsTagged {
+            statistics: execute_test(L1MessengerTestData {
+                // Each L2->L1 message is accompanied by a Log + its length, which is a 4 byte number,
+                // so the max number of pubdata is bound by it
+                messages: vec![
+                    vec![0; 0];
+                    MAX_EFFECTIVE_PUBDATA_PER_BATCH / (L2ToL1Log::SERIALIZED_SIZE + 4)
+                ],
+                ..Default::default()
+            }),
+            tag: "max_messages".to_string(),
+        },
+        // long message
+        StatisticsTagged {
+            statistics: execute_test(L1MessengerTestData {
+                // Each L2->L1 message is accompanied by a Log, so the max number of pubdata is bound by it
+                messages: vec![vec![0; MAX_EFFECTIVE_PUBDATA_PER_BATCH]; 1],
+                ..Default::default()
+            }),
+            tag: "long_message".to_string(),
+        },
+        // max bytecodes
+        StatisticsTagged {
+            statistics: execute_test(L1MessengerTestData {
+                // Each bytecode must be at least 32 bytes long.
+                // Each uncompressed bytecode is accompanied by its length, which is a 4 byte number
+                bytecodes: vec![vec![0; 32]; MAX_EFFECTIVE_PUBDATA_PER_BATCH / (32 + 4)],
+                ..Default::default()
+            }),
+            tag: "max_bytecodes".to_string(),
+        },
+        // long bytecode
+        StatisticsTagged {
+            statistics: execute_test(L1MessengerTestData {
+                bytecodes: vec![
+                    vec![0; get_valid_bytecode_length(MAX_EFFECTIVE_PUBDATA_PER_BATCH)];
+                    1
+                ],
+                ..Default::default()
+            }),
+            tag: "long_bytecode".to_string(),
+        },
+        // lots of small repeated writes
+        StatisticsTagged {
+            statistics: execute_test(L1MessengerTestData {
+                // In theory each state diff can require only 5 bytes to be published (enum index + 4 bytes for the key)
+                state_diffs: generate_state_diffs(true, true, MAX_EFFECTIVE_PUBDATA_PER_BATCH / 5),
+                ..Default::default()
+            }),
+            tag: "small_repeated_writes".to_string(),
+        },
+        // lots of big repeated writes
+        StatisticsTagged {
+            statistics: execute_test(L1MessengerTestData {
+                // Each big repeated write will approximately require 4 bytes for key + 1 byte for encoding type + 32 bytes for value
+                state_diffs: generate_state_diffs(
+                    true,
+                    false,
+                    MAX_EFFECTIVE_PUBDATA_PER_BATCH / 37,
+                ),
+                ..Default::default()
+            }),
+            tag: "big_repeated_writes".to_string(),
+        },
+        // lots of small initial writes
+        StatisticsTagged {
+            statistics: execute_test(L1MessengerTestData {
+                // Each small initial write will take at least 32 bytes for derived key + 1 bytes encoding zeroing out
+                state_diffs: generate_state_diffs(
+                    false,
+                    true,
+                    MAX_EFFECTIVE_PUBDATA_PER_BATCH / 33,
+                ),
+                ..Default::default()
+            }),
+            tag: "small_initial_writes".to_string(),
+        },
+        // lots of large initial writes
+        StatisticsTagged {
+            statistics: execute_test(L1MessengerTestData {
+                // Each big write will take at least 32 bytes for derived key + 1 byte for encoding type + 32 bytes for value
+                state_diffs: generate_state_diffs(
+                    false,
+                    false,
+                    MAX_EFFECTIVE_PUBDATA_PER_BATCH / 65,
+                ),
+                ..Default::default()
+            }),
+            tag: "big_initial_writes".to_string(),
+        },
+    ];
 
     // We use 2x overhead for the batch tip compared to the worst estimated scenario.
     let max_used_gas = statistics

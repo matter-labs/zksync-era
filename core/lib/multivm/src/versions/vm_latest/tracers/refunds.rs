@@ -265,7 +265,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
                 );
             }
 
-            let refund_to_propose = tx_body_refund + (self.block_overhead_refund() as u64);
+            let refund_to_propose = tx_body_refund + self.block_overhead_refund();
 
             let refund_slot = OPERATOR_REFUNDS_OFFSET + current_tx_index;
 

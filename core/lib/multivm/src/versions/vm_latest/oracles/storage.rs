@@ -41,10 +41,6 @@ use crate::{
 /// - Thereafter, "warm" reads cosst 30 ergs, while "warm" writes cost 60 ergs. Warm writes to account cost more for the fact that they may be reverted
 /// and so require more RAM to store them.
 
-/// If a write is after a read, we do not take into account the cost for reading the initial value from storage.
-const COLD_WRITE_AFTER_WARM_READ_COST: u32 =
-    STORAGE_ACCESS_COLD_WRITE_COST - STORAGE_ACCESS_COLD_READ_COST;
-
 const WARM_READ_REFUND: u32 = STORAGE_ACCESS_COLD_READ_COST - STORAGE_ACCESS_WARM_READ_COST;
 const WARM_WRITE_REFUND: u32 = STORAGE_ACCESS_COLD_WRITE_COST - STORAGE_ACCESS_WARM_WRITE_COST;
 const COLD_WRITE_AFTER_WARM_READ_REFUND: u32 = STORAGE_ACCESS_COLD_READ_COST;
