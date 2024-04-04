@@ -203,7 +203,7 @@ async fn prepare_postgres(
     block_count: u32,
 ) -> ExpectedOutputs {
     conn.protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion::default())
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
         .await
         .unwrap();
 

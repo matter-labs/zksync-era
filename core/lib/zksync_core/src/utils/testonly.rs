@@ -287,7 +287,7 @@ pub(crate) async fn recover(
     } else {
         storage
             .protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion {
+            .save_protocol_version_with_tx(&ProtocolVersion {
                 base_system_contracts_hashes: snapshot.l1_batch.base_system_contracts_hashes,
                 ..ProtocolVersion::default()
             })

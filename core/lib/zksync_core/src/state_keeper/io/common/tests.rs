@@ -362,7 +362,7 @@ async fn store_pending_miniblocks(
         let tx = create_l2_transaction(10, 100);
         storage
             .transactions_dal()
-            .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         let mut new_miniblock = create_miniblock(miniblock_number);
@@ -470,7 +470,7 @@ async fn getting_batch_version_with_genesis() {
 
     storage
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion::default())
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
         .await
         .unwrap();
     let new_l1_batch = create_l1_batch(1);
@@ -513,7 +513,7 @@ async fn getting_batch_version_after_snapshot_recovery() {
 
     storage
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion {
+        .save_protocol_version_with_tx(&ProtocolVersion {
             id: ProtocolVersionId::next(),
             ..ProtocolVersion::default()
         })

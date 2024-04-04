@@ -165,7 +165,7 @@ impl Tester {
         let tx = create_l2_transaction(10, 100);
         storage
             .transactions_dal()
-            .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         storage

@@ -422,7 +422,7 @@ mod tests {
 
         for tx in &txs {
             conn.transactions_dal()
-                .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+                .insert_transaction_l2(tx, TransactionExecutionMetrics::default())
                 .await
                 .unwrap();
         }
@@ -453,7 +453,7 @@ mod tests {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
         let tx = mock_l2_transaction();
@@ -504,7 +504,7 @@ mod tests {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
 
@@ -533,7 +533,7 @@ mod tests {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
         let tx = mock_l2_transaction();
@@ -561,7 +561,7 @@ mod tests {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
 
@@ -581,7 +581,7 @@ mod tests {
             tx.common_data.initiator_address = initiator;
             tx_by_nonce.insert(nonce, tx.clone());
             conn.transactions_dal()
-                .insert_transaction_l2(tx, TransactionExecutionMetrics::default())
+                .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
                 .await
                 .unwrap();
         }
@@ -646,7 +646,7 @@ mod tests {
         tx.common_data.nonce = Nonce(1);
         tx.common_data.initiator_address = initiator;
         conn.transactions_dal()
-            .insert_transaction_l2(tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
 

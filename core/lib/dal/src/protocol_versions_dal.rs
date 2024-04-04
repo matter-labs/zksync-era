@@ -81,12 +81,11 @@ impl ProtocolVersionsDal<'_, '_> {
 
     pub async fn save_protocol_version_with_tx(
         &mut self,
-        version: ProtocolVersion,
+        version: &ProtocolVersion,
     ) -> DalResult<()> {
         let tx_hash = version.tx.as_ref().map(|tx| tx.common_data.hash());
-
         let mut db_transaction = self.storage.start_transaction().await?;
-        if let Some(tx) = version.tx {
+        if let Some(tx) = &version.tx {
             db_transaction
                 .transactions_dal()
                 .insert_system_transaction(tx)
@@ -135,7 +134,7 @@ impl ProtocolVersionsDal<'_, '_> {
     pub async fn save_genesis_upgrade_with_tx(
         &mut self,
         id: ProtocolVersionId,
-        tx: ProtocolUpgradeTx,
+        tx: &ProtocolUpgradeTx,
     ) -> DalResult<()> {
         let tx_hash = Some(tx.common_data.hash());
         let mut db_transaction = self.storage.start_transaction().await?;

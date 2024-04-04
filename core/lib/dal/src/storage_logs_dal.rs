@@ -821,7 +821,7 @@ mod tests {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
 
@@ -945,7 +945,7 @@ mod tests {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
 
@@ -996,7 +996,7 @@ mod tests {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
 
@@ -1097,7 +1097,7 @@ mod tests {
 
     async fn prepare_tree_entries(conn: &mut Connection<'_, Core>, count: u8) -> Vec<H256> {
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
 

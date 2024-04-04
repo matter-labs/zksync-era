@@ -59,7 +59,7 @@ type TxLocations = Vec<(MiniblockNumber, Vec<(H256, u32, u16)>)>;
 impl TransactionsDal<'_, '_> {
     pub async fn insert_transaction_l1(
         &mut self,
-        tx: L1Tx,
+        tx: &L1Tx,
         l1_block_number: L1BlockNumber,
     ) -> DalResult<()> {
         let contract_address = tx.execute.contract_address.as_bytes();
@@ -164,7 +164,7 @@ impl TransactionsDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn insert_system_transaction(&mut self, tx: ProtocolUpgradeTx) -> DalResult<()> {
+    pub async fn insert_system_transaction(&mut self, tx: &ProtocolUpgradeTx) -> DalResult<()> {
         let contract_address = tx.execute.contract_address.as_bytes().to_vec();
         let tx_hash = tx.common_data.hash().0.to_vec();
         let json_data = serde_json::to_value(&tx.execute)
@@ -261,7 +261,7 @@ impl TransactionsDal<'_, '_> {
 
     pub async fn insert_transaction_l2(
         &mut self,
-        tx: L2Tx,
+        tx: &L2Tx,
         exec_info: TransactionExecutionMetrics,
     ) -> DalResult<L2TxSubmissionResult> {
         let tx_hash = tx.hash();
@@ -297,12 +297,17 @@ impl TransactionsDal<'_, '_> {
             u256_to_big_decimal(tx.common_data.fee.max_priority_fee_per_gas);
         let gas_per_pubdata_limit = u256_to_big_decimal(tx.common_data.fee.gas_per_pubdata_limit);
         let tx_format = tx.common_data.transaction_type as i32;
-        let signature = tx.common_data.signature;
+        let signature = &tx.common_data.signature;
         let nonce = i64::from(tx.common_data.nonce.0);
-        let input_data = tx.common_data.input.expect("Data is mandatory").data;
+        let input_data = &tx
+            .common_data
+            .input
+            .as_ref()
+            .expect("Data is mandatory")
+            .data;
         let value = u256_to_big_decimal(tx.execute.value);
         let paymaster = tx.common_data.paymaster_params.paymaster.0.as_ref();
-        let paymaster_input = tx.common_data.paymaster_params.paymaster_input;
+        let paymaster_input = &tx.common_data.paymaster_params.paymaster_input;
         let secs = (tx.received_timestamp_ms / 1000) as i64;
         let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
         #[allow(deprecated)]
@@ -1360,7 +1365,7 @@ mod tests {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
         conn.blocks_dal()
@@ -1371,7 +1376,7 @@ mod tests {
         let tx = mock_l2_transaction();
         let tx_hash = tx.hash();
         conn.transactions_dal()
-            .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         let mut tx_result = mock_execution_result(tx);

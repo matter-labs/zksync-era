@@ -129,7 +129,7 @@ mod tests {
 
         // Simulate genesis.
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
         conn.blocks_dal()
@@ -165,7 +165,7 @@ mod tests {
         };
         let tx = mock_l2_transaction();
         conn.transactions_dal()
-            .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         conn.blocks_dal()
@@ -248,7 +248,7 @@ mod tests {
 
         // Simulate snapshot recovery.
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
         let snapshot_recovery = create_snapshot_recovery();

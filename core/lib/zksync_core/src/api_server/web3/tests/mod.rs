@@ -352,7 +352,7 @@ async fn store_miniblock(
         let l2_tx = result.transaction.clone().try_into().unwrap();
         let tx_submission_result = storage
             .transactions_dal()
-            .insert_transaction_l2(l2_tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&l2_tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         assert_matches!(tx_submission_result, L2TxSubmissionResult::Added);
@@ -724,7 +724,7 @@ impl HttpTest for TransactionCountTest {
         pending_tx.common_data.nonce = Nonce(2);
         storage
             .transactions_dal()
-            .insert_transaction_l2(pending_tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&pending_tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
 
@@ -800,7 +800,7 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
         let mut storage = pool.connection().await?;
         storage
             .transactions_dal()
-            .insert_transaction_l2(pending_tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&pending_tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
 

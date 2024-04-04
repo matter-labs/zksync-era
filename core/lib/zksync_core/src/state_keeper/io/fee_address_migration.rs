@@ -181,7 +181,7 @@ mod tests {
     async fn prepare_storage(storage: &mut Connection<'_, Core>) {
         storage
             .protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
         for number in 0..5 {

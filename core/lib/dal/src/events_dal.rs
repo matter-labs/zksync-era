@@ -441,7 +441,7 @@ mod tests {
             .await
             .unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
         conn.blocks_dal()
@@ -522,7 +522,7 @@ mod tests {
             .await
             .unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
         conn.blocks_dal()

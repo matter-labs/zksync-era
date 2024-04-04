@@ -104,7 +104,7 @@ async fn applier_errors_after_genesis() {
     let mut storage = pool.connection().await.unwrap();
     storage
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion::default())
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
         .await
         .unwrap();
     let genesis_miniblock = MiniblockHeader {

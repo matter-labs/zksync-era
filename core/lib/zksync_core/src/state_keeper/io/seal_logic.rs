@@ -270,7 +270,7 @@ impl MiniblockSealCommand {
                     let l1_block_number = L1BlockNumber(l1_tx.common_data.eth_block as u32);
                     transaction
                         .transactions_dal()
-                        .insert_transaction_l1(l1_tx, l1_block_number)
+                        .insert_transaction_l1(&l1_tx, l1_block_number)
                         .await
                         .with_context(|| format!("failed persisting L1 transaction {tx_hash:?}"))?;
                 }
@@ -280,7 +280,7 @@ impl MiniblockSealCommand {
                     // Using `Default` for execution metrics should be OK here, since this data is not used on the EN.
                     transaction
                         .transactions_dal()
-                        .insert_transaction_l2(l2_tx, Default::default())
+                        .insert_transaction_l2(&l2_tx, Default::default())
                         .await
                         .with_context(|| format!("failed persisting L2 transaction {tx_hash:?}"))?;
                 }
@@ -289,7 +289,7 @@ impl MiniblockSealCommand {
                     let protocol_system_upgrade_tx = ProtocolUpgradeTx::try_from(tx).unwrap();
                     transaction
                         .transactions_dal()
-                        .insert_system_transaction(protocol_system_upgrade_tx)
+                        .insert_system_transaction(&protocol_system_upgrade_tx)
                         .await
                         .with_context(|| {
                             format!("failed persisting protocol upgrade transaction {tx_hash:?}")

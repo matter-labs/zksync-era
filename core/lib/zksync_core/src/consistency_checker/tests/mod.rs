@@ -475,7 +475,7 @@ async fn checker_processes_pre_boojum_batches(
         .unwrap();
     storage
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion::default())
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
         .await
         .unwrap();
 
@@ -554,7 +554,7 @@ async fn checker_functions_after_snapshot_recovery(
     let mut storage = pool.connection().await.unwrap();
     storage
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion::default())
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
         .await
         .unwrap();
 
@@ -776,7 +776,7 @@ async fn checker_detects_incorrect_tx_data(
     if snapshot_recovery {
         storage
             .protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
     } else {

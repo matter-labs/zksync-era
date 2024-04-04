@@ -697,7 +697,7 @@ mod tests {
             .await
             .unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
         let header = MiniblockHeader {
@@ -749,7 +749,7 @@ mod tests {
         assert_eq!(miniblock_number.unwrap(), None);
 
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
         conn.blocks_dal()
@@ -769,7 +769,7 @@ mod tests {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
 
@@ -854,7 +854,7 @@ mod tests {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
         conn.blocks_dal()
@@ -884,7 +884,7 @@ mod tests {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
         conn.blocks_dal()
@@ -896,7 +896,7 @@ mod tests {
         let mut tx_results = vec![];
         for (i, tx) in transactions.into_iter().enumerate() {
             conn.transactions_dal()
-                .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+                .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
                 .await
                 .unwrap();
             let mut tx_result = mock_execution_result(tx);

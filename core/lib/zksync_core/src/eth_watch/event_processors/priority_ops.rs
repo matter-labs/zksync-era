@@ -91,7 +91,7 @@ impl EventProcessor for PriorityOpsEventProcessor {
             let eth_block = new_op.eth_block();
             storage
                 .transactions_dal()
-                .insert_transaction_l1(new_op, eth_block)
+                .insert_transaction_l1(&new_op, eth_block)
                 .await
                 .unwrap();
         }

@@ -30,7 +30,7 @@ impl MasterPoolSink {
 impl TxSink for MasterPoolSink {
     async fn submit_tx(
         &self,
-        tx: L2Tx,
+        tx: L2Tx, // FIXME: pass by ref?
         execution_metrics: TransactionExecutionMetrics,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let address_and_nonce = (tx.initiator_account(), tx.nonce());
@@ -56,7 +56,7 @@ impl TxSink for MasterPoolSink {
         let result = match self.master_pool.connection_tagged("api").await {
             Ok(mut connection) => connection
                 .transactions_dal()
-                .insert_transaction_l2(tx, execution_metrics)
+                .insert_transaction_l2(&tx, execution_metrics)
                 .await
                 .map(|submission_res_handle| {
                     APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
