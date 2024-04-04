@@ -26,6 +26,7 @@ use zksync_types::{
 };
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
+mod gpu_prover_availability_checker;
 mod gpu_prover_job_processor;
 mod metrics;
 mod prover_job_processor;
@@ -256,14 +257,23 @@ async fn get_prover_tasks(
         zone.clone()
     );
     let socket_listener = gpu_socket_listener::SocketListener::new(
-        address,
+        address.clone(),
         producer,
         pool.clone(),
         prover_config.specialized_group_id,
-        zone,
+        zone.clone(),
     );
+    let availability_checker =
+        gpu_prover_availability_checker::availability_checker::AvailabilityChecker::new(
+            address,
+            zone,
+            prover_config.availability_check_interval_in_secs,
+            pool,
+        );
+
     Ok(vec![
         tokio::spawn(socket_listener.listen_incoming_connections(stop_receiver.clone())),
-        tokio::spawn(prover.run(stop_receiver, None)),
+        tokio::spawn(prover.run(stop_receiver.clone(), None)),
+        tokio::spawn(availability_checker.run(stop_receiver.clone())),
     ])
 }

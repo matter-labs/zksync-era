@@ -153,7 +153,7 @@ impl DebugNamespace {
         );
         let tx = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;
 
-        let shared_args = self.shared_args();
+        let shared_args = self.shared_args().await;
         let vm_permit = self
             .state
             .tx_sender
@@ -200,7 +200,7 @@ impl DebugNamespace {
             .take()
             .unwrap_or_default();
         let call = Call::new_high_level(
-            tx.common_data.fee.gas_limit.as_u32(),
+            tx.common_data.fee.gas_limit.as_u64(),
             result.statistics.gas_used,
             tx.execute.value,
             tx.execute.calldata,
@@ -211,7 +211,7 @@ impl DebugNamespace {
         Ok(call.into())
     }
 
-    fn shared_args(&self) -> TxSharedArgs {
+    async fn shared_args(&self) -> TxSharedArgs {
         let sender_config = self.sender_config();
         TxSharedArgs {
             operator_account: AccountTreeId::default(),
@@ -220,6 +220,11 @@ impl DebugNamespace {
             caches: self.state.tx_sender.storage_caches().clone(),
             validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             chain_id: sender_config.chain_id,
+            whitelisted_tokens_for_aa: self
+                .state
+                .tx_sender
+                .read_whitelisted_tokens_for_aa_cache()
+                .await,
         }
     }
 }

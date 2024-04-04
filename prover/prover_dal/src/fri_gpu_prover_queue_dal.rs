@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
 use zksync_basic_types::prover_dal::{GpuProverInstanceStatus, SocketAddress};
 use zksync_db_connection::connection::Connection;
@@ -155,5 +155,58 @@ impl FriGpuProverQueueDal<'_, '_> {
         .execute(self.storage.conn())
         .await
         .unwrap();
+    }
+
+    pub async fn get_prover_instance_status(
+        &mut self,
+        address: SocketAddress,
+        zone: String,
+    ) -> Option<GpuProverInstanceStatus> {
+        sqlx::query!(
+            r#"
+            SELECT
+                instance_status
+            FROM
+                gpu_prover_queue_fri
+            WHERE
+                instance_host = $1::TEXT::inet
+                AND instance_port = $2
+                AND zone = $3
+            "#,
+            address.host.to_string(),
+            i32::from(address.port),
+            zone
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| GpuProverInstanceStatus::from_str(&row.instance_status).unwrap())
+    }
+
+    pub async fn archive_old_provers(&mut self, archive_prover_after_secs: u64) -> usize {
+        let prover_max_age =
+            pg_interval_from_duration(Duration::from_secs(archive_prover_after_secs));
+
+        sqlx::query_scalar!(
+            r#"
+            WITH deleted AS (
+                DELETE FROM gpu_prover_queue_fri
+                WHERE
+                    instance_status = 'dead'
+                        AND updated_at < NOW() - $1::INTERVAL
+                RETURNING *, NOW() AS archived_at
+            ),
+            inserted_count AS (
+                INSERT INTO gpu_prover_queue_fri_archive
+                SELECT * FROM deleted
+            )
+            SELECT COUNT(*) FROM deleted
+            "#,
+            &prover_max_age
+        )
+        .fetch_one(self.storage.conn())
+        .await
+        .unwrap()
+        .unwrap_or(0) as usize
     }
 }
