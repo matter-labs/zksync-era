@@ -26,7 +26,6 @@ once_cell.workspace = true
 rlp.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-serde_with = { workspace = true, features = ["base64"] }
 strum = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
 num_enum.workspace = true
@@ -40,7 +39,6 @@ blake2.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "macros"] }
-serde_with = { workspace = true, features = ["hex"] }
 
 [build-dependencies]
 zksync_protobuf_build.workspace = true

@@ -88,8 +88,8 @@ impl<S> RefundsTracer<S> {
 
     pub(crate) fn get_refunds(&self) -> Refunds {
         Refunds {
-            gas_refunded: self.refund_gas,
-            operator_suggested_refund: self.operator_refund.unwrap_or_default(),
+            gas_refunded: self.refund_gas as u64,
+            operator_suggested_refund: self.operator_refund.unwrap_or_default() as u64,
         }
     }
 

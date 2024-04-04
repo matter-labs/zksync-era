@@ -598,10 +598,11 @@ async fn generate_witness(
 
     let storage_refunds = connection
         .blocks_dal()
-        .get_storage_refunds(input.block_number)
+        .get_storage_oracle_info(input.block_number)
         .await
         .unwrap()
-        .unwrap();
+        .unwrap()
+        .storage_refunds;
 
     let mut used_bytecodes = connection
         .factory_deps_dal()

@@ -110,6 +110,7 @@ pub(super) fn default_vm_batch_result() -> FinishedL1Batch {
             cycles_used: 0,
             deduplicated_events_logs: vec![],
             storage_refunds: Vec::new(),
+            pubdata_costs: Vec::new(),
         },
         final_bootloader_memory: Some(vec![]),
         pubdata_input: Some(vec![]),

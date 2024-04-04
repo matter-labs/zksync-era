@@ -9,7 +9,7 @@ use zksync_types::{
             Error as ContractError, Options,
         },
         ethabi,
-        types::{Address, BlockId, TransactionReceipt, H256, U256},
+        types::{Address, BlockId, BlockNumber, TransactionReceipt, H256, U256},
     },
     Bytes, EIP_4844_TX_TYPE, H160, H2048, U64,
 };
@@ -258,6 +258,22 @@ pub struct FailureInfo {
     pub gas_used: Option<U256>,
     /// Gas limit of the transaction.
     pub gas_limit: U256,
+}
+
+/// The fee history type returned from RPC calls.
+/// We don't use `FeeHistory` from `web3` crate because it's not compatible
+/// with node implementations that skip empty `base_fee_per_gas`.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeeHistory {
+    /// Lowest number block of the returned range.
+    pub oldest_block: BlockNumber,
+    /// A vector of block base fees per gas. This includes the next block after the newest of the returned range, because this value can be derived from the newest block. Zeroes are returned for pre-EIP-1559 blocks.
+    pub base_fee_per_gas: Option<Vec<U256>>,
+    /// A vector of block gas used ratios. These are calculated as the ratio of gas used and gas limit.
+    pub gas_used_ratio: Option<Vec<f64>>,
+    /// A vector of effective priority fee per gas data points from a single block. All zeroes are returned if the block is empty. Returned only if requested.
+    pub reward: Option<Vec<Vec<U256>>>,
 }
 
 /// The block type returned from RPC calls.

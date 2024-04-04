@@ -5,7 +5,7 @@ pub use zksync_web3_decl::{
     types,
 };
 
-pub use crate::{ethereum::EthereumProvider, wallet::Wallet};
+pub use crate::sdk::{ethereum::EthereumProvider, wallet::Wallet};
 
 pub mod error;
 pub mod ethereum;

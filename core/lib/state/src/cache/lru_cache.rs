@@ -109,6 +109,12 @@ mod tests {
 
     use crate::cache::{lru_cache::LruCache, *};
 
+    impl CacheValue<H256> for Vec<u8> {
+        fn cache_weight(&self) -> u32 {
+            self.len().try_into().expect("Cached bytes are too large")
+        }
+    }
+
     #[test]
     fn cache_with_zero_capacity() {
         let zero_cache = LruCache::<H256, Vec<u8>>::new("test", 0);

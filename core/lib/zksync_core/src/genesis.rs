@@ -5,6 +5,7 @@
 use std::fmt::Formatter;
 
 use anyhow::Context as _;
+use itertools::Itertools;
 use multivm::{
     circuit_sequencer_api_latest::sort_storage_access::sort_storage_access_queries,
     utils::get_max_gas_per_pubdata_byte,
@@ -12,8 +13,7 @@ use multivm::{
 };
 use zksync_config::{configs::database::MerkleTreeMode, GenesisConfig, PostgresConfig};
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
-use zksync_dal::{ConnectionPool, Core, CoreDal, SqlxError};
-use zksync_db_connection::connection::Connection;
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_eth_client::{clients::QueryClient, EthInterface};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
@@ -24,7 +24,7 @@ use zksync_types::{
     },
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
-    get_code_key, get_system_context_init_logs,
+    get_code_key, get_known_code_key, get_system_context_init_logs,
     protocol_upgrade::decode_set_chain_id_event,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
@@ -67,7 +67,7 @@ pub enum GenesisError {
     #[error("Wrong protocol version")]
     ProtocolVersion(u16),
     #[error("DB Error: {0}")]
-    DBError(#[from] SqlxError),
+    DBError(#[from] DalError),
     #[error("Error: {0}")]
     Other(#[from] anyhow::Error),
     #[error("Field: {0} required for genesis")]
@@ -346,6 +346,23 @@ async fn insert_system_contracts(
 ) -> Result<(), GenesisError> {
     let system_context_init_logs = (H256::default(), get_system_context_init_logs(chain_id));
 
+    let known_code_storage_logs: Vec<_> = contracts
+        .iter()
+        .map(|contract| {
+            let hash = hash_bytecode(&contract.bytecode);
+            let known_code_key = get_known_code_key(&hash);
+            let marked_known_value = H256::from_low_u64_be(1u64);
+            (
+                H256::default(),
+                vec![StorageLog::new_write_log(
+                    known_code_key,
+                    marked_known_value,
+                )],
+            )
+        })
+        .dedup_by(|a, b| a.1 == b.1)
+        .collect();
+
     let storage_logs: Vec<_> = contracts
         .iter()
         .map(|contract| {
@@ -357,6 +374,7 @@ async fn insert_system_contracts(
             )
         })
         .chain(Some(system_context_init_logs))
+        .chain(known_code_storage_logs)
         .collect();
 
     let mut transaction = storage.start_transaction().await?;
@@ -501,6 +519,7 @@ pub(crate) async fn create_genesis_l1_batch(
             &genesis_l1_batch_header,
             &[],
             BlockGasCount::default(),
+            &[],
             &[],
             Default::default(),
         )

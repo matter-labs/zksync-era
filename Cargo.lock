@@ -2473,9 +2473,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.3.24"
+version = "0.3.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb2c4422095b67ee78da96fbb51a4cc413b3b25883c7717ff7ca1ab31022c9c9"
+checksum = "81fe527a889e1532da5c525686d96d4c2e74cdd345badf8dfef9f6b39dd5f5e8"
 dependencies = [
  "bytes",
  "fnv",
@@ -3352,7 +3352,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vlog",
- "zksync",
  "zksync_config",
  "zksync_contracts",
  "zksync_eth_client",
@@ -7931,24 +7930,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync"
-version = "0.4.0"
-dependencies = [
- "anyhow",
- "hex",
- "num",
- "serde_json",
- "thiserror",
- "tokio",
- "zksync_config",
- "zksync_eth_client",
- "zksync_eth_signer",
- "zksync_types",
- "zksync_utils",
- "zksync_web3_decl",
-]
-
-[[package]]
 name = "zksync_basic_types"
 version = "0.1.0"
 dependencies = [
@@ -8263,7 +8244,6 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_db_connection",
- "zksync_env_config",
  "zksync_eth_client",
  "zksync_eth_signer",
  "zksync_health_check",
@@ -8274,7 +8254,6 @@ dependencies = [
  "zksync_object_store",
  "zksync_protobuf",
  "zksync_protobuf_build",
- "zksync_protobuf_config",
  "zksync_prover_interface",
  "zksync_queued_job_processor",
  "zksync_state",
@@ -8356,6 +8335,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "thiserror",
  "tokio",
  "tracing",
  "url",
@@ -8473,7 +8453,6 @@ dependencies = [
 name = "zksync_l1_contract_interface"
 version = "0.1.0"
 dependencies = [
- "circuit_sequencer_api 0.1.0",
  "codegen 0.1.0",
  "hex",
  "kzg",
@@ -8549,6 +8528,7 @@ dependencies = [
  "tracing",
  "vlog",
  "zksync_circuit_breaker",
+ "zksync_concurrency",
  "zksync_config",
  "zksync_contracts",
  "zksync_core",
@@ -8786,7 +8766,6 @@ dependencies = [
  "secp256k1",
  "serde",
  "serde_json",
- "serde_with",
  "strum",
  "thiserror",
  "tokio",
@@ -8828,12 +8807,20 @@ name = "zksync_web3_decl"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
+ "async-trait",
+ "futures 0.3.28",
  "jsonrpsee",
  "pin-project-lite",
+ "rand 0.8.5",
  "rlp",
  "serde",
  "serde_json",
+ "test-casing",
  "thiserror",
+ "tokio",
+ "tracing",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4)",
  "zksync_config",
  "zksync_types",
 ]

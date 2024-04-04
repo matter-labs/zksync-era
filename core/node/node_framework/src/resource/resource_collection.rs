@@ -6,7 +6,7 @@ use std::{
 use thiserror::Error;
 use tokio::sync::watch;
 
-use super::{Resource, ResourceId};
+use super::Resource;
 
 /// Collection of resources that can be extended during the initialization phase, and then resolved once
 /// the wiring is complete.
@@ -31,12 +31,12 @@ pub struct ResourceCollection<T> {
 }
 
 impl<T: Resource> Resource for ResourceCollection<T> {
-    fn resource_id() -> ResourceId {
-        ResourceId::new("collection") + T::resource_id()
-    }
-
     fn on_resource_wired(&mut self) {
         self.wiring_complete_sender.send(true).ok();
+    }
+
+    fn name() -> String {
+        format!("collection of {}", T::name())
     }
 }
 
@@ -92,7 +92,7 @@ impl<T: Resource + Clone> ResourceCollection<T> {
         handle.push(resource);
         tracing::info!(
             "A new item has been added to the resource collection {}",
-            Self::resource_id()
+            Self::name()
         );
         Ok(())
     }
@@ -104,10 +104,7 @@ impl<T: Resource + Clone> ResourceCollection<T> {
         // some tasks would spawn something from the `IntoZkSyncTask` impl.
         self.wired.changed().await.expect("Sender can't be dropped");
 
-        tracing::info!(
-            "Resource collection {} has been resolved",
-            Self::resource_id()
-        );
+        tracing::info!("Resource collection {} has been resolved", Self::name());
 
         let handle = self.resources.lock().unwrap();
         (*handle).clone()
@@ -125,8 +122,8 @@ mod tests {
     struct TestResource(Arc<u8>);
 
     impl Resource for TestResource {
-        fn resource_id() -> ResourceId {
-            ResourceId::new("test_resource")
+        fn name() -> String {
+            "test_resource".into()
         }
     }
 
