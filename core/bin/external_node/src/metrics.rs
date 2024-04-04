@@ -6,7 +6,7 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 
 use crate::{
     config::ExternalNodeConfig,
-    metadata::{RustcMetadata, RUSTC_METADATA},
+    metadata::{RustcMetadata, RUSTC_METADATA, SERVER_VERSION},
 };
 
 #[derive(Debug, Clone, Copy, EncodeLabelSet)]
@@ -28,7 +28,7 @@ pub(crate) struct ExternalNodeMetrics {
 impl ExternalNodeMetrics {
     pub(crate) fn observe_config(&self, config: &ExternalNodeConfig) {
         let info = ExternalNodeInfo {
-            server_version: "", // FIXME
+            server_version: SERVER_VERSION,
             l1_chain_id: config.remote.l1_chain_id.0,
             l2_chain_id: config.remote.l2_chain_id.as_u64(),
         };

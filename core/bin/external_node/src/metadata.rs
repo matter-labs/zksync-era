@@ -18,3 +18,5 @@ pub(crate) struct RustcMetadata {
     pub host: &'static str,
     pub llvm: Option<&'static str>,
 }
+
+pub(crate) const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
