@@ -607,19 +607,21 @@ impl TxSender {
                 tx.tx_format() as u8,
                 vm_version,
             ) as u64;
+        // We need to ensure that we never use a gas limit that is higher than the maximum allowed
+        let forced_gas_limit = gas_limit_with_overhead.min(get_max_batch_gas_limit(vm_version));
 
         match &mut tx.common_data {
             ExecuteTransactionCommon::L1(l1_common_data) => {
-                l1_common_data.gas_limit = gas_limit_with_overhead.into();
+                l1_common_data.gas_limit = forced_gas_limit.into();
                 let required_funds =
                     l1_common_data.gas_limit * l1_common_data.max_fee_per_gas + tx.execute.value;
                 l1_common_data.to_mint = required_funds;
             }
             ExecuteTransactionCommon::L2(l2_common_data) => {
-                l2_common_data.fee.gas_limit = gas_limit_with_overhead.into();
+                l2_common_data.fee.gas_limit = forced_gas_limit.into();
             }
             ExecuteTransactionCommon::ProtocolUpgrade(common_data) => {
-                common_data.gas_limit = gas_limit_with_overhead.into();
+                common_data.gas_limit = forced_gas_limit.into();
 
                 let required_funds =
                     common_data.gas_limit * common_data.max_fee_per_gas + tx.execute.value;
@@ -882,7 +884,16 @@ impl TxSender {
 
         let full_gas_limit =
             match tx_body_gas_limit.overflowing_add(gas_for_bytecodes_pubdata + overhead) {
-                (value, false) => value,
+                (value, false) => {
+                    if value > get_max_batch_gas_limit(protocol_version.into()) {
+                        return Err(SubmitTxError::ExecutionReverted(
+                            "exceeds block gas limit".to_string(),
+                            vec![],
+                        ));
+                    }
+
+                    value
+                }
                 (_, true) => {
                     return Err(SubmitTxError::ExecutionReverted(
                         "exceeds block gas limit".to_string(),

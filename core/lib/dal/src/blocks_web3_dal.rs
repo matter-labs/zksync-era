@@ -8,7 +8,7 @@ use zksync_types::{
     l2_to_l1_log::L2ToL1Log,
     vm_trace::Call,
     web3::types::{BlockHeader, U64},
-    Bytes, L1BatchNumber, MiniblockNumber, H160, H2048, H256, U256,
+    Bytes, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H160, H2048, H256, U256,
 };
 use zksync_utils::bigdecimal_to_u256;
 
@@ -473,6 +473,13 @@ impl BlocksWeb3Dal<'_, '_> {
         &mut self,
         block_number: MiniblockNumber,
     ) -> DalResult<Vec<Call>> {
+        let protocol_version = self
+            .storage
+            .blocks_dal()
+            .get_miniblock_protocol_version_id(block_number)
+            .await?
+            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
+
         Ok(sqlx::query_as!(
             CallTrace,
             r#"
@@ -493,7 +500,7 @@ impl BlocksWeb3Dal<'_, '_> {
         .fetch_all(self.storage)
         .await?
         .into_iter()
-        .map(Call::from)
+        .map(|call_trace| call_trace.into_call(protocol_version))
         .collect())
     }
 
