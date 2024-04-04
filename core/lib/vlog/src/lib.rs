@@ -312,8 +312,6 @@ impl ObservabilityBuilder {
             None
         };
 
-        // We use backtrace capture in `json_panic_handler` so we have to have it always enabled
-        std::env::set_var("RUST_BACKTRACE", "1");
         ObservabilityGuard {
             _sentry_guard: sentry_guard,
         }
@@ -321,7 +319,7 @@ impl ObservabilityBuilder {
 }
 
 fn json_panic_handler(panic_info: &PanicInfo) {
-    let backtrace = Backtrace::capture();
+    let backtrace = Backtrace::force_capture();
     let timestamp = chrono::Utc::now();
     let panic_message = if let Some(s) = panic_info.payload().downcast_ref::<String>() {
         s.as_str()
