@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use zksync_config::{configs::genesis::SharedBridge, GenesisConfig};
-use zksync_dal::CoreDal;
+use zksync_dal::{CoreDal, DalError};
 use zksync_types::{api::en, tokens::TokenInfo, L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::error::Web3Error;
 
@@ -19,14 +19,12 @@ impl EnNamespace {
     }
 
     pub async fn consensus_genesis_impl(&self) -> Result<Option<en::ConsensusGenesis>, Web3Error> {
-        let Some(genesis) = self
-            .state
-            .connection_pool
-            .connection_tagged("api")
-            .await?
+        let mut storage = self.state.acquire_connection().await?;
+        let Some(genesis) = storage
             .consensus_dal()
             .genesis()
-            .await?
+            .await
+            .map_err(DalError::generalize)?
         else {
             return Ok(None);
         };
@@ -45,12 +43,12 @@ impl EnNamespace {
         block_number: MiniblockNumber,
         include_transactions: bool,
     ) -> Result<Option<en::SyncBlock>, Web3Error> {
-        let mut storage = self.state.connection_pool.connection_tagged("api").await?;
+        let mut storage = self.state.acquire_connection().await?;
         Ok(storage
             .sync_dal()
             .sync_block(block_number, include_transactions)
             .await
-            .context("sync_block")?)
+            .map_err(DalError::generalize)?)
     }
 
     #[tracing::instrument(skip(self))]
@@ -58,23 +56,23 @@ impl EnNamespace {
         &self,
         block_number: Option<MiniblockNumber>,
     ) -> Result<Vec<TokenInfo>, Web3Error> {
-        let mut storage = self.state.connection_pool.connection_tagged("api").await?;
+        let mut storage = self.state.acquire_connection().await?;
         Ok(storage
             .tokens_web3_dal()
             .get_all_tokens(block_number)
             .await
-            .context("get_all_tokens")?)
+            .map_err(DalError::generalize)?)
     }
 
     #[tracing::instrument(skip(self))]
     pub async fn genesis_config_impl(&self) -> Result<GenesisConfig, Web3Error> {
         // If this method will cause some load, we can cache everything in memory
-        let mut storage = self.state.connection_pool.connection_tagged("api").await?;
+        let mut storage = self.state.acquire_connection().await?;
         let genesis_batch = storage
             .blocks_dal()
             .get_storage_l1_batch(L1BatchNumber(0))
             .await
-            .context("genesis_config")?
+            .map_err(DalError::generalize)?
             .context("Genesis batch doesn't exist")?;
 
         let protocol_version = genesis_batch
@@ -89,7 +87,7 @@ impl EnNamespace {
             .blocks_dal()
             .get_fee_address_for_miniblock(MiniblockNumber(0))
             .await
-            .context("genesis_config")?
+            .map_err(DalError::generalize)?
             .context("Genesis not finished")?;
 
         let shared_bridge = if self.state.api_config.state_transition_proxy_addr.is_some() {

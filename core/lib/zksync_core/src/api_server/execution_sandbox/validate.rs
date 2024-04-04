@@ -127,11 +127,7 @@ async fn get_validation_params(
 
     // This method assumes that the number of tokens is relatively low. When it grows
     // we may need to introduce some kind of caching.
-    let all_tokens = connection
-        .tokens_dal()
-        .get_all_l2_token_addresses()
-        .await
-        .context("failed getting addresses of L2 tokens")?;
+    let all_tokens = connection.tokens_dal().get_all_l2_token_addresses().await?;
     EXECUTION_METRICS.tokens_amount.set(all_tokens.len());
 
     let span = tracing::debug_span!("compute_trusted_slots_for_validation").entered();
