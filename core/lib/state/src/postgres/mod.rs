@@ -185,10 +185,7 @@ impl ValuesCache {
             let modified_keys = connection
                 .storage_logs_dal()
                 .modified_keys_in_miniblocks(miniblocks.clone())
-                .await
-                .with_context(|| {
-                    format!("failed loading modified keys for miniblocks {miniblocks:?}")
-                })?;
+                .await?;
 
             let elapsed = update_latency.observe();
             CACHE_METRICS
@@ -333,10 +330,10 @@ impl PostgresStorageCaches {
         };
         if values.cache.valid_for() < to_miniblock {
             // Filter out no-op updates right away in order to not store lots of them in RAM.
-            values
-                .command_sender
-                .send(to_miniblock)
-                .expect("values cache update task failed");
+            // Since the task updating the values cache (`PostgresStorageCachesTask`) is cancel-aware,
+            // it can stop before some of `schedule_values_update()` calls; in this case, it's OK
+            // to ignore the updates.
+            values.command_sender.send(to_miniblock).ok();
         }
     }
 }

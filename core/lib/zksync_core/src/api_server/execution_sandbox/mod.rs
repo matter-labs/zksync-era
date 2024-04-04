@@ -250,8 +250,7 @@ impl BlockStartInfo {
         let snapshot_recovery = storage
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
-            .await
-            .context("failed getting snapshot recovery status")?;
+            .await?;
         let snapshot_recovery = snapshot_recovery.as_ref();
         Ok(Self {
             first_miniblock: snapshot_recovery

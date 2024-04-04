@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use multivm::{interface::ExecutionResult, vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT};
 use once_cell::sync::OnceCell;
-use zksync_dal::CoreDal;
+use zksync_dal::{CoreDal, DalError};
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
@@ -67,7 +67,7 @@ impl DebugNamespace {
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
-        let mut connection = self.state.connection_pool.connection_tagged("api").await?;
+        let mut connection = self.state.acquire_connection().await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         self.current_method()
             .set_block_diff(self.state.last_sealed_miniblock.diff(block_number));
@@ -76,7 +76,7 @@ impl DebugNamespace {
             .blocks_web3_dal()
             .get_traces_for_miniblock(block_number)
             .await
-            .context("get_traces_for_miniblock")?;
+            .map_err(DalError::generalize)?;
         let call_trace = call_traces
             .into_iter()
             .map(|call_trace| {
@@ -110,12 +110,12 @@ impl DebugNamespace {
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
-        let mut connection = self.state.connection_pool.connection_tagged("api").await?;
+        let mut connection = self.state.acquire_connection().await?;
         let call_trace = connection
             .transactions_dal()
             .get_call_trace(tx_hash)
             .await
-            .context("get_call_trace")?;
+            .map_err(DalError::generalize)?;
         Ok(call_trace.map(|call_trace| {
             let mut result: DebugCall = call_trace.into();
             if only_top_call {
@@ -139,7 +139,7 @@ impl DebugNamespace {
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
 
-        let mut connection = self.state.connection_pool.connection_tagged("api").await?;
+        let mut connection = self.state.acquire_connection().await?;
         let block_args = self
             .state
             .resolve_block_args(&mut connection, block_id)

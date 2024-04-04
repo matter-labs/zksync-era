@@ -132,11 +132,7 @@ async fn get_validation_params(
 
     // This method assumes that the number of tokens is relatively low. When it grows
     // we may need to introduce some kind of caching.
-    let all_bridged_tokens = connection
-        .tokens_dal()
-        .get_all_l2_token_addresses()
-        .await
-        .context("failed getting addresses of L2 tokens")?;
+    let all_bridged_tokens = connection.tokens_dal().get_all_l2_token_addresses().await?;
     let all_tokens: Vec<_> = all_bridged_tokens
         .iter()
         .chain(whitelisted_tokens_for_aa)

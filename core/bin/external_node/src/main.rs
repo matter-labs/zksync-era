@@ -1,4 +1,4 @@
-use std::{collections::HashSet, future, net::Ipv4Addr, str::FromStr, sync::Arc, time::Duration};
+use std::{collections::HashSet, net::Ipv4Addr, str::FromStr, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
@@ -8,7 +8,7 @@ use tokio::{
     sync::{watch, RwLock},
     task::{self, JoinHandle},
 };
-use zksync_concurrency::{ctx, limiter, scope, time};
+use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{
     api::MerkleTreeApiConfig, chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode,
 };
@@ -37,8 +37,7 @@ use zksync_core::{
         OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
     },
     sync_layer::{
-        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue,
-        MainNodeClient, SyncState,
+        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue, SyncState,
     },
     utils::ensure_l1_batch_commit_data_generation_mode,
 };
@@ -52,7 +51,7 @@ use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
-use zksync_web3_decl::{jsonrpsee::http_client::HttpClient, namespaces::EnNamespaceClient};
+use zksync_web3_decl::{client::L2Client, namespaces::EnNamespaceClient};
 
 use crate::{
     config::{observability::observability_config_from_env, ExternalNodeConfig},
@@ -75,6 +74,7 @@ async fn build_state_keeper(
     state_keeper_db_path: String,
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
+    main_node_client: L2Client,
     output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
@@ -100,13 +100,10 @@ async fn build_state_keeper(
         true,
     ));
 
-    let main_node_url = config.required.main_node_url()?;
-    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
-        .context("Failed creating JSON-RPC client for main node")?;
     let io = ExternalIO::new(
         connection_pool,
         action_queue,
-        Box::new(main_node_client),
+        Box::new(main_node_client.for_component("external_io")),
         chain_id,
     )
     .await
@@ -168,7 +165,7 @@ async fn run_tree(
 async fn run_core(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
-    main_node_client: HttpClient,
+    main_node_client: L2Client,
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
@@ -202,6 +199,7 @@ async fn run_core(
         config.required.state_cache_path.clone(),
         config,
         connection_pool.clone(),
+        main_node_client.clone(),
         output_handler,
         stop_receiver.clone(),
         config.remote.l2_chain_id,
@@ -210,37 +208,41 @@ async fn run_core(
     .await?;
 
     task_handles.push(tokio::spawn({
-        let ctx = ctx::root();
-        let cfg = config.consensus.clone();
-        let mut stop_receiver = stop_receiver.clone();
-        let fetcher = consensus::Fetcher {
-            store: consensus::Store(connection_pool.clone()),
-            sync_state: sync_state.clone(),
-            client: Box::new(main_node_client.clone()),
-            limiter: limiter::Limiter::new(
-                &ctx,
-                limiter::Rate {
-                    burst: 10,
-                    refresh: time::Duration::milliseconds(30),
-                },
-            ),
+        let config = config.consensus.clone();
+        let secrets =
+            config::read_consensus_secrets().context("config::read_consensus_secrets()")?;
+        let cfg = match (config, secrets) {
+            (Some(cfg), Some(secrets)) => Some((cfg, secrets)),
+            (Some(_), None) => {
+                anyhow::bail!("Consensus config is specified, but secrets are missing")
+            }
+            (None, _) => {
+                // Secrets may be unconditionally embedded in some environments, but they are unused
+                // unless a consensus config is provided.
+                None
+            }
         };
-        let actions = action_queue_sender;
+
+        let pool = connection_pool.clone();
+        let sync_state = sync_state.clone();
+        let main_node_client = Arc::new(main_node_client.clone());
+        let mut stop_receiver = stop_receiver.clone();
         async move {
-            scope::run!(&ctx, |ctx, s| async {
-                s.spawn_bg(async {
-                    let res = match cfg {
-                        Some(cfg) => {
-                            let secrets = config::read_consensus_secrets()
-                                .context("config::read_consensus_secrets()")?
-                                .context("consensus secrets missing")?;
-                            fetcher.run_p2p(ctx, actions, cfg.p2p(&secrets)?).await
-                        }
-                        None => fetcher.run_centralized(ctx, actions).await,
-                    };
-                    tracing::info!("Consensus actor stopped");
-                    res
-                });
+            // We instantiate the root context here, since the consensus task is the only user of the
+            // structured concurrency framework.
+            // Note, however, that awaiting for the `stop_receiver` is related to the root context behavior,
+            // not the consensus task itself. There may have been any number of tasks running in the root context,
+            // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
+            let ctx = ctx::root();
+            scope::run!(&ctx, |ctx, s| async move {
+                s.spawn_bg(consensus::era::run_fetcher(
+                    ctx,
+                    cfg,
+                    pool,
+                    sync_state,
+                    main_node_client,
+                    action_queue_sender,
+                ));
                 ctx.wait(stop_receiver.wait_for(|stop| *stop)).await??;
                 Ok(())
             })
@@ -360,7 +362,7 @@ async fn run_api(
     sync_state: SyncState,
     tree_reader: Option<Arc<dyn TreeApiClient>>,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
-    main_node_client: HttpClient,
+    main_node_client: L2Client,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
     fee_params_fetcher: Arc<MainNodeFeeParamsFetcher>,
     components: &HashSet<Component>,
@@ -527,8 +529,8 @@ async fn run_api(
 async fn init_tasks(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
-    main_node_client: HttpClient,
-    task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
+    main_node_client: L2Client,
+    task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
     components: &HashSet<Component>,
@@ -542,21 +544,25 @@ async fn init_tasks(
     let version = semver::Version::parse(release_manifest_version)
         .context("version in manifest is a correct semver format")?;
     let pool = connection_pool.clone();
+    let mut stop_receiver_for_task = stop_receiver.clone();
     task_handles.push(tokio::spawn(async move {
-        loop {
+        while !*stop_receiver_for_task.borrow_and_update() {
             let protocol_version = pool
                 .connection()
-                .await
-                .unwrap()
+                .await?
                 .protocol_versions_dal()
                 .last_used_version_id()
                 .await
                 .map(|version| version as u16);
 
-            EN_METRICS.version[&(format!("{}", version), protocol_version)].set(1);
+            EN_METRICS.version[&(version.to_string(), protocol_version)].set(1);
 
-            tokio::time::sleep(Duration::from_secs(10)).await;
+            // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
+            tokio::time::timeout(Duration::from_secs(10), stop_receiver_for_task.changed())
+                .await
+                .ok();
         }
+        Ok(())
     }));
 
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
@@ -802,11 +808,14 @@ async fn main() -> anyhow::Result<()> {
         .main_node_url()
         .expect("Main node URL is incorrect");
     tracing::info!("Main node URL is: {main_node_url}");
-    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
-        .context("Failed creating JSON-RPC client for main node")?;
+    let main_node_client = L2Client::http(&main_node_url)
+        .context("Failed creating JSON-RPC client for main node")?
+        .with_allowed_requests_per_second(config.optional.main_node_rate_limit_rps)
+        .build();
 
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");
+    let (stop_sender, stop_receiver) = watch::channel(false);
 
     let app_health = Arc::new(AppHealthCheck::new(
         config.optional.healthcheck_slow_time_limit(),
@@ -825,30 +834,39 @@ async fn main() -> anyhow::Result<()> {
         app_health.clone(),
     );
     // Start scraping Postgres metrics before store initialization as well.
-    let metrics_pool = connection_pool.clone();
+    let pool_for_metrics = connection_pool.clone();
+    let mut stop_receiver_for_metrics = stop_receiver.clone();
+    let metrics_task = tokio::spawn(async move {
+        tokio::select! {
+            () = PostgresMetrics::run_scraping(pool_for_metrics, Duration::from_secs(60)) => {
+                tracing::warn!("Postgres metrics scraping unexpectedly stopped");
+            }
+            _ = stop_receiver_for_metrics.changed() => {
+                tracing::info!("Stop signal received, Postgres metrics scraping is shutting down");
+            }
+        }
+        Ok(())
+    });
+
     let version_sync_task_pool = connection_pool.clone();
     let version_sync_task_main_node_client = main_node_client.clone();
-    let mut task_handles = vec![
-        tokio::spawn(async move {
-            PostgresMetrics::run_scraping(metrics_pool, Duration::from_secs(60)).await;
-            Ok(())
-        }),
-        tokio::spawn(async move {
-            version_sync_task::sync_versions(
-                version_sync_task_pool,
-                version_sync_task_main_node_client,
-            )
-            .await?;
-            future::pending::<()>().await;
-            // ^ Since this is run as a task, we don't want it to exit on success (this would shut down the node).
-            Ok(())
-        }),
-    ];
+    let mut stop_receiver_for_version_sync = stop_receiver.clone();
+    let version_sync_task = tokio::spawn(async move {
+        version_sync_task::sync_versions(
+            version_sync_task_pool,
+            version_sync_task_main_node_client,
+        )
+        .await?;
+
+        stop_receiver_for_version_sync.changed().await.ok();
+        Ok(())
+    });
+    let mut task_handles = vec![metrics_task, version_sync_task];
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(
         &connection_pool,
-        &main_node_client,
+        main_node_client.clone(),
         &app_health,
         config.remote.l2_chain_id,
         opt.enable_snapshots_recovery,
@@ -888,8 +906,7 @@ async fn main() -> anyhow::Result<()> {
         let sealed_l1_batch_number = connection
             .blocks_dal()
             .get_sealed_l1_batch_number()
-            .await
-            .context("Failed getting sealed L1 batch number")?
+            .await?
             .context(
                 "Cannot roll back pending L1 batch since there are no L1 batches in Postgres",
             )?;
@@ -902,7 +919,6 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("Rollback successfully completed");
     }
 
-    let (stop_sender, stop_receiver) = watch::channel(false);
     init_tasks(
         &config,
         connection_pool.clone(),
