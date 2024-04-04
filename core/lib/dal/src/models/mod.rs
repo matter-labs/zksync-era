@@ -9,6 +9,7 @@ pub mod storage_eth_tx;
 pub mod storage_event;
 pub mod storage_fee_monitor;
 pub mod storage_log;
+pub mod storage_oracle_info;
 pub mod storage_protocol_version;
 pub mod storage_sync;
 pub mod storage_transaction;
