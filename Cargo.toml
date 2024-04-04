@@ -160,8 +160,8 @@ circuit_sequencer_api_1_4_1 = { package = "circuit_sequencer_api", git = "https:
 circuit_sequencer_api_1_4_2 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.2" }
 crypto_codegen = { package = "codegen", git = "https://github.com/matter-labs/solidity_plonk_verifier.git", branch = "dev" }
 kzg = { package = "kzg", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.2" }
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
-vise-exporter = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "a5bb80c9ce7168663114ee30e794d6dc32159ee4" }
+vise-exporter = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "a5bb80c9ce7168663114ee30e794d6dc32159ee4" }
 zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", tag = "v1.3.3-rc2" }
 zk_evm_1_3_1 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", tag = "v1.3.1-rc2" }
 zk_evm_1_3_3 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", tag = "v1.3.3-rc2" }
@@ -217,6 +217,5 @@ zksync_utils = { path = "core/lib/utils" }
 zksync_web3_decl = { path = "core/lib/web3_decl" }
 zksync_crypto_primitives = { path = "core/lib/crypto_primitives" }
 
-[patch."https://github.com/matter-labs/vise.git"]
-vise = { path = "../vise/crates/vise" }
-vise-exporter = { path = "../vise/crates/vise-exporter" }
+[replace]
+"https://github.com/matter-labs/vise.git#vise:0.1.0" = { git = "https://github.com/matter-labs/vise.git", rev = "a5bb80c9ce7168663114ee30e794d6dc32159ee4" }
