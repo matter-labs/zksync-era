@@ -1,5 +1,3 @@
-use std::{convert::TryFrom, time::Instant};
-
 use anyhow::Context as _;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_types::{
@@ -10,6 +8,7 @@ use zksync_types::{
 use crate::{
     client::EthClient,
     event_processors::{EventProcessor, EventProcessorError},
+    metrics::{PollStage, METRICS},
 };
 
 /// Listens to operation events coming from the governance contract and saves new protocol upgrade proposals to the database.
@@ -82,15 +81,14 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
             .skip_while(|(v, _)| v.id as u16 <= self.last_seen_version_id as u16)
             .collect();
 
-        if new_upgrades.is_empty() {
+        let Some((last_upgrade, _)) = new_upgrades.last() else {
             return Ok(());
-        }
-
+        };
         let ids: Vec<_> = new_upgrades.iter().map(|(u, _)| u.id as u16).collect();
-        tracing::debug!("Received upgrades with ids: {:?}", ids);
+        tracing::debug!("Received upgrades with ids: {ids:?}");
 
-        let last_id = new_upgrades.last().unwrap().0.id;
-        let stage_start = Instant::now();
+        let last_id = last_upgrade.id;
+        let stage_latency = METRICS.poll_eth_node[&PollStage::PersistUpgrades].start();
         for (upgrade, scheduler_vk_hash) in new_upgrades {
             let previous_version = storage
                 .protocol_versions_dal()
@@ -110,10 +108,9 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
                 .await
                 .map_err(DalError::generalize)?;
         }
-        metrics::histogram!("eth_watcher.poll_eth_node", stage_start.elapsed(), "stage" => "persist_upgrades");
+        stage_latency.observe();
 
         self.last_seen_version_id = last_id;
-
         Ok(())
     }
 

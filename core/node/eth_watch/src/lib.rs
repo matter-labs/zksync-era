@@ -64,7 +64,7 @@ impl EthWatch {
         drop(storage);
 
         let priority_ops_processor =
-            PriorityOpsEventProcessor::new(state.next_expected_priority_id);
+            PriorityOpsEventProcessor::new(state.next_expected_priority_id)?;
         let upgrades_processor = UpgradesEventProcessor::new(state.last_seen_version_id);
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
@@ -123,7 +123,7 @@ impl EthWatch {
             None => client
                 .finalized_block_number()
                 .await
-                .expect("cannot initialize eth watch: cannot get current ETH block")
+                .context("cannot get current Ethereum block")?
                 .saturating_sub(PRIORITY_EXPIRATION),
         };
 

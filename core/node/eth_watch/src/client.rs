@@ -168,7 +168,7 @@ impl EthClient for EthHttpQueryClient {
                 first_half.append(&mut second_half);
                 result = Ok(first_half);
             } else if should_retry(err_code, err_message) && retries_left > 0 {
-                tracing::warn!("Retrying. Retries left: {:?}", retries_left);
+                tracing::warn!("Retrying. Retries left: {retries_left}");
                 result = self.get_events(from, to, retries_left - 1).await;
             }
         }
@@ -182,16 +182,17 @@ impl EthClient for EthHttpQueryClient {
             let latest_block_number = self.client.block_number("watch").await?.as_u64();
             Ok(latest_block_number.saturating_sub(confirmations))
         } else {
-            self.client
+            let block = self
+                .client
                 .block(BlockId::Number(BlockNumber::Finalized), "watch")
-                .await
-                .map_err(Into::into)
-                .map(|res| {
-                    res.expect("Finalized block must be present on L1")
-                        .number
-                        .expect("Finalized block must contain number")
-                        .as_u64()
-                })
+                .await?
+                .ok_or_else(|| {
+                    web3::Error::InvalidResponse("Finalized block must be present on L1".into())
+                })?;
+            let block_number = block.number.ok_or_else(|| {
+                web3::Error::InvalidResponse("Finalized block must contain number".into())
+            })?;
+            Ok(block_number.as_u64())
         }
     }
 

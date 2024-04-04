@@ -58,14 +58,13 @@ impl EventProcessor for UpgradesEventProcessor {
             .skip_while(|(v, _)| v.id as u16 <= self.last_seen_version_id as u16)
             .collect();
 
-        if new_upgrades.is_empty() {
+        let Some((last_upgrade, _)) = new_upgrades.last() else {
             return Ok(());
-        }
-
+        };
         let ids: Vec<_> = new_upgrades.iter().map(|(u, _)| u.id as u16).collect();
         tracing::debug!("Received upgrades with ids: {:?}", ids);
 
-        let last_id = new_upgrades.last().unwrap().0.id;
+        let last_id = last_upgrade.id;
         let stage_latency = METRICS.poll_eth_node[&PollStage::PersistUpgrades].start();
         for (upgrade, scheduler_vk_hash) in new_upgrades {
             let previous_version = storage
