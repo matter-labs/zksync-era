@@ -121,16 +121,19 @@ impl InternalApiConfig {
                 .estimate_gas_acceptable_overestimation,
             bridge_addresses: api::BridgeAddresses {
                 l1_erc20_default_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
+                l2_erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
                 l1_shared_default_bridge: genesis_config
                     .shared_bridge
                     .as_ref()
                     .map(|a| a.l1_shared_bridge_addr)
                     .unwrap_or_default(),
-                l2_erc20_default_bridge: genesis_config
+                l2_shared_default_bridge: genesis_config
                     .shared_bridge
                     .as_ref()
                     .map(|a| a.l2_shared_bridge_addr)
                     .unwrap_or_default(),
+                l1_weth_bridge: contracts_config.l1_weth_bridge_proxy_addr,
+                l2_weth_bridge: contracts_config.l2_weth_bridge_addr,
             },
             bridgehub_proxy_addr: genesis_config
                 .shared_bridge

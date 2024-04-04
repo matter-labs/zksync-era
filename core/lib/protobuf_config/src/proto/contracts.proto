@@ -21,8 +21,9 @@ message Bridge {
 }
 
 message Bridges {
-  optional Bridge erc20 = 1;
-  optional Bridge weth = 2;
+  optional Bridge shared = 1; 
+  optional Bridge erc20 = 2;
+  optional Bridge weth = 3;
 }
 
 message Contracts {
