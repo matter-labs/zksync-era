@@ -155,6 +155,11 @@ pub struct StateKeeperConfig {
     /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
     pub enum_index_migration_chunk_size: Option<usize>,
 
+    /// The maximal number of circuits that a batch can support.
+    /// Note, that this number corresponds to the "base layer" circuits, i.e. it does not include
+    /// the recursion layers' circuits.
+    pub max_circuits_per_batch: usize,
+
     // Base system contract hashes, required only for generating genesis config.
     // #PLA-811
     #[deprecated(note = "Use GenesisConfig::bootloader_hash instead")]
@@ -199,6 +204,7 @@ impl StateKeeperConfig {
             virtual_blocks_interval: 1,
             virtual_blocks_per_miniblock: 1,
             enum_index_migration_chunk_size: None,
+            max_circuits_per_batch: 24100,
             bootloader_hash: None,
             default_aa_hash: None,
             l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,

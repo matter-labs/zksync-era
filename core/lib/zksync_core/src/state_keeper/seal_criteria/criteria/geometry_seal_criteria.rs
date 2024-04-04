@@ -1,8 +1,10 @@
 use std::fmt;
 
-use multivm::utils::circuit_statistics_bootloader_batch_tip_overhead;
+use multivm::utils::{
+    circuit_statistics_bootloader_batch_tip_overhead, get_max_batch_base_layer_circuits,
+};
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_types::{tx::tx_execution_info::ExecutionMetrics, ProtocolVersionId};
+use zksync_types::ProtocolVersionId;
 
 // Local uses
 use crate::state_keeper::seal_criteria::{SealCriterion, SealData, SealResolution};
@@ -10,48 +12,54 @@ use crate::state_keeper::seal_criteria::{SealCriterion, SealData, SealResolution
 // Collected vm execution metrics should fit into geometry limits.
 // Otherwise witness generation will fail and proof won't be generated.
 
-#[derive(Debug, Default)]
+/// Checks whether we should exclude the transaction because we don't have enough circuits for it.
+#[derive(Debug)]
 pub struct CircuitsCriterion;
 
-trait MetricExtractor {
-    const PROM_METRIC_CRITERION_NAME: &'static str;
-    fn limit_per_block(protocol_version: ProtocolVersionId) -> usize;
-    fn extract(metric: &ExecutionMetrics) -> usize;
-}
-
-impl<T> SealCriterion for T
-where
-    T: MetricExtractor + fmt::Debug + Send + Sync + 'static,
-{
+impl SealCriterion for CircuitsCriterion {
     fn should_seal(
         &self,
         config: &StateKeeperConfig,
         _block_open_timestamp_ms: u128,
-        _tx_count: usize,
+        tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
-        protocol_version_id: ProtocolVersionId,
+        protocol_version: ProtocolVersionId,
     ) -> SealResolution {
-        let reject_bound = (T::limit_per_block(protocol_version_id) as f64
-            * config.reject_tx_at_geometry_percentage)
-            .round();
-        let close_bound = (T::limit_per_block(protocol_version_id) as f64
-            * config.close_block_at_geometry_percentage)
-            .round();
+        let max_allowed_base_layer_circuits =
+            get_max_batch_base_layer_circuits(protocol_version.into());
+        assert!(
+            config.max_circuits_per_batch <= max_allowed_base_layer_circuits,
+            "Configured max_circuits_per_batch ({}) must be lower than the bootloader constant MAX_BASE_LAYER_CIRCUITS={} for protocol version {}",
+            config.max_circuits_per_batch, max_allowed_base_layer_circuits, protocol_version as u16
+        );
 
-        if T::extract(&tx_data.execution_metrics)
-            + circuit_statistics_bootloader_batch_tip_overhead(protocol_version_id.into())
-            > reject_bound as usize
-        {
+        let batch_tip_circuit_overhead =
+            circuit_statistics_bootloader_batch_tip_overhead(ProtocolVersionId::latest().into());
+
+        // Double checking that it is possible to seal batches
+        assert!(
+            batch_tip_circuit_overhead < config.max_circuits_per_batch,
+            "Invalid circuit criteria"
+        );
+
+        let reject_bound = (config.max_circuits_per_batch as f64
+            * config.reject_tx_at_geometry_percentage)
+            .round() as usize;
+        let include_and_seal_bound = (config.max_circuits_per_batch as f64
+            * config.close_block_at_geometry_percentage)
+            .round() as usize;
+
+        let used_circuits_tx = tx_data.execution_metrics.circuit_statistic.total();
+        let used_circuits_batch = block_data.execution_metrics.circuit_statistic.total();
+
+        if used_circuits_tx + batch_tip_circuit_overhead >= reject_bound {
             SealResolution::Unexecutable("ZK proof cannot be generated for a transaction".into())
-        } else if T::extract(&block_data.execution_metrics)
-            + circuit_statistics_bootloader_batch_tip_overhead(protocol_version_id.into())
-            >= T::limit_per_block(protocol_version_id)
+        } else if used_circuits_batch + batch_tip_circuit_overhead >= config.max_circuits_per_batch
         {
             SealResolution::ExcludeAndSeal
-        } else if T::extract(&block_data.execution_metrics)
-            + circuit_statistics_bootloader_batch_tip_overhead(protocol_version_id.into())
-            > close_bound as usize
+        } else if used_circuits_batch + batch_tip_circuit_overhead
+            >= include_and_seal_bound as usize
         {
             SealResolution::IncludeAndSeal
         } else {
@@ -60,24 +68,9 @@ where
     }
 
     fn prom_criterion_name(&self) -> &'static str {
-        T::PROM_METRIC_CRITERION_NAME
+        "circuits_criterion"
     }
 }
-
-impl MetricExtractor for CircuitsCriterion {
-    const PROM_METRIC_CRITERION_NAME: &'static str = "circuits";
-
-    fn limit_per_block(_protocol_version_id: ProtocolVersionId) -> usize {
-        const MAX_NUMBER_OF_CIRCUITS: usize = 24100;
-
-        MAX_NUMBER_OF_CIRCUITS
-    }
-
-    fn extract(metrics: &ExecutionMetrics) -> usize {
-        metrics.circuit_statistic.total()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use zksync_types::circuit::CircuitStatistic;
