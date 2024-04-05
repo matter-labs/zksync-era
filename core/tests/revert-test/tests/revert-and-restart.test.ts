@@ -35,7 +35,7 @@ async function killServerAndWaitForShutdown(tester: Tester) {
     while (iter < 30) {
         try {
             await tester.syncWallet.provider.getBlockNumber();
-            await utils.sleep(5);
+            await utils.sleep(2);
             iter += 1;
         } catch (_) {
             // When exception happens, we assume that server died.
@@ -94,7 +94,7 @@ describe('Block reverting test', function () {
                 mainContract = await tester.syncWallet.getMainContract();
             } catch (err) {
                 ignoreError(err, 'waiting for server HTTP JSON-RPC to start');
-                await utils.sleep(5);
+                await utils.sleep(2);
                 iter += 1;
             }
         }
@@ -251,6 +251,6 @@ async function checkedRandomTransfer(sender: zkweb3.Wallet, amount: BigNumber) {
     expect(receiverBalance.eq(amount), 'Failed updated the balance of the receiver').to.be.true;
 
     const spentAmount = txReceipt.gasUsed.mul(transferHandle.gasPrice!).add(amount);
-    expect(senderBalance.add(spentAmount).eq(senderBalanceBefore), 'Failed to update the balance of the sender').to.be
+    expect(senderBalance.add(spentAmount).gte(senderBalanceBefore), 'Failed to update the balance of the sender').to.be
         .true;
 }

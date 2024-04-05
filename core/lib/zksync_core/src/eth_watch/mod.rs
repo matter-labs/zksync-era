@@ -8,7 +8,7 @@ use std::{sync::Arc, time::Duration};
 
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::ETHWatchConfig;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
@@ -45,18 +45,19 @@ pub struct EthWatch {
     event_processors: Vec<Box<dyn EventProcessor>>,
 
     last_processed_ethereum_block: u64,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
 }
 
 impl EthWatch {
     pub async fn new(
-        diamond_proxy_address: Address,
+        diamond_proxy_addr: Address,
+        state_transition_manager_address: Option<Address>,
         governance_contract: Option<Contract>,
         mut client: Box<dyn EthClient>,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
         poll_interval: Duration,
     ) -> Self {
-        let mut storage = pool.access_storage_tagged("eth_watch").await.unwrap();
+        let mut storage = pool.connection_tagged("eth_watch").await.unwrap();
 
         let state = Self::initialize_state(&*client, &mut storage).await;
 
@@ -74,7 +75,7 @@ impl EthWatch {
 
         if let Some(governance_contract) = governance_contract {
             let governance_upgrades_processor = GovernanceUpgradesEventProcessor::new(
-                diamond_proxy_address,
+                state_transition_manager_address.unwrap_or(diamond_proxy_addr),
                 state.last_seen_version_id,
                 &governance_contract,
             );
@@ -98,7 +99,7 @@ impl EthWatch {
 
     async fn initialize_state(
         client: &dyn EthClient,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
     ) -> EthWatchState {
         let next_expected_priority_id: PriorityOpId = storage
             .transactions_dal()
@@ -147,7 +148,7 @@ impl EthWatch {
             timer.tick().await;
             METRICS.eth_poll.inc();
 
-            let mut storage = pool.access_storage_tagged("eth_watch").await.unwrap();
+            let mut storage = pool.connection_tagged("eth_watch").await.unwrap();
             if let Err(error) = self.loop_iteration(&mut storage).await {
                 // This is an error because otherwise we could potentially miss a priority operation
                 // thus entering priority mode, which is not desired.
@@ -162,7 +163,7 @@ impl EthWatch {
     }
 
     #[tracing::instrument(skip(self, storage))]
-    async fn loop_iteration(&mut self, storage: &mut StorageProcessor<'_>) -> Result<(), Error> {
+    async fn loop_iteration(&mut self, storage: &mut Connection<'_, Core>) -> Result<(), Error> {
         let stage_latency = METRICS.poll_eth_node[&PollStage::Request].start();
         let to_block = self.client.finalized_block_number().await?;
         if to_block <= self.last_processed_ethereum_block {
@@ -191,21 +192,24 @@ impl EthWatch {
 
 pub async fn start_eth_watch(
     config: ETHWatchConfig,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
     eth_gateway: Arc<dyn EthInterface>,
-    state_transition_chain_contract_addr: Address,
+    diamond_proxy_addr: Address,
+    state_transition_manager_addr: Option<Address>,
     governance: (Contract, Address),
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<JoinHandle<anyhow::Result<()>>> {
     let eth_client = EthHttpQueryClient::new(
         eth_gateway,
-        state_transition_chain_contract_addr,
+        diamond_proxy_addr,
+        state_transition_manager_addr,
         Some(governance.1),
         config.confirmations_for_eth_event,
     );
 
     let eth_watch = EthWatch::new(
-        state_transition_chain_contract_addr,
+        diamond_proxy_addr,
+        state_transition_manager_addr,
         Some(governance.0),
         Box::new(eth_client),
         pool,

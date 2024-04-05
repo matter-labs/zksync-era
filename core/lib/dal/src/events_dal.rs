@@ -1,18 +1,21 @@
 use std::{collections::HashMap, fmt};
 
 use sqlx::types::chrono::Utc;
+use zksync_db_connection::{
+    connection::Connection, error::DalResult, instrument::InstrumentExt, write_str, writeln_str,
+};
 use zksync_system_constants::L1_MESSENGER_ADDRESS;
 use zksync_types::{
     api,
     event::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::IncludedTxLocation,
-    L1BatchNumber, MiniblockNumber, VmEvent, H256,
+    Address, L1BatchNumber, MiniblockNumber, VmEvent, H256,
 };
 
 use crate::{
     models::storage_event::{StorageL2ToL1Log, StorageWeb3Log},
-    SqlxError, StorageProcessor,
+    Core, CoreDal, SqlxError,
 };
 
 /// Wrapper around an optional event topic allowing to hex-format it for `COPY` instructions.
@@ -31,7 +34,7 @@ impl fmt::LowerHex for EventTopic<'_> {
 
 #[derive(Debug)]
 pub struct EventsDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl EventsDal<'_, '_> {
@@ -240,7 +243,7 @@ impl EventsDal<'_, '_> {
     pub(crate) async fn get_l1_batch_raw_published_bytecode_hashes(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> Result<Vec<H256>, SqlxError> {
+    ) -> DalResult<Vec<H256>> {
         let Some((from_miniblock, to_miniblock)) = self
             .storage
             .blocks_dal()
@@ -249,6 +252,7 @@ impl EventsDal<'_, '_> {
         else {
             return Ok(Vec::new());
         };
+
         let result: Vec<_> = sqlx::query!(
             r#"
             SELECT
@@ -268,7 +272,10 @@ impl EventsDal<'_, '_> {
             L1_MESSENGER_ADDRESS.as_bytes(),
             L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE.as_bytes()
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_l1_batch_raw_published_bytecode_hashes")
+        .with_arg("from_miniblock", &from_miniblock)
+        .with_arg("to_miniblock", &to_miniblock)
+        .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(|row| H256::from_slice(&row.value))
@@ -327,6 +334,74 @@ impl EventsDal<'_, '_> {
 
         Ok(result)
     }
+
+    pub async fn get_vm_events_for_l1_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<Option<Vec<VmEvent>>> {
+        let Some((from_miniblock, to_miniblock)) = self
+            .storage
+            .blocks_dal()
+            .get_miniblock_range_of_l1_batch(l1_batch_number)
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let mut tx_index_in_l1_batch = -1;
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                address,
+                topic1,
+                topic2,
+                topic3,
+                topic4,
+                value,
+                event_index_in_tx
+            FROM
+                events
+            WHERE
+                miniblock_number BETWEEN $1 AND $2
+            ORDER BY
+                miniblock_number ASC,
+                event_index_in_block ASC
+            "#,
+            i64::from(from_miniblock.0),
+            i64::from(to_miniblock.0),
+        )
+        .instrument("get_vm_events_for_l1_batch")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .report_latency()
+        .fetch_all(self.storage)
+        .await?;
+
+        let events = rows
+            .into_iter()
+            .map(|row| {
+                let indexed_topics = vec![row.topic1, row.topic2, row.topic3, row.topic4]
+                    .into_iter()
+                    .filter_map(|topic| {
+                        if !topic.is_empty() {
+                            Some(H256::from_slice(&topic))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                if row.event_index_in_tx == 0 {
+                    tx_index_in_l1_batch += 1;
+                }
+                VmEvent {
+                    location: (l1_batch_number, tx_index_in_l1_batch as u32),
+                    address: Address::from_slice(&row.address),
+                    indexed_topics,
+                    value: row.value,
+                }
+            })
+            .collect();
+        Ok(Some(events))
+    }
 }
 
 #[cfg(test)]
@@ -334,7 +409,7 @@ mod tests {
     use zksync_types::{Address, L1BatchNumber, ProtocolVersion};
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool};
+    use crate::{tests::create_miniblock_header, ConnectionPool, Core};
 
     fn create_vm_event(index: u8, topic_count: u8) -> VmEvent {
         assert!(topic_count <= 4);
@@ -348,8 +423,8 @@ mod tests {
 
     #[tokio::test]
     async fn storing_events() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.events_dal().rollback_events(MiniblockNumber(0)).await;
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
@@ -424,8 +499,8 @@ mod tests {
 
     #[tokio::test]
     async fn storing_l2_to_l1_logs() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.events_dal()
             .rollback_l2_to_l1_logs(MiniblockNumber(0))
             .await;

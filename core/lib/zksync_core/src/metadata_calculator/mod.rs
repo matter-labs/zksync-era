@@ -12,7 +12,7 @@ use zksync_config::configs::{
     chain::OperationsManagerConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_object_store::ObjectStore;
 
@@ -91,6 +91,11 @@ impl MetadataCalculator {
             config.max_l1_batches_per_iter > 0,
             "Maximum L1 batches per iteration is misconfigured to be 0; please update it to positive value"
         );
+        if matches!(config.mode, MerkleTreeMode::Lightweight) && object_store.is_some() {
+            anyhow::bail!(
+                "Cannot run lightweight tree with an object store; the tree won't produce information to be stored in the store"
+            );
+        }
 
         let (_, health_updater) = ReactiveHealthCheck::new("tree");
         Ok(Self {
@@ -143,7 +148,7 @@ impl MetadataCalculator {
 
     pub async fn run(
         self,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         let tree = self.create_tree().await?;

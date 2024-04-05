@@ -178,8 +178,8 @@ export function pushConfig(environment?: string, diff?: string) {
 
     if (process.env.CONTRACTS_DEV_PROTOCOL_VERSION) {
         env.modify(
-            'CONTRACTS_LATEST_PROTOCOL_VERSION',
-            (parseInt(process.env.CONTRACTS_LATEST_PROTOCOL_VERSION!) + 1).toString(),
+            'CONTRACTS_GENESIS_PROTOCOL_VERSION',
+            (parseInt(process.env.CONTRACTS_GENESIS_PROTOCOL_VERSION!) + 1).toString(),
             l1InitFile,
             false
         );

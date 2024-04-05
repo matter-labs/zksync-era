@@ -10,7 +10,7 @@ use crate::resource::Resource;
 pub struct AppHealthCheckResource(pub Arc<AppHealthCheck>);
 
 impl Resource for AppHealthCheckResource {
-    fn resource_id() -> crate::resource::ResourceId {
+    fn name() -> String {
         "common/app_health_check".into()
     }
 }

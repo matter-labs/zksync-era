@@ -1,29 +1,32 @@
 //! Tests for the consistency checker component.
-
 use std::{collections::HashMap, slice};
 
 use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
-use zksync_dal::StorageProcessor;
+use zksync_config::GenesisConfig;
+use zksync_dal::Connection;
 use zksync_eth_client::{clients::MockEthereum, Options};
-use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, L2ChainId, Log,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, Log,
     ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use super::*;
 use crate::{
-    genesis::{ensure_genesis_state, GenesisParams},
+    eth_sender::l1_batch_commit_data_generator::{
+        RollupModeL1BatchCommitDataGenerator, ValidiumModeL1BatchCommitDataGenerator,
+    },
+    genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams},
     utils::testonly::{
         create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
+        DeploymentMode,
     },
 };
 
 /// **NB.** For tests to run correctly, the returned value must be deterministic (i.e., depend only on `number`).
-fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
+pub(crate) fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
     L1BatchWithMetadata {
         header: create_l1_batch(number),
         metadata: create_l1_batch_metadata(number),
@@ -35,7 +38,7 @@ const PRE_BOOJUM_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Versio
 const DIAMOND_PROXY_ADDR: Address = Address::repeat_byte(1);
 const VALIDATOR_TIMELOCK_ADDR: Address = Address::repeat_byte(23);
 
-fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
+pub(crate) fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
     let mut l1_batch = L1BatchWithMetadata {
         header: create_l1_batch(number),
         metadata: create_l1_batch_metadata(number),
@@ -47,11 +50,11 @@ fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata 
     l1_batch
 }
 
-fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
-    let commit_tokens = batches
-        .iter()
-        .map(|batch| CommitBatchInfo::new(batch, PubdataDA::Calldata).into_token());
-    let commit_tokens = ethabi::Token::Array(commit_tokens.collect());
+pub(crate) fn build_commit_tx_input_data(
+    batches: &[L1BatchWithMetadata],
+    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+) -> Vec<u8> {
+    let pubdata_da = PubdataDA::Calldata;
 
     let is_pre_boojum = batches[0].header.protocol_version.unwrap().is_pre_boojum();
     let contract;
@@ -67,22 +70,28 @@ fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
     // Mock an additional argument used in real `commitBlocks` / `commitBatches`. In real transactions,
     // it's taken from the L1 batch previous to `batches[0]`, but since this argument is not checked,
     // it's OK to use `batches[0]`.
-    let prev_header_tokens = StoredBatchInfo(&batches[0]).into_token();
-    encoded.extend_from_slice(&ethabi::encode(&[prev_header_tokens, commit_tokens]));
+    encoded.extend_from_slice(&ethabi::encode(
+        &l1_batch_commit_data_generator.l1_commit_batches(&batches[0], batches, &pubdata_da),
+    ));
     encoded
 }
 
-fn create_mock_checker(client: MockEthereum, pool: ConnectionPool) -> ConsistencyChecker {
+pub(crate) fn create_mock_checker(
+    client: MockEthereum,
+    pool: ConnectionPool<Core>,
+    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+) -> ConsistencyChecker {
     let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
     ConsistencyChecker {
         contract: zksync_contracts::state_transition_chain_contract(),
         diamond_proxy_addr: Some(DIAMOND_PROXY_ADDR),
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
-        l1_client: Box::new(client),
+        l1_client: Arc::new(client),
         event_handler: Box::new(health_updater),
         l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
         pool,
+        l1_batch_commit_data_generator,
         health_check,
     }
 }
@@ -114,8 +123,15 @@ impl HandleConsistencyCheckerEvent for mpsc::UnboundedSender<L1BatchNumber> {
     }
 }
 
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[test]
-fn build_commit_tx_input_data_is_correct() {
+fn build_commit_tx_input_data_is_correct(deployment_mode: DeploymentMode) {
+    let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match deployment_mode
+    {
+        DeploymentMode::Validium => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        DeploymentMode::Rollup => Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+    };
+
     let contract = zksync_contracts::state_transition_chain_contract();
     let commit_function = contract.function("commitBatches").unwrap();
     let batches = vec![
@@ -123,7 +139,8 @@ fn build_commit_tx_input_data_is_correct() {
         create_l1_batch_with_metadata(2),
     ];
 
-    let commit_tx_input_data = build_commit_tx_input_data(&batches);
+    let commit_tx_input_data =
+        build_commit_tx_input_data(&batches, l1_batch_commit_data_generator.clone());
 
     for batch in &batches {
         let commit_data = ConsistencyChecker::extract_commit_data(
@@ -134,7 +151,7 @@ fn build_commit_tx_input_data_is_correct() {
         .unwrap();
         assert_eq!(
             commit_data,
-            CommitBatchInfo::new(batch, PubdataDA::Calldata).into_token()
+            l1_batch_commit_data_generator.l1_commit_batch(batch, &PubdataDA::Calldata),
         );
     }
 }
@@ -221,7 +238,7 @@ fn extracting_commit_data_for_pre_boojum_batch() {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum SaveAction<'a> {
+pub(crate) enum SaveAction<'a> {
     InsertBatch(&'a L1BatchWithMetadata),
     SaveMetadata(&'a L1BatchWithMetadata),
     InsertCommitTx(L1BatchNumber),
@@ -230,7 +247,7 @@ enum SaveAction<'a> {
 impl SaveAction<'_> {
     async fn apply(
         self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         commit_tx_hash_by_l1_batch: &HashMap<L1BatchNumber, H256>,
     ) {
         match self {
@@ -273,7 +290,7 @@ impl SaveAction<'_> {
     }
 }
 
-type SaveActionMapper = fn(&[L1BatchWithMetadata]) -> Vec<SaveAction<'_>>;
+pub(crate) type SaveActionMapper = fn(&[L1BatchWithMetadata]) -> Vec<SaveAction<'_>>;
 
 /// Various strategies to persist L1 batches in the DB. Strings are added for debugging failed test cases.
 const SAVE_ACTION_MAPPERS: [(&str, SaveActionMapper); 4] = [
@@ -353,17 +370,24 @@ fn l1_batch_commit_log(l1_batch: &L1BatchWithMetadata) -> Log {
     }
 }
 
-#[test_casing(12, Product(([10, 3, 1], SAVE_ACTION_MAPPERS)))]
+#[test_casing(24, Product(([10, 3, 1], SAVE_ACTION_MAPPERS, [DeploymentMode::Rollup, DeploymentMode::Validium])))]
 #[tokio::test]
 async fn normal_checker_function(
     batches_per_transaction: usize,
     (mapper_name, save_actions_mapper): (&'static str, SaveActionMapper),
+    deployment_mode: DeploymentMode,
 ) {
+    let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match deployment_mode
+    {
+        DeploymentMode::Validium => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        DeploymentMode::Rollup => Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+    };
+
     println!("Using save_actions_mapper={mapper_name}");
 
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
 
@@ -372,7 +396,8 @@ async fn normal_checker_function(
     let client = create_mock_ethereum();
 
     for (i, l1_batches) in l1_batches.chunks(batches_per_transaction).enumerate() {
-        let input_data = build_commit_tx_input_data(l1_batches);
+        let input_data =
+            build_commit_tx_input_data(l1_batches, l1_batch_commit_data_generator.clone());
         let signed_tx = client.sign_prepared_tx(
             input_data.clone(),
             VALIDATOR_TIMELOCK_ADDR,
@@ -397,7 +422,7 @@ async fn normal_checker_function(
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         event_handler: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone())
+        ..create_mock_checker(client, pool.clone(), l1_batch_commit_data_generator)
     };
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -424,20 +449,28 @@ async fn normal_checker_function(
     checker_task.await.unwrap().unwrap();
 }
 
-#[test_casing(4, SAVE_ACTION_MAPPERS)]
+#[test_casing(8, Product((SAVE_ACTION_MAPPERS, [DeploymentMode::Rollup, DeploymentMode::Validium])))]
 #[tokio::test]
 async fn checker_processes_pre_boojum_batches(
     (mapper_name, save_actions_mapper): (&'static str, SaveActionMapper),
+    deployment_mode: DeploymentMode,
 ) {
+    let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match deployment_mode
+    {
+        DeploymentMode::Validium => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        DeploymentMode::Rollup => Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+    };
+
     println!("Using save_actions_mapper={mapper_name}");
 
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
-    let genesis_params = GenesisParams {
-        protocol_version: PRE_BOOJUM_PROTOCOL_VERSION,
-        ..GenesisParams::mock()
-    };
-    ensure_genesis_state(&mut storage, L2ChainId::default(), &genesis_params)
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    let genesis_params = GenesisParams::load_genesis_params(GenesisConfig {
+        protocol_version: Some(PRE_BOOJUM_PROTOCOL_VERSION as u16),
+        ..mock_genesis_config()
+    })
+    .unwrap();
+    insert_genesis_batch(&mut storage, &genesis_params)
         .await
         .unwrap();
     storage
@@ -453,7 +486,10 @@ async fn checker_processes_pre_boojum_batches(
     let client = create_mock_ethereum();
 
     for (i, l1_batch) in l1_batches.iter().enumerate() {
-        let input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
+        let input_data = build_commit_tx_input_data(
+            slice::from_ref(l1_batch),
+            l1_batch_commit_data_generator.clone(),
+        );
         let signed_tx = client.sign_prepared_tx(
             input_data.clone(),
             VALIDATOR_TIMELOCK_ADDR,
@@ -474,7 +510,7 @@ async fn checker_processes_pre_boojum_batches(
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         event_handler: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone())
+        ..create_mock_checker(client, pool.clone(), l1_batch_commit_data_generator)
     };
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -501,11 +537,20 @@ async fn checker_processes_pre_boojum_batches(
     checker_task.await.unwrap().unwrap();
 }
 
-#[test_casing(2, [false, true])]
+#[test_casing(4, Product(([false, true], [DeploymentMode::Rollup, DeploymentMode::Validium])))]
 #[tokio::test]
-async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+async fn checker_functions_after_snapshot_recovery(
+    delay_batch_insertion: bool,
+    deployment_mode: DeploymentMode,
+) {
+    let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match deployment_mode
+    {
+        DeploymentMode::Validium => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        DeploymentMode::Rollup => Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+    };
+
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     storage
         .protocol_versions_dal()
         .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -513,7 +558,10 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
 
     let l1_batch = create_l1_batch_with_metadata(99);
 
-    let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch));
+    let commit_tx_input_data = build_commit_tx_input_data(
+        slice::from_ref(&l1_batch),
+        l1_batch_commit_data_generator.clone(),
+    );
     let client = create_mock_ethereum();
     let signed_tx = client.sign_prepared_tx(
         commit_tx_input_data.clone(),
@@ -548,7 +596,7 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         event_handler: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone())
+        ..create_mock_checker(client, pool.clone(), l1_batch_commit_data_generator)
     };
     let (stop_sender, stop_receiver) = watch::channel(false);
     let checker_task = tokio::spawn(checker.run(stop_receiver));
@@ -565,13 +613,19 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
     // Wait until the batch is checked.
     let checked_batch = l1_batch_updates_receiver.recv().await.unwrap();
     assert_eq!(checked_batch, l1_batch.header.number);
+    let last_reported_batch = storage
+        .blocks_dal()
+        .get_consistency_checker_last_processed_l1_batch()
+        .await
+        .unwrap();
+    assert_eq!(last_reported_batch, l1_batch.header.number);
 
     stop_sender.send_replace(true);
     checker_task.await.unwrap().unwrap();
 }
 
 #[derive(Debug, Clone, Copy)]
-enum IncorrectDataKind {
+pub(crate) enum IncorrectDataKind {
     MissingStatus,
     MismatchedStatus,
     NoCommitLog,
@@ -596,34 +650,53 @@ impl IncorrectDataKind {
         Self::CommitDataForPreBoojum,
     ];
 
-    async fn apply(self, client: &MockEthereum, l1_batch: &L1BatchWithMetadata) -> H256 {
+    async fn apply(
+        self,
+        client: &MockEthereum,
+        l1_batch: &L1BatchWithMetadata,
+        l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+    ) -> H256 {
         let mut log_origin = Some(DIAMOND_PROXY_ADDR);
         let (commit_tx_input_data, successful_status) = match self {
             Self::MissingStatus => {
                 return H256::zero(); // Do not execute the transaction
             }
             Self::MismatchedStatus => {
-                let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
+                let commit_tx_input_data = build_commit_tx_input_data(
+                    slice::from_ref(l1_batch),
+                    l1_batch_commit_data_generator.clone(),
+                );
                 (commit_tx_input_data, false)
             }
             Self::NoCommitLog => {
                 log_origin = None;
-                let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
+                let commit_tx_input_data = build_commit_tx_input_data(
+                    slice::from_ref(l1_batch),
+                    l1_batch_commit_data_generator.clone(),
+                );
                 (commit_tx_input_data, true)
             }
             Self::BogusCommitLogOrigin => {
                 log_origin = Some(VALIDATOR_TIMELOCK_ADDR);
-                let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
+                let commit_tx_input_data = build_commit_tx_input_data(
+                    slice::from_ref(l1_batch),
+                    l1_batch_commit_data_generator.clone(),
+                );
                 (commit_tx_input_data, true)
             }
             Self::BogusSoliditySelector => {
-                let mut commit_tx_input_data =
-                    build_commit_tx_input_data(slice::from_ref(l1_batch));
+                let mut commit_tx_input_data = build_commit_tx_input_data(
+                    slice::from_ref(l1_batch),
+                    l1_batch_commit_data_generator.clone(),
+                );
                 commit_tx_input_data[..4].copy_from_slice(b"test");
                 (commit_tx_input_data, true)
             }
             Self::BogusCommitDataFormat => {
-                let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
+                let commit_tx_input_data = build_commit_tx_input_data(
+                    slice::from_ref(l1_batch),
+                    l1_batch_commit_data_generator.clone(),
+                );
                 let mut bogus_tx_input_data = commit_tx_input_data[..4].to_vec(); // Preserve the function selector
                 bogus_tx_input_data
                     .extend_from_slice(&ethabi::encode(&[ethabi::Token::Bool(true)]));
@@ -632,18 +705,27 @@ impl IncorrectDataKind {
             Self::MismatchedCommitDataTimestamp => {
                 let mut l1_batch = create_l1_batch_with_metadata(1);
                 l1_batch.header.timestamp += 1;
-                let bogus_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch));
+                let bogus_tx_input_data = build_commit_tx_input_data(
+                    slice::from_ref(&l1_batch),
+                    l1_batch_commit_data_generator,
+                );
                 (bogus_tx_input_data, true)
             }
             Self::CommitDataForAnotherBatch => {
                 let l1_batch = create_l1_batch_with_metadata(100);
-                let bogus_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch));
+                let bogus_tx_input_data = build_commit_tx_input_data(
+                    slice::from_ref(&l1_batch),
+                    l1_batch_commit_data_generator,
+                );
                 (bogus_tx_input_data, true)
             }
             Self::CommitDataForPreBoojum => {
                 let mut l1_batch = create_l1_batch_with_metadata(1);
                 l1_batch.header.protocol_version = Some(ProtocolVersionId::Version0);
-                let bogus_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch));
+                let bogus_tx_input_data = build_commit_tx_input_data(
+                    slice::from_ref(&l1_batch),
+                    l1_batch_commit_data_generator,
+                );
                 (bogus_tx_input_data, true)
             }
         };
@@ -673,26 +755,38 @@ impl IncorrectDataKind {
     }
 }
 
-#[test_casing(9, Product((IncorrectDataKind::ALL, [false])))]
+#[test_casing(18, Product((IncorrectDataKind::ALL, [false], [DeploymentMode::Rollup, DeploymentMode::Validium])))]
 // ^ `snapshot_recovery = true` is tested below; we don't want to run it with all incorrect data kinds
 #[tokio::test]
-async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind, snapshot_recovery: bool) {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+async fn checker_detects_incorrect_tx_data(
+    kind: IncorrectDataKind,
+    snapshot_recovery: bool,
+    deployment_mode: DeploymentMode,
+) {
+    let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match deployment_mode
+    {
+        DeploymentMode::Validium => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        DeploymentMode::Rollup => Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+    };
+
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     if snapshot_recovery {
         storage
             .protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
     } else {
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
     }
 
     let l1_batch = create_l1_batch_with_metadata(if snapshot_recovery { 99 } else { 1 });
     let client = create_mock_ethereum();
-    let commit_tx_hash = kind.apply(&client, &l1_batch).await;
+    let commit_tx_hash = kind
+        .apply(&client, &l1_batch, l1_batch_commit_data_generator.clone())
+        .await;
     let commit_tx_hash_by_l1_batch = HashMap::from([(l1_batch.header.number, commit_tx_hash)]);
 
     let save_actions = [
@@ -707,7 +801,7 @@ async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind, snapshot_rec
     }
     drop(storage);
 
-    let checker = create_mock_checker(client, pool);
+    let checker = create_mock_checker(client, pool, l1_batch_commit_data_generator);
     let (_stop_sender, stop_receiver) = watch::channel(false);
     // The checker must stop with an error.
     tokio::time::timeout(Duration::from_secs(30), checker.run(stop_receiver))
@@ -716,7 +810,15 @@ async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind, snapshot_rec
         .unwrap_err();
 }
 
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn checker_detects_incorrect_tx_data_after_snapshot_recovery() {
-    checker_detects_incorrect_tx_data(IncorrectDataKind::CommitDataForAnotherBatch, true).await;
+async fn checker_detects_incorrect_tx_data_after_snapshot_recovery(
+    deployment_mode: DeploymentMode,
+) {
+    checker_detects_incorrect_tx_data(
+        IncorrectDataKind::CommitDataForAnotherBatch,
+        true,
+        deployment_mode,
+    )
+    .await;
 }

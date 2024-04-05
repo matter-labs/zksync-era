@@ -46,7 +46,7 @@ export function getCommonUpgradePath(): string {
 
 export function getUpgradePath(environment: string): string {
     const upgradeEnvironment = environment ?? 'localhost';
-    const path = `${getCommonUpgradePath()}/${upgradeEnvironment}`;
+    const path = `${getCommonUpgradePath()}${upgradeEnvironment}`;
     if (!fs.existsSync(path)) {
         fs.mkdirSync(path, { recursive: true });
     }

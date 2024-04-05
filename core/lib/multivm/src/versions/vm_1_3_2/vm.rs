@@ -48,7 +48,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                 block_properties,
                 system_env.execution_mode.glue_into(),
                 &system_env.base_system_smart_contracts.clone().glue_into(),
-                system_env.gas_limit,
+                system_env.bootloader_gas_limit,
             );
         Self {
             vm: inner_vm,
@@ -180,6 +180,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             // It's not applicable for vm 1.3.2
             deduplicated_events_logs: vec![],
             storage_refunds: vec![],
+            pubdata_costs: Vec::new(),
         }
     }
 

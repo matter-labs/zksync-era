@@ -5,7 +5,7 @@ use zksync_utils::ZeroPrefixHexSerde;
 use crate::{web3::ethabi, Address, EIP712TypedStructure, StructBuilder, H256, U256};
 
 /// `Execute` transaction executes a previously deployed smart contract in the L2 rollup.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Execute {
     pub contract_address: Address,
@@ -20,6 +20,21 @@ pub struct Execute {
     /// For the deployment transactions, this field is always `Some`, even if there s no "dependencies" for the
     /// contract being deployed, since the bytecode of the contract itself is also included into this list.
     pub factory_deps: Option<Vec<Vec<u8>>>,
+}
+
+impl std::fmt::Debug for Execute {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let factory_deps = match &self.factory_deps {
+            Some(deps) => format!("Some(<{} factory deps>)", deps.len()),
+            None => "None".to_string(),
+        };
+        f.debug_struct("Execute")
+            .field("contract_address", &self.contract_address)
+            .field("calldata", &hex::encode(&self.calldata))
+            .field("value", &self.value)
+            .field("factory_deps", &factory_deps)
+            .finish()
+    }
 }
 
 impl EIP712TypedStructure for Execute {

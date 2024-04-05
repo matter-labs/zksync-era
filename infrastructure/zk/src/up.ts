@@ -8,11 +8,14 @@ export function createVolumes() {
     fs.mkdirSync(`${process.env.ZKSYNC_HOME}/volumes/postgres`, { recursive: true });
 }
 
-export async function up(composeFile?: string) {
+export async function up(runObservability: boolean, composeFile?: string) {
     if (composeFile) {
         await utils.spawn(`docker compose -f ${composeFile} up -d`);
     } else {
         await utils.spawn('docker compose up -d');
+    }
+    if (runObservability) {
+        await utils.spawn(`docker compose -f ./target/dockprom/docker-compose.yml up -d`);
     }
 }
 

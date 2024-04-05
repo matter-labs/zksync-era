@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, error::Wrap as _, limiter, scope, time};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
@@ -18,9 +20,7 @@ pub type P2PConfig = executor::Config;
 pub struct Fetcher {
     pub store: Store,
     pub sync_state: SyncState,
-    pub client: Box<dyn MainNodeClient>,
-    /// Rate limiter for `client.fetch_l2_block` requests.
-    pub limiter: limiter::Limiter,
+    pub client: Arc<dyn MainNodeClient>,
 }
 
 impl Fetcher {
@@ -51,7 +51,6 @@ impl Fetcher {
             // Fetch blocks before the genesis.
             self.fetch_blocks(ctx, &mut cursor, Some(genesis.fork.first_block))
                 .await?;
-
             // Monitor the genesis of the main node.
             // If it changes, it means that a hard fork occurred and we need to reset the consensus state.
             s.spawn_bg::<()>(async {
@@ -150,10 +149,9 @@ impl Fetcher {
 
     /// Fetches (with retries) the given block from the main node.
     async fn fetch_block(&self, ctx: &ctx::Ctx, n: MiniblockNumber) -> ctx::Result<FetchedBlock> {
-        // TODO: consider removing sleep in favor to just relying on the rate limiter.
         const RETRY_INTERVAL: time::Duration = time::Duration::seconds(5);
+
         loop {
-            self.limiter.acquire(ctx, 1).await?;
             let res = ctx.wait(self.client.fetch_l2_block(n, true)).await?;
             match res {
                 Ok(Some(block)) => return Ok(block.try_into()?),
@@ -175,6 +173,7 @@ impl Fetcher {
         end: Option<validator::BlockNumber>,
     ) -> ctx::Result<()> {
         const MAX_CONCURRENT_REQUESTS: usize = 30;
+        let first = cursor.next();
         let mut next = cursor.next();
         scope::run!(ctx, |ctx, s| async {
             let (send, mut recv) = ctx::channel::bounded(MAX_CONCURRENT_REQUESTS);
@@ -194,6 +193,13 @@ impl Fetcher {
             }
             Ok(())
         })
-        .await
+        .await?;
+        // If fetched anything, wait for the last block to be stored persistently.
+        if first < cursor.next() {
+            self.store
+                .wait_for_payload(ctx, cursor.next().prev().unwrap())
+                .await?;
+        }
+        Ok(())
     }
 }
