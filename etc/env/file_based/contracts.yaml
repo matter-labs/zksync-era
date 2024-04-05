@@ -17,3 +17,7 @@ bridges:
   shared:
     l1_address: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"
     l2_address: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"
+sync_layer_contracts:
+  state_transition_proxy_addr: 0x87d456da9ed212eb49d80d96afb44afddf36adf8
+  bridgehub_proxy_addr: 0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5
+  transparent_proxy_admin_addr: 0xc957c0e82d3bafb5ad46ffbcc66900648784eb05

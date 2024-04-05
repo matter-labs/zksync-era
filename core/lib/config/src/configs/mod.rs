@@ -2,7 +2,7 @@
 pub use self::{
     api::ApiConfig,
     contract_verifier::ContractVerifierConfig,
-    contracts::ContractsConfig,
+    contracts::{ContractsConfig, SyncLayerContracts},
     database::{DBConfig, PostgresConfig},
     eth_sender::{ETHConfig, GasAdjusterConfig},
     eth_watch::ETHWatchConfig,
@@ -12,7 +12,7 @@ pub use self::{
     fri_witness_generator::FriWitnessGeneratorConfig,
     fri_witness_vector_generator::FriWitnessVectorGeneratorConfig,
     general::GeneralConfig,
-    genesis::{GenesisConfig, SharedBridge},
+    genesis::GenesisConfig,
     object_store::ObjectStoreConfig,
     observability::{ObservabilityConfig, OpentelemetryConfig},
     proof_data_handler::ProofDataHandlerConfig,

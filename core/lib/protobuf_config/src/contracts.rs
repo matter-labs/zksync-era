@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_config::configs::ContractsConfig;
+use zksync_config::configs::{ContractsConfig, SyncLayerContracts};
 use zksync_protobuf::{repr::ProtoRepr, required};
 
 use crate::{parse_h160, proto::contracts as proto};
@@ -14,7 +14,29 @@ impl ProtoRepr for proto::Contracts {
         let shared = required(&bridges.shared).context("shared")?;
         let erc20 = required(&bridges.erc20).context("erc20")?;
         let weth_bridge = required(&bridges.weth).context("weth_bridge")?;
+
+        let sync_layer_contracts = if let Some(sync_layer_contracts) = &self.sync_layer_contracts {
+            Some(SyncLayerContracts {
+                bridgehub_proxy_addr: required(&sync_layer_contracts.bridgehub_proxy_addr)
+                    .and_then(|x| parse_h160(x))
+                    .context("bridgehub_proxy_addr")?,
+                state_transition_proxy_addr: required(
+                    &sync_layer_contracts.state_transition_proxy_addr,
+                )
+                .and_then(|x| parse_h160(x))
+                .context("state_transition_proxy_addr")?,
+                transparent_proxy_admin_addr: required(
+                    &sync_layer_contracts.transparent_proxy_admin_addr,
+                )
+                .and_then(|x| parse_h160(x))
+                .context("transparent_proxy_admin_addr")?,
+            })
+        } else {
+            None
+        };
+
         Ok(Self::Type {
+            sync_layer_contracts,
             governance_addr: required(&l1.governance_addr)
                 .and_then(|x| parse_h160(x))
                 .context("governance_addr")?,
@@ -73,7 +95,25 @@ impl ProtoRepr for proto::Contracts {
     }
 
     fn build(this: &Self::Type) -> Self {
+        let sync_layer_contracts = this
+            .sync_layer_contracts
+            .as_ref()
+            .map(|sync_layer_contracts| proto::SyncLayerContracts {
+                bridgehub_proxy_addr: Some(format!(
+                    "{:?}",
+                    sync_layer_contracts.bridgehub_proxy_addr
+                )),
+                state_transition_proxy_addr: Some(format!(
+                    "{:?}",
+                    sync_layer_contracts.state_transition_proxy_addr
+                )),
+                transparent_proxy_admin_addr: Some(format!(
+                    "{:?}",
+                    sync_layer_contracts.transparent_proxy_admin_addr,
+                )),
+            });
         Self {
+            sync_layer_contracts,
             l1: Some(proto::L1 {
                 governance_addr: Some(format!("{:?}", this.governance_addr)),
                 verifier_addr: Some(format!("{:?}", this.verifier_addr)),

@@ -180,7 +180,7 @@ async fn main() -> anyhow::Result<()> {
         if opt.set_chain_id {
             let eth_client = configs.eth.as_ref().context("eth config")?;
 
-            if let Some(shared_bridge) = &genesis.shared_bridge {
+            if let Some(shared_bridge) = &contracts_config.sync_layer_contracts {
                 genesis::save_set_chain_id_tx(
                     &eth_client.web3_url,
                     contracts_config.diamond_proxy_addr,
