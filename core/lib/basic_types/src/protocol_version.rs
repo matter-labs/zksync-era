@@ -89,26 +89,6 @@ impl ProtocolVersionId {
         }
     }
 
-    /// Returns the number of blobs supported by each VM version
-    pub fn into_num_blobs_required(&self) -> usize {
-        if self.is_pre_1_5_0() {
-            2
-        } else {
-            16
-        }
-    }
-
-    /// Returns the number of blobs created within each VM version
-    pub fn into_num_blobs_created(&self) -> usize {
-        if self.is_pre_1_4_2() {
-            0
-        } else if self.is_pre_1_5_0() {
-            2
-        } else {
-            6
-        }
-    }
-
     // It is possible that some external nodes do not store protocol versions for versions below 9.
     // That's why we assume that whenever a protocol version is not present, version 9 is to be used.
     pub fn last_potentially_undefined() -> Self {
