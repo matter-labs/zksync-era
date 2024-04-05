@@ -1,23 +1,23 @@
 [package]
 name = "merkle_tree_consistency_checker"
 version = "0.1.0"
-edition = "2021"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
-publish = false # We don't want to publish our binaries.
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
 
 [dependencies]
-zksync_config = { path = "../../lib/config" }
-zksync_env_config = { path = "../../lib/env_config" }
-zksync_merkle_tree = { path = "../../lib/merkle_tree" }
-zksync_types = { path = "../../lib/types" }
-zksync_storage = { path = "../../lib/storage" }
-vlog = { path = "../../lib/vlog" }
+zksync_config.workspace = true
+zksync_env_config.workspace = true
+zksync_merkle_tree.workspace = true
+zksync_types.workspace = true
+zksync_storage.workspace = true
+vlog.workspace = true
 
-anyhow = "1.0"
-clap = { version = "4.2.4", features = ["derive"] }
-tracing = "0.1"
+anyhow.workspace = true
+clap = { workspace = true, features = ["derive"] }
+tracing.workspace = true

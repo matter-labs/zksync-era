@@ -1,12 +1,12 @@
 use num::Integer;
 use rand::RngCore;
-use zksync::EthNamespaceClient;
 use zksync_types::api;
 
 use crate::{
     account_pool::SyncWallet,
     all::AllWeighted,
     rng::{LoadtestRng, WeightedRandom},
+    sdk::EthNamespaceClient,
 };
 
 /// Helper enum for generating random block number.

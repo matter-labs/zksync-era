@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 
 use zksync_contracts::state_transition_chain_contract;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{l1::L1Tx, web3::types::Log, PriorityOpId, H256};
 
 use crate::{
@@ -36,7 +36,7 @@ impl PriorityOpsEventProcessor {
 impl EventProcessor for PriorityOpsEventProcessor {
     async fn process_events(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         _client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<(), Error> {

@@ -1,17 +1,23 @@
 use std::{collections::HashMap, ops, time::Instant};
 
 use sqlx::types::chrono::Utc;
+use zksync_db_connection::{
+    connection::Connection,
+    error::DalResult,
+    instrument::{CopyStatement, InstrumentExt},
+    write_str, writeln_str,
+};
 use zksync_types::{
     get_code_key, snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber,
     MiniblockNumber, StorageKey, StorageLog, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256,
 };
 
 pub use crate::models::storage_log::{DbStorageLog, StorageRecoveryLogEntry};
-use crate::{instrument::InstrumentExt, StorageProcessor};
+use crate::{Core, CoreDal};
 
 #[derive(Debug)]
 pub struct StorageLogsDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl StorageLogsDal<'_, '_> {
@@ -21,7 +27,7 @@ impl StorageLogsDal<'_, '_> {
         &mut self,
         block_number: MiniblockNumber,
         logs: &[(H256, Vec<StorageLog>)],
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         self.insert_storage_logs_inner(block_number, logs, 0).await
     }
 
@@ -30,18 +36,20 @@ impl StorageLogsDal<'_, '_> {
         block_number: MiniblockNumber,
         logs: &[(H256, Vec<StorageLog>)],
         mut operation_number: u32,
-    ) -> sqlx::Result<()> {
-        let mut copy = self
-            .storage
-            .conn()
-            .copy_in_raw(
-                "COPY storage_logs(
-                    hashed_key, address, key, value, operation_number, tx_hash, miniblock_number,
-                    created_at, updated_at
-                )
-                FROM STDIN WITH (DELIMITER '|')",
+    ) -> DalResult<()> {
+        let logs_len = logs.len();
+        let copy = CopyStatement::new(
+            "COPY storage_logs(
+                hashed_key, address, key, value, operation_number, tx_hash, miniblock_number,
+                created_at, updated_at
             )
-            .await?;
+            FROM STDIN WITH (DELIMITER '|')",
+        )
+        .instrument("insert_storage_logs")
+        .with_arg("block_number", &block_number)
+        .with_arg("logs.len", &logs_len)
+        .start(self.storage)
+        .await?;
 
         let mut buffer = String::new();
         let now = Utc::now().naive_utc().to_string();
@@ -63,27 +71,27 @@ impl StorageLogsDal<'_, '_> {
                 operation_number += 1;
             }
         }
-        copy.send(buffer.as_bytes()).await?;
-        copy.finish().await?;
-        Ok(())
+        copy.send(buffer.as_bytes()).await
     }
 
     pub async fn insert_storage_logs_from_snapshot(
         &mut self,
         miniblock_number: MiniblockNumber,
         snapshot_storage_logs: &[SnapshotStorageLog],
-    ) -> sqlx::Result<()> {
-        let mut copy = self
-            .storage
-            .conn()
-            .copy_in_raw(
-                "COPY storage_logs(
-                    hashed_key, address, key, value, operation_number, tx_hash, miniblock_number,
-                    created_at, updated_at
-                )
-                FROM STDIN WITH (DELIMITER '|')",
+    ) -> DalResult<()> {
+        let storage_logs_len = snapshot_storage_logs.len();
+        let copy = CopyStatement::new(
+            "COPY storage_logs(
+                hashed_key, address, key, value, operation_number, tx_hash, miniblock_number,
+                created_at, updated_at
             )
-            .await?;
+            FROM STDIN WITH (DELIMITER '|')",
+        )
+        .instrument("insert_storage_logs_from_snapshot")
+        .with_arg("miniblock_number", &miniblock_number)
+        .with_arg("storage_logs.len", &storage_logs_len)
+        .start(self.storage)
+        .await?;
 
         let mut buffer = String::new();
         let now = Utc::now().naive_utc().to_string();
@@ -103,16 +111,14 @@ impl StorageLogsDal<'_, '_> {
                 H256::zero()
             );
         }
-        copy.send(buffer.as_bytes()).await?;
-        copy.finish().await?;
-        Ok(())
+        copy.send(buffer.as_bytes()).await
     }
 
     pub async fn append_storage_logs(
         &mut self,
         block_number: MiniblockNumber,
         logs: &[(H256, Vec<StorageLog>)],
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         let operation_number = sqlx::query!(
             r#"
             SELECT
@@ -124,7 +130,9 @@ impl StorageLogsDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .fetch_one(self.storage.conn())
+        .instrument("append_storage_logs#get_operation_number")
+        .with_arg("block_number", &block_number)
+        .fetch_one(self.storage)
         .await?
         .max
         .map(|max| max as u32 + 1)
@@ -139,7 +147,7 @@ impl StorageLogsDal<'_, '_> {
     pub async fn rollback_storage(
         &mut self,
         last_miniblock_to_keep: MiniblockNumber,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         let stage_start = Instant::now();
         let modified_keys = self
             .modified_keys_in_miniblocks(last_miniblock_to_keep.next()..=MiniblockNumber(u32::MAX))
@@ -187,7 +195,8 @@ impl StorageLogsDal<'_, '_> {
             "#,
             &keys_to_delete as &[&[u8]],
         )
-        .execute(self.storage.conn())
+        .instrument("rollback_storage#delete_storage")
+        .execute(self.storage)
         .await?;
 
         tracing::info!(
@@ -210,7 +219,8 @@ impl StorageLogsDal<'_, '_> {
             &keys_to_update as &[&[u8]],
             &values_to_update as &[&[u8]],
         )
-        .execute(self.storage.conn())
+        .instrument("rollback_storage#update_storage")
+        .execute(self.storage)
         .await?;
 
         tracing::info!(
@@ -225,7 +235,7 @@ impl StorageLogsDal<'_, '_> {
     pub async fn modified_keys_in_miniblocks(
         &mut self,
         miniblock_numbers: ops::RangeInclusive<MiniblockNumber>,
-    ) -> sqlx::Result<Vec<H256>> {
+    ) -> DalResult<Vec<H256>> {
         let rows = sqlx::query!(
             r#"
             SELECT DISTINCT
@@ -238,7 +248,9 @@ impl StorageLogsDal<'_, '_> {
             i64::from(miniblock_numbers.start().0),
             i64::from(miniblock_numbers.end().0)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("modified_keys_in_miniblocks")
+        .with_arg("miniblock_numbers", &miniblock_numbers)
+        .fetch_all(self.storage)
         .await?;
 
         Ok(rows
@@ -248,10 +260,7 @@ impl StorageLogsDal<'_, '_> {
     }
 
     /// Removes all storage logs with a miniblock number strictly greater than the specified `block_number`.
-    pub async fn rollback_storage_logs(
-        &mut self,
-        block_number: MiniblockNumber,
-    ) -> sqlx::Result<()> {
+    pub async fn rollback_storage_logs(&mut self, block_number: MiniblockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM storage_logs
@@ -260,7 +269,9 @@ impl StorageLogsDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .execute(self.storage.conn())
+        .instrument("rollback_storage_logs")
+        .with_arg("block_number", &block_number)
+        .execute(self.storage)
         .await?;
         Ok(())
     }
@@ -304,7 +315,7 @@ impl StorageLogsDal<'_, '_> {
         &mut self,
         addresses: impl Iterator<Item = Address>,
         at_miniblock: Option<MiniblockNumber>,
-    ) -> sqlx::Result<HashMap<Address, MiniblockNumber>> {
+    ) -> DalResult<HashMap<Address, MiniblockNumber>> {
         let (bytecode_hashed_keys, address_by_hashed_key): (Vec<_>, HashMap<_, _>) = addresses
             .map(|address| {
                 let hashed_key = get_code_key(&address).hashed_key().0;
@@ -333,7 +344,11 @@ impl StorageLogsDal<'_, '_> {
             &bytecode_hashed_keys as &[_],
             i64::from(max_miniblock_number)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("filter_deployed_contracts")
+        .with_arg("addresses.len", &bytecode_hashed_keys.len())
+        .with_arg("at_miniblock", &at_miniblock)
+        .report_latency()
+        .fetch_all(self.storage)
         .await?;
 
         let deployment_data = rows.into_iter().filter_map(|row| {
@@ -352,7 +367,7 @@ impl StorageLogsDal<'_, '_> {
     pub async fn get_touched_slots_for_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<HashMap<StorageKey, H256>> {
+    ) -> DalResult<HashMap<StorageKey, H256>> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -383,7 +398,9 @@ impl StorageLogsDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_touched_slots_for_l1_batch")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_all(self.storage)
         .await?;
 
         let touched_slots = rows.into_iter().map(|row| {
@@ -401,7 +418,7 @@ impl StorageLogsDal<'_, '_> {
     pub async fn get_storage_logs_for_revert(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<HashMap<H256, Option<(H256, u64)>>> {
+    ) -> DalResult<HashMap<H256, Option<(H256, u64)>>> {
         let miniblock_range = self
             .storage
             .blocks_dal()
@@ -485,7 +502,7 @@ impl StorageLogsDal<'_, '_> {
     pub async fn get_l1_batches_and_indices_for_initial_writes(
         &mut self,
         hashed_keys: &[H256],
-    ) -> sqlx::Result<HashMap<H256, (L1BatchNumber, u64)>> {
+    ) -> DalResult<HashMap<H256, (L1BatchNumber, u64)>> {
         if hashed_keys.is_empty() {
             return Ok(HashMap::new()); // Shortcut to save time on communication with DB in the common case
         }
@@ -505,6 +522,7 @@ impl StorageLogsDal<'_, '_> {
             &hashed_keys as &[&[u8]],
         )
         .instrument("get_l1_batches_and_indices_for_initial_writes")
+        .with_arg("hashed_keys.len", &hashed_keys.len())
         .report_latency()
         .fetch_all(self.storage)
         .await?;
@@ -534,7 +552,7 @@ impl StorageLogsDal<'_, '_> {
         &mut self,
         hashed_keys: &[H256],
         next_l1_batch: L1BatchNumber,
-    ) -> sqlx::Result<HashMap<H256, Option<H256>>> {
+    ) -> DalResult<HashMap<H256, Option<H256>>> {
         let (miniblock_number, _) = self
             .storage
             .blocks_dal()
@@ -555,7 +573,7 @@ impl StorageLogsDal<'_, '_> {
         &mut self,
         hashed_keys: &[H256],
         miniblock_number: MiniblockNumber,
-    ) -> sqlx::Result<HashMap<H256, Option<H256>>> {
+    ) -> DalResult<HashMap<H256, Option<H256>>> {
         let hashed_keys: Vec<_> = hashed_keys.iter().map(H256::as_bytes).collect();
 
         let rows = sqlx::query!(
@@ -582,7 +600,10 @@ impl StorageLogsDal<'_, '_> {
             &hashed_keys as &[&[u8]],
             i64::from(miniblock_number.0)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_storage_values")
+        .with_arg("miniblock_number", &miniblock_number)
+        .with_arg("hashed_keys.len", &hashed_keys.len())
+        .fetch_all(self.storage)
         .await?;
 
         Ok(rows
@@ -634,7 +655,7 @@ impl StorageLogsDal<'_, '_> {
     pub async fn get_storage_logs_row_count(
         &mut self,
         at_miniblock: MiniblockNumber,
-    ) -> sqlx::Result<u64> {
+    ) -> DalResult<u64> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -661,7 +682,7 @@ impl StorageLogsDal<'_, '_> {
         &mut self,
         miniblock_number: MiniblockNumber,
         key_ranges: &[ops::RangeInclusive<H256>],
-    ) -> sqlx::Result<Vec<Option<StorageRecoveryLogEntry>>> {
+    ) -> DalResult<Vec<Option<StorageRecoveryLogEntry>>> {
         let (start_keys, end_keys): (Vec<_>, Vec<_>) = key_ranges
             .iter()
             .map(|range| (range.start().as_bytes(), range.end().as_bytes()))
@@ -700,7 +721,10 @@ impl StorageLogsDal<'_, '_> {
             &start_keys as &[&[u8]],
             &end_keys as &[&[u8]],
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_chunk_starts_for_miniblock")
+        .with_arg("miniblock_number", &miniblock_number)
+        .with_arg("key_ranges.len", &key_ranges.len())
+        .fetch_all(self.storage)
         .await?;
 
         let rows = rows.into_iter().map(|row| {
@@ -719,7 +743,7 @@ impl StorageLogsDal<'_, '_> {
         &mut self,
         miniblock_number: MiniblockNumber,
         key_range: ops::RangeInclusive<H256>,
-    ) -> sqlx::Result<Vec<StorageRecoveryLogEntry>> {
+    ) -> DalResult<Vec<StorageRecoveryLogEntry>> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -740,7 +764,10 @@ impl StorageLogsDal<'_, '_> {
             key_range.start().as_bytes(),
             key_range.end().as_bytes()
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_tree_entries_for_miniblock")
+        .with_arg("miniblock_number", &miniblock_number)
+        .with_arg("key_range", &key_range)
+        .fetch_all(self.storage)
         .await?;
 
         let rows = rows.into_iter().map(|row| StorageRecoveryLogEntry {
@@ -758,9 +785,9 @@ mod tests {
     use zksync_types::{block::L1BatchHeader, ProtocolVersion, ProtocolVersionId};
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool};
+    use crate::{tests::create_miniblock_header, ConnectionPool, Core};
 
-    async fn insert_miniblock(conn: &mut StorageProcessor<'_>, number: u32, logs: Vec<StorageLog>) {
+    async fn insert_miniblock(conn: &mut Connection<'_, Core>, number: u32, logs: Vec<StorageLog>) {
         let header = L1BatchHeader::new(
             L1BatchNumber(number),
             0,
@@ -791,8 +818,8 @@ mod tests {
 
     #[tokio::test]
     async fn inserting_storage_logs() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -836,7 +863,7 @@ mod tests {
     }
 
     async fn test_rollback(
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut Connection<'_, Core>,
         key: StorageKey,
         second_key: StorageKey,
     ) {
@@ -914,8 +941,8 @@ mod tests {
 
     #[tokio::test]
     async fn getting_storage_logs_for_revert() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -964,8 +991,8 @@ mod tests {
 
     #[tokio::test]
     async fn reverting_keys_without_initial_write() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -1032,8 +1059,8 @@ mod tests {
 
     #[tokio::test]
     async fn getting_starting_entries_in_chunks() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         let sorted_hashed_keys = prepare_tree_entries(&mut conn, 100).await;
 
         let key_ranges = [
@@ -1065,7 +1092,7 @@ mod tests {
         }
     }
 
-    async fn prepare_tree_entries(conn: &mut StorageProcessor<'_>, count: u8) -> Vec<H256> {
+    async fn prepare_tree_entries(conn: &mut Connection<'_, Core>, count: u8) -> Vec<H256> {
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -1093,8 +1120,8 @@ mod tests {
 
     #[tokio::test]
     async fn getting_tree_entries() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         let sorted_hashed_keys = prepare_tree_entries(&mut conn, 10).await;
 
         let key_range = H256::zero()..=H256::repeat_byte(0xff);
@@ -1135,8 +1162,8 @@ mod tests {
             FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH,
         );
 
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         // If deployment fails then two writes are issued, one that writes `bytecode_hash` to the "correct" value,
         // and the next write reverts its value back to `FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH`.
         conn.storage_logs_dal()

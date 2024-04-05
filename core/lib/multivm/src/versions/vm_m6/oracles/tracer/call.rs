@@ -108,7 +108,7 @@ impl<H: HistoryMode> CallTracer<H> {
             .inner
             .last()
             .map(|call| call.ergs_remaining + current.ergs_remaining)
-            .unwrap_or(current.ergs_remaining);
+            .unwrap_or(current.ergs_remaining) as u64;
         current_call.parent_gas = parent_gas;
     }
 
@@ -176,7 +176,7 @@ impl<H: HistoryMode> CallTracer<H> {
         current_call.from = current.msg_sender;
         current_call.to = current.this_address;
         current_call.value = U256::from(current.context_u128_value);
-        current_call.gas = current.ergs_remaining;
+        current_call.gas = current.ergs_remaining as u64;
     }
 
     fn save_output(
@@ -239,7 +239,7 @@ impl<H: HistoryMode> CallTracer<H> {
         // It's safe to unwrap here because we are sure that we have at least one call in the stack
         let mut current_call = self.stack.pop().unwrap();
         current_call.gas_used =
-            current_call.parent_gas - state.vm_local_state.callstack.current.ergs_remaining;
+            current_call.parent_gas - state.vm_local_state.callstack.current.ergs_remaining as u64;
 
         if current_call.r#type != CallType::NearCall {
             self.save_output(state, memory, ret_opcode, &mut current_call);

@@ -8,18 +8,24 @@ use zksync_system_constants::{MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS};
 use crate::vm_latest::old_vm::utils::heap_page_from_base;
 
 /// The amount of ergs to be reserved at the end of the batch to ensure that it has enough ergs to verify compression, etc.
+// TODO(EVM-513): remove allowing the dead code
+#[allow(dead_code)]
 pub(crate) const BOOTLOADER_BATCH_TIP_OVERHEAD: u32 = 170_000_000;
 
+// TODO(EVM-513): remove allowing the dead code
 #[allow(dead_code)]
-pub(crate) const BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD: u64 = 5000;
+pub(crate) const BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD: u32 = 5000;
+// TODO(EVM-513): remove allowing the dead code
 #[allow(dead_code)]
-pub(crate) const BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD: u64 = 1500;
+pub(crate) const BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD: u32 = 1500;
 
 /// The size of the bootloader memory in bytes which is used by the protocol.
 /// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce
 /// the requirements on RAM.
 /// In this version of the VM the used bootloader memory bytes has increased from `24_000_000` to `30_000_000`.
 pub(crate) const USED_BOOTLOADER_MEMORY_BYTES: usize = 30_000_000;
+// TODO(EVM-513): remove allowing the dead code
+#[allow(dead_code)]
 pub(crate) const USED_BOOTLOADER_MEMORY_WORDS: usize = USED_BOOTLOADER_MEMORY_BYTES / 32;
 
 // This the number of pubdata such that it should be always possible to publish
@@ -98,6 +104,8 @@ pub(crate) const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
     OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS;
 
 /// The size of the bootloader memory dedicated to the encodings of transactions
+// TODO(EVM-513): remove allowing the dead code
+#[allow(dead_code)]
 pub(crate) const BOOTLOADER_TX_ENCODING_SPACE: u32 =
     (USED_BOOTLOADER_MEMORY_WORDS - TX_DESCRIPTION_OFFSET - MAX_TXS_IN_BATCH) as u32;
 
@@ -131,8 +139,14 @@ pub const RESULT_SUCCESS_FIRST_SLOT: u32 =
 /// How many gas bootloader is allowed to spend within one block.
 /// Note that this value doesn't correspond to the gas limit of any particular transaction
 /// (except for the fact that, of course, gas limit for each transaction should be <= `BLOCK_GAS_LIMIT`).
-pub const BLOCK_GAS_LIMIT: u32 =
+pub const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 =
     zk_evm_1_4_1::zkevm_opcode_defs::system_params::VM_INITIAL_FRAME_ERGS;
+
+/// The maximal number of gas that is supposed to be spent in a batch. This value is displayed in the system context as well
+/// as the API for each batch.
+/// Using any number that fits into `i64` is fine with regard to any popular eth node implementation, but we also desire to use
+/// values that fit into safe JS numbers just in case for compatibility.
+pub const BATCH_GAS_LIMIT: u64 = 1 << 50;
 
 /// How many gas is allowed to spend on a single transaction in eth_call method
 pub const ETH_CALL_GAS_LIMIT: u32 = MAX_L2_TX_GAS_LIMIT as u32;

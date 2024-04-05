@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use zksync_dal::fri_proof_compressor_dal::ProofCompressionJobStatus;
+use prover_dal::{fri_proof_compressor_dal::ProofCompressionJobStatus, ProverDal};
 use zksync_prover_interface::api::{SubmitProofRequest, SubmitProofResponse};
 use zksync_types::L1BatchNumber;
 
@@ -9,7 +9,7 @@ impl PeriodicApiStruct {
     async fn next_submit_proof_request(&self) -> Option<(L1BatchNumber, SubmitProofRequest)> {
         let (l1_batch_number, status) = self
             .pool
-            .access_storage()
+            .connection()
             .await
             .unwrap()
             .fri_proof_compressor_dal()
@@ -37,7 +37,7 @@ impl PeriodicApiStruct {
 
     async fn save_successful_sent_proof(&self, l1_batch_number: L1BatchNumber) {
         self.pool
-            .access_storage()
+            .connection()
             .await
             .unwrap()
             .fri_proof_compressor_dal()

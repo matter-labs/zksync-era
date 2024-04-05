@@ -1,7 +1,8 @@
 use tokio::sync::mpsc;
-use zksync_types::{Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId};
+use zksync_types::{L1BatchNumber, MiniblockNumber};
 
 use super::{fetcher::FetchedTransaction, metrics::QUEUE_METRICS};
+use crate::state_keeper::io::{L1BatchParams, MiniblockParams};
 
 #[derive(Debug)]
 pub struct ActionQueueSender(mpsc::Sender<SyncAction>);
@@ -47,7 +48,7 @@ impl ActionQueueSender {
                         return Err(format!("Unexpected Tx: {:?}", actions));
                     }
                 }
-                SyncAction::SealMiniblock | SyncAction::SealBatch { .. } => {
+                SyncAction::SealMiniblock | SyncAction::SealBatch => {
                     if !opened || miniblock_sealed {
                         return Err(format!("Unexpected SealMiniblock/SealBatch: {:?}", actions));
                     }
@@ -110,20 +111,15 @@ impl ActionQueue {
 #[derive(Debug, Clone)]
 pub(crate) enum SyncAction {
     OpenBatch {
+        params: L1BatchParams,
+        // Additional parameters used only for sanity checks
         number: L1BatchNumber,
-        timestamp: u64,
-        l1_gas_price: u64,
-        l2_fair_gas_price: u64,
-        fair_pubdata_price: Option<u64>,
-        operator_address: Address,
-        protocol_version: ProtocolVersionId,
-        // Miniblock number and virtual blocks count.
-        first_miniblock_info: (MiniblockNumber, u32),
+        first_miniblock_number: MiniblockNumber,
     },
     Miniblock {
+        params: MiniblockParams,
+        // Additional parameters used only for sanity checks
         number: MiniblockNumber,
-        timestamp: u64,
-        virtual_blocks: u32,
     },
     Tx(Box<FetchedTransaction>),
     /// We need an explicit action for the miniblock sealing, since we fetch the whole miniblocks and already know
@@ -132,10 +128,7 @@ pub(crate) enum SyncAction {
     /// the next one is sealed on the main node.
     SealMiniblock,
     /// Similarly to `SealMiniblock` we must be able to seal the batch even if there is no next miniblock yet.
-    SealBatch {
-        /// Virtual blocks count for the fictive miniblock.
-        virtual_blocks: u32,
-    },
+    SealBatch,
 }
 
 impl From<FetchedTransaction> for SyncAction {
@@ -146,28 +139,34 @@ impl From<FetchedTransaction> for SyncAction {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{l2::L2Tx, H256};
+    use zksync_types::{fee_model::BatchFeeInput, l2::L2Tx, Address, ProtocolVersionId, H256};
 
     use super::*;
 
     fn open_batch() -> SyncAction {
         SyncAction::OpenBatch {
-            number: 1.into(),
-            timestamp: 1,
-            l1_gas_price: 1,
-            l2_fair_gas_price: 1,
-            fair_pubdata_price: Some(1),
-            operator_address: Default::default(),
-            protocol_version: ProtocolVersionId::latest(),
-            first_miniblock_info: (1.into(), 1),
+            params: L1BatchParams {
+                protocol_version: ProtocolVersionId::latest(),
+                validation_computational_gas_limit: u32::MAX,
+                operator_address: Address::default(),
+                fee_input: BatchFeeInput::default(),
+                first_miniblock: MiniblockParams {
+                    timestamp: 1,
+                    virtual_blocks: 1,
+                },
+            },
+            number: L1BatchNumber(1),
+            first_miniblock_number: MiniblockNumber(1),
         }
     }
 
     fn miniblock() -> SyncAction {
         SyncAction::Miniblock {
+            params: MiniblockParams {
+                timestamp: 1,
+                virtual_blocks: 1,
+            },
             number: 1.into(),
-            timestamp: 1,
-            virtual_blocks: 1,
         }
     }
 
@@ -192,7 +191,7 @@ mod tests {
     }
 
     fn seal_batch() -> SyncAction {
-        SyncAction::SealBatch { virtual_blocks: 1 }
+        SyncAction::SealBatch
     }
 
     #[test]

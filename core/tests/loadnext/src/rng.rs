@@ -1,10 +1,9 @@
 use std::convert::TryInto;
 
 use rand::{rngs::SmallRng, seq::SliceRandom, thread_rng, RngCore, SeedableRng};
-use zksync::web3::signing::keccak256;
 use zksync_types::H256;
 
-use crate::all::AllWeighted;
+use crate::{all::AllWeighted, sdk::web3::signing::keccak256};
 
 // SmallRng seed type is [u8; 32].
 const SEED_SIZE: usize = 32;

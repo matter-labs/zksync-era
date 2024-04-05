@@ -5,12 +5,12 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use tokio::sync::Semaphore;
 use zksync_config::SnapshotsCreatorConfig;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalResult};
 use zksync_object_store::ObjectStore;
 use zksync_types::{
     snapshots::{
         uniform_hashed_keys_chunk, SnapshotFactoryDependencies, SnapshotFactoryDependency,
-        SnapshotMetadata, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
+        SnapshotMetadata, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey, SnapshotVersion,
     },
     L1BatchNumber, MiniblockNumber,
 };
@@ -60,16 +60,16 @@ impl SnapshotProgress {
 #[derive(Debug)]
 pub(crate) struct SnapshotCreator {
     pub blob_store: Arc<dyn ObjectStore>,
-    pub master_pool: ConnectionPool,
-    pub replica_pool: ConnectionPool,
+    pub master_pool: ConnectionPool<Core>,
+    pub replica_pool: ConnectionPool<Core>,
     #[cfg(test)]
     pub event_listener: Box<dyn HandleEvent>,
 }
 
 impl SnapshotCreator {
-    async fn connect_to_replica(&self) -> anyhow::Result<StorageProcessor<'_>> {
+    async fn connect_to_replica(&self) -> DalResult<Connection<'_, Core>> {
         self.replica_pool
-            .access_storage_tagged("snapshots_creator")
+            .connection_tagged("snapshots_creator")
             .await
     }
 
@@ -124,7 +124,7 @@ impl SnapshotCreator {
 
         let mut master_conn = self
             .master_pool
-            .access_storage_tagged("snapshots_creator")
+            .connection_tagged("snapshots_creator")
             .await?;
         master_conn
             .snapshots_dal()
@@ -192,9 +192,9 @@ impl SnapshotCreator {
         config: &SnapshotsCreatorConfig,
         min_chunk_count: u64,
         latest_snapshot: Option<&SnapshotMetadata>,
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut Connection<'_, Core>,
     ) -> anyhow::Result<Option<SnapshotProgress>> {
-        // We subtract 1 so that after restore, EN node has at least one L1 batch to fetch
+        // We subtract 1 so that after restore, EN node has at least one L1 batch to fetch.
         let sealed_l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await?;
         let sealed_l1_batch_number = sealed_l1_batch_number.context("No L1 batches in Postgres")?;
         anyhow::ensure!(
@@ -202,6 +202,18 @@ impl SnapshotCreator {
             "Cannot create snapshot when only the genesis L1 batch is present in Postgres"
         );
         let l1_batch_number = sealed_l1_batch_number - 1;
+
+        // Sanity check: the selected L1 batch should have Merkle tree data; otherwise, it could be impossible
+        // to recover from the generated snapshot.
+        conn.blocks_dal()
+            .get_l1_batch_tree_data(l1_batch_number)
+            .await?
+            .with_context(|| {
+                format!(
+                    "Snapshot L1 batch #{l1_batch_number} doesn't have tree data, meaning recovery from the snapshot \
+                     could be impossible. This should never happen"
+                )
+            })?;
 
         let latest_snapshot_l1_batch_number =
             latest_snapshot.map(|snapshot| snapshot.l1_batch_number);
@@ -237,7 +249,7 @@ impl SnapshotCreator {
     ) -> anyhow::Result<Option<SnapshotProgress>> {
         let mut master_conn = self
             .master_pool
-            .access_storage_tagged("snapshots_creator")
+            .connection_tagged("snapshots_creator")
             .await?;
         let latest_snapshot = master_conn
             .snapshots_dal()
@@ -302,11 +314,12 @@ impl SnapshotCreator {
 
             let mut master_conn = self
                 .master_pool
-                .access_storage_tagged("snapshots_creator")
+                .connection_tagged("snapshots_creator")
                 .await?;
             master_conn
                 .snapshots_dal()
                 .add_snapshot(
+                    SnapshotVersion::Version0,
                     progress.l1_batch_number,
                     progress.chunk_count,
                     &factory_deps_output_file,

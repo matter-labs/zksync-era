@@ -2,42 +2,32 @@ syntax = "proto3";
 
 package zksync.config.contracts;
 
-enum ProverAtGenesis {
-  FRI = 0;
-  OLD = 1;
+message L1 {
+  optional string governance_addr = 1; // required; H160
+  optional string verifier_addr = 2; // required; H160
+  optional string diamond_proxy_addr = 3; // required; H160
+  optional string validator_timelock_addr = 4; // required; H160
+  optional string default_upgrade_addr = 5; // required; H160
+  optional string multicall3_addr = 6; // required; H160
+}
+
+message L2 {
+  optional string testnet_paymaster_addr = 1; // optional; H160
+}
+
+message Bridge {
+  optional string l1_address = 1;
+  optional string l2_address = 2;
+}
+
+message Bridges {
+  optional Bridge shared = 1; 
+  optional Bridge erc20 = 2;
+  optional Bridge weth = 3;
 }
 
 message Contracts {
-    optional bytes governance_addr = 1; // required; H160
-    optional bytes mailbox_facet_addr = 2; // required; H160
-    optional bytes executor_facet_addr = 3; // required; H160
-    optional bytes admin_facet_addr = 4; // required; H160
-    optional bytes getters_facet_addr = 5; // required; H160
-    optional bytes verifier_addr = 6; // required; H160
-    optional bytes diamond_init_addr = 7; // required; H160
-    optional bytes diamond_upgrade_init_addr = 8; // required; H160
-    optional bytes diamond_proxy_addr = 9; // required; H160
-    optional bytes validator_timelock_addr = 10; // required; H160
-    optional bytes genesis_tx_hash = 11; // required; H256
-    optional bytes l1_erc20_bridge_proxy_addr = 12; // required; H160
-    optional bytes l1_erc20_bridge_impl_addr = 13; // required; H160
-    optional bytes l2_shared_bridge_addr = 14; // required; H160
-    optional bytes l1_shared_bridge_proxy_addr = 15; // optional; H160
-    optional bytes l1_allow_list_addr = 17; // required; H160
-    optional bytes l2_testnet_paymaster_addr = 18; // optional; H160
-    optional bytes recursion_scheduler_level_vk_hash = 19; // required; H256
-    optional bytes recursion_node_level_vk_hash = 20; // required; H256
-    optional bytes recursion_leaf_level_vk_hash = 21; // required; H256
-    optional bytes recursion_circuits_set_vks_hash = 22; // required; H256
-    optional bytes l1_multicall3_addr = 23; // required; H160
-    optional bytes fri_recursion_scheduler_level_vk_hash = 24; // required; H256
-    optional bytes fri_recursion_node_level_vk_hash = 25; // required; H256
-    optional bytes fri_recursion_leaf_level_vk_hash = 26; // required; H256
-    optional ProverAtGenesis prover_at_genesis = 27; // required
-    optional bytes snark_wrapper_vk_hash = 28; // required; H256
-    optional bytes bridgehub_proxy_addr = 29; // optional; H160
-    optional bytes bridgehub_impl_addr = 30; // optional; H160
-    optional bytes state_transition_proxy_addr = 31; // optional; H160
-    optional bytes state_transition_impl_addr = 32; // optional; H160
-    optional bytes transparent_proxy_admin_addr = 33; // optional; H160
+  optional L1 l1 = 1;
+  optional L2 l2 = 2;
+  optional Bridges bridges = 3;
 }

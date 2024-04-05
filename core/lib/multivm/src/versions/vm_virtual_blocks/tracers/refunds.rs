@@ -71,8 +71,8 @@ impl RefundsTracer {
     }
     pub(crate) fn get_refunds(&self) -> Refunds {
         Refunds {
-            gas_refunded: self.refund_gas,
-            operator_suggested_refund: self.operator_refund.unwrap_or_default(),
+            gas_refunded: self.refund_gas as u64,
+            operator_suggested_refund: self.operator_refund.unwrap_or_default() as u64,
         }
     }
 
@@ -396,8 +396,8 @@ fn pubdata_published_for_writes<S: WriteStorage, H: HistoryMode>(
 impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer {
     fn save_results(&mut self, result: &mut VmExecutionResultAndLogs) {
         result.refunds = Refunds {
-            gas_refunded: self.refund_gas,
-            operator_suggested_refund: self.operator_refund.unwrap_or_default(),
+            gas_refunded: self.refund_gas as u64,
+            operator_suggested_refund: self.operator_refund.unwrap_or_default() as u64,
         };
         result.statistics.pubdata_published = self.pubdata_published;
     }

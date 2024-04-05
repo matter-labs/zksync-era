@@ -3,22 +3,26 @@ use std::time::Duration;
 use serde::Deserialize;
 use zksync_basic_types::H256;
 
-/// Configuration for the Ethereum sender crate.
+use crate::ETHWatchConfig;
+
+/// Configuration for the Ethereum related components.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct ETHSenderConfig {
+pub struct ETHConfig {
     /// Options related to the Ethereum sender directly.
-    pub sender: SenderConfig,
+    pub sender: Option<SenderConfig>,
     /// Options related to the `GasAdjuster` submodule.
-    pub gas_adjuster: GasAdjusterConfig,
+    pub gas_adjuster: Option<GasAdjusterConfig>,
+    pub watcher: Option<ETHWatchConfig>,
+    pub web3_url: String,
 }
 
-impl ETHSenderConfig {
+impl ETHConfig {
     /// Creates a mock configuration object suitable for unit tests.
     /// Values inside match the config used for localhost development.
     pub fn for_tests() -> Self {
         Self {
-            sender: SenderConfig {
-                aggregated_proof_sizes: vec![1, 4],
+            sender: Some(SenderConfig {
+                aggregated_proof_sizes: vec![1],
                 wait_confirmations: Some(1),
                 tx_poll_period: 1,
                 aggregate_tx_poll_period: 1,
@@ -36,8 +40,8 @@ impl ETHSenderConfig {
                 max_acceptable_priority_fee_in_gwei: 100000000000,
                 proof_loading_mode: ProofLoadingMode::OldProofFromDb,
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
-            },
-            gas_adjuster: GasAdjusterConfig {
+            }),
+            gas_adjuster: Some(GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
                 max_base_fee_samples: 10000,
                 pricing_formula_parameter_a: 1.5,
@@ -49,7 +53,12 @@ impl ETHSenderConfig {
                 num_samples_for_blob_base_fee_estimate: 10,
                 internal_pubdata_pricing_multiplier: 1.0,
                 max_blob_base_fee: None,
-            },
+            }),
+            watcher: Some(ETHWatchConfig {
+                confirmations_for_eth_event: None,
+                eth_node_poll_interval: 0,
+            }),
+            web3_url: "localhost:8545".to_string(),
         }
     }
 }
@@ -124,6 +133,7 @@ impl SenderConfig {
     }
 
     // Don't load private key, if it's not required.
+    #[deprecated]
     pub fn private_key(&self) -> Option<H256> {
         std::env::var("ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY")
             .ok()
@@ -131,6 +141,7 @@ impl SenderConfig {
     }
 
     // Don't load blobs private key, if it's not required
+    #[deprecated]
     pub fn private_key_blobs(&self) -> Option<H256> {
         std::env::var("ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY")
             .ok()
