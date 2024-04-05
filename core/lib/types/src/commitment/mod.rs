@@ -434,17 +434,9 @@ impl L1BatchAuxiliaryOutput {
                 );
                 result.extend(aux_commitments.events_queue_commitment.as_bytes());
 
-                if common.protocol_version.is_1_4_1() {
-                    // We are using zeroes as commitments to the KZG pubdata as per convention.
-                    result.extend(H256::zero().as_bytes());
-                    result.extend(H256::zero().as_bytes());
-                    result.extend(H256::zero().as_bytes());
-                    result.extend(H256::zero().as_bytes());
-                } else if common.protocol_version.is_post_1_4_2() {
-                    for i in 0..blob_commitments.len() {
-                        result.extend(blob_linear_hashes[i].as_bytes());
-                        result.extend(blob_commitments[i].as_bytes());
-                    }
+                for i in 0..blob_commitments.len() {
+                    result.extend(blob_linear_hashes[i].as_bytes());
+                    result.extend(blob_commitments[i].as_bytes());
                 }
             }
         }
