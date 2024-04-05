@@ -69,6 +69,7 @@ mod tests {
                 pricing_formula_parameter_b: 1.0005,
                 internal_l1_pricing_multiplier: 0.8,
                 internal_enforced_l1_gas_price: None,
+                internal_enforced_pubdata_price: None,
                 poll_period: 15,
                 max_l1_gas_price: Some(100000000),
                 num_samples_for_blob_base_fee_estimate: 10,
