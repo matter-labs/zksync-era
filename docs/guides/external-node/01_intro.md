@@ -19,7 +19,7 @@ as the main node did in the past.
 
 - recovery from a DB dump, in Ethereum terms this corresponds to archival node
 - recovery from a snapshot, in Ethereum terms this corresponds to light node, such nodes will only have access to
-  transactions data from after the node was initialized
+  transactions data from after the node was initialized. The database is currently not pruned on such nodes.
 
 ## High-level overview
 
