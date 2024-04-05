@@ -2,8 +2,8 @@ syntax = "proto3";
 
 package zksync.core;
 
-import "zksync/core/config/consensus.proto";
+import "zksync/core/consensus.proto";
 
 message Secrets {
-  optional config.consensus.Secrets consensus = 1; // optional
+  optional consensus.Secrets consensus = 1; // optional
 }
