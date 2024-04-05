@@ -63,7 +63,7 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
             Opcode::Log(LogOpcode::TransientStorageRead) => {
                 self.statistics.ram_permutation_cycles += TRANSIENT_STORAGE_READ_RAM_CYCLES;
                 self.statistics.log_demuxer_cycles += TRANSIENT_STORAGE_READ_LOG_DEMUXER_CYCLES;
-                self.statistics.storage_sorter_cycles +=
+                self.statistics.transient_storage_checker_cycles +=
                     TRANSIENT_STORAGE_READ_TRANSIENT_STORAGE_CHECKER_CYCLES;
             }
             Opcode::Log(LogOpcode::StorageWrite) => {
@@ -74,7 +74,7 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
             Opcode::Log(LogOpcode::TransientStorageWrite) => {
                 self.statistics.ram_permutation_cycles += TRANSIENT_STORAGE_WRITE_RAM_CYCLES;
                 self.statistics.log_demuxer_cycles += TRANSIENT_STORAGE_WRITE_LOG_DEMUXER_CYCLES;
-                self.statistics.storage_sorter_cycles +=
+                self.statistics.transient_storage_checker_cycles +=
                     TRANSIENT_STORAGE_WRITE_TRANSIENT_STORAGE_CHECKER_CYCLES;
             }
             Opcode::Log(LogOpcode::ToL1Message) | Opcode::Log(LogOpcode::Event) => {
