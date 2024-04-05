@@ -40,6 +40,21 @@ where
     }
 }
 
+pub(super) fn mock_config(db_path: &Path) -> MetadataCalculatorConfig {
+    MetadataCalculatorConfig {
+        db_path: db_path.to_str().unwrap().to_owned(),
+        max_open_files: None,
+        mode: MerkleTreeMode::Full,
+        delay_interval: Duration::from_millis(100),
+        max_l1_batches_per_iter: 10,
+        multi_get_chunk_size: 500,
+        block_cache_capacity: 0,
+        include_indices_and_filters_in_block_cache: false,
+        memtable_capacity: 16 << 20,            // 16 MiB
+        stalled_writes_timeout: Duration::ZERO, // writes should never be stalled in tests
+    }
+}
+
 #[tokio::test]
 async fn genesis_creation() {
     let pool = ConnectionPool::<Core>::test_pool().await;
