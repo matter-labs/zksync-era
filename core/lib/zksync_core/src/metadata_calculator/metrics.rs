@@ -7,11 +7,11 @@ use vise::{
     LatencyObserver, Metrics, Unit,
 };
 use zksync_config::configs::database::MerkleTreeMode;
+use zksync_shared_metrics::{BlockStage, APP_METRICS};
 use zksync_types::block::L1BatchHeader;
 use zksync_utils::time::seconds_since_epoch;
 
 use super::{MetadataCalculator, MetadataCalculatorConfig};
-use crate::metrics::{BlockStage, APP_METRICS};
 
 #[derive(Debug, EncodeLabelValue)]
 #[metrics(rename_all = "snake_case")]

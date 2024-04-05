@@ -21,6 +21,7 @@ leb128.workspace = true
 once_cell.workspace = true
 rayon.workspace = true
 thiserror.workspace = true
+thread_local.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]

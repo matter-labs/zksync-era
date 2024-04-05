@@ -3,7 +3,7 @@ use std::convert::TryFrom;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{web3::types::Log, ProtocolUpgrade, ProtocolVersionId, H256};
 
-use crate::eth_watch::{
+use crate::{
     client::{Error, EthClient},
     event_processors::EventProcessor,
     metrics::{PollStage, METRICS},

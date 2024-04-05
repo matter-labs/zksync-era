@@ -7812,6 +7812,7 @@ dependencies = [
  "num_cpus",
  "once_cell",
  "rocksdb",
+ "thread_local",
  "tracing",
  "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4)",
 ]
