@@ -21,13 +21,13 @@ describe('Tests for the WETH bridge/token behavior', () => {
     let bob: zksync.Wallet;
     let aliceL1Weth: WETH9;
     let aliceL2WrappedBaseToken: L2WrappedBaseToken;
-    let chainId: BigNumberish;
+    // let chainId: BigNumberish;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         bob = testMaster.newEmptyAccount();
-        chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
+        // chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
 
         const l1WethTokenAddress = testMaster.environment().wethToken.l1Address;
         aliceL1Weth = WETH9Factory.connect(l1WethTokenAddress, alice._signerL1());

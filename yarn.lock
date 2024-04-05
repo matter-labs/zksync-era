@@ -5201,9 +5201,9 @@ ecdsa-sig-formatter@1.0.11:
     safe-buffer "^5.0.1"
 
 electron-to-chromium@^1.4.668:
-  version "1.4.728"
-  resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.728.tgz#ac54d9d1b38752b920ec737a48c83dec2bf45ea1"
-  integrity sha512-Ud1v7hJJYIqehlUJGqR6PF1Ek8l80zWwxA6nGxigBsGJ9f9M2fciHyrIiNMerSHSH3p+0/Ia7jIlnDkt41h5cw==
+  version "1.4.729"
+  resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.729.tgz#8477d21e2a50993781950885b2731d92ad532c00"
+  integrity sha512-bx7+5Saea/qu14kmPTDHQxkp2UnziG3iajUQu3BxFvCOnpAJdDbMV4rSl+EqFDkkpNNVUFlR1kDfpL59xfy1HA==
 
 elliptic@6.5.4:
   version "6.5.4"
@@ -11772,13 +11772,13 @@ yocto-queue@^1.0.0:
 
 "zksync-ethers@https://github.com/kelemeno/zksync-ethers#ethers-v5-feat/bridgehub":
   version "5.1.0"
-  resolved "https://github.com/kelemeno/zksync-ethers#d5d8d59953b705100c03ef61a564c51b6db151fc"
+  resolved "https://github.com/kelemeno/zksync-ethers#a676f6feed5f4c7656e448388e86afc6d61193cc"
   dependencies:
     ethers "~5.7.0"
 
 "zksync-ethers@https://github.com/zksync-sdk/zksync-ethers#ethers-v5-feat/bridgehub":
   version "5.1.0"
-  resolved "https://github.com/zksync-sdk/zksync-ethers#491cbdb0b55df6ba918e8255cd25176359154251"
+  resolved "https://github.com/zksync-sdk/zksync-ethers#86cfc304517977e36073c59b189cddf7141940da"
   dependencies:
     ethers "~5.7.0"
 
