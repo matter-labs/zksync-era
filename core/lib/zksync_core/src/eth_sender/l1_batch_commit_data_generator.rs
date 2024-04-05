@@ -38,7 +38,9 @@ pub struct RollupModeL1BatchCommitDataGenerator;
 /// contracts operating in validium mode. It differs from [`RollupModeL1BatchCommitDataGenerator`]
 /// in that it does not include the pubdata in the produced message.
 #[derive(Debug, Clone)]
-pub struct ValidiumModeL1BatchCommitDataGenerator;
+pub struct ValidiumModeL1BatchCommitDataGenerator {
+    pub validium_da_mode: ValidiumDAMode,
+}
 
 impl L1BatchCommitDataGenerator for RollupModeL1BatchCommitDataGenerator {
     fn l1_commit_batches(
