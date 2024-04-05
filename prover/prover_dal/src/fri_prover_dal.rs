@@ -72,7 +72,6 @@ impl FriProverDal<'_, '_> {
                     FROM
                         prover_jobs_fri
                     WHERE
-                        status = 'queued'
                         AND protocol_version = ANY ($1)
                     ORDER BY
                         aggregation_round DESC,
