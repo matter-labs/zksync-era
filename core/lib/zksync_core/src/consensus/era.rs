@@ -8,9 +8,9 @@ use std::sync::Arc;
 
 use zksync_concurrency::ctx;
 use zksync_dal::{ConnectionPool, Core};
+use zksync_config::configs::consensus::{ConsensusConfig,ConsensusSecrets};
 
 use super::{
-    config::{Config, Secrets},
     fetcher::Fetcher,
     storage::Store,
 };
@@ -37,7 +37,7 @@ pub async fn run_main_node(
 /// The fetcher implementation may either be p2p or centralized.
 pub async fn run_fetcher(
     ctx: &ctx::Ctx,
-    cfg: Option<(Config, Secrets)>,
+    cfg: Option<(ConsensusConfig, ConsensusSecrets)>,
     pool: ConnectionPool<Core>,
     sync_state: SyncState,
     main_node_client: Arc<dyn MainNodeClient>,

@@ -19,8 +19,6 @@ pub(crate) mod testonly;
 #[cfg(test)]
 mod tests;
 
-pub use config::{Config, Secrets};
-
 /// Main node consensus config.
 #[derive(Debug, Clone)]
 pub struct MainNodeConfig {

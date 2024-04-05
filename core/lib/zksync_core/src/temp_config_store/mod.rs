@@ -1,6 +1,7 @@
 use anyhow::Context as _;
 use zksync_config::{
     configs::{
+        consensus::{ConsensusConfig,ConsensusSecrets},
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
         chain::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
@@ -69,7 +70,7 @@ pub struct TempConfigStore {
 
 #[derive(Debug)]
 pub struct Secrets {
-    pub consensus: Option<consensus::Secrets>,
+    pub consensus: Option<ConsensusSecrets>,
 }
 
 impl ProtoFmt for Secrets {
