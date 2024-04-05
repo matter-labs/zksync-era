@@ -61,11 +61,11 @@ export async function deployWeth(
     decimals?: string,
     args: any = []
 ): Promise<void> {
-    let destinationFile = 'localhost';
-    if (args.includes('--envFile')) {
-        destinationFile = args[args.indexOf('--envFile') + 1];
-        args.splice(args.indexOf('--envFile'), 2);
-    }
+    // let destinationFile = 'localhost';
+    // if (args.includes('--envFile')) {
+    //     destinationFile = args[args.indexOf('--envFile') + 1];
+    //     args.splice(args.indexOf('--envFile'), 2);
+    // }
     await utils.spawn(`yarn --silent --cwd contracts/l1-contracts deploy-weth '
             ${args.join(' ')} | tee deployL1.log`);
 

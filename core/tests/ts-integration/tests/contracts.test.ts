@@ -61,7 +61,7 @@ describe('Smart contract behavior checks', () => {
 
     test('Should deploy contract with create', async () => {
         const contractFactory = new zksync.ContractFactory(contracts.create.abi, contracts.create.bytecode, alice);
-        const nonce = await alice.getNonce();
+        // const nonce = await alice.getNonce();
         const contract = await contractFactory.deploy({
             // maxFeePerGas: 5000000,
             //     maxPriorityFeePerGas: 5000000,

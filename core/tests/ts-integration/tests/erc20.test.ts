@@ -18,13 +18,13 @@ describe('ERC20 contract checks', () => {
     let bob: zksync.Wallet;
     let tokenDetails: Token;
     let aliceErc20: zksync.Contract;
-    let chainId: ethers.BigNumberish;
+    // let chainId: ethers.BigNumberish;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         bob = testMaster.newEmptyAccount();
-        chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
+        // chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
 
         tokenDetails = testMaster.environment().erc20Token;
         aliceErc20 = new zksync.Contract(tokenDetails.l2Address, zksync.utils.IERC20, alice);

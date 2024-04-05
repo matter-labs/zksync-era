@@ -48,7 +48,7 @@ async function hyperchainUpgrade1() {
     ];
 
     console.log('Writing to', `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`);
-    const updatedContracts = updateContractsEnv(
+    updateContractsEnv(
         `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`,
         deployLog,
         l1EnvVars

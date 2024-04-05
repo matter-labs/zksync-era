@@ -23,7 +23,13 @@ type ReinitHyperCmdActionOptions = { baseTokenName?: string; deploymentMode: Dep
 const reinitHyperCmdAction = async ({ baseTokenName, deploymentMode }: ReinitHyperCmdActionOptions): Promise<void> => {
     // skipSetupCompletely, because we only want to compile
     // bumpChainId, because we want to reinitialize hyperchain with a new chain id
-    await initHyperCmdAction({ skipSetupCompletely: true, bumpChainId: true, runObservability: false, deploymentMode });
+    await initHyperCmdAction({
+        skipSetupCompletely: true,
+        baseTokenName: baseTokenName,
+        bumpChainId: true,
+        runObservability: false,
+        deploymentMode
+    });
 };
 
 export const reinitCommand = new Command('reinit')

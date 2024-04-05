@@ -155,7 +155,7 @@ export class TestContextOwner {
         this.reporter.startAction(`Cancelling allowances transactions`);
         // Since some tx may be pending on stage, we don't want to get stuck because of it.
         // In order to not get stuck transactions, we manually cancel all the pending txs.
-        const ethWallet = this.mainEthersWallet;
+        // const ethWallet = this.mainEthersWallet;
         const chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
 
         const bridgehub = await this.mainSyncWallet.getBridgehubContract();
