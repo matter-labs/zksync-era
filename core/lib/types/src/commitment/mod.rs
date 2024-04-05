@@ -417,7 +417,6 @@ impl L1BatchAuxiliaryOutput {
                 result.extend(repeated_writes_hash.as_bytes());
             }
             Self::PostBoojum {
-                common,
                 system_logs_linear_hash,
                 state_diffs_hash,
                 aux_commitments,
