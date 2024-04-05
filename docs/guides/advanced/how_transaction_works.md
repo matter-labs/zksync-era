@@ -80,7 +80,7 @@ The transaction can have three different results in state keeper:
   https://github.com/matter-labs/zksync-era/blob/main/core/lib/types/src/transaction_request.rs#L196
   'transaction request from bytes'
 [get_priority_op_events]:
-  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/eth_watch/client.rs
+  https://github.com/matter-labs/zksync-era/blob/main/core/node/eth_watch/src/client.rs
   'get priority op events'
 [l1_tx]: https://github.com/matter-labs/zksync-era/blob/main/core/lib/types/src/l1/mod.rs#L183 'l1 tx'
 [l2_tx]: https://github.com/matter-labs/zksync-era/blob/main/core/lib/types/src/l2/mod.rs#L140 'l2 tx'
