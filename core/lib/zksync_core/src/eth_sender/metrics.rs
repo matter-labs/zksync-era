@@ -4,13 +4,11 @@ use std::{fmt, time::Duration};
 
 use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
 use zksync_dal::{Connection, Core, CoreDal};
+use zksync_shared_metrics::{BlockL1Stage, BlockStage, APP_METRICS};
 use zksync_types::{aggregated_operations::AggregatedActionType, eth_sender::EthTx};
 use zksync_utils::time::seconds_since_epoch;
 
-use crate::{
-    eth_sender::eth_tx_manager::L1BlockNumbers,
-    metrics::{BlockL1Stage, BlockStage, APP_METRICS},
-};
+use crate::eth_sender::eth_tx_manager::L1BlockNumbers;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "kind", rename_all = "snake_case")]

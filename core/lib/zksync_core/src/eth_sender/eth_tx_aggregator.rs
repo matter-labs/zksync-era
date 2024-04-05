@@ -10,6 +10,7 @@ use zksync_l1_contract_interface::{
     multicall3::{Multicall3Call, Multicall3Result},
     Detokenize, Tokenizable, Tokenize,
 };
+use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     commitment::SerializeCommitment,
@@ -31,7 +32,6 @@ use crate::{
         Aggregator, ETHSenderError,
     },
     gas_tracker::agg_l1_batch_base_cost,
-    metrics::BlockL1Stage,
 };
 
 /// Data queried from L1 using multicall contract.
