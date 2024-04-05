@@ -493,9 +493,10 @@ describe('web3 API compatibility tests', () => {
     });
 
     test('Should test L1 transaction details', async () => {
+        // ToDo: remove when server is fixed
         const baseTokenAddress = process.env.CONTRACTS_BASE_TOKEN_ADDR!;
         const isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
-        if (testMaster.isFastMode() || !isETHBasedChain) { // ToDo: rmemove when server is fixed
+        if (testMaster.isFastMode() || !isETHBasedChain) {
             return;
         }
         let amount = 1;
@@ -702,6 +703,7 @@ describe('web3 API compatibility tests', () => {
     });
 
     test('Should check sendRawTransaction returns GasPerPubDataLimitZero with 0 gas_per_pubdata_limit', async () => {
+        const gasPrice = await alice.provider.getGasPrice();
         const chainId = (await alice.provider.getNetwork()).chainId;
         const address = zksync.Wallet.createRandom().address;
         const senderNonce = await alice.getTransactionCount();

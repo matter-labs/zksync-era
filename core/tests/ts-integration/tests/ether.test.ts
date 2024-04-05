@@ -61,7 +61,7 @@ describe('ETH token checks', () => {
         //     'alice.getBalanceL1(NATIVE TOKEN): ',
         //     await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR)
         // );
-        
+
         const depositOp = alice.deposit({
             token: ETH_ADDRESS,
             amount,
@@ -101,7 +101,8 @@ describe('ETH token checks', () => {
             });
         const l1EthBalanceAfter = await alice.getBalanceL1();
 
-        if (isETHBasedChain) { // ToDo: after server fix has to be removed
+        if (isETHBasedChain) {
+            // ToDo: after server fix has to be removed
             expect(l1EthBalanceBefore.sub(depositFee).sub(l1EthBalanceAfter)).bnToBeEq(amount);
         }
     });
@@ -247,7 +248,7 @@ describe('ETH token checks', () => {
             const maxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
             await (await alice.approveERC20(process.env.CONTRACTS_BASE_TOKEN_ADDR!, maxAmount)).wait();
         }
-        
+
         const depositFee = await alice.getFullRequiredDepositFee({
             token: ETH_ADDRESS
         });

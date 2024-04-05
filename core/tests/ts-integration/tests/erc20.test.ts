@@ -183,7 +183,7 @@ describe('ERC20 contract checks', () => {
             amount,
             approveERC20: true,
             approveBaseERC20: true,
-            l2GasLimit: 5_000_000, // Setting the limit manually to avoid estimation for L1->L2 transaction
+            l2GasLimit: 5_000_000 // Setting the limit manually to avoid estimation for L1->L2 transaction
         });
         const l1Receipt = await depositHandle.waitL1Commit();
 
