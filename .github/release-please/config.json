@@ -11,7 +11,7 @@
         "extra-files": [
           {
             "type": "generic",
-            "path": "core/bin/external_node/Cargo.toml"
+            "path": "bin/external_node/Cargo.toml"
           }
         ]
       },
