@@ -30,11 +30,9 @@ The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be ac
 > finished, the API server won't serve any requests.
 <!-- prettier-ignore-end -->
 
-<!-- prettier-ignore-start -->
 > [!NOTE]
-> If you need access to historical transaction data, please use recovery from DB dumps (see Advanced setup
-> section)
-<!-- prettier-ignore-end -->
+>
+> If you need access to historical transaction data, please use recovery from DB dumps (see Advanced setup section)
 
 ### System Requirements
 
