@@ -107,16 +107,6 @@ impl EnNamespace {
                     .api_config
                     .transparent_proxy_admin_addr
                     .context("transparent_proxy_admin_addr is not set with state_transition")?,
-                l2_shared_bridge_addr: self
-                    .state
-                    .api_config
-                    .l2_shared_bridge_addr
-                    .context("l2_shared_bridge_addr is not set with state_transition")?,
-                l1_shared_bridge_addr: self
-                    .state
-                    .api_config
-                    .l1_shared_bridge_addr
-                    .context("l1_shared_bridge_addr is not set with state_transition")?,
             })
         } else {
             None

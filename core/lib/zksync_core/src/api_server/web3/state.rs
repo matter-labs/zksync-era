@@ -93,8 +93,6 @@ pub struct InternalApiConfig {
     pub bridgehub_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Option<Address>,
-    pub l2_shared_bridge_addr: Option<Address>,
-    pub l1_shared_bridge_addr: Option<Address>,
     pub diamond_proxy_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
@@ -122,16 +120,8 @@ impl InternalApiConfig {
             bridge_addresses: api::BridgeAddresses {
                 l1_erc20_default_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
                 l2_erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
-                l1_shared_default_bridge: genesis_config
-                    .shared_bridge
-                    .as_ref()
-                    .map(|a| a.l1_shared_bridge_addr)
-                    .unwrap_or_default(),
-                l2_shared_default_bridge: genesis_config
-                    .shared_bridge
-                    .as_ref()
-                    .map(|a| a.l2_shared_bridge_addr)
-                    .unwrap_or_default(),
+                l1_shared_default_bridge: contracts_config.l1_shared_bridge_proxy_addr,
+                l2_shared_default_bridge: contracts_config.l2_shared_bridge_addr,
                 l1_weth_bridge: contracts_config.l1_weth_bridge_proxy_addr,
                 l2_weth_bridge: contracts_config.l2_weth_bridge_addr,
             },
@@ -147,14 +137,6 @@ impl InternalApiConfig {
                 .shared_bridge
                 .as_ref()
                 .map(|a| a.transparent_proxy_admin_addr),
-            l2_shared_bridge_addr: genesis_config
-                .shared_bridge
-                .as_ref()
-                .map(|a| a.l2_shared_bridge_addr),
-            l1_shared_bridge_addr: genesis_config
-                .shared_bridge
-                .as_ref()
-                .map(|a| a.l1_shared_bridge_addr),
             diamond_proxy_addr: contracts_config.diamond_proxy_addr,
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),

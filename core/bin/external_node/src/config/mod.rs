@@ -710,8 +710,6 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
             bridgehub_proxy_addr: config.remote.bridgehub_proxy_addr,
             state_transition_proxy_addr: config.remote.state_transition_proxy_addr,
             transparent_proxy_admin_addr: config.remote.transparent_proxy_admin_addr,
-            l2_shared_bridge_addr: Some(config.remote.l2_shared_bridge_addr),
-            l1_shared_bridge_addr: Some(config.remote.l1_shared_bridge_proxy_addr),
             diamond_proxy_addr: config.remote.diamond_proxy_addr,
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,

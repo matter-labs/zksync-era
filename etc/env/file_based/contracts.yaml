@@ -14,3 +14,6 @@ bridges:
   weth:
     l1_address: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"
     l2_address: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"
+  shared:
+    l1_address: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"
+    l2_address: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"

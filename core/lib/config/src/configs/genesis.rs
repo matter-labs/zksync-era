@@ -8,8 +8,6 @@ pub struct SharedBridge {
     pub bridgehub_proxy_addr: Address,
     pub state_transition_proxy_addr: Address,
     pub transparent_proxy_admin_addr: Address,
-    pub l2_shared_bridge_addr: Address,
-    pub l1_shared_bridge_addr: Address,
 }
 
 /// This config represents the genesis state of the chain.
@@ -47,8 +45,6 @@ impl GenesisConfig {
                 bridgehub_proxy_addr: Address::repeat_byte(0x14),
                 state_transition_proxy_addr: Address::repeat_byte(0x16),
                 transparent_proxy_admin_addr: Address::repeat_byte(0x16),
-                l2_shared_bridge_addr: Address::repeat_byte(0x17),
-                l1_shared_bridge_addr: Address::repeat_byte(0x18),
             }),
             recursion_node_level_vk_hash: H256::repeat_byte(0x03),
             recursion_leaf_level_vk_hash: H256::repeat_byte(0x04),
