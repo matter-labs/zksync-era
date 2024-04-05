@@ -150,7 +150,7 @@ describe('Block reverting test', function () {
     step('revert blocks', async () => {
         const executedProcess = await utils.exec(
             'cd $ZKSYNC_HOME && ' +
-                'RUST_LOG=off cargo run --bin block_reverter --release -- print-suggested-values --json'
+                'RUST_LOG=off cargo run --bin block_reverter --release -- print-suggested-values --json --operator-address 0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7'
             // ^ Switch off logs to not pollute the output JSON
         );
         const suggestedValuesOutput = executedProcess.stdout;
