@@ -117,10 +117,10 @@ impl AppHealthCheck {
             slow_time_limit: slow_time_limit.into(),
             hard_time_limit: hard_time_limit.into(),
         };
-        if METRICS.config.set(config).is_err() {
+        if METRICS.info.set(config).is_err() {
             tracing::warn!(
                 "App health redefined; previous config: {:?}",
-                METRICS.config.get()
+                METRICS.info.get()
             );
         }
 

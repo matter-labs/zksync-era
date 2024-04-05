@@ -56,7 +56,7 @@ struct L2ClientConfigLabels {
 #[metrics(prefix = "l2_client")]
 pub(super) struct L2ClientMetrics {
     /// Client configuration.
-    config: Info<L2ClientConfigLabels>,
+    info: Info<L2ClientConfigLabels>,
     /// Number of requests timed out in the rate-limiting logic.
     pub rate_limit_timeout: Family<RequestLabels, Counter>,
     /// Latency of rate-limiting logic for rate-limited requests.
@@ -76,11 +76,11 @@ impl L2ClientMetrics {
             rate_limit: rate_limit.rate_limit,
             rate_limit_window: rate_limit.rate_limit_window.into(),
         };
-        if let Err(err) = self.config.set(config_labels) {
+        if let Err(err) = self.info.set(config_labels) {
             tracing::warn!(
                 "Error setting configuration info {:?} for L2 client; already set to {:?}",
                 err.into_inner(),
-                self.config.get()
+                self.info.get()
             );
         }
     }

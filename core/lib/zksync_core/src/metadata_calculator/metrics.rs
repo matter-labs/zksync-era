@@ -128,7 +128,7 @@ const LATENCIES_PER_LOG: Buckets = Buckets::values(&[
 #[metrics(prefix = "server_metadata_calculator")]
 pub(super) struct MetadataCalculatorMetrics {
     /// Merkle tree configuration.
-    pub config: Info<ConfigLabels>,
+    pub info: Info<ConfigLabels>,
     /// Lag between the number of L1 batches processed in the Merkle tree and stored in Postgres.
     /// The lag can only be positive if Postgres was restored from a backup truncating some
     /// of the batches already processed by the tree.

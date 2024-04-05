@@ -37,9 +37,15 @@ const SMALL_LATENCIES: Buckets = Buckets::values(&[
 ]);
 
 #[derive(Debug, EncodeLabelSet)]
-pub(super) struct CacheConfig {
+pub(super) struct LruCacheConfig {
     /// Cache capacity in bytes.
     #[metrics(unit = Unit::Bytes)]
+    pub capacity: u64,
+}
+
+#[derive(Debug, EncodeLabelSet)]
+pub(super) struct SequentialCacheConfig {
+    /// Cache capacity in number of items.
     pub capacity: u64,
 }
 
@@ -48,10 +54,10 @@ pub(super) struct CacheConfig {
 pub(super) struct CacheMetrics {
     /// Configuration of LRU caches.
     #[metrics(labels = ["name"])]
-    pub lru_config: LabeledFamily<&'static str, Info<CacheConfig>>,
+    pub lru_info: LabeledFamily<&'static str, Info<LruCacheConfig>>,
     /// Configuration of sequential caches.
     #[metrics(labels = ["name"])]
-    pub sequential_config: LabeledFamily<&'static str, Info<CacheConfig>>,
+    pub sequential_info: LabeledFamily<&'static str, Info<SequentialCacheConfig>>,
 
     /// Latency of calling a cache method.
     #[metrics(buckets = SMALL_LATENCIES, labels = ["name", "method"])]

@@ -172,7 +172,7 @@ const RESPONSE_SIZE_BUCKETS: Buckets = Buckets::exponential(1.0..=1_048_576.0, 4
 #[metrics(prefix = "api")]
 pub(in crate::api_server) struct ApiMetrics {
     /// Web3 server configuration.
-    web3_config: Family<ApiTransportLabel, Info<Web3ConfigLabels>>,
+    web3_info: Family<ApiTransportLabel, Info<Web3ConfigLabels>>,
 
     /// Latency of a Web3 call. Calls that take block ID as an input have block ID and block diff
     /// labels (the latter is the difference between the latest sealed miniblock and the resolved miniblock).
@@ -224,7 +224,8 @@ impl ApiMetrics {
                 .websocket_requests_per_minute_limit
                 .map(Into::into),
         };
-        if self.web3_config[&transport].set(config_labels).is_err() {
+        tracing::info!("{transport:?} Web3 server is configured with options: {config_labels:?}");
+        if self.web3_info[&transport].set(config_labels).is_err() {
             tracing::warn!("Cannot set config labels for {transport:?} Web3 server");
         }
     }

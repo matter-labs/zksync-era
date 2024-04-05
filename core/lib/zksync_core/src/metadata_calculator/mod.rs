@@ -88,11 +88,11 @@ impl MetadataCalculator {
         config: MetadataCalculatorConfig,
         object_store: Option<Arc<dyn ObjectStore>>,
     ) -> anyhow::Result<Self> {
-        if let Err(err) = METRICS.config.set(ConfigLabels::new(&config)) {
+        if let Err(err) = METRICS.info.set(ConfigLabels::new(&config)) {
             tracing::warn!(
                 "Cannot set config {:?}; it's already set to {:?}",
                 err.into_inner(),
-                METRICS.config.get()
+                METRICS.info.get()
             );
         }
 
