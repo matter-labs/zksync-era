@@ -41,6 +41,10 @@ reject_tx_at_geometry_percentage = 0.95
 # Configuration option for block to be sealed in case
 # it takes more percentage of the max block capacity than this value.
 reject_tx_at_eth_params_percentage = 0.95
+# The maximal number of circuits that a batch can support.
+# Note, that this number corresponds to the "base layer" circuits, i.e. it does not include
+# the recursion layers' circuits.
+max_circuits_per_batch = 24100
 
 # Configuration option for block to be sealed in case
 # it takes more percentage of the max block gas capacity than this value.

@@ -172,6 +172,7 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             virtual_blocks_interval: self.sample(rng),
             virtual_blocks_per_miniblock: self.sample(rng),
             enum_index_migration_chunk_size: self.sample(rng),
+            max_circuits_per_batch: self.sample(rng),
             // These values are not involved into files serialization skip them
             fee_account_addr: None,
             bootloader_hash: None,
@@ -660,6 +661,7 @@ impl Distribution<configs::ObservabilityConfig> for EncodeDist {
             log_format: self.sample(rng),
             opentelemetry: self.sample(rng),
             sporadic_crypto_errors_substrs: self.sample_collect(rng),
+            log_directives: self.sample(rng),
         }
     }
 }

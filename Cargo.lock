@@ -8594,6 +8594,7 @@ dependencies = [
  "tempfile",
  "test-casing",
  "thiserror",
+ "thread_local",
  "tracing",
  "tracing-subscriber",
  "vise",
@@ -8826,6 +8827,7 @@ dependencies = [
  "once_cell",
  "rocksdb",
  "tempfile",
+ "thread_local",
  "tracing",
  "vise",
 ]
