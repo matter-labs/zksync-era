@@ -3,7 +3,7 @@ use zksync_basic_types::{Address, L1ChainId, L2ChainId, H256};
 
 use crate::configs::chain::L1BatchCommitDataGeneratorMode;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct SharedBridge {
     pub bridgehub_proxy_addr: Address,
     pub state_transition_proxy_addr: Address,
@@ -12,7 +12,7 @@ pub struct SharedBridge {
 
 /// This config represents the genesis state of the chain.
 /// Each chain has this config immutable and we update it only during the protocol upgrade
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct GenesisConfig {
     // TODO make fields non optional, once we fully moved to file based configs.
     // Now for backward compatibility we keep it optional
