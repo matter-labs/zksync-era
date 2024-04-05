@@ -212,6 +212,7 @@ fn default_l1_batch_metadata() -> L1BatchMetadata {
             zkporter_is_available: false,
             bootloader_code_hash: Default::default(),
             default_aa_code_hash: Default::default(),
+            protocol_version: Default::default(),
         },
         aux_data_hash: Default::default(),
         meta_parameters_hash: Default::default(),

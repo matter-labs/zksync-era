@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 use itertools::Itertools;
 use multivm::utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte};
 use zksync_dal::{Connection, Core, CoreDal};
+use zksync_shared_metrics::{BlockStage, MiniblockStage, APP_METRICS};
 use zksync_types::{
     block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
@@ -26,15 +27,12 @@ use zksync_types::{
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
-use crate::{
-    metrics::{BlockStage, MiniblockStage, APP_METRICS},
-    state_keeper::{
-        metrics::{
-            L1BatchSealStage, MiniblockSealStage, TxExecutionType, KEEPER_METRICS,
-            L1_BATCH_METRICS, MINIBLOCK_METRICS,
-        },
-        updates::{MiniblockSealCommand, UpdatesManager},
+use crate::state_keeper::{
+    metrics::{
+        L1BatchSealStage, MiniblockSealStage, TxExecutionType, KEEPER_METRICS, L1_BATCH_METRICS,
+        MINIBLOCK_METRICS,
     },
+    updates::{MiniblockSealCommand, UpdatesManager},
 };
 
 impl UpdatesManager {

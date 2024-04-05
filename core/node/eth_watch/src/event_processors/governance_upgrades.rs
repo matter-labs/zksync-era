@@ -6,7 +6,7 @@ use zksync_types::{
     ProtocolUpgrade, ProtocolVersionId, H256,
 };
 
-use crate::eth_watch::{
+use crate::{
     client::{Error, EthClient},
     event_processors::EventProcessor,
 };

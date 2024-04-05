@@ -18,6 +18,7 @@ use zksync_system_constants::{
 use zksync_utils::u256_to_h256;
 
 use crate::{
+    blob::num_blobs_required,
     block::{L1BatchHeader, L1BatchTreeData},
     l2_to_l1_log::{
         l2_to_l1_logs_tree_size, parse_system_logs_for_blob_hashes, L2ToL1Log, SystemL2ToL1Log,
@@ -416,7 +417,6 @@ impl L1BatchAuxiliaryOutput {
                 result.extend(repeated_writes_hash.as_bytes());
             }
             Self::PostBoojum {
-                common,
                 system_logs_linear_hash,
                 state_diffs_hash,
                 aux_commitments,
@@ -433,17 +433,9 @@ impl L1BatchAuxiliaryOutput {
                 );
                 result.extend(aux_commitments.events_queue_commitment.as_bytes());
 
-                if common.protocol_version.is_1_4_1() {
-                    // We are using zeroes as commitments to the KZG pubdata as per convention.
-                    result.extend(H256::zero().as_bytes());
-                    result.extend(H256::zero().as_bytes());
-                    result.extend(H256::zero().as_bytes());
-                    result.extend(H256::zero().as_bytes());
-                } else if common.protocol_version.is_post_1_4_2() {
-                    for i in 0..blob_commitments.len() {
-                        result.extend(blob_linear_hashes[i].as_bytes());
-                        result.extend(blob_commitments[i].as_bytes());
-                    }
+                for i in 0..blob_commitments.len() {
+                    result.extend(blob_linear_hashes[i].as_bytes());
+                    result.extend(blob_commitments[i].as_bytes());
                 }
             }
         }
@@ -469,25 +461,27 @@ pub struct L1BatchMetaParameters {
     pub zkporter_is_available: bool,
     pub bootloader_code_hash: H256,
     pub default_aa_code_hash: H256,
+    pub protocol_version: ProtocolVersionId,
 }
 
 impl L1BatchMetaParameters {
-    pub fn to_bytes(&self, protocol_version: &ProtocolVersionId) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Vec<u8> {
         const SERIALIZED_SIZE: usize = 1 + 32 + 32 + 32;
         let mut result = Vec::with_capacity(SERIALIZED_SIZE);
         result.push(self.zkporter_is_available as u8);
         result.extend(self.bootloader_code_hash.as_bytes());
         result.extend(self.default_aa_code_hash.as_bytes());
 
-        if protocol_version.is_post_1_5_0() {
+        if self.protocol_version.is_post_1_5_0() {
             // EVM simulator hash for now is the same as the default AA hash.
             result.extend(self.default_aa_code_hash.as_bytes());
         }
+
         result
     }
 
-    pub fn hash(&self, protocol_version: &ProtocolVersionId) -> H256 {
-        H256::from_slice(&keccak256(&self.to_bytes(protocol_version)))
+    pub fn hash(&self) -> H256 {
+        H256::from_slice(&keccak256(&self.to_bytes()))
     }
 }
 
@@ -549,6 +543,7 @@ impl L1BatchCommitment {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
             bootloader_code_hash: input.common().bootloader_code_hash,
             default_aa_code_hash: input.common().default_aa_code_hash,
+            protocol_version: input.common().protocol_version,
         };
 
         Self {
@@ -591,9 +586,7 @@ impl L1BatchCommitment {
         let mut result = vec![];
         let pass_through_data_hash = self.pass_through_data.hash();
         result.extend_from_slice(pass_through_data_hash.as_bytes());
-        let metadata_hash = self
-            .meta_parameters
-            .hash(&self.auxiliary_output.common().protocol_version);
+        let metadata_hash = self.meta_parameters.hash();
         result.extend_from_slice(metadata_hash.as_bytes());
         let auxiliary_output_hash = self.auxiliary_output.hash();
         result.extend_from_slice(auxiliary_output_hash.as_bytes());
@@ -710,7 +703,7 @@ impl CommitmentInput {
                     bootloader_initial_content_commitment: H256::zero(),
                 },
                 blob_commitments: {
-                    let num_blobs = protocol_version.into_num_blobs_required();
+                    let num_blobs = num_blobs_required(&protocol_version);
 
                     vec![H256::zero(); num_blobs]
                 },
