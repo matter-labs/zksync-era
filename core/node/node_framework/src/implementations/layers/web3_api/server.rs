@@ -10,7 +10,7 @@ use crate::{
         healthcheck::AppHealthCheckResource,
         pools::ReplicaPoolResource,
         sync_state::SyncStateResource,
-        web3_api::{TreeApiClientResource, TxSenderResource},
+        web3_api::{MempoolCacheResource, TreeApiClientResource, TxSenderResource},
     },
     service::{ServiceContext, StopReceiver},
     task::Task,
@@ -124,12 +124,14 @@ impl WiringLayer for Web3ServerLayer {
             Err(WiringError::ResourceLacking { .. }) => None,
             Err(err) => return Err(err),
         };
+        let MempoolCacheResource(mempool_cache) = context.get_resource().await?;
 
         // Build server.
         let mut api_builder =
             ApiBuilder::jsonrpsee_backend(self.internal_api_config, replica_pool.clone())
                 .with_updaters_pool(updaters_pool)
-                .with_tx_sender(tx_sender);
+                .with_tx_sender(tx_sender)
+                .with_mempool_cache(mempool_cache);
         if let Some(client) = tree_api_client {
             api_builder = api_builder.with_tree_api(client);
         }

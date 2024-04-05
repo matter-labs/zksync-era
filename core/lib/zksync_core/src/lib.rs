@@ -379,13 +379,14 @@ pub async fn initialize_components(
         // program termination.
         let mut storage_caches = None;
 
-        let (mempool_cache, mempool_cache_update_task) = MempoolCache::new(
+        let mempool_cache = MempoolCache::new(api_config.web3_json_rpc.mempool_cache_size());
+        let mempool_cache_update_task = mempool_cache.update_task(
             connection_pool.clone(),
             api_config.web3_json_rpc.mempool_cache_update_interval(),
-            api_config.web3_json_rpc.mempool_cache_size(),
-            stop_receiver.clone(),
         );
-        task_futures.push(tokio::spawn(mempool_cache_update_task));
+        task_futures.push(tokio::spawn(
+            mempool_cache_update_task.run(stop_receiver.clone()),
+        ));
 
         if components.contains(&Component::HttpApi) {
             storage_caches = Some(

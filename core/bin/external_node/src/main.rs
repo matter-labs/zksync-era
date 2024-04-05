@@ -454,13 +454,14 @@ async fn run_api(
         )
         .await;
 
-    let (mempool_cache, mempool_cache_update_task) = MempoolCache::new(
+    let mempool_cache = MempoolCache::new(config.optional.mempool_cache_size);
+    let mempool_cache_update_task = mempool_cache.update_task(
         connection_pool.clone(),
         config.optional.mempool_cache_update_interval(),
-        config.optional.mempool_cache_size,
-        stop_receiver.clone(),
     );
-    task_handles.push(tokio::spawn(mempool_cache_update_task));
+    task_handles.push(tokio::spawn(
+        mempool_cache_update_task.run(stop_receiver.clone()),
+    ));
 
     if components.contains(&Component::HttpApi) {
         let builder = ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
