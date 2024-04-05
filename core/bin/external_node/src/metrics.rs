@@ -9,11 +9,14 @@ use crate::{
     metadata::{RustcMetadata, RUSTC_METADATA, SERVER_VERSION},
 };
 
+/// Immutable EN parameters that affect multiple components.
 #[derive(Debug, Clone, Copy, EncodeLabelSet)]
 struct ExternalNodeInfo {
     server_version: &'static str,
     l1_chain_id: u64,
     l2_chain_id: u64,
+    /// Size of the main Postgres connection pool.
+    postgres_pool_size: u32,
 }
 
 #[derive(Debug, Metrics)]
@@ -31,7 +34,10 @@ impl ExternalNodeMetrics {
             server_version: SERVER_VERSION,
             l1_chain_id: config.remote.l1_chain_id.0,
             l2_chain_id: config.remote.l2_chain_id.as_u64(),
+            postgres_pool_size: config.postgres.max_connections,
         };
+        tracing::info!("Setting general node information: {info:?}");
+
         if self.info.set(info).is_err() {
             tracing::warn!(
                 "General information is already set for the external node: {:?}, was attempting to set {info:?}",
@@ -70,6 +76,7 @@ impl ExternalNodeMetrics {
 pub(crate) static EN_METRICS: vise::Global<ExternalNodeMetrics> = vise::Global::new();
 
 #[derive(Debug, Metrics)]
+#[metrics(prefix = "rust")]
 pub(crate) struct RustMetrics {
     /// General information about the Rust compiler.
     info: Info<RustcMetadata>,
@@ -77,6 +84,7 @@ pub(crate) struct RustMetrics {
 
 impl RustMetrics {
     pub fn initialize(&self) {
+        tracing::info!("Metadata for rustc that this EN was compiled with: {RUSTC_METADATA:?}");
         self.info.set(RUSTC_METADATA).ok();
     }
 }

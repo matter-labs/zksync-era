@@ -535,8 +535,6 @@ async fn init_tasks(
     stop_receiver: watch::Receiver<bool>,
     components: &HashSet<Component>,
 ) -> anyhow::Result<()> {
-    RUST_METRICS.initialize();
-    EN_METRICS.observe_config(config);
     let protocol_version_update_task =
         EN_METRICS.run_protocol_version_updates(connection_pool.clone(), stop_receiver.clone());
     task_handles.push(tokio::spawn(protocol_version_update_task));
@@ -769,6 +767,9 @@ async fn main() -> anyhow::Result<()> {
     if let Some(threshold) = config.optional.long_connection_threshold() {
         ConnectionPool::<Core>::global_config().set_long_connection_threshold(threshold)?;
     }
+
+    RUST_METRICS.initialize();
+    EN_METRICS.observe_config(&config);
 
     let connection_pool = ConnectionPool::<Core>::builder(
         &config.postgres.database_url,

@@ -33,7 +33,7 @@ impl<K: Ord + Copy, V: Clone> SequentialCache<K, V> {
         }) {
             tracing::warn!(
                 "Sequential cache `{name}` was already created with config {:?}; new config: {:?}",
-                METRICS.lru_config[&name].get(),
+                METRICS.sequential_config[&name].get(),
                 err.into_inner()
             );
         }
