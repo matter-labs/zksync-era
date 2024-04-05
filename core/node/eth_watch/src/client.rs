@@ -41,9 +41,7 @@ pub struct EthHttpQueryClient {
     client: Arc<dyn EthInterface>,
     topics: Vec<H256>,
     zksync_contract_addr: Address,
-    /// Address of the `Governance` contract. It's optional because it is present only for post-boojum chains.
-    /// If address is some then client will listen to events coming from it.
-    governance_address: Option<Address>,
+    governance_address: Address,
     verifier_contract_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
 }
@@ -52,13 +50,11 @@ impl EthHttpQueryClient {
     pub fn new(
         client: Arc<dyn EthInterface>,
         zksync_contract_addr: Address,
-        governance_address: Option<Address>,
+        governance_address: Address,
         confirmations_for_eth_event: Option<u64>,
     ) -> Self {
         tracing::debug!(
-            "New eth client, zkSync addr: {:x}, governance addr: {:?}",
-            zksync_contract_addr,
-            governance_address
+            "New eth client, zkSync addr: {zksync_contract_addr:x}, governance addr: {governance_address:?}"
         );
         Self {
             client,
@@ -77,13 +73,7 @@ impl EthHttpQueryClient {
         topics: Vec<H256>,
     ) -> Result<Vec<Log>, EthClientError> {
         let filter = FilterBuilder::default()
-            .address(
-                [Some(self.zksync_contract_addr), self.governance_address]
-                    .iter()
-                    .flatten()
-                    .copied()
-                    .collect(),
-            )
+            .address(vec![self.zksync_contract_addr, self.governance_address])
             .from_block(from)
             .to_block(to)
             .topics(Some(topics), None, None, None)

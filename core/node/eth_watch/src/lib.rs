@@ -51,7 +51,7 @@ pub struct EthWatch {
 impl EthWatch {
     pub async fn new(
         diamond_proxy_address: Address,
-        governance_contract: Option<Contract>,
+        governance_contract: &Contract,
         mut client: Box<dyn EthClient>,
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
@@ -64,19 +64,16 @@ impl EthWatch {
         let priority_ops_processor =
             PriorityOpsEventProcessor::new(state.next_expected_priority_id)?;
         let upgrades_processor = UpgradesEventProcessor::new(state.last_seen_version_id);
-        let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
+        let governance_upgrades_processor = GovernanceUpgradesEventProcessor::new(
+            diamond_proxy_address,
+            state.last_seen_version_id,
+            governance_contract,
+        )?;
+        let event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(upgrades_processor),
+            Box::new(governance_upgrades_processor),
         ];
-
-        if let Some(governance_contract) = governance_contract {
-            let governance_upgrades_processor = GovernanceUpgradesEventProcessor::new(
-                diamond_proxy_address,
-                state.last_seen_version_id,
-                &governance_contract,
-            )?;
-            event_processors.push(Box::new(governance_upgrades_processor));
-        }
 
         let topics = event_processors
             .iter()

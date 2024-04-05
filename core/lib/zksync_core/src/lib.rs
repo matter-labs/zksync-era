@@ -894,13 +894,13 @@ async fn start_eth_watch(
     let eth_client = EthHttpQueryClient::new(
         eth_gateway,
         diamond_proxy_addr,
-        Some(governance.1),
+        governance.1,
         config.confirmations_for_eth_event,
     );
 
     let eth_watch = EthWatch::new(
         diamond_proxy_addr,
-        Some(governance.0),
+        &governance.0,
         Box::new(eth_client),
         pool,
         config.poll_interval(),

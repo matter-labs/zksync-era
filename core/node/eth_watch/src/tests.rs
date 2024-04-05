@@ -70,11 +70,11 @@ impl FakeEthClientData {
 }
 
 #[derive(Debug, Clone)]
-struct FakeEthClient {
+struct MockEthClient {
     inner: Arc<RwLock<FakeEthClientData>>,
 }
 
-impl FakeEthClient {
+impl MockEthClient {
     fn new() -> Self {
         Self {
             inner: Arc::new(RwLock::new(FakeEthClientData::new())),
@@ -113,7 +113,7 @@ impl FakeEthClient {
 }
 
 #[async_trait::async_trait]
-impl EthClient for FakeEthClient {
+impl EthClient for MockEthClient {
     async fn get_events(
         &self,
         from: BlockNumber,
@@ -201,21 +201,26 @@ fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx 
     }
 }
 
-#[tokio::test]
-async fn test_normal_operation_l1_txs() {
-    let connection_pool = ConnectionPool::<Core>::test_pool().await;
-    setup_db(&connection_pool).await;
-
-    let mut client = FakeEthClient::new();
-    let mut watcher = EthWatch::new(
+async fn create_test_watcher(connection_pool: ConnectionPool<Core>) -> (EthWatch, MockEthClient) {
+    let client = MockEthClient::new();
+    let watcher = EthWatch::new(
         Address::default(),
-        None,
+        &governance_contract(),
         Box::new(client.clone()),
-        connection_pool.clone(),
+        connection_pool,
         std::time::Duration::from_nanos(1),
     )
     .await
     .unwrap();
+
+    (watcher, client)
+}
+
+#[tokio::test]
+async fn test_normal_operation_l1_txs() {
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    setup_db(&connection_pool).await;
+    let (mut watcher, mut client) = create_test_watcher(connection_pool.clone()).await;
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -254,17 +259,7 @@ async fn test_normal_operation_l1_txs() {
 async fn test_normal_operation_upgrades() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
-
-    let mut client = FakeEthClient::new();
-    let mut watcher = EthWatch::new(
-        Address::default(),
-        None,
-        Box::new(client.clone()),
-        connection_pool.clone(),
-        std::time::Duration::from_nanos(1),
-    )
-    .await
-    .unwrap();
+    let (mut watcher, mut client) = create_test_watcher(connection_pool.clone()).await;
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -317,17 +312,7 @@ async fn test_normal_operation_upgrades() {
 async fn test_gap_in_upgrades() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
-
-    let mut client = FakeEthClient::new();
-    let mut watcher = EthWatch::new(
-        Address::default(),
-        None,
-        Box::new(client.clone()),
-        connection_pool.clone(),
-        std::time::Duration::from_nanos(1),
-    )
-    .await
-    .unwrap();
+    let (mut watcher, mut client) = create_test_watcher(connection_pool.clone()).await;
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -358,10 +343,10 @@ async fn test_normal_operation_governance_upgrades() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
 
-    let mut client = FakeEthClient::new();
+    let mut client = MockEthClient::new();
     let mut watcher = EthWatch::new(
         Address::default(),
-        Some(governance_contract()),
+        &governance_contract(),
         Box::new(client.clone()),
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
@@ -421,17 +406,7 @@ async fn test_normal_operation_governance_upgrades() {
 async fn test_gap_in_single_batch() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
-
-    let mut client = FakeEthClient::new();
-    let mut watcher = EthWatch::new(
-        Address::default(),
-        None,
-        Box::new(client.clone()),
-        connection_pool.clone(),
-        std::time::Duration::from_nanos(1),
-    )
-    .await
-    .unwrap();
+    let (mut watcher, mut client) = create_test_watcher(connection_pool.clone()).await;
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -452,17 +427,7 @@ async fn test_gap_in_single_batch() {
 async fn test_gap_between_batches() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
-
-    let mut client = FakeEthClient::new();
-    let mut watcher = EthWatch::new(
-        Address::default(),
-        None,
-        Box::new(client.clone()),
-        connection_pool.clone(),
-        std::time::Duration::from_nanos(1),
-    )
-    .await
-    .unwrap();
+    let (mut watcher, mut client) = create_test_watcher(connection_pool.clone()).await;
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -478,6 +443,7 @@ async fn test_gap_between_batches() {
         .await;
     client.set_last_finalized_block_number(15).await;
     watcher.loop_iteration(&mut storage).await.unwrap();
+
     let db_txs = get_all_db_txs(&mut storage).await;
     assert_eq!(db_txs.len(), 3);
     client.set_last_finalized_block_number(25).await;
@@ -488,17 +454,7 @@ async fn test_gap_between_batches() {
 async fn test_overlapping_batches() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
-
-    let mut client = FakeEthClient::new();
-    let mut watcher = EthWatch::new(
-        Address::default(),
-        None,
-        Box::new(client.clone()),
-        connection_pool.clone(),
-        std::time::Duration::from_nanos(1),
-    )
-    .await
-    .unwrap();
+    let (mut watcher, mut client) = create_test_watcher(connection_pool.clone()).await;
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -516,10 +472,13 @@ async fn test_overlapping_batches() {
         .await;
     client.set_last_finalized_block_number(15).await;
     watcher.loop_iteration(&mut storage).await.unwrap();
+
     let db_txs = get_all_db_txs(&mut storage).await;
     assert_eq!(db_txs.len(), 3);
+
     client.set_last_finalized_block_number(25).await;
     watcher.loop_iteration(&mut storage).await.unwrap();
+
     let db_txs = get_all_db_txs(&mut storage).await;
     assert_eq!(db_txs.len(), 5);
     let mut db_txs: Vec<L1Tx> = db_txs
