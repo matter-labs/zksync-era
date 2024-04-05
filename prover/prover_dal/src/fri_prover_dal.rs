@@ -72,7 +72,14 @@ impl FriProverDal<'_, '_> {
                     FROM
                         prover_jobs_fri
                     WHERE
-                        AND protocol_version = ANY ($1)
+                        protocol_version = ANY ($1)
+                        AND circuit_id =
+                            (SELECT circuit_id
+                                FROM prover_jobs_fri
+                                GROUP BY circuit_id
+                                ORDER BY RANDOM()
+                                LIMIT 1
+                        )
                     ORDER BY
                         aggregation_round DESC,
                         l1_batch_number ASC,
