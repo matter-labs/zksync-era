@@ -7,13 +7,10 @@
 use std::sync::Arc;
 
 use zksync_concurrency::ctx;
+use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_dal::{ConnectionPool, Core};
-use zksync_config::configs::consensus::{ConsensusConfig,ConsensusSecrets};
 
-use super::{
-    fetcher::Fetcher,
-    storage::Store,
-};
+use super::{config, fetcher::Fetcher, storage::Store};
 use crate::sync_layer::{sync_action::ActionQueueSender, MainNodeClient, SyncState};
 
 /// Runs the consensus task in the main node mode.
@@ -49,7 +46,11 @@ pub async fn run_fetcher(
         client: main_node_client,
     };
     let res = match cfg {
-        Some((cfg, secrets)) => fetcher.run_p2p(ctx, actions, cfg.p2p(&secrets)?).await,
+        Some((cfg, secrets)) => {
+            fetcher
+                .run_p2p(ctx, actions, config::p2p(&cfg, &secrets)?)
+                .await
+        }
         None => fetcher.run_centralized(ctx, actions).await,
     };
     tracing::info!("Consensus actor stopped");

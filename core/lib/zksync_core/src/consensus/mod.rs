@@ -10,7 +10,7 @@ use zksync_consensus_storage::BlockStore;
 
 pub use self::{fetcher::*, storage::Store};
 
-mod config;
+pub mod config;
 pub mod era;
 mod fetcher;
 mod storage;

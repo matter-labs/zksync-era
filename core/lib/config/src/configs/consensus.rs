@@ -1,8 +1,10 @@
-use std::collections::{BTreeSet,BTreeMap};
-use std::fmt;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+};
 
 /// Public key of the validator (consensus participant) of the form "validator:public:<signature scheme>:<hex encoded key material>"
-#[derive(Debug,Clone,PartialEq,Eq,PartialOrd,Ord,Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ValidatorPublicKey(pub String);
 
 // Secret key of the validator (consensus participant) of the form "validator:secret:<signature scheme>:<hex encoded key material>"
@@ -10,7 +12,7 @@ pub struct ValidatorPublicKey(pub String);
 pub struct ValidatorSecretKey(pub String);
 
 /// Public key of the node (gossip network participant) of the form "node:public:<signature scheme>:<hex encoded key material>"
-#[derive(Debug,Clone,PartialEq,Eq,PartialOrd,Ord,Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NodePublicKey(pub String);
 
 // Secret key of the node (gossip network participant) of the form "node:secret:<signature scheme>:<hex encoded key material>"
@@ -30,7 +32,7 @@ impl fmt::Debug for NodeSecretKey {
 }
 
 /// Network address in the `<domain/ip>:port` format.
-#[derive(Debug,Clone,PartialEq,Eq,PartialOrd,Ord,Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Host(pub String);
 
 /// Config (shared between main node and external node).
@@ -60,7 +62,7 @@ pub struct ConsensusConfig {
 }
 
 /// Secrets need for consensus.
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct ConsensusSecrets {
     pub validator_key: Option<ValidatorSecretKey>,
     pub node_key: Option<NodeSecretKey>,
