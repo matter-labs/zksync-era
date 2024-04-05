@@ -10,8 +10,8 @@ use crate::{
     hasher::HashTree,
     metrics::{TreeUpdaterStats, BLOCK_TIMINGS, GENERAL_METRICS},
     types::{
-        BlockOutput, ChildRef, InternalNode, Key, LeafNode, Manifest, Nibbles, Node, Root,
-        TreeEntry, TreeLogEntry, TreeTags, ValueHash,
+        BlockOutput, ChildRef, InternalNode, Key, LeafNode, Manifest, Nibbles, Node,
+        ProfiledTreeOperation, Root, TreeEntry, TreeLogEntry, TreeTags, ValueHash,
     },
 };
 
@@ -89,6 +89,7 @@ impl TreeUpdater {
         sorted_keys: &SortedKeys,
         db: &DB,
     ) -> Vec<Nibbles> {
+        let _profiling_guard = db.start_profiling(ProfiledTreeOperation::LoadAncestors);
         let LoadAncestorsResult {
             longest_prefixes,
             db_reads,

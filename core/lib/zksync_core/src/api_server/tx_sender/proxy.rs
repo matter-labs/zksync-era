@@ -7,6 +7,7 @@ use std::{
 
 use tokio::sync::{watch, RwLock};
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Core, CoreDal};
+use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_types::{
     api::{BlockId, Transaction, TransactionDetails, TransactionId},
     fee::TransactionExecutionMetrics,
@@ -20,7 +21,6 @@ use zksync_web3_decl::{
 };
 
 use super::{tx_sink::TxSink, SubmitTxError};
-use crate::metrics::{TxStage, APP_METRICS};
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct TxCache {

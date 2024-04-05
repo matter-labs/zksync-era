@@ -110,6 +110,10 @@ impl ProtocolVersionId {
         self == &ProtocolVersionId::Version20
     }
 
+    pub fn is_pre_1_4_1(&self) -> bool {
+        self < &ProtocolVersionId::Version20
+    }
+
     pub fn is_post_1_4_1(&self) -> bool {
         self >= &ProtocolVersionId::Version20
     }
@@ -122,10 +126,20 @@ impl ProtocolVersionId {
         self < &ProtocolVersionId::Version21
     }
 
+    pub fn is_1_4_2(&self) -> bool {
+        self == &ProtocolVersionId::Version21 || self == &ProtocolVersionId::Version22
+    }
+
     pub fn is_pre_1_5_0(&self) -> bool {
         // In the current codebase all the protocol versions are pre-1.5.0.
         // This method will be updated once the v1.5.0 is added to the server
         true
+    }
+
+    pub fn is_post_1_5_0(&self) -> bool {
+        // In the current codebase all the protocol versions are pre-1.5.0.
+        // This method will be updated once the v1.5.0 is added to the server
+        false
     }
 }
 

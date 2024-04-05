@@ -8239,6 +8239,7 @@ dependencies = [
  "zksync_db_connection",
  "zksync_eth_client",
  "zksync_eth_signer",
+ "zksync_eth_watch",
  "zksync_health_check",
  "zksync_l1_contract_interface",
  "zksync_mempool",
@@ -8249,6 +8250,7 @@ dependencies = [
  "zksync_protobuf_build",
  "zksync_prover_interface",
  "zksync_queued_job_processor",
+ "zksync_shared_metrics",
  "zksync_state",
  "zksync_storage",
  "zksync_system_constants",
@@ -8391,6 +8393,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_eth_watch"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "metrics",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_eth_client",
+ "zksync_shared_metrics",
+ "zksync_system_constants",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_external_node"
 version = "0.1.0"
 dependencies = [
@@ -8483,6 +8505,7 @@ dependencies = [
  "tempfile",
  "test-casing",
  "thiserror",
+ "thread_local",
  "tracing",
  "tracing-subscriber",
  "vise",
@@ -8528,6 +8551,7 @@ dependencies = [
  "zksync_db_connection",
  "zksync_env_config",
  "zksync_eth_client",
+ "zksync_eth_watch",
  "zksync_health_check",
  "zksync_object_store",
  "zksync_state",
@@ -8666,6 +8690,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_shared_metrics"
+version = "0.1.0"
+dependencies = [
+ "vise",
+ "zksync_dal",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_snapshots_applier"
 version = "0.1.0"
 dependencies = [
@@ -8715,6 +8748,7 @@ dependencies = [
  "once_cell",
  "rocksdb",
  "tempfile",
+ "thread_local",
  "tracing",
  "vise",
 ]
