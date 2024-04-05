@@ -16,7 +16,7 @@ use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_eth_client::{clients::QueryClient, EthInterface};
 use zksync_merkle_tree::domain::ZkSyncTree;
-use zksync_system_constants::PRIORITY_EXPIRATION;
+use zksync_system_constants::{DEFAULT_ERA_CHAIN_ID, PRIORITY_EXPIRATION};
 use zksync_types::{
     block::{
         BlockGasCount, DeployedContract, L1BatchHeader, L1BatchTreeData, MiniblockHasher,
@@ -205,7 +205,6 @@ pub async fn insert_genesis_batch(
 
     create_genesis_l1_batch(
         &mut transaction,
-        genesis_params.config.l2_chain_id,
         genesis_params.protocol_version(),
         genesis_params.base_system_contracts(),
         genesis_params.system_contracts(),
@@ -342,9 +341,12 @@ async fn insert_base_system_contracts_to_factory_deps(
 async fn insert_system_contracts(
     storage: &mut Connection<'_, Core>,
     contracts: &[DeployedContract],
-    chain_id: L2ChainId,
 ) -> Result<(), GenesisError> {
-    let system_context_init_logs = (H256::default(), get_system_context_init_logs(chain_id));
+    let system_context_init_logs = (
+        H256::default(),
+        // During the genesis all chains have the same id.
+        get_system_context_init_logs(L2ChainId::from(DEFAULT_ERA_CHAIN_ID)),
+    );
 
     let known_code_storage_logs: Vec<_> = contracts
         .iter()
@@ -470,7 +472,6 @@ async fn insert_system_contracts(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn create_genesis_l1_batch(
     storage: &mut Connection<'_, Core>,
-    chain_id: L2ChainId,
     protocol_version: ProtocolVersionId,
     base_system_contracts: &BaseSystemContracts,
     system_contracts: &[DeployedContract],
@@ -534,7 +535,7 @@ pub(crate) async fn create_genesis_l1_batch(
         .await?;
 
     insert_base_system_contracts_to_factory_deps(&mut transaction, base_system_contracts).await?;
-    insert_system_contracts(&mut transaction, system_contracts, chain_id).await?;
+    insert_system_contracts(&mut transaction, system_contracts).await?;
     add_eth_token(&mut transaction).await?;
 
     transaction.commit().await?;

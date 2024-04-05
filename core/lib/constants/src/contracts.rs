@@ -120,3 +120,7 @@ pub const MINT_AND_BURN_ADDRESS: H160 = H160::zero();
 
 // The `storage_log.value` database value for a contract that was deployed in a failed transaction.
 pub const FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH: H256 = H256::zero();
+
+// Default ERA_CHAIN_ID.  All hyeprchains starts with this chain id and later on
+// it will be changed to proper one
+pub const DEFAULT_ERA_CHAIN_ID: u32 = 270;
