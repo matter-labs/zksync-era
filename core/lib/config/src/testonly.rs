@@ -704,8 +704,6 @@ impl Distribution<configs::SharedBridge> for EncodeDist {
             bridgehub_proxy_addr: rng.gen(),
             state_transition_proxy_addr: rng.gen(),
             transparent_proxy_admin_addr: rng.gen(),
-            l2_shared_bridge_addr: rng.gen(),
-            l1_shared_bridge_addr: rng.gen(),
         }
     }
 }

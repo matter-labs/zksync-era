@@ -58,12 +58,6 @@ impl FromEnv for GenesisConfig {
                 transparent_proxy_admin_addr: contracts_config
                     .transparent_proxy_admin_addr
                     .context("Must be specified with transparent_proxy_admin_addr")?,
-                l2_shared_bridge_addr: contracts_config
-                    .l2_shared_bridge_addr
-                    .context("Must be specified with l2_shared_bridge_addr")?,
-                l1_shared_bridge_addr: contracts_config
-                    .l1_shared_bridge_proxy_addr
-                    .context("Must be specified with l1_shared_bridge_addr")?,
             })
         } else {
             None

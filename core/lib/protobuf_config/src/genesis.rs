@@ -37,12 +37,6 @@ impl ProtoRepr for proto::Genesis {
                 transparent_proxy_admin_addr: required(&shared_bridge.transparent_proxy_admin_addr)
                     .and_then(|x| parse_h160(x))
                     .context("transparent_proxy_admin_addr")?,
-                l2_shared_bridge_addr: required(&shared_bridge.l2_shared_bridge_addr)
-                    .and_then(|x| parse_h160(x))
-                    .context("transparent_proxy_admin_addr")?,
-                l1_shared_bridge_addr: required(&shared_bridge.l1_shared_bridge_addr)
-                    .and_then(|x| parse_h160(x))
-                    .context("transparent_proxy_admin_addr")?,
             })
         } else {
             None
@@ -126,8 +120,6 @@ impl ProtoRepr for proto::Genesis {
                     "{:?}",
                     shared_bridge.transparent_proxy_admin_addr,
                 )),
-                l2_shared_bridge_addr: Some(format!("{:?}", shared_bridge.l2_shared_bridge_addr)),
-                l1_shared_bridge_addr: Some(format!("{:?}", shared_bridge.l1_shared_bridge_addr,)),
             });
 
         Self {
