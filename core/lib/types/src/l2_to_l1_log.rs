@@ -102,6 +102,12 @@ pub fn parse_system_logs_for_blob_hashes(
         .map(|log| (log.0.key, log.0.value))
         .collect::<Vec<(H256, H256)>>();
 
+    assert_eq!(
+        blob_hashes.len() as u32,
+        num_created_blobs,
+        "Invalid number of blobs from system logs"
+    );
+
     blob_hashes.sort_unstable_by_key(|(k, _)| *k);
     let mut blob_hashes = blob_hashes.iter().map(|(_, v)| *v).collect::<Vec<H256>>();
     blob_hashes.resize(num_required_blobs as usize, H256::zero());

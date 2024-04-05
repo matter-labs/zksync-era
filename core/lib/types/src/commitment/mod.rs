@@ -387,6 +387,12 @@ impl L1BatchAuxiliaryOutput {
                     );
                 }
 
+                assert_eq!(
+                    blob_linear_hashes.len(),
+                    blob_commitments.len(),
+                    "Blob linear hashes and commitments have different lengths"
+                );
+
                 Self::PostBoojum {
                     common: common_output,
                     system_logs_linear_hash,
