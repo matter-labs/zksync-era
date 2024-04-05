@@ -46,10 +46,9 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
         events: Vec<Log>,
     ) -> Result<(), EventProcessorError> {
         let mut upgrades = Vec::new();
-        for event in events
-            .into_iter()
-            .filter(|event| event.topics[0] == self.upgrade_proposal_signature)
-        {
+        for event in events {
+            assert_eq!(event.topics[0], self.upgrade_proposal_signature); // guaranteed by the watcher
+
             let governance_operation = GovernanceOperation::try_from(event)
                 .map_err(|err| EventProcessorError::log_parse(err, "governance operation"))?;
             // Some calls can target other contracts than Diamond proxy, skip them.

@@ -9,7 +9,7 @@ pub mod governance_upgrades;
 pub mod priority_ops;
 pub mod upgrades;
 
-/// Errors issued by the
+/// Errors issued by an [`EventProcessor`].
 #[derive(Debug, thiserror::Error)]
 pub(super) enum EventProcessorError {
     #[error("failed parsing a log into {log_kind}: {source:?}")]
@@ -20,6 +20,7 @@ pub(super) enum EventProcessorError {
     },
     #[error("Eth client error: {0}")]
     Client(#[from] EthClientError),
+    /// Internal errors are considered fatal (i.e., they bubble up and lead to the watcher termination).
     #[error("internal processing error: {0:?}")]
     Internal(#[from] anyhow::Error),
 }
@@ -35,7 +36,7 @@ impl EventProcessorError {
 
 #[async_trait::async_trait]
 pub(super) trait EventProcessor: 'static + fmt::Debug + Send + Sync {
-    /// Processes given events
+    /// Processes given events. All events are guaranteed to match [`Self::relevant_topic()`].
     async fn process_events(
         &mut self,
         storage: &mut Connection<'_, Core>,

@@ -36,10 +36,9 @@ impl EventProcessor for UpgradesEventProcessor {
         events: Vec<Log>,
     ) -> Result<(), EventProcessorError> {
         let mut upgrades = Vec::new();
-        for event in events
-            .into_iter()
-            .filter(|event| event.topics[0] == UPGRADE_PROPOSAL_SIGNATURE)
-        {
+        for event in events {
+            assert_eq!(event.topics[0], UPGRADE_PROPOSAL_SIGNATURE); // guaranteed by the watcher
+
             let upgrade = ProtocolUpgrade::try_from(event)
                 .map_err(|err| EventProcessorError::log_parse(err, "protocol upgrade"))?;
             // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.

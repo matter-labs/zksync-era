@@ -38,10 +38,8 @@ impl EventProcessor for PriorityOpsEventProcessor {
         events: Vec<Log>,
     ) -> Result<(), EventProcessorError> {
         let mut priority_ops = Vec::new();
-        for event in events
-            .into_iter()
-            .filter(|event| event.topics[0] == self.new_priority_request_signature)
-        {
+        for event in events {
+            assert_eq!(event.topics[0], self.new_priority_request_signature); // guaranteed by the watcher
             let tx = L1Tx::try_from(event)
                 .map_err(|err| EventProcessorError::log_parse(err, "priority op"))?;
             priority_ops.push(tx);

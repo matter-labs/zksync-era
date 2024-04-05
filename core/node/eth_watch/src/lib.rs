@@ -184,8 +184,14 @@ impl EthWatch {
         stage_latency.observe();
 
         for processor in &mut self.event_processors {
+            let relevant_topic = processor.relevant_topic();
+            let processor_events = events
+                .iter()
+                .filter(|event| event.topics.get(0) == Some(&relevant_topic))
+                .cloned()
+                .collect();
             processor
-                .process_events(storage, &*self.client, events.clone())
+                .process_events(storage, &*self.client, processor_events)
                 .await?;
         }
         self.last_processed_ethereum_block = to_block;
