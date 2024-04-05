@@ -7,7 +7,7 @@ use zksync_protobuf::{repr::ProtoRepr, required};
 
 use crate::proto::consensus as proto;
 
-impl ProtoRepr for proto::Consensus {
+impl ProtoRepr for proto::Config {
     type Type = ConsensusConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         let read_addr = |e: &proto::NodeAddr| {

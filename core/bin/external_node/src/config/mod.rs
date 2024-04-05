@@ -586,7 +586,7 @@ pub(crate) fn read_consensus_config() -> anyhow::Result<Option<ConsensusConfig>>
     };
     let cfg = std::fs::read_to_string(&path).context(path)?;
     Ok(Some(
-        decode_yaml_repr::<proto::consensus::Consensus>(&cfg).context("failed decoding YAML")?,
+        decode_yaml_repr::<proto::consensus::Config>(&cfg).context("failed decoding YAML")?,
     ))
 }
 

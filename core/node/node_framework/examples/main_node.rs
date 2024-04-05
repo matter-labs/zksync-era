@@ -365,7 +365,7 @@ impl MainNodeBuilder {
             };
             let cfg = std::fs::read_to_string(&path).context(path)?;
             Ok(Some(
-                decode_yaml_repr::<proto::consensus::Consensus>(&cfg)
+                decode_yaml_repr::<proto::consensus::Config>(&cfg)
                     .context("failed decoding YAML")?,
             ))
         }
