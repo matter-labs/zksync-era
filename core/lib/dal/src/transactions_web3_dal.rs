@@ -1,16 +1,19 @@
 use sqlx::types::chrono::NaiveDateTime;
+use zksync_db_connection::{
+    connection::Connection, error::DalResult, instrument::InstrumentExt, interpolate_query,
+    match_query_as,
+};
 use zksync_types::{
     api, api::TransactionReceipt, Address, L2ChainId, MiniblockNumber, Transaction,
     ACCOUNT_CODE_STORAGE_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
 };
 
 use crate::{
-    instrument::InstrumentExt,
     models::storage_transaction::{
         StorageApiTransaction, StorageTransaction, StorageTransactionDetails,
         StorageTransactionReceipt,
     },
-    SqlxError, StorageProcessor,
+    Core, CoreDal, SqlxError,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -21,7 +24,7 @@ enum TransactionSelector<'a> {
 
 #[derive(Debug)]
 pub struct TransactionsWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl TransactionsWeb3Dal<'_, '_> {
@@ -131,7 +134,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         hashes: &[H256],
         chain_id: L2ChainId,
-    ) -> sqlx::Result<Vec<api::Transaction>> {
+    ) -> DalResult<Vec<api::Transaction>> {
         self.get_transactions_inner(TransactionSelector::Hashes(hashes), chain_id)
             .await
     }
@@ -140,7 +143,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         selector: TransactionSelector<'_>,
         chain_id: L2ChainId,
-    ) -> sqlx::Result<Vec<api::Transaction>> {
+    ) -> DalResult<Vec<api::Transaction>> {
         if let TransactionSelector::Position(_, idx) = selector {
             // Since index is not trusted, we check it to prevent potential overflow below.
             if idx > i32::MAX as u32 {
@@ -189,7 +192,11 @@ impl TransactionsWeb3Dal<'_, '_> {
             }
         );
 
-        let rows = query.fetch_all(self.storage.conn()).await?;
+        let rows = query
+            .instrument("get_transactions")
+            .with_arg("selector", &selector)
+            .fetch_all(self.storage)
+            .await?;
         Ok(rows.into_iter().map(|row| row.into_api(chain_id)).collect())
     }
 
@@ -197,7 +204,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         hash: H256,
         chain_id: L2ChainId,
-    ) -> sqlx::Result<Option<api::Transaction>> {
+    ) -> DalResult<Option<api::Transaction>> {
         Ok(self
             .get_transactions_inner(TransactionSelector::Hashes(&[hash]), chain_id)
             .await?
@@ -210,7 +217,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         block_number: MiniblockNumber,
         index_in_block: u32,
         chain_id: L2ChainId,
-    ) -> sqlx::Result<Option<api::Transaction>> {
+    ) -> DalResult<Option<api::Transaction>> {
         Ok(self
             .get_transactions_inner(
                 TransactionSelector::Position(block_number, index_in_block),
@@ -224,7 +231,7 @@ impl TransactionsWeb3Dal<'_, '_> {
     pub async fn get_transaction_details(
         &mut self,
         hash: H256,
-    ) -> sqlx::Result<Option<api::TransactionDetails>> {
+    ) -> DalResult<Option<api::TransactionDetails>> {
         {
             let storage_tx_details: Option<StorageTransactionDetails> = sqlx::query_as!(
                 StorageTransactionDetails,
@@ -279,7 +286,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         from_timestamp: NaiveDateTime,
         limit: Option<usize>,
-    ) -> Result<(Vec<H256>, Option<NaiveDateTime>), SqlxError> {
+    ) -> DalResult<Vec<(NaiveDateTime, H256)>> {
         let records = sqlx::query!(
             r#"
             SELECT
@@ -298,15 +305,17 @@ impl TransactionsWeb3Dal<'_, '_> {
             from_timestamp,
             limit.map(|limit| limit as i64)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_pending_txs_hashes_after")
+        .with_arg("from_timestamp", &from_timestamp)
+        .with_arg("limit", &limit)
+        .fetch_all(self.storage)
         .await?;
 
-        let last_loc = records.last().map(|record| record.received_at);
         let hashes = records
             .into_iter()
-            .map(|record| H256::from_slice(&record.hash))
+            .map(|record| (record.received_at, H256::from_slice(&record.hash)))
             .collect();
-        Ok((hashes, last_loc))
+        Ok(hashes)
     }
 
     /// `committed_next_nonce` should equal the nonce for `initiator_address` in the storage.
@@ -314,7 +323,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         initiator_address: Address,
         committed_next_nonce: u64,
-    ) -> Result<U256, SqlxError> {
+    ) -> DalResult<U256> {
         // Get nonces of non-rejected transactions, starting from the 'latest' nonce.
         // `latest` nonce is used, because it is guaranteed that there are no gaps before it.
         // `(miniblock_number IS NOT NULL OR error IS NULL)` is the condition that filters non-rejected transactions.
@@ -340,7 +349,10 @@ impl TransactionsWeb3Dal<'_, '_> {
             initiator_address.as_bytes(),
             committed_next_nonce as i64
         )
-        .fetch_all(self.storage.conn())
+        .instrument("next_nonce_by_initiator_account#non_rejected_nonces")
+        .with_arg("initiator_address", &initiator_address)
+        .with_arg("committed_next_nonce", &committed_next_nonce)
+        .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(|row| row.nonce as u64)
@@ -364,7 +376,7 @@ impl TransactionsWeb3Dal<'_, '_> {
     pub async fn get_raw_miniblock_transactions(
         &mut self,
         miniblock: MiniblockNumber,
-    ) -> sqlx::Result<Vec<Transaction>> {
+    ) -> DalResult<Vec<Transaction>> {
         let rows = sqlx::query_as!(
             StorageTransaction,
             r#"
@@ -379,7 +391,9 @@ impl TransactionsWeb3Dal<'_, '_> {
             "#,
             i64::from(miniblock.0)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_raw_miniblock_transactions")
+        .with_arg("miniblock", &miniblock)
+        .fetch_all(self.storage)
         .await?;
 
         Ok(rows.into_iter().map(Into::into).collect())
@@ -395,10 +409,10 @@ mod tests {
     use super::*;
     use crate::{
         tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
-        ConnectionPool,
+        ConnectionPool, Core, CoreDal,
     };
 
-    async fn prepare_transactions(conn: &mut StorageProcessor<'_>, txs: Vec<L2Tx>) {
+    async fn prepare_transactions(conn: &mut Connection<'_, Core>, txs: Vec<L2Tx>) {
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
@@ -407,7 +421,8 @@ mod tests {
         for tx in &txs {
             conn.transactions_dal()
                 .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
-                .await;
+                .await
+                .unwrap();
         }
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
@@ -432,8 +447,8 @@ mod tests {
 
     #[tokio::test]
     async fn getting_transaction() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -482,8 +497,8 @@ mod tests {
 
     #[tokio::test]
     async fn getting_receipts() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -510,8 +525,8 @@ mod tests {
 
     #[tokio::test]
     async fn getting_miniblock_transactions() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -537,8 +552,8 @@ mod tests {
 
     #[tokio::test]
     async fn getting_next_nonce_by_initiator_account() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -560,7 +575,8 @@ mod tests {
             tx_by_nonce.insert(nonce, tx.clone());
             conn.transactions_dal()
                 .insert_transaction_l2(tx, TransactionExecutionMetrics::default())
-                .await;
+                .await
+                .unwrap();
         }
 
         let next_nonce = conn
@@ -607,8 +623,8 @@ mod tests {
     #[tokio::test]
     async fn getting_next_nonce_by_initiator_account_after_snapshot_recovery() {
         // Emulate snapshot recovery: no transactions with past nonces are present in the storage
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         let initiator = Address::repeat_byte(1);
         let next_nonce = conn
             .transactions_web3_dal()
@@ -623,7 +639,8 @@ mod tests {
         tx.common_data.initiator_address = initiator;
         conn.transactions_dal()
             .insert_transaction_l2(tx, TransactionExecutionMetrics::default())
-            .await;
+            .await
+            .unwrap();
 
         let next_nonce = conn
             .transactions_web3_dal()

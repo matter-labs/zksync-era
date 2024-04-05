@@ -1,5 +1,6 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
-use zksync_types::{api::en, tokens::TokenInfo, MiniblockNumber};
+use zksync_config::GenesisConfig;
+use zksync_types::{api::en, tokens::TokenInfo, Address, MiniblockNumber};
 
 #[cfg_attr(
     all(feature = "client", feature = "server"),
@@ -30,4 +31,12 @@ pub trait EnNamespace {
     #[method(name = "syncTokens")]
     async fn sync_tokens(&self, block_number: Option<MiniblockNumber>)
         -> RpcResult<Vec<TokenInfo>>;
+
+    /// Get genesis configuration
+    #[method(name = "genesisConfig")]
+    async fn genesis_config(&self) -> RpcResult<GenesisConfig>;
+
+    /// Get tokens that are white-listed and it can be used by paymasters.
+    #[method(name = "whitelistedTokensForAA")]
+    async fn whitelisted_tokens_for_aa(&self) -> RpcResult<Vec<Address>>;
 }

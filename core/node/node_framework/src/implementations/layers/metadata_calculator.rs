@@ -1,5 +1,5 @@
 use zksync_core::metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_storage::RocksDB;
 
 use crate::{
@@ -26,7 +26,7 @@ pub struct MetadataCalculatorLayer(pub MetadataCalculatorConfig);
 #[derive(Debug)]
 pub struct MetadataCalculatorTask {
     metadata_calculator: MetadataCalculator,
-    main_pool: ConnectionPool,
+    main_pool: ConnectionPool<Core>,
 }
 
 #[async_trait::async_trait]

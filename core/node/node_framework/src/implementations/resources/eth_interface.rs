@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use zksync_eth_client::{BoundEthInterface, EthInterface};
 
-use crate::resource::{Resource, ResourceId};
+use crate::resource::Resource;
 
 #[derive(Debug, Clone)]
 pub struct EthInterfaceResource(pub Arc<dyn EthInterface>);
 
 impl Resource for EthInterfaceResource {
-    fn resource_id() -> ResourceId {
+    fn name() -> String {
         "common/eth_interface".into()
     }
 }
@@ -17,7 +17,7 @@ impl Resource for EthInterfaceResource {
 pub struct BoundEthInterfaceResource(pub Arc<dyn BoundEthInterface>);
 
 impl Resource for BoundEthInterfaceResource {
-    fn resource_id() -> ResourceId {
+    fn name() -> String {
         "common/bound_eth_interface".into()
     }
 }

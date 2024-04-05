@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 use zksync_types::{
     basic_fri_types::Eip4844Blobs,
-    protocol_version::{FriProtocolVersionId, L1VerifierConfig},
+    protocol_version::{L1VerifierConfig, ProtocolVersionId},
     L1BatchNumber,
 };
 
@@ -14,7 +14,7 @@ use crate::{inputs::PrepareBasicCircuitsJob, outputs::L1BatchProofForL1};
 pub struct ProofGenerationData {
     pub l1_batch_number: L1BatchNumber,
     pub data: PrepareBasicCircuitsJob,
-    pub fri_protocol_version_id: FriProtocolVersionId,
+    pub protocol_version_id: ProtocolVersionId,
     pub l1_verifier_config: L1VerifierConfig,
     pub eip_4844_blobs: Eip4844Blobs,
 }

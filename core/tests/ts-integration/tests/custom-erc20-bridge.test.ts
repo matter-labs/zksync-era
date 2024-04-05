@@ -18,14 +18,14 @@ describe('Tests for the custom bridge behavior', () => {
     let alice: zksync.Wallet;
     let bob: zksync.Wallet;
     let tokenDetails: Token;
-    let chainId: BigNumberish;
+    // let chainId: BigNumberish;
 
     beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         bob = testMaster.newEmptyAccount();
         tokenDetails = testMaster.environment().erc20Token;
-        chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
+        // chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
     });
 
     test('Should deploy custom bridge', async () => {
@@ -63,7 +63,7 @@ describe('Tests for the custom bridge behavior', () => {
 
         let l1bridge2 = new L1ERC20BridgeFactory(alice._signerL1()).attach(l1BridgeProxy.address);
 
-        const maxAttempts = 200;
+        const maxAttempts = 5;
         let ready = false;
         for (let i = 0; i < maxAttempts; ++i) {
             const l2Bridge = await l1bridge2.l2Bridge();

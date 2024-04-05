@@ -3,12 +3,12 @@ use std::{fmt, time::Duration};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::watch;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::{
+    client::L2Client,
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
-    jsonrpsee::http_client::HttpClient,
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
@@ -93,7 +93,7 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
 }
 
 #[async_trait]
-impl MainNodeClient for HttpClient {
+impl MainNodeClient for L2Client {
     async fn sealed_miniblock_number(&self) -> EnrichedClientResult<MiniblockNumber> {
         let number = self
             .get_block_number()
@@ -215,7 +215,7 @@ impl HandleReorgDetectorEvent for HealthUpdater {
 pub struct ReorgDetector {
     client: Box<dyn MainNodeClient>,
     event_handler: Box<dyn HandleReorgDetectorEvent>,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
     sleep_interval: Duration,
     health_check: ReactiveHealthCheck,
 }
@@ -223,10 +223,10 @@ pub struct ReorgDetector {
 impl ReorgDetector {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(client: HttpClient, pool: ConnectionPool) -> Self {
+    pub fn new(client: L2Client, pool: ConnectionPool<Core>) -> Self {
         let (health_check, health_updater) = ReactiveHealthCheck::new("reorg_detector");
         Self {
-            client: Box::new(client),
+            client: Box::new(client.for_component("reorg_detector")),
             event_handler: Box::new(health_updater),
             pool,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
@@ -241,16 +241,12 @@ impl ReorgDetector {
     /// Returns `Ok(())` if no reorg was detected.
     /// Returns `Err::ReorgDetected()` if a reorg was detected.
     pub async fn check_consistency(&mut self) -> Result<(), Error> {
-        let mut storage = self
-            .pool
-            .access_storage()
-            .await
-            .context("access_storage()")?;
+        let mut storage = self.pool.connection().await.context("connection()")?;
         let Some(local_l1_batch) = storage
             .blocks_dal()
             .get_last_l1_batch_number_with_metadata()
             .await
-            .context("get_last_l1_batch_number_with_metadata()")?
+            .map_err(DalError::generalize)?
         else {
             return Ok(());
         };
@@ -258,7 +254,7 @@ impl ReorgDetector {
             .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .context("get_sealed_miniblock_number()")?
+            .map_err(DalError::generalize)?
         else {
             return Ok(());
         };
@@ -289,17 +285,13 @@ impl ReorgDetector {
 
         // Check that the first L1 batch matches, to make sure that
         // we are actually tracking the same chain as the main node.
-        let mut storage = self
-            .pool
-            .access_storage()
-            .await
-            .context("access_storage()")?;
+        let mut storage = self.pool.connection().await.context("connection()")?;
         let first_l1_batch = storage
             .blocks_dal()
             .get_earliest_l1_batch_number_with_metadata()
             .await
-            .context("get_earliest_l1_batch_number_with_metadata")?
-            .context("all L1 batches dissapeared")?;
+            .map_err(DalError::generalize)?
+            .context("all L1 batches disappeared")?;
         drop(storage);
         match self.root_hashes_match(first_l1_batch).await {
             Ok(true) => {}
@@ -321,16 +313,12 @@ impl ReorgDetector {
         &self,
         miniblock: MiniblockNumber,
     ) -> Result<bool, HashMatchError> {
-        let mut storage = self
-            .pool
-            .access_storage()
-            .await
-            .context("access_storage()")?;
+        let mut storage = self.pool.connection().await.context("connection()")?;
         let local_hash = storage
             .blocks_dal()
             .get_miniblock_header(miniblock)
             .await
-            .context("get_miniblock_header()")?
+            .map_err(DalError::generalize)?
             .with_context(|| format!("Header does not exist for local miniblock #{miniblock}"))?
             .hash;
         drop(storage);
@@ -354,16 +342,12 @@ impl ReorgDetector {
 
     /// Compares root hashes of the latest local batch and of the same batch from the main node.
     async fn root_hashes_match(&self, l1_batch: L1BatchNumber) -> Result<bool, HashMatchError> {
-        let mut storage = self
-            .pool
-            .access_storage()
-            .await
-            .context("access_storage()")?;
+        let mut storage = self.pool.connection().await.context("connection()")?;
         let local_hash = storage
             .blocks_dal()
             .get_l1_batch_state_root(l1_batch)
             .await
-            .context("get_l1_batch_state_root()")?
+            .map_err(DalError::generalize)?
             .with_context(|| format!("Root hash does not exist for local batch #{l1_batch}"))?;
         drop(storage);
 
@@ -403,9 +387,9 @@ impl ReorgDetector {
         .map(L1BatchNumber)
     }
 
-    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> Result<(), Error> {
+    pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> Result<(), Error> {
         self.event_handler.initialize();
-        while !*stop_receiver.borrow() {
+        while !*stop_receiver.borrow_and_update() {
             match self.check_consistency().await {
                 Err(err) if err.is_transient() => {
                     tracing::warn!("Following transient error occurred: {err}");
@@ -414,7 +398,10 @@ impl ReorgDetector {
                 Err(err) => return Err(err),
                 Ok(()) => {}
             }
-            tokio::time::sleep(self.sleep_interval).await;
+            // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
+            tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
+                .await
+                .ok();
         }
         self.event_handler.start_shutting_down();
         tracing::info!("Shutting down reorg detector");

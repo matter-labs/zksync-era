@@ -16,7 +16,7 @@ use zksync_types::web3::{
 
 use crate::{
     clients::http::{Method, COUNTERS, LATENCIES},
-    types::{Error, ExecutedTxStatus, FailureInfo, RawTokens},
+    types::{Error, ExecutedTxStatus, FailureInfo, FeeHistory, RawTokens},
     Block, ContractCall, EthInterface, RawTransactionBytes,
 };
 
@@ -104,14 +104,19 @@ impl EthInterface for QueryClient {
         for chunk_start in (from_block..=upto_block).step_by(MAX_REQUEST_CHUNK) {
             let chunk_end = (chunk_start + MAX_REQUEST_CHUNK).min(upto_block);
             let chunk_size = chunk_end - chunk_start;
-            let chunk = self
-                .web3
-                .eth()
-                .fee_history(chunk_size.into(), chunk_end.into(), None)
-                .await?
-                .base_fee_per_gas;
 
-            history.extend(chunk);
+            let block_count = helpers::serialize(&U256::from(chunk_size));
+            let newest_block = helpers::serialize(&web3::types::BlockNumber::from(chunk_end));
+            let reward_percentiles = helpers::serialize(&Option::<()>::None);
+
+            let fee_history: FeeHistory = CallFuture::new(self.web3.transport().execute(
+                "eth_feeHistory",
+                vec![block_count, newest_block, reward_percentiles],
+            ))
+            .await?;
+            if let Some(base_fees) = fee_history.base_fee_per_gas {
+                history.extend(base_fees);
+            }
         }
 
         latency.observe();

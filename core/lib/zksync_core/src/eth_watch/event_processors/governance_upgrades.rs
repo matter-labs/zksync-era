@@ -1,8 +1,8 @@
 use std::{convert::TryFrom, time::Instant};
 
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
-    ethabi::Contract, protocol_version::GovernanceOperation, web3::types::Log, Address,
+    ethabi::Contract, protocol_upgrade::GovernanceOperation, web3::types::Log, Address,
     ProtocolUpgrade, ProtocolVersionId, H256,
 };
 
@@ -14,7 +14,8 @@ use crate::eth_watch::{
 /// Listens to operation events coming from the governance contract and saves new protocol upgrade proposals to the database.
 #[derive(Debug)]
 pub struct GovernanceUpgradesEventProcessor {
-    diamond_proxy_address: Address,
+    // zkSync diamond proxy if pre-shared bridge; state transition manager if post shared bridge.
+    target_contract_address: Address,
     /// Last protocol version seen. Used to skip events for already known upgrade proposals.
     last_seen_version_id: ProtocolVersionId,
     upgrade_proposal_signature: H256,
@@ -22,12 +23,12 @@ pub struct GovernanceUpgradesEventProcessor {
 
 impl GovernanceUpgradesEventProcessor {
     pub fn new(
-        diamond_proxy_address: Address,
+        target_contract_address: Address,
         last_seen_version_id: ProtocolVersionId,
         governance_contract: &Contract,
     ) -> Self {
         Self {
-            diamond_proxy_address,
+            target_contract_address,
             last_seen_version_id,
             upgrade_proposal_signature: governance_contract
                 .event("TransparentOperationScheduled")
@@ -41,7 +42,7 @@ impl GovernanceUpgradesEventProcessor {
 impl EventProcessor for GovernanceUpgradesEventProcessor {
     async fn process_events(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<(), Error> {
@@ -56,7 +57,7 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
             for call in governance_operation
                 .calls
                 .into_iter()
-                .filter(|call| call.target == self.diamond_proxy_address)
+                .filter(|call| call.target == self.target_contract_address)
             {
                 // We might not get an upgrade operation here, but something else instead
                 // (e.g. `acceptGovernor` call), so if parsing doesn't work, just skip the call.

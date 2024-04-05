@@ -1,12 +1,19 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
+use anyhow::Context;
 use async_trait::async_trait;
 use serde::Serialize;
+use tokio::sync::watch;
 use zksync_concurrency::{ctx, sync};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_types::MiniblockNumber;
+use zksync_web3_decl::{client::L2Client, namespaces::EthNamespaceClient};
 
-use crate::metrics::EN_METRICS;
+use crate::{
+    metrics::EN_METRICS,
+    state_keeper::{io::IoCursor, updates::UpdatesManager, StateKeeperOutputHandler},
+};
 
 /// `SyncState` is a structure that holds the state of the syncing process.
 /// The intended use case is to signalize to Web3 API whether the node is fully synced.
@@ -36,6 +43,15 @@ impl SyncState {
         self.0.borrow().local_block.unwrap_or_default()
     }
 
+    #[cfg(test)]
+    pub(crate) async fn wait_for_local_block(&self, want: MiniblockNumber) {
+        self.0
+            .subscribe()
+            .wait_for(|inner| matches!(inner.local_block, Some(got) if got >= want))
+            .await
+            .unwrap();
+    }
+
     pub(crate) async fn wait_for_main_node_block(
         &self,
         ctx: &ctx::Ctx,
@@ -44,7 +60,7 @@ impl SyncState {
         sync::wait_for(
             ctx,
             &mut self.0.subscribe(),
-            |s| matches!(s.main_node_block, Some(got) if got >= want),
+            |inner| matches!(inner.main_node_block, Some(got) if got >= want),
         )
         .await?;
         Ok(())
@@ -54,12 +70,68 @@ impl SyncState {
         self.0.send_modify(|inner| inner.set_main_node_block(block));
     }
 
-    pub(super) fn set_local_block(&self, block: MiniblockNumber) {
+    fn set_local_block(&self, block: MiniblockNumber) {
         self.0.send_modify(|inner| inner.set_local_block(block));
     }
 
     pub(crate) fn is_synced(&self) -> bool {
         self.0.borrow().is_synced().0
+    }
+
+    pub async fn run_updater(
+        self,
+        connection_pool: ConnectionPool<Core>,
+        main_node_client: L2Client,
+        mut stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<()> {
+        const UPDATE_INTERVAL: Duration = Duration::from_secs(10);
+
+        while !*stop_receiver.borrow_and_update() {
+            let local_block = connection_pool
+                .connection()
+                .await
+                .context("Failed to get a connection from the pool in sync state updater")?
+                .blocks_dal()
+                .get_sealed_miniblock_number()
+                .await
+                .context("Failed to get the miniblock number from DB")?;
+
+            let main_node_block = main_node_client
+                .get_block_number()
+                .await
+                .context("Failed to request last miniblock number from main node")?;
+
+            if let Some(local_block) = local_block {
+                self.set_local_block(local_block);
+                self.set_main_node_block(main_node_block.as_u32().into());
+            }
+
+            tokio::time::timeout(UPDATE_INTERVAL, stop_receiver.changed())
+                .await
+                .ok();
+        }
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl StateKeeperOutputHandler for SyncState {
+    async fn initialize(&mut self, cursor: &IoCursor) -> anyhow::Result<()> {
+        let sealed_block_number = cursor.next_miniblock.saturating_sub(1);
+        self.set_local_block(MiniblockNumber(sealed_block_number));
+        Ok(())
+    }
+
+    async fn handle_miniblock(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+        let sealed_block_number = updates_manager.miniblock.number;
+        self.set_local_block(sealed_block_number);
+        Ok(())
+    }
+
+    async fn handle_l1_batch(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+        let sealed_block_number = updates_manager.miniblock.number;
+        self.set_local_block(sealed_block_number);
+        Ok(())
     }
 }
 

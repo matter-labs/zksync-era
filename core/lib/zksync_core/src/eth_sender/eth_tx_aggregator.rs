@@ -3,7 +3,7 @@ use std::{convert::TryInto, sync::Arc};
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_l1_contract_interface::{
     i_executor::commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
@@ -25,6 +25,7 @@ use zksync_types::{
 use super::aggregated_operations::AggregatedOperation;
 use crate::{
     eth_sender::{
+        l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
         metrics::{PubdataKind, METRICS},
         zksync_functions::ZkSyncFunctions,
         Aggregator, ETHSenderError,
@@ -62,6 +63,8 @@ pub struct EthTxAggregator {
     /// transactions. The `Some` then contains the address of this custom operator
     /// address.
     custom_commit_sender_addr: Option<Address>,
+    pool: ConnectionPool<Core>,
+    l1_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
 struct TxData {
@@ -72,6 +75,7 @@ struct TxData {
 impl EthTxAggregator {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
+        pool: ConnectionPool<Core>,
         config: SenderConfig,
         aggregator: Aggregator,
         eth_client: Arc<dyn BoundEthInterface>,
@@ -80,6 +84,7 @@ impl EthTxAggregator {
         state_transition_chain_contract: Address,
         rollup_chain_id: L2ChainId,
         custom_commit_sender_addr: Option<Address>,
+        l1_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> Self {
         let functions = ZkSyncFunctions::default();
         let base_nonce = eth_client
@@ -110,16 +115,15 @@ impl EthTxAggregator {
             base_nonce_custom_commit_sender,
             rollup_chain_id,
             custom_commit_sender_addr,
+            pool,
+            l1_commit_data_generator,
         }
     }
 
-    pub async fn run(
-        mut self,
-        pool: ConnectionPool,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
+    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let pool = self.pool.clone();
         loop {
-            let mut storage = pool.access_storage_tagged("eth_sender").await.unwrap();
+            let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, eth_tx_aggregator is shutting down");
@@ -342,7 +346,7 @@ impl EthTxAggregator {
     #[tracing::instrument(skip(self, storage))]
     async fn loop_iteration(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
     ) -> Result<(), ETHSenderError> {
         let MulticallData {
             base_system_contracts_hashes,
@@ -385,7 +389,7 @@ impl EthTxAggregator {
     }
 
     async fn report_eth_tx_saving(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         aggregated_op: AggregatedOperation,
         tx: &EthTx,
     ) {
@@ -396,8 +400,8 @@ impl EthTxAggregator {
             aggregated_op.get_action_caption()
         );
 
-        if let AggregatedOperation::Commit(commit_op) = &aggregated_op {
-            for batch in &commit_op.l1_batches {
+        if let AggregatedOperation::Commit(_, l1_batches, _) = &aggregated_op {
+            for batch in l1_batches {
                 METRICS.pubdata_size[&PubdataKind::StateDiffs]
                     .observe(batch.metadata.state_diffs_compressed.len());
                 METRICS.pubdata_size[&PubdataKind::UserL2ToL1Logs]
@@ -431,16 +435,21 @@ impl EthTxAggregator {
         let mut args = vec![Token::Uint(self.rollup_chain_id.as_u64().into())];
 
         let (calldata, sidecar) = match op.clone() {
-            AggregatedOperation::Commit(op) => {
+            AggregatedOperation::Commit(last_committed_l1_batch, l1_batches, pubdata_da) => {
+                let commit_data = self.l1_commit_data_generator.l1_commit_batches(
+                    &last_committed_l1_batch,
+                    &l1_batches,
+                    &pubdata_da,
+                );
                 if contracts_are_pre_shared_bridge {
                     if let PubdataDA::Blobs = self.aggregator.pubdata_da() {
                         let calldata = self
                             .functions
                             .pre_shared_bridge_commit
-                            .encode_input(&op.clone().into_tokens())
+                            .encode_input(&commit_data)
                             .expect("Failed to encode commit transaction data");
 
-                        let side_car = op.l1_batches[0]
+                        let side_car = l1_batches[0]
                             .header
                             .pubdata_input
                             .clone()
@@ -463,12 +472,12 @@ impl EthTxAggregator {
                         let calldata = self
                             .functions
                             .pre_shared_bridge_commit
-                            .encode_input(&op.into_tokens())
+                            .encode_input(&commit_data)
                             .expect("Failed to encode commit transaction data");
                         (calldata, None)
                     }
                 } else {
-                    args.extend(op.into_tokens());
+                    args.extend(commit_data);
                     let calldata = self
                         .functions
                         .post_shared_bridge_commit
@@ -519,7 +528,7 @@ impl EthTxAggregator {
 
     pub(super) async fn save_eth_tx(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         aggregated_op: &AggregatedOperation,
         contracts_are_pre_shared_bridge: bool,
     ) -> Result<EthTx, ETHSenderError> {
@@ -569,7 +578,7 @@ impl EthTxAggregator {
 
     async fn get_next_nonce(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         from_addr: Option<Address>,
     ) -> Result<u64, ETHSenderError> {
         let db_nonce = storage

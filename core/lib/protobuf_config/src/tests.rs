@@ -1,45 +1,62 @@
-use crate::{
-    proto,
-    testonly::{encode_decode, ReprConv},
+use std::{path::PathBuf, str::FromStr};
+
+use anyhow::Context;
+use zksync_protobuf::{
+    testonly::{test_encode_all_formats, ReprConv},
+    ProtoRepr,
 };
+
+use crate::proto;
 
 /// Tests config <-> proto (boilerplate) conversions.
 #[test]
 fn test_encoding() {
     let rng = &mut rand::thread_rng();
-    encode_decode::<ReprConv<proto::alerts::Alerts>>(rng);
-    encode_decode::<ReprConv<proto::api::Web3JsonRpc>>(rng);
-    encode_decode::<ReprConv<proto::api::ContractVerificationApi>>(rng);
-    encode_decode::<ReprConv<proto::api::HealthCheck>>(rng);
-    encode_decode::<ReprConv<proto::api::MerkleTreeApi>>(rng);
-    encode_decode::<ReprConv<proto::api::Api>>(rng);
-    encode_decode::<ReprConv<proto::utils::Prometheus>>(rng);
-    encode_decode::<ReprConv<proto::chain::EthNetwork>>(rng);
-    encode_decode::<ReprConv<proto::chain::StateKeeper>>(rng);
-    encode_decode::<ReprConv<proto::chain::OperationsManager>>(rng);
-    encode_decode::<ReprConv<proto::chain::Mempool>>(rng);
-    encode_decode::<ReprConv<proto::chain::CircuitBreaker>>(rng);
-    encode_decode::<ReprConv<proto::contract_verifier::ContractVerifier>>(rng);
-    encode_decode::<ReprConv<proto::contracts::Contracts>>(rng);
-    encode_decode::<ReprConv<proto::database::MerkleTree>>(rng);
-    encode_decode::<ReprConv<proto::database::Db>>(rng);
-    encode_decode::<ReprConv<proto::database::Postgres>>(rng);
-    encode_decode::<ReprConv<proto::eth_client::EthClient>>(rng);
-    encode_decode::<ReprConv<proto::eth_sender::EthSender>>(rng);
-    encode_decode::<ReprConv<proto::eth_sender::Sender>>(rng);
-    encode_decode::<ReprConv<proto::eth_sender::GasAdjuster>>(rng);
-    encode_decode::<ReprConv<proto::eth_watch::EthWatch>>(rng);
-    encode_decode::<ReprConv<proto::fri_proof_compressor::FriProofCompressor>>(rng);
-    encode_decode::<ReprConv<proto::fri_prover::FriProver>>(rng);
-    encode_decode::<ReprConv<proto::fri_prover_gateway::FriProverGateway>>(rng);
-    encode_decode::<ReprConv<proto::fri_prover_group::CircuitIdRoundTuple>>(rng);
-    encode_decode::<ReprConv<proto::fri_prover_group::FriProverGroup>>(rng);
-    encode_decode::<ReprConv<proto::fri_witness_generator::FriWitnessGenerator>>(rng);
-    encode_decode::<ReprConv<proto::fri_witness_vector_generator::FriWitnessVectorGenerator>>(rng);
-    encode_decode::<ReprConv<proto::house_keeper::HouseKeeper>>(rng);
-    encode_decode::<ReprConv<proto::object_store::ObjectStore>>(rng);
-    encode_decode::<ReprConv<proto::proof_data_handler::ProofDataHandler>>(rng);
-    encode_decode::<ReprConv<proto::snapshot_creator::SnapshotsCreator>>(rng);
-    encode_decode::<ReprConv<proto::witness_generator::WitnessGenerator>>(rng);
-    encode_decode::<ReprConv<proto::observability::Observability>>(rng);
+    test_encode_all_formats::<ReprConv<proto::api::Web3JsonRpc>>(rng);
+    test_encode_all_formats::<ReprConv<proto::api::HealthCheck>>(rng);
+    test_encode_all_formats::<ReprConv<proto::api::MerkleTreeApi>>(rng);
+    test_encode_all_formats::<ReprConv<proto::api::Api>>(rng);
+    test_encode_all_formats::<ReprConv<proto::utils::Prometheus>>(rng);
+    test_encode_all_formats::<ReprConv<proto::chain::StateKeeper>>(rng);
+    test_encode_all_formats::<ReprConv<proto::chain::OperationsManager>>(rng);
+    test_encode_all_formats::<ReprConv<proto::chain::Mempool>>(rng);
+    test_encode_all_formats::<ReprConv<proto::contract_verifier::ContractVerifier>>(rng);
+    test_encode_all_formats::<ReprConv<proto::contracts::Contracts>>(rng);
+    test_encode_all_formats::<ReprConv<proto::database::MerkleTree>>(rng);
+    test_encode_all_formats::<ReprConv<proto::database::Db>>(rng);
+    test_encode_all_formats::<ReprConv<proto::database::Postgres>>(rng);
+    test_encode_all_formats::<ReprConv<proto::eth::Eth>>(rng);
+    test_encode_all_formats::<ReprConv<proto::prover::ProofCompressor>>(rng);
+    test_encode_all_formats::<ReprConv<proto::prover::Prover>>(rng);
+    test_encode_all_formats::<ReprConv<proto::prover::ProverGateway>>(rng);
+    test_encode_all_formats::<ReprConv<proto::prover::ProverGroup>>(rng);
+    test_encode_all_formats::<ReprConv<proto::prover::WitnessGenerator>>(rng);
+    test_encode_all_formats::<ReprConv<proto::prover::WitnessVectorGenerator>>(rng);
+    test_encode_all_formats::<ReprConv<proto::house_keeper::HouseKeeper>>(rng);
+    test_encode_all_formats::<ReprConv<proto::object_store::ObjectStore>>(rng);
+    test_encode_all_formats::<ReprConv<proto::prover::ProofDataHandler>>(rng);
+    test_encode_all_formats::<ReprConv<proto::snapshot_creator::SnapshotsCreator>>(rng);
+    test_encode_all_formats::<ReprConv<proto::observability::Observability>>(rng);
+}
+
+pub fn decode_yaml_repr<T: ProtoRepr>(
+    path: &PathBuf,
+    deny_unknown_fields: bool,
+) -> anyhow::Result<T::Type> {
+    let yaml = std::fs::read_to_string(path).with_context(|| path.display().to_string())?;
+    let d = serde_yaml::Deserializer::from_str(&yaml);
+    let this: T = zksync_protobuf::serde::deserialize_proto_with_options(d, deny_unknown_fields)?;
+    this.read()
+}
+
+#[test]
+fn verify_file_parsing() {
+    let base_path = PathBuf::from_str("../../../etc/env/file_based/").unwrap();
+    decode_yaml_repr::<proto::general::GeneralConfig>(&base_path.join("general.yaml"), true)
+        .unwrap();
+    // It's allowed to have unknown fields in wallets, e.g. we keep private key for fee account
+    decode_yaml_repr::<proto::wallets::Wallets>(&base_path.join("wallets.yaml"), false).unwrap();
+    decode_yaml_repr::<proto::genesis::Genesis>(&base_path.join("genesis.yaml"), true).unwrap();
+    decode_yaml_repr::<proto::contracts::Contracts>(&base_path.join("contracts.yaml"), true)
+        .unwrap();
 }

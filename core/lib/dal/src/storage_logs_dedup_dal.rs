@@ -1,6 +1,11 @@
 use std::collections::HashSet;
 
 use sqlx::types::chrono::Utc;
+use zksync_db_connection::{
+    connection::Connection,
+    error::DalResult,
+    instrument::{CopyStatement, InstrumentExt},
+};
 use zksync_types::{
     snapshots::SnapshotStorageLog, zk_evm_types::LogQuery, AccountTreeId, Address, L1BatchNumber,
     StorageKey, H256,
@@ -8,11 +13,11 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 pub use crate::models::storage_log::DbInitialWrite;
-use crate::StorageProcessor;
+use crate::Core;
 
 #[derive(Debug)]
 pub struct StorageLogsDedupDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl StorageLogsDedupDal<'_, '_> {
@@ -20,15 +25,17 @@ impl StorageLogsDedupDal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
         read_logs: &[LogQuery],
-    ) -> sqlx::Result<()> {
-        let mut copy = self
-            .storage
-            .conn()
-            .copy_in_raw(
-                "COPY protective_reads (l1_batch_number, address, key, created_at, updated_at) \
-                FROM STDIN WITH (DELIMITER '|')",
-            )
-            .await?;
+    ) -> DalResult<()> {
+        let read_logs_len = read_logs.len();
+        let copy = CopyStatement::new(
+            "COPY protective_reads (l1_batch_number, address, key, created_at, updated_at) \
+             FROM STDIN WITH (DELIMITER '|')",
+        )
+        .instrument("insert_protective_reads")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .with_arg("read_logs.len", &read_logs_len)
+        .start(self.storage)
+        .await?;
 
         let mut bytes: Vec<u8> = Vec::new();
         let now = Utc::now().naive_utc().to_string();
@@ -41,9 +48,7 @@ impl StorageLogsDedupDal<'_, '_> {
             );
             bytes.extend_from_slice(row.as_bytes());
         }
-        copy.send(bytes).await?;
-        copy.finish().await?;
-        Ok(())
+        copy.send(&bytes).await
     }
 
     /// Insert initial writes and assigns indices to them.
@@ -51,15 +56,16 @@ impl StorageLogsDedupDal<'_, '_> {
     pub async fn insert_initial_writes_from_snapshot(
         &mut self,
         snapshot_storage_logs: &[SnapshotStorageLog],
-    ) -> sqlx::Result<()> {
-        let mut copy = self
-            .storage
-            .conn()
-            .copy_in_raw(
-                "COPY initial_writes (hashed_key, index, l1_batch_number, created_at, updated_at) \
-                FROM STDIN WITH (DELIMITER '|')",
-            )
-            .await?;
+    ) -> DalResult<()> {
+        let storage_logs_len = snapshot_storage_logs.len();
+        let copy = CopyStatement::new(
+            "COPY initial_writes (hashed_key, index, l1_batch_number, created_at, updated_at) \
+             FROM STDIN WITH (DELIMITER '|')",
+        )
+        .instrument("insert_initial_writes_from_snapshot")
+        .with_arg("storage_logs.len", &storage_logs_len)
+        .start(self.storage)
+        .await?;
 
         let mut bytes: Vec<u8> = Vec::new();
         let now = Utc::now().naive_utc().to_string();
@@ -74,17 +80,14 @@ impl StorageLogsDedupDal<'_, '_> {
             );
             bytes.extend_from_slice(row.as_bytes());
         }
-        copy.send(bytes).await?;
-        copy.finish().await?;
-
-        Ok(())
+        copy.send(&bytes).await
     }
 
     pub async fn insert_initial_writes(
         &mut self,
         l1_batch_number: L1BatchNumber,
         written_storage_keys: &[StorageKey],
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         let hashed_keys: Vec<_> = written_storage_keys
             .iter()
             .map(|key| StorageKey::raw_hashed_key(key.address(), key.key()).to_vec())
@@ -112,7 +115,10 @@ impl StorageLogsDedupDal<'_, '_> {
             &indices,
             i64::from(l1_batch_number.0)
         )
-        .execute(self.storage.conn())
+        .instrument("insert_initial_writes")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .with_arg("hashed_keys.len", &hashed_keys.len())
+        .execute(self.storage)
         .await?;
 
         Ok(())
@@ -121,8 +127,8 @@ impl StorageLogsDedupDal<'_, '_> {
     pub async fn get_protective_reads_for_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> HashSet<StorageKey> {
-        sqlx::query!(
+    ) -> sqlx::Result<HashSet<StorageKey>> {
+        let rows = sqlx::query!(
             r#"
             SELECT
                 address,
@@ -135,19 +141,20 @@ impl StorageLogsDedupDal<'_, '_> {
             i64::from(l1_batch_number.0)
         )
         .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|row| {
-            StorageKey::new(
-                AccountTreeId::new(Address::from_slice(&row.address)),
-                H256::from_slice(&row.key),
-            )
-        })
-        .collect()
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                StorageKey::new(
+                    AccountTreeId::new(Address::from_slice(&row.address)),
+                    H256::from_slice(&row.key),
+                )
+            })
+            .collect())
     }
 
-    async fn max_enumeration_index(&mut self) -> sqlx::Result<Option<u64>> {
+    async fn max_enumeration_index(&mut self) -> DalResult<Option<u64>> {
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -156,7 +163,8 @@ impl StorageLogsDedupDal<'_, '_> {
                 initial_writes
             "#,
         )
-        .fetch_one(self.storage.conn())
+        .instrument("max_enumeration_index")
+        .fetch_one(self.storage)
         .await?
         .max
         .map(|max| max as u64))
@@ -165,7 +173,7 @@ impl StorageLogsDedupDal<'_, '_> {
     pub async fn initial_writes_for_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<Vec<(H256, u64)>> {
+    ) -> DalResult<Vec<(H256, u64)>> {
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -180,7 +188,9 @@ impl StorageLogsDedupDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("initial_writes_for_batch")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(|row| (H256::from_slice(&row.hashed_key), row.index as u64))
@@ -190,7 +200,7 @@ impl StorageLogsDedupDal<'_, '_> {
     pub async fn get_enumeration_index_for_key(
         &mut self,
         hashed_key: H256,
-    ) -> sqlx::Result<Option<u64>> {
+    ) -> DalResult<Option<u64>> {
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -202,16 +212,15 @@ impl StorageLogsDedupDal<'_, '_> {
             "#,
             hashed_key.as_bytes()
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_enumeration_index_for_key")
+        .with_arg("hashed_key", &hashed_key)
+        .fetch_optional(self.storage)
         .await?
         .map(|row| row.index as u64))
     }
 
     /// Returns `hashed_keys` that are both present in the input and in `initial_writes` table.
-    pub async fn filter_written_slots(
-        &mut self,
-        hashed_keys: &[H256],
-    ) -> sqlx::Result<HashSet<H256>> {
+    pub async fn filter_written_slots(&mut self, hashed_keys: &[H256]) -> DalResult<HashSet<H256>> {
         let hashed_keys: Vec<_> = hashed_keys.iter().map(H256::as_bytes).collect();
         Ok(sqlx::query!(
             r#"
@@ -224,7 +233,9 @@ impl StorageLogsDedupDal<'_, '_> {
             "#,
             &hashed_keys as &[&[u8]],
         )
-        .fetch_all(self.storage.conn())
+        .instrument("filter_written_slots")
+        .with_arg("hashed_keys.len", &hashed_keys.len())
+        .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(|row| H256::from_slice(&row.hashed_key))

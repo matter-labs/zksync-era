@@ -55,10 +55,12 @@ const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
 pub struct EthHttpQueryClient {
     client: Arc<dyn EthInterface>,
     topics: Vec<H256>,
-    state_transition_chain_contract_addr: Address,
+    diamond_proxy_addr: Address,
     /// Address of the `Governance` contract. It's optional because it is present only for post-boojum chains.
     /// If address is some then client will listen to events coming from it.
     governance_address: Option<Address>,
+    // Only present for post-shared bridge chains.
+    state_transition_manager_address: Option<Address>,
     verifier_contract_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
 }
@@ -66,19 +68,21 @@ pub struct EthHttpQueryClient {
 impl EthHttpQueryClient {
     pub fn new(
         client: Arc<dyn EthInterface>,
-        state_transition_chain_contract_addr: Address,
+        diamond_proxy_addr: Address,
+        state_transition_manager_address: Option<Address>,
         governance_address: Option<Address>,
         confirmations_for_eth_event: Option<u64>,
     ) -> Self {
         tracing::debug!(
             "New eth client, zkSync addr: {:x}, governance addr: {:?}",
-            state_transition_chain_contract_addr,
+            diamond_proxy_addr,
             governance_address
         );
         Self {
             client,
             topics: Vec::new(),
-            state_transition_chain_contract_addr,
+            diamond_proxy_addr,
+            state_transition_manager_address,
             governance_address,
             verifier_contract_abi: verifier_contract(),
             confirmations_for_eth_event,
@@ -94,12 +98,12 @@ impl EthHttpQueryClient {
         let filter = FilterBuilder::default()
             .address(
                 [
-                    Some(self.state_transition_chain_contract_addr),
+                    Some(self.diamond_proxy_addr),
                     self.governance_address,
+                    self.state_transition_manager_address,
                 ]
-                .iter()
+                .into_iter()
                 .flatten()
-                .copied()
                 .collect(),
             )
             .from_block(from)

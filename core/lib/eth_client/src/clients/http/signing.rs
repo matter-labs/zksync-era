@@ -1,7 +1,7 @@
 use std::{fmt, sync::Arc};
 
 use async_trait::async_trait;
-use zksync_config::{ContractsConfig, ETHClientConfig, ETHSenderConfig};
+use zksync_config::{configs::ContractsConfig, ETHConfig};
 use zksync_contracts::state_transition_chain_contract;
 use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
 use zksync_types::{
@@ -30,68 +30,62 @@ pub type PKSigningClient = SigningClient<PrivateKeySigner>;
 
 impl PKSigningClient {
     pub fn from_config(
-        eth_sender: &ETHSenderConfig,
+        eth_sender: &ETHConfig,
         contracts_config: &ContractsConfig,
-        eth_client: &ETHClientConfig,
+        l1_chain_id: L1ChainId,
+        operator_private_key: H256,
     ) -> Self {
-        // Gather required data from the config.
-        // It's done explicitly to simplify getting rid of this function later.
-        let operator_private_key = eth_sender
-            .sender
-            .private_key()
-            .expect("Operator private key is required for signing client");
-
         Self::from_config_inner(
             eth_sender,
             contracts_config,
-            eth_client,
+            l1_chain_id,
             operator_private_key,
         )
     }
 
-    /// Create an signing client for the blobs account
-    pub fn from_config_blobs(
-        eth_sender: &ETHSenderConfig,
-        contracts_config: &ContractsConfig,
-        eth_client: &ETHClientConfig,
-    ) -> Option<Self> {
-        // Gather required data from the config.
-        // It's done explicitly to simplify getting rid of this function later.
-        let operator_private_key = eth_sender.sender.private_key_blobs()?;
-
-        Some(Self::from_config_inner(
-            eth_sender,
-            contracts_config,
-            eth_client,
-            operator_private_key,
-        ))
-    }
-
-    fn from_config_inner(
-        eth_sender: &ETHSenderConfig,
-        contracts_config: &ContractsConfig,
-        eth_client: &ETHClientConfig,
+    pub fn new_raw(
         operator_private_key: H256,
+        diamond_proxy_addr: Address,
+        default_priority_fee_per_gas: u64,
+        l1_chain_id: L1ChainId,
+        web3_url: &str,
     ) -> Self {
-        let main_node_url = &eth_client.web3_url;
-        let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
-        let default_priority_fee_per_gas = eth_sender.gas_adjuster.default_priority_fee_per_gas;
-        let l1_chain_id = eth_client.chain_id;
-
-        let transport = Http::new(main_node_url).expect("Failed to create transport");
+        let transport = Http::new(web3_url).expect("Failed to create transport");
         let operator_address = PackedEthSignature::address_from_private_key(&operator_private_key)
             .expect("Failed to get address from private key");
 
+        let signer = PrivateKeySigner::new(operator_private_key);
         tracing::info!("Operator address: {:?}", operator_address);
-
         SigningClient::new(
             transport,
             state_transition_chain_contract(),
             operator_address,
-            PrivateKeySigner::new(operator_private_key),
+            signer,
             diamond_proxy_addr,
             default_priority_fee_per_gas.into(),
-            L1ChainId(l1_chain_id),
+            l1_chain_id,
+        )
+    }
+
+    fn from_config_inner(
+        eth_sender: &ETHConfig,
+        contracts_config: &ContractsConfig,
+        l1_chain_id: L1ChainId,
+        operator_private_key: H256,
+    ) -> Self {
+        let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
+        let default_priority_fee_per_gas = eth_sender
+            .gas_adjuster
+            .expect("Gas adjuster")
+            .default_priority_fee_per_gas;
+        let main_node_url = &eth_sender.web3_url;
+
+        SigningClient::new_raw(
+            operator_private_key,
+            diamond_proxy_addr,
+            default_priority_fee_per_gas,
+            l1_chain_id,
+            main_node_url,
         )
     }
 }

@@ -2,7 +2,9 @@ use zksync_types::{Address, Execute, U256};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{constants::BLOCK_GAS_LIMIT, tests::tester::VmTesterBuilder, HistoryEnabled},
+    vm_latest::{
+        constants::BATCH_COMPUTATIONAL_GAS_LIMIT, tests::tester::VmTesterBuilder, HistoryEnabled,
+    },
 };
 
 // Checks that estimated number of circuits for simple transfer doesn't differ much
@@ -13,7 +15,7 @@ fn test_circuits() {
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()
-        .with_gas_limit(BLOCK_GAS_LIMIT)
+        .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build();
 
@@ -33,7 +35,7 @@ fn test_circuits() {
     let s = res.statistics.circuit_statistic;
     // Check `circuit_statistic`.
     const EXPECTED: [f32; 11] = [
-        1.1979, 0.1390, 1.5455, 0.0031, 1.0573, 0.00059, 0.00226, 0.00077, 0.1195, 0.1429, 0.0,
+        1.1979, 0.1390, 1.5455, 0.0031, 1.0573, 0.00059, 0.003438, 0.00077, 0.1195, 0.1429, 0.0,
     ];
     let actual = [
         (s.main_vm, "main_vm"),

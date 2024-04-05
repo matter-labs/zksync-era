@@ -1,29 +1,30 @@
 [package]
 name = "zksync_state"
 version = "0.1.0"
-edition = "2021"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
-zksync_dal = { path = "../dal" }
-zksync_types = { path = "../types" }
-zksync_utils = { path = "../utils" }
-zksync_storage = { path = "../storage" }
+vise.workspace = true
+zksync_dal.workspace = true
+zksync_types.workspace = true
+zksync_utils.workspace = true
+zksync_storage.workspace = true
 
-anyhow = "1.0"
-mini-moka = "0.10.0"
-tokio = { version = "1", features = ["rt"] }
-tracing = "0.1"
-itertools = "0.10.3"
+anyhow.workspace = true
+mini-moka.workspace = true
+tokio = { workspace = true, features = ["rt"] }
+tracing.workspace = true
+itertools.workspace = true
+chrono.workspace = true
 
 [dev-dependencies]
-assert_matches = "1.5.0"
-rand = "0.8.5"
-tempfile = "3.0.2"
-test-casing = "0.1.2"
+assert_matches.workspace = true
+rand.workspace = true
+tempfile.workspace = true
+test-casing.workspace = true
