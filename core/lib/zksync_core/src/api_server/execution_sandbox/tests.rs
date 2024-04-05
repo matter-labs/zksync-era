@@ -1,6 +1,7 @@
 //! Tests for the VM execution sandbox.
 
 use assert_matches::assert_matches;
+use zksync_dal::ConnectionPool;
 
 use super::*;
 use crate::{

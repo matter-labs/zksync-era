@@ -36,9 +36,8 @@ use self::tx_sink::TxSink;
 use crate::{
     api_server::{
         execution_sandbox::{
-            get_pubdata_for_factory_deps, BlockArgs, BlockStartInfo, SubmitTxStage,
-            TransactionExecutor, TxExecutionArgs, TxSharedArgs, VmConcurrencyLimiter, VmPermit,
-            SANDBOX_METRICS,
+            BlockArgs, BlockStartInfo, SubmitTxStage, TransactionExecutor, TxExecutionArgs,
+            TxSharedArgs, VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
         },
         tx_sender::result::ApiCallResult,
     },
@@ -70,6 +69,8 @@ pub struct MultiVMBaseSystemContracts {
     pub(crate) post_1_4_1: BaseSystemContracts,
     /// Contracts to be used after the 1.4.2 upgrade
     pub(crate) post_1_4_2: BaseSystemContracts,
+    /// Contracts to be used after the 1.5.0 upgrade
+    pub(crate) post_1_5_0: BaseSystemContracts,
 }
 
 impl MultiVMBaseSystemContracts {
@@ -96,9 +97,8 @@ impl MultiVMBaseSystemContracts {
             ProtocolVersionId::Version18 => self.post_boojum,
             ProtocolVersionId::Version19 => self.post_allowlist_removal,
             ProtocolVersionId::Version20 => self.post_1_4_1,
-            ProtocolVersionId::Version21
-            | ProtocolVersionId::Version22
-            | ProtocolVersionId::Version23 => self.post_1_4_2,
+            ProtocolVersionId::Version21 | ProtocolVersionId::Version22 => self.post_1_4_2,
+            ProtocolVersionId::Version23 | ProtocolVersionId::Version24 => self.post_1_5_0,
         }
     }
 }
@@ -132,6 +132,7 @@ impl ApiContracts {
                 post_allowlist_removal: BaseSystemContracts::estimate_gas_post_allowlist_removal(),
                 post_1_4_1: BaseSystemContracts::estimate_gas_post_1_4_1(),
                 post_1_4_2: BaseSystemContracts::estimate_gas_post_1_4_2(),
+                post_1_5_0: BaseSystemContracts::estimate_gas_post_1_5_0(),
             },
             eth_call: MultiVMBaseSystemContracts {
                 pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
@@ -142,6 +143,7 @@ impl ApiContracts {
                 post_allowlist_removal: BaseSystemContracts::playground_post_allowlist_removal(),
                 post_1_4_1: BaseSystemContracts::playground_post_1_4_1(),
                 post_1_4_2: BaseSystemContracts::playground_post_1_4_2(),
+                post_1_5_0: BaseSystemContracts::playground_post_1_5_0(),
             },
         }
     }
@@ -368,19 +370,17 @@ impl TxSender {
         }
 
         let stage_started_at = Instant::now();
-        self.ensure_tx_executable(tx.clone().into(), &execution_output.metrics, true)?;
+        self.ensure_tx_executable(&tx.clone().into(), &execution_output.metrics, true)?;
 
-        let nonce = tx.common_data.nonce.0;
-        let hash = tx.hash();
-        let initiator_account = tx.initiator_account();
         let submission_res_handle = self
             .0
             .tx_sink
-            .submit_tx(tx, execution_output.metrics)
+            .submit_tx(&tx, execution_output.metrics)
             .await?;
 
         match submission_res_handle {
             L2TxSubmissionResult::AlreadyExecuted => {
+                let initiator_account = tx.initiator_account();
                 let Nonce(expected_nonce) = self
                     .get_expected_nonce(initiator_account)
                     .await
@@ -390,10 +390,12 @@ impl TxSender {
                 Err(SubmitTxError::NonceIsTooLow(
                     expected_nonce,
                     expected_nonce + self.0.sender_config.max_nonce_ahead,
-                    nonce,
+                    tx.nonce().0,
                 ))
             }
-            L2TxSubmissionResult::Duplicate => Err(SubmitTxError::IncorrectTx(TxDuplication(hash))),
+            L2TxSubmissionResult::Duplicate => {
+                Err(SubmitTxError::IncorrectTx(TxDuplication(tx.hash())))
+            }
             L2TxSubmissionResult::InsertionInProgress => Err(SubmitTxError::InsertionInProgress),
             L2TxSubmissionResult::Proxied => {
                 SANDBOX_METRICS.submit_tx[&SubmitTxStage::TxProxy]
@@ -679,6 +681,7 @@ impl TxSender {
         let protocol_version = pending_protocol_version(&mut connection)
             .await
             .context("failed getting pending protocol version")?;
+        let max_gas_limit = get_max_batch_gas_limit(protocol_version.into());
         drop(connection);
 
         let fee_input = {
@@ -756,26 +759,38 @@ impl TxSender {
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
 
-        // We already know how many gas is needed to cover for the publishing of the bytecodes.
-        // For L1->L2 transactions all the bytecodes have been made available on L1, so no funds need to be
-        // spent on re-publishing those.
-        let gas_for_bytecodes_pubdata = if tx.is_l1() {
-            0
+        // When the pubdata cost grows very high, the total gas limit required may become very high as well. If
+        // we do binary search over any possible gas limit naively, we may end up with a very high number of iterations,
+        // which affects performance.
+        //
+        // To optimize for this case, we first calculate the amount of gas needed to cover for the pubdata. After that, we
+        // need to do a smaller binary search that is focused on computational gas limit only.
+        let additional_gas_for_pubdata = if tx.is_l1() {
+            // For L1 transactions the pubdata priced in such a way that the maximal computational
+            // gas limit should be enough to cover for the pubdata as well, so no additional gas is provided there.
+            0u64
         } else {
-            let pubdata_for_factory_deps = get_pubdata_for_factory_deps(
-                &vm_permit,
-                &self.0.replica_connection_pool,
-                tx.execute.factory_deps.as_deref().unwrap_or_default(),
-                self.storage_caches(),
-            )
-            .await? as u64;
+            // For L2 transactions, we estimate the amount of gas needed to cover for the pubdata by creating a transaction with infinite gas limit.
+            // And getting how much pubdata it used.
 
-            if pubdata_for_factory_deps > self.0.sender_config.max_pubdata_per_batch {
-                return Err(SubmitTxError::Unexecutable(
-                    "exceeds limit for published pubdata".to_string(),
-                ));
-            }
-            pubdata_for_factory_deps * gas_per_pubdata_byte
+            // In theory, if the transaction has failed with such large gas limit, we could have returned an API error here right away,
+            // but doing it later on keeps the code more lean.
+            let (result, _) = self
+                .estimate_gas_step(
+                    vm_permit.clone(),
+                    tx.clone(),
+                    max_gas_limit,
+                    gas_per_pubdata_byte as u32,
+                    fee_input,
+                    block_args,
+                    base_fee,
+                    protocol_version.into(),
+                )
+                .await
+                .context("estimate_gas step failed")?;
+
+            // It is assumed that there is no overflow here
+            (result.statistics.pubdata_published as u64) * gas_per_pubdata_byte
         };
 
         // We are using binary search to find the minimal values of gas_limit under which
@@ -800,7 +815,7 @@ impl TxSender {
             // or normal execution errors, so we just hope that increasing the
             // gas limit will make the transaction successful
             let iteration_started_at = Instant::now();
-            let try_gas_limit = gas_for_bytecodes_pubdata + mid;
+            let try_gas_limit = additional_gas_for_pubdata + mid;
             let (result, _) = self
                 .estimate_gas_step(
                     vm_permit.clone(),
@@ -840,7 +855,7 @@ impl TxSender {
             ((upper_bound as f64) * estimated_fee_scale_factor) as u64,
         );
 
-        let suggested_gas_limit = tx_body_gas_limit + gas_for_bytecodes_pubdata;
+        let suggested_gas_limit = tx_body_gas_limit + additional_gas_for_pubdata;
         let (result, tx_metrics) = self
             .estimate_gas_step(
                 vm_permit,
@@ -856,7 +871,7 @@ impl TxSender {
             .context("final estimate_gas step failed")?;
 
         result.into_api_call_result()?;
-        self.ensure_tx_executable(tx.clone(), &tx_metrics, false)?;
+        self.ensure_tx_executable(&tx, &tx_metrics, false)?;
 
         // Now, we need to calculate the final overhead for the transaction. We need to take into account the fact
         // that the migration of 1.4.1 may be still going on.
@@ -883,9 +898,9 @@ impl TxSender {
         } as u64;
 
         let full_gas_limit =
-            match tx_body_gas_limit.overflowing_add(gas_for_bytecodes_pubdata + overhead) {
+            match tx_body_gas_limit.overflowing_add(additional_gas_for_pubdata + overhead) {
                 (value, false) => {
-                    if value > get_max_batch_gas_limit(protocol_version.into()) {
+                    if value > max_gas_limit {
                         return Err(SubmitTxError::ExecutionReverted(
                             "exceeds block gas limit".to_string(),
                             vec![],
@@ -957,7 +972,7 @@ impl TxSender {
 
     fn ensure_tx_executable(
         &self,
-        transaction: Transaction,
+        transaction: &Transaction,
         tx_metrics: &TransactionExecutionMetrics,
         log_message: bool,
     ) -> Result<(), SubmitTxError> {

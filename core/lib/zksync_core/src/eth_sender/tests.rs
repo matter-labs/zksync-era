@@ -18,7 +18,7 @@ use zksync_types::{
     helpers::unix_timestamp_ms,
     pubdata_da::PubdataDA,
     web3::contract::Error,
-    Address, L1BatchNumber, L1BlockNumber, ProtocolVersionId, H256,
+    Address, L1BatchNumber, L1BlockNumber, ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use super::l1_batch_commit_data_generator::{
@@ -984,8 +984,9 @@ async fn insert_genesis_protocol_version(tester: &EthSenderTester) {
         .storage()
         .await
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(Default::default())
-        .await;
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
 }
 
 async fn insert_l1_batch(tester: &EthSenderTester, number: L1BatchNumber) -> L1BatchHeader {
