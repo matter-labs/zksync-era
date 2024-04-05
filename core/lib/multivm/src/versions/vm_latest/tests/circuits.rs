@@ -34,9 +34,9 @@ fn test_circuits() {
 
     let s = res.statistics.circuit_statistic;
     // Check `circuit_statistic`.
-    const EXPECTED: [f32; 12] = [
+    const EXPECTED: [f32; 13] = [
         1.34935, 0.15026, 1.66666, 0.00315, 1.0594, 0.00058, 0.00348, 0.00076, 0.11945, 0.14285,
-        0.0, 0.0,
+        0.0, 0.0, 0.0,
     ];
     let actual = [
         (s.main_vm, "main_vm"),
@@ -51,6 +51,7 @@ fn test_circuits() {
         (s.ecrecover, "ecrecover"),
         (s.sha256, "sha256"),
         (s.secp256k1_verify, "secp256k1_verify"),
+        (s.transient_storage_checker, "transient_storage_checker"),
     ];
     for ((actual, name), expected) in actual.iter().zip(EXPECTED) {
         if expected == 0.0 {

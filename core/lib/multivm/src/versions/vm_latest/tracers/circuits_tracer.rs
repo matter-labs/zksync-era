@@ -55,15 +55,27 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
             Opcode::Context(_) | Opcode::Ret(_) | Opcode::NearCall(_) => {
                 self.statistics.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
             }
-            Opcode::Log(LogOpcode::StorageRead | LogOpcode::TransientStorageRead) => {
+            Opcode::Log(LogOpcode::StorageRead) => {
                 self.statistics.ram_permutation_cycles += STORAGE_READ_RAM_CYCLES;
                 self.statistics.log_demuxer_cycles += STORAGE_READ_LOG_DEMUXER_CYCLES;
                 self.statistics.storage_sorter_cycles += STORAGE_READ_STORAGE_SORTER_CYCLES;
             }
-            Opcode::Log(LogOpcode::StorageWrite | LogOpcode::TransientStorageWrite) => {
+            Opcode::Log(LogOpcode::TransientStorageRead) => {
+                self.statistics.ram_permutation_cycles += TRANSIENT_STORAGE_READ_RAM_CYCLES;
+                self.statistics.log_demuxer_cycles += TRANSIENT_STORAGE_READ_LOG_DEMUXER_CYCLES;
+                self.statistics.storage_sorter_cycles +=
+                    TRANSIENT_STORAGE_READ_TRANSIENT_STORAGE_CHECKER_CYCLES;
+            }
+            Opcode::Log(LogOpcode::StorageWrite) => {
                 self.statistics.ram_permutation_cycles += STORAGE_WRITE_RAM_CYCLES;
                 self.statistics.log_demuxer_cycles += STORAGE_WRITE_LOG_DEMUXER_CYCLES;
                 self.statistics.storage_sorter_cycles += STORAGE_WRITE_STORAGE_SORTER_CYCLES;
+            }
+            Opcode::Log(LogOpcode::TransientStorageWrite) => {
+                self.statistics.ram_permutation_cycles += TRANSIENT_STORAGE_WRITE_RAM_CYCLES;
+                self.statistics.log_demuxer_cycles += TRANSIENT_STORAGE_WRITE_LOG_DEMUXER_CYCLES;
+                self.statistics.storage_sorter_cycles +=
+                    TRANSIENT_STORAGE_WRITE_TRANSIENT_STORAGE_CHECKER_CYCLES;
             }
             Opcode::Log(LogOpcode::ToL1Message) | Opcode::Log(LogOpcode::Event) => {
                 self.statistics.ram_permutation_cycles += EVENT_RAM_CYCLES;

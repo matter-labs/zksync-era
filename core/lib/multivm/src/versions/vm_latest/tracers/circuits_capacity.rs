@@ -14,6 +14,10 @@ pub(crate) const STORAGE_READ_LOG_DEMUXER_CYCLES: u32 = 1;
 pub(crate) const STORAGE_READ_STORAGE_SORTER_CYCLES: u32 = 1;
 pub(crate) const STORAGE_READ_STORAGE_APPLICATION_CYCLES: u32 = 1;
 
+pub(crate) const TRANSIENT_STORAGE_READ_RAM_CYCLES: u32 = 1;
+pub(crate) const TRANSIENT_STORAGE_READ_LOG_DEMUXER_CYCLES: u32 = 1;
+pub(crate) const TRANSIENT_STORAGE_READ_TRANSIENT_STORAGE_CHECKER_CYCLES: u32 = 1;
+
 pub(crate) const EVENT_RAM_CYCLES: u32 = 1;
 pub(crate) const EVENT_LOG_DEMUXER_CYCLES: u32 = 2;
 pub(crate) const EVENT_EVENTS_SORTER_CYCLES: u32 = 2;
@@ -22,6 +26,10 @@ pub(crate) const STORAGE_WRITE_RAM_CYCLES: u32 = 1;
 pub(crate) const STORAGE_WRITE_LOG_DEMUXER_CYCLES: u32 = 2;
 pub(crate) const STORAGE_WRITE_STORAGE_SORTER_CYCLES: u32 = 2;
 pub(crate) const STORAGE_WRITE_STORAGE_APPLICATION_CYCLES: u32 = 2;
+
+pub(crate) const TRANSIENT_STORAGE_WRITE_RAM_CYCLES: u32 = 1;
+pub(crate) const TRANSIENT_STORAGE_WRITE_LOG_DEMUXER_CYCLES: u32 = 2;
+pub(crate) const TRANSIENT_STORAGE_WRITE_TRANSIENT_STORAGE_CHECKER_CYCLES: u32 = 2;
 
 pub(crate) const FAR_CALL_RAM_CYCLES: u32 = 1;
 pub(crate) const FAR_CALL_STORAGE_SORTER_CYCLES: u32 = 1;
@@ -69,5 +77,7 @@ pub(crate) fn circuit_statistic_from_cycles(cycles: CircuitCycleStatistic) -> Ci
         sha256: cycles.sha256_cycles as f32 / GEOMETRY_CONFIG.cycles_per_sha256_circuit as f32,
         secp256k1_verify: cycles.secp256k1_verify_cycles as f32
             / GEOMETRY_CONFIG.cycles_per_secp256r1_verify_circuit as f32,
+        transient_storage_checker: cycles.transient_storage_checker_cycles as f32
+            / GEOMETRY_CONFIG.cycles_per_transient_storage_sorter as f32,
     }
 }
