@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use zksync_db_connection::{connection::Connection, instrument::InstrumentExt};
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 
 use crate::Core;
 
@@ -42,7 +42,7 @@ impl SystemDal<'_, '_> {
         })
     }
 
-    pub(crate) async fn get_table_sizes(&mut self) -> sqlx::Result<HashMap<String, TableSize>> {
+    pub(crate) async fn get_table_sizes(&mut self) -> DalResult<HashMap<String, TableSize>> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -59,6 +59,7 @@ impl SystemDal<'_, '_> {
         )
         .instrument("get_table_sizes")
         .report_latency()
+        .expect_slow_query()
         .fetch_all(self.storage)
         .await?;
 

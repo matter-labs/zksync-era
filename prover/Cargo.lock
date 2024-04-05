@@ -7540,6 +7540,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "thiserror",
  "tokio",
  "tracing",
  "url",
@@ -7804,6 +7805,7 @@ dependencies = [
  "num_cpus",
  "once_cell",
  "rocksdb",
+ "thread_local",
  "tracing",
  "vise",
 ]
@@ -7834,7 +7836,6 @@ dependencies = [
  "secp256k1",
  "serde",
  "serde_json",
- "serde_with",
  "strum",
  "thiserror",
  "zksync_basic_types",

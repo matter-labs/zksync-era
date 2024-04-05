@@ -8,7 +8,7 @@ use zksync_concurrency::{ctx, sync};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_types::MiniblockNumber;
-use zksync_web3_decl::{jsonrpsee::http_client::HttpClient, namespaces::EthNamespaceClient};
+use zksync_web3_decl::{client::L2Client, namespaces::EthNamespaceClient};
 
 use crate::{
     metrics::EN_METRICS,
@@ -81,7 +81,7 @@ impl SyncState {
     pub async fn run_updater(
         self,
         connection_pool: ConnectionPool<Core>,
-        main_node_client: HttpClient,
+        main_node_client: L2Client,
         mut stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         const UPDATE_INTERVAL: Duration = Duration::from_secs(10);

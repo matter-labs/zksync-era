@@ -131,8 +131,7 @@ pub(crate) async fn projected_first_l1_batch(
     let snapshot_recovery = storage
         .snapshot_recovery_dal()
         .get_applied_snapshot_status()
-        .await
-        .context("failed getting snapshot recovery status")?;
+        .await?;
     Ok(snapshot_recovery.map_or(L1BatchNumber(0), |recovery| recovery.l1_batch_number + 1))
 }
 
@@ -146,8 +145,7 @@ pub(crate) async fn pending_protocol_version(
     let last_miniblock = storage
         .blocks_dal()
         .get_last_sealed_miniblock_header()
-        .await
-        .context("failed getting last sealed miniblock")?;
+        .await?;
     if let Some(last_miniblock) = last_miniblock {
         return Ok(last_miniblock.protocol_version.unwrap_or_else(|| {
             // Protocol version should be set for the most recent miniblock even in cases it's not filled
@@ -163,8 +161,7 @@ pub(crate) async fn pending_protocol_version(
     let snapshot_recovery = storage
         .snapshot_recovery_dal()
         .get_applied_snapshot_status()
-        .await
-        .context("failed getting snapshot recovery status")?
+        .await?
         .context("storage contains neither miniblocks, nor snapshot recovery info")?;
     Ok(snapshot_recovery.protocol_version)
 }

@@ -11,7 +11,7 @@ use zksync_web3_decl::{
     namespaces::{EthNamespaceClient, NetNamespaceClient, Web3NamespaceClient, ZksNamespaceClient},
 };
 
-use crate::{
+use crate::sdk::{
     error::ClientError,
     ethereum::{ierc20_contract, EthereumProvider},
     operations::*,

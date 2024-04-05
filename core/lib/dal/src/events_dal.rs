@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt};
 
 use sqlx::types::chrono::Utc;
 use zksync_db_connection::{
-    connection::Connection, instrument::InstrumentExt, write_str, writeln_str,
+    connection::Connection, error::DalResult, instrument::InstrumentExt, write_str, writeln_str,
 };
 use zksync_system_constants::L1_MESSENGER_ADDRESS;
 use zksync_types::{
@@ -243,7 +243,7 @@ impl EventsDal<'_, '_> {
     pub(crate) async fn get_l1_batch_raw_published_bytecode_hashes(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> Result<Vec<H256>, SqlxError> {
+    ) -> DalResult<Vec<H256>> {
         let Some((from_miniblock, to_miniblock)) = self
             .storage
             .blocks_dal()
@@ -252,6 +252,7 @@ impl EventsDal<'_, '_> {
         else {
             return Ok(Vec::new());
         };
+
         let result: Vec<_> = sqlx::query!(
             r#"
             SELECT
@@ -271,7 +272,10 @@ impl EventsDal<'_, '_> {
             L1_MESSENGER_ADDRESS.as_bytes(),
             L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE.as_bytes()
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_l1_batch_raw_published_bytecode_hashes")
+        .with_arg("from_miniblock", &from_miniblock)
+        .with_arg("to_miniblock", &to_miniblock)
+        .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(|row| H256::from_slice(&row.value))
@@ -334,7 +338,7 @@ impl EventsDal<'_, '_> {
     pub async fn get_vm_events_for_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> Result<Option<Vec<VmEvent>>, SqlxError> {
+    ) -> DalResult<Option<Vec<VmEvent>>> {
         let Some((from_miniblock, to_miniblock)) = self
             .storage
             .blocks_dal()
@@ -343,8 +347,9 @@ impl EventsDal<'_, '_> {
         else {
             return Ok(None);
         };
+
         let mut tx_index_in_l1_batch = -1;
-        let events = sqlx::query!(
+        let rows = sqlx::query!(
             r#"
             SELECT
                 address,
@@ -366,32 +371,35 @@ impl EventsDal<'_, '_> {
             i64::from(to_miniblock.0),
         )
         .instrument("get_vm_events_for_l1_batch")
+        .with_arg("l1_batch_number", &l1_batch_number)
         .report_latency()
         .fetch_all(self.storage)
-        .await?
-        .into_iter()
-        .map(|row| {
-            let indexed_topics = vec![row.topic1, row.topic2, row.topic3, row.topic4]
-                .into_iter()
-                .filter_map(|topic| {
-                    if !topic.is_empty() {
-                        Some(H256::from_slice(&topic))
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            if row.event_index_in_tx == 0 {
-                tx_index_in_l1_batch += 1;
-            }
-            VmEvent {
-                location: (l1_batch_number, tx_index_in_l1_batch as u32),
-                address: Address::from_slice(&row.address),
-                indexed_topics,
-                value: row.value,
-            }
-        })
-        .collect();
+        .await?;
+
+        let events = rows
+            .into_iter()
+            .map(|row| {
+                let indexed_topics = vec![row.topic1, row.topic2, row.topic3, row.topic4]
+                    .into_iter()
+                    .filter_map(|topic| {
+                        if !topic.is_empty() {
+                            Some(H256::from_slice(&topic))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                if row.event_index_in_tx == 0 {
+                    tx_index_in_l1_batch += 1;
+                }
+                VmEvent {
+                    location: (l1_batch_number, tx_index_in_l1_batch as u32),
+                    address: Address::from_slice(&row.address),
+                    indexed_topics,
+                    value: row.value,
+                }
+            })
+            .collect();
         Ok(Some(events))
     }
 }

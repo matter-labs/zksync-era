@@ -1,5 +1,5 @@
 use zksync_db_connection::{
-    connection::Connection, instrument::InstrumentExt, metrics::MethodLatency,
+    connection::Connection, error::DalResult, instrument::InstrumentExt, metrics::MethodLatency,
 };
 use zksync_types::{api::en, MiniblockNumber};
 
@@ -18,8 +18,8 @@ impl SyncDal<'_, '_> {
     pub(super) async fn sync_block_inner(
         &mut self,
         block_number: MiniblockNumber,
-    ) -> anyhow::Result<Option<SyncBlock>> {
-        let Some(block) = sqlx::query_as!(
+    ) -> DalResult<Option<SyncBlock>> {
+        let Some(mut block) = sqlx::query_as!(
             StorageSyncBlock,
             r#"
             SELECT
@@ -64,6 +64,7 @@ impl SyncDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
+        .try_map(SyncBlock::try_from)
         .instrument("sync_dal_sync_block.block")
         .with_arg("block_number", &block_number)
         .fetch_optional(self.storage)
@@ -72,7 +73,6 @@ impl SyncDal<'_, '_> {
             return Ok(None);
         };
 
-        let mut block = SyncBlock::try_from(block)?;
         // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
         #[allow(deprecated)]
         self.storage
@@ -86,7 +86,7 @@ impl SyncDal<'_, '_> {
         &mut self,
         block_number: MiniblockNumber,
         include_transactions: bool,
-    ) -> anyhow::Result<Option<en::SyncBlock>> {
+    ) -> DalResult<Option<en::SyncBlock>> {
         let _latency = MethodLatency::new("sync_dal_sync_block");
         let Some(block) = self.sync_block_inner(block_number).await? else {
             return Ok(None);
