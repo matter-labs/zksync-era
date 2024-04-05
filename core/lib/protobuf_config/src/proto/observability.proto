@@ -2,8 +2,22 @@ syntax = "proto3";
 
 package zksync.config.observability;
 
+message Sentry {
+  optional string url = 1; // optional
+  optional string environment = 2; // optional
+  optional uint32 panic_interval = 3;
+  optional uint32 error_interval = 4;
+
+}
+
 message Observability {
-  optional string sentry_url = 1; // optional
-  optional string sentry_environment = 2; // optional
+  optional Sentry sentry = 1;
   optional string log_format = 3; // required
+  optional Opentelemetry opentelemetry = 4; // optional
+  repeated string sporadic_crypto_errors_substrs = 5;
+}
+
+message Opentelemetry {
+  optional string level = 1; // required
+  optional string endpoint = 2; // required
 }

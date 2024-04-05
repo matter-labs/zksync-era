@@ -37,12 +37,14 @@ impl FromEnv for MempoolConfig {
 #[cfg(test)]
 mod tests {
     use zksync_basic_types::L2ChainId;
-    use zksync_config::configs::chain::FeeModelVersion;
+    use zksync_config::configs::chain::{FeeModelVersion, L1BatchCommitDataGeneratorMode};
 
     use super::*;
-    use crate::test_utils::{addr, EnvMutex};
+    use crate::test_utils::{addr, hash, EnvMutex};
 
     static MUTEX: EnvMutex = EnvMutex::new();
+    const VALIDIUM_L1_BATCH_COMMIT_DATA_GENERATOR_MODE: &str = "Validium";
+    const ROLLUP_L1_BATCH_COMMIT_DATA_GENERATOR_MODE: &str = "Rollup";
 
     fn expected_network_config() -> NetworkConfig {
         NetworkConfig {
@@ -66,7 +68,10 @@ mod tests {
         assert_eq!(actual, expected_network_config());
     }
 
-    fn expected_state_keeper_config() -> StateKeeperConfig {
+    #[allow(deprecated)]
+    fn expected_state_keeper_config(
+        l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    ) -> StateKeeperConfig {
         StateKeeperConfig {
             transaction_slots: 50,
             block_commit_deadline_ms: 2500,
@@ -79,7 +84,7 @@ mod tests {
             close_block_at_geometry_percentage: 0.5,
             reject_tx_at_eth_params_percentage: 0.8,
             reject_tx_at_geometry_percentage: 0.3,
-            fee_account_addr: addr("de03a0B5963f75f1C8485B355fF6D30f3093BDE7"),
+            fee_account_addr: Some(addr("de03a0B5963f75f1C8485B355fF6D30f3093BDE7")),
             reject_tx_at_gas_percentage: 0.5,
             minimal_l2_gas_price: 100000000,
             compute_overhead_part: 0.0,
@@ -92,15 +97,21 @@ mod tests {
             save_call_traces: false,
             virtual_blocks_interval: 1,
             virtual_blocks_per_miniblock: 1,
-            upload_witness_inputs_to_gcs: false,
             enum_index_migration_chunk_size: Some(2_000),
+            bootloader_hash: Some(hash(
+                "0x010007ede999d096c84553fb514d3d6ca76fbf39789dda76bfeda9f3ae06236e",
+            )),
+            default_aa_hash: Some(hash(
+                "0x0100055b041eb28aff6e3a6e0f37c31fd053fc9ef142683b05e5f0aee6934066",
+            )),
+            l1_batch_commit_data_generator_mode,
+            max_circuits_per_batch: 24100,
         }
     }
 
-    #[test]
-    fn state_keeper_from_env() {
-        let mut lock = MUTEX.lock();
-        let config = r#"
+    fn state_keeper_config(l1_batch_commit_data_generator_mode: &str) -> String {
+        format!(
+            r#"
             CHAIN_STATE_KEEPER_TRANSACTION_SLOTS="50"
             CHAIN_STATE_KEEPER_FEE_ACCOUNT_ADDR="0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7"
             CHAIN_STATE_KEEPER_MAX_SINGLE_TX_GAS="1000000"
@@ -123,33 +134,34 @@ mod tests {
             CHAIN_STATE_KEEPER_FEE_MODEL_VERSION="V2"
             CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT="10000000"
             CHAIN_STATE_KEEPER_SAVE_CALL_TRACES="false"
-            CHAIN_STATE_KEEPER_UPLOAD_WITNESS_INPUTS_TO_GCS="false"
             CHAIN_STATE_KEEPER_ENUM_INDEX_MIGRATION_CHUNK_SIZE="2000"
             CHAIN_STATE_KEEPER_VIRTUAL_BLOCKS_PER_MINIBLOCK="1"
             CHAIN_STATE_KEEPER_VIRTUAL_BLOCKS_INTERVAL="1"
-        "#;
+            CHAIN_STATE_KEEPER_BOOTLOADER_HASH=0x010007ede999d096c84553fb514d3d6ca76fbf39789dda76bfeda9f3ae06236e
+            CHAIN_STATE_KEEPER_DEFAULT_AA_HASH=0x0100055b041eb28aff6e3a6e0f37c31fd053fc9ef142683b05e5f0aee6934066
+            CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE="{l1_batch_commit_data_generator_mode}"
+        "#
+        )
+    }
+
+    fn _state_keeper_from_env(config: &str, expected_config: StateKeeperConfig) {
+        let mut lock = MUTEX.lock();
         lock.set_env(config);
 
         let actual = StateKeeperConfig::from_env().unwrap();
-        assert_eq!(actual, expected_state_keeper_config());
-    }
-
-    fn expected_operations_manager_config() -> OperationsManagerConfig {
-        OperationsManagerConfig {
-            delay_interval: 100,
-        }
+        assert_eq!(actual, expected_config);
     }
 
     #[test]
-    fn operations_manager_from_env() {
-        let mut lock = MUTEX.lock();
-        let config = r#"
-            CHAIN_OPERATIONS_MANAGER_DELAY_INTERVAL="100"
-        "#;
-        lock.set_env(config);
-
-        let actual = OperationsManagerConfig::from_env().unwrap();
-        assert_eq!(actual, expected_operations_manager_config());
+    fn state_keeper_from_env() {
+        _state_keeper_from_env(
+            &state_keeper_config(ROLLUP_L1_BATCH_COMMIT_DATA_GENERATOR_MODE),
+            expected_state_keeper_config(L1BatchCommitDataGeneratorMode::Rollup),
+        );
+        _state_keeper_from_env(
+            &state_keeper_config(VALIDIUM_L1_BATCH_COMMIT_DATA_GENERATOR_MODE),
+            expected_state_keeper_config(L1BatchCommitDataGeneratorMode::Validium),
+        );
     }
 
     fn expected_mempool_config() -> MempoolConfig {
@@ -202,5 +214,14 @@ mod tests {
 
         let actual = CircuitBreakerConfig::from_env().unwrap();
         assert_eq!(actual, expected_circuit_breaker_config());
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn default_state_keeper_mode() {
+        assert_eq!(
+            StateKeeperConfig::default().l1_batch_commit_data_generator_mode,
+            L1BatchCommitDataGeneratorMode::Rollup
+        );
     }
 }

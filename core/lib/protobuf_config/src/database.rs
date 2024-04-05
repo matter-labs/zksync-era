@@ -87,28 +87,48 @@ impl ProtoRepr for proto::Postgres {
     type Type = configs::database::PostgresConfig;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
+        let (test_server_url, test_prover_url) = self
+            .test
+            .as_ref()
+            .map(|x| (x.server_url.clone(), x.prover_url.clone()))
+            .unwrap_or_default();
+
+        let mut replica_url = self.server_replica_url.clone();
+
+        if replica_url.is_none() {
+            replica_url = self.server_url.clone();
+        }
+
         Ok(Self::Type {
-            master_url: self.master_url.clone(),
-            replica_url: self.replica_url.clone(),
+            master_url: self.server_url.clone(),
+            replica_url,
             prover_url: self.prover_url.clone(),
             max_connections: self.max_connections,
+            max_connections_master: self.max_connections_master,
             acquire_timeout_sec: self.acquire_timeout_sec,
             statement_timeout_sec: self.statement_timeout_sec,
             long_connection_threshold_ms: self.long_connection_threshold_ms,
             slow_query_threshold_ms: self.slow_query_threshold_ms,
+            test_server_url,
+            test_prover_url,
         })
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            master_url: this.master_url.clone(),
-            replica_url: this.replica_url.clone(),
+            server_url: this.master_url.clone(),
+            server_replica_url: this.replica_url.clone(),
             prover_url: this.prover_url.clone(),
             max_connections: this.max_connections,
+            max_connections_master: this.max_connections_master,
             acquire_timeout_sec: this.acquire_timeout_sec,
             statement_timeout_sec: this.statement_timeout_sec,
             long_connection_threshold_ms: this.long_connection_threshold_ms,
             slow_query_threshold_ms: this.slow_query_threshold_ms,
+            test: Some(proto::TestDatabase {
+                server_url: this.test_server_url.clone(),
+                prover_url: this.test_prover_url.clone(),
+            }),
         }
     }
 }

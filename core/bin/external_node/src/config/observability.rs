@@ -35,5 +35,7 @@ pub fn observability_config_from_env() -> anyhow::Result<ObservabilityConfig> {
         sentry_url,
         sentry_environment,
         log_format,
+        opentelemetry: None,
+        sporadic_crypto_errors_substrs: vec![],
     })
 }

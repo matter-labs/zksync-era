@@ -2,11 +2,12 @@ use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::runtime::Handle;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_types::{
-    api, fee_model::BatchFeeInput, AccountTreeId, L1BatchNumber, L2ChainId, MiniblockNumber,
+    api, fee_model::BatchFeeInput, AccountTreeId, Address, L1BatchNumber, L2ChainId,
+    MiniblockNumber,
 };
 use zksync_utils::bytecode::{compress_bytecode, hash_bytecode};
 
@@ -149,7 +150,7 @@ impl VmConcurrencyLimiter {
 }
 
 async fn get_pending_state(
-    connection: &mut StorageProcessor<'_>,
+    connection: &mut Connection<'_, Core>,
 ) -> anyhow::Result<(api::BlockId, MiniblockNumber)> {
     let block_id = api::BlockId::Number(api::BlockNumber::Pending);
     let resolved_block_number = connection
@@ -164,7 +165,7 @@ async fn get_pending_state(
 /// Returns the number of the pubdata that the transaction will spend on factory deps.
 pub(super) async fn get_pubdata_for_factory_deps(
     _vm_permit: &VmPermit,
-    connection_pool: &ConnectionPool,
+    connection_pool: &ConnectionPool<Core>,
     factory_deps: &[Vec<u8>],
     storage_caches: PostgresStorageCaches,
 ) -> anyhow::Result<u32> {
@@ -173,7 +174,7 @@ pub(super) async fn get_pubdata_for_factory_deps(
     }
 
     let mut storage = connection_pool
-        .access_storage_tagged("api")
+        .connection_tagged("api")
         .await
         .context("failed acquiring DB connection")?;
     let (_, block_number) = get_pending_state(&mut storage).await?;
@@ -184,7 +185,7 @@ pub(super) async fn get_pubdata_for_factory_deps(
     let factory_deps = factory_deps.to_vec();
     tokio::task::spawn_blocking(move || {
         let connection = rt_handle
-            .block_on(connection_pool.access_storage_tagged("api"))
+            .block_on(connection_pool.connection_tagged("api"))
             .context("failed acquiring DB connection")?;
         let storage = PostgresStorage::new(rt_handle, connection, block_number, false)
             .with_caches(storage_caches);
@@ -217,6 +218,7 @@ pub(crate) struct TxSharedArgs {
     pub caches: PostgresStorageCaches,
     pub validation_computational_gas_limit: u32,
     pub chain_id: L2ChainId,
+    pub whitelisted_tokens_for_aa: Vec<Address>,
 }
 
 impl TxSharedArgs {
@@ -229,6 +231,7 @@ impl TxSharedArgs {
             caches: PostgresStorageCaches::new(1, 1),
             validation_computational_gas_limit: u32::MAX,
             chain_id: L2ChainId::default(),
+            whitelisted_tokens_for_aa: Vec::new(),
         }
     }
 }
@@ -243,12 +246,11 @@ pub(crate) struct BlockStartInfo {
 }
 
 impl BlockStartInfo {
-    pub async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
+    pub async fn new(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
         let snapshot_recovery = storage
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
-            .await
-            .context("failed getting snapshot recovery status")?;
+            .await?;
         let snapshot_recovery = snapshot_recovery.as_ref();
         Ok(Self {
             first_miniblock: snapshot_recovery
@@ -296,7 +298,7 @@ pub(crate) struct BlockArgs {
 }
 
 impl BlockArgs {
-    pub(crate) async fn pending(connection: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
+    pub(crate) async fn pending(connection: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
         let (block_id, resolved_block_number) = get_pending_state(connection).await?;
         Ok(Self {
             block_id,
@@ -307,7 +309,7 @@ impl BlockArgs {
 
     /// Loads block information from DB.
     pub async fn new(
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut Connection<'_, Core>,
         block_id: api::BlockId,
         start_info: BlockStartInfo,
     ) -> Result<Self, BlockArgsError> {

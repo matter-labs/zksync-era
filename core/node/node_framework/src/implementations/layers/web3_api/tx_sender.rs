@@ -62,7 +62,7 @@ impl WiringLayer for TxSenderLayer {
         let replica_pool = pool_resource.get().await?;
         let sealer = match context.get_resource::<ConditionalSealerResource>().await {
             Ok(sealer) => Some(sealer.0),
-            Err(WiringError::ResourceLacking(_)) => None,
+            Err(WiringError::ResourceLacking { .. }) => None,
             Err(other) => return Err(other),
         };
         let fee_input = context.get_resource::<FeeInputResource>().await?.0;
@@ -77,13 +77,10 @@ impl WiringLayer for TxSenderLayer {
             PostgresStorageCaches::new(factory_deps_capacity, initial_writes_capacity);
 
         if values_capacity > 0 {
-            let values_cache_task = storage_caches.configure_storage_values_cache(
-                values_capacity,
-                replica_pool.clone(),
-                context.runtime_handle().clone(),
-            );
+            let values_cache_task = storage_caches
+                .configure_storage_values_cache(values_capacity, replica_pool.clone());
             context.add_task(Box::new(PostgresStorageCachesTask {
-                task: Box::new(values_cache_task),
+                task: values_cache_task,
             }));
         }
 
@@ -114,7 +111,7 @@ impl WiringLayer for TxSenderLayer {
 }
 
 struct PostgresStorageCachesTask {
-    task: Box<dyn FnOnce() -> anyhow::Result<()> + Send>,
+    task: zksync_state::PostgresStorageCachesTask,
 }
 
 impl fmt::Debug for PostgresStorageCachesTask {
@@ -130,8 +127,8 @@ impl Task for PostgresStorageCachesTask {
         "postgres_storage_caches"
     }
 
-    async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        tokio::task::spawn_blocking(self.task).await?
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.task.run(stop_receiver.0).await
     }
 }
 

@@ -37,7 +37,10 @@ impl FromEnv for PostgresConfig {
         let prover_url = env::var("DATABASE_PROVER_URL")
             .ok()
             .or_else(|| master_url.clone());
+        let test_server_url = env::var("TEST_DATABASE_URL").ok();
+        let test_prover_url = env::var("TEST_DATABASE_PROVER_URL").ok();
         let max_connections = parse_optional_var("DATABASE_POOL_SIZE")?;
+        let max_connections_master = parse_optional_var("DATABASE_POOL_SIZE_MASTER")?;
         let acquire_timeout_sec = parse_optional_var("DATABASE_ACQUIRE_TIMEOUT_SEC")?;
         let statement_timeout_sec = parse_optional_var("DATABASE_STATEMENT_TIMEOUT_SEC")?;
         let long_connection_threshold_ms =
@@ -49,10 +52,13 @@ impl FromEnv for PostgresConfig {
             replica_url,
             prover_url,
             max_connections,
+            max_connections_master,
             acquire_timeout_sec,
             statement_timeout_sec,
             long_connection_threshold_ms,
             slow_query_threshold_ms,
+            test_server_url,
+            test_prover_url,
         })
     }
 }

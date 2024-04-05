@@ -1,0 +1,19 @@
+l1:
+  diamond_proxy_addr: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"
+  default_upgrade_addr: "0x5e6d086f5ec079adff4fb3774cdf3e8d6a34f7e9"
+  governance_addr: "0x5e6d086f5ec079adff4fb3774cdf3e8d6a34f7e9"
+  verifier_addr: "0xdabb67b676f5b01fcc8997cc8439846d0d8078ca"
+  multicall3_addr: "0xca11bde05977b3631167028862be2a173976ca11"
+  validator_timelock_addr: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"
+l2:
+  testnet_paymaster_addr: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"
+bridges:
+  erc20:
+    l1_address: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"
+    l2_address: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"
+  weth:
+    l1_address: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"
+    l2_address: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"
+  shared:
+    l1_address: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"
+    l2_address: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"

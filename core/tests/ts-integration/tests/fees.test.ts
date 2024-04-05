@@ -205,7 +205,7 @@ async function killServerAndWaitForShutdown(provider: zksync.Provider) {
     while (iter < 30) {
         try {
             await provider.getBlockNumber();
-            await utils.sleep(5);
+            await utils.sleep(2);
             iter += 1;
         } catch (_) {
             // When exception happens, we assume that server died.
@@ -242,7 +242,7 @@ async function setInternalL1GasPrice(provider: zksync.Provider, newPrice?: strin
         try {
             mainContract = await provider.getMainContractAddress();
         } catch (_) {
-            await utils.sleep(5);
+            await utils.sleep(2);
             iter += 1;
         }
     }

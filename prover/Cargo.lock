@@ -263,6 +263,51 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
+name = "axum"
+version = "0.6.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b829e4e32b91e643de6eafe82b1d90675f5874230191a4ffbc1b336dec4d6bf"
+dependencies = [
+ "async-trait",
+ "axum-core",
+ "bitflags 1.3.2",
+ "bytes",
+ "futures-util",
+ "http",
+ "http-body",
+ "hyper",
+ "itoa",
+ "matchit",
+ "memchr",
+ "mime",
+ "percent-encoding",
+ "pin-project-lite",
+ "rustversion",
+ "serde",
+ "sync_wrapper",
+ "tower",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
+name = "axum-core"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "759fa577a247914fd3f7f76d62972792636412fbfd634cd452f6a385a74d2d2c"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "futures-util",
+ "http",
+ "http-body",
+ "mime",
+ "rustversion",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
 name = "backtrace"
 version = "0.3.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -368,7 +413,6 @@ dependencies = [
  "num-bigint 0.4.4",
  "num-integer",
  "num-traits",
- "serde",
 ]
 
 [[package]]
@@ -586,7 +630,7 @@ dependencies = [
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "const_format",
  "convert_case",
- "crossbeam 0.7.3",
+ "crossbeam 0.8.4",
  "crypto-bigint 0.5.5",
  "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "derivative",
@@ -778,9 +822,9 @@ checksum = "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e"
 
 [[package]]
 name = "chrono"
-version = "0.4.34"
+version = "0.4.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5bc015644b92d5890fab7489e49d21f879d5c990186827d42ec511919404f38b"
+checksum = "7f2c685bad3eb3d45a01354cedb7d5faa66194d1d58ba6e267a8de788f79db38"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
@@ -788,7 +832,7 @@ dependencies = [
  "num-traits",
  "serde",
  "wasm-bindgen",
- "windows-targets 0.52.0",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -987,6 +1031,16 @@ name = "colorchoice"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
+
+[[package]]
+name = "colored"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cbf2150cce219b664a8a70df7a1f933836724b503f8a413af9365b4dcc4d90b8"
+dependencies = [
+ "lazy_static",
+ "windows-sys 0.48.0",
+]
 
 [[package]]
 name = "combine"
@@ -2356,6 +2410,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "heck"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
+
+[[package]]
 name = "hermit-abi"
 version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2513,6 +2573,18 @@ dependencies = [
  "rustls",
  "tokio",
  "tokio-rustls",
+]
+
+[[package]]
+name = "hyper-timeout"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbb958482e8c7be4bc3cf272a766a2b0bf1a6755e7a6ae777f017a31d11b13b1"
+dependencies = [
+ "hyper",
+ "pin-project-lite",
+ "tokio",
+ "tokio-io-timeout",
 ]
 
 [[package]]
@@ -2847,6 +2919,8 @@ dependencies = [
  "glob",
  "libc",
  "libz-sys",
+ "lz4-sys",
+ "zstd-sys",
 ]
 
 [[package]]
@@ -2959,6 +3033,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "lz4-sys"
+version = "1.9.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57d27b317e207b10f69f5e75494119e391a96f48861ae870d1da6edac98ca900"
+dependencies = [
+ "cc",
+ "libc",
+]
+
+[[package]]
 name = "mach2"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2981,6 +3065,12 @@ checksum = "8263075bb86c5a1b1427b5ae862e8889656f126e9f77c484496e8b47cf5c5558"
 dependencies = [
  "regex-automata 0.1.10",
 ]
+
+[[package]]
+name = "matchit"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e7465ac9959cc2b1404e8e2367b43684a6d13790fe23056cc8c6c5a6b7bcb94"
 
 [[package]]
 name = "maybe-uninit"
@@ -3427,7 +3517,16 @@ version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a015b430d3c108a207fd776d2e2196aaf8b1cf8cf93253e3a097ff3085076a1"
 dependencies = [
- "num_enum_derive",
+ "num_enum_derive 0.6.1",
+]
+
+[[package]]
+name = "num_enum"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02339744ee7253741199f897151b38e72257d13802d4ee837285cc2990a90845"
+dependencies = [
+ "num_enum_derive 0.7.2",
 ]
 
 [[package]]
@@ -3437,6 +3536,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96667db765a921f7b295ffee8b60472b686a51d4f21c2ee4ffdb94c7013b65a6"
 dependencies = [
  "proc-macro-crate 1.3.1",
+ "proc-macro2 1.0.78",
+ "quote 1.0.35",
+ "syn 2.0.48",
+]
+
+[[package]]
+name = "num_enum_derive"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "681030a937600a36906c185595136d26abfebb4aa9c65701cefcaf8578bb982b"
+dependencies = [
+ "proc-macro-crate 3.1.0",
  "proc-macro2 1.0.78",
  "quote 1.0.35",
  "syn 2.0.48",
@@ -3508,10 +3619,123 @@ dependencies = [
 ]
 
 [[package]]
+name = "opentelemetry"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9591d937bc0e6d2feb6f71a559540ab300ea49955229c347a517a28d27784c54"
+dependencies = [
+ "opentelemetry_api",
+ "opentelemetry_sdk",
+]
+
+[[package]]
+name = "opentelemetry-http"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7594ec0e11d8e33faf03530a4c49af7064ebba81c1480e01be67d90b356508b"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "http",
+ "opentelemetry_api",
+ "reqwest",
+]
+
+[[package]]
+name = "opentelemetry-otlp"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e5e5a5c4135864099f3faafbe939eb4d7f9b80ebf68a8448da961b32a7c1275"
+dependencies = [
+ "async-trait",
+ "futures-core",
+ "http",
+ "opentelemetry-http",
+ "opentelemetry-proto",
+ "opentelemetry-semantic-conventions",
+ "opentelemetry_api",
+ "opentelemetry_sdk",
+ "prost 0.11.9",
+ "reqwest",
+ "thiserror",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
+name = "opentelemetry-proto"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1e3f814aa9f8c905d0ee4bde026afd3b2577a97c10e1699912e3e44f0c4cbeb"
+dependencies = [
+ "opentelemetry_api",
+ "opentelemetry_sdk",
+ "prost 0.11.9",
+ "tonic",
+]
+
+[[package]]
+name = "opentelemetry-semantic-conventions"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73c9f9340ad135068800e7f1b24e9e09ed9e7143f5bf8518ded3d3ec69789269"
+dependencies = [
+ "opentelemetry",
+]
+
+[[package]]
+name = "opentelemetry_api"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a81f725323db1b1206ca3da8bb19874bbd3f57c3bcd59471bfb04525b265b9b"
+dependencies = [
+ "futures-channel",
+ "futures-util",
+ "indexmap 1.9.3",
+ "js-sys",
+ "once_cell",
+ "pin-project-lite",
+ "thiserror",
+ "urlencoding",
+]
+
+[[package]]
+name = "opentelemetry_sdk"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa8e705a0612d48139799fcbaba0d4a90f06277153e43dd2bdc16c6f0edd8026"
+dependencies = [
+ "async-trait",
+ "crossbeam-channel 0.5.11",
+ "futures-channel",
+ "futures-executor",
+ "futures-util",
+ "once_cell",
+ "opentelemetry_api",
+ "ordered-float 3.9.2",
+ "percent-encoding",
+ "rand 0.8.5",
+ "regex",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+]
+
+[[package]]
 name = "ordered-float"
 version = "2.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68f19d67e5a2795c94e73e0bb1cc1a7edeb2e28efd39e2e1c9b7a40c1108b11c"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
+name = "ordered-float"
+version = "3.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1e1c390732d15f1d48471625cd92d154e66db2c56645e29a9cd26f4699f72dc"
 dependencies = [
  "num-traits",
 ]
@@ -3559,7 +3783,7 @@ dependencies = [
 [[package]]
 name = "pairing_ce"
 version = "0.28.5"
-source = "git+https://github.com/matter-labs/pairing.git?rev=f55393fd366596eac792d78525d26e9c4d6ed1ca#f55393fd366596eac792d78525d26e9c4d6ed1ca"
+source = "git+https://github.com/matter-labs/pairing.git?rev=d24f2c5871089c4cd4f54c0ca266bb9fef6115eb#d24f2c5871089c4cd4f54c0ca266bb9fef6115eb"
 dependencies = [
  "byteorder",
  "cfg-if 1.0.0",
@@ -3924,12 +4148,22 @@ dependencies = [
 
 [[package]]
 name = "prost"
+version = "0.11.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b82eaa1d779e9a4bc1c3217db8ffbeabaae1dca241bf70183242128d48681cd"
+dependencies = [
+ "bytes",
+ "prost-derive 0.11.9",
+]
+
+[[package]]
+name = "prost"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "146c289cda302b98a28d40c8b3b90498d6e526dd24ac2ecea73e4e491685b94a"
 dependencies = [
  "bytes",
- "prost-derive",
+ "prost-derive 0.12.3",
 ]
 
 [[package]]
@@ -3946,12 +4180,25 @@ dependencies = [
  "once_cell",
  "petgraph",
  "prettyplease",
- "prost",
+ "prost 0.12.3",
  "prost-types",
  "regex",
  "syn 2.0.48",
  "tempfile",
  "which",
+]
+
+[[package]]
+name = "prost-derive"
+version = "0.11.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5d2d8d10f3c6ded6da8b05b5fb3b8a5082514344d56c9f871412d29b4e075b4"
+dependencies = [
+ "anyhow",
+ "itertools 0.10.5",
+ "proc-macro2 1.0.78",
+ "quote 1.0.35",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -3977,7 +4224,7 @@ dependencies = [
  "logos",
  "miette",
  "once_cell",
- "prost",
+ "prost 0.12.3",
  "prost-types",
  "serde",
  "serde-value",
@@ -3989,7 +4236,7 @@ version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "193898f59edcf43c26227dcd4c8427f00d99d61e95dcde58dabd49fa291d470e"
 dependencies = [
- "prost",
+ "prost 0.12.3",
 ]
 
 [[package]]
@@ -4000,7 +4247,7 @@ checksum = "00bb76c5f6221de491fe2c8f39b106330bbd9762c6511119c07940e10eb9ff11"
 dependencies = [
  "bytes",
  "miette",
- "prost",
+ "prost 0.12.3",
  "prost-reflect",
  "prost-types",
  "protox-parse",
@@ -4022,6 +4269,12 @@ dependencies = [
 [[package]]
 name = "prover_dal"
 version = "0.1.0"
+dependencies = [
+ "sqlx",
+ "strum",
+ "zksync_basic_types",
+ "zksync_db_connection",
+]
 
 [[package]]
 name = "ptr_meta"
@@ -4850,7 +5103,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3a1a3341211875ef120e117ea7fd5228530ae7e7036a779fdc9117be6b3282c"
 dependencies = [
- "ordered-float",
+ "ordered-float 2.10.1",
  "serde",
 ]
 
@@ -4909,6 +5162,32 @@ dependencies = [
  "proc-macro2 1.0.78",
  "quote 1.0.35",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "serde_yaml"
+version = "0.9.34+deprecated"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a8b1a1a2ebf674015cc02edccce75287f1a0130d394307b36743c2f5d504b47"
+dependencies = [
+ "indexmap 2.2.3",
+ "itoa",
+ "ryu",
+ "serde",
+ "unsafe-libyaml",
+]
+
+[[package]]
+name = "sha-1"
+version = "0.9.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "99cd6713db3cf16b6c84e06321e049a9b9f699826e16096d23bbcc44d15d51a6"
+dependencies = [
+ "block-buffer 0.9.0",
+ "cfg-if 1.0.0",
+ "cpufeatures",
+ "digest 0.9.0",
+ "opaque-debug",
 ]
 
 [[package]]
@@ -5126,6 +5405,21 @@ checksum = "7b5fac59a5cb5dd637972e5fca70daf0523c9067fcdc4842f053dae04a18f8e9"
 dependencies = [
  "libc",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "soketto"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41d1c5305e39e09653383c2c7244f2f78b3bcae37cf50c64cb4789c9f5096ec2"
+dependencies = [
+ "base64 0.13.1",
+ "bytes",
+ "futures 0.3.30",
+ "httparse",
+ "log",
+ "rand 0.8.5",
+ "sha-1",
 ]
 
 [[package]]
@@ -5759,6 +6053,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-io-timeout"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30b74022ada614a1b4834de765f9bb43877f910cc8ce4be40e89042c9223a8bf"
+dependencies = [
+ "pin-project-lite",
+ "tokio",
+]
+
+[[package]]
 name = "tokio-macros"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5808,6 +6112,7 @@ checksum = "5419f34732d9eb6ee4c3578b7989078579b7f039cbbb9ca2c4da015749371e15"
 dependencies = [
  "bytes",
  "futures-core",
+ "futures-io",
  "futures-sink",
  "pin-project-lite",
  "tokio",
@@ -5865,6 +6170,74 @@ dependencies = [
 ]
 
 [[package]]
+name = "tonic"
+version = "0.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3082666a3a6433f7f511c7192923fa1fe07c69332d3c6a2e6bb040b569199d5a"
+dependencies = [
+ "async-trait",
+ "axum",
+ "base64 0.21.7",
+ "bytes",
+ "futures-core",
+ "futures-util",
+ "h2",
+ "http",
+ "http-body",
+ "hyper",
+ "hyper-timeout",
+ "percent-encoding",
+ "pin-project",
+ "prost 0.11.9",
+ "tokio",
+ "tokio-stream",
+ "tower",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
+name = "tools"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "clap 4.4.6",
+ "colored",
+ "hex",
+ "tracing",
+ "tracing-subscriber",
+ "zksync_prover_fri_types",
+ "zksync_prover_interface",
+]
+
+[[package]]
+name = "tower"
+version = "0.4.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8fa9be0de6cf49e536ce1851f987bd21a43b771b09473c3549a6c853db37c1c"
+dependencies = [
+ "futures-core",
+ "futures-util",
+ "indexmap 1.9.3",
+ "pin-project",
+ "pin-project-lite",
+ "rand 0.8.5",
+ "slab",
+ "tokio",
+ "tokio-util",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
+name = "tower-layer"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c20c8dbed6283a09604c3e69b4b7eeb54e298b8a600d4d5ecb5ad39de609f1d0"
+
+[[package]]
 name = "tower-service"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5905,6 +6278,17 @@ dependencies = [
 
 [[package]]
 name = "tracing-log"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f751112709b4e791d8ce53e32c4ed2d353565a795ce84da2285393f41557bdf2"
+dependencies = [
+ "log",
+ "once_cell",
+ "tracing-core",
+]
+
+[[package]]
+name = "tracing-log"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee855f1f400bd0e5c02d150ae5de3840039a3f54b025156404e34c23c03f47c3"
@@ -5912,6 +6296,22 @@ dependencies = [
  "log",
  "once_cell",
  "tracing-core",
+]
+
+[[package]]
+name = "tracing-opentelemetry"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75327c6b667828ddc28f5e3f169036cb793c3f588d83bf0f262a7f062ffed3c8"
+dependencies = [
+ "once_cell",
+ "opentelemetry",
+ "opentelemetry_sdk",
+ "smallvec",
+ "tracing",
+ "tracing-core",
+ "tracing-log 0.1.4",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -5942,7 +6342,7 @@ dependencies = [
  "time",
  "tracing",
  "tracing-core",
- "tracing-log",
+ "tracing-log 0.2.0",
  "tracing-serde",
 ]
 
@@ -6066,6 +6466,12 @@ dependencies = [
  "quote 1.0.35",
  "syn 1.0.109",
 ]
+
+[[package]]
+name = "unsafe-libyaml"
+version = "0.2.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "673aac59facbab8a9007c7f6108d11f63b603f7cabff99fabf650fea5c32b861"
 
 [[package]]
 name = "untrusted"
@@ -6221,9 +6627,13 @@ name = "vlog"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry-semantic-conventions",
  "sentry",
  "serde_json",
  "tracing",
+ "tracing-opentelemetry",
  "tracing-subscriber",
 ]
 
@@ -6377,7 +6787,24 @@ dependencies = [
  "secp256k1",
  "serde",
  "serde_json",
+ "soketto",
  "tiny-keccak 2.0.2",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "url",
+ "web3-async-native-tls",
+]
+
+[[package]]
+name = "web3-async-native-tls"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f6d8d1636b2627fe63518d5a9b38a569405d9c9bc665c43c9c341de57227ebb"
+dependencies = [
+ "native-tls",
+ "thiserror",
+ "tokio",
  "url",
 ]
 
@@ -6728,7 +7155,7 @@ version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-zk_evm_abstractions.git#32dd320953841aa78579d9da08abbc70bcaed175"
 dependencies = [
  "anyhow",
- "num_enum",
+ "num_enum 0.6.1",
  "serde",
  "static_assertions",
  "zkevm_opcode_defs 1.3.2",
@@ -6740,7 +7167,7 @@ version = "1.4.1"
 source = "git+https://github.com/matter-labs/era-zk_evm_abstractions.git?branch=v1.4.1#0aac08c3b097ee8147e748475117ac46bddcdcef"
 dependencies = [
  "anyhow",
- "num_enum",
+ "num_enum 0.6.1",
  "serde",
  "static_assertions",
  "zkevm_opcode_defs 1.4.1",
@@ -6928,15 +7355,18 @@ dependencies = [
 name = "zksync_basic_types"
 version = "0.1.0"
 dependencies = [
+ "chrono",
+ "num_enum 0.7.2",
  "serde",
  "serde_json",
+ "strum",
  "web3",
 ]
 
 [[package]]
 name = "zksync_concurrency"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=842d4fd79f1d7dae946b6873ded7ad391d554814#842d4fd79f1d7dae946b6873ded7ad391d554814"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=8833a9b7fef89d1ffc5c08d53a3560164bc1c694#8833a9b7fef89d1ffc5c08d53a3560164bc1c694"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -6959,19 +7389,21 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "zksync_basic_types",
+ "zksync_consensus_utils",
+ "zksync_crypto_primitives",
 ]
 
 [[package]]
 name = "zksync_consensus_crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=842d4fd79f1d7dae946b6873ded7ad391d554814#842d4fd79f1d7dae946b6873ded7ad391d554814"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=8833a9b7fef89d1ffc5c08d53a3560164bc1c694#8833a9b7fef89d1ffc5c08d53a3560164bc1c694"
 dependencies = [
  "anyhow",
  "blst",
  "ed25519-dalek",
  "ff_ce",
  "hex",
- "pairing_ce 0.28.5 (git+https://github.com/matter-labs/pairing.git?rev=f55393fd366596eac792d78525d26e9c4d6ed1ca)",
+ "pairing_ce 0.28.5 (git+https://github.com/matter-labs/pairing.git?rev=d24f2c5871089c4cd4f54c0ca266bb9fef6115eb)",
  "rand 0.4.6",
  "rand 0.8.5",
  "sha3 0.10.8",
@@ -6982,12 +7414,12 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_roles"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=842d4fd79f1d7dae946b6873ded7ad391d554814#842d4fd79f1d7dae946b6873ded7ad391d554814"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=8833a9b7fef89d1ffc5c08d53a3560164bc1c694#8833a9b7fef89d1ffc5c08d53a3560164bc1c694"
 dependencies = [
  "anyhow",
  "bit-vec",
  "hex",
- "prost",
+ "prost 0.12.3",
  "rand 0.8.5",
  "serde",
  "thiserror",
@@ -7002,11 +7434,11 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_storage"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=842d4fd79f1d7dae946b6873ded7ad391d554814#842d4fd79f1d7dae946b6873ded7ad391d554814"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=8833a9b7fef89d1ffc5c08d53a3560164bc1c694#8833a9b7fef89d1ffc5c08d53a3560164bc1c694"
 dependencies = [
  "anyhow",
  "async-trait",
- "prost",
+ "prost 0.12.3",
  "rand 0.8.5",
  "thiserror",
  "tracing",
@@ -7020,8 +7452,9 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_utils"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=842d4fd79f1d7dae946b6873ded7ad391d554814#842d4fd79f1d7dae946b6873ded7ad391d554814"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=8833a9b7fef89d1ffc5c08d53a3560164bc1c694#8833a9b7fef89d1ffc5c08d53a3560164bc1c694"
 dependencies = [
+ "rand 0.8.5",
  "thiserror",
  "zksync_concurrency",
 ]
@@ -7047,9 +7480,24 @@ dependencies = [
  "hex",
  "once_cell",
  "serde",
- "sha2 0.9.9",
+ "sha2 0.10.8",
  "thiserror",
  "zksync_basic_types",
+]
+
+[[package]]
+name = "zksync_crypto_primitives"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "hex",
+ "secp256k1",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "web3",
+ "zksync_basic_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -7062,8 +7510,7 @@ dependencies = [
  "chrono",
  "hex",
  "itertools 0.10.5",
- "once_cell",
- "prost",
+ "prost 0.12.3",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -7072,17 +7519,33 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "url",
  "vise",
  "zksync_consensus_roles",
  "zksync_consensus_storage",
  "zksync_contracts",
- "zksync_health_check",
+ "zksync_db_connection",
  "zksync_protobuf",
  "zksync_protobuf_build",
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
+]
+
+[[package]]
+name = "zksync_db_connection"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "url",
+ "vise",
+ "zksync_health_check",
 ]
 
 [[package]]
@@ -7129,7 +7592,7 @@ dependencies = [
  "google-cloud-auth",
  "google-cloud-storage",
  "http",
- "prost",
+ "prost 0.12.3",
  "serde_json",
  "tokio",
  "tracing",
@@ -7150,6 +7613,7 @@ dependencies = [
  "ctrlc",
  "futures 0.3.30",
  "prometheus_exporter",
+ "prover_dal",
  "reqwest",
  "serde",
  "serde_json",
@@ -7162,7 +7626,6 @@ dependencies = [
  "zkevm_test_harness 1.3.3",
  "zkevm_test_harness 1.4.2",
  "zksync_config",
- "zksync_dal",
  "zksync_env_config",
  "zksync_object_store",
  "zksync_prover_fri_types",
@@ -7175,28 +7638,30 @@ dependencies = [
 [[package]]
 name = "zksync_protobuf"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=842d4fd79f1d7dae946b6873ded7ad391d554814#842d4fd79f1d7dae946b6873ded7ad391d554814"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=8833a9b7fef89d1ffc5c08d53a3560164bc1c694#8833a9b7fef89d1ffc5c08d53a3560164bc1c694"
 dependencies = [
  "anyhow",
  "bit-vec",
  "once_cell",
- "prost",
+ "prost 0.12.3",
  "prost-reflect",
  "quick-protobuf",
  "rand 0.8.5",
  "serde",
  "serde_json",
+ "serde_yaml",
  "zksync_concurrency",
+ "zksync_consensus_utils",
  "zksync_protobuf_build",
 ]
 
 [[package]]
 name = "zksync_protobuf_build"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=842d4fd79f1d7dae946b6873ded7ad391d554814#842d4fd79f1d7dae946b6873ded7ad391d554814"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=8833a9b7fef89d1ffc5c08d53a3560164bc1c694#8833a9b7fef89d1ffc5c08d53a3560164bc1c694"
 dependencies = [
  "anyhow",
- "heck 0.4.1",
+ "heck 0.5.0",
  "prettyplease",
  "proc-macro2 1.0.78",
  "prost-build",
@@ -7217,6 +7682,7 @@ dependencies = [
  "futures 0.3.30",
  "local-ip-address",
  "prometheus_exporter",
+ "prover_dal",
  "regex",
  "reqwest",
  "serde",
@@ -7228,7 +7694,6 @@ dependencies = [
  "vlog",
  "zkevm_test_harness 1.4.2",
  "zksync_config",
- "zksync_dal",
  "zksync_env_config",
  "zksync_object_store",
  "zksync_prover_fri_types",
@@ -7248,6 +7713,7 @@ dependencies = [
  "futures 0.3.30",
  "log",
  "prometheus_exporter",
+ "prover_dal",
  "reqwest",
  "serde",
  "tokio",
@@ -7255,7 +7721,6 @@ dependencies = [
  "vise",
  "vlog",
  "zksync_config",
- "zksync_dal",
  "zksync_env_config",
  "zksync_object_store",
  "zksync_prover_interface",
@@ -7278,13 +7743,13 @@ name = "zksync_prover_fri_utils"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "prover_dal",
  "regex",
  "reqwest",
  "serde",
  "tracing",
  "vise",
  "zksync_config",
- "zksync_dal",
  "zksync_object_store",
  "zksync_prover_fri_types",
  "zksync_types",
@@ -7321,6 +7786,7 @@ name = "zksync_state"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "itertools 0.10.5",
  "mini-moka",
  "tokio",
@@ -7360,20 +7826,21 @@ dependencies = [
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono",
  "hex",
+ "itertools 0.10.5",
  "num",
- "num_enum",
+ "num_enum 0.7.2",
  "once_cell",
- "prost",
+ "prost 0.12.3",
  "rlp",
  "secp256k1",
  "serde",
  "serde_json",
- "serde_with",
  "strum",
  "thiserror",
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",
+ "zksync_crypto_primitives",
  "zksync_mini_merkle_tree",
  "zksync_protobuf",
  "zksync_protobuf_build",
@@ -7390,7 +7857,6 @@ dependencies = [
  "futures 0.3.30",
  "hex",
  "itertools 0.10.5",
- "metrics",
  "num",
  "reqwest",
  "serde",
@@ -7417,6 +7883,7 @@ dependencies = [
  "multivm",
  "once_cell",
  "prometheus_exporter",
+ "prover_dal",
  "rand 0.8.5",
  "serde",
  "structopt",
@@ -7452,6 +7919,7 @@ dependencies = [
  "ctrlc",
  "futures 0.3.30",
  "prometheus_exporter",
+ "prover_dal",
  "queues",
  "serde",
  "structopt",
@@ -7461,7 +7929,6 @@ dependencies = [
  "vk_setup_data_generator_server_fri",
  "vlog",
  "zksync_config",
- "zksync_dal",
  "zksync_env_config",
  "zksync_object_store",
  "zksync_prover_fri_types",
@@ -7469,4 +7936,14 @@ dependencies = [
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
+]
+
+[[package]]
+name = "zstd-sys"
+version = "2.0.9+zstd.1.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e16efa8a874a0481a574084d34cc26fdb3b99627480f785888deb6386506656"
+dependencies = [
+ "cc",
+ "pkg-config",
 ]

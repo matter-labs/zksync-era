@@ -18,7 +18,7 @@ export async function verifyL1Contracts(): Promise<void> {
     await utils.spawn('yarn l1-contracts verify');
 }
 
-function updateContractsEnv(initEnv: string, deployLog: String, envVars: Array<string>): string {
+export function updateContractsEnv(initEnv: string, deployLog: String, envVars: Array<string>): string {
     let updatedContracts = '';
     for (const envVar of envVars) {
         const pattern = new RegExp(`${envVar}=.*`, 'g');
@@ -61,11 +61,11 @@ export async function deployWeth(
     decimals?: string,
     args: any = []
 ): Promise<void> {
-    let destinationFile = 'localhost';
-    if (args.includes('--envFile')) {
-        destinationFile = args[args.indexOf('--envFile') + 1];
-        args.splice(args.indexOf('--envFile'), 2);
-    }
+    // let destinationFile = 'localhost';
+    // if (args.includes('--envFile')) {
+    //     destinationFile = args[args.indexOf('--envFile') + 1];
+    //     args.splice(args.indexOf('--envFile'), 2);
+    // }
     await utils.spawn(`yarn --silent --cwd contracts/l1-contracts deploy-weth '
             ${args.join(' ')} | tee deployL1.log`);
 
@@ -148,11 +148,15 @@ export async function deployL2ThroughL1({ includePaymaster }: { includePaymaster
     updateContractsEnv(`etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`, l2DeployLog, l2DeploymentEnvVars);
 }
 
-async function _deployL1({ onlyVerifier }: { onlyVerifier: boolean }): Promise<void> {
+async function _deployL1(onlyVerifier: boolean, deploymentMode: DeploymentMode): Promise<void> {
     await utils.confirmAction();
 
     const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    const args = [privateKey ? `--private-key ${privateKey}` : '', onlyVerifier ? '--only-verifier' : ''];
+    const args = [
+        privateKey ? `--private-key ${privateKey}` : '',
+        onlyVerifier ? '--only-verifier' : '',
+        deploymentMode == DeploymentMode.Validium ? '--validium' : ''
+    ];
 
     // In the localhost setup scenario we don't have the workspace,
     // so we have to `--cwd` into the required directory.
@@ -207,8 +211,14 @@ async function _deployL1({ onlyVerifier }: { onlyVerifier: boolean }): Promise<v
     fs.writeFileSync('deployed_contracts.log', updatedContracts);
 }
 
-export async function deployL1(): Promise<void> {
-    await _deployL1({ onlyVerifier: false });
+export enum DeploymentMode {
+    Rollup = 0,
+    Validium = 1
+}
+
+export async function redeployL1(verifierOnly: boolean, deploymentMode: DeploymentMode) {
+    await _deployL1(verifierOnly, deploymentMode);
+    await verifyL1Contracts();
 }
 
 export async function wethBridgeFinish(args: any[] = []): Promise<void> {
@@ -233,11 +243,6 @@ export async function erc20BridgeFinish(args: any[] = []): Promise<void> {
     const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
 
     await utils.spawn(`${baseCommandL1} erc20-finish-deployment-on-chain ${args.join(' ')} | tee -a deployL2.log`);
-}
-
-export async function redeployL1(): Promise<void> {
-    await deployL1();
-    await verifyL1Contracts();
 }
 
 export async function registerHyperchain({ baseTokenName }: { baseTokenName?: string }): Promise<void> {
@@ -271,7 +276,18 @@ export async function registerHyperchain({ baseTokenName }: { baseTokenName?: st
 }
 
 export async function deployVerifier(): Promise<void> {
-    await _deployL1({ onlyVerifier: true });
+    // Deploy mode doesn't matter here
+    await _deployL1(true, DeploymentMode.Rollup);
+}
+
+export async function deployL1(args: [string]): Promise<void> {
+    let mode;
+    if (args.includes('validium')) {
+        mode = DeploymentMode.Validium;
+    } else {
+        mode = DeploymentMode.Rollup;
+    }
+    await _deployL1(false, mode);
 }
 
 export const command = new Command('contract').description('contract management');

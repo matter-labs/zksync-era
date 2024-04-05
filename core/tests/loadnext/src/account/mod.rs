@@ -6,7 +6,6 @@ use std::{
 
 use futures::{channel::mpsc, SinkExt};
 use tokio::sync::RwLock;
-use zksync::{error::ClientError, operations::SyncTransactionHandle, HttpClient};
 use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 use zksync_types::{api::TransactionReceipt, Address, Nonce, H256, U256, U64};
 use zksync_web3_decl::jsonrpsee::core::ClientError as CoreError;
@@ -18,6 +17,7 @@ use crate::{
     config::{LoadtestConfig, RequestLimiters},
     constants::{MAX_L1_TRANSACTIONS, POLLING_INTERVAL},
     report::{Report, ReportBuilder, ReportLabel},
+    sdk::{error::ClientError, operations::SyncTransactionHandle, HttpClient},
     utils::format_gwei,
 };
 

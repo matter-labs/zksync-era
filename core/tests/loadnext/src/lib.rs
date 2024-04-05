@@ -12,4 +12,5 @@ pub mod fs_utils;
 pub mod report;
 pub mod report_collector;
 pub mod rng;
+pub(crate) mod sdk;
 pub mod utils;

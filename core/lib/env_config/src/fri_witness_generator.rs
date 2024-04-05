@@ -18,6 +18,10 @@ mod tests {
     fn expected_config() -> FriWitnessGeneratorConfig {
         FriWitnessGeneratorConfig {
             generation_timeout_in_secs: 900u16,
+            basic_generation_timeout_in_secs: Some(900u16),
+            leaf_generation_timeout_in_secs: Some(800u16),
+            node_generation_timeout_in_secs: Some(800u16),
+            scheduler_generation_timeout_in_secs: Some(900u16),
             max_attempts: 4,
             blocks_proving_percentage: Some(30),
             dump_arguments_for_blocks: vec![2, 3],
@@ -32,6 +36,10 @@ mod tests {
         let mut lock = MUTEX.lock();
         let config = r#"
             FRI_WITNESS_GENERATION_TIMEOUT_IN_SECS=900
+            FRI_WITNESS_BASIC_GENERATION_TIMEOUT_IN_SECS=900
+            FRI_WITNESS_LEAF_GENERATION_TIMEOUT_IN_SECS=800
+            FRI_WITNESS_NODE_GENERATION_TIMEOUT_IN_SECS=800
+            FRI_WITNESS_SCHEDULER_GENERATION_TIMEOUT_IN_SECS=900
             FRI_WITNESS_MAX_ATTEMPTS=4
             FRI_WITNESS_DUMP_ARGUMENTS_FOR_BLOCKS="2,3"
             FRI_WITNESS_BLOCKS_PROVING_PERCENTAGE="30"
@@ -42,5 +50,33 @@ mod tests {
 
         let actual = FriWitnessGeneratorConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
+    }
+
+    #[test]
+    fn from_env_default_timeouts() {
+        let mut lock = MUTEX.lock();
+        lock.remove_env(&[
+            "FRI_WITNESS_LEAF_GENERATION_TIMEOUT_IN_SECS",
+            "FRI_WITNESS_NODE_GENERATION_TIMEOUT_IN_SECS",
+        ]);
+        let config = r#"
+            FRI_WITNESS_GENERATION_TIMEOUT_IN_SECS=800
+            FRI_WITNESS_BASIC_GENERATION_TIMEOUT_IN_SECS=100
+            FRI_WITNESS_SCHEDULER_GENERATION_TIMEOUT_IN_SECS=200
+            FRI_WITNESS_MAX_ATTEMPTS=4
+            FRI_WITNESS_DUMP_ARGUMENTS_FOR_BLOCKS="2,3"
+            FRI_WITNESS_BLOCKS_PROVING_PERCENTAGE="30"
+            FRI_WITNESS_FORCE_PROCESS_BLOCK="1"
+            FRI_WITNESS_SHALL_SAVE_TO_PUBLIC_BUCKET=true
+        "#;
+        lock.set_env(config);
+
+        let actual = FriWitnessGeneratorConfig::from_env().unwrap();
+        let timeouts = actual.witness_generation_timeouts();
+
+        assert_eq!(timeouts.basic().as_secs(), 100);
+        assert_eq!(timeouts.leaf().as_secs(), 800);
+        assert_eq!(timeouts.node().as_secs(), 800);
+        assert_eq!(timeouts.scheduler().as_secs(), 200);
     }
 }

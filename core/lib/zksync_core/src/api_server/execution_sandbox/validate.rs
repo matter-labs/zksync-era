@@ -10,8 +10,8 @@ use multivm::{
     vm_latest::HistoryDisabled,
     MultiVMTracer,
 };
-use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_types::{l2::L2Tx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_types::{l2::L2Tx, Address, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS};
 
 use super::{
     apply,
@@ -33,7 +33,7 @@ pub(crate) enum ValidationError {
 impl TransactionExecutor {
     pub(crate) async fn validate_tx_in_sandbox(
         &self,
-        connection_pool: ConnectionPool,
+        connection_pool: ConnectionPool<Core>,
         vm_permit: VmPermit,
         tx: L2Tx,
         shared_args: TxSharedArgs,
@@ -47,13 +47,17 @@ impl TransactionExecutor {
 
         let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::ValidateInSandbox].start();
         let mut connection = connection_pool
-            .access_storage_tagged("api")
+            .connection_tagged("api")
             .await
             .context("failed acquiring DB connection")?;
-        let validation_params =
-            get_validation_params(&mut connection, &tx, computational_gas_limit)
-                .await
-                .context("failed getting validation params")?;
+        let validation_params = get_validation_params(
+            &mut connection,
+            &tx,
+            computational_gas_limit,
+            &shared_args.whitelisted_tokens_for_aa,
+        )
+        .await
+        .context("failed getting validation params")?;
         drop(connection);
 
         let execution_args = TxExecutionArgs::for_validation(&tx);
@@ -117,9 +121,10 @@ impl TransactionExecutor {
 /// trusted to change between validation and execution in general case, but
 /// sometimes we can safely rely on them to not change often.
 async fn get_validation_params(
-    connection: &mut StorageProcessor<'_>,
+    connection: &mut Connection<'_, Core>,
     tx: &L2Tx,
     computational_gas_limit: u32,
+    whitelisted_tokens_for_aa: &[Address],
 ) -> anyhow::Result<ValidationTracerParams> {
     let method_latency = EXECUTION_METRICS.get_validation_params.start();
     let user_address = tx.common_data.initiator_address;
@@ -127,17 +132,17 @@ async fn get_validation_params(
 
     // This method assumes that the number of tokens is relatively low. When it grows
     // we may need to introduce some kind of caching.
-    let all_tokens = connection
-        .tokens_dal()
-        .get_all_l2_token_addresses()
-        .await
-        .context("failed getting addresses of L2 tokens")?;
+    let all_bridged_tokens = connection.tokens_dal().get_all_l2_token_addresses().await?;
+    let all_tokens: Vec<_> = all_bridged_tokens
+        .iter()
+        .chain(whitelisted_tokens_for_aa)
+        .collect();
     EXECUTION_METRICS.tokens_amount.set(all_tokens.len());
 
     let span = tracing::debug_span!("compute_trusted_slots_for_validation").entered();
     let trusted_slots: HashSet<_> = all_tokens
         .iter()
-        .flat_map(|&token| TRUSTED_TOKEN_SLOTS.iter().map(move |&slot| (token, slot)))
+        .flat_map(|&token| TRUSTED_TOKEN_SLOTS.iter().map(move |&slot| (*token, slot)))
         .collect();
 
     // We currently don't support any specific trusted addresses.
@@ -147,7 +152,11 @@ async fn get_validation_params(
     // Required for working with transparent proxies.
     let trusted_address_slots: HashSet<_> = all_tokens
         .into_iter()
-        .flat_map(|token| TRUSTED_ADDRESS_SLOTS.iter().map(move |&slot| (token, slot)))
+        .flat_map(|token| {
+            TRUSTED_ADDRESS_SLOTS
+                .iter()
+                .map(move |&slot| (*token, slot))
+        })
         .collect();
     EXECUTION_METRICS
         .trusted_address_slots_amount

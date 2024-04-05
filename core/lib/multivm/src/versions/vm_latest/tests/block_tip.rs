@@ -186,7 +186,10 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
 
     let ergs_after = vm.vm.state.local_state.callstack.current.ergs_remaining;
 
-    assert_eq!(ergs_before - ergs_after, result.statistics.gas_used);
+    assert_eq!(
+        (ergs_before - ergs_after) as u64,
+        result.statistics.gas_used
+    );
 
     TestStatistics {
         max_used_gas: ergs_before - ergs_after,
@@ -374,7 +377,7 @@ fn test_dry_run_upper_bound() {
         .max()
         .unwrap();
     assert!(
-        circuit_statistics.0 * 2 <= BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
+        circuit_statistics.0 * 2 <= BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD as u64,
         "BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD is too low for {} with result {}, BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD = {}",
         circuit_statistics.1,
         circuit_statistics.0,
@@ -387,7 +390,7 @@ fn test_dry_run_upper_bound() {
         .max()
         .unwrap();
     assert!(
-        execution_metrics_size.0 * 2 <= BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD,
+        execution_metrics_size.0 * 2 <= BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD as u64,
         "BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD is too low for {} with result {}, BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD = {}",
         execution_metrics_size.1,
         execution_metrics_size.0,

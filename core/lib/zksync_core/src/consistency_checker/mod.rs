@@ -1,26 +1,23 @@
-use std::{collections::HashSet, fmt, time::Duration};
+use std::{borrow::Cow, collections::HashSet, fmt, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
-use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_eth_client::{
-    clients::QueryClient, CallFunctionArgs, Error as L1ClientError, EthInterface,
-};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_eth_client::{CallFunctionArgs, Error as L1ClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_l1_contract_interface::{
-    i_executor::{commit::kzg::ZK_SYNC_BYTES_PER_BLOB, structures::CommitBatchInfo},
-    Tokenizable,
-};
+use zksync_l1_contract_interface::i_executor::commit::kzg::ZK_SYNC_BYTES_PER_BLOB;
 use zksync_types::{
     commitment::L1BatchWithMetadata,
+    ethabi::Token,
     pubdata_da::PubdataDA,
-    web3::{self, ethabi},
+    web3::{self, contract::Error as Web3ContractError, ethabi},
     Address, L1BatchNumber, ProtocolVersionId, H256, U256,
 };
 
 use crate::{
+    eth_sender::l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
     metrics::{CheckerComponent, EN_METRICS},
     utils::wait_for_l1_batch_with_metadata,
 };
@@ -143,14 +140,16 @@ enum L1DataMismatchBehavior {
 struct LocalL1BatchCommitData {
     l1_batch: L1BatchWithMetadata,
     commit_tx_hash: H256,
+    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
 impl LocalL1BatchCommitData {
     /// Returns `Ok(None)` if Postgres doesn't contain all data necessary to check L1 commitment
     /// for the specified batch.
     async fn new(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         batch_number: L1BatchNumber,
+        l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> anyhow::Result<Option<Self>> {
         let Some(storage_l1_batch) = storage
             .blocks_dal()
@@ -182,6 +181,7 @@ impl LocalL1BatchCommitData {
         let this = Self {
             l1_batch,
             commit_tx_hash,
+            l1_batch_commit_data_generator,
         };
         let metadata = &this.l1_batch.metadata;
 
@@ -213,7 +213,7 @@ impl LocalL1BatchCommitData {
             .header
             .protocol_version
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
-        let da = CommitBatchInfo::detect_da(protocol_version, reference)
+        let da = detect_da(protocol_version, reference)
             .context("cannot detect DA source from reference commitment token")?;
 
         // For `PubdataDA::Calldata`, it's required that the pubdata fits into a single blob.
@@ -231,13 +231,66 @@ impl LocalL1BatchCommitData {
             );
         }
 
-        let local_token = CommitBatchInfo::new(&self.l1_batch, da).into_token();
+        let local_token = self
+            .l1_batch_commit_data_generator
+            .l1_commit_batch(&self.l1_batch, &da);
         anyhow::ensure!(
             local_token == *reference,
             "Locally reproduced commitment differs from the reference obtained from L1; \
              local: {local_token:?}, reference: {reference:?}"
         );
         Ok(())
+    }
+}
+
+/// Determines which DA source was used in the `reference` commitment. It's assumed that the commitment was created
+/// using `CommitBatchInfo::into_token()`.
+///
+/// # Errors
+///
+/// Returns an error if `reference` is malformed.
+pub fn detect_da(
+    protocol_version: ProtocolVersionId,
+    reference: &Token,
+) -> Result<PubdataDA, Web3ContractError> {
+    /// These are used by the L1 Contracts to indicate what DA layer is used for pubdata
+    const PUBDATA_SOURCE_CALLDATA: u8 = 0;
+    const PUBDATA_SOURCE_BLOBS: u8 = 1;
+
+    fn parse_error(message: impl Into<Cow<'static, str>>) -> Web3ContractError {
+        Web3ContractError::Abi(ethabi::Error::Other(message.into()))
+    }
+
+    if protocol_version.is_pre_1_4_2() {
+        return Ok(PubdataDA::Calldata);
+    }
+
+    let reference = match reference {
+        Token::Tuple(tuple) => tuple,
+        _ => {
+            return Err(parse_error(format!(
+                "reference has unexpected shape; expected a tuple, got {reference:?}"
+            )))
+        }
+    };
+    let Some(last_reference_token) = reference.last() else {
+        return Err(parse_error("reference commitment data is empty"));
+    };
+
+    let last_reference_token = match last_reference_token {
+        Token::Bytes(bytes) => bytes,
+        _ => return Err(parse_error(format!(
+            "last reference token has unexpected shape; expected bytes, got {last_reference_token:?}"
+        ))),
+    };
+    match last_reference_token.first() {
+        Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => Ok(PubdataDA::Calldata),
+        Some(&byte) if byte == PUBDATA_SOURCE_BLOBS => Ok(PubdataDA::Blobs),
+        Some(&byte) => Err(parse_error(format!(
+            "unexpected first byte of the last reference token; expected one of [{PUBDATA_SOURCE_CALLDATA}, {PUBDATA_SOURCE_BLOBS}], \
+                got {byte}"
+        ))),
+        None => Err(parse_error("last reference token is empty")),
     }
 }
 
@@ -250,33 +303,35 @@ pub struct ConsistencyChecker {
     /// How many past batches to check when starting
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
-    l1_client: Box<dyn EthInterface>,
+    l1_client: Arc<dyn EthInterface>,
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
     health_check: ReactiveHealthCheck,
+    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
 impl ConsistencyChecker {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
     pub fn new(
-        web3_url: &str,
+        l1_client: Arc<dyn EthInterface>,
         max_batches_to_recheck: u32,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
+        l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> anyhow::Result<Self> {
-        let web3 = QueryClient::new(web3_url).context("cannot create L1 Web3 client")?;
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         Ok(Self {
             contract: zksync_contracts::state_transition_chain_contract(),
             diamond_proxy_addr: None,
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
-            l1_client: Box::new(web3),
+            l1_client,
             event_handler: Box::new(health_updater),
             l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
             health_check,
+            l1_batch_commit_data_generator,
         })
     }
 
@@ -436,7 +491,7 @@ impl ConsistencyChecker {
     async fn last_committed_batch(&self) -> anyhow::Result<Option<L1BatchNumber>> {
         Ok(self
             .pool
-            .access_storage()
+            .connection()
             .await?
             .blocks_dal()
             .get_number_of_last_l1_batch_committed_on_eth()
@@ -504,11 +559,20 @@ impl ConsistencyChecker {
             .0
             .saturating_sub(self.max_batches_to_recheck)
             .into();
+
+        let last_processed_batch = self
+            .pool
+            .connection()
+            .await?
+            .blocks_dal()
+            .get_consistency_checker_last_processed_l1_batch()
+            .await?;
+
         // We shouldn't check batches not present in the storage, and skip the genesis batch since
         // it's not committed on L1.
         let first_batch_to_check = first_batch_to_check
             .max(earliest_l1_batch_number)
-            .max(L1BatchNumber(1));
+            .max(L1BatchNumber(last_processed_batch.0 + 1));
         tracing::info!(
             "Last committed L1 batch is #{last_committed_batch}; starting checks from L1 batch #{first_batch_to_check}"
         );
@@ -522,11 +586,17 @@ impl ConsistencyChecker {
                 break;
             }
 
-            let mut storage = self.pool.access_storage().await?;
+            let mut storage = self.pool.connection().await?;
             // The batch might be already committed but not yet processed by the external node's tree
             // OR the batch might be processed by the external node's tree but not yet committed.
             // We need both.
-            let Some(local) = LocalL1BatchCommitData::new(&mut storage, batch_number).await? else {
+            let Some(local) = LocalL1BatchCommitData::new(
+                &mut storage,
+                batch_number,
+                self.l1_batch_commit_data_generator.clone(),
+            )
+            .await?
+            else {
                 tokio::time::sleep(self.sleep_interval).await;
                 continue;
             };
@@ -534,6 +604,11 @@ impl ConsistencyChecker {
 
             match self.check_commitments(batch_number, &local).await {
                 Ok(()) => {
+                    let mut storage = self.pool.connection().await?;
+                    storage
+                        .blocks_dal()
+                        .set_consistency_checker_last_processed_l1_batch(batch_number)
+                        .await?;
                     self.event_handler.update_checked_batch(batch_number);
                     batch_number += 1;
                 }
