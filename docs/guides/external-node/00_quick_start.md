@@ -24,10 +24,11 @@ Those commands start external node locally inside docker.
 
 The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be accessed on port `3061`.
 
-**Note: The node will first recover from a snapshot on it's first run, this may take up to 10h.**
+> [!NOTE]
+> The node will recover from a snapshot on it's first run, this may take up to 10h. Before the recovery is finished, the API server won't serve any requests.
 
-**Note: If you need access to historical transaction data, please use recovery from DB dumps (see Advanced setup
-section)**
+> [!NOTE] 
+> If you need access to historical transaction data, please use recovery from DB dumps (see Advanced setup section)
 
 ### System Requirements
 
