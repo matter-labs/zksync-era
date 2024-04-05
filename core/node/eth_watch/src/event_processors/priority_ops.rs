@@ -1,5 +1,3 @@
-use std::convert::TryFrom;
-
 use anyhow::Context as _;
 use zksync_contracts::zksync_contract;
 use zksync_dal::{Connection, Core, CoreDal, DalError};

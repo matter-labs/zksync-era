@@ -1,5 +1,3 @@
-use std::convert::TryFrom;
-
 use anyhow::Context as _;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_types::{web3::types::Log, ProtocolUpgrade, ProtocolVersionId, H256};

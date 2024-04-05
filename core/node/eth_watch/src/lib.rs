@@ -4,13 +4,11 @@
 //! Poll interval is configured using the `ETH_POLL_INTERVAL` constant.
 //! Number of confirmations is configured using the `CONFIRMATIONS_FOR_ETH_EVENT` environment variable.
 
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 use anyhow::Context as _;
-use tokio::{sync::watch, task::JoinHandle};
-use zksync_config::ETHWatchConfig;
+use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::EthInterface;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     ethabi::Contract, web3::types::BlockNumber as Web3BlockNumber, Address, PriorityOpId,
@@ -196,31 +194,4 @@ impl EthWatch {
         self.last_processed_ethereum_block = to_block;
         Ok(())
     }
-}
-
-pub async fn start_eth_watch(
-    config: ETHWatchConfig,
-    pool: ConnectionPool<Core>,
-    eth_gateway: Arc<dyn EthInterface>,
-    diamond_proxy_addr: Address,
-    governance: (Contract, Address),
-    stop_receiver: watch::Receiver<bool>,
-) -> anyhow::Result<JoinHandle<anyhow::Result<()>>> {
-    let eth_client = EthHttpQueryClient::new(
-        eth_gateway,
-        diamond_proxy_addr,
-        Some(governance.1),
-        config.confirmations_for_eth_event,
-    );
-
-    let eth_watch = EthWatch::new(
-        diamond_proxy_addr,
-        Some(governance.0),
-        Box::new(eth_client),
-        pool,
-        config.poll_interval(),
-    )
-    .await?;
-
-    Ok(tokio::spawn(eth_watch.run(stop_receiver)))
 }
