@@ -17,6 +17,7 @@ zksync_utils.workspace = true
 zksync_storage.workspace = true
 
 anyhow.workspace = true
+async-trait.workspace = true
 mini-moka.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 tracing.workspace = true

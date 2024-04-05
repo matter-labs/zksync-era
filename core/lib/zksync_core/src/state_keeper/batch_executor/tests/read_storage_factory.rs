@@ -2,12 +2,10 @@ use anyhow::Context;
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core};
-use zksync_state::RocksdbStorage;
+use zksync_state::{PgOrRocksdbStorage, ReadStorageFactory, RocksdbStorage};
+use zksync_types::L1BatchNumber;
 
-use crate::state_keeper::{
-    state_keeper_storage::{PgOrRocksdbStorage, ReadStorageFactory},
-    AsyncRocksdbCache,
-};
+use crate::state_keeper::AsyncRocksdbCache;
 
 #[derive(Debug, Clone)]
 pub struct PostgresFactory {
@@ -19,9 +17,10 @@ impl ReadStorageFactory for PostgresFactory {
     async fn access_storage(
         &self,
         _stop_receiver: &watch::Receiver<bool>,
+        l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
         Ok(Some(
-            AsyncRocksdbCache::access_storage_pg(&self.pool).await?,
+            AsyncRocksdbCache::access_storage_pg(&self.pool, l1_batch_number).await?,
         ))
     }
 }
@@ -44,6 +43,7 @@ impl ReadStorageFactory for RocksdbFactory {
     async fn access_storage(
         &self,
         stop_receiver: &watch::Receiver<bool>,
+        _l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
         let mut builder = RocksdbStorage::builder(self.state_keeper_db_path.as_ref())
             .await

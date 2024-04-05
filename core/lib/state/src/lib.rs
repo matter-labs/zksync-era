@@ -22,6 +22,7 @@ mod in_memory;
 mod postgres;
 mod rocksdb;
 mod shadow_storage;
+mod storage_factory;
 mod storage_view;
 #[cfg(test)]
 mod test_utils;
@@ -33,6 +34,7 @@ pub use self::{
     postgres::{PostgresStorage, PostgresStorageCaches, PostgresStorageCachesTask},
     rocksdb::{RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily},
     shadow_storage::ShadowStorage,
+    storage_factory::{PgOrRocksdbStorage, ReadStorageFactory},
     storage_view::{StorageView, StorageViewMetrics},
     witness::WitnessStorage,
 };
