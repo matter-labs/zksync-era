@@ -1,10 +1,11 @@
 # Running the External Node
 
 <!-- prettier-ignore-start -->
-> [!NOTE] 
-> If you want to just run external with recommended default setting, please see directory docker-compose-examples**
-<!-- prettier-ignore-start -->
 
+> [!NOTE] If you want to just run external with recommended default setting, please see directory
+> docker-compose-examples
+
+<!-- prettier-ignore-start -->
 
 This section assumes that you have prepared a configuration file as described on the
 [previous page](./02_configuration.md).
