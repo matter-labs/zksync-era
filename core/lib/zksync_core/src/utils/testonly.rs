@@ -39,6 +39,7 @@ pub(crate) fn create_miniblock(number: u32) -> MiniblockHeader {
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         virtual_blocks: 1,
+        gas_limit: 0,
     }
 }
 
@@ -66,6 +67,7 @@ pub(crate) fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
             bootloader_code_hash: BaseSystemContractsHashes::default().bootloader,
             default_aa_code_hash: BaseSystemContractsHashes::default().default_aa,
+            protocol_version: ProtocolVersionId::latest(),
         },
         aux_data_hash: H256::zero(),
         meta_parameters_hash: H256::zero(),
@@ -186,6 +188,7 @@ impl Snapshot {
             base_system_contracts_hashes: contracts.hashes(),
             protocol_version: Some(genesis_params.protocol_version()),
             virtual_blocks: 1,
+            gas_limit: 0,
         };
         Snapshot {
             l1_batch,

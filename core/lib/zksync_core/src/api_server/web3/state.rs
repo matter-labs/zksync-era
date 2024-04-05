@@ -8,11 +8,15 @@ use std::{
 };
 
 use anyhow::Context as _;
+use futures::TryFutureExt;
 use lru::LruCache;
 use tokio::sync::{watch, Mutex};
 use vise::GaugeGuard;
-use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_config::{
+    configs::{api::Web3JsonRpcConfig, chain::L1BatchCommitDataGeneratorMode, ContractsConfig},
+    GenesisConfig,
+};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_types::{
     api, l2::L2Tx, transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2ChainId,
     MiniblockNumber, H256, U256, U64,
@@ -87,6 +91,8 @@ pub struct InternalApiConfig {
     pub estimate_gas_acceptable_overestimation: u32,
     pub bridge_addresses: api::BridgeAddresses,
     pub bridgehub_proxy_addr: Option<Address>,
+    pub state_transition_proxy_addr: Option<Address>,
+    pub transparent_proxy_admin_addr: Option<Address>,
     pub diamond_proxy_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
@@ -94,17 +100,19 @@ pub struct InternalApiConfig {
     pub filters_disabled: bool,
     pub mempool_cache_update_interval: Duration,
     pub mempool_cache_size: usize,
+    pub dummy_verifier: bool,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
 
 impl InternalApiConfig {
     pub fn new(
-        eth_config: &NetworkConfig,
         web3_config: &Web3JsonRpcConfig,
         contracts_config: &ContractsConfig,
+        genesis_config: &GenesisConfig,
     ) -> Self {
         Self {
-            l1_chain_id: eth_config.network.chain_id(),
-            l2_chain_id: eth_config.zksync_network_id,
+            l1_chain_id: genesis_config.l1_chain_id,
+            l2_chain_id: genesis_config.l2_chain_id,
             max_tx_size: web3_config.max_tx_size,
             estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: web3_config
@@ -115,7 +123,18 @@ impl InternalApiConfig {
                 l1_weth_bridge: contracts_config.l1_weth_bridge_proxy_addr,
                 l2_weth_bridge: contracts_config.l2_weth_bridge_addr,
             },
-            bridgehub_proxy_addr: contracts_config.bridgehub_proxy_addr,
+            bridgehub_proxy_addr: genesis_config
+                .shared_bridge
+                .as_ref()
+                .map(|a| a.bridgehub_proxy_addr),
+            state_transition_proxy_addr: genesis_config
+                .shared_bridge
+                .as_ref()
+                .map(|a| a.state_transition_proxy_addr),
+            transparent_proxy_admin_addr: genesis_config
+                .shared_bridge
+                .as_ref()
+                .map(|a| a.transparent_proxy_admin_addr),
             diamond_proxy_addr: contracts_config.diamond_proxy_addr,
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
@@ -123,6 +142,8 @@ impl InternalApiConfig {
             filters_disabled: web3_config.filters_disabled,
             mempool_cache_update_interval: web3_config.mempool_cache_update_interval(),
             mempool_cache_size: web3_config.mempool_cache_size(),
+            dummy_verifier: genesis_config.dummy_verifier,
+            l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
         }
     }
 }
@@ -242,6 +263,18 @@ impl RpcState {
         self.tx_sender.0.tx_sink.as_ref()
     }
 
+    /// Acquires a DB connection mapping possible errors.
+    // `track_caller` is necessary to correctly record call location. `async fn`s don't support it yet,
+    // thus manual de-sugaring.
+    #[track_caller]
+    pub(crate) fn acquire_connection(
+        &self,
+    ) -> impl Future<Output = Result<Connection<'_, Core>, Web3Error>> + '_ {
+        self.connection_pool
+            .connection_tagged("api")
+            .map_err(|err| err.generalize().into())
+    }
+
     /// Resolves the specified block ID to a block number, which is guaranteed to be present in the node storage.
     pub(crate) async fn resolve_block(
         &self,
@@ -307,7 +340,7 @@ impl RpcState {
 
         let block_number = block_number.unwrap_or(api::BlockNumber::Latest);
         let block_id = api::BlockId::Number(block_number);
-        let mut conn = self.connection_pool.connection_tagged("api").await?;
+        let mut conn = self.acquire_connection().await?;
         Ok(self.resolve_block(&mut conn, block_id).await.unwrap())
         // ^ `unwrap()` is safe: `resolve_block_id(api::BlockId::Number(_))` can only return `None`
         // if called with an explicit number, and we've handled this case earlier.
@@ -327,8 +360,7 @@ impl RpcState {
         match (filter.block_hash, filter.from_block, filter.to_block) {
             (Some(block_hash), None, None) => {
                 let block_number = self
-                    .connection_pool
-                    .connection_tagged("api")
+                    .acquire_connection()
                     .await?
                     .blocks_web3_dal()
                     .resolve_block_id(api::BlockId::Hash(block_hash))
@@ -352,8 +384,7 @@ impl RpcState {
         filter: &Filter,
     ) -> Result<MiniblockNumber, Web3Error> {
         let pending_block = self
-            .connection_pool
-            .connection_tagged("api")
+            .acquire_connection()
             .await?
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
@@ -377,8 +408,7 @@ impl RpcState {
         if call_request.nonce.is_some() {
             return Ok(());
         }
-        let mut connection = self.connection_pool.connection_tagged("api").await?;
-
+        let mut connection = self.acquire_connection().await?;
         let latest_block_id = api::BlockId::Number(api::BlockNumber::Latest);
         let latest_block_number = self.resolve_block(&mut connection, latest_block_id).await?;
 
@@ -387,7 +417,7 @@ impl RpcState {
             .storage_web3_dal()
             .get_address_historical_nonce(from, latest_block_number)
             .await
-            .context("get_address_historical_nonce")?;
+            .map_err(DalError::generalize)?;
         call_request.nonce = Some(address_historical_nonce);
         Ok(())
     }

@@ -14,8 +14,9 @@ pub use l2::L2TxCommonData;
 pub use protocol_upgrade::{ProtocolUpgrade, ProtocolVersion};
 use serde::{Deserialize, Serialize};
 pub use storage::*;
-pub use tx::{primitives::*, Execute};
+pub use tx::Execute;
 pub use zksync_basic_types::{protocol_version::ProtocolVersionId, vm_version::VmVersion, *};
+pub use zksync_crypto_primitives::*;
 
 use crate::{l2::TransactionType, protocol_upgrade::ProtocolUpgradeTxCommonData};
 pub use crate::{Nonce, H256, U256, U64};
@@ -23,6 +24,7 @@ pub use crate::{Nonce, H256, U256, U64};
 pub type SerialId = u64;
 
 pub mod aggregated_operations;
+pub mod blob;
 pub mod block;
 pub mod circuit;
 pub mod commitment;

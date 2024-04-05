@@ -6,7 +6,8 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_types::{
-    api, fee_model::BatchFeeInput, AccountTreeId, L1BatchNumber, L2ChainId, MiniblockNumber,
+    api, fee_model::BatchFeeInput, AccountTreeId, Address, L1BatchNumber, L2ChainId,
+    MiniblockNumber,
 };
 use zksync_utils::bytecode::{compress_bytecode, hash_bytecode};
 
@@ -217,6 +218,7 @@ pub(crate) struct TxSharedArgs {
     pub caches: PostgresStorageCaches,
     pub validation_computational_gas_limit: u32,
     pub chain_id: L2ChainId,
+    pub whitelisted_tokens_for_aa: Vec<Address>,
 }
 
 impl TxSharedArgs {
@@ -229,6 +231,7 @@ impl TxSharedArgs {
             caches: PostgresStorageCaches::new(1, 1),
             validation_computational_gas_limit: u32::MAX,
             chain_id: L2ChainId::default(),
+            whitelisted_tokens_for_aa: Vec::new(),
         }
     }
 }
@@ -247,8 +250,7 @@ impl BlockStartInfo {
         let snapshot_recovery = storage
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
-            .await
-            .context("failed getting snapshot recovery status")?;
+            .await?;
         let snapshot_recovery = snapshot_recovery.as_ref();
         Ok(Self {
             first_miniblock: snapshot_recovery

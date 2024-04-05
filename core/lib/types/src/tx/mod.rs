@@ -14,8 +14,8 @@ pub use self::{execute::Execute, tx_execution_info::ExecutionMetrics};
 use crate::{vm_trace::Call, Transaction};
 
 pub mod execute;
-pub mod primitives;
 pub mod tx_execution_info;
+pub use zksync_crypto_primitives as primitives;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransactionExecutionResult {
@@ -23,8 +23,8 @@ pub struct TransactionExecutionResult {
     pub hash: H256,
     pub execution_info: ExecutionMetrics,
     pub execution_status: TxExecutionStatus,
-    pub refunded_gas: u32,
-    pub operator_suggested_refund: u32,
+    pub refunded_gas: u64,
+    pub operator_suggested_refund: u64,
     pub compressed_bytecodes: Vec<CompressedBytecodeInfo>,
     pub call_traces: Vec<Call>,
     pub revert_reason: Option<String>,
@@ -36,8 +36,8 @@ impl TransactionExecutionResult {
             None
         } else {
             Some(Call::new_high_level(
-                self.transaction.gas_limit().as_u32(),
-                self.transaction.gas_limit().as_u32() - self.refunded_gas,
+                self.transaction.gas_limit().as_u64(),
+                self.transaction.gas_limit().as_u64() - self.refunded_gas,
                 self.transaction.execute.value,
                 self.transaction.execute.calldata.clone(),
                 vec![],

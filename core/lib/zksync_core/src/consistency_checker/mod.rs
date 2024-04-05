@@ -8,6 +8,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{CallFunctionArgs, Error as L1ClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::i_executor::commit::kzg::ZK_SYNC_BYTES_PER_BLOB;
+use zksync_shared_metrics::{CheckerComponent, EN_METRICS};
 use zksync_types::{
     commitment::L1BatchWithMetadata,
     ethabi::Token,
@@ -18,7 +19,6 @@ use zksync_types::{
 
 use crate::{
     eth_sender::l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
-    metrics::{CheckerComponent, EN_METRICS},
     utils::wait_for_l1_batch_with_metadata,
 };
 
@@ -303,7 +303,7 @@ pub struct ConsistencyChecker {
     /// How many past batches to check when starting
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
-    l1_client: Box<dyn EthInterface>,
+    l1_client: Arc<dyn EthInterface>,
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool<Core>,
@@ -315,7 +315,7 @@ impl ConsistencyChecker {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
     pub fn new(
-        l1_client: Box<dyn EthInterface>,
+        l1_client: Arc<dyn EthInterface>,
         max_batches_to_recheck: u32,
         pool: ConnectionPool<Core>,
         l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,

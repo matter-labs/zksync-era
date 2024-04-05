@@ -4,8 +4,9 @@
 use std::time::{Duration, Instant};
 
 use itertools::Itertools;
-use multivm::utils::get_max_gas_per_pubdata_byte;
+use multivm::utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte};
 use zksync_dal::{Connection, Core, CoreDal};
+use zksync_shared_metrics::{BlockStage, MiniblockStage, APP_METRICS};
 use zksync_types::{
     block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
@@ -26,15 +27,12 @@ use zksync_types::{
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
-use crate::{
-    metrics::{BlockStage, MiniblockStage, APP_METRICS},
-    state_keeper::{
-        metrics::{
-            L1BatchSealStage, MiniblockSealStage, TxExecutionType, KEEPER_METRICS,
-            L1_BATCH_METRICS, MINIBLOCK_METRICS,
-        },
-        updates::{MiniblockSealCommand, UpdatesManager},
+use crate::state_keeper::{
+    metrics::{
+        L1BatchSealStage, MiniblockSealStage, TxExecutionType, KEEPER_METRICS, L1_BATCH_METRICS,
+        MINIBLOCK_METRICS,
     },
+    updates::{MiniblockSealCommand, UpdatesManager},
 };
 
 impl UpdatesManager {
@@ -45,6 +43,7 @@ impl UpdatesManager {
         &self,
         storage: &mut Connection<'_, Core>,
         l2_erc20_bridge_addr: Address,
+        insert_protective_reads: bool,
     ) {
         let started_at = Instant::now();
         let finished_batch = self
@@ -122,10 +121,6 @@ impl UpdatesManager {
             pubdata_input: finished_batch.pubdata_input.clone(),
         };
 
-        let events_queue = &finished_batch
-            .final_execution_state
-            .deduplicated_events_logs;
-
         let final_bootloader_memory = finished_batch
             .final_bootloader_memory
             .clone()
@@ -136,8 +131,8 @@ impl UpdatesManager {
                 &l1_batch,
                 &final_bootloader_memory,
                 self.pending_l1_gas_count(),
-                events_queue,
                 &finished_batch.final_execution_state.storage_refunds,
+                &finished_batch.final_execution_state.pubdata_costs,
                 self.pending_execution_metrics().circuit_statistic,
             )
             .await
@@ -162,18 +157,20 @@ impl UpdatesManager {
             .await;
         progress.observe(None);
 
-        let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertProtectiveReads);
         let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) = finished_batch
             .final_execution_state
             .deduplicated_storage_log_queries
             .iter()
             .partition(|log_query| log_query.rw_flag);
-        transaction
-            .storage_logs_dedup_dal()
-            .insert_protective_reads(self.l1_batch.number, &protective_reads)
-            .await
-            .unwrap();
-        progress.observe(protective_reads.len());
+        if insert_protective_reads {
+            let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertProtectiveReads);
+            transaction
+                .storage_logs_dedup_dal()
+                .insert_protective_reads(self.l1_batch.number, &protective_reads)
+                .await
+                .unwrap();
+            progress.observe(protective_reads.len());
+        }
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FilterWrittenSlots);
         let deduplicated_writes_hashed_keys: Vec<_> = deduplicated_writes
@@ -326,6 +323,11 @@ impl MiniblockSealCommand {
             event_count = self.miniblock.events.len()
         );
 
+        let definite_vm_version = self
+            .protocol_version
+            .unwrap_or(ProtocolVersionId::last_potentially_undefined())
+            .into();
+
         let miniblock_header = MiniblockHeader {
             number: miniblock_number,
             timestamp: self.miniblock.timestamp,
@@ -337,12 +339,9 @@ impl MiniblockSealCommand {
             batch_fee_input: self.fee_input,
             base_system_contracts_hashes: self.base_system_contracts_hashes,
             protocol_version: self.protocol_version,
-            gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(
-                self.protocol_version
-                    .unwrap_or(ProtocolVersionId::last_potentially_undefined())
-                    .into(),
-            ),
+            gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(definite_vm_version),
             virtual_blocks: self.miniblock.virtual_blocks,
+            gas_limit: get_max_batch_gas_limit(definite_vm_version),
         };
 
         transaction

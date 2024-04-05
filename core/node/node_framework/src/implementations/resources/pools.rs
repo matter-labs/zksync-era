@@ -17,7 +17,7 @@ pub struct MasterPoolResource {
 }
 
 impl Resource for MasterPoolResource {
-    fn resource_id() -> crate::resource::ResourceId {
+    fn name() -> String {
         "common/master_pool".into()
     }
 }
@@ -72,7 +72,7 @@ pub struct ReplicaPoolResource {
 }
 
 impl Resource for ReplicaPoolResource {
-    fn resource_id() -> crate::resource::ResourceId {
+    fn name() -> String {
         "common/replica_pool".into()
     }
 }
@@ -127,7 +127,7 @@ pub struct ProverPoolResource {
 }
 
 impl Resource for ProverPoolResource {
-    fn resource_id() -> crate::resource::ResourceId {
+    fn name() -> String {
         "common/prover_pool".into()
     }
 }

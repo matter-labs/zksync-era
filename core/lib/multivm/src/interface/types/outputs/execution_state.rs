@@ -31,6 +31,11 @@ pub struct CurrentExecutionState {
     pub deduplicated_events_logs: Vec<LogQuery>,
     /// Refunds returned by `StorageOracle`.
     pub storage_refunds: Vec<u32>,
+    /// Pubdata costs returned by `StorageOracle`.
+    /// This field is non-empty only starting from v1.5.0.
+    /// Note, that it is a signed integer, because the pubdata costs can be negative, e.g. in case
+    /// the user rolls back a state diff.
+    pub pubdata_costs: Vec<i32>,
 }
 
 /// Bootloader Memory of the VM.

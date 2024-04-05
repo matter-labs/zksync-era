@@ -82,18 +82,14 @@ describe('snapshot recovery', () => {
 
     const homeDir = process.env.ZKSYNC_HOME!!;
 
-    let zkscynEnv: string;
-    if (process.env.DEPLOYMENT_MODE == 'Validium') {
-        zkscynEnv = process.env.IN_DOCKER ? 'ext-node-validium-docker' : 'ext-node-validium';
-    } else if (process.env.DEPLOYMENT_MODE == 'Rollup') {
-        zkscynEnv = process.env.IN_DOCKER ? 'ext-node-docker' : 'ext-node';
-    } else {
-        throw new Error(`Unknown deployment mode: ${process.env.DEPLOYMENT_MODE}`);
-    }
-
+    const externalNodeEnvProfile =
+        'ext-node' +
+        (process.env.DEPLOYMENT_MODE === 'Validium' ? '-validium' : '') +
+        (process.env.IN_DOCKER ? '-docker' : '');
+    console.log('Using external node env profile', externalNodeEnvProfile);
     const externalNodeEnv = {
         ...process.env,
-        ZKSYNC_ENV: zkscynEnv
+        ZKSYNC_ENV: externalNodeEnvProfile
     };
 
     let snapshotMetadata: GetSnapshotResponse;
@@ -374,7 +370,10 @@ async function getExternalNodeHealth() {
         if (e instanceof FetchError && e.code === 'ECONNREFUSED') {
             displayedError = '(connection refused)'; // Don't spam logs with "connection refused" messages
         }
-        console.log('Request to EN health check server failed', displayedError);
+        console.log(
+            `Request to EN health check server failed ${displayedError}, in CI you can see more details 
+            in "Show snapshot-creator.log logs" and "Show contract_verifier.log logs" steps`
+        );
         return null;
     }
 }

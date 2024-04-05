@@ -20,8 +20,6 @@ zksync_dal.workspace = true
 prover_dal.workspace = true
 zksync_db_connection.workspace = true
 zksync_config.workspace = true
-zksync_env_config.workspace = true
-zksync_protobuf_config.workspace = true
 zksync_utils.workspace = true
 zksync_contracts.workspace = true
 zksync_system_constants.workspace = true
@@ -44,6 +42,8 @@ zksync_web3_decl = { workspace = true, features = [
 zksync_object_store.workspace = true
 zksync_health_check.workspace = true
 vlog.workspace = true
+zksync_eth_watch.workspace = true
+zksync_shared_metrics.workspace = true
 
 multivm.workspace = true
 

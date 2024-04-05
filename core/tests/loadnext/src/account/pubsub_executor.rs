@@ -1,7 +1,6 @@
 use std::time::{Duration, Instant};
 
 use futures::{stream, TryStreamExt};
-use zksync::{error::ClientError, types::PubSubFilterBuilder};
 use zksync_web3_decl::{
     jsonrpsee::{
         core::client::{Subscription, SubscriptionClientT},
@@ -17,6 +16,7 @@ use crate::{
     config::RequestLimiters,
     report::{ReportBuilder, ReportLabel},
     rng::WeightedRandom,
+    sdk::{error::ClientError, types::PubSubFilterBuilder},
 };
 
 impl AccountLifespan {

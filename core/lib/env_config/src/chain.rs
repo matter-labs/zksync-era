@@ -68,6 +68,7 @@ mod tests {
         assert_eq!(actual, expected_network_config());
     }
 
+    #[allow(deprecated)]
     fn expected_state_keeper_config(
         l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
     ) -> StateKeeperConfig {
@@ -83,7 +84,7 @@ mod tests {
             close_block_at_geometry_percentage: 0.5,
             reject_tx_at_eth_params_percentage: 0.8,
             reject_tx_at_geometry_percentage: 0.3,
-            fee_account_addr: addr("de03a0B5963f75f1C8485B355fF6D30f3093BDE7"),
+            fee_account_addr: Some(addr("de03a0B5963f75f1C8485B355fF6D30f3093BDE7")),
             reject_tx_at_gas_percentage: 0.5,
             minimal_l2_gas_price: 100000000,
             compute_overhead_part: 0.0,
@@ -104,6 +105,7 @@ mod tests {
                 "0x0100055b041eb28aff6e3a6e0f37c31fd053fc9ef142683b05e5f0aee6934066",
             )),
             l1_batch_commit_data_generator_mode,
+            max_circuits_per_batch: 24100,
         }
     }
 
@@ -215,6 +217,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn default_state_keeper_mode() {
         assert_eq!(
             StateKeeperConfig::default().l1_batch_commit_data_generator_mode,

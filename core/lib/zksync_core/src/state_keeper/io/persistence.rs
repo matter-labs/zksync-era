@@ -5,15 +5,13 @@ use std::time::Instant;
 use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
 use zksync_dal::{ConnectionPool, Core};
+use zksync_shared_metrics::{BlockStage, APP_METRICS};
 use zksync_types::Address;
 
-use crate::{
-    metrics::{BlockStage, APP_METRICS},
-    state_keeper::{
-        io::StateKeeperOutputHandler,
-        metrics::{MiniblockQueueStage, MINIBLOCK_METRICS},
-        updates::{MiniblockSealCommand, UpdatesManager},
-    },
+use crate::state_keeper::{
+    io::StateKeeperOutputHandler,
+    metrics::{MiniblockQueueStage, MINIBLOCK_METRICS},
+    updates::{MiniblockSealCommand, UpdatesManager},
 };
 
 /// A command together with the return address allowing to track command processing completion.
@@ -29,6 +27,7 @@ pub struct StateKeeperPersistence {
     pool: ConnectionPool<Core>,
     l2_erc20_bridge_addr: Address,
     pre_insert_txs: bool,
+    insert_protective_reads: bool,
     commands_sender: mpsc::Sender<Completable<MiniblockSealCommand>>,
     latest_completion_receiver: Option<oneshot::Receiver<()>>,
     // If true, `submit_miniblock()` will wait for the operation to complete.
@@ -59,6 +58,7 @@ impl StateKeeperPersistence {
             pool,
             l2_erc20_bridge_addr,
             pre_insert_txs: false,
+            insert_protective_reads: true,
             commands_sender,
             latest_completion_receiver: None,
             is_sync,
@@ -68,6 +68,13 @@ impl StateKeeperPersistence {
 
     pub fn with_tx_insertion(mut self) -> Self {
         self.pre_insert_txs = true;
+        self
+    }
+
+    /// Disables inserting protective reads to Postgres when persisting an L1 batch. This is only sound
+    /// if the node won't *ever* run a full Merkle tree (such a tree requires protective reads to generate witness inputs).
+    pub fn without_protective_reads(mut self) -> Self {
+        self.insert_protective_reads = false;
         self
     }
 
@@ -154,7 +161,11 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
         let pool = self.pool.clone();
         let mut storage = pool.connection_tagged("state_keeper").await?;
         updates_manager
-            .seal_l1_batch(&mut storage, self.l2_erc20_bridge_addr)
+            .seal_l1_batch(
+                &mut storage,
+                self.l2_erc20_bridge_addr,
+                self.insert_protective_reads,
+            )
             .await;
         APP_METRICS.block_number[&BlockStage::Sealed].set(updates_manager.l1_batch.number.0.into());
         Ok(())
@@ -229,11 +240,15 @@ impl MiniblockSealerTask {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
+    use assert_matches::assert_matches;
     use futures::FutureExt;
-    use multivm::zk_evm_latest::ethereum_types::H256;
+    use multivm::zk_evm_latest::ethereum_types::{H256, U256};
     use zksync_dal::CoreDal;
     use zksync_types::{
-        block::BlockGasCount, tx::ExecutionMetrics, L1BatchNumber, MiniblockNumber,
+        api::TransactionStatus, block::BlockGasCount, tx::ExecutionMetrics, L1BatchNumber,
+        MiniblockNumber,
     };
 
     use super::*;
@@ -243,7 +258,7 @@ mod tests {
             io::MiniblockParams,
             tests::{
                 create_execution_result, create_transaction, create_updates_manager,
-                default_l1_batch_env, default_system_env, default_vm_block_result,
+                default_l1_batch_env, default_system_env, default_vm_batch_result, Query,
             },
         },
     };
@@ -270,27 +285,7 @@ mod tests {
             miniblock_sealer_capacity,
         );
         tokio::spawn(miniblock_sealer.run());
-
-        let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
-        let mut updates = UpdatesManager::new(&l1_batch_env, &default_system_env());
-
-        let tx = create_transaction(10, 100);
-        updates.extend_from_executed_transaction(
-            tx,
-            create_execution_result(0, []),
-            vec![],
-            BlockGasCount::default(),
-            ExecutionMetrics::default(),
-            vec![],
-        );
-        persistence.handle_miniblock(&updates).await.unwrap();
-        updates.push_miniblock(MiniblockParams {
-            timestamp: 1,
-            virtual_blocks: 1,
-        });
-
-        updates.finish_batch(default_vm_block_result());
-        persistence.handle_l1_batch(&updates).await.unwrap();
+        execute_mock_batch(&mut persistence).await;
 
         // Check that miniblock #1 and L1 batch #1 are persisted.
         let mut storage = pool.connection().await.unwrap();
@@ -309,6 +304,63 @@ mod tests {
             .unwrap()
             .expect("No L1 batch #1");
         assert_eq!(l1_batch_header.l2_tx_count, 1);
+
+        // Check that both initial writes and protective reads are persisted.
+        let initial_writes = storage
+            .storage_logs_dedup_dal()
+            .dump_all_initial_writes_for_tests()
+            .await;
+        let initial_writes_in_last_batch = initial_writes
+            .iter()
+            .filter(|write| write.l1_batch_number == L1BatchNumber(1))
+            .count();
+        assert_eq!(initial_writes_in_last_batch, 1, "{initial_writes:?}");
+        let protective_reads = storage
+            .storage_logs_dedup_dal()
+            .get_protective_reads_for_l1_batch(L1BatchNumber(1))
+            .await
+            .unwrap();
+        assert_eq!(protective_reads.len(), 1, "{protective_reads:?}");
+    }
+
+    async fn execute_mock_batch(persistence: &mut StateKeeperPersistence) -> H256 {
+        let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
+        let mut updates = UpdatesManager::new(&l1_batch_env, &default_system_env());
+
+        let tx = create_transaction(10, 100);
+        let tx_hash = tx.hash();
+        let storage_logs = [
+            (U256::from(1), Query::Read(U256::from(0))),
+            (U256::from(2), Query::InitialWrite(U256::from(1))),
+        ];
+        let tx_result = create_execution_result(0, storage_logs);
+        let storage_logs = tx_result.logs.storage_logs.clone();
+        updates.extend_from_executed_transaction(
+            tx,
+            tx_result,
+            vec![],
+            BlockGasCount::default(),
+            ExecutionMetrics::default(),
+            vec![],
+        );
+        persistence.handle_miniblock(&updates).await.unwrap();
+        updates.push_miniblock(MiniblockParams {
+            timestamp: 1,
+            virtual_blocks: 1,
+        });
+
+        let mut batch_result = default_vm_batch_result();
+        batch_result.final_execution_state.storage_log_queries = storage_logs.clone();
+        batch_result
+            .final_execution_state
+            .deduplicated_storage_log_queries = storage_logs
+            .into_iter()
+            .map(|query| query.log_query)
+            .collect();
+        updates.finish_batch(batch_result);
+        persistence.handle_l1_batch(&updates).await.unwrap();
+
+        tx_hash
     }
 
     #[tokio::test]
@@ -321,6 +373,56 @@ mod tests {
     async fn miniblock_and_l1_batch_processing_with_sync_sealer() {
         let pool = ConnectionPool::constrained_test_pool(1).await;
         test_miniblock_and_l1_batch_processing(pool, 0).await;
+    }
+
+    #[tokio::test]
+    async fn miniblock_and_l1_batch_processing_on_full_node() {
+        let pool = ConnectionPool::constrained_test_pool(1).await;
+        let mut storage = pool.connection().await.unwrap();
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+            .await
+            .unwrap();
+        // Save metadata for the genesis L1 batch so that we don't hang in `seal_l1_batch`.
+        storage
+            .blocks_dal()
+            .set_l1_batch_hash(L1BatchNumber(0), H256::zero())
+            .await
+            .unwrap();
+        drop(storage);
+
+        let (mut persistence, miniblock_sealer) =
+            StateKeeperPersistence::new(pool.clone(), Address::default(), 1);
+        persistence = persistence.with_tx_insertion().without_protective_reads();
+        tokio::spawn(miniblock_sealer.run());
+
+        let tx_hash = execute_mock_batch(&mut persistence).await;
+
+        // Check that the transaction is persisted.
+        let mut storage = pool.connection().await.unwrap();
+        let tx_details = storage
+            .transactions_web3_dal()
+            .get_transaction_details(tx_hash)
+            .await
+            .unwrap()
+            .expect("no transaction");
+        assert_matches!(tx_details.status, TransactionStatus::Included);
+
+        // Check that initial writes are persisted and protective reads are not.
+        let initial_writes = storage
+            .storage_logs_dedup_dal()
+            .dump_all_initial_writes_for_tests()
+            .await;
+        let initial_writes_in_last_batch = initial_writes
+            .iter()
+            .filter(|write| write.l1_batch_number == L1BatchNumber(1))
+            .count();
+        assert_eq!(initial_writes_in_last_batch, 1, "{initial_writes:?}");
+        let protective_reads = storage
+            .storage_logs_dedup_dal()
+            .get_protective_reads_for_l1_batch(L1BatchNumber(1))
+            .await
+            .unwrap();
+        assert_eq!(protective_reads, HashSet::new());
     }
 
     #[tokio::test]

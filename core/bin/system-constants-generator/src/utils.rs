@@ -6,7 +6,7 @@ use multivm::{
         SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
     },
     vm_latest::{
-        constants::{BLOCK_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
+        constants::{BATCH_COMPUTATIONAL_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
         BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, Vm, VmTracer,
         ZkSyncVmState,
     },
@@ -222,9 +222,9 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
         zk_porter_available: ZKPORTER_IS_AVAILABLE,
         version: ProtocolVersionId::latest(),
         base_system_smart_contracts,
-        gas_limit: BLOCK_GAS_LIMIT,
+        bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         execution_mode: TxExecutionMode::VerifyExecute,
-        default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+        default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         chain_id: L2ChainId::default(),
     };
 
@@ -305,9 +305,9 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
         zk_porter_available: ZKPORTER_IS_AVAILABLE,
         version: ProtocolVersionId::latest(),
         base_system_smart_contracts: GAS_TEST_SYSTEM_CONTRACTS.clone(),
-        gas_limit: BLOCK_GAS_LIMIT,
+        bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         execution_mode: TxExecutionMode::VerifyExecute,
-        default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+        default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         chain_id: L2ChainId::default(),
     };
 
@@ -333,8 +333,9 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
     let metrics = result.get_execution_metrics(None);
 
     VmSpentResourcesResult {
-        gas_consumed: result.statistics.gas_used,
-        total_gas_paid: total_gas_paid_upfront.as_u32() - total_gas_refunded,
+        // It is assumed that the entire `gas_used` was spent on computation and so it safe to convert to u32
+        gas_consumed: result.statistics.gas_used as u32,
+        total_gas_paid: total_gas_paid_upfront.as_u32() - total_gas_refunded as u32,
         pubdata_published: metrics.size() as u32,
         total_pubdata_paid: 0,
     }

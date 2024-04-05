@@ -13,7 +13,12 @@ use sqlx::{
     pool::PoolConnection, types::chrono, Connection as _, PgConnection, Postgres, Transaction,
 };
 
-use crate::{connection_pool::ConnectionPool, metrics::CONNECTION_METRICS, utils::InternalMarker};
+use crate::{
+    connection_pool::ConnectionPool,
+    error::{DalConnectionError, DalResult},
+    metrics::CONNECTION_METRICS,
+    utils::InternalMarker,
+};
 
 /// Tags that can be associated with a connection.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -102,7 +107,7 @@ struct PooledConnection<'a> {
 impl fmt::Debug for PooledConnection<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("PooledStorageProcessor")
+            .debug_struct("PooledConnection")
             .field("tags", &self.tags)
             .field("created_at", &self.created_at)
             .finish_non_exhaustive()
@@ -154,7 +159,7 @@ pub struct Connection<'a, DB: DbMarker> {
 }
 
 impl<'a, DB: DbMarker> Connection<'a, DB> {
-    /// Creates a `StorageProcessor` using a pool of connections.
+    /// Creates a `Connection` using a pool of connections.
     /// This method borrows one of the connections from the pool, and releases it
     /// after `drop`.
     pub(crate) fn from_pool(
@@ -178,10 +183,13 @@ impl<'a, DB: DbMarker> Connection<'a, DB> {
         }
     }
 
-    pub async fn start_transaction(&mut self) -> sqlx::Result<Connection<'_, DB>> {
+    pub async fn start_transaction(&mut self) -> DalResult<Connection<'_, DB>> {
         let (conn, tags) = self.conn_and_tags();
         let inner = ConnectionInner::Transaction {
-            transaction: conn.begin().await?,
+            transaction: conn
+                .begin()
+                .await
+                .map_err(|err| DalConnectionError::start_transaction(err, tags.cloned()))?,
             tags,
         };
         Ok(Connection {
@@ -190,20 +198,23 @@ impl<'a, DB: DbMarker> Connection<'a, DB> {
         })
     }
 
-    /// Checks if the `StorageProcessor` is currently within database transaction.
+    /// Checks if the `Connection` is currently within database transaction.
     pub fn in_transaction(&self) -> bool {
         matches!(self.inner, ConnectionInner::Transaction { .. })
     }
 
-    pub async fn commit(self) -> sqlx::Result<()> {
+    pub async fn commit(self) -> DalResult<()> {
         if let ConnectionInner::Transaction {
             transaction: postgres,
-            ..
+            tags,
         } = self.inner
         {
-            postgres.commit().await
+            postgres
+                .commit()
+                .await
+                .map_err(|err| DalConnectionError::commit_transaction(err, tags.cloned()).into())
         } else {
-            panic!("StorageProcessor::commit can only be invoked after calling StorageProcessor::begin_transaction");
+            panic!("Connection::commit can only be invoked after calling Connection::begin_transaction");
         }
     }
 

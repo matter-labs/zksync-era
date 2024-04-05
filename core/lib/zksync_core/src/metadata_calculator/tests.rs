@@ -40,6 +40,21 @@ where
     }
 }
 
+pub(super) fn mock_config(db_path: &Path) -> MetadataCalculatorConfig {
+    MetadataCalculatorConfig {
+        db_path: db_path.to_str().unwrap().to_owned(),
+        max_open_files: None,
+        mode: MerkleTreeMode::Full,
+        delay_interval: Duration::from_millis(100),
+        max_l1_batches_per_iter: 10,
+        multi_get_chunk_size: 500,
+        block_cache_capacity: 0,
+        include_indices_and_filters_in_block_cache: false,
+        memtable_capacity: 16 << 20,            // 16 MiB
+        stalled_writes_timeout: Duration::ZERO, // writes should never be stalled in tests
+    }
+}
+
 #[tokio::test]
 async fn genesis_creation() {
     let pool = ConnectionPool::<Core>::test_pool().await;
@@ -95,8 +110,11 @@ async fn expected_tree_hash(pool: &ConnectionPool<Core>) -> H256 {
         .expect("No L1 batches in Postgres");
     let mut all_logs = vec![];
     for i in 0..=sealed_l1_batch_number.0 {
-        let logs = L1BatchWithLogs::new(&mut storage, L1BatchNumber(i)).await;
-        let logs = logs.unwrap().storage_logs;
+        let logs =
+            L1BatchWithLogs::new(&mut storage, L1BatchNumber(i), MerkleTreeMode::Lightweight)
+                .await
+                .unwrap();
+        let logs = logs.expect("no L1 batch").storage_logs;
         all_logs.extend(logs);
     }
     ZkSyncTree::process_genesis_batch(&all_logs).root_hash

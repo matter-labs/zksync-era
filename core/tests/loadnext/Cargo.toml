@@ -11,7 +11,6 @@ categories.workspace = true
 publish = false
 
 [dependencies]
-zksync = { workspace = true, features = ["mint"] }
 zksync_types.workspace = true
 zksync_utils.workspace = true
 zksync_eth_signer.workspace = true

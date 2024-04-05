@@ -87,7 +87,7 @@ pub(crate) fn create_mock_checker(
         diamond_proxy_addr: Some(DIAMOND_PROXY_ADDR),
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
-        l1_client: Box::new(client),
+        l1_client: Arc::new(client),
         event_handler: Box::new(health_updater),
         l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
         pool,
@@ -466,7 +466,7 @@ async fn checker_processes_pre_boojum_batches(
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::load_genesis_params(GenesisConfig {
-        protocol_version: PRE_BOOJUM_PROTOCOL_VERSION as u16,
+        protocol_version: Some(PRE_BOOJUM_PROTOCOL_VERSION as u16),
         ..mock_genesis_config()
     })
     .unwrap();

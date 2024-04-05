@@ -139,7 +139,7 @@ pub fn adjust_pubdata_price_for_tx(
 }
 
 pub fn derive_overhead(
-    gas_limit: u32,
+    gas_limit: u64,
     gas_price_per_pubdata: u32,
     encoded_len: usize,
     tx_type: u8,
@@ -364,5 +364,46 @@ pub fn get_used_bootloader_memory_words(version: VmVersion) -> usize {
         }
         VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::USED_BOOTLOADER_MEMORY_WORDS,
         VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::USED_BOOTLOADER_MEMORY_WORDS,
+    }
+}
+
+pub fn get_max_batch_gas_limit(version: VmVersion) -> u64 {
+    match version {
+        VmVersion::M5WithRefunds | VmVersion::M5WithoutRefunds => {
+            crate::vm_m5::utils::BLOCK_GAS_LIMIT as u64
+        }
+        VmVersion::M6Initial | VmVersion::M6BugWithCompressionFixed => {
+            crate::vm_m6::utils::BLOCK_GAS_LIMIT as u64
+        }
+        VmVersion::Vm1_3_2 => crate::vm_1_3_2::utils::BLOCK_GAS_LIMIT as u64,
+        VmVersion::VmVirtualBlocks => crate::vm_virtual_blocks::constants::BLOCK_GAS_LIMIT as u64,
+        VmVersion::VmVirtualBlocksRefundsEnhancement => {
+            crate::vm_refunds_enhancement::constants::BLOCK_GAS_LIMIT as u64
+        }
+        VmVersion::VmBoojumIntegration => {
+            crate::vm_boojum_integration::constants::BLOCK_GAS_LIMIT as u64
+        }
+        VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::BLOCK_GAS_LIMIT as u64,
+        VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::BLOCK_GAS_LIMIT as u64,
+    }
+}
+
+pub fn get_max_batch_base_layer_circuits(version: VmVersion) -> usize {
+    match version {
+        VmVersion::M5WithRefunds
+        | VmVersion::M5WithoutRefunds
+        | VmVersion::M6Initial
+        | VmVersion::M6BugWithCompressionFixed
+        | VmVersion::Vm1_3_2
+        | VmVersion::VmVirtualBlocks
+        | VmVersion::VmVirtualBlocksRefundsEnhancement
+        | VmVersion::VmBoojumIntegration
+        | VmVersion::Vm1_4_1
+        | VmVersion::Vm1_4_2 => {
+            // For pre-v1.4.2 the maximal number of circuits has not been calculated, but since
+            // these are used only for replaying transactions, we'll reuse the same value as for v1.4.2.
+            // We avoid providing `0` for the old versions to avoid potential errors when working with old versions.
+            crate::vm_1_4_2::constants::MAX_BASE_LAYER_CIRCUITS
+        }
     }
 }
