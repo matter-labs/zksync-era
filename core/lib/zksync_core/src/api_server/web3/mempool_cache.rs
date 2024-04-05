@@ -12,7 +12,7 @@ use super::metrics::MEMPOOL_CACHE_METRICS;
 /// Stores all transactions accepted by the mempool and provides a way to query all that are newer than a given timestamp.
 /// Updates the cache based on interval passed in the constructor
 #[derive(Debug, Clone)]
-pub(crate) struct MempoolCache(Arc<RwLock<SequentialCache<NaiveDateTime, H256>>>);
+pub struct MempoolCache(Arc<RwLock<SequentialCache<NaiveDateTime, H256>>>);
 
 /// `INITIAL_LOOKBEHIND` is the period of time for which the cache is initially populated.
 const INITIAL_LOOKBEHIND: Duration = Duration::from_secs(120);

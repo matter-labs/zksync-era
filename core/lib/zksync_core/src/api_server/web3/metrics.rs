@@ -151,8 +151,6 @@ struct Web3ConfigLabels {
     polling_interval: DurationAsSecs,
     req_entities_limit: usize,
     fee_history_limit: u64,
-    #[metrics(unit = Unit::Seconds)]
-    mempool_cache_update_interval: DurationAsSecs,
     filters_limit: Option<usize>,
     subscriptions_limit: Option<usize>,
     #[metrics(unit = Unit::Bytes)]
@@ -218,7 +216,6 @@ impl ApiMetrics {
             polling_interval: polling_interval.into(),
             req_entities_limit: config.req_entities_limit,
             fee_history_limit: config.fee_history_limit,
-            mempool_cache_update_interval: config.mempool_cache_update_interval.into(),
             filters_limit: optional.filters_limit,
             subscriptions_limit: optional.subscriptions_limit,
             batch_request_size_limit: optional.batch_request_size_limit,

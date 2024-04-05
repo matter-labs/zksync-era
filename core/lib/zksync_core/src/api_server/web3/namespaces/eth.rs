@@ -698,27 +698,24 @@ impl EthNamespace {
             TypedFilter::PendingTransactions(from_timestamp_excluded) => {
                 // Attempt to get pending transactions from cache.
 
-                let tx_hashes_from_cache = self
-                    .state
-                    .mempool_cache
-                    .get_tx_hashes_after(*from_timestamp_excluded)
-                    .await;
-                let tx_hashes = match tx_hashes_from_cache {
-                    Some(mut result) => {
-                        result.truncate(self.state.api_config.req_entities_limit);
-                        result
-                    }
-                    None => {
-                        // On cache miss, query the database.
-                        let mut conn = self.state.acquire_connection().await?;
-                        conn.transactions_web3_dal()
-                            .get_pending_txs_hashes_after(
-                                *from_timestamp_excluded,
-                                Some(self.state.api_config.req_entities_limit),
-                            )
-                            .await
-                            .map_err(DalError::generalize)?
-                    }
+                let tx_hashes_from_cache = if let Some(cache) = &self.state.mempool_cache {
+                    cache.get_tx_hashes_after(*from_timestamp_excluded).await
+                } else {
+                    None
+                };
+                let tx_hashes = if let Some(mut result) = tx_hashes_from_cache {
+                    result.truncate(self.state.api_config.req_entities_limit);
+                    result
+                } else {
+                    // On cache miss, query the database.
+                    let mut conn = self.state.acquire_connection().await?;
+                    conn.transactions_web3_dal()
+                        .get_pending_txs_hashes_after(
+                            *from_timestamp_excluded,
+                            Some(self.state.api_config.req_entities_limit),
+                        )
+                        .await
+                        .map_err(DalError::generalize)?
                 };
 
                 // It's possible the `tx_hashes` vector is empty,
