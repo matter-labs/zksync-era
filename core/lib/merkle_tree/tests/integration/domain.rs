@@ -166,7 +166,7 @@ fn revert_blocks() {
 
     let mirror_logs = logs.clone();
     let tree_metadata: Vec<_> = {
-        let mut tree = ZkSyncTree::new_lightweight(storage.into());
+        let mut tree = ZkSyncTree::new(storage.into());
         let metadata = logs.chunks(block_size).map(|chunk| {
             let metadata = tree.process_l1_batch(chunk);
             tree.save();
