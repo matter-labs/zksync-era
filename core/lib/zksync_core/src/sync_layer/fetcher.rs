@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use zksync_dal::{Connection, Core, CoreDal};
+use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_types::{
     api::en::SyncBlock, block::MiniblockHasher, fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
@@ -9,10 +10,7 @@ use super::{
     metrics::{L1BatchStage, FETCHER_METRICS},
     sync_action::SyncAction,
 };
-use crate::{
-    metrics::{TxStage, APP_METRICS},
-    state_keeper::io::{common::IoCursor, L1BatchParams, MiniblockParams},
-};
+use crate::state_keeper::io::{common::IoCursor, L1BatchParams, MiniblockParams};
 
 /// Same as [`zksync_types::Transaction`], just with additional guarantees that the "received at" timestamp was set locally.
 /// We cannot transfer `Transaction`s without these timestamps, because this would break backward compatibility.

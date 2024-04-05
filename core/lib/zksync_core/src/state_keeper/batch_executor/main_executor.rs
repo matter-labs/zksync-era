@@ -15,18 +15,16 @@ use tokio::{
     runtime::Handle,
     sync::{mpsc, watch},
 };
+use zksync_shared_metrics::{InteractionType, TxStage, APP_METRICS};
 use zksync_state::{ReadStorage, StorageView, WriteStorage};
 use zksync_types::{vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
-use crate::{
-    metrics::{InteractionType, TxStage, APP_METRICS},
-    state_keeper::{
-        metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
-        state_keeper_storage::ReadStorageFactory,
-        types::ExecutionMetricsForCriteria,
-    },
+use crate::state_keeper::{
+    metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
+    state_keeper_storage::ReadStorageFactory,
+    types::ExecutionMetricsForCriteria,
 };
 
 /// The default implementation of [`BatchExecutor`].
