@@ -13,7 +13,6 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { BigNumberish, BytesLike } from 'ethers';
 import { serialize, hashBytecode } from 'zksync-ethers/build/src/utils';
-import { ForceDeployment } from '../src/system';
 import { getTestContract } from '../src/helpers';
 
 import {
