@@ -166,7 +166,7 @@ impl Tester {
         let tx = create_l2_transaction(10, 100);
         storage
             .transactions_dal()
-            .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         storage
@@ -188,7 +188,8 @@ impl Tester {
                 slice::from_ref(&tx_result),
                 1.into(),
             )
-            .await;
+            .await
+            .unwrap();
         tx_result
     }
 
@@ -213,7 +214,8 @@ impl Tester {
         storage
             .transactions_dal()
             .mark_txs_as_executed_in_l1_batch(batch_header.number, tx_results)
-            .await;
+            .await
+            .unwrap();
         storage
             .blocks_dal()
             .set_l1_batch_hash(batch_header.number, H256::default())
