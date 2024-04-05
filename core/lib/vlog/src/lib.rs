@@ -123,6 +123,7 @@ pub struct OpenTelemetryOptions {
 #[derive(Debug, Default)]
 pub struct ObservabilityBuilder {
     log_format: LogFormat,
+    log_directives: Option<String>,
     sentry_url: Option<Dsn>,
     sentry_environment: Option<String>,
     opentelemetry_options: Option<OpenTelemetryOptions>,
@@ -150,6 +151,11 @@ impl ObservabilityBuilder {
     /// Default is `LogFormat::Plain`.
     pub fn with_log_format(mut self, log_format: LogFormat) -> Self {
         self.log_format = log_format;
+        self
+    }
+
+    pub fn with_log_directives(mut self, log_level: String) -> Self {
+        self.log_directives = Some(log_level);
         self
     }
 
@@ -234,10 +240,17 @@ impl ObservabilityBuilder {
     /// Initializes the observability subsystem.
     pub fn build(self) -> ObservabilityGuard {
         // Initialize logs.
+
+        let env_filter = if let Some(log_directives) = self.log_directives {
+            tracing_subscriber::EnvFilter::new(log_directives)
+        } else {
+            tracing_subscriber::EnvFilter::from_default_env()
+        };
+
         match self.log_format {
             LogFormat::Plain => {
                 let subscriber = tracing_subscriber::registry()
-                    .with(tracing_subscriber::EnvFilter::from_default_env())
+                    .with(env_filter)
                     .with(fmt::Layer::default());
                 if let Some(opts) = self.opentelemetry_options {
                     let subscriber = Self::add_opentelemetry_layer(
@@ -253,15 +266,13 @@ impl ObservabilityBuilder {
             }
             LogFormat::Json => {
                 let timer = tracing_subscriber::fmt::time::UtcTime::rfc_3339();
-                let subscriber = tracing_subscriber::registry()
-                    .with(tracing_subscriber::EnvFilter::from_default_env())
-                    .with(
-                        fmt::Layer::default()
-                            .with_file(true)
-                            .with_line_number(true)
-                            .with_timer(timer)
-                            .json(),
-                    );
+                let subscriber = tracing_subscriber::registry().with(env_filter).with(
+                    fmt::Layer::default()
+                        .with_file(true)
+                        .with_line_number(true)
+                        .with_timer(timer)
+                        .json(),
+                );
                 if let Some(opts) = self.opentelemetry_options {
                     let subscriber = Self::add_opentelemetry_layer(
                         opts.opentelemetry_level,
@@ -308,7 +319,7 @@ impl ObservabilityBuilder {
 }
 
 fn json_panic_handler(panic_info: &PanicInfo) {
-    let backtrace = Backtrace::capture();
+    let backtrace = Backtrace::force_capture();
     let timestamp = chrono::Utc::now();
     let panic_message = if let Some(s) = panic_info.payload().downcast_ref::<String>() {
         s.as_str()
