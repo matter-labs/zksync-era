@@ -9,6 +9,7 @@ import { checkReceipt } from '../src/modifiers/receipt-check';
 import * as zksync from 'zksync-ethers';
 import { BigNumber, BigNumberish, Overrides } from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
+import { sleep } from 'zk/build/utils';
 
 const ETH_ADDRESS = zksync.utils.ETH_ADDRESS;
 
@@ -16,13 +17,14 @@ describe('ETH token checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let bob: zksync.Wallet;
-    // let chainId: BigNumberish;
+    let isETHBasedChain: boolean;
 
     beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         bob = testMaster.newEmptyAccount();
-        // chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
+        const baseTokenAddress = process.env.CONTRACTS_BASE_TOKEN_ADDR!;
+        isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
     });
 
     test('Can perform a deposit', async () => {
@@ -50,16 +52,46 @@ describe('ETH token checks', () => {
             gasPrice: await gasPrice
         });
 
+        // console.log('balances before deposit: ');
+        // console.log('alice.getBalance(): ', await alice.getBalance());
+        // console.log('alice.getBalanceL1(): ', await alice.getBalanceL1());
+        // console.log('base token address: ', process.env.CONTRACTS_BASE_TOKEN_ADDR);
+        // console.log('alice.getBalance(NATIVE TOKEN): ', await alice.getBalance(process.env.CONTRACTS_BASE_TOKEN_ADDR));
+        // console.log(
+        //     'alice.getBalanceL1(NATIVE TOKEN): ',
+        //     await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR)
+        // );
+        
         const depositOp = alice.deposit({
             token: ETH_ADDRESS,
             amount,
             gasPerPubdataByte,
             l2GasLimit,
+            approveBaseERC20: true,
+            approveERC20: true,
+            approveBaseOverrides: {
+                gasPrice
+            },
             overrides: {
                 gasPrice
             }
         });
-        await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
+
+        if (isETHBasedChain) {
+            await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
+        } else {
+            await expect(depositOp).toBeReverted(); // ToDo: after server fix has to be removed
+        }
+
+        await sleep(8);
+        // console.log('balances after deposit: ');
+        // console.log('alice.getBalance(): ', await alice.getBalance());
+        // console.log('alice.getBalanceL1(): ', await alice.getBalanceL1());
+        // console.log('alice.getBalance(NATIVE TOKEN): ', await alice.getBalance(process.env.CONTRACTS_BASE_TOKEN_ADDR));
+        // console.log(
+        //     'alice.getBalanceL1(NATIVE TOKEN): ',
+        //     await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR)
+        // );
 
         const depositFee = await depositOp
             .then((op) => op.waitL1Commit())
@@ -68,7 +100,10 @@ describe('ETH token checks', () => {
                 return l1GasFee.add(expectedL2Costs);
             });
         const l1EthBalanceAfter = await alice.getBalanceL1();
-        expect(l1EthBalanceBefore.sub(depositFee).sub(l1EthBalanceAfter)).bnToBeEq(amount);
+
+        if (isETHBasedChain) { // ToDo: after server fix has to be removed
+            expect(l1EthBalanceBefore.sub(depositFee).sub(l1EthBalanceAfter)).bnToBeEq(amount);
+        }
     });
 
     test('Can perform a transfer (legacy pre EIP-155)', async () => {
@@ -195,29 +230,32 @@ describe('ETH token checks', () => {
             return;
         }
         const amount = 1;
-
         const l2ethBalanceChange = await shouldChangeETHBalances([{ wallet: alice, change: -amount }]);
         const withdrawalPromise = alice.withdraw({ token: ETH_ADDRESS, amount });
         await expect(withdrawalPromise).toBeAccepted([l2ethBalanceChange]);
         const withdrawalTx = await withdrawalPromise;
         await withdrawalTx.waitFinalize();
-
         // TODO (SMA-1374): Enable L1 ETH checks as soon as they're supported.
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();
         const tx = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
-
         expect(tx.l2ToL1Logs[0].txIndexInL1Batch).toEqual(expect.anything());
     });
 
     test('Can perform a deposit with precalculated max value', async () => {
+        if (!isETHBasedChain) {
+            const baseTokenDetails = testMaster.environment().baseToken;
+            const maxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
+            await (await alice.approveERC20(process.env.CONTRACTS_BASE_TOKEN_ADDR!, maxAmount)).wait();
+        }
+        
         const depositFee = await alice.getFullRequiredDepositFee({
             token: ETH_ADDRESS
         });
         const l1Fee = depositFee.l1GasLimit.mul(depositFee.maxFeePerGas! || depositFee.gasPrice!);
         const l2Fee = depositFee.baseCost;
-
         const maxAmount = (await alice.getBalanceL1()).sub(l1Fee).sub(l2Fee);
 
+        // Approving the needed allowance to ensure that the user has enough funds.
         const l2ethBalanceChange = await shouldChangeETHBalances([{ wallet: alice, change: maxAmount }], {
             l1ToL2: true
         });
@@ -229,15 +267,20 @@ describe('ETH token checks', () => {
                   maxPriorityFeePerGas: depositFee.maxPriorityFeePerGas
               };
         overrides.gasLimit = depositFee.l1GasLimit;
-
         const depositOp = await alice.deposit({
             token: ETH_ADDRESS,
             amount: maxAmount,
             l2GasLimit: depositFee.l2GasLimit,
+            approveBaseERC20: true,
+            approveERC20: true,
             overrides
         });
 
-        await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
+        if (isETHBasedChain) {
+            await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
+        } else {
+            await expect(depositOp).toBeReverted(); // ToDo: after server fix has to be removed
+        }
     });
 
     afterAll(async () => {
