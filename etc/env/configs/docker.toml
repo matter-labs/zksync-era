@@ -1,4 +1,4 @@
-sqlx_offile = true
+sqlx_offline = true
 database_url = "postgres://postgres:notsecurepassword@postgres/zksync_local"
 database_prover_url = "postgres://postgres:notsecurepassword@postgres/prover_local"
 test_database_url = "postgres://postgres:notsecurepassword@host:5433/zksync_local_test"
