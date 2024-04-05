@@ -13,9 +13,7 @@ use zksync_types::{
 };
 
 use super::client::Error;
-use crate::eth_watch::{
-    client::EthClient, event_processors::upgrades::UPGRADE_PROPOSAL_SIGNATURE, EthWatch,
-};
+use crate::{client::EthClient, event_processors::upgrades::UPGRADE_PROPOSAL_SIGNATURE, EthWatch};
 
 #[derive(Debug)]
 struct FakeEthClientData {
