@@ -24,6 +24,7 @@ Those commands start external node locally inside docker.
 
 The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be accessed on port `3061`.
 
+<!-- prettier-ignore-start -->
 > [!NOTE] 
 > The node will recover from a snapshot on it's first run, this may take up to 10h. Before the recovery is
 > finished, the API server won't serve any requests.
@@ -31,6 +32,7 @@ The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be ac
 > [!NOTE] 
 > If you need access to historical transaction data, please use recovery from DB dumps (see Advanced setup
 > section)
+<!-- prettier-ignore-end -->
 
 ### System Requirements
 
