@@ -368,19 +368,17 @@ impl TxSender {
         }
 
         let stage_started_at = Instant::now();
-        self.ensure_tx_executable(tx.clone().into(), &execution_output.metrics, true)?;
+        self.ensure_tx_executable(&tx.clone().into(), &execution_output.metrics, true)?;
 
-        let nonce = tx.common_data.nonce.0;
-        let hash = tx.hash();
-        let initiator_account = tx.initiator_account();
         let submission_res_handle = self
             .0
             .tx_sink
-            .submit_tx(tx, execution_output.metrics)
+            .submit_tx(&tx, execution_output.metrics)
             .await?;
 
         match submission_res_handle {
             L2TxSubmissionResult::AlreadyExecuted => {
+                let initiator_account = tx.initiator_account();
                 let Nonce(expected_nonce) = self
                     .get_expected_nonce(initiator_account)
                     .await
@@ -390,10 +388,12 @@ impl TxSender {
                 Err(SubmitTxError::NonceIsTooLow(
                     expected_nonce,
                     expected_nonce + self.0.sender_config.max_nonce_ahead,
-                    nonce,
+                    tx.nonce().0,
                 ))
             }
-            L2TxSubmissionResult::Duplicate => Err(SubmitTxError::IncorrectTx(TxDuplication(hash))),
+            L2TxSubmissionResult::Duplicate => {
+                Err(SubmitTxError::IncorrectTx(TxDuplication(tx.hash())))
+            }
             L2TxSubmissionResult::InsertionInProgress => Err(SubmitTxError::InsertionInProgress),
             L2TxSubmissionResult::Proxied => {
                 SANDBOX_METRICS.submit_tx[&SubmitTxStage::TxProxy]
@@ -856,7 +856,7 @@ impl TxSender {
             .context("final estimate_gas step failed")?;
 
         result.into_api_call_result()?;
-        self.ensure_tx_executable(tx.clone(), &tx_metrics, false)?;
+        self.ensure_tx_executable(&tx, &tx_metrics, false)?;
 
         // Now, we need to calculate the final overhead for the transaction. We need to take into account the fact
         // that the migration of 1.4.1 may be still going on.
@@ -957,7 +957,7 @@ impl TxSender {
 
     fn ensure_tx_executable(
         &self,
-        transaction: Transaction,
+        transaction: &Transaction,
         tx_metrics: &TransactionExecutionMetrics,
         log_message: bool,
     ) -> Result<(), SubmitTxError> {
