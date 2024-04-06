@@ -20,13 +20,7 @@ The following questions will be answered by the following resources:
 | Where can I find protocol specs?                        | [specs](docs/specs/README.md)                  |
 | Where can I find developer docs?                        | [docs](https://era.zksync.io/docs/)            |
 
-## Policies
-
-- [Security policy](SECURITY.md)
-- [Contribution policy](CONTRIBUTING.md)
-
 ## License
-
 zkSync Era is distributed under the terms of either
 
 - Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
