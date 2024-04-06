@@ -543,7 +543,7 @@ pub async fn initialize_components(
             consensus_config
                 .as_ref()
                 .context("consensus component's config is missing")?,
-            &secrets,
+            secrets,
         )?;
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");
