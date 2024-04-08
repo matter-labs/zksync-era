@@ -17,7 +17,6 @@ use super::MetadataCalculator;
 pub(super) enum TreeUpdateStage {
     LoadChanges,
     Compute,
-    CheckConsistency,
     SavePostgres,
     SaveRocksdb,
     SaveGcs,
