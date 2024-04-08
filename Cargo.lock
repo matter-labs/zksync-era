@@ -7260,6 +7260,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "vm_runner"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "tokio",
+ "zksync_dal",
+ "zksync_db_connection",
+ "zksync_state",
+ "zksync_types",
+]
+
+[[package]]
 name = "vm_utils"
 version = "0.1.0"
 dependencies = [
@@ -8691,6 +8704,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_matches",
+ "async-trait",
  "chrono",
  "itertools 0.10.5",
  "mini-moka",

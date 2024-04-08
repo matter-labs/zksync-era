@@ -1,0 +1,21 @@
+[package]
+name = "vm_runner"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[dependencies]
+zksync_dal.workspace = true
+zksync_db_connection.workspace = true
+zksync_state.workspace = true
+zksync_types.workspace = true
+
+anyhow.workspace = true
+async-trait.workspace = true
+tokio.workspace = true
