@@ -26,7 +26,7 @@ message GeneralConfig {
   optional config.prover.Prover prover = 12;
   optional config.utils.Prometheus prometheus = 15;
   optional config.database.DB db = 20;
-  optional config.eth.ETH eth = 22;
+  optional config.eth.Eth eth = 22;
   optional config.prover.WitnessGenerator witness_generator = 24;
   optional config.prover.WitnessVectorGenerator witness_vector_generator = 25;
   optional config.prover.ProofCompressor proof_compressor = 27;
@@ -35,6 +35,4 @@ message GeneralConfig {
   optional config.prover.ProverGateway prover_gateway = 30;
   optional config.snapshot_creator.SnapshotsCreator snapshot_creator = 31;
   optional config.observability.Observability observability = 32;
-
 }
-

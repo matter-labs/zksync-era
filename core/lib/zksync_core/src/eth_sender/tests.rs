@@ -5,7 +5,7 @@ use once_cell::sync::Lazy;
 use test_casing::{test_casing, Product};
 use zksync_config::{
     configs::eth_sender::{ProofSendingMode, PubdataSendingMode, SenderConfig},
-    ContractsConfig, ETHConfig, GasAdjusterConfig,
+    ContractsConfig, EthConfig, GasAdjusterConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{clients::MockEthereum, EthInterface};
@@ -84,7 +84,7 @@ impl EthSenderTester {
         aggregator_operate_4844_mode: bool,
         deployment_mode: &DeploymentMode,
     ) -> Self {
-        let eth_sender_config = ETHConfig::for_tests();
+        let eth_sender_config = EthConfig::for_tests();
         let contracts_config = ContractsConfig::for_tests();
         let aggregator_config = SenderConfig {
             aggregated_proof_sizes: vec![1],

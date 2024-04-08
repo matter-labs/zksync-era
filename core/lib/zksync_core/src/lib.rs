@@ -34,7 +34,7 @@ use zksync_config::{
         wallets::Wallets,
         ContractsConfig, GeneralConfig,
     },
-    ApiConfig, DBConfig, ETHWatchConfig, GenesisConfig, PostgresConfig,
+    ApiConfig, DBConfig, EthWatchConfig, GenesisConfig, PostgresConfig,
 };
 use zksync_contracts::governance_contract;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
@@ -884,7 +884,7 @@ async fn add_state_keeper_to_task_futures(
 }
 
 async fn start_eth_watch(
-    config: ETHWatchConfig,
+    config: EthWatchConfig,
     pool: ConnectionPool<Core>,
     eth_gateway: Arc<dyn EthInterface>,
     diamond_proxy_addr: Address,

@@ -4,7 +4,7 @@ use anyhow::Context;
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::{
     chain::{L1BatchCommitDataGeneratorMode, NetworkConfig},
-    eth_sender::ETHConfig,
+    eth_sender::EthConfig,
     wallets, ContractsConfig,
 };
 use zksync_core::eth_sender::{
@@ -32,7 +32,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct EthSenderLayer {
-    eth_sender_config: ETHConfig,
+    eth_sender_config: EthConfig,
     contracts_config: ContractsConfig,
     network_config: NetworkConfig,
     l1chain_id: L1ChainId,
@@ -42,7 +42,7 @@ pub struct EthSenderLayer {
 
 impl EthSenderLayer {
     pub fn new(
-        eth_sender_config: ETHConfig,
+        eth_sender_config: EthConfig,
         contracts_config: ContractsConfig,
         network_config: NetworkConfig,
         l1chain_id: L1ChainId,
