@@ -243,6 +243,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l2_weth_bridge_addr: g.gen(),
             l2_testnet_paymaster_addr: g.gen(),
             l1_multicall3_addr: g.gen(),
+            base_token_addr: g.gen(),
         }
     }
 }

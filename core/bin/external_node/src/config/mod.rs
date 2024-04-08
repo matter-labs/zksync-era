@@ -13,14 +13,13 @@ use zksync_core::{
     consensus,
     temp_config_store::decode_yaml,
 };
-use zksync_types::{api::BridgeAddresses, fee_model::FeeParams};
+use zksync_types::{api::BridgeAddresses, fee_model::FeeParams, ETHEREUM_ADDRESS};
 use zksync_web3_decl::{
     client::L2Client,
-    error::ClientRpcContext,
+    error::{ClientRpcContext, Web3Error},
     jsonrpsee::http_client::HttpClientBuilder,
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
-
 pub(crate) mod observability;
 #[cfg(test)]
 mod tests;
@@ -43,6 +42,7 @@ pub(crate) struct RemoteENConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l2_chain_id: L2ChainId,
     pub l1_chain_id: L1ChainId,
+    pub base_token_addr: Address,
     pub max_pubdata_per_batch: u64,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
     pub dummy_verifier: bool,
@@ -64,6 +64,22 @@ impl RemoteENConfig {
             .get_main_contract()
             .rpc_context("get_main_contract")
             .await?;
+        let base_token_addr = match client.get_base_token_l1_address().await {
+            Err(ClientError::Call(err))
+                if [
+                    ErrorCode::MethodNotFound.code(),
+                    // This what Web3Error::NotImplemented gets
+                    // casted into in the api server.
+                    ErrorCode::InternalError.code(),
+                ]
+                .contains(&(err.code())) =>
+            {
+                // This is the fallback case for when the EN tries to interact
+                // with a node that does not implement the zks_baseTokenL1Address endpoint.
+                ETHEREUM_ADDRESS
+            }
+            response => response.context("Failed to fetch base token address")?,
+        };
         let l2_chain_id = client.chain_id().rpc_context("chain_id").await?;
         let l2_chain_id = L2ChainId::try_from(l2_chain_id.as_u64())
             .map_err(|err| anyhow::anyhow!("invalid chain ID supplied by main node: {err}"))?;
@@ -101,6 +117,7 @@ impl RemoteENConfig {
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
             l2_chain_id,
             l1_chain_id,
+            base_token_addr,
             max_pubdata_per_batch,
             l1_batch_commit_data_generator_mode: genesis
                 .as_ref()
@@ -714,6 +731,7 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,
             fee_history_limit: config.optional.fee_history_limit,
+            base_token_address: Some(config.remote.base_token_addr),
             filters_disabled: config.optional.filters_disabled,
             mempool_cache_update_interval: config.optional.mempool_cache_update_interval(),
             mempool_cache_size: config.optional.mempool_cache_size,

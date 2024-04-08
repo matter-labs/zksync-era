@@ -14,6 +14,7 @@ impl ProtoRepr for proto::Contracts {
         let shared = required(&bridges.shared).context("shared")?;
         let erc20 = required(&bridges.erc20).context("erc20")?;
         let weth_bridge = required(&bridges.weth).context("weth_bridge")?;
+        // let base_token_address = &self.l2.
         Ok(Self::Type {
             governance_addr: required(&l1.governance_addr)
                 .and_then(|x| parse_h160(x))
@@ -69,6 +70,12 @@ impl ProtoRepr for proto::Contracts {
             l1_multicall3_addr: required(&l1.multicall3_addr)
                 .and_then(|x| parse_h160(x))
                 .context("l1_multicall3_addr")?,
+            base_token_addr: self
+                .base_token_address
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("base_token_addr")?,
         })
     }
 
