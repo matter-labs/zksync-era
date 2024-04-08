@@ -30,17 +30,19 @@ describe('base ERC20 contract checks', () => {
 
     test('Can perform a deposit', async () => {
         const amount = 1; // 1 wei is enough.
-        const gasPrice = scaledGasPrice(alice);
+        const gasPrice = (await scaledGasPrice(alice)).div(100);
 
+        const initialL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);        
+        await (await alice.approveERC20(baseTokenDetails.l1Address, initialL1Balance)).wait();
+        
         const initialEthBalance = await alice.getBalanceL1();
-        const initialL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
         const initialL2Balance = await alice.getBalance();
 
         const depositTx = await alice.deposit({
             token: baseTokenDetails.l1Address,
             amount: amount,
-            approveERC20: true,
-            approveBaseERC20: true,
+            approveERC20: false,
+            approveBaseERC20: false,
             approveBaseOverrides: {
                 gasPrice
             },
@@ -57,15 +59,17 @@ describe('base ERC20 contract checks', () => {
         const receipt = await alice._providerL1().getTransactionReceipt(depositHash);
         const fee = receipt.effectiveGasPrice.mul(receipt.gasUsed);
 
+        const finalEthBalance = await alice.getBalanceL1();
+        expect(initialEthBalance).bnToBeEq(finalEthBalance.add(fee)); // Fee should be taken from the ETH balance on L1.
+        
         // TODO: should all the following tests use strict equality?
 
-        const finalEthBalance = await alice.getBalanceL1();
-        expect(initialEthBalance).bnToBeGt(finalEthBalance.add(fee)); // Fee should be taken from the ETH balance on L1.
-
         const finalL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
+        console.log('finalL1Balance', finalL1Balance.toString());
         expect(initialL1Balance).bnToBeGte(finalL1Balance.add(amount));
 
         const finalL2Balance = await alice.getBalance();
+        console.log('finalL2Balance', finalL2Balance.toString());
         expect(initialL2Balance).bnToBeLte(finalL2Balance.add(amount));
     });
 
