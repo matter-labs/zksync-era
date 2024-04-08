@@ -61,7 +61,7 @@ impl RemoteENConfig {
         let genesis = client.genesis_config().rpc_context("genesis").await.ok();
         let ecosystem_contracts = client
             .get_ecosystem_contracts()
-            .rpc_context("genesis")
+            .rpc_context("ecosystem_contracts")
             .await
             .ok();
         let diamond_proxy_addr = client

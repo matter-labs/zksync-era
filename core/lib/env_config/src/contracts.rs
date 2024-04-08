@@ -1,15 +1,31 @@
-use zksync_config::ContractsConfig;
+use zksync_config::{configs::EcosystemContracts, ContractsConfig};
 
 use crate::{envy_load, FromEnv};
 
+impl FromEnv for EcosystemContracts {
+    fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            bridgehub_proxy_addr: std::env::var("CONTRACTS_BRIDGEHUB_PROXY_ADDR")?.parse()?,
+            state_transition_proxy_addr: std::env::var("CONTRACTS_STATE_TRANSITION_PROXY_ADDR")?
+                .parse()?,
+            transparent_proxy_admin_addr: std::env::var("CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR")?
+                .parse()?,
+        })
+    }
+}
+
 impl FromEnv for ContractsConfig {
     fn from_env() -> anyhow::Result<Self> {
-        envy_load("contracts", "CONTRACTS_")
+        let mut contracts: ContractsConfig = envy_load("contracts", "CONTRACTS_")?;
+        contracts.ecosystem_contracts = EcosystemContracts::from_env().ok();
+        Ok(contracts)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use zksync_config::configs::EcosystemContracts;
+
     use super::*;
     use crate::test_utils::{addr, EnvMutex};
 
@@ -30,7 +46,11 @@ mod tests {
             l2_shared_bridge_addr: addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888"),
             l2_testnet_paymaster_addr: Some(addr("FC073319977e314F251EAE6ae6bE76B0B3BAeeCF")),
             l1_multicall3_addr: addr("0xcA11bde05977b3631167028862bE2a173976CA11"),
-            ecosystem_contracts: None,
+            ecosystem_contracts: Some(EcosystemContracts {
+                bridgehub_proxy_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
+                state_transition_proxy_addr: addr("0xd90f1c081c6117241624e97cb6147257c3cb2097"),
+                transparent_proxy_admin_addr: addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"),
+            }),
         }
     }
 
