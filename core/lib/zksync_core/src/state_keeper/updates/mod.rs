@@ -1,5 +1,5 @@
 use multivm::{
-    interface::{L1BatchEnv, SystemEnv, VmExecutionResultAndLogs},
+    interface::{FinishedL1Batch, L1BatchEnv, SystemEnv, VmExecutionResultAndLogs},
     utils::get_batch_base_fee,
 };
 use zksync_contracts::BaseSystemContractsHashes;
@@ -12,7 +12,11 @@ use zksync_types::{
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, miniblock_updates::MiniblockUpdates};
-use super::io::MiniblockParams;
+use super::{
+    io::{IoCursor, MiniblockParams},
+    metrics::BATCH_TIP_METRICS,
+};
+use crate::state_keeper::types::ExecutionMetricsForCriteria;
 
 pub mod l1_batch_updates;
 pub mod miniblock_updates;
@@ -23,7 +27,7 @@ pub mod miniblock_updates;
 /// `L1BatchUpdates` keeps updates for the already sealed mini-blocks of the pending L1 batch.
 /// `UpdatesManager` manages the state of both of these accumulators to be consistent
 /// and provides information about the pending state of the current L1 batch.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 pub struct UpdatesManager {
     batch_timestamp: u64,
     fee_account_address: Address,
@@ -46,10 +50,10 @@ impl UpdatesManager {
             base_fee_per_gas: get_batch_base_fee(l1_batch_env, protocol_version.into()),
             protocol_version,
             base_system_contract_hashes: system_env.base_system_smart_contracts.hashes(),
-            l1_batch: L1BatchUpdates::new(),
+            l1_batch: L1BatchUpdates::new(l1_batch_env.number),
             miniblock: MiniblockUpdates::new(
                 l1_batch_env.first_l2_block.timestamp,
-                l1_batch_env.first_l2_block.number,
+                MiniblockNumber(l1_batch_env.first_l2_block.number),
                 l1_batch_env.first_l2_block.prev_block_hash,
                 l1_batch_env.first_l2_block.max_virtual_blocks_to_create,
                 protocol_version,
@@ -66,16 +70,22 @@ impl UpdatesManager {
         self.base_system_contract_hashes
     }
 
+    pub(crate) fn io_cursor(&self) -> IoCursor {
+        IoCursor {
+            next_miniblock: self.miniblock.number + 1,
+            prev_miniblock_hash: self.miniblock.get_miniblock_hash(),
+            prev_miniblock_timestamp: self.miniblock.timestamp,
+            l1_batch: self.l1_batch.number,
+        }
+    }
+
     pub(crate) fn seal_miniblock_command(
         &self,
-        l1_batch_number: L1BatchNumber,
-        miniblock_number: MiniblockNumber,
         l2_erc20_bridge_addr: Address,
         pre_insert_txs: bool,
     ) -> MiniblockSealCommand {
         MiniblockSealCommand {
-            l1_batch_number,
-            miniblock_number,
+            l1_batch_number: self.l1_batch.number,
             miniblock: self.miniblock.clone(),
             first_tx_index: self.l1_batch.executed_transactions.len(),
             fee_account_address: self.fee_account_address,
@@ -113,16 +123,27 @@ impl UpdatesManager {
         );
     }
 
-    pub(crate) fn extend_from_fictive_transaction(
-        &mut self,
-        result: VmExecutionResultAndLogs,
-        l1_gas_count: BlockGasCount,
-        execution_metrics: ExecutionMetrics,
-    ) {
+    pub(crate) fn finish_batch(&mut self, finished_batch: FinishedL1Batch) {
+        assert!(
+            self.l1_batch.finished.is_none(),
+            "Cannot finish already finished batch"
+        );
+
+        let result = &finished_batch.block_tip_execution_result;
+        let batch_tip_metrics = ExecutionMetricsForCriteria::new(None, result);
+
+        let before = self.storage_writes_deduplicator.metrics();
         self.storage_writes_deduplicator
             .apply(&result.logs.storage_logs);
-        self.miniblock
-            .extend_from_fictive_transaction(result, l1_gas_count, execution_metrics);
+        let after = self.storage_writes_deduplicator.metrics();
+        BATCH_TIP_METRICS.observe_writes_metrics(&before, &after, self.protocol_version());
+
+        self.miniblock.extend_from_fictive_transaction(
+            result.clone(),
+            batch_tip_metrics.l1_gas,
+            batch_tip_metrics.execution_metrics,
+        );
+        self.l1_batch.finished = Some(finished_batch);
     }
 
     /// Pushes a new miniblock with the specified timestamp into this manager. The previously
@@ -161,7 +182,6 @@ impl UpdatesManager {
 #[derive(Debug)]
 pub(crate) struct MiniblockSealCommand {
     pub l1_batch_number: L1BatchNumber,
-    pub miniblock_number: MiniblockNumber,
     pub miniblock: MiniblockUpdates,
     pub first_tx_index: usize,
     pub fee_account_address: Address,

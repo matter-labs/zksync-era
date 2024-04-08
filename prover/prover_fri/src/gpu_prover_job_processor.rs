@@ -3,12 +3,12 @@ pub mod gpu_prover {
     use std::{collections::HashMap, sync::Arc, time::Instant};
 
     use anyhow::Context as _;
+    use prover_dal::{ConnectionPool, ProverDal};
     use shivini::{
         gpu_proof_config::GpuProofConfig, gpu_prove_from_external_witness_data, ProverContext,
     };
     use tokio::task::JoinHandle;
     use zksync_config::configs::{fri_prover_group::FriProverGroupConfig, FriProverConfig};
-    use zksync_dal::{fri_prover_dal::types::SocketAddress, ConnectionPool};
     use zksync_env_config::FromEnv;
     use zksync_object_store::ObjectStore;
     use zksync_prover_fri_types::{
@@ -29,7 +29,7 @@ pub mod gpu_prover {
         CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
     };
     use zksync_queued_job_processor::{async_trait, JobProcessor};
-    use zksync_types::basic_fri_types::CircuitIdRoundTuple;
+    use zksync_types::{basic_fri_types::CircuitIdRoundTuple, prover_dal::SocketAddress};
     use zksync_vk_setup_data_server_fri::{keystore::Keystore, GoldilocksGpuProverSetupData};
 
     use crate::{
@@ -53,7 +53,7 @@ pub mod gpu_prover {
         blob_store: Arc<dyn ObjectStore>,
         public_blob_store: Option<Arc<dyn ObjectStore>>,
         config: Arc<FriProverConfig>,
-        prover_connection_pool: ConnectionPool,
+        prover_connection_pool: ConnectionPool<prover_dal::Prover>,
         setup_load_mode: SetupLoadMode,
         // Only pick jobs for the configured circuit id and aggregation rounds.
         // Empty means all jobs are picked.
@@ -70,7 +70,7 @@ pub mod gpu_prover {
             blob_store: Arc<dyn ObjectStore>,
             public_blob_store: Option<Arc<dyn ObjectStore>>,
             config: FriProverConfig,
-            prover_connection_pool: ConnectionPool,
+            prover_connection_pool: ConnectionPool<prover_dal::Prover>,
             setup_load_mode: SetupLoadMode,
             circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
             witness_vector_queue: SharedWitnessVectorQueue,
@@ -224,7 +224,7 @@ pub mod gpu_prover {
                 Ok(item) => {
                     if is_full {
                         self.prover_connection_pool
-                            .access_storage()
+                            .connection()
                             .await
                             .unwrap()
                             .fri_gpu_prover_queue_dal()
@@ -249,7 +249,7 @@ pub mod gpu_prover {
 
         async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
             self.prover_connection_pool
-                .access_storage()
+                .connection()
                 .await
                 .unwrap()
                 .fri_prover_jobs_dal()
@@ -259,6 +259,7 @@ pub mod gpu_prover {
 
         async fn process_job(
             &self,
+            _job_id: &Self::JobId,
             job: Self::Job,
             _started_at: Instant,
         ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
@@ -269,6 +270,8 @@ pub mod gpu_prover {
                     .clone(),
             );
             tokio::task::spawn_blocking(move || {
+                let block_number = job.witness_vector_artifacts.prover_job.block_number;
+                let _span = tracing::info_span!("gpu_prove", %block_number).entered();
                 Ok(Self::prove(job, setup_data.context("get_setup_data()")?))
             })
         }
@@ -281,7 +284,7 @@ pub mod gpu_prover {
         ) -> anyhow::Result<()> {
             METRICS.gpu_total_proving_time.observe(started_at.elapsed());
 
-            let mut storage_processor = self.prover_connection_pool.access_storage().await.unwrap();
+            let mut storage_processor = self.prover_connection_pool.connection().await.unwrap();
             save_proof(
                 job_id,
                 started_at,
@@ -302,7 +305,7 @@ pub mod gpu_prover {
         async fn get_job_attempts(&self, job_id: &u32) -> anyhow::Result<u32> {
             let mut prover_storage = self
                 .prover_connection_pool
-                .access_storage()
+                .connection()
                 .await
                 .context("failed to acquire DB connection for Prover")?;
             prover_storage

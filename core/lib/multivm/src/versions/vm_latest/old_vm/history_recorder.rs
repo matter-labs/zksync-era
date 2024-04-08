@@ -1,12 +1,12 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
-use zk_evm_1_4_1::{
+use zk_evm_1_5_0::{
     aux_structures::Timestamp,
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::{self},
 };
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::{StorageKey, U256};
+use zksync_types::{StorageKey, H256, U256};
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
 pub(crate) type MemoryWithHistory<H> = HistoryRecorder<MemoryWrapper, H>;
@@ -328,10 +328,6 @@ impl<K: Eq + Hash + Copy, V: Clone + Debug, H: HistoryMode> HistoryRecorder<Hash
             },
             timestamp,
         )
-    }
-
-    pub(crate) fn remove(&mut self, key: K, timestamp: Timestamp) -> Option<V> {
-        self.apply_historic_record(HashMapHistoryEvent { key, value: None }, timestamp)
     }
 }
 
@@ -720,6 +716,15 @@ impl<S: WriteStorage> StorageWrapper<S> {
     pub fn read_from_storage(&self, key: &StorageKey) -> U256 {
         h256_to_u256(self.storage_ptr.borrow_mut().read_value(key))
     }
+
+    pub fn get_modified_storage_keys(&self) -> HashMap<StorageKey, H256> {
+        self.storage_ptr
+            .borrow()
+            .modified_storage_keys()
+            .iter()
+            .map(|(k, v)| (*k, *v))
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -768,9 +773,69 @@ impl<S: WriteStorage, H: HistoryMode> HistoryRecorder<StorageWrapper<S>, H> {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct TransientStorageWrapper {
+    inner: HashMap<StorageKey, U256>,
+}
+
+impl WithHistory for TransientStorageWrapper {
+    type HistoryRecord = StorageHistoryRecord;
+    type ReturnValue = U256;
+
+    fn apply_historic_record(
+        &mut self,
+        item: Self::HistoryRecord,
+    ) -> (Self::HistoryRecord, Self::ReturnValue) {
+        let prev_value = self
+            .inner
+            .insert(item.key, item.value)
+            .unwrap_or(U256::zero());
+
+        let reverse_item = StorageHistoryRecord {
+            key: item.key,
+            value: prev_value,
+        };
+
+        (reverse_item, prev_value)
+    }
+}
+
+impl<H: HistoryMode> HistoryRecorder<TransientStorageWrapper, H> {
+    pub(crate) fn read_from_transient_storage(&self, key: &StorageKey) -> U256 {
+        self.inner.inner.get(key).copied().unwrap_or_default()
+    }
+
+    pub(crate) fn write_to_storage(
+        &mut self,
+        key: StorageKey,
+        value: U256,
+        timestamp: Timestamp,
+    ) -> U256 {
+        self.apply_historic_record(StorageHistoryRecord { key, value }, timestamp)
+    }
+
+    /// Performs zeroing out the storage, while maintaining history about it,
+    /// making it reversible.
+    ///
+    /// Note that while the history is preserved, the inner parts are fully cleared out.
+    /// TODO(X): potentially optimize this function by allowing rollbacks only at the bounds of transactions.
+    pub(crate) fn zero_out(&mut self, timestamp: Timestamp) {
+        let keys = self
+            .inner
+            .inner
+            .drain()
+            .map(|(key, _)| key)
+            .collect::<Vec<_>>();
+
+        for key in keys {
+            self.write_to_storage(key, U256::zero(), timestamp);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use zk_evm_1_4_1::{aux_structures::Timestamp, vm_state::PrimitiveValue};
+    use zk_evm_1_5_0::{aux_structures::Timestamp, vm_state::PrimitiveValue};
     use zksync_types::U256;
 
     use crate::vm_latest::{

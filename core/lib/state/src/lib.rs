@@ -28,9 +28,10 @@ mod test_utils;
 mod witness;
 
 pub use self::{
-    in_memory::{InMemoryStorage, IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID},
-    postgres::{PostgresStorage, PostgresStorageCaches},
-    rocksdb::{RocksbStorageBuilder, RocksdbStorage},
+    cache::sequential_cache::SequentialCache,
+    in_memory::InMemoryStorage,
+    postgres::{PostgresStorage, PostgresStorageCaches, PostgresStorageCachesTask},
+    rocksdb::{RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily},
     shadow_storage::ShadowStorage,
     storage_view::{StorageView, StorageViewMetrics},
     witness::WitnessStorage,
@@ -64,6 +65,9 @@ pub trait ReadStorage: fmt::Debug {
 ///
 /// So far, this trait is implemented only for [`StorageView`].
 pub trait WriteStorage: ReadStorage {
+    /// Returns the map with the key–value pairs read by this batch.
+    fn read_storage_keys(&self) -> &HashMap<StorageKey, StorageValue>;
+
     /// Sets the new value under a given key and returns the previous value.
     fn set_value(&mut self, key: StorageKey, value: StorageValue) -> StorageValue;
 

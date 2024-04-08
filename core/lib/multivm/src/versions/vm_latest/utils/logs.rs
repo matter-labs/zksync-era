@@ -1,4 +1,4 @@
-use zk_evm_1_4_1::aux_structures::{LogQuery, Timestamp};
+use zk_evm_1_5_0::aux_structures::{LogQuery, Timestamp};
 use zksync_state::WriteStorage;
 use zksync_types::{l2_to_l1_log::L2ToL1Log, StorageLogQueryType, VmEvent};
 

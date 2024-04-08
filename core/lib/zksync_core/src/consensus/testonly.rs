@@ -1,36 +1,39 @@
 //! Utilities for testing the consensus module.
+
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context as _;
 use rand::Rng;
-use zksync_concurrency::{ctx, error::Wrap as _, limiter, scope, sync, time};
-use zksync_config::configs;
+use zksync_concurrency::{ctx, error::Wrap as _, scope, sync};
+use zksync_config::{configs, GenesisConfig};
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
     api, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
     ProtocolVersionId, H256,
 };
 use zksync_web3_decl::{
+    client::L2Client,
     error::{EnrichedClientError, EnrichedClientResult},
-    jsonrpsee::http_client::HttpClient,
 };
 
 use crate::{
     api_server::web3::{state::InternalApiConfig, tests::spawn_http_server},
     consensus::{fetcher::P2PConfig, Fetcher, Store},
-    genesis::{ensure_genesis_state, GenesisParams},
+    genesis::{mock_genesis_config, GenesisParams},
     state_keeper::{
-        io::common::IoCursor, seal_criteria::NoopSealer, tests::MockBatchExecutor, MiniblockSealer,
-        ZkSyncStateKeeper,
+        io::{IoCursor, L1BatchParams, MiniblockParams},
+        seal_criteria::NoopSealer,
+        tests::MockBatchExecutor,
+        OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
     },
     sync_layer::{
         fetcher::FetchedTransaction,
         sync_action::{ActionQueue, ActionQueueSender, SyncAction},
         ExternalIO, MainNodeClient, SyncState,
     },
-    utils::testonly::{create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot},
+    utils::testonly::{create_l1_batch_metadata, create_l2_transaction},
 };
 
 #[derive(Debug, Default)]
@@ -103,13 +106,6 @@ impl MainNodeClient for MockMainNodeClient {
         Ok(self.protocol_versions.get(&protocol_version).cloned())
     }
 
-    async fn fetch_genesis_l1_batch_hash(&self) -> EnrichedClientResult<H256> {
-        Err(EnrichedClientError::custom(
-            "not implemented",
-            "fetch_genesis_l1_batch_hash",
-        ))
-    }
-
     async fn fetch_l2_block_number(&self) -> EnrichedClientResult<MiniblockNumber> {
         if let Some(number) = self.l2_blocks.len().checked_sub(1) {
             Ok(MiniblockNumber(number as u32))
@@ -143,6 +139,10 @@ impl MainNodeClient for MockMainNodeClient {
     ) -> EnrichedClientResult<Option<api::en::ConsensusGenesis>> {
         unimplemented!()
     }
+
+    async fn fetch_genesis_config(&self) -> EnrichedClientResult<GenesisConfig> {
+        Ok(mock_genesis_config())
+    }
 }
 
 /// Fake StateKeeper for tests.
@@ -157,7 +157,6 @@ pub(super) struct StateKeeper {
     fee_per_gas: u64,
     gas_per_pubdata: u64,
 
-    sync_state: SyncState,
     actions_sender: ActionQueueSender,
     addr: sync::watch::Receiver<Option<std::net::SocketAddr>>,
     store: Store,
@@ -166,37 +165,8 @@ pub(super) struct StateKeeper {
 /// Fake StateKeeper task to be executed in the background.
 pub(super) struct StateKeeperRunner {
     actions_queue: ActionQueue,
-    sync_state: SyncState,
     store: Store,
     addr: sync::watch::Sender<Option<std::net::SocketAddr>>,
-}
-
-/// Constructs a new db initialized with genesis state or a snapshot.
-pub(super) async fn new_store(from_snapshot: bool) -> Store {
-    let pool = ConnectionPool::test_pool().await;
-    {
-        let mut storage = pool.access_storage().await.unwrap();
-        if from_snapshot {
-            prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[])
-                .await;
-        } else {
-            ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
-                .await
-                .unwrap();
-        }
-    }
-    Store(pool)
-}
-
-// Limiter with infinite refresh rate.
-fn unbounded_limiter(ctx: &ctx::Ctx) -> limiter::Limiter {
-    limiter::Limiter::new(
-        ctx,
-        limiter::Rate {
-            burst: 1,
-            refresh: time::Duration::ZERO,
-        },
-    )
 }
 
 impl StateKeeper {
@@ -213,7 +183,6 @@ impl StateKeeper {
             .await?
             .context("pending_batch_exists()")?;
         let (actions_sender, actions_queue) = ActionQueue::new();
-        let sync_state = SyncState::default();
         let addr = sync::watch::channel(None).0;
         Ok((
             Self {
@@ -224,12 +193,10 @@ impl StateKeeper {
                 fee_per_gas: 10,
                 gas_per_pubdata: 100,
                 actions_sender,
-                sync_state: sync_state.clone(),
                 addr: addr.subscribe(),
                 store: store.clone(),
             },
             StateKeeperRunner {
-                sync_state,
                 actions_queue,
                 store: store.clone(),
                 addr,
@@ -244,22 +211,28 @@ impl StateKeeper {
             self.last_timestamp += 5;
             self.batch_sealed = false;
             SyncAction::OpenBatch {
+                params: L1BatchParams {
+                    protocol_version: ProtocolVersionId::latest(),
+                    validation_computational_gas_limit: u32::MAX,
+                    operator_address: GenesisParams::mock().config().fee_account,
+                    fee_input: Default::default(),
+                    first_miniblock: MiniblockParams {
+                        timestamp: self.last_timestamp,
+                        virtual_blocks: 1,
+                    },
+                },
                 number: self.last_batch,
-                timestamp: self.last_timestamp,
-                l1_gas_price: 2,
-                l2_fair_gas_price: 3,
-                fair_pubdata_price: Some(24),
-                operator_address: GenesisParams::mock().first_validator,
-                protocol_version: ProtocolVersionId::latest(),
-                first_miniblock_info: (self.last_block, 1),
+                first_miniblock_number: self.last_block,
             }
         } else {
             self.last_block += 1;
             self.last_timestamp += 2;
             SyncAction::Miniblock {
+                params: MiniblockParams {
+                    timestamp: self.last_timestamp,
+                    virtual_blocks: 0,
+                },
                 number: self.last_block,
-                timestamp: self.last_timestamp,
-                virtual_blocks: 0,
             }
         }
     }
@@ -280,7 +253,7 @@ impl StateKeeper {
     pub async fn seal_batch(&mut self) {
         // Each batch ends with an empty block (aka fictive block).
         let mut actions = vec![self.open_block()];
-        actions.push(SyncAction::SealBatch { virtual_blocks: 0 });
+        actions.push(SyncAction::SealBatch);
         self.actions_sender.push_actions(actions).await;
         self.batch_sealed = true;
     }
@@ -305,25 +278,25 @@ impl StateKeeper {
     }
 
     /// Connects to the json RPC endpoint exposed by the state keeper.
-    pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<HttpClient> {
-        let addr: std::net::SocketAddr =
-            sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some)
-                .await?
-                .unwrap();
-        Ok(<dyn MainNodeClient>::json_rpc(&format!("http://{addr}/")).context("json_rpc()")?)
+    pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<L2Client> {
+        let addr = sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some)
+            .await?
+            .unwrap();
+        Ok(L2Client::http(&format!("http://{addr}/"))
+            .context("json_rpc()")?
+            .build())
     }
 
     /// Runs the centralized fetcher.
     pub async fn run_centralized_fetcher(
         self,
         ctx: &ctx::Ctx,
-        client: HttpClient,
+        client: L2Client,
     ) -> anyhow::Result<()> {
         Fetcher {
             store: self.store,
-            client: Box::new(client),
-            sync_state: self.sync_state,
-            limiter: unbounded_limiter(ctx),
+            client: Arc::new(client),
+            sync_state: SyncState::default(),
         }
         .run_centralized(ctx, self.actions_sender)
         .await
@@ -333,14 +306,13 @@ impl StateKeeper {
     pub async fn run_p2p_fetcher(
         self,
         ctx: &ctx::Ctx,
-        client: HttpClient,
+        client: L2Client,
         cfg: P2PConfig,
     ) -> anyhow::Result<()> {
         Fetcher {
             store: self.store,
-            client: Box::new(client),
-            sync_state: self.sync_state,
-            limiter: unbounded_limiter(ctx),
+            client: Arc::new(client),
+            sync_state: SyncState::default(),
         }
         .run_p2p(ctx, self.actions_sender, cfg)
         .await
@@ -352,20 +324,20 @@ async fn calculate_mock_metadata(ctx: &ctx::Ctx, store: &Store) -> ctx::Result<(
     let Some(last) = ctx
         .wait(conn.0.blocks_dal().get_sealed_l1_batch_number())
         .await?
-        .context("get_sealed_l1_batch_number()")?
+        .map_err(DalError::generalize)?
     else {
         return Ok(());
     };
     let prev = ctx
         .wait(conn.0.blocks_dal().get_last_l1_batch_number_with_metadata())
         .await?
-        .context("get_last_l1_batch_number_with_metadata()")?;
+        .map_err(DalError::generalize)?;
     let mut first = match prev {
         Some(prev) => prev + 1,
         None => ctx
             .wait(conn.0.blocks_dal().get_earliest_l1_batch_number())
             .await?
-            .context("get_earliest_l1_batch_number()")?
+            .map_err(DalError::generalize)?
             .context("batches disappeared")?,
     };
     while first <= last {
@@ -387,17 +359,13 @@ impl StateKeeperRunner {
     pub async fn run(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
         let res = scope::run!(ctx, |ctx, s| async {
             let (stop_send, stop_recv) = sync::watch::channel(false);
-            let (miniblock_sealer, miniblock_sealer_handle) =
-                MiniblockSealer::new(self.store.0.clone(), 5);
+            let (persistence, miniblock_sealer) =
+                StateKeeperPersistence::new(self.store.0.clone(), Address::repeat_byte(11), 5);
 
             let io = ExternalIO::new(
-                miniblock_sealer_handle,
                 self.store.0.clone(),
                 self.actions_queue,
-                self.sync_state,
                 Box::<MockMainNodeClient>::default(),
-                Address::repeat_byte(11),
-                u32::MAX,
                 L2ChainId::default(),
             )
             .await?;
@@ -422,6 +390,7 @@ impl StateKeeperRunner {
                         stop_recv,
                         Box::new(io),
                         Box::new(MockBatchExecutor),
+                        OutputHandler::new(Box::new(persistence.with_tx_insertion())),
                         Arc::new(NoopSealer),
                     )
                     .run()
@@ -433,9 +402,9 @@ impl StateKeeperRunner {
             s.spawn_bg(async {
                 // Spawn HTTP server.
                 let cfg = InternalApiConfig::new(
-                    &configs::chain::NetworkConfig::for_tests(),
                     &configs::api::Web3JsonRpcConfig::for_tests(),
                     &configs::contracts::ContractsConfig::for_tests(),
+                    &configs::GenesisConfig::for_tests(),
                 );
                 let mut server = spawn_http_server(
                     cfg,

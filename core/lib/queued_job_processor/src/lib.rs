@@ -46,6 +46,7 @@ pub trait JobProcessor: Sync + Send {
     /// Function that processes a job
     async fn process_job(
         &self,
+        job_id: &Self::JobId,
         job: Self::Job,
         started_at: Instant,
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>>;
@@ -83,7 +84,7 @@ pub trait JobProcessor: Sync + Send {
                     Self::SERVICE_NAME,
                     job_id
                 );
-                let task = self.process_job(job, started_at).await;
+                let task = self.process_job(&job_id, job, started_at).await;
 
                 self.wait_for_task(job_id, started_at, task)
                     .await

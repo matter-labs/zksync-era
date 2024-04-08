@@ -1,15 +1,15 @@
 [package]
 name = "vm-benchmark-harness"
-version = "0.1.0"
-edition = "2021"
-license = "MIT OR Apache-2.0"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
-multivm = { path = "../../../lib/multivm" }
-zksync_types = { path = "../../../lib/types" }
-zksync_state = { path = "../../../lib/state" }
-zksync_utils = { path = "../../../lib/utils" }
-zksync_system_constants = { path = "../../../lib/constants" }
-zksync_contracts = { path = "../../../lib/contracts" }
-zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", tag = "v1.3.3-rc2" }
-once_cell = "1.17"
+multivm.workspace = true
+zksync_types.workspace = true
+zksync_state.workspace = true
+zksync_utils.workspace = true
+zksync_system_constants.workspace = true
+zksync_contracts.workspace = true
+zk_evm.workspace = true
+once_cell.workspace = true

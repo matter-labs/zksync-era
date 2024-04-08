@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use multivm::interface::{L1BatchEnv, SystemEnv};
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 
 use super::PendingBatchData;
@@ -21,7 +21,7 @@ pub(crate) fn poll_iters(delay_interval: Duration, max_wait: Duration) -> usize 
 
 /// Cursor of the miniblock / L1 batch progress used by [`StateKeeperIO`](super::StateKeeperIO) implementations.
 #[derive(Debug)]
-pub(crate) struct IoCursor {
+pub struct IoCursor {
     pub next_miniblock: MiniblockNumber,
     pub prev_miniblock_hash: H256,
     pub prev_miniblock_timestamp: u64,
@@ -30,17 +30,12 @@ pub(crate) struct IoCursor {
 
 impl IoCursor {
     /// Loads the cursor from Postgres.
-    pub async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
-        let last_sealed_l1_batch_number = storage
-            .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await
-            .context("Failed getting sealed L1 batch number")?;
+    pub async fn new(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
+        let last_sealed_l1_batch_number = storage.blocks_dal().get_sealed_l1_batch_number().await?;
         let last_miniblock_header = storage
             .blocks_dal()
             .get_last_sealed_miniblock_header()
-            .await
-            .context("Failed getting sealed miniblock header")?;
+            .await?;
 
         if let (Some(l1_batch_number), Some(miniblock_header)) =
             (last_sealed_l1_batch_number, &last_miniblock_header)
@@ -55,8 +50,7 @@ impl IoCursor {
             let snapshot_recovery = storage
                 .snapshot_recovery_dal()
                 .get_applied_snapshot_status()
-                .await
-                .context("Failed getting snapshot recovery info")?
+                .await?
                 .context("Postgres contains neither blocks nor snapshot recovery info")?;
             let l1_batch =
                 last_sealed_l1_batch_number.unwrap_or(snapshot_recovery.l1_batch_number) + 1;
@@ -88,7 +82,7 @@ impl IoCursor {
 ///
 /// Propagates DB errors. Also returns an error if environment doesn't correspond to a pending L1 batch.
 pub(crate) async fn load_pending_batch(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     system_env: SystemEnv,
     l1_batch_env: L1BatchEnv,
 ) -> anyhow::Result<PendingBatchData> {

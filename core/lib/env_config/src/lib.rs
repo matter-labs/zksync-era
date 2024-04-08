@@ -1,13 +1,11 @@
 use anyhow::Context as _;
 use serde::de::DeserializeOwned;
 
-mod alerts;
 mod api;
 mod chain;
 mod contract_verifier;
 mod contracts;
 mod database;
-mod eth_client;
 mod eth_sender;
 mod eth_watch;
 mod fri_proof_compressor;
@@ -24,8 +22,10 @@ mod snapshots_creator;
 mod utils;
 mod witness_generator;
 
+mod genesis;
 #[cfg(test)]
 mod test_utils;
+mod wallets;
 
 pub trait FromEnv: Sized {
     fn from_env() -> anyhow::Result<Self>;

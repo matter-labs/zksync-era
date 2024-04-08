@@ -1,8 +1,10 @@
 syntax = "proto3";
 
 package zksync.config.snapshot_creator;
+import "zksync/config/object_store.proto";
 
 message SnapshotsCreator {
   optional uint64 storage_logs_chunk_size = 1; // optional
   optional uint32 concurrent_queries_count = 2; // optional
+  optional config.object_store.ObjectStore object_store = 3;
 }

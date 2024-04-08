@@ -1,10 +1,10 @@
-use zk_evm_1_4_1::{
+use zk_evm_1_5_0::{
     abstractions::{Memory, MemoryType},
     aux_structures::{MemoryPage, MemoryQuery, Timestamp},
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::FatPointer,
 };
-use zksync_types::U256;
+use zksync_types::{Address, CODE_ORACLE_ADDRESS, U256};
 
 use crate::vm_latest::old_vm::{
     history_recorder::{
@@ -170,6 +170,11 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
             MemoryType::Code => {
                 unreachable!("code should be through specialized query");
             }
+            MemoryType::StaticMemory => {
+                // While `MemoryType::StaticMemory` is formally supported by `vm@1.5.0`, it is never
+                // used in the system contracts.
+                unreachable!()
+            }
         }
 
         let page = query.location.page.0 as usize;
@@ -274,12 +279,18 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
     fn finish_global_frame(
         &mut self,
         base_page: MemoryPage,
+        last_callstack_this: Address,
         returndata_fat_pointer: FatPointer,
         timestamp: Timestamp,
     ) {
         // Safe to unwrap here, since `finish_global_frame` is never called with empty stack
         let current_observable_pages = self.observable_pages.inner().current_frame();
         let returndata_page = returndata_fat_pointer.memory_page;
+
+        // This is code oracle and some preimage has been decommitted into its memory.
+        // We must keep this memory page forever for future decommits.
+        let is_returndata_page_static =
+            last_callstack_this == CODE_ORACLE_ADDRESS && returndata_fat_pointer.length > 0;
 
         for &page in current_observable_pages {
             // If the page's number is greater than or equal to the `base_page`,
@@ -294,8 +305,12 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
         self.observable_pages.clear_frame(timestamp);
         self.observable_pages.merge_frame(timestamp);
 
-        self.observable_pages
-            .push_to_frame(returndata_page, timestamp);
+        // If returndata page is static, we do not add it to the list of observable pages,
+        // effectively preventing it from being cleared in the future.
+        if !is_returndata_page_static {
+            self.observable_pages
+                .push_to_frame(returndata_page, timestamp);
+        }
     }
 }
 

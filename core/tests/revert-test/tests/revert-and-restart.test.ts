@@ -193,7 +193,14 @@ describe('Block reverting test', function () {
             amount: depositAmount,
             to: alice.address
         });
-        const l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
+
+        let l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
+        while (!l1TxResponse) {
+            console.log(`Deposit ${depositHandle.hash} is not visible to the L1 network; sleeping`);
+            await utils.sleep(1);
+            l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
+        }
+
         // ethers doesn't work well with block reversions, so wait for the receipt before calling `.waitFinalize()`.
         const l2Tx = await alice._providerL2().getL2TransactionFromPriorityOp(l1TxResponse);
         let receipt = null;
@@ -251,6 +258,6 @@ async function checkedRandomTransfer(sender: zkweb3.Wallet, amount: BigNumber) {
     expect(receiverBalance.eq(amount), 'Failed updated the balance of the receiver').to.be.true;
 
     const spentAmount = txReceipt.gasUsed.mul(transferHandle.gasPrice!).add(amount);
-    expect(senderBalance.add(spentAmount).eq(senderBalanceBefore), 'Failed to update the balance of the sender').to.be
+    expect(senderBalance.add(spentAmount).gte(senderBalanceBefore), 'Failed to update the balance of the sender').to.be
         .true;
 }

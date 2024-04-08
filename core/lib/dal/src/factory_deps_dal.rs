@@ -2,15 +2,16 @@ use std::collections::{HashMap, HashSet};
 
 use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{MiniblockNumber, H256, U256};
 use zksync_utils::{bytes_to_be_words, bytes_to_chunks};
 
-use crate::StorageProcessor;
+use crate::Core;
 
 /// DAL methods related to factory dependencies.
 #[derive(Debug)]
 pub struct FactoryDepsDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl FactoryDepsDal<'_, '_> {
@@ -20,7 +21,7 @@ impl FactoryDepsDal<'_, '_> {
         &mut self,
         block_number: MiniblockNumber,
         factory_deps: &HashMap<H256, Vec<u8>>,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         let (bytecode_hashes, bytecodes): (Vec<_>, Vec<_>) = factory_deps
             .iter()
             .map(|(hash, bytecode)| (hash.as_bytes(), bytecode.as_slice()))
@@ -45,14 +46,17 @@ impl FactoryDepsDal<'_, '_> {
             &bytecodes as &[&[u8]],
             i64::from(block_number.0)
         )
-        .execute(self.storage.conn())
+        .instrument("insert_factory_deps")
+        .with_arg("block_number", &block_number)
+        .with_arg("factory_deps.len", &factory_deps.len())
+        .execute(self.storage)
         .await?;
 
         Ok(())
     }
 
     /// Returns bytecode for a factory dependency with the specified bytecode `hash`.
-    pub async fn get_factory_dep(&mut self, hash: H256) -> sqlx::Result<Option<Vec<u8>>> {
+    pub async fn get_factory_dep(&mut self, hash: H256) -> DalResult<Option<Vec<u8>>> {
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -64,7 +68,9 @@ impl FactoryDepsDal<'_, '_> {
             "#,
             hash.as_bytes(),
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_factory_dep")
+        .with_arg("hash", &hash)
+        .fetch_optional(self.storage)
         .await?
         .map(|row| row.bytecode))
     }

@@ -4,7 +4,7 @@ use std::ops;
 
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_dal::{storage_logs_dal::StorageRecoveryLogEntry, StorageProcessor};
+use zksync_dal::{storage_logs_dal::StorageRecoveryLogEntry, Connection, Core, CoreDal, DalError};
 use zksync_types::{
     snapshots::{uniform_hashed_keys_chunk, SnapshotRecoveryStatus},
     L1BatchNumber, MiniblockNumber, H256,
@@ -30,7 +30,7 @@ impl RocksdbStorage {
     /// Returns the next L1 batch that should be fed to the storage.
     pub(super) async fn ensure_ready(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         desired_log_chunk_size: u64,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Result<L1BatchNumber, RocksdbSyncError> {
@@ -43,7 +43,7 @@ impl RocksdbStorage {
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
             .await
-            .context("failed getting snapshot recovery info")?;
+            .map_err(DalError::generalize)?;
         Ok(if let Some(snapshot_recovery) = snapshot_recovery {
             self.recover_from_snapshot(
                 storage,
@@ -65,7 +65,7 @@ impl RocksdbStorage {
     /// (it would be considered complete even if it failed in the middle).
     async fn recover_from_snapshot(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         snapshot_recovery: &SnapshotRecoveryStatus,
         desired_log_chunk_size: u64,
         stop_receiver: &watch::Receiver<bool>,
@@ -140,7 +140,7 @@ impl RocksdbStorage {
 
     async fn recover_factory_deps(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         snapshot_recovery: &SnapshotRecoveryStatus,
     ) -> anyhow::Result<()> {
         // We don't expect that many factory deps; that's why we recover factory deps in any case.
@@ -148,8 +148,7 @@ impl RocksdbStorage {
         let factory_deps = storage
             .snapshots_creator_dal()
             .get_all_factory_deps(snapshot_recovery.miniblock_number)
-            .await
-            .context("Failed getting factory dependencies")?;
+            .await?;
         let latency = latency.observe();
         tracing::info!(
             "Loaded {} factory dependencies from the snapshot in {latency:?}",
@@ -169,7 +168,7 @@ impl RocksdbStorage {
     }
 
     async fn load_key_chunks(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         snapshot_recovery: &SnapshotRecoveryStatus,
         desired_log_chunk_size: u64,
     ) -> anyhow::Result<Vec<KeyChunk>> {
@@ -193,8 +192,7 @@ impl RocksdbStorage {
         let chunk_starts = storage
             .storage_logs_dal()
             .get_chunk_starts_for_miniblock(snapshot_miniblock, &key_chunks)
-            .await
-            .context("Failed getting chunk starts")?;
+            .await?;
         let latency = latency.observe();
         tracing::info!("Loaded {chunk_count} chunk starts in {latency:?}");
 
@@ -219,7 +217,7 @@ impl RocksdbStorage {
 
     async fn recover_logs_chunk(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         snapshot_miniblock: MiniblockNumber,
         key_chunk: ops::RangeInclusive<H256>,
     ) -> anyhow::Result<()> {
@@ -227,10 +225,7 @@ impl RocksdbStorage {
         let all_entries = storage
             .storage_logs_dal()
             .get_tree_entries_for_miniblock(snapshot_miniblock, key_chunk.clone())
-            .await
-            .with_context(|| {
-                format!("Failed getting entries for chunk {key_chunk:?} in snapshot for miniblock #{snapshot_miniblock}")
-            })?;
+            .await?;
         let latency = latency.observe();
         tracing::debug!(
             "Loaded {} log entries for chunk {key_chunk:?} in {latency:?}",
