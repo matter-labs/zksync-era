@@ -1,0 +1,34 @@
+[package]
+name = "genesis_generator"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+zksync_config.workspace = true
+zksync_env_config.workspace = true
+zksync_protobuf_config.workspace = true
+zksync_utils.workspace = true
+zksync_types.workspace = true
+zksync_core.workspace = true
+zksync_dal.workspace = true
+zksync_contracts.workspace = true
+zksync_protobuf.workspace = true
+
+
+anyhow.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+serde.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+futures.workspace = true
+clap = { workspace = true, features = ["derive"] }
+

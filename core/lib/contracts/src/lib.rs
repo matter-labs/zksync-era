@@ -30,7 +30,7 @@ const BRIDGEHUB_CONTRACT_FILE: &str =
 const STATE_TRANSITION_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/state-transition/IStateTransitionManager.sol/IStateTransitionManager.json";
 const STATE_TRANSITION_CHAIN_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/contracts/state-transition/chain-interfaces/IZkSyncStateTransition.sol/IZkSyncStateTransition.json";
+    "contracts/l1-contracts/artifacts/contracts/state-transition/chain-interfaces/IZkSyncHyperchain.sol/IZkSyncHyperchain.json";
 const DIAMOND_INIT_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/state-transition/chain-interfaces/IDiamondInit.sol/IDiamondInit.json";
 const GOVERNANCE_CONTRACT_FILE: &str =

@@ -95,7 +95,6 @@ const deployTestTokens = async (options?: DeployTestTokensOptions) => {
 
 // Deploys and verifies L1 contracts and initializes governance
 const initBridgehubStateTransition = async () => {
-    await announced('Running server genesis setup', server.genesisFromSources({ setChainId: false }));
     await announced('Deploying L1 contracts', contract.deployL1(['']));
     await announced('Verifying L1 contracts', contract.verifyL1Contracts());
     await announced('Initializing governance', contract.initializeGovernance());
@@ -106,7 +105,7 @@ const initBridgehubStateTransition = async () => {
 type InitHyperchainOptions = { includePaymaster: boolean; baseTokenName?: string };
 const initHyperchain = async ({ includePaymaster, baseTokenName }: InitHyperchainOptions): Promise<void> => {
     await announced('Registering Hyperchain', contract.registerHyperchain({ baseTokenName }));
-    await announced('Running server genesis setup', server.genesisFromSources({ setChainId: true }));
+    await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster }));
 };
 
