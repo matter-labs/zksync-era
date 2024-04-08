@@ -129,16 +129,15 @@ impl EthWatch {
         })
     }
 
-    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut timer = tokio::time::interval(self.poll_interval);
         let pool = self.pool.clone();
-        loop {
-            if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, eth_watch is shutting down");
-                break;
-            }
 
-            timer.tick().await;
+        while !*stop_receiver.borrow_and_update() {
+            tokio::select! {
+                _ = timer.tick() => { /* continue iterations */ }
+                _ = stop_receiver.changed() => break,
+            }
             METRICS.eth_poll.inc();
 
             let mut storage = pool.connection_tagged("eth_watch").await?;
@@ -159,6 +158,8 @@ impl EthWatch {
                 }
             }
         }
+
+        tracing::info!("Stop signal received, eth_watch is shutting down");
         Ok(())
     }
 
