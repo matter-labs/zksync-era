@@ -397,7 +397,7 @@ impl JobProcessor for Sgx2fa {
             .await
             .context("failed to acquire DB transaction for BasicWitnessInputProducer")?;
         transaction
-            .basic_witness_input_producer_dal()
+            .sgx_2fa_dal()
             .mark_job_as_successful(job_id, started_at, &object_path)
             .await
             .context("failed to mark job as successful for BasicWitnessInputProducer")?;
