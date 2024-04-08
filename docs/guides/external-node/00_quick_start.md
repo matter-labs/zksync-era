@@ -10,14 +10,28 @@ To start a mainnet instance, run:
 
 ```sh
 cd docker-compose-examples
-docker compose --file mainnet-docker-external-node-compose.yml up
+docker compose --file mainnet-external-node-docker-compose.yml up
 ```
 
-To start testnet instance, run:
+To reset its state, run:
+
+```sh
+cd docker-compose-examples
+docker compose --file mainnet-external-node-docker-compose.yml down --volumes
+```
+
+To start a testnet instance, run:
 
 ```sh
 cd docker-compose-examples
 docker compose --file testnet-external-node-docker-compose.yml up
+```
+
+To reset its state, run:
+
+```sh
+cd docker-compose-examples
+docker compose --file testnet-external-node-docker-compose.yml down --volumes
 ```
 
 Those commands start external node locally inside docker.
