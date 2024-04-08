@@ -1,3 +1,4 @@
+use super::BaseTokenFetcherConfig;
 use crate::{
     configs::{
         chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
@@ -9,8 +10,6 @@ use crate::{
     },
     ApiConfig, ContractVerifierConfig, DBConfig, ETHConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
-
-use super::BaseTokenFetcherConfig;
 
 #[derive(Debug, PartialEq)]
 pub struct GeneralConfig {
