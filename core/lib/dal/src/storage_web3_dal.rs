@@ -247,7 +247,7 @@ impl StorageWeb3Dal<'_, '_> {
     pub async fn get_factory_dep(
         &mut self,
         hash: H256,
-    ) -> sqlx::Result<Option<(Vec<u8>, MiniblockNumber)>> {
+    ) -> DalResult<Option<(Vec<u8>, MiniblockNumber)>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -260,7 +260,9 @@ impl StorageWeb3Dal<'_, '_> {
             "#,
             hash.as_bytes(),
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_factory_dep")
+        .with_arg("hash", &hash)
+        .fetch_optional(self.storage)
         .await?;
 
         Ok(row.map(|row| (row.bytecode, MiniblockNumber(row.miniblock_number as u32))))
