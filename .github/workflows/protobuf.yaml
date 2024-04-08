@@ -54,9 +54,5 @@ jobs:
           `find ./after/target/debug/build/*/output`
           | xargs cat > ./after.binpb
       - uses: bufbuild/buf-setup-action@v1
-      - run: >
-          buf breaking
-            './after.binpb'
-            --against './before.binpb'
-            --config '{"version":"v1","breaking":{"use":["WIRE_JSON"]}}'
-            
+      - name: buf breaking
+        run: buf breaking './after.binpb' --against './before.binpb' --config '{"version":"v1","breaking":{"use":["WIRE_JSON"]}}'
