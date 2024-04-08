@@ -446,7 +446,6 @@ export class TestContextOwner {
             this.reporter
         );
 
-        console.log('CONTRACTS_BASE_TOKEN_ADDR: ', process.env.CONTRACTS_BASE_TOKEN_ADDR);
         nonce += erc20Transfers.length;
         // Send ERC20 base token on L1.
         const BaseErc20Transfers = await sendTransfers(
