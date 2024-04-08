@@ -511,8 +511,8 @@ pub(crate) async fn create_genesis_l1_batch(
 
     transaction
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(version)
-        .await;
+        .save_protocol_version_with_tx(&version)
+        .await?;
     transaction
         .blocks_dal()
         .insert_l1_batch(
@@ -628,8 +628,8 @@ pub async fn save_set_chain_id_tx(
         decode_set_chain_id_event(logs.remove(0)).context("Chain id event is incorrect")?;
     storage
         .protocol_versions_dal()
-        .save_genesis_upgrade_with_tx(version_id, upgrade_tx)
-        .await;
+        .save_genesis_upgrade_with_tx(version_id, &upgrade_tx)
+        .await?;
     Ok(())
 }
 

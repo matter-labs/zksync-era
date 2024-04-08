@@ -277,7 +277,7 @@ impl StateKeeperIO for MempoolIO {
         storage
             .transactions_dal()
             .mark_tx_as_rejected(rejected.hash(), &format!("rejected: {error}"))
-            .await;
+            .await?;
         Ok(())
     }
 

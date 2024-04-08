@@ -48,6 +48,7 @@ impl ETHConfig {
                 pricing_formula_parameter_b: 1.0005,
                 internal_l1_pricing_multiplier: 0.8,
                 internal_enforced_l1_gas_price: None,
+                internal_enforced_pubdata_price: None,
                 poll_period: 5,
                 max_l1_gas_price: None,
                 num_samples_for_blob_base_fee_estimate: 10,
@@ -163,6 +164,8 @@ pub struct GasAdjusterConfig {
     pub internal_l1_pricing_multiplier: f64,
     /// If equal to Some(x), then it will always provide `x` as the L1 gas price
     pub internal_enforced_l1_gas_price: Option<u64>,
+    /// If equal to Some(x), then it will always provide `x` as the pubdata price
+    pub internal_enforced_pubdata_price: Option<u64>,
     /// Node polling period in seconds
     pub poll_period: u64,
     /// Max number of l1 gas price that is allowed to be used.

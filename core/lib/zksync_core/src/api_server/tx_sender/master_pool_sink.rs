@@ -28,7 +28,7 @@ impl MasterPoolSink {
 impl TxSink for MasterPoolSink {
     async fn submit_tx(
         &self,
-        tx: L2Tx,
+        tx: &L2Tx,
         execution_metrics: TransactionExecutionMetrics,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let address_and_nonce = (tx.initiator_account(), tx.nonce());
@@ -60,7 +60,7 @@ impl TxSink for MasterPoolSink {
                     APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
                     submission_res_handle
                 })
-                .map_err(|err| anyhow::format_err!(err).into()),
+                .map_err(|err| err.generalize().into()),
             Err(err) => Err(err.generalize().into()),
         };
 

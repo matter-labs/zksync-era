@@ -68,7 +68,7 @@ struct DatabaseResource(pub Arc<dyn Database>);
 impl Resource for DatabaseResource {
     fn name() -> String {
         // The convention for resource names is `<scope>/<name>`. In this case, the scope is `common`, but
-        // for anything that is component-specific it could've been e.g. `state_keeper` or `api`.
+        // for anything that is component-specific it could have been e.g. `state_keeper` or `api`.
         "common/database".into()
     }
 }

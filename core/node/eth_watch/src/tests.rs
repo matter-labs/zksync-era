@@ -765,9 +765,10 @@ async fn setup_db(connection_pool: &ConnectionPool<Core>) {
         .await
         .unwrap()
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion {
+        .save_protocol_version_with_tx(&ProtocolVersion {
             id: (ProtocolVersionId::latest() as u16 - 1).try_into().unwrap(),
             ..Default::default()
         })
-        .await;
+        .await
+        .unwrap();
 }
