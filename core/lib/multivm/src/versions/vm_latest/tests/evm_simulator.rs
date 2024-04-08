@@ -520,6 +520,55 @@ fn test_basic_smod_vectors() {
     );
 }
 
+#[test]
+fn test_basic_exp_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push32 9
+                hex::decode("7F").unwrap(),
+                u256_to_h256(9.into()).0.to_vec(),
+                // push32 5
+                hex::decode("7F").unwrap(),
+                u256_to_h256(5.into()).0.to_vec(),
+                // exp
+                hex::decode("0A").unwrap(),
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        1_953_125.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
+                // push32 19
+                hex::decode("7F").unwrap(),
+                u256_to_h256(19.into()).0.to_vec(),
+                // exp
+                hex::decode("0A").unwrap(),
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        1.into()
+    );
+}
+
 fn assert_deployed_hash<H: HistoryMode>(
     tester: &mut VmTester<H>,
     address: Address,
