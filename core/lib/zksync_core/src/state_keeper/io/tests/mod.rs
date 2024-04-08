@@ -10,8 +10,8 @@ use zksync_types::{
     fee::TransactionExecutionMetrics,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     tx::ExecutionMetrics,
-    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId,
-    StorageKey, VmEvent, H256, U256,
+    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersion,
+    ProtocolVersionId, StorageKey, VmEvent, H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
 
@@ -280,9 +280,10 @@ async fn processing_storage_logs_when_sealing_miniblock() {
     };
     let mut conn = connection_pool.connection().await.unwrap();
     conn.protocol_versions_dal()
-        .save_protocol_version_with_tx(Default::default())
-        .await;
-    seal_command.seal(&mut conn).await;
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
+    seal_command.seal(&mut conn).await.unwrap();
 
     // Manually mark the miniblock as executed so that getting touched slots from it works
     conn.blocks_dal()
@@ -362,9 +363,10 @@ async fn processing_events_when_sealing_miniblock() {
     };
     let mut conn = pool.connection().await.unwrap();
     conn.protocol_versions_dal()
-        .save_protocol_version_with_tx(Default::default())
-        .await;
-    seal_command.seal(&mut conn).await;
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
+    seal_command.seal(&mut conn).await.unwrap();
 
     let logs = conn
         .events_web3_dal()
@@ -411,7 +413,7 @@ async fn miniblock_processing_after_snapshot_recovery(deployment_mode: Deploymen
     );
     storage
         .transactions_dal()
-        .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+        .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
         .await
         .unwrap();
 

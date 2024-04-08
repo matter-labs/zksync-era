@@ -73,7 +73,7 @@ mod tests {
 
     use super::*;
 
-    const MAX_CIRCUITS_PER_BATCH: usize = 20_000;
+    const MAX_CIRCUITS_PER_BATCH: usize = 30_000;
 
     fn get_config() -> StateKeeperConfig {
         StateKeeperConfig {
@@ -174,7 +174,7 @@ mod tests {
         let protocol_version = ProtocolVersionId::latest();
         let block_execution_metrics = ExecutionMetrics {
             circuit_statistic: CircuitStatistic {
-                main_vm: (MAX_CIRCUITS_PER_BATCH / 2) as f32,
+                main_vm: (MAX_CIRCUITS_PER_BATCH / 4) as f32,
                 ..CircuitStatistic::default()
             },
             ..ExecutionMetrics::default()
