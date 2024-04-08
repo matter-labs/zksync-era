@@ -55,4 +55,4 @@ jobs:
           | xargs cat > ./after.binpb
       - uses: bufbuild/buf-setup-action@v1
       - name: buf breaking
-        run: buf breaking './after.binpb' --against './before.binpb' --config '{"version":"v1","breaking":{"use":["WIRE_JSON"]}}'
+        run: buf breaking './after.binpb' --against './before.binpb' --config '{"version":"v1","breaking":{"use":["FILE"]}}' --error-format 'github-actions'
