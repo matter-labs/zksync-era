@@ -1,213 +1,104 @@
 use anyhow::Context as _;
-use zksync_config::configs;
+use zksync_config::configs::ContractsConfig;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::{parse_h160, parse_h256, proto::contracts as proto};
-
-impl proto::ProverAtGenesis {
-    fn new(x: &configs::contracts::ProverAtGenesis) -> Self {
-        use configs::contracts::ProverAtGenesis as From;
-        match x {
-            From::Fri => Self::Fri,
-            From::Old => Self::Old,
-        }
-    }
-
-    fn parse(&self) -> configs::contracts::ProverAtGenesis {
-        use configs::contracts::ProverAtGenesis as To;
-        match self {
-            Self::Fri => To::Fri,
-            Self::Old => To::Old,
-        }
-    }
-}
+use crate::{parse_h160, proto::contracts as proto};
 
 impl ProtoRepr for proto::Contracts {
-    type Type = configs::ContractsConfig;
+    type Type = ContractsConfig;
+
     fn read(&self) -> anyhow::Result<Self::Type> {
+        let l1 = required(&self.l1).context("l1")?;
+        let l2 = required(&self.l2).context("l2")?;
+        let bridges = required(&self.bridges).context("bridges")?;
+        let shared = required(&bridges.shared).context("shared")?;
+        let erc20 = required(&bridges.erc20).context("erc20")?;
+        let weth_bridge = required(&bridges.weth).context("weth_bridge")?;
         Ok(Self::Type {
-            governance_addr: required(&self.governance_addr)
+            governance_addr: required(&l1.governance_addr)
                 .and_then(|x| parse_h160(x))
                 .context("governance_addr")?,
-            mailbox_facet_addr: required(&self.mailbox_facet_addr)
-                .and_then(|x| parse_h160(x))
-                .context("mailbox_facet_addr")?,
-            executor_facet_addr: required(&self.executor_facet_addr)
-                .and_then(|x| parse_h160(x))
-                .context("executor_facet_addr")?,
-            admin_facet_addr: required(&self.admin_facet_addr)
-                .and_then(|x| parse_h160(x))
-                .context("admin_facet_addr")?,
-            getters_facet_addr: required(&self.getters_facet_addr)
-                .and_then(|x| parse_h160(x))
-                .context("getters_facet_addr")?,
-            verifier_addr: required(&self.verifier_addr)
+            verifier_addr: required(&l1.verifier_addr)
                 .and_then(|x| parse_h160(x))
                 .context("verifier_addr")?,
-            diamond_init_addr: required(&self.diamond_init_addr)
+            default_upgrade_addr: required(&l1.default_upgrade_addr)
                 .and_then(|x| parse_h160(x))
                 .context("diamond_init_addr")?,
-            diamond_upgrade_init_addr: required(&self.diamond_upgrade_init_addr)
-                .and_then(|x| parse_h160(x))
-                .context("diamond_upgrade_init_addr")?,
-            diamond_proxy_addr: required(&self.diamond_proxy_addr)
+            diamond_proxy_addr: required(&l1.diamond_proxy_addr)
                 .and_then(|x| parse_h160(x))
                 .context("diamond_proxy_addr")?,
-            validator_timelock_addr: required(&self.validator_timelock_addr)
+            validator_timelock_addr: required(&l1.validator_timelock_addr)
                 .and_then(|x| parse_h160(x))
                 .context("validator_timelock_addr")?,
-            genesis_tx_hash: required(&self.genesis_tx_hash)
-                .and_then(|x| parse_h256(x))
-                .context("genesis_tx_hash")?,
-            l1_erc20_bridge_proxy_addr: required(&self.l1_erc20_bridge_proxy_addr)
-                .and_then(|x| parse_h160(x))
+            l1_erc20_bridge_proxy_addr: erc20
+                .l1_address
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
                 .context("l1_erc20_bridge_proxy_addr")?,
-            l1_erc20_bridge_impl_addr: required(&self.l1_erc20_bridge_impl_addr)
-                .and_then(|x| parse_h160(x))
+            l2_erc20_bridge_addr: erc20
+                .l2_address
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
                 .context("l1_erc20_bridge_impl_addr")?,
-            l2_shared_bridge_addr: required(&self.l2_shared_bridge_addr)
+            l1_shared_bridge_proxy_addr: required(&shared.l1_address)
                 .and_then(|x| parse_h160(x))
-                .context("l2_shared_bridge_addr")?,
-            l1_shared_bridge_proxy_addr: required(&self.l1_shared_bridge_proxy_addr)
+                .context("l1_shared_bridge_addr")?,
+            l2_shared_bridge_addr: required(&shared.l2_address)
                 .and_then(|x| parse_h160(x))
-                .context("l1_shared_bridge_proxy_addr")?,
-            l1_allow_list_addr: required(&self.l1_allow_list_addr)
-                .and_then(|x| parse_h160(x))
-                .context("l1_allow_list_addr")?,
-            l2_testnet_paymaster_addr: self
-                .l2_testnet_paymaster_addr
+                .context("l2_shared_bridge_proxy_addr")?,
+            l1_weth_bridge_proxy_addr: weth_bridge
+                .l1_address
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("l1_weth_bridge_addr")?,
+            l2_weth_bridge_addr: weth_bridge
+                .l2_address
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("l2_weth_bridge_addr")?,
+            l2_testnet_paymaster_addr: l2
+                .testnet_paymaster_addr
                 .as_ref()
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("l2_testnet_paymaster_addr")?,
-            recursion_scheduler_level_vk_hash: required(&self.recursion_scheduler_level_vk_hash)
-                .and_then(|x| parse_h256(x))
-                .context("recursion_scheduler_level_vk_hash")?,
-            recursion_node_level_vk_hash: required(&self.recursion_node_level_vk_hash)
-                .and_then(|x| parse_h256(x))
-                .context("recursion_node_level_vk_hash")?,
-            recursion_leaf_level_vk_hash: required(&self.recursion_leaf_level_vk_hash)
-                .and_then(|x| parse_h256(x))
-                .context("recursion_leaf_level_vk_hash")?,
-            recursion_circuits_set_vks_hash: required(&self.recursion_circuits_set_vks_hash)
-                .and_then(|x| parse_h256(x))
-                .context("recursion_circuits_set_vks_hash")?,
-            l1_multicall3_addr: required(&self.l1_multicall3_addr)
+            l1_multicall3_addr: required(&l1.multicall3_addr)
                 .and_then(|x| parse_h160(x))
                 .context("l1_multicall3_addr")?,
-            fri_recursion_scheduler_level_vk_hash: required(
-                &self.fri_recursion_scheduler_level_vk_hash,
-            )
-            .and_then(|x| parse_h256(x))
-            .context("fri_recursion_scheduler_level_vk_hash")?,
-            fri_recursion_node_level_vk_hash: required(&self.fri_recursion_node_level_vk_hash)
-                .and_then(|x| parse_h256(x))
-                .context("fri_recursion_node_level_vk_hash")?,
-            fri_recursion_leaf_level_vk_hash: required(&self.fri_recursion_leaf_level_vk_hash)
-                .and_then(|x| parse_h256(x))
-                .context("fri_recursion_leaf_level_vk_hash")?,
-            prover_at_genesis: required(&self.prover_at_genesis)
-                .and_then(|x| Ok(proto::ProverAtGenesis::try_from(*x)?))
-                .context("prover_at_genesis")?
-                .parse(),
-            snark_wrapper_vk_hash: required(&self.snark_wrapper_vk_hash)
-                .and_then(|x| parse_h256(x))
-                .context("snark_wrapper_vk_hash")?,
-            bridgehub_proxy_addr: self
-                .bridgehub_proxy_addr
-                .as_ref()
-                .map(|x| parse_h160(x))
-                .transpose()
-                .context("bridgehub_proxy_addr")?,
-            bridgehub_impl_addr: self
-                .bridgehub_impl_addr
-                .as_ref()
-                .map(|x| parse_h160(x))
-                .transpose()
-                .context("bridgehub_impl_addr")?,
-            state_transition_proxy_addr: self
-                .state_transition_proxy_addr
-                .as_ref()
-                .map(|x| parse_h160(x))
-                .transpose()
-                .context("state_transition_proxy_addr")?,
-            state_transition_impl_addr: self
-                .state_transition_impl_addr
-                .as_ref()
-                .map(|x| parse_h160(x))
-                .transpose()
-                .context("state_transition_impl_addr")?,
-            transparent_proxy_admin_addr: self
-                .transparent_proxy_admin_addr
-                .as_ref()
-                .map(|x| parse_h160(x))
-                .transpose()
-                .context("transparent_proxy_admin_addr")?,
         })
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            governance_addr: Some(this.governance_addr.as_bytes().into()),
-            mailbox_facet_addr: Some(this.mailbox_facet_addr.as_bytes().into()),
-            executor_facet_addr: Some(this.executor_facet_addr.as_bytes().into()),
-            admin_facet_addr: Some(this.admin_facet_addr.as_bytes().into()),
-            getters_facet_addr: Some(this.getters_facet_addr.as_bytes().into()),
-            verifier_addr: Some(this.verifier_addr.as_bytes().into()),
-            diamond_init_addr: Some(this.diamond_init_addr.as_bytes().into()),
-            diamond_upgrade_init_addr: Some(this.diamond_upgrade_init_addr.as_bytes().into()),
-            diamond_proxy_addr: Some(this.diamond_proxy_addr.as_bytes().into()),
-            validator_timelock_addr: Some(this.validator_timelock_addr.as_bytes().into()),
-            genesis_tx_hash: Some(this.genesis_tx_hash.as_bytes().into()),
-            l1_erc20_bridge_proxy_addr: Some(this.l1_erc20_bridge_proxy_addr.as_bytes().into()),
-            l1_erc20_bridge_impl_addr: Some(this.l1_erc20_bridge_impl_addr.as_bytes().into()),
-            l1_shared_bridge_proxy_addr: Some(this.l1_shared_bridge_proxy_addr.as_bytes().into()),
-            l2_shared_bridge_addr: Some(this.l2_shared_bridge_addr.as_bytes().into()),
-            l1_allow_list_addr: Some(this.l1_allow_list_addr.as_bytes().into()),
-            l2_testnet_paymaster_addr: this
-                .l2_testnet_paymaster_addr
-                .as_ref()
-                .map(|x| x.as_bytes().into()),
-            recursion_scheduler_level_vk_hash: Some(
-                this.recursion_scheduler_level_vk_hash.as_bytes().into(),
-            ),
-            recursion_node_level_vk_hash: Some(this.recursion_node_level_vk_hash.as_bytes().into()),
-            recursion_leaf_level_vk_hash: Some(this.recursion_leaf_level_vk_hash.as_bytes().into()),
-            recursion_circuits_set_vks_hash: Some(
-                this.recursion_circuits_set_vks_hash.as_bytes().into(),
-            ),
-            l1_multicall3_addr: Some(this.l1_multicall3_addr.as_bytes().into()),
-            fri_recursion_scheduler_level_vk_hash: Some(
-                this.fri_recursion_scheduler_level_vk_hash.as_bytes().into(),
-            ),
-            fri_recursion_node_level_vk_hash: Some(
-                this.fri_recursion_node_level_vk_hash.as_bytes().into(),
-            ),
-            fri_recursion_leaf_level_vk_hash: Some(
-                this.fri_recursion_leaf_level_vk_hash.as_bytes().into(),
-            ),
-            prover_at_genesis: Some(proto::ProverAtGenesis::new(&this.prover_at_genesis).into()),
-            snark_wrapper_vk_hash: Some(this.snark_wrapper_vk_hash.as_bytes().into()),
-            bridgehub_proxy_addr: this
-                .bridgehub_proxy_addr
-                .as_ref()
-                .map(|x| x.as_bytes().into()),
-            bridgehub_impl_addr: this
-                .bridgehub_impl_addr
-                .as_ref()
-                .map(|x| x.as_bytes().into()),
-            state_transition_proxy_addr: this
-                .state_transition_proxy_addr
-                .as_ref()
-                .map(|x| x.as_bytes().into()),
-            state_transition_impl_addr: this
-                .state_transition_impl_addr
-                .as_ref()
-                .map(|x| x.as_bytes().into()),
-            transparent_proxy_admin_addr: this
-                .transparent_proxy_admin_addr
-                .as_ref()
-                .map(|x| x.as_bytes().into()),
+            l1: Some(proto::L1 {
+                governance_addr: Some(format!("{:?}", this.governance_addr)),
+                verifier_addr: Some(format!("{:?}", this.verifier_addr)),
+                diamond_proxy_addr: Some(format!("{:?}", this.diamond_proxy_addr)),
+                validator_timelock_addr: Some(format!("{:?}", this.validator_timelock_addr)),
+                default_upgrade_addr: Some(format!("{:?}", this.default_upgrade_addr)),
+                multicall3_addr: Some(format!("{:?}", this.l1_multicall3_addr)),
+            }),
+            l2: Some(proto::L2 {
+                testnet_paymaster_addr: this.l2_testnet_paymaster_addr.map(|a| format!("{:?}", a)),
+            }),
+            bridges: Some(proto::Bridges {
+                shared: Some(proto::Bridge {
+                    l1_address: Some(format!("{:?}", this.l1_shared_bridge_proxy_addr)),
+                    l2_address: Some(format!("{:?}", this.l2_shared_bridge_addr)),
+                }),
+                erc20: Some(proto::Bridge {
+                    l1_address: this.l1_erc20_bridge_proxy_addr.map(|a| format!("{:?}", a)),
+                    l2_address: this.l2_erc20_bridge_addr.map(|a| format!("{:?}", a)),
+                }),
+                weth: Some(proto::Bridge {
+                    l1_address: this.l1_weth_bridge_proxy_addr.map(|a| format!("{:?}", a)),
+                    l2_address: this.l2_weth_bridge_addr.map(|a| format!("{:?}", a)),
+                }),
+            }),
         }
     }
 }

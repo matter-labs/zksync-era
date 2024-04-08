@@ -124,6 +124,7 @@ stdout
 GCS
 websocket
 struct
+struct's
 localhost
 TOML
 config
@@ -189,6 +190,7 @@ sorted_timestamps
 known_bytecodes
 returndata
 namespaces
+natively
 StateDiffRecord
 BYTES_PER_ENUMERATION_INDEX
 derived_key
@@ -915,5 +917,15 @@ shivini
 balancer
 lookups
 stateful
+getPubdataPricingMode
+Uint
+implementors
 WIP
+oneshot
 p2p
+StorageProcessor
+StorageMarker
+SIGINT
+opentelemetry
+PubdataSendingMode
+FriGpuProverArchiver

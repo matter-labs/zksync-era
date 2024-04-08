@@ -1,13 +1,14 @@
 use std::collections::HashMap;
 
 use itertools::Itertools;
+use zksync_db_connection::connection::Connection;
 use zksync_types::{StorageKey, StorageLog, StorageValue, H256};
 
-use crate::StorageProcessor;
+use crate::Core;
 
 #[derive(Debug)]
 pub struct StorageDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 #[deprecated(note = "Soft-removed in favor of `storage_logs`; don't use")]
@@ -98,13 +99,13 @@ mod tests {
     use zksync_types::{AccountTreeId, Address};
 
     use super::*;
-    use crate::ConnectionPool;
+    use crate::{ConnectionPool, Core, CoreDal};
 
     #[allow(deprecated)]
     #[tokio::test]
     async fn applying_storage_logs() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
 
         let account = AccountTreeId::new(Address::repeat_byte(1));
         let first_key = StorageKey::new(account, H256::zero());

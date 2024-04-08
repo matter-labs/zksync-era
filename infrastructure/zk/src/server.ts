@@ -1,10 +1,10 @@
 import { Command } from 'commander';
 import * as utils from './utils';
-import * as env from './env';
 import { clean } from './clean';
 import fs from 'fs';
 import * as path from 'path';
 import * as db from './database';
+import * as env from './env';
 
 export async function server(rebuildTree: boolean, uring: boolean, components?: string) {
     let options = '';
@@ -38,7 +38,7 @@ export async function externalNode(reinit: boolean = false, args: string[]) {
     // On --reinit we want to reset RocksDB and Postgres before we start.
     if (reinit) {
         await utils.confirmAction();
-        await db.reset({ server: true, prover: false });
+        await db.reset({ core: true, prover: false });
         clean(path.dirname(process.env.EN_MERKLE_TREE_PATH!));
     }
 
@@ -48,45 +48,6 @@ export async function externalNode(reinit: boolean = false, args: string[]) {
 async function create_genesis(cmd: string) {
     await utils.confirmAction();
     await utils.spawn(`${cmd} | tee genesis.log`);
-    const genesisContents = fs.readFileSync('genesis.log').toString().split('\n');
-    const genesisBlockCommitment = genesisContents.find((line) => line.includes('CONTRACTS_GENESIS_BATCH_COMMITMENT='));
-    const genesisBootloaderHash = genesisContents.find((line) => line.includes('CHAIN_STATE_KEEPER_BOOTLOADER_HASH='));
-    const genesisDefaultAAHash = genesisContents.find((line) => line.includes('CHAIN_STATE_KEEPER_DEFAULT_AA_HASH='));
-    const genesisRoot = genesisContents.find((line) => line.includes('CONTRACTS_GENESIS_ROOT='));
-    const genesisRollupLeafIndex = genesisContents.find((line) =>
-        line.includes('CONTRACTS_GENESIS_ROLLUP_LEAF_INDEX=')
-    );
-    if (genesisRoot == null || !/^CONTRACTS_GENESIS_ROOT=0x[a-fA-F0-9]{64}$/.test(genesisRoot)) {
-        throw Error(`Genesis is not needed (either Postgres DB or tree's Rocks DB is not empty)`);
-    }
-
-    if (
-        genesisBootloaderHash == null ||
-        !/^CHAIN_STATE_KEEPER_BOOTLOADER_HASH=0x[a-fA-F0-9]{64}$/.test(genesisBootloaderHash)
-    ) {
-        throw Error(`Genesis is not needed (either Postgres DB or tree's Rocks DB is not empty)`);
-    }
-
-    if (
-        genesisDefaultAAHash == null ||
-        !/^CHAIN_STATE_KEEPER_DEFAULT_AA_HASH=0x[a-fA-F0-9]{64}$/.test(genesisDefaultAAHash)
-    ) {
-        throw Error(`Genesis is not needed (either Postgres DB or tree's Rocks DB is not empty)`);
-    }
-
-    if (
-        genesisBlockCommitment == null ||
-        !/^CONTRACTS_GENESIS_BATCH_COMMITMENT=0x[a-fA-F0-9]{64}$/.test(genesisBlockCommitment)
-    ) {
-        throw Error(`Genesis is not needed (either Postgres DB or tree's Rocks DB is not empty)`);
-    }
-
-    if (
-        genesisRollupLeafIndex == null ||
-        !/^CONTRACTS_GENESIS_ROLLUP_LEAF_INDEX=([1-9]\d*|0)$/.test(genesisRollupLeafIndex)
-    ) {
-        throw Error(`Genesis is not needed (either Postgres DB or tree's Rocks DB is not empty)`);
-    }
 
     const date = new Date();
     const [year, month, day, hour, minute, second] = [
@@ -100,39 +61,11 @@ async function create_genesis(cmd: string) {
     const label = `${process.env.ZKSYNC_ENV}-Genesis_gen-${year}-${month}-${day}-${hour}${minute}${second}`;
     fs.mkdirSync(`logs/${label}`, { recursive: true });
     fs.copyFileSync('genesis.log', `logs/${label}/genesis.log`);
-    env.modify(
-        'CONTRACTS_GENESIS_ROOT',
-        genesisRoot,
-        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
-    );
-    env.modify(
-        'CHAIN_STATE_KEEPER_BOOTLOADER_HASH',
-        genesisBootloaderHash,
-        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
-    );
-    env.modify(
-        'CHAIN_STATE_KEEPER_DEFAULT_AA_HASH',
-        genesisDefaultAAHash,
-        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
-    );
-    env.modify(
-        'CONTRACTS_GENESIS_BATCH_COMMITMENT',
-        genesisBlockCommitment,
-        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
-    );
-    env.modify(
-        'CONTRACTS_GENESIS_ROLLUP_LEAF_INDEX',
-        genesisRollupLeafIndex,
-        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
-    );
 }
 
-export async function genesisFromSources(options?: { setChainId: boolean }) {
-    const args = [options?.setChainId ? '--set-chain-id' : ''];
+export async function genesisFromSources() {
     // we fix chainId as we need all chains to have the same chainId at genesis
-    await create_genesis(
-        'CHAIN_ETH_ZKSYNC_NETWORK_ID=270 cargo run --bin zksync_server --release -- --genesis ' + args.join(' ')
-    );
+    await create_genesis('cargo run --bin zksync_server --release -- --genesis');
 }
 
 export async function genesisFromBinary() {

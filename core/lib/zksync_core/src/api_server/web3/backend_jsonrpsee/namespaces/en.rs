@@ -1,4 +1,5 @@
-use zksync_types::{api::en, tokens::TokenInfo, MiniblockNumber};
+use zksync_config::GenesisConfig;
+use zksync_types::{api::en, tokens::TokenInfo, Address, MiniblockNumber};
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
     namespaces::en::EnNamespaceServer,
@@ -29,6 +30,18 @@ impl EnNamespaceServer for EnNamespace {
         block_number: Option<MiniblockNumber>,
     ) -> RpcResult<Vec<TokenInfo>> {
         self.sync_tokens_impl(block_number)
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn genesis_config(&self) -> RpcResult<GenesisConfig> {
+        self.genesis_config_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn whitelisted_tokens_for_aa(&self) -> RpcResult<Vec<Address>> {
+        self.whitelisted_tokens_for_aa_impl()
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

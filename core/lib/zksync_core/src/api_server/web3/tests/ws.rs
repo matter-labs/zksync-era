@@ -96,8 +96,8 @@ async fn wait_for_notifier_miniblock(
 
 #[tokio::test]
 async fn notifiers_start_after_snapshot_recovery() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     prepare_recovery_snapshot(
         &mut storage,
         StorageInitialization::SNAPSHOT_RECOVERY_BATCH,
@@ -152,7 +152,7 @@ trait WsTest: Send + Sync {
     async fn test(
         &self,
         client: &WsClient,
-        pool: &ConnectionPool,
+        pool: &ConnectionPool<Core>,
         pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()>;
 
@@ -162,12 +162,13 @@ trait WsTest: Send + Sync {
 }
 
 async fn test_ws_server(test: impl WsTest) {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let network_config = NetworkConfig::for_tests();
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
-    let api_config = InternalApiConfig::new(&network_config, &web3_config, &contracts_config);
-    let mut storage = pool.access_storage().await.unwrap();
+    let genesis_config = GenesisConfig::for_tests();
+    let api_config = InternalApiConfig::new(&web3_config, &contracts_config, &genesis_config);
+    let mut storage = pool.connection().await.unwrap();
     test.storage_initialization()
         .prepare_storage(&network_config, &mut storage)
         .await
@@ -202,7 +203,7 @@ impl WsTest for WsServerCanStartTest {
     async fn test(
         &self,
         client: &WsClient,
-        _pool: &ConnectionPool,
+        _pool: &ConnectionPool<Core>,
         _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         let block_number = client.get_block_number().await?;
@@ -243,7 +244,7 @@ impl WsTest for BasicSubscriptionsTest {
     async fn test(
         &self,
         client: &WsClient,
-        pool: &ConnectionPool,
+        pool: &ConnectionPool<Core>,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         // Wait for the notifiers to get initialized so that they don't skip notifications
@@ -266,7 +267,7 @@ impl WsTest for BasicSubscriptionsTest {
             .await?;
         wait_for_subscription(&mut pub_sub_events, SubscriptionType::Txs).await;
 
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.connection().await?;
         let tx_result = execute_l2_transaction(create_l2_transaction(1, 2));
         let new_tx_hash = tx_result.hash;
         let miniblock_number = if self.snapshot_recovery {
@@ -382,7 +383,7 @@ impl WsTest for LogSubscriptionsTest {
     async fn test(
         &self,
         client: &WsClient,
-        pool: &ConnectionPool,
+        pool: &ConnectionPool<Core>,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         let LogSubscriptions {
@@ -391,7 +392,7 @@ impl WsTest for LogSubscriptionsTest {
             mut topic_subscription,
         } = LogSubscriptions::new(client, &mut pub_sub_events).await?;
 
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.connection().await?;
         let next_miniblock_number = if self.snapshot_recovery {
             StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0 + 2
         } else {
@@ -471,7 +472,7 @@ impl WsTest for LogSubscriptionsWithNewBlockTest {
     async fn test(
         &self,
         client: &WsClient,
-        pool: &ConnectionPool,
+        pool: &ConnectionPool<Core>,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         let LogSubscriptions {
@@ -480,7 +481,7 @@ impl WsTest for LogSubscriptionsWithNewBlockTest {
             ..
         } = LogSubscriptions::new(client, &mut pub_sub_events).await?;
 
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.connection().await?;
         let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
         let events: Vec<_> = events.iter().collect();
@@ -489,7 +490,7 @@ impl WsTest for LogSubscriptionsWithNewBlockTest {
         assert_logs_match(&all_logs, &events);
 
         // Create a new block and wait for the pub-sub notifier to run.
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.connection().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
         let new_events: Vec<_> = new_events.iter().collect();
@@ -519,7 +520,7 @@ impl WsTest for LogSubscriptionsWithManyBlocksTest {
     async fn test(
         &self,
         client: &WsClient,
-        pool: &ConnectionPool,
+        pool: &ConnectionPool<Core>,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         let LogSubscriptions {
@@ -529,7 +530,7 @@ impl WsTest for LogSubscriptionsWithManyBlocksTest {
         } = LogSubscriptions::new(client, &mut pub_sub_events).await?;
 
         // Add two blocks in the storage atomically.
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.connection().await?;
         let mut transaction = storage.start_transaction().await?;
         let (_, events) = store_events(&mut transaction, 1, 0).await?;
         let events: Vec<_> = events.iter().collect();
@@ -565,14 +566,14 @@ impl WsTest for LogSubscriptionsWithDelayTest {
     async fn test(
         &self,
         client: &WsClient,
-        pool: &ConnectionPool,
+        pool: &ConnectionPool<Core>,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         // Wait until notifiers are initialized.
         wait_for_notifiers(&mut pub_sub_events, &[SubscriptionType::Logs]).await;
 
         // Store a miniblock w/o subscriptions being present.
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.connection().await?;
         store_events(&mut storage, 1, 0).await?;
         drop(storage);
 
@@ -600,7 +601,7 @@ impl WsTest for LogSubscriptionsWithDelayTest {
             wait_for_subscription(&mut pub_sub_events, SubscriptionType::Logs).await;
         }
 
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.connection().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
         let new_events: Vec<_> = new_events.iter().collect();
@@ -612,7 +613,7 @@ impl WsTest for LogSubscriptionsWithDelayTest {
 
         // Check the behavior of remaining subscriptions if a subscription is dropped.
         all_logs_subscription.unsubscribe().await?;
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.connection().await?;
         let (_, new_events) = store_events(&mut storage, 3, 8).await?;
         drop(storage);
 
@@ -635,7 +636,7 @@ impl WsTest for RateLimitingTest {
     async fn test(
         &self,
         client: &WsClient,
-        _pool: &ConnectionPool,
+        _pool: &ConnectionPool<Core>,
         _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         client.chain_id().await.unwrap();
@@ -672,7 +673,7 @@ impl WsTest for BatchGetsRateLimitedTest {
     async fn test(
         &self,
         client: &WsClient,
-        _pool: &ConnectionPool,
+        _pool: &ConnectionPool<Core>,
         _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         client.chain_id().await.unwrap();

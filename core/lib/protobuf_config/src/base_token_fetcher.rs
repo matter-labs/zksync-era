@@ -20,7 +20,7 @@ impl ProtoRepr for proto::BaseTokenFetcher {
         Self {
             poll_interval: Some(this.poll_interval),
             host: Some(this.host.clone()),
-            token_address: Some(this.token_address.as_bytes().into()),
+            token_address: Some(this.token_address.to_string()),
         }
     }
 }

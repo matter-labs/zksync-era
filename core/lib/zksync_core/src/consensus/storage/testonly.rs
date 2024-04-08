@@ -4,33 +4,15 @@ use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage as storage;
 use zksync_consensus_storage::PersistentBlockStore as _;
-use zksync_dal::consensus_dal::Payload;
+use zksync_dal::ConnectionPool;
 
 use super::Store;
+use crate::{
+    genesis::{insert_genesis_batch, GenesisParams},
+    utils::testonly::{recover, snapshot, Snapshot},
+};
 
 impl Store {
-    /// Waits for the `number` miniblock.
-    pub async fn wait_for_block(
-        &self,
-        ctx: &ctx::Ctx,
-        number: validator::BlockNumber,
-    ) -> ctx::Result<Payload> {
-        const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
-        loop {
-            if let Some(payload) = self
-                .access(ctx)
-                .await
-                .wrap("access()")?
-                .payload(ctx, number)
-                .await
-                .wrap("payload()")?
-            {
-                return Ok(payload);
-            }
-            ctx.sleep(POLL_INTERVAL).await?;
-        }
-    }
-
     /// Waits for the `number` miniblock to have a certificate.
     pub async fn wait_for_certificate(
         &self,
@@ -38,20 +20,18 @@ impl Store {
         number: validator::BlockNumber,
     ) -> ctx::Result<()> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
-        loop {
-            if self
-                .access(ctx)
-                .await
-                .wrap("access()")?
-                .certificate(ctx, number)
-                .await
-                .wrap("certificate()")?
-                .is_some()
-            {
-                return Ok(());
-            }
+        while self
+            .access(ctx)
+            .await
+            .wrap("access()")?
+            .certificate(ctx, number)
+            .await
+            .wrap("certificate()")?
+            .is_none()
+        {
             ctx.sleep(POLL_INTERVAL).await?;
         }
+        Ok(())
     }
 
     /// Waits for `want_last` block to have certificate, then fetches all miniblocks with certificates
@@ -71,5 +51,33 @@ impl Store {
             block.verify(&genesis).context(block.header().number)?;
         }
         Ok(blocks)
+    }
+
+    /// Takes a storage snapshot at the last sealed L1 batch.
+    pub(crate) async fn snapshot(&self, ctx: &ctx::Ctx) -> ctx::Result<Snapshot> {
+        let mut conn = self.access(ctx).await.wrap("access()")?;
+        Ok(ctx.wait(snapshot(&mut conn.0)).await?)
+    }
+
+    /// Constructs a new db initialized with genesis state.
+    pub(crate) async fn from_genesis() -> Self {
+        let pool = ConnectionPool::test_pool().await;
+        {
+            let mut storage = pool.connection().await.unwrap();
+            insert_genesis_batch(&mut storage, &GenesisParams::mock())
+                .await
+                .unwrap();
+        }
+        Self(pool)
+    }
+
+    /// Recovers storage from a snapshot.
+    pub(crate) async fn from_snapshot(snapshot: Snapshot) -> Self {
+        let pool = ConnectionPool::test_pool().await;
+        {
+            let mut storage = pool.connection().await.unwrap();
+            recover(&mut storage, snapshot).await;
+        }
+        Self(pool)
     }
 }

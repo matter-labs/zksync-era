@@ -5,5 +5,5 @@ package zksync.config.base_token_fetcher;
 message BaseTokenFetcher {
     optional uint64 poll_interval = 1;
     optional string host = 2;
-    optional bytes token_address = 3;
+    optional string token_address = 3;
 }

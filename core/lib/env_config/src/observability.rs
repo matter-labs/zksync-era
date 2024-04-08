@@ -1,4 +1,4 @@
-use zksync_config::configs::ObservabilityConfig;
+use zksync_config::configs::{ObservabilityConfig, OpentelemetryConfig};
 
 use crate::FromEnv;
 
@@ -33,11 +33,23 @@ impl FromEnv for ObservabilityConfig {
         } else {
             "plain".to_string()
         };
+        let opentelemetry_level = std::env::var("OPENTELEMETRY_LEVEL").ok();
+        let otlp_endpoint = std::env::var("OTLP_ENDPOINT").ok();
+        let opentelemetry = match (opentelemetry_level, otlp_endpoint) {
+            (Some(level), Some(endpoint)) => Some(OpentelemetryConfig { level, endpoint }),
+            _ => None,
+        };
+        let sporadic_crypto_errors_substrs = std::env::var("ALERTS_SPORADIC_CRYPTO_ERRORS_SUBSTRS")
+            .ok()
+            .map(|a| a.split(',').map(|a| a.to_string()).collect())
+            .unwrap_or_default();
 
         Ok(ObservabilityConfig {
             sentry_url,
             sentry_environment,
             log_format,
+            opentelemetry,
+            sporadic_crypto_errors_substrs,
         })
     }
 }

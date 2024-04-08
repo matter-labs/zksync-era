@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_utils::time::seconds_since_epoch;
 
 use crate::{
@@ -10,11 +10,11 @@ use crate::{
 #[derive(Debug)]
 pub struct L1BatchMetricsReporter {
     reporting_interval_ms: u64,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Core>,
 }
 
 impl L1BatchMetricsReporter {
-    pub fn new(reporting_interval_ms: u64, connection_pool: ConnectionPool) -> Self {
+    pub fn new(reporting_interval_ms: u64, connection_pool: ConnectionPool<Core>) -> Self {
         Self {
             reporting_interval_ms,
             connection_pool,
@@ -23,7 +23,7 @@ impl L1BatchMetricsReporter {
 
     async fn report_metrics(&self) {
         let mut block_metrics = vec![];
-        let mut conn = self.connection_pool.access_storage().await.unwrap();
+        let mut conn = self.connection_pool.connection().await.unwrap();
         let last_l1_batch = conn
             .blocks_dal()
             .get_sealed_l1_batch_number()

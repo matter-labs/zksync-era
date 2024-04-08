@@ -7,7 +7,7 @@ use multivm::{
     VmInstance,
 };
 use tokio::runtime::Handle;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Connection, Core};
 use zksync_state::{PostgresStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{L1BatchNumber, L2ChainId, Transaction};
 
@@ -21,7 +21,7 @@ pub type VmAndStorage<'a> = (
 pub fn create_vm(
     rt_handle: Handle,
     l1_batch_number: L1BatchNumber,
-    mut connection: StorageProcessor<'_>,
+    mut connection: Connection<'_, Core>,
     l2_chain_id: L2ChainId,
 ) -> anyhow::Result<VmAndStorage> {
     let l1_batch_params_provider = rt_handle

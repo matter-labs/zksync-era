@@ -1,31 +1,36 @@
+use multivm::interface::FinishedL1Batch;
 use zksync_types::{
     block::BlockGasCount,
     priority_op_onchain_data::PriorityOpOnchainData,
     tx::{tx_execution_info::ExecutionMetrics, TransactionExecutionResult},
-    ExecuteTransactionCommon,
+    ExecuteTransactionCommon, L1BatchNumber,
 };
 
 use super::miniblock_updates::MiniblockUpdates;
 use crate::gas_tracker::new_block_gas_count;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 pub struct L1BatchUpdates {
+    pub number: L1BatchNumber,
     pub executed_transactions: Vec<TransactionExecutionResult>,
     pub priority_ops_onchain_data: Vec<PriorityOpOnchainData>,
     pub block_execution_metrics: ExecutionMetrics,
     // how much L1 gas will it take to submit this block?
     pub l1_gas_count: BlockGasCount,
     pub txs_encoding_size: usize,
+    pub finished: Option<FinishedL1Batch>,
 }
 
 impl L1BatchUpdates {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(number: L1BatchNumber) -> Self {
         Self {
+            number,
             executed_transactions: Default::default(),
             priority_ops_onchain_data: Default::default(),
             block_execution_metrics: Default::default(),
             l1_gas_count: new_block_gas_count(),
             txs_encoding_size: 0,
+            finished: None,
         }
     }
 
@@ -48,7 +53,7 @@ impl L1BatchUpdates {
 #[cfg(test)]
 mod tests {
     use multivm::vm_latest::TransactionVmExt;
-    use zksync_types::{ProtocolVersionId, H256};
+    use zksync_types::{MiniblockNumber, ProtocolVersionId, H256};
 
     use super::*;
     use crate::{
@@ -58,8 +63,13 @@ mod tests {
 
     #[test]
     fn apply_miniblock_with_empty_tx() {
-        let mut miniblock_accumulator =
-            MiniblockUpdates::new(0, 0, H256::zero(), 1, ProtocolVersionId::latest());
+        let mut miniblock_accumulator = MiniblockUpdates::new(
+            0,
+            MiniblockNumber(0),
+            H256::zero(),
+            1,
+            ProtocolVersionId::latest(),
+        );
         let tx = create_transaction(10, 100);
         let expected_tx_size = tx.bootloader_encoding_size();
 
@@ -72,7 +82,7 @@ mod tests {
             vec![],
         );
 
-        let mut l1_batch_accumulator = L1BatchUpdates::new();
+        let mut l1_batch_accumulator = L1BatchUpdates::new(L1BatchNumber(1));
         l1_batch_accumulator.extend_from_sealed_miniblock(miniblock_accumulator);
 
         assert_eq!(l1_batch_accumulator.executed_transactions.len(), 1);

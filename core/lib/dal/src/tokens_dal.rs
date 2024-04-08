@@ -1,23 +1,30 @@
 use sqlx::types::chrono::Utc;
+use zksync_db_connection::{
+    connection::Connection,
+    error::DalResult,
+    instrument::{CopyStatement, InstrumentExt},
+    write_str, writeln_str,
+};
 use zksync_types::{tokens::TokenInfo, Address, MiniblockNumber};
 
-use crate::StorageProcessor;
+use crate::{Core, CoreDal};
 
 #[derive(Debug)]
 pub struct TokensDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl TokensDal<'_, '_> {
-    pub async fn add_tokens(&mut self, tokens: &[TokenInfo]) -> sqlx::Result<()> {
-        let mut copy = self
-            .storage
-            .conn()
-            .copy_in_raw(
-                "COPY tokens (l1_address, l2_address, name, symbol, decimals, well_known, created_at, updated_at)
-                FROM STDIN WITH (DELIMITER '|')",
-            )
-            .await?;
+    pub async fn add_tokens(&mut self, tokens: &[TokenInfo]) -> DalResult<()> {
+        let tokens_len = tokens.len();
+        let copy = CopyStatement::new(
+            "COPY tokens (l1_address, l2_address, name, symbol, decimals, well_known, created_at, updated_at)
+             FROM STDIN WITH (DELIMITER '|')",
+        )
+        .instrument("add_tokens")
+        .with_arg("tokens.len", &tokens_len)
+        .start(self.storage)
+        .await?;
 
         let mut buffer = String::new();
         let now = Utc::now().naive_utc().to_string();
@@ -36,12 +43,10 @@ impl TokensDal<'_, '_> {
                 token_info.metadata.decimals
             );
         }
-        copy.send(buffer.as_bytes()).await?;
-        copy.finish().await?;
-        Ok(())
+        copy.send(buffer.as_bytes()).await
     }
 
-    pub async fn mark_token_as_well_known(&mut self, l1_address: Address) -> sqlx::Result<()> {
+    pub async fn mark_token_as_well_known(&mut self, l1_address: Address) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE tokens
@@ -53,12 +58,14 @@ impl TokensDal<'_, '_> {
             "#,
             l1_address.as_bytes()
         )
-        .execute(self.storage.conn())
+        .instrument("mark_token_as_well_known")
+        .with_arg("l1_address", &l1_address)
+        .execute(self.storage)
         .await?;
         Ok(())
     }
 
-    pub async fn get_all_l2_token_addresses(&mut self) -> sqlx::Result<Vec<Address>> {
+    pub async fn get_all_l2_token_addresses(&mut self) -> DalResult<Vec<Address>> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -67,7 +74,9 @@ impl TokensDal<'_, '_> {
                 tokens
             "#
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_all_l2_token_addresses")
+        .report_latency()
+        .fetch_all(self.storage)
         .await?;
 
         Ok(rows
@@ -77,7 +86,7 @@ impl TokensDal<'_, '_> {
     }
 
     /// Removes token records that were deployed after `block_number`.
-    pub async fn rollback_tokens(&mut self, block_number: MiniblockNumber) -> sqlx::Result<()> {
+    pub async fn rollback_tokens(&mut self, block_number: MiniblockNumber) -> DalResult<()> {
         let all_token_addresses = self.get_all_l2_token_addresses().await?;
         let token_deployment_data = self
             .storage
@@ -96,7 +105,13 @@ impl TokensDal<'_, '_> {
             "#,
             &token_addresses_to_be_removed as &[_]
         )
-        .execute(self.storage.conn())
+        .instrument("rollback_tokens")
+        .with_arg("block_number", &block_number)
+        .with_arg(
+            "token_addresses_to_be_removed.len",
+            &token_addresses_to_be_removed.len(),
+        )
+        .execute(self.storage)
         .await?;
 
         Ok(())
@@ -111,7 +126,7 @@ mod tests {
     use zksync_types::{get_code_key, tokens::TokenMetadata, StorageLog, H256};
 
     use super::*;
-    use crate::ConnectionPool;
+    use crate::{ConnectionPool, Core, CoreDal};
 
     fn test_token_info() -> TokenInfo {
         TokenInfo {
@@ -139,8 +154,8 @@ mod tests {
 
     #[tokio::test]
     async fn adding_and_getting_tokens() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut storage = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
         let tokens = [test_token_info(), eth_token_info()];
         storage.tokens_dal().add_tokens(&tokens).await.unwrap();
 
@@ -186,8 +201,8 @@ mod tests {
 
     #[tokio::test]
     async fn rolling_back_tokens() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut storage = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
 
         let eth_info = eth_token_info();
         let eth_deployment_log =
@@ -256,7 +271,7 @@ mod tests {
         );
     }
 
-    async fn test_getting_all_tokens(storage: &mut StorageProcessor<'_>) {
+    async fn test_getting_all_tokens(storage: &mut Connection<'_, Core>) {
         for at_miniblock in [None, Some(MiniblockNumber(2)), Some(MiniblockNumber(100))] {
             let all_tokens = storage
                 .tokens_web3_dal()
@@ -280,8 +295,8 @@ mod tests {
 
     #[tokio::test]
     async fn rolling_back_tokens_with_failed_deployment() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut storage = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
 
         let test_info = test_token_info();
 

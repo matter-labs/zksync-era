@@ -4,42 +4,42 @@
 //! * protobuf text format
 //! * protobuf json format
 
-mod alerts;
 mod api;
 mod base_token_fetcher;
 mod chain;
+mod circuit_breaker;
 mod contract_verifier;
 mod contracts;
 mod database;
-mod eth_client;
-mod eth_sender;
-mod eth_watch;
-mod fri_proof_compressor;
-mod fri_prover;
-mod fri_prover_gateway;
-mod fri_prover_group;
-mod fri_witness_generator;
-mod fri_witness_vector_generator;
+mod eth;
+mod general;
+mod genesis;
 mod house_keeper;
 mod object_store;
 mod observability;
 mod proof_data_handler;
-mod snapshots_creator;
-mod witness_generator;
-
 pub mod proto;
+mod prover;
+mod snapshots_creator;
 pub mod testonly;
 #[cfg(test)]
 mod tests;
 mod utils;
+mod wallets;
 
-use anyhow::Context as _;
+use std::str::FromStr;
+
+use zksync_protobuf::ProtoRepr;
 use zksync_types::{H160, H256};
 
-fn parse_h256(bytes: &[u8]) -> anyhow::Result<H256> {
-    Ok(<[u8; 32]>::try_from(bytes).context("invalid size")?.into())
+fn parse_h256(bytes: &str) -> anyhow::Result<H256> {
+    Ok(H256::from_str(bytes)?)
 }
 
-fn parse_h160(bytes: &[u8]) -> anyhow::Result<H160> {
-    Ok(<[u8; 20]>::try_from(bytes).context("invalid size")?.into())
+fn parse_h160(bytes: &str) -> anyhow::Result<H160> {
+    Ok(H160::from_str(bytes)?)
+}
+
+fn read_optional_repr<P: ProtoRepr>(field: &Option<P>) -> anyhow::Result<Option<P::Type>> {
+    field.as_ref().map(|x| x.read()).transpose()
 }

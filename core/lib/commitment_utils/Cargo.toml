@@ -1,20 +1,20 @@
 [package]
 name = "zksync_commitment_utils"
 version = "0.1.0"
-edition = "2018"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-zksync_types = { path = "../../lib/types" }
-zksync_utils = { path = "../../lib/utils" }
-circuit_sequencer_api_1_4_0 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0" }
-circuit_sequencer_api_1_4_1 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1" }
+zksync_types.workspace = true
+zksync_utils.workspace = true
+circuit_sequencer_api_1_4_0.workspace = true
+circuit_sequencer_api_1_4_1.workspace = true
 
-zk_evm_1_4_1 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.4.1" }
-zk_evm_1_3_3 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", tag = "v1.3.3-rc2" }
-multivm = { path = "../../lib/multivm" }
+zk_evm_1_4_1.workspace = true
+zk_evm_1_3_3.workspace = true
+multivm.workspace = true

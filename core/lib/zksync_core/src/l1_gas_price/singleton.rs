@@ -8,7 +8,8 @@ use tokio::{
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::clients::QueryClient;
 
-use crate::{base_token_fetcher::ConversionRateFetcher, l1_gas_price::GasAdjuster};
+use super::PubdataPricing;
+use crate::{l1_gas_price::GasAdjuster, ConversionRateFetcher};
 
 /// Special struct for creating a singleton of `GasAdjuster`.
 /// This is needed only for running the server.
@@ -19,6 +20,7 @@ pub struct GasAdjusterSingleton {
     pubdata_sending_mode: PubdataSendingMode,
     singleton: OnceCell<Result<Arc<GasAdjuster>, Error>>,
     base_token_fetcher: Arc<dyn ConversionRateFetcher>,
+    pubdata_pricing: Arc<dyn PubdataPricing>,
 }
 
 #[derive(thiserror::Error, Debug, Clone)]
@@ -37,6 +39,7 @@ impl GasAdjusterSingleton {
         gas_adjuster_config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
         base_token_fetcher: Arc<dyn ConversionRateFetcher>,
+        pubdata_pricing: Arc<dyn PubdataPricing>,
     ) -> Self {
         Self {
             web3_url,
@@ -44,6 +47,7 @@ impl GasAdjusterSingleton {
             pubdata_sending_mode,
             singleton: OnceCell::new(),
             base_token_fetcher,
+            pubdata_pricing,
         }
     }
 
@@ -58,6 +62,7 @@ impl GasAdjusterSingleton {
                     self.gas_adjuster_config,
                     self.pubdata_sending_mode,
                     self.base_token_fetcher.clone(),
+                    self.pubdata_pricing.clone(),
                 )
                 .await
                 .context("GasAdjuster::new()")?;

@@ -5,15 +5,15 @@ use assert_matches::assert_matches;
 use super::*;
 use crate::{
     api_server::{execution_sandbox::apply::apply_vm_in_sandbox, tx_sender::ApiContracts},
-    genesis::{ensure_genesis_state, GenesisParams},
+    genesis::{insert_genesis_batch, GenesisParams},
     utils::testonly::{create_l2_transaction, create_miniblock, prepare_recovery_snapshot},
 };
 
 #[tokio::test]
 async fn creating_block_args() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
     let miniblock = create_miniblock(1);
@@ -66,8 +66,8 @@ async fn creating_block_args() {
 
 #[tokio::test]
 async fn creating_block_args_after_snapshot_recovery() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     let snapshot_recovery =
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
 
@@ -158,9 +158,9 @@ async fn creating_block_args_after_snapshot_recovery() {
 
 #[tokio::test]
 async fn instantiating_vm() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
 
@@ -173,7 +173,7 @@ async fn instantiating_vm() {
     test_instantiating_vm(pool.clone(), block_args).await;
 }
 
-async fn test_instantiating_vm(pool: ConnectionPool, block_args: BlockArgs) {
+async fn test_instantiating_vm(pool: ConnectionPool<Core>, block_args: BlockArgs) {
     let (vm_concurrency_limiter, _) = VmConcurrencyLimiter::new(1);
     let vm_permit = vm_concurrency_limiter.acquire().await.unwrap();
     let transaction = create_l2_transaction(10, 100).into();

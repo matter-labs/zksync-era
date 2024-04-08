@@ -13,6 +13,9 @@ use zksync_types::{
     Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H2048, H256,
 };
 
+/// This is the gas limit that was used inside blocks before we started saving block gas limit into the database.
+pub const LEGACY_BLOCK_GAS_LIMIT: u32 = u32::MAX;
+
 #[derive(Debug, Error)]
 pub enum StorageL1BatchConvertError {
     #[error("Incomplete L1 batch")]
@@ -421,6 +424,10 @@ pub struct StorageMiniblockHeader {
     // `min(virtual_blocks`, `miniblock_number - virtual_block_number`), i.e. making sure that virtual blocks
     // never go beyond the miniblock they are based on.
     pub virtual_blocks: i64,
+
+    /// The formal value of the gas limit for the miniblock.
+    /// This value should bound the maximal amount of gas that can be spent by transactions in the miniblock.
+    pub gas_limit: Option<i64>,
 }
 
 impl From<StorageMiniblockHeader> for MiniblockHeader {
@@ -462,6 +469,7 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
             gas_per_pubdata_limit: row.gas_per_pubdata_limit as u64,
             protocol_version,
             virtual_blocks: row.virtual_blocks as u32,
+            gas_limit: row.gas_limit.unwrap_or(i64::from(LEGACY_BLOCK_GAS_LIMIT)) as u64,
         }
     }
 }

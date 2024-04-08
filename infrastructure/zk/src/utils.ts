@@ -26,7 +26,7 @@ const IGNORED_DIRS = [
     'cache-zk',
     'contracts/l1-contracts/lib'
 ];
-const IGNORED_FILES = ['KeysWithPlonkVerifier.sol', 'TokenInit.sol', '.tslintrc.js'];
+const IGNORED_FILES = ['KeysWithPlonkVerifier.sol', 'TokenInit.sol', '.tslintrc.js', '.prettierrc.js'];
 
 // async executor of shell commands
 // spawns a new shell and can execute arbitrary commands, like "ls -la | grep .env"
@@ -140,7 +140,7 @@ export function web3Url() {
 
 export async function readZkSyncAbi() {
     const zksync = process.env.ZKSYNC_HOME;
-    const path = `${zksync}/contracts/artifacts/cache/solpp-generated-contracts/interfaces/IZkSync.sol/IZkSync.json`;
+    const path = `${zksync}/contracts/l1-contracts/artifacts/contracts/state-transition/chain-interfaces/IZkSyncStateTransition.sol/IZkSyncStateTransition.json`;
 
     const fileContent = (await fs.promises.readFile(path)).toString();
 
