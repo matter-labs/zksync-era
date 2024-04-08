@@ -1,0 +1,17 @@
+[package]
+name = "prover_cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+env_logger = "0.10"
+log = "0.4"
+clap = { version = "4.3", features = ["derive"] }
+eyre = "0.6"
