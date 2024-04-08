@@ -311,6 +311,18 @@ impl<'a> Instrumented<'a, ()> {
         .into()
     }
 
+    /// Wraps a provided application-level data constraint error.
+    pub fn constraint_error(&self, err: anyhow::Error) -> DalError {
+        let err = err.context("application-level data constraint violation");
+        DalRequestError::new(
+            sqlx::Error::Decode(err.into()),
+            self.data.name,
+            self.data.location,
+        )
+        .with_args(self.data.args.to_owned())
+        .into()
+    }
+
     pub fn with<Q>(self, query: Q) -> Instrumented<'a, Q> {
         Instrumented {
             query,

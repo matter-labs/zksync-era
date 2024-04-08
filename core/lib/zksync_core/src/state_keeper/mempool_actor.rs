@@ -73,11 +73,7 @@ impl MempoolFetcher {
                 .context("failed removing stuck transactions")?;
             tracing::info!("Number of stuck txs was removed: {removed_txs}");
         }
-        storage
-            .transactions_dal()
-            .reset_mempool()
-            .await
-            .context("failed resetting mempool")?;
+        storage.transactions_dal().reset_mempool().await?;
         drop(storage);
 
         loop {
