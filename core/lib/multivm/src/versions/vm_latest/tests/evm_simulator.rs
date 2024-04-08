@@ -179,6 +179,61 @@ fn test_basic_evm_vectors() {
     );
 }
 
+#[test]
+fn test_basic_addmod_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push32 8
+                hex::decode("7F").unwrap(),
+                u256_to_h256(8.into()).0.to_vec(),
+                // push32 7
+                hex::decode("7F").unwrap(),
+                u256_to_h256(7.into()).0.to_vec(),
+                // push32 11
+                hex::decode("7F").unwrap(),
+                u256_to_h256(11.into()).0.to_vec(),
+                // addmod
+                hex::decode("08").unwrap(),
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        2.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push32 23
+                hex::decode("7F").unwrap(),
+                u256_to_h256(23.into()).0.to_vec(),
+                // push32 42
+                hex::decode("7F").unwrap(),
+                u256_to_h256(42.into()).0.to_vec(),
+                // push32 27
+                hex::decode("7F").unwrap(),
+                u256_to_h256(27.into()).0.to_vec(),
+                // addmod
+                hex::decode("08").unwrap(),
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+}
+
 fn assert_deployed_hash<H: HistoryMode>(
     tester: &mut VmTester<H>,
     address: Address,
