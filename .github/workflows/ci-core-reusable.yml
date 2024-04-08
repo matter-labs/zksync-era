@@ -59,7 +59,7 @@ jobs:
           ci_run zk contract build
 
       - name: Contracts unit tests
-        run: CHAIN_ETH_NETWORK=hardhat ci_run zk test l1-contracts
+        run: ci_run yarn l1-contracts test
 
       - name: Rust unit tests
         run: ci_run zk test rust
@@ -189,6 +189,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
           if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
+            ci_run zk config compile
             ci_run zk init ${{ matrix.base_token == 'Custom' && '--base-token-name BAT' || ''}}
           elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
             ci_run zk env dev_validium_docker
@@ -309,6 +310,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
           if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
+            ci_run zk config compile
             ci_run zk init ${{ matrix.base_token == 'Custom' && '--base-token-name BAT' || ''}}
           elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
             ci_run zk env dev_validium_docker
