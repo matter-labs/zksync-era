@@ -345,8 +345,9 @@ impl Keystore {
 
     pub fn save_keys_from_data_source(&self, source: &dyn SetupDataSource) -> anyhow::Result<()> {
         // Base circuits
-        for base_circuit_type in
-            (BaseLayerCircuitType::VM as u8)..=(BaseLayerCircuitType::L1MessagesHasher as u8)
+        for base_circuit_type in ((BaseLayerCircuitType::VM as u8)
+            ..=(BaseLayerCircuitType::Secp256r1Verify as u8))
+            .chain(std::iter::once(BaseLayerCircuitType::EIP4844Repack as u8))
         {
             let vk = source.get_base_layer_vk(base_circuit_type).map_err(|err| {
                 anyhow::anyhow!("No vk exist for circuit type: {base_circuit_type}: {err}")
@@ -368,7 +369,7 @@ impl Keystore {
         }
         // Leaf circuits
         for leaf_circuit_type in (ZkSyncRecursionLayerStorageType::LeafLayerCircuitForMainVM as u8)
-            ..=(ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8)
+            ..=(ZkSyncRecursionLayerStorageType::LeafLayerCircuitForEIP4844Repack as u8)
         {
             let vk = source
                 .get_recursion_layer_vk(leaf_circuit_type)

@@ -51,12 +51,11 @@ fn circuit_commitments(keystore: &Keystore) -> anyhow::Result<L1VerifierConfig> 
 
 pub fn generate_commitments(keystore: &Keystore) -> anyhow::Result<VkCommitments> {
     let leaf_vk_params = get_leaf_vk_params(keystore).context("get_leaf_vk_params()")?;
-    let leaf_layer_params = leaf_vk_params
+    let x = leaf_vk_params
         .iter()
         .map(|el| el.1.clone())
-        .collect::<Vec<_>>()
-        .try_into()
-        .unwrap();
+        .collect::<Vec<_>>();
+    let leaf_layer_params = x.try_into().unwrap();
     let leaf_vk_commitment = compute_leaf_vks_and_params_commitment(leaf_layer_params);
 
     let node_vk = keystore

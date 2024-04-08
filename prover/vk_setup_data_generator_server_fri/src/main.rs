@@ -48,15 +48,15 @@ fn generate_vks(keystore: &Keystore) -> anyhow::Result<()> {
     // tracing::info!("Generating 4844 base layer.");
     // generate_eip4844_vks(&mut in_memory_source)
     //     .map_err(|err| anyhow::anyhow!("Failed generating 4844 vk's: {err}"))?;
-
+    println!("big business");
     tracing::info!("Generating verification keys for Recursive layer.");
     generate_recursive_layer_vks_and_proofs(&mut in_memory_source)
         .map_err(|err| anyhow::anyhow!("Failed generating recursive vk's: {err}"))?;
-
+    println!("Emil was here");
     tracing::info!("Saving keys & hints");
 
     keystore.save_keys_from_data_source(&in_memory_source)?;
-
+    println!("saving completed");
     // Generate snark VK
     let scheduler_vk = in_memory_source
         .get_recursion_layer_vk(ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8)
@@ -66,11 +66,12 @@ fn generate_vks(keystore: &Keystore) -> anyhow::Result<()> {
     // Compression mode is 1
     let config = WrapperConfig::new(1);
 
+    println!("Uh");
     let (_, vk) = get_wrapper_setup_and_vk_from_scheduler_vk(scheduler_vk, config);
     keystore
         .save_snark_verification_key(vk)
         .context("save_snark_vk")?;
-
+    println!("Oh");
     // Let's also update the commitments file.
     keystore.save_commitments(&generate_commitments(keystore)?)
 }
