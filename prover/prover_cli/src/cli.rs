@@ -1,6 +1,6 @@
-use crate::commands::status;
-
 use clap::{command, Parser, Subcommand};
+
+use crate::commands::{get_proof_progress, status};
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
@@ -14,12 +14,14 @@ struct ProverCLI {
 #[derive(Subcommand)]
 enum ProverCommand {
     Status,
+    GetProofProgress,
 }
 
 pub async fn start() -> eyre::Result<()> {
     let ProverCLI { command } = ProverCLI::parse();
     match command {
         ProverCommand::Status => status::run().await?,
+        ProverCommand::GetProofProgress => get_proof_progress::run().await?,
     };
 
     Ok(())

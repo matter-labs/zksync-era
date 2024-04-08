@@ -15,3 +15,23 @@ env_logger = "0.10"
 log = "0.4"
 clap = { version = "4.3", features = ["derive"] }
 eyre = "0.6"
+
+anyhow.workspace = true
+zksync_config.workspace = true
+zksync_env_config.workspace = true
+zksync_db_connection.workspace = true
+zksync_basic_types.workspace = true
+zksync_types.workspace = true
+prover_dal.workspace = true
+sqlx = { workspace = true, features = [
+    "runtime-tokio",
+    "tls-native-tls",
+    "macros",
+    "postgres",
+    "bigdecimal",
+    "rust_decimal",
+    "chrono",
+    "json",
+    "migrate",
+    "ipnetwork",
+] }
