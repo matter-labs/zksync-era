@@ -121,7 +121,7 @@ jobs:
           ci_run cat /tmp/sccache_log.txt
 
   integration:
-    name: Integration (consensus=${{ matrix.consensus }}, deployment_mode=${{ matrix.deployment_mode }})
+    name: Integration (consensus=${{ matrix.consensus }}, deployment_mode=${{ matrix.deployment_mode }}, base_token=${{ matrix.base_token }})
     strategy:
       # In matrix jobs, fail-fast is true by default.
       # To be consistent with the rest of the workflow we disable it explicitly.
@@ -189,11 +189,11 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
           if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
-            ci_run zk init ${{ matrix.base_token == "Custom" && '--base-token-name BAT' || ''}}
+            ci_run zk init ${{ matrix.base_token == 'Custom' && '--base-token-name BAT' || ''}}
           elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
             ci_run zk env dev_validium_docker
             ci_run zk config compile dev_validium_docker
-            ci_run zk init ${{ matrix.base_token == "Custom" && '--base-token-name BAT' || ''}} --validium-mode
+            ci_run zk init ${{ matrix.base_token == 'Custom' && '--base-token-name BAT' || ''}} --validium-mode
           fi
 
       # `sleep 5` because we need to wait until server started properly
@@ -268,12 +268,13 @@ jobs:
           ci_run cat /tmp/sccache_log.txt
 
   external-node:
-    name: External node (consensus=${{ matrix.consensus }}, deployment_mode=${{ matrix.deployment_mode }})
+    name: External node (consensus=${{ matrix.consensus }}, deployment_mode=${{ matrix.deployment_mode }}, base_token=${{ matrix.base_token }})
     strategy:
       fail-fast: false
       matrix:
         consensus: [false, true]
         deployment_mode: ["Rollup", "Validium"]
+        base_token: ["Eth", "Custom"]
     runs-on: [matterlabs-ci-runner]
 
     env:
@@ -308,11 +309,11 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
           if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
-            ci_run zk init ${{ matrix.base_token == "Custom" && '--base-token-name BAT' || ''}}
+            ci_run zk init ${{ matrix.base_token == 'Custom' && '--base-token-name BAT' || ''}}
           elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
             ci_run zk env dev_validium_docker
             ci_run zk config compile dev_validium_docker
-            ci_run zk init ${{ matrix.base_token == "Custom" && '--base-token-name BAT' || ''}} --validium-mode
+            ci_run zk init ${{ matrix.base_token == 'Custom' && '--base-token-name BAT' || ''}} --validium-mode
           fi
 
       # `sleep 30` because we need to wait until server started properly
