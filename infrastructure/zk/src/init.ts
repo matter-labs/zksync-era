@@ -50,6 +50,9 @@ const initSetup = async ({
     runObservability,
     deploymentMode
 }: InitSetupOptions): Promise<void> => {
+    await announced(
+        `Initializing in ${deploymentMode == contract.DeploymentMode.Validium ? 'Validium mode' : 'Roll-up mode'}`
+    );
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
         await announced('Checking environment', checkEnv());
@@ -94,9 +97,15 @@ const deployTestTokens = async (options?: DeployTestTokensOptions) => {
 };
 
 // Deploys and verifies L1 contracts and initializes governance
-const initBridgehubStateTransition = async () => {
+const initBridgehubStateTransition = async (deploymentMode: DeploymentMode) => {
     await announced('Running server genesis setup', server.genesisFromSources({ setChainId: false }));
-    await announced('Deploying L1 contracts', contract.deployL1(['']));
+    if (deploymentMode == DeploymentMode.Validium) {
+        await announced('Deploying L1 contracts', contract.deployL1(['--validium-mode']));
+    } else if (deploymentMode == DeploymentMode.Rollup) {
+        await announced('Deploying L1 contracts', contract.deployL1(['']));
+    } else {
+        throw new Error('Invalid deployment mode');
+    }
     await announced('Verifying L1 contracts', contract.verifyL1Contracts());
     await announced('Initializing governance', contract.initializeGovernance());
     await announced('Reloading env', env.reload());
@@ -115,6 +124,7 @@ type InitDevCmdActionOptions = InitSetupOptions & {
     skipTestTokenDeployment?: boolean;
     testTokenOptions?: DeployTestTokensOptions;
     baseTokenName?: string;
+    validiumMode?: boolean;
 };
 export const initDevCmdAction = async ({
     skipEnvSetup,
@@ -123,14 +133,15 @@ export const initDevCmdAction = async ({
     testTokenOptions,
     baseTokenName,
     runObservability,
-    deploymentMode
+    validiumMode
 }: InitDevCmdActionOptions): Promise<void> => {
+    let deploymentMode = validiumMode !== undefined ? contract.DeploymentMode.Validium : contract.DeploymentMode.Rollup
     await initSetup({ skipEnvSetup, skipSubmodulesCheckout, runObservability, deploymentMode });
     await initDatabase({ skipVerifierDeployment: false });
     if (!skipTestTokenDeployment) {
         await deployTestTokens(testTokenOptions);
     }
-    await initBridgehubStateTransition();
+    await initBridgehubStateTransition(deploymentMode);
     await initDatabase({ skipVerifierDeployment: true });
     await initHyperchain({ includePaymaster: true, baseTokenName });
 };
@@ -156,7 +167,7 @@ type InitSharedBridgeCmdActionOptions = InitSetupOptions;
 const initSharedBridgeCmdAction = async (options: InitSharedBridgeCmdActionOptions): Promise<void> => {
     await initSetup(options);
     await initDatabase({ skipVerifierDeployment: false });
-    await initBridgehubStateTransition();
+    await initBridgehubStateTransition(options.deploymentMode);
 };
 
 type InitHyperCmdActionOptions = {
@@ -188,6 +199,7 @@ export const initCommand = new Command('init')
     .option('--skip-submodules-checkout')
     .option('--skip-env-setup')
     .option('--base-token-name <base-token-name>', 'base token name')
+    .option('--validium-mode')
     .description('Deploys the shared bridge and registers a hyperchain locally, as quickly as possible.')
     .action(initDevCmdAction);
 
