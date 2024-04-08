@@ -209,11 +209,12 @@ describe('ERC20 contract checks', () => {
     });
 
     test('Can perform a deposit with precalculated max value', async () => {
+        const baseTokenBalance = await alice.getBalanceL1(baseTokenDetails.l1Address);
         const maxAmount = await alice.getBalanceL1(tokenDetails.l1Address);
 
         // Approving the needed allowance to ensure that the user has enough funds.
-        await (await alice.approveERC20(baseTokenDetails.l1Address, maxAmount)).wait();
-        await (await alice.approveERC20(tokenDetails.l1Address, maxAmount)).wait();
+        await (await alice.approveERC20(baseTokenDetails.l1Address, baseTokenBalance)).wait();
+        await (await alice.approveERC20(tokenDetails.l1Address, maxAmount.mul(100))).wait();
 
         const depositFee = await alice.getFullRequiredDepositFee({
             token: tokenDetails.l1Address
