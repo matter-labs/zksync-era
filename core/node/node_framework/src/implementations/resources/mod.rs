@@ -11,3 +11,4 @@ pub mod pools;
 pub mod state_keeper;
 pub mod sync_state;
 pub mod web3_api;
+pub mod conversion_rate_fetcher;
