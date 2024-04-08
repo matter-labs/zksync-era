@@ -16,8 +16,10 @@ vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev
 zksync_state = { path = "../state" }
 vm_utils = { path = "../vm_utils" }
 zksync_types = { path = "../types" }
+zksync_basic_types = { path = "../basic_types" }
 zksync_dal = { path = "../dal" }
 zksync_config = { path = "../config" }
+zksync_crypto = { path = "../crypto" }
 zksync_env_config = { path = "../env_config" }
 zksync_utils = { path = "../utils" }
 zksync_contracts = { path = "../contracts" }

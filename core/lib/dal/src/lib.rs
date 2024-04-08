@@ -1,5 +1,6 @@
 //! Data access layer (DAL) for zkSync Era.
 
+use sgx_2fa_dal::Sgx2faDal;
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
 
 pub use crate::connection::{ConnectionPool, StorageProcessor};
@@ -48,6 +49,7 @@ mod models;
 pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
 pub mod protocol_versions_web3_dal;
+pub mod sgx_2fa_dal;
 pub mod snapshot_recovery_dal;
 pub mod snapshots_creator_dal;
 pub mod snapshots_dal;
@@ -123,6 +125,10 @@ impl<'a> StorageProcessor<'a> {
 
     pub fn storage_logs_dedup_dal(&mut self) -> StorageLogsDedupDal<'_, 'a> {
         StorageLogsDedupDal { storage: self }
+    }
+
+    pub fn sgx_2fa_dal(&mut self) -> Sgx2faDal<'_, 'a> {
+        Sgx2faDal { storage: self }
     }
 
     pub fn tokens_dal(&mut self) -> TokensDal<'_, 'a> {

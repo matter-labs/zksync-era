@@ -73,6 +73,7 @@ use crate::{
     l1_gas_price::GasAdjusterSingleton,
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     metrics::{InitStage, APP_METRICS},
+    sgx_2fa::Sgx2fa,
     state_keeper::{
         create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer, SequencerSealer,
     },
@@ -95,6 +96,7 @@ pub mod metadata_calculator;
 mod metrics;
 pub mod proof_data_handler;
 pub mod reorg_detector;
+pub mod sgx_2fa;
 pub mod state_keeper;
 pub mod sync_layer;
 pub mod temp_config_store;
@@ -254,6 +256,8 @@ pub enum Component {
     Consensus,
     /// Component generating commitment for L1 batches.
     CommitmentGenerator,
+    /// Component to verify execution integrity using SGX.
+    Sgx2fa,
 }
 
 #[derive(Debug)]
@@ -290,6 +294,7 @@ impl FromStr for Components {
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
             "consensus" => Ok(Components(vec![Component::Consensus])),
             "commitment_generator" => Ok(Components(vec![Component::CommitmentGenerator])),
+            "sgx_2fa" => Ok(Components(vec![Component::Sgx2fa])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
@@ -744,6 +749,23 @@ pub async fn initialize_components(
         .context("add_basic_witness_input_producer_to_task_futures()")?;
     }
 
+    if components.contains(&Component::Sgx2fa) {
+        let singleton_connection_pool = ConnectionPool::singleton(postgres_config.master_url()?)
+            .build()
+            .await
+            .context("failed to build singleton connection_pool")?;
+        let network_config = configs.network_config.clone().context("network_config")?;
+        add_sgx_2fa_to_task_futures(
+            &mut task_futures,
+            &singleton_connection_pool,
+            &store_factory,
+            network_config.zksync_network_id,
+            stop_receiver.clone(),
+        )
+        .await
+        .context("add_sgx_2fa_to_task_futures()")?;
+    }
+
     if components.contains(&Component::Housekeeper) {
         add_house_keeper_to_task_futures(configs, &mut task_futures)
             .await
@@ -974,9 +996,9 @@ async fn add_basic_witness_input_producer_to_task_futures(
 ) -> anyhow::Result<()> {
     // Witness Generator won't be spawned with `ZKSYNC_LOCAL_SETUP` running.
     // BasicWitnessInputProducer shouldn't be producing input for it locally either.
-    if std::env::var("ZKSYNC_LOCAL_SETUP") == Ok("true".to_owned()) {
-        return Ok(());
-    }
+    // if std::env::var("ZKSYNC_LOCAL_SETUP") == Ok("true".to_owned()) {
+    //     return Ok(());
+    // }
     let started_at = Instant::now();
     tracing::info!("initializing BasicWitnessInputProducer");
     let producer =
@@ -988,6 +1010,27 @@ async fn add_basic_witness_input_producer_to_task_futures(
     );
     let elapsed = started_at.elapsed();
     APP_METRICS.init_latency[&InitStage::BasicWitnessInputProducer].set(elapsed);
+    Ok(())
+}
+
+async fn add_sgx_2fa_to_task_futures(
+    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    connection_pool: &ConnectionPool,
+    store_factory: &ObjectStoreFactory,
+    l2_chain_id: L2ChainId,
+    stop_receiver: watch::Receiver<bool>,
+) -> anyhow::Result<()> {
+    // Witness Generator won't be spawned with `ZKSYNC_LOCAL_SETUP` running.
+    // BasicWitnessInputProducer shouldn't be producing input for it locally either.
+    // if std::env::var("ZKSYNC_LOCAL_SETUP") == Ok("true".to_owned()) {
+    //     return Ok(());
+    // }
+    let started_at = Instant::now();
+    tracing::info!("initializing BasicWitnessInputProducer");
+    let producer = Sgx2fa::new(connection_pool.clone(), store_factory, l2_chain_id).await?;
+    task_futures.push(tokio::spawn(producer.run(stop_receiver, None)));
+    tracing::info!("Initialized Sgx2fa in {:?}", started_at.elapsed());
+    let elapsed = started_at.elapsed();
     Ok(())
 }
 
