@@ -188,6 +188,25 @@
       "anonymous": false,
       "inputs": [
         {
+          "indexed": true,
+          "internalType": "address",
+          "name": "oldAdmin",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newAdmin",
+          "type": "address"
+        }
+      ],
+      "name": "NewAdmin",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
           "indexed": false,
           "internalType": "uint128",
           "name": "oldNominator",
@@ -304,36 +323,17 @@
         {
           "indexed": true,
           "internalType": "address",
-          "name": "oldGovernor",
+          "name": "oldPendingAdmin",
           "type": "address"
         },
         {
           "indexed": true,
           "internalType": "address",
-          "name": "newGovernor",
+          "name": "newPendingAdmin",
           "type": "address"
         }
       ],
-      "name": "NewGovernor",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "oldPendingGovernor",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "newPendingGovernor",
-          "type": "address"
-        }
-      ],
-      "name": "NewPendingGovernor",
+      "name": "NewPendingAdmin",
       "type": "event"
     },
     {
@@ -478,6 +478,25 @@
       "anonymous": false,
       "inputs": [
         {
+          "indexed": false,
+          "internalType": "address",
+          "name": "oldTransactionFilterer",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "newTransactionFilterer",
+          "type": "address"
+        }
+      ],
+      "name": "NewTransactionFilterer",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
           "components": [
             {
               "components": [
@@ -564,10 +583,49 @@
       "type": "event"
     },
     {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "enum PubdataPricingMode",
+          "name": "validiumMode",
+          "type": "uint8"
+        }
+      ],
+      "name": "ValidiumModeStatusUpdate",
+      "type": "event"
+    },
+    {
       "inputs": [],
-      "name": "acceptGovernor",
+      "name": "acceptAdmin",
       "outputs": [],
       "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "baseTokenGasPriceMultiplierDenominator",
+      "outputs": [
+        {
+          "internalType": "uint128",
+          "name": "",
+          "type": "uint128"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "baseTokenGasPriceMultiplierNominator",
+      "outputs": [
+        {
+          "internalType": "uint128",
+          "name": "",
+          "type": "uint128"
+        }
+      ],
+      "stateMutability": "view",
       "type": "function"
     },
     {
@@ -633,7 +691,7 @@
           "type": "bytes32"
         }
       ],
-      "stateMutability": "payable",
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
@@ -779,7 +837,7 @@
             },
             {
               "internalType": "bytes",
-              "name": "totalL2ToL1Pubdata",
+              "name": "pubdataCommitments",
               "type": "bytes"
             }
           ],
@@ -896,7 +954,7 @@
             },
             {
               "internalType": "bytes",
-              "name": "totalL2ToL1Pubdata",
+              "name": "pubdataCommitments",
               "type": "bytes"
             }
           ],
@@ -1195,6 +1253,19 @@
     },
     {
       "inputs": [],
+      "name": "getAdmin",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "getBaseToken",
       "outputs": [
         {
@@ -1240,19 +1311,6 @@
           "internalType": "uint256",
           "name": "",
           "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getGovernor",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
         }
       ],
       "stateMutability": "view",
@@ -1325,7 +1383,7 @@
     },
     {
       "inputs": [],
-      "name": "getPendingGovernor",
+      "name": "getPendingAdmin",
       "outputs": [
         {
           "internalType": "address",
@@ -1370,6 +1428,19 @@
           "internalType": "uint256",
           "name": "",
           "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getPubdataPricingMode",
+      "outputs": [
+        {
+          "internalType": "enum PubdataPricingMode",
+          "name": "",
+          "type": "uint8"
         }
       ],
       "stateMutability": "view",
@@ -2143,11 +2214,11 @@
       "inputs": [
         {
           "internalType": "address",
-          "name": "_newPendingGovernor",
+          "name": "_newPendingAdmin",
           "type": "address"
         }
       ],
-      "name": "setPendingGovernor",
+      "name": "setPendingAdmin",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -2181,6 +2252,19 @@
     {
       "inputs": [
         {
+          "internalType": "enum PubdataPricingMode",
+          "name": "_pricingMode",
+          "type": "uint8"
+        }
+      ],
+      "name": "setPubdataPricingMode",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "uint128",
           "name": "_nominator",
           "type": "uint128"
@@ -2192,6 +2276,19 @@
         }
       ],
       "name": "setTokenMultiplier",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_transactionFilterer",
+          "type": "address"
+        }
+      ],
+      "name": "setTransactionFilterer",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -2231,6 +2328,13 @@
         }
       ],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "transferEthToSharedBridge",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
