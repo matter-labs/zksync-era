@@ -63,45 +63,44 @@ impl Sgx2faDal<'_, '_> {
         .report_latency()
         .execute(self.storage)
         .await?;
-
         Ok(())
     }
 
     pub async fn get_next_sgx_2fa_job(&mut self) -> sqlx::Result<Option<L1BatchNumber>> {
         let l1_batch_number = sqlx::query!(
             r#"
-        UPDATE sgx_2fa_jobs
-        SET
-            status = $1,
-            attempts = attempts + 1,
-            updated_at = NOW(),
-            processing_started_at = NOW()
-        WHERE
-            l1_batch_number = (
-                SELECT
-                    l1_batch_number
-                FROM
-                    sgx_2fa_jobs
-                WHERE
-                    status = $2
-                    OR (
-                        status = $1
-                        AND processing_started_at < NOW() - $4::INTERVAL
-                    )
-                    OR (
-                        status = $3
-                        AND attempts < $5
-                    )
-                ORDER BY
-                    l1_batch_number ASC
-                LIMIT
-                    1
-                FOR UPDATE
-                    SKIP LOCKED
-            )
-        RETURNING
-            sgx_2fa_jobs.l1_batch_number
-        "#,
+            UPDATE sgx_2fa_jobs
+            SET
+                status = $1,
+                attempts = attempts + 1,
+                updated_at = NOW(),
+                processing_started_at = NOW()
+            WHERE
+                l1_batch_number = (
+                    SELECT
+                        l1_batch_number
+                    FROM
+                        sgx_2fa_jobs
+                    WHERE
+                        status = $2
+                        OR (
+                            status = $1
+                            AND processing_started_at < NOW() - $4::INTERVAL
+                        )
+                        OR (
+                            status = $3
+                            AND attempts < $5
+                        )
+                    ORDER BY
+                        l1_batch_number ASC
+                    LIMIT
+                        1
+                    FOR UPDATE
+                        SKIP LOCKED
+                )
+            RETURNING
+                sgx_2fa_jobs.l1_batch_number
+            "#,
             BasicWitnessInputProducerJobStatus::InProgress as BasicWitnessInputProducerJobStatus,
             BasicWitnessInputProducerJobStatus::Queued as BasicWitnessInputProducerJobStatus,
             BasicWitnessInputProducerJobStatus::Failed as BasicWitnessInputProducerJobStatus,
@@ -122,13 +121,13 @@ impl Sgx2faDal<'_, '_> {
     ) -> sqlx::Result<Option<u32>> {
         let attempts = sqlx::query!(
             r#"
-        SELECT
-            attempts
-        FROM
-            sgx_2fa_jobs
-        WHERE
-            l1_batch_number = $1
-        "#,
+            SELECT
+                attempts
+            FROM
+                sgx_2fa_jobs
+            WHERE
+                l1_batch_number = $1
+            "#,
             l1_batch_number.0 as i64,
         )
         .fetch_optional(self.storage.conn())
@@ -146,15 +145,15 @@ impl Sgx2faDal<'_, '_> {
     ) -> sqlx::Result<()> {
         sqlx::query!(
             r#"
-        UPDATE sgx_2fa_jobs
-        SET
-            status = $1,
-            updated_at = NOW(),
-            time_taken = $3,
-            input_blob_url = $4
-        WHERE
-            l1_batch_number = $2
-        "#,
+            UPDATE sgx_2fa_jobs
+            SET
+                status = $1,
+                updated_at = NOW(),
+                time_taken = $3,
+                input_blob_url = $4
+            WHERE
+                l1_batch_number = $2
+            "#,
             BasicWitnessInputProducerJobStatus::Successful as BasicWitnessInputProducerJobStatus,
             l1_batch_number.0 as i64,
             duration_to_naive_time(started_at.elapsed()),
@@ -176,18 +175,18 @@ impl Sgx2faDal<'_, '_> {
     ) -> sqlx::Result<Option<u32>> {
         let attempts = sqlx::query!(
             r#"
-        UPDATE sgx_2fa_jobs
-        SET
-            status = $1,
-            updated_at = NOW(),
-            time_taken = $3,
-            error = $4
-        WHERE
-            l1_batch_number = $2
-            AND status != $5
-        RETURNING
-            sgx_2fa_jobs.attempts
-        "#,
+            UPDATE sgx_2fa_jobs
+            SET
+                status = $1,
+                updated_at = NOW(),
+                time_taken = $3,
+                error = $4
+            WHERE
+                l1_batch_number = $2
+                AND status != $5
+            RETURNING
+                sgx_2fa_jobs.attempts
+            "#,
             BasicWitnessInputProducerJobStatus::Failed as BasicWitnessInputProducerJobStatus,
             l1_batch_number.0 as i64,
             duration_to_naive_time(started_at.elapsed()),
@@ -209,8 +208,8 @@ impl Sgx2faDal<'_, '_> {
     pub async fn delete_all_jobs(&mut self) -> sqlx::Result<()> {
         sqlx::query!(
             r#"
-        DELETE FROM sgx_2fa_jobs
-        "#,
+            DELETE FROM sgx_2fa_jobs
+            "#,
         )
         .execute(self.storage.conn())
         .await?;
