@@ -918,7 +918,9 @@ impl TxSender {
             };
 
         tracing::info!(
-            "fee estimation tx {tx_id:?}: gas for pubdata: {}, tx body gas: {tx_body_gas_limit}, overhead gas: {overhead} \
+            initiator = ?tx.initiator_account(),
+            nonce = %tx.nonce().unwrap_or(Nonce(0)),
+            "fee estimation: gas for pubdata: {}, tx body gas: {tx_body_gas_limit}, overhead gas: {overhead} \
             (with params base_fee: {base_fee}, gas_per_pubdata_byte: {gas_per_pubdata_byte})",
             (tx_metrics.pubdata_published as u64) * gas_per_pubdata_byte,
         );
