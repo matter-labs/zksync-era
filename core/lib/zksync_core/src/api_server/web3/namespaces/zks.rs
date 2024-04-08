@@ -468,19 +468,20 @@ impl ZksNamespace {
         version_id: Option<u16>,
     ) -> Result<Option<ProtocolVersion>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
-        let protocol_version = match version_id {
-            Some(id) => {
-                storage
-                    .protocol_versions_web3_dal()
-                    .get_protocol_version_by_id(id)
-                    .await
-            }
-            None => Some(
+        let protocol_version = if let Some(id) = version_id {
+            storage
+                .protocol_versions_web3_dal()
+                .get_protocol_version_by_id(id)
+                .await
+                .map_err(DalError::generalize)?
+        } else {
+            Some(
                 storage
                     .protocol_versions_web3_dal()
                     .get_latest_protocol_version()
-                    .await,
-            ),
+                    .await
+                    .map_err(DalError::generalize)?,
+            )
         };
         Ok(protocol_version)
     }
