@@ -40,7 +40,7 @@ pub fn generate_setup_data_common(
     // let (finalization, vk) =
     // if circuit.is_eip4844() {
     // (None, data_source.get_eip4844_vk().unwrap())
-    if circuit.is_base_layer() {
+    let (finalization, vk) = if circuit.is_base_layer() {
         (
             Some(keystore.load_finalization_hints(circuit.clone())?),
             data_source
