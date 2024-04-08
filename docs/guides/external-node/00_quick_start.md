@@ -10,7 +10,7 @@ To start a mainnet instance, run:
 
 ```sh
 cd docker-compose-examples
-docker compose --file mainnet-docker-external-node-compose.yml up
+docker compose --file mainnet-external-node-docker-compose.yml up
 ```
 
 To reset its state, run:
