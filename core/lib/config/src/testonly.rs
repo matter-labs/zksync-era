@@ -243,7 +243,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l2_weth_bridge_addr: g.gen(),
             l2_testnet_paymaster_addr: g.gen(),
             l1_multicall3_addr: g.gen(),
-            sync_layer_contracts: self.sample(g),
+            ecosystem_contracts: self.sample(g),
         }
     }
 }
@@ -698,9 +698,9 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
     }
 }
 
-impl Distribution<configs::SyncLayerContracts> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::SyncLayerContracts {
-        configs::SyncLayerContracts {
+impl Distribution<configs::EcosystemContracts> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::EcosystemContracts {
+        configs::EcosystemContracts {
             bridgehub_proxy_addr: rng.gen(),
             state_transition_proxy_addr: rng.gen(),
             transparent_proxy_admin_addr: rng.gen(),

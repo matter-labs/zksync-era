@@ -126,15 +126,15 @@ impl InternalApiConfig {
                 l2_weth_bridge: contracts_config.l2_weth_bridge_addr,
             },
             bridgehub_proxy_addr: contracts_config
-                .sync_layer_contracts
+                .ecosystem_contracts
                 .as_ref()
                 .map(|a| a.bridgehub_proxy_addr),
             state_transition_proxy_addr: contracts_config
-                .sync_layer_contracts
+                .ecosystem_contracts
                 .as_ref()
                 .map(|a| a.state_transition_proxy_addr),
             transparent_proxy_admin_addr: contracts_config
-                .sync_layer_contracts
+                .ecosystem_contracts
                 .as_ref()
                 .map(|a| a.transparent_proxy_admin_addr),
             diamond_proxy_addr: contracts_config.diamond_proxy_addr,

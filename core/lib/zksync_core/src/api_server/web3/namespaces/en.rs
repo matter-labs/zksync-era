@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_config::{configs::SyncLayerContracts, GenesisConfig};
+use zksync_config::{configs::EcosystemContracts, GenesisConfig};
 use zksync_dal::{CoreDal, DalError};
 use zksync_types::{api::en, tokens::TokenInfo, Address, L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::error::Web3Error;
@@ -65,12 +65,12 @@ impl EnNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn get_sync_layer_contracts_impl(&self) -> Result<SyncLayerContracts, Web3Error> {
+    pub async fn get_ecosystem_contracts_impl(&self) -> Result<EcosystemContracts, Web3Error> {
         Ok(self
             .state
             .api_config
             .bridgehub_proxy_addr
-            .map(|bridgehub_proxy_addr| SyncLayerContracts {
+            .map(|bridgehub_proxy_addr| EcosystemContracts {
                 bridgehub_proxy_addr,
                 state_transition_proxy_addr: self
                     .state

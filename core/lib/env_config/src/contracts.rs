@@ -30,7 +30,7 @@ mod tests {
             l2_shared_bridge_addr: addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888"),
             l2_testnet_paymaster_addr: Some(addr("FC073319977e314F251EAE6ae6bE76B0B3BAeeCF")),
             l1_multicall3_addr: addr("0xcA11bde05977b3631167028862bE2a173976CA11"),
-            sync_layer_contracts: None,
+            ecosystem_contracts: None,
         }
     }
 

@@ -368,7 +368,8 @@ export class TestContextOwner {
                         nonce: nonce + (ethIsBaseToken ? 0 : 1), // if eth is base token the approve tx does not happen
                         gasPrice
                     }
-                }).then((op) => op.waitL1Commit());
+                })
+                .then((op) => op.waitL1Commit());
             nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1);
             this.reporter.debug(
                 `Nonce changed by ${1 + (ethIsBaseToken ? 0 : 1)} for ETH deposit, new nonce: ${nonce}`

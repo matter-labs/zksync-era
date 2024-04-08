@@ -59,8 +59,8 @@ impl RemoteENConfig {
             .rpc_context("get_testnet_paymaster")
             .await?;
         let genesis = client.genesis_config().rpc_context("genesis").await.ok();
-        let sync_layer_contracts = client
-            .get_sync_layer_contracts()
+        let ecosystem_contracts = client
+            .get_ecosystem_contracts()
             .rpc_context("genesis")
             .await
             .ok();
@@ -88,13 +88,11 @@ impl RemoteENConfig {
         };
 
         Ok(Self {
-            bridgehub_proxy_addr: sync_layer_contracts
-                .as_ref()
-                .map(|a| a.bridgehub_proxy_addr),
-            state_transition_proxy_addr: sync_layer_contracts
+            bridgehub_proxy_addr: ecosystem_contracts.as_ref().map(|a| a.bridgehub_proxy_addr),
+            state_transition_proxy_addr: ecosystem_contracts
                 .as_ref()
                 .map(|a| a.state_transition_proxy_addr),
-            transparent_proxy_admin_addr: sync_layer_contracts
+            transparent_proxy_admin_addr: ecosystem_contracts
                 .as_ref()
                 .map(|a| a.transparent_proxy_admin_addr),
             diamond_proxy_addr,

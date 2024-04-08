@@ -2,7 +2,7 @@
 pub use self::{
     api::ApiConfig,
     contract_verifier::ContractVerifierConfig,
-    contracts::{ContractsConfig, SyncLayerContracts},
+    contracts::{ContractsConfig, EcosystemContracts},
     database::{DBConfig, PostgresConfig},
     eth_sender::{ETHConfig, GasAdjusterConfig},
     eth_watch::ETHWatchConfig,

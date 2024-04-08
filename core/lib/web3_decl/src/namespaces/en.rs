@@ -1,5 +1,5 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
-use zksync_config::{configs::SyncLayerContracts, GenesisConfig};
+use zksync_config::{configs::EcosystemContracts, GenesisConfig};
 use zksync_types::{api::en, tokens::TokenInfo, Address, MiniblockNumber};
 
 #[cfg_attr(
@@ -40,6 +40,6 @@ pub trait EnNamespace {
     #[method(name = "whitelistedTokensForAA")]
     async fn whitelisted_tokens_for_aa(&self) -> RpcResult<Vec<Address>>;
 
-    #[method(name = "getSyncLayerContracts")]
-    async fn get_sync_layer_contracts(&self) -> RpcResult<SyncLayerContracts>;
+    #[method(name = "getEcosystemContracts")]
+    async fn get_ecosystem_contracts(&self) -> RpcResult<EcosystemContracts>;
 }

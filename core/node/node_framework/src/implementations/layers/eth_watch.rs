@@ -42,7 +42,7 @@ impl WiringLayer for EthWatchLayer {
 
         let state_transition_manager_address = self
             .contracts_config
-            .sync_layer_contracts
+            .ecosystem_contracts
             .as_ref()
             .map(|a| a.state_transition_proxy_addr);
 
@@ -50,7 +50,7 @@ impl WiringLayer for EthWatchLayer {
             client,
             self.contracts_config.diamond_proxy_addr,
             self.contracts_config
-                .sync_layer_contracts
+                .ecosystem_contracts
                 .map(|a| a.transparent_proxy_admin_addr),
             Some(self.contracts_config.governance_addr),
             self.eth_watch_config.confirmations_for_eth_event,

@@ -540,7 +540,7 @@ pub async fn initialize_components(
 
     let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
     let state_transition_manager_addr = contracts_config
-        .sync_layer_contracts
+        .ecosystem_contracts
         .as_ref()
         .map(|a| a.state_transition_proxy_addr);
 
