@@ -20,7 +20,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - rocksdb:/usr/src/zksync/db
+      - rocksdb:/db
     expose:
       - 3060
       - 3061
@@ -46,5 +46,5 @@ services:
       - --enable-snapshots-recovery
 
 volumes:
-  postgres:
-  rocksdb:
+  postgres: {}
+  rocksdb: {}
