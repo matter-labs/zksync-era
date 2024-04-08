@@ -17,7 +17,7 @@ enum ProverCommand {
     GetProofProgress,
 }
 
-pub async fn start() -> eyre::Result<()> {
+pub async fn start() -> anyhow::Result<()> {
     let ProverCLI { command } = ProverCLI::parse();
     match command {
         ProverCommand::Status => status::run().await?,

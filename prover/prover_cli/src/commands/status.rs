@@ -1,4 +1,4 @@
-pub(crate) async fn run() -> eyre::Result<()> {
+pub(crate) async fn run() -> anyhow::Result<()> {
     log::info!("Prover Status");
     Ok(())
 }

@@ -1,25 +1,33 @@
 use anyhow::Context as _;
-use prover_dal::{ConnectionPool, Prover, ProverDal};
-use tokio::{
-    sync::{oneshot, watch::Receiver},
-    task::JoinHandle,
-};
-use zksync_config::configs::{
-    fri_prover_group::FriProverGroupConfig, FriProverConfig, ObservabilityConfig, PostgresConfig,
-};
-use zksync_env_config::{
-    object_store::{ProverObjectStoreConfig, PublicObjectStoreConfig},
-    FromEnv,
-};
+use zksync_config::PostgresConfig;
+use zksync_db_connection::connection_pool::ConnectionPool;
+use zksync_env_config::FromEnv;
+use prover_dal::Prover;
 
-pub(crate) async fn run() -> eyre::Result<()> {
+pub(crate) async fn run() -> anyhow::Result<()> {
     log::info!("Proof Progress");
 
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ConnectionPool::singleton(postgres_config.prover_url()?)
+
+    println!("{:?}", postgres_config);
+
+    let pool = ConnectionPool::<Prover>::singleton(postgres_config.prover_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;
 
+    // let asd = sqlx::query_as!(
+    //     StorageL1BatchHeader,
+    //     r#"
+    //     SELECT
+    //         id
+    //     FROM
+    //         prover_jobs_fri
+    //     "#,
+    // )
+    // .fetch_all(pool)
+    // .await?;
+
     Ok(())
 }
+
