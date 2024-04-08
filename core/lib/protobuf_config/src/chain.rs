@@ -91,6 +91,7 @@ impl ProtoRepr for proto::StateKeeper {
     }
 
     fn build(this: &Self::Type) -> Self {
+        #[allow(deprecated)]
         Self {
             transaction_slots: Some(this.transaction_slots.try_into().unwrap()),
             block_commit_deadline_ms: Some(this.block_commit_deadline_ms),
@@ -120,6 +121,9 @@ impl ProtoRepr for proto::StateKeeper {
                 .as_ref()
                 .map(|x| (*x).try_into().unwrap()),
             max_circuits_per_batch: Some(this.max_circuits_per_batch.try_into().unwrap()),
+            // Deprecated fields.
+            virtual_blocks_interval: None,
+            virtual_blocks_per_miniblock: None,
         }
     }
 }
