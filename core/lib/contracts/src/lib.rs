@@ -300,7 +300,8 @@ impl BaseSystemContracts {
         // FIXME: this part can get changed in API more often than e.g. default account especially when optimizations are used, etc.
         // so it is better to rely on more dynamic value instead of disk value
         let evm_simulator_bytecode =
-            read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Sol);
+            // read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Sol);
+            read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Yul);
         let evm_simulator_hash = hash_bytecode(&evm_simulator_bytecode);
         let evm_simulator = SystemContractCode {
             code: bytes_to_be_words(evm_simulator_bytecode),

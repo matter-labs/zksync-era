@@ -179,7 +179,8 @@ static EVM_INTERPRETER_HASH: Lazy<H256> = Lazy::new(|| {
     hash_bytecode(&read_sys_contract_bytecode(
         "",
         "EvmInterpreter",
-        ContractLanguage::Sol,
+        // ContractLanguage::Sol,
+        ContractLanguage::Yul,
     ))
 });
 
