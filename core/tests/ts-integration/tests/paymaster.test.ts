@@ -6,7 +6,7 @@ import * as zksync from 'zksync-web3';
 import { Provider, Wallet, utils, Contract } from 'zksync-web3';
 import * as ethers from 'ethers';
 import { deployContract, getTestContract } from '../src/helpers';
-import { L2_ETH_PER_ACCOUNT } from '../src/context-owner';
+import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 import { checkReceipt } from '../src/modifiers/receipt-check';
 import { extractFee } from '../src/modifiers/balance-checker';
 import { TestMessage } from '../src/matchers/matcher-helpers';
@@ -49,7 +49,9 @@ describe('Paymaster tests', () => {
     test('Should deploy a paymaster', async () => {
         paymaster = await deployContract(alice, contracts.customPaymaster, []);
         // Supplying paymaster with ETH it would need to cover the fees for the user
-        await alice.transfer({ to: paymaster.address, amount: L2_ETH_PER_ACCOUNT.div(4) }).then((tx) => tx.wait());
+        await alice
+            .transfer({ to: paymaster.address, amount: L2_DEFAULT_ETH_PER_ACCOUNT.div(4) })
+            .then((tx) => tx.wait());
     });
 
     test('Should pay fee with paymaster', async () => {
@@ -144,7 +146,9 @@ describe('Paymaster tests', () => {
         expect(testnetPaymaster).toBeTruthy();
 
         // Supplying paymaster with ETH it would need to cover the fees for the user
-        await alice.transfer({ to: testnetPaymaster, amount: L2_ETH_PER_ACCOUNT.div(4) }).then((tx) => tx.wait());
+        await alice
+            .transfer({ to: testnetPaymaster, amount: L2_DEFAULT_ETH_PER_ACCOUNT.div(4) })
+            .then((tx) => tx.wait());
 
         const tx = await erc20.populateTransaction.transfer(alice.address, AMOUNT);
         const gasPrice = await alice.provider.getGasPrice();

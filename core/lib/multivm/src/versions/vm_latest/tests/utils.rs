@@ -116,6 +116,12 @@ pub(crate) fn read_precompiles_contract() -> Vec<u8> {
     )
 }
 
+pub(crate) fn load_precompiles_contract() -> Contract {
+    load_contract(
+        "etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json",
+    )
+}
+
 pub(crate) fn read_complex_upgrade() -> Vec<u8> {
     read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json")
 }
