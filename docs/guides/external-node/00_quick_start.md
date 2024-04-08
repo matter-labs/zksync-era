@@ -6,7 +6,7 @@ Install `docker compose` and `Docker`
 
 ## Running ZkSync external node locally
 
-**To start a mainnet instance, run:**
+To start a mainnet instance, run:
 
 ```sh
 cd docker-compose-examples
@@ -20,7 +20,7 @@ cd docker-compose-examples
 docker compose --file mainnet-external-node-docker-compose.yml down --volumes
 ```
 
-**To start a testnet instance, run:**
+To start a testnet instance, run:
 
 ```sh
 cd docker-compose-examples
