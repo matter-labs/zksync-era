@@ -59,7 +59,7 @@ jobs:
           ci_run zk contract build
 
       - name: Contracts unit tests
-        run: ci_run zk test l1-contracts
+        run: CHAIN_ETH_NETWORK=hardhat ci_run zk test l1-contracts
 
       - name: Rust unit tests
         run: ci_run zk test rust
