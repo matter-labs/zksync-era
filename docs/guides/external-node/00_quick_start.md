@@ -14,6 +14,7 @@ docker compose --file mainnet-docker-external-node-compose.yml up
 ```
 
 to reset it's state, run:
+
 ```sh
 cd docker-compose-examples
 docker compose --file mainnet-external-node-docker-compose.yml down --volumes
@@ -27,6 +28,7 @@ docker compose --file testnet-external-node-docker-compose.yml up
 ```
 
 to reset it's state, run:
+
 ```sh
 cd docker-compose-examples
 docker compose --file testnet-external-node-docker-compose.yml down --volumes
