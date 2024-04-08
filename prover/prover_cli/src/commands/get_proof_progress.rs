@@ -1,8 +1,8 @@
 use anyhow::Context as _;
+use prover_dal::Prover;
 use zksync_config::PostgresConfig;
 use zksync_db_connection::connection_pool::ConnectionPool;
 use zksync_env_config::FromEnv;
-use prover_dal::Prover;
 
 pub(crate) async fn run() -> anyhow::Result<()> {
     log::info!("Proof Progress");
@@ -30,4 +30,3 @@ pub(crate) async fn run() -> anyhow::Result<()> {
 
     Ok(())
 }
-
