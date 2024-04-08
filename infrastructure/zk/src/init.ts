@@ -135,7 +135,7 @@ export const initDevCmdAction = async ({
     runObservability,
     validiumMode
 }: InitDevCmdActionOptions): Promise<void> => {
-    let deploymentMode = validiumMode !== undefined ? contract.DeploymentMode.Validium : contract.DeploymentMode.Rollup
+    let deploymentMode = validiumMode !== undefined ? contract.DeploymentMode.Validium : contract.DeploymentMode.Rollup;
     await initSetup({ skipEnvSetup, skipSubmodulesCheckout, runObservability, deploymentMode });
     await initDatabase({ skipVerifierDeployment: false });
     if (!skipTestTokenDeployment) {
