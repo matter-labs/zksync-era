@@ -8,15 +8,12 @@ use std::{
 use anyhow::Context as _;
 use async_trait::async_trait;
 use circuit_definitions::{
-    circuit_definitions::{
-        base_layer::ZkSyncBaseLayerStorage, eip4844::EIP4844InstanceSynthesisFunction,
-        ZkSyncUniformCircuitInstance,
-    },
+    circuit_definitions::{base_layer::ZkSyncBaseLayerStorage, ZkSyncUniformCircuitInstance},
     encodings::recursion_request::RecursionQueueSimulator,
     zkevm_circuits::fsm_input_output::ClosedFormInputCompactFormWitness,
 };
 // TODO: Switch to `vm_latest` once the prover supports v1.5.0
-use multivm::vm_1_4_2::{
+use multivm::vm_latest::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
 };
 use prover_dal::{
@@ -26,9 +23,10 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use tracing::Instrument;
 use zkevm_test_harness::{
-    geometry_config::get_geometry_config, toolset::GeometryConfig,
-    utils::generate_eip4844_circuit_and_witness,
-    zkevm_circuits::eip_4844::input::EIP4844OutputDataWitness,
+    geometry_config::get_geometry_config,
+    toolset::GeometryConfig,
+    // utils::generate_eip4844_circuit_and_witness,
+    // zkevm_circuits::eip_4844::input::EIP4844OutputDataWitness,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::{Core, CoreDal};
@@ -65,15 +63,16 @@ use crate::{
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
     storage_oracle::StorageOracle,
     utils::{
-        expand_bootloader_contents, save_circuit, save_eip_4844_circuit, ClosedFormInputWrapper,
-        SchedulerPartialInputWrapper, KZG_TRUSTED_SETUP_FILE,
+        expand_bootloader_contents, save_circuit,
+        /*save_eip_4844_circuit*/ ClosedFormInputWrapper, SchedulerPartialInputWrapper,
+        KZG_TRUSTED_SETUP_FILE,
     },
 };
 
-type Eip4844Circuit =
-    ZkSyncUniformCircuitInstance<GoldilocksField, EIP4844InstanceSynthesisFunction>;
+// type Eip4844Circuit =
+// ZkSyncUniformCircuitInstance<GoldilocksField, EIP4844InstanceSynthesisFunction>;
 
-type Eip4844Witness = EIP4844OutputDataWitness<GoldilocksField>;
+// type Eip4844Witness = EIP4844OutputDataWitness<GoldilocksField>;
 
 pub struct BasicCircuitArtifacts {
     circuit_urls: Vec<(u8, String)>,
@@ -682,6 +681,7 @@ async fn generate_witness(
             VmStorageOracle::new(storage_view.clone());
         let storage_oracle = StorageOracle::new(vm_storage_oracle, storage_refunds);
 
+        const ARRAY_REPEAT_VALUE: std::option::Option<Vec<u8>> = None;
         let (scheduler_witness, block_witness) = zkevm_test_harness::external_calls::run(
             Address::zero(),
             BOOTLOADER_ADDRESS,
@@ -689,17 +689,37 @@ async fn generate_witness(
             bootloader_contents,
             false,
             account_code_hash,
+            account_code_hash, // 100% wrong, but let's just to unlock compilation?
             used_bytecodes,
             Vec::default(),
             MAX_CYCLES_FOR_TX as usize,
             geometry_config,
             storage_oracle,
             &mut tree,
+            [ARRAY_REPEAT_VALUE; 16],
             |circuit| {
                 circuit_sender.blocking_send(circuit).unwrap();
             },
             |a, b, c| queue_sender.blocking_send((a as u8, b, c)).unwrap(),
         );
+
+        // caller: Address,                 // for real block must be zero
+        // entry_point_address: Address,    // for real block must be the bootloader
+        // entry_point_code: Vec<[u8; 32]>, // for read block must be a bootloader code
+        // initial_heap_content: Vec<u8>,   // bootloader starts with non-deterministic heap
+        // zk_porter_is_available: bool,
+        // default_aa_code_hash: U256,
+        // evm_simulator_code_hash: U256,
+        // used_bytecodes: std::collections::HashMap<U256, Vec<[u8; 32]>>, // auxilary information to avoid passing a full set of all used codes
+        // ram_verification_queries: Vec<(u32, U256)>, // we may need to check that after the bootloader's memory is filled
+        // cycle_limit: usize,
+        // geometry: GeometryConfig,
+        // storage: S,
+        // tree: &mut impl BinarySparseStorageTree<256, 32, 32, 8, 32, Blake2s256, ZkSyncStorageLeaf>,
+        // eip_4844_repack_inputs: [Option<Vec<u8>>; MAX_4844_BLOBS_PER_BLOCK],
+        // circuit_callback: CB,
+        // queue_simulator_callback: QSCB,
+
         (scheduler_witness, block_witness)
     });
 
@@ -723,38 +743,38 @@ async fn generate_witness(
         }
     };
 
-    let mut eip_4844_blobs = eip_4844_blobs.blobs();
+    // let mut eip_4844_blobs = eip_4844_blobs.blobs();
 
-    let single_blob = eip_4844_blobs.len() == 1;
-    if single_blob {
-        // A proof is still expected for the scheduler (it's not going to be used), even though we have a single blob.
-        // See: https://github.com/matter-labs/era-zkevm_circuits/blob/v1.4.2/src/scheduler/mod.rs#L1165
-        eip_4844_blobs.push(vec![0; EIP_4844_BLOB_SIZE]);
-    }
+    // let single_blob = eip_4844_blobs.len() == 1;
+    // if single_blob {
+    //     // A proof is still expected for the scheduler (it's not going to be used), even though we have a single blob.
+    //     // See: https://github.com/matter-labs/era-zkevm_circuits/blob/v1.4.2/src/scheduler/mod.rs#L1165
+    //     eip_4844_blobs.push(vec![0; EIP_4844_BLOB_SIZE]);
+    // }
 
-    let trusted_setup_path = KZG_TRUSTED_SETUP_FILE
-        .path()
-        .to_str()
-        .expect("Path to KZG trusted setup is not a UTF-8 string");
-    let (eip_4844_circuits, mut eip_4844_witnesses): (Vec<Eip4844Circuit>, Vec<Eip4844Witness>) =
-        eip_4844_blobs
-            .clone()
-            .into_iter()
-            .map(|blob| {
-                let (circuit, output_witness) =
-                    generate_eip4844_circuit_and_witness(blob, trusted_setup_path);
-                (circuit, output_witness.closed_form_input.observable_output)
-            })
-            .unzip();
+    // let trusted_setup_path = KZG_TRUSTED_SETUP_FILE
+    //     .path()
+    //     .to_str()
+    //     .expect("Path to KZG trusted setup is not a UTF-8 string");
+    // let (eip_4844_circuits, mut eip_4844_witnesses): (Vec<Eip4844Circuit>, Vec<Eip4844Witness>) =
+    //     eip_4844_blobs
+    //         .clone()
+    //         .into_iter()
+    //         .map(|blob| {
+    //             let (circuit, output_witness) =
+    //                 generate_eip4844_circuit_and_witness(blob, trusted_setup_path);
+    //             (circuit, output_witness.closed_form_input.observable_output)
+    //         })
+    //         .unzip();
 
     let (witnesses, ()) = tokio::join!(make_circuits, save_circuits);
 
-    let mut eip_4844_blob_urls = vec![];
-    // Note that the sequence number will be reused to determine ordering between blobs.
-    for (index, circuit) in eip_4844_circuits.into_iter().enumerate() {
-        eip_4844_blob_urls
-            .push(save_eip_4844_circuit(block_number, circuit, index, object_store, 0).await);
-    }
+    // let mut eip_4844_blob_urls = vec![];
+    // // Note that the sequence number will be reused to determine ordering between blobs.
+    // for (index, circuit) in eip_4844_circuits.into_iter().enumerate() {
+    //     eip_4844_blob_urls
+    //         .push(save_eip_4844_circuit(block_number, circuit, index, object_store, 0).await);
+    // }
 
     let (mut scheduler_witness, block_aux_witness) = witnesses.unwrap();
 
@@ -763,19 +783,20 @@ async fn generate_witness(
     scheduler_witness.previous_block_aux_hash =
         previous_batch_with_metadata.metadata.aux_data_hash.0;
 
-    if single_blob {
-        // The second witness has to be zeroed out (corresponding to the second blob), so it's not considered in the proof.
-        // See: https://github.com/matter-labs/era-zkevm_circuits/blob/v1.4.1/src/scheduler/mod.rs#L1149.
-        eip_4844_witnesses[1].linear_hash = [0u8; 32];
-        eip_4844_witnesses[1].output_hash = [0u8; 32];
-    }
+    // if single_blob {
+    //     // The second witness has to be zeroed out (corresponding to the second blob), so it's not considered in the proof.
+    //     // See: https://github.com/matter-labs/era-zkevm_circuits/blob/v1.4.1/src/scheduler/mod.rs#L1149.
+    //     eip_4844_witnesses[1].linear_hash = [0u8; 32];
+    //     eip_4844_witnesses[1].output_hash = [0u8; 32];
+    // }
 
-    scheduler_witness.eip4844_witnesses =
-        Some([eip_4844_witnesses[0].clone(), eip_4844_witnesses[1].clone()]);
+    // scheduler_witness.eip4844_witnesses =
+    //     Some([eip_4844_witnesses[0].clone(), eip_4844_witnesses[1].clone()]);
 
     (
         circuit_urls,
-        eip_4844_blob_urls,
+        // eip_4844_blob_urls,
+        vec![],
         recursion_urls,
         scheduler_witness,
         block_aux_witness,

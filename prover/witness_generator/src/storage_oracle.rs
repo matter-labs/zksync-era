@@ -1,5 +1,10 @@
-use zk_evm::aux_structures::{LogQuery, Timestamp};
-use zkevm_test_harness::zk_evm::abstractions::{RefundType, RefundedAmounts, Storage};
+// use circuit_definitions::zk_evm::abstractions::{Storage /*RefundType, RefundAmounts*/};
+
+use zk_evm::{
+    abstractions::{/*RefundType, RefundedAmounts, */ Storage, StorageAccessRefund},
+    aux_structures::{LogQuery, PubdataCost, Timestamp},
+};
+// use zkevm_test_harness::zk_evm::abstractions::{RefundType, RefundedAmounts, Storage};
 
 #[derive(Debug)]
 pub struct StorageOracle<T> {
@@ -17,19 +22,35 @@ impl<T> StorageOracle<T> {
 }
 
 impl<T: Storage> Storage for StorageOracle<T> {
-    fn estimate_refunds_for_write(
+    // fn estimate_refunds_for_write(
+    //     &mut self,
+    //     _monotonic_cycle_counter: u32,
+    //     _partial_query: &LogQuery,
+    // ) -> RefundType {
+    //     let pubdata_bytes = self.storage_refunds.next().expect("Missing refund");
+    //     RefundType::RepeatedWrite(RefundedAmounts {
+    //         pubdata_bytes,
+    //         ergs: 0,
+    //     })
+    // }
+
+    fn get_access_refund(
         &mut self,
-        _monotonic_cycle_counter: u32,
-        _partial_query: &LogQuery,
-    ) -> RefundType {
-        let pubdata_bytes = self.storage_refunds.next().expect("Missing refund");
-        RefundType::RepeatedWrite(RefundedAmounts {
-            pubdata_bytes,
-            ergs: 0,
-        })
+        _: u32,
+        _: &zk_evm::aux_structures::LogQuery,
+    ) -> StorageAccessRefund {
+        todo!()
     }
 
-    fn execute_partial_query(&mut self, monotonic_cycle_counter: u32, query: LogQuery) -> LogQuery {
+    fn start_new_tx(&mut self, _: zk_evm::aux_structures::Timestamp) {
+        todo!()
+    }
+
+    fn execute_partial_query(
+        &mut self,
+        monotonic_cycle_counter: u32,
+        query: LogQuery,
+    ) -> (LogQuery, PubdataCost) {
         self.inn
             .execute_partial_query(monotonic_cycle_counter, query)
     }

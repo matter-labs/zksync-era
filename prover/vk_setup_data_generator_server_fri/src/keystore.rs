@@ -158,12 +158,12 @@ impl Keystore {
         ))
     }
 
-    pub fn load_4844_verification_key(&self) -> anyhow::Result<EIP4844VerificationKey> {
-        Self::load_json_from_file(self.get_file_path(
-            ProverServiceDataKey::eip4844(),
-            ProverServiceDataType::VerificationKey,
-        ))
-    }
+    // pub fn load_4844_verification_key(&self) -> anyhow::Result<EIP4844VerificationKey> {
+    //     Self::load_json_from_file(self.get_file_path(
+    //         ProverServiceDataKey::eip4844(),
+    //         ProverServiceDataType::VerificationKey,
+    //     ))
+    // }
 
     pub fn save_base_layer_verification_key(
         &self,
@@ -337,9 +337,9 @@ impl Keystore {
             )?)
             .unwrap();
 
-        data_source
-            .set_eip4844_vk(self.load_4844_verification_key()?)
-            .unwrap();
+        // data_source
+        //     .set_eip4844_vk(self.load_4844_verification_key()?)
+        //     .unwrap();
         Ok(data_source)
     }
 
@@ -437,20 +437,20 @@ impl Keystore {
         )
         .context("save_finalization_hints()")?;
 
-        // 4844
-        self.save_4844_verification_key(
-            source
-                .get_eip4844_vk()
-                .map_err(|err| anyhow::anyhow!("No vk exist for 4844 circuit: {err}"))?,
-        )
-        .context("save_4844_verification_key()")?;
+        // // 4844
+        // self.save_4844_verification_key(
+        //     source
+        //         .get_eip4844_vk()
+        //         .map_err(|err| anyhow::anyhow!("No vk exist for 4844 circuit: {err}"))?,
+        // )
+        // .context("save_4844_verification_key()")?;
 
-        let eip4844_hint = source.get_eip4844_finalization_hint().map_err(|err| {
-            anyhow::anyhow!("No finalization hint exist for scheduler layer circuit: {err}")
-        })?;
+        // let eip4844_hint = source.get_eip4844_finalization_hint().map_err(|err| {
+        //     anyhow::anyhow!("No finalization hint exist for scheduler layer circuit: {err}")
+        // })?;
 
-        self.save_finalization_hints(ProverServiceDataKey::eip4844(), &eip4844_hint)
-            .context("save_eip4844_hint()")?;
+        // self.save_finalization_hints(ProverServiceDataKey::eip4844(), &eip4844_hint)
+        //     .context("save_eip4844_hint()")?;
 
         Ok(())
     }

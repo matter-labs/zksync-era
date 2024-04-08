@@ -1,7 +1,7 @@
 use std::io::{BufWriter, Write as _};
 
 use circuit_definitions::circuit_definitions::{
-    base_layer::ZkSyncBaseLayerCircuit, eip4844::EIP4844Circuit,
+    base_layer::ZkSyncBaseLayerCircuit, /*eip4844::EIP4844Circuit,*/
 };
 use multivm::utils::get_used_bootloader_memory_bytes;
 use once_cell::sync::Lazy;
@@ -136,27 +136,27 @@ pub async fn save_circuit(
     (circuit_id, blob_url)
 }
 
-pub async fn save_eip_4844_circuit(
-    block_number: L1BatchNumber,
-    circuit: EIP4844Circuit,
-    sequence_number: usize,
-    object_store: &dyn ObjectStore,
-    depth: u16,
-) -> (usize, String) {
-    let circuit_id = EIP_4844_CIRCUIT_ID;
-    let circuit_key = FriCircuitKey {
-        block_number,
-        sequence_number,
-        circuit_id,
-        aggregation_round: AggregationRound::BasicCircuits,
-        depth,
-    };
-    let blob_url = object_store
-        .put(circuit_key, &CircuitWrapper::Eip4844(circuit))
-        .await
-        .unwrap();
-    (sequence_number, blob_url)
-}
+// pub async fn save_eip_4844_circuit(
+//     block_number: L1BatchNumber,
+//     circuit: EIP4844Circuit,
+//     sequence_number: usize,
+//     object_store: &dyn ObjectStore,
+//     depth: u16,
+// ) -> (usize, String) {
+//     let circuit_id = EIP_4844_CIRCUIT_ID;
+//     let circuit_key = FriCircuitKey {
+//         block_number,
+//         sequence_number,
+//         circuit_id,
+//         aggregation_round: AggregationRound::BasicCircuits,
+//         depth,
+//     };
+//     let blob_url = object_store
+//         .put(circuit_key, &CircuitWrapper::Eip4844(circuit))
+//         .await
+//         .unwrap();
+//     (sequence_number, blob_url)
+// }
 
 pub async fn save_recursive_layer_prover_input_artifacts(
     block_number: L1BatchNumber,

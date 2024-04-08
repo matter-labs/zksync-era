@@ -5,7 +5,7 @@ use circuit_definitions::{
     boojum::{cs::implementations::witness::WitnessVec, field::goldilocks::GoldilocksField},
     circuit_definitions::{
         base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerProof, ZkSyncBaseProof},
-        eip4844::EIP4844Circuit,
+        // eip4844::EIP4844Circuit,
         recursion_layer::{
             ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType, ZkSyncRecursiveLayerCircuit,
         },
@@ -29,7 +29,7 @@ pub const EIP_4844_CIRCUIT_ID: u8 = 255;
 pub enum CircuitWrapper {
     Base(ZkSyncBaseLayerCircuit),
     Recursive(ZkSyncRecursiveLayerCircuit),
-    Eip4844(EIP4844Circuit),
+    // Eip4844(EIP4844Circuit),
 }
 
 impl StoredObject for CircuitWrapper {

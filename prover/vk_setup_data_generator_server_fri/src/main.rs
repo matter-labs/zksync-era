@@ -9,7 +9,7 @@ use commitment_generator::read_and_update_contract_toml;
 use tracing::level_filters::LevelFilter;
 use zkevm_test_harness::{
     compute_setups::{
-        generate_base_layer_vks_and_proofs, generate_eip4844_vks,
+        generate_base_layer_vks_and_proofs, /* , generate_eip4844_vks*/
         generate_recursive_layer_vks_and_proofs,
     },
     data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource},
@@ -45,9 +45,9 @@ fn generate_vks(keystore: &Keystore) -> anyhow::Result<()> {
         .map_err(|err| anyhow::anyhow!("Failed generating base vk's: {err}"))?;
 
     // This must happen before we start generating recursive layer.
-    tracing::info!("Generating 4844 base layer.");
-    generate_eip4844_vks(&mut in_memory_source)
-        .map_err(|err| anyhow::anyhow!("Failed generating 4844 vk's: {err}"))?;
+    // tracing::info!("Generating 4844 base layer.");
+    // generate_eip4844_vks(&mut in_memory_source)
+    //     .map_err(|err| anyhow::anyhow!("Failed generating 4844 vk's: {err}"))?;
 
     tracing::info!("Generating verification keys for Recursive layer.");
     generate_recursive_layer_vks_and_proofs(&mut in_memory_source)

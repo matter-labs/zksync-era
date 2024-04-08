@@ -837,17 +837,17 @@ dependencies = [
 
 [[package]]
 name = "circuit_definitions"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2#012dcc678990c695f97e5dd1f136dfa8fe376c16"
+version = "1.5.0"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#6255bf32164eae9d13b0a655b9c4fbbaf6563c1b"
 dependencies = [
- "circuit_encodings 0.1.42",
+ "circuit_encodings 0.1.50",
  "crossbeam 0.8.4",
  "derivative",
  "seq-macro",
  "serde",
  "snark_wrapper",
- "zk_evm 1.4.1",
- "zkevm_circuits 1.4.1",
+ "zk_evm 1.5.0",
+ "zkevm_circuits 1.5.0",
 ]
 
 [[package]]
@@ -2884,15 +2884,15 @@ dependencies = [
 
 [[package]]
 name = "kzg"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2#012dcc678990c695f97e5dd1f136dfa8fe376c16"
+version = "0.1.50"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#6255bf32164eae9d13b0a655b9c4fbbaf6563c1b"
 dependencies = [
  "boojum",
  "derivative",
  "rayon",
  "serde",
  "serde_json",
- "zkevm_circuits 1.4.1",
+ "zkevm_circuits 1.5.0",
 ]
 
 [[package]]
@@ -5326,7 +5326,7 @@ dependencies = [
 [[package]]
 name = "shivini"
 version = "0.2.0"
-source = "git+https://github.com/matter-labs/era-shivini.git?branch=v1.4.2#f29d5be4afa890647fd42c913e30186819ff774a"
+source = "git+https://github.com/matter-labs/era-shivini.git?branch=v1.5.0#0c36314d1715ce858d366954920d005447cd6be2"
 dependencies = [
  "bincode",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -6663,7 +6663,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "vlog",
- "zkevm_test_harness 1.4.2",
+ "zkevm_test_harness 1.5.0",
  "zksync_config",
  "zksync_env_config",
  "zksync_prover_fri_types",
@@ -7268,8 +7268,8 @@ dependencies = [
 
 [[package]]
 name = "zkevm-assembly"
-version = "1.4.1"
-source = "git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=v1.4.1#e59d5da67f18f8829c3cfaebb967265d73c168ed"
+version = "1.5.0"
+source = "git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=v1.5.0#2faea98303377cad71f4c7d8dacb9c6546874602"
 dependencies = [
  "env_logger 0.9.3",
  "hex",
@@ -7282,7 +7282,7 @@ dependencies = [
  "smallvec",
  "structopt",
  "thiserror",
- "zkevm_opcode_defs 1.4.1",
+ "zkevm_opcode_defs 1.5.0",
 ]
 
 [[package]]
@@ -7431,33 +7431,31 @@ dependencies = [
 
 [[package]]
 name = "zkevm_test_harness"
-version = "1.4.2"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2#012dcc678990c695f97e5dd1f136dfa8fe376c16"
+version = "1.5.0"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#6255bf32164eae9d13b0a655b9c4fbbaf6563c1b"
 dependencies = [
  "bincode",
  "circuit_definitions",
- "circuit_sequencer_api 0.1.42",
+ "circuit_sequencer_api 0.1.50",
  "codegen",
  "crossbeam 0.8.4",
  "curl",
  "derivative",
- "env_logger 0.11.2",
+ "env_logger 0.9.3",
  "hex",
  "kzg",
  "lazy_static",
  "rand 0.4.6",
  "rayon",
  "reqwest",
- "rescue_poseidon 0.4.1 (git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2)",
  "serde",
  "serde_json",
  "smallvec",
- "snark_wrapper",
  "structopt",
  "test-log",
  "tracing",
  "walkdir",
- "zkevm-assembly 1.4.1",
+ "zkevm-assembly 1.5.0",
 ]
 
 [[package]]
@@ -7718,7 +7716,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
- "circuit_sequencer_api 0.1.42",
+ "circuit_sequencer_api 0.1.50",
  "ctrlc",
  "futures 0.3.30",
  "prometheus_exporter",
@@ -7733,7 +7731,7 @@ dependencies = [
  "vk_setup_data_generator_server_fri",
  "vlog",
  "zkevm_test_harness 1.3.3",
- "zkevm_test_harness 1.4.2",
+ "zkevm_test_harness 1.5.0",
  "zksync_config",
  "zksync_env_config",
  "zksync_object_store",
@@ -7801,7 +7799,7 @@ dependencies = [
  "vise",
  "vk_setup_data_generator_server_fri",
  "vlog",
- "zkevm_test_harness 1.4.2",
+ "zkevm_test_harness 1.5.0",
  "zksync_config",
  "zksync_env_config",
  "zksync_object_store",
@@ -8003,8 +8001,8 @@ dependencies = [
  "vise",
  "vk_setup_data_generator_server_fri",
  "vlog",
- "zk_evm 1.4.1",
- "zkevm_test_harness 1.4.2",
+ "zk_evm 1.5.0",
+ "zkevm_test_harness 1.5.0",
  "zksync_config",
  "zksync_dal",
  "zksync_env_config",
