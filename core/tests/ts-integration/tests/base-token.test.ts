@@ -65,11 +65,9 @@ describe('base ERC20 contract checks', () => {
         // TODO: should all the following tests use strict equality?
 
         const finalL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
-        console.log('finalL1Balance', finalL1Balance.toString());
         expect(initialL1Balance).bnToBeGte(finalL1Balance.add(amount));
 
         const finalL2Balance = await alice.getBalance();
-        console.log('finalL2Balance', finalL2Balance.toString());
         expect(initialL2Balance).bnToBeLte(finalL2Balance.add(amount));
     });
 
