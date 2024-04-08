@@ -247,8 +247,8 @@ impl Sgx2fa {
                 // assert!(a.rw_flag && (a.read_value != a.written_value));
                 // assert!(!a.rw_flag && (a.read_value == a.written_value));
 
-                tracing::info!("{:?}", a);
-                tracing::info!("{:?}", b.base);
+                // tracing::info!("{:?}", a);
+                // tracing::info!("{:?}", b.base);
             }
 
             let key = StorageKey::new(
@@ -288,15 +288,15 @@ impl Sgx2fa {
                 instructions.push(TreeInstruction::Read(key));
             }
 
-            tracing::info!("{:?}", a);
-            tracing::info!("{:?}", b.base);
+            // tracing::info!("{:?}", a);
+            // tracing::info!("{:?}", b.base);
 
             // if let TreeLogEntry::Inserted = b.base {
             //     assert!(a.written_value != U256([0; 32]));
             // }
             if let TreeLogEntry::Read { leaf_index, value } = b.base {
                 assert_eq!(a.read_value, value.into_uint());
-                tracing::info!("Whoop, whoop!");
+                // tracing::info!("Whoop, whoop!");
             }
         }
 
