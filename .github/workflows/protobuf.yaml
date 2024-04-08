@@ -56,7 +56,7 @@ jobs:
       - uses: bufbuild/buf-setup-action@v1
       - run: >
           buf breaking
-            --input './after.binpb'
+            './after.binpb'
             --against './before.binpb'
             --config '{"version":"v1","breaking":{"use":["WIRE_JSON"]}}'
             
