@@ -119,6 +119,7 @@ jobs:
         run: |
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
+
   integration:
     name: Integration (consensus=${{ matrix.consensus }}, deployment_mode=${{ matrix.deployment_mode }})
     strategy:
@@ -128,6 +129,7 @@ jobs:
       matrix:
         consensus: [false, true]
         deployment_mode: ["Rollup", "Validium"]
+        base_token: ["Eth", "Custom"]
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
 
@@ -187,11 +189,11 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
           if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
-            ci_run zk init
+            ci_run zk init ${{ matrix.base_token == "Custom" && '--base-token-name BAT' || ''}}
           elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
             ci_run zk env dev_validium_docker
             ci_run zk config compile dev_validium_docker
-            ci_run zk init --validium-mode
+            ci_run zk init ${{ matrix.base_token == "Custom" && '--base-token-name BAT' || ''}} --validium-mode
           fi
 
       # `sleep 5` because we need to wait until server started properly
@@ -306,11 +308,11 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
           if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
-            ci_run zk init
+            ci_run zk init ${{ matrix.base_token == "Custom" && '--base-token-name BAT' || ''}}
           elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
             ci_run zk env dev_validium_docker
             ci_run zk config compile dev_validium_docker
-            ci_run zk init --validium-mode
+            ci_run zk init ${{ matrix.base_token == "Custom" && '--base-token-name BAT' || ''}} --validium-mode
           fi
 
       # `sleep 30` because we need to wait until server started properly
