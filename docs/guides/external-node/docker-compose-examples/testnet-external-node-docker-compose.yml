@@ -6,9 +6,7 @@ services:
     ports:
       - 127.0.0.1:5432:5432
     volumes:
-      - type: bind
-        source: volumes/testnet-external-node-postgres
-        target: /var/lib/postgresql/data
+      - postgres:/var/lib/postgresql/data
     healthcheck:
       interval: 1s
       timeout: 3s
@@ -22,12 +20,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - type: bind
-        source: volumes/testnet-external-node-state-keeper
-        target: /usr/src/zksync/db/ext-node/state_keeper
-      - type: bind
-        source: volumes/testnet-external-node-merkle-tree
-        target: /usr/src/zksync/db/ext-node/lightweight
+      - rocksdb:/db
     expose:
       - 3060
       - 3061
@@ -52,3 +45,6 @@ services:
     command:
       - --enable-snapshots-recovery
 
+volumes:
+  postgres: {}
+  rocksdb: {}
