@@ -131,40 +131,6 @@ impl Distribution<configs::chain::NetworkConfig> for EncodeDist {
     }
 }
 
-impl RandomConfig for configs::chain::StateKeeperConfig {
-    fn sample(g: &mut Gen<impl Rng>) -> Self {
-        Self {
-            transaction_slots: g.gen(),
-            block_commit_deadline_ms: g.gen(),
-            miniblock_commit_deadline_ms: g.gen(),
-            miniblock_seal_queue_capacity: g.gen(),
-            miniblock_max_payload_size: g.gen(),
-            max_single_tx_gas: g.gen(),
-            max_allowed_l2_tx_gas_limit: g.gen(),
-            reject_tx_at_geometry_percentage: g.gen(),
-            reject_tx_at_eth_params_percentage: g.gen(),
-            reject_tx_at_gas_percentage: g.gen(),
-            close_block_at_geometry_percentage: g.gen(),
-            close_block_at_eth_params_percentage: g.gen(),
-            close_block_at_gas_percentage: g.gen(),
-            fee_account_addr: g.gen(),
-            minimal_l2_gas_price: g.gen(),
-            compute_overhead_part: g.gen(),
-            pubdata_overhead_part: g.gen(),
-            batch_overhead_l1_gas: g.gen(),
-            max_gas_per_batch: g.gen(),
-            max_pubdata_per_batch: g.gen(),
-            fee_model_version: g.gen(),
-            validation_computational_gas_limit: g.gen(),
-            save_call_traces: g.gen(),
-            virtual_blocks_interval: g.gen(),
-            virtual_blocks_per_miniblock: g.gen(),
-            upload_witness_inputs_to_gcs: g.gen(),
-            enum_index_migration_chunk_size: g.gen(),
-        }
-    }
-}
-
 impl Distribution<configs::chain::L1BatchCommitDataGeneratorMode> for EncodeDist {
     fn sample<R: Rng + ?Sized>(
         &self,
@@ -186,6 +152,7 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             block_commit_deadline_ms: self.sample(rng),
             miniblock_commit_deadline_ms: self.sample(rng),
             miniblock_seal_queue_capacity: self.sample(rng),
+            miniblock_max_payload_size: self.sample(rng),
             max_single_tx_gas: self.sample(rng),
             max_allowed_l2_tx_gas_limit: self.sample(rng),
             reject_tx_at_geometry_percentage: self.sample(rng),

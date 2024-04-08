@@ -16,7 +16,7 @@ pub mod storage_witness_job_info;
 #[cfg(test)]
 mod tests;
 
-fn parse_h256(bytes: &[u8]) -> anyhow::Result<H256> {
+pub(crate) fn parse_h256(bytes: &[u8]) -> anyhow::Result<H256> {
     Ok(<[u8; 32]>::try_from(bytes).context("invalid size")?.into())
 }
 

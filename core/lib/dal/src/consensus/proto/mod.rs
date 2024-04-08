@@ -1,2 +1,2 @@
 #![allow(warnings)]
-include!(concat!(env!("OUT_DIR"), "/src/models/proto/gen.rs"));
+include!(concat!(env!("OUT_DIR"), "/src/consensus/proto/gen.rs"));
