@@ -87,7 +87,7 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
         tracing::debug!("Received upgrades with ids: {ids:?}");
 
         let last_id = last_upgrade.id;
-        let stage_latency = METRICS.poll_eth_node[&PollStage::PersistUpgrades].start();
+        let stage_latency = METRICS.poll_eth_node[&PollStage::PersistGovernanceUpgrades].start();
         for (upgrade, scheduler_vk_hash) in new_upgrades {
             let previous_version = storage
                 .protocol_versions_dal()

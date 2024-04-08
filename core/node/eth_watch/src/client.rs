@@ -15,6 +15,7 @@ use zksync_types::{
 
 use super::metrics::METRICS;
 
+/// L1 client functionality used by [`EthWatch`](crate::EthWatch) and constituent event processors.
 #[async_trait::async_trait]
 pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     /// Returns events in a given block range.
@@ -36,6 +37,7 @@ pub const RETRY_LIMIT: usize = 5;
 const TOO_MANY_RESULTS_INFURA: &str = "query returned more than";
 const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
 
+/// Implementation of [`EthClient`] based on HTTP JSON-RPC (encapsulated via [`EthInterface`]).
 #[derive(Debug)]
 pub struct EthHttpQueryClient {
     client: Arc<dyn EthInterface>,

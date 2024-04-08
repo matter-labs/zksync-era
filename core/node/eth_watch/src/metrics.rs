@@ -10,12 +10,15 @@ pub(super) enum PollStage {
     Request,
     PersistL1Txs,
     PersistUpgrades,
+    PersistGovernanceUpgrades,
 }
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server_eth_watch")]
 pub(super) struct EthWatcherMetrics {
+    /// Number of times Ethereum was polled.
     pub eth_poll: Counter,
+    /// Latency of polling and processing events split by stage.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub poll_eth_node: Family<PollStage, Histogram<Duration>>,
     #[metrics(buckets = Buckets::LATENCIES)]

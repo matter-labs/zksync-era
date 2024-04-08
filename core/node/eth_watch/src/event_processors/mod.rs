@@ -34,6 +34,8 @@ impl EventProcessorError {
     }
 }
 
+/// Processor for a single type of events emitted by the L1 contract. [`EthWatch`](crate::EthWatch)
+/// feeds events to all processors one-by-one.
 #[async_trait::async_trait]
 pub(super) trait EventProcessor: 'static + fmt::Debug + Send + Sync {
     /// Processes given events. All events are guaranteed to match [`Self::relevant_topic()`].

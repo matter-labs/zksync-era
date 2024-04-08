@@ -1,8 +1,6 @@
-//! Ethereum watcher polls the Ethereum node for PriorityQueue events.
+//! Ethereum watcher polls the Ethereum node for the relevant events, such as priority operations (aka L1 transactions),
+//! protocol upgrades etc.
 //! New events are accepted to the zkSync network once they have the sufficient amount of L1 confirmations.
-//!
-//! Poll interval is configured using the `ETH_POLL_INTERVAL` constant.
-//! Number of confirmations is configured using the `CONFIRMATIONS_FOR_ETH_EVENT` environment variable.
 
 use std::time::Duration;
 
@@ -39,6 +37,7 @@ struct EthWatchState {
     last_processed_ethereum_block: u64,
 }
 
+/// Ethereum watcher component.
 #[derive(Debug)]
 pub struct EthWatch {
     client: Box<dyn EthClient>,
