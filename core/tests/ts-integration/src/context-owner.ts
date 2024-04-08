@@ -18,7 +18,10 @@ import { RetryProvider } from './retry-provider';
 export const L1_DEFAULT_ETH_PER_ACCOUNT = ethers.utils.parseEther('0.08');
 // Stress tests for L1->L2 transactions on localhost require a lot of upfront payment, but these are skipped during tests on normal environments
 export const L1_EXTENDED_TESTS_ETH_PER_ACCOUNT = ethers.utils.parseEther('0.5');
-export const L2_ETH_PER_ACCOUNT = ethers.utils.parseEther('0.5');
+export const L2_DEFAULT_ETH_PER_ACCOUNT = ethers.utils.parseEther('0.5');
+
+// Stress tests on local host may require a lot of additiomal funds, but these are skipped during tests on normal environments
+export const L2_EXTENDED_TESTS_ETH_PER_ACCOUNT = ethers.utils.parseEther('50');
 export const ERC20_PER_ACCOUNT = ethers.utils.parseEther('10000.0');
 
 /**
@@ -87,6 +90,11 @@ export class TestContextOwner {
     // Returns the required amount of L1 ETH
     requiredL1ETHPerAccount() {
         return this.env.network === 'localhost' ? L1_EXTENDED_TESTS_ETH_PER_ACCOUNT : L1_DEFAULT_ETH_PER_ACCOUNT;
+    }
+
+    // Returns the required amount of L2 ETH
+    requiredL2ETHPerAccount() {
+        return this.env.network === 'localhost' ? L2_EXTENDED_TESTS_ETH_PER_ACCOUNT : L2_DEFAULT_ETH_PER_ACCOUNT;
     }
 
     /**
@@ -219,7 +227,7 @@ export class TestContextOwner {
 
         this.reporter.message(`Operator address is ${this.mainEthersWallet.address}`);
 
-        const requiredL2ETHAmount = L2_ETH_PER_ACCOUNT.mul(accountsAmount);
+        const requiredL2ETHAmount = this.requiredL2ETHPerAccount().mul(accountsAmount);
         // kl todo, for non eth based chains, we need to check different
         const actualL2ETHAmount = await this.mainSyncWallet.getBalance();
         this.reporter.message(`Operator balance on L2 is ${ethers.utils.formatEther(actualL2ETHAmount)} ETH`);
@@ -487,7 +495,7 @@ export class TestContextOwner {
             zksync.utils.ETH_ADDRESS,
             this.mainSyncWallet,
             wallets,
-            L2_ETH_PER_ACCOUNT,
+            this.requiredL2ETHPerAccount(),
             l2startNonce,
             undefined,
             this.reporter

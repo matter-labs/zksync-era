@@ -13,9 +13,7 @@ use zksync_types::{
 };
 
 use super::client::Error;
-use crate::eth_watch::{
-    client::EthClient, event_processors::upgrades::UPGRADE_PROPOSAL_SIGNATURE, EthWatch,
-};
+use crate::{client::EthClient, event_processors::upgrades::UPGRADE_PROPOSAL_SIGNATURE, EthWatch};
 
 #[derive(Debug)]
 struct FakeEthClientData {
@@ -774,9 +772,10 @@ async fn setup_db(connection_pool: &ConnectionPool<Core>) {
         .await
         .unwrap()
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion {
+        .save_protocol_version_with_tx(&ProtocolVersion {
             id: (ProtocolVersionId::latest() as u16 - 1).try_into().unwrap(),
             ..Default::default()
         })
-        .await;
+        .await
+        .unwrap();
 }

@@ -16,8 +16,9 @@ fee_account_addr = "0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7"
 # Denotes the amount of slots for transactions in the block.
 transaction_slots = 250
 
-max_allowed_l2_tx_gas_limit = 4000000000
-block_commit_deadline_ms = 2500
+# 2^50, the maximal allowed gas limit in a batch.
+max_allowed_l2_tx_gas_limit = 1125899906842624
+block_commit_deadline_ms = 5000
 miniblock_commit_deadline_ms = 1000
 miniblock_seal_queue_capacity = 10
 # Max gas that can used to include single block in aggregated operation
@@ -75,7 +76,7 @@ max_gas_per_batch = 200000000
 # Note, the max at this moment is 252 kb
 max_pubdata_per_batch = 100000
 
-# The version of the fee model to use. 
+# The version of the fee model to use.
 # - `V1`, the first model that was used in zkSync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
 # Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the costs that come from
 # processing the batch on L1.

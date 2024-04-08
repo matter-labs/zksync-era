@@ -1,4 +1,8 @@
-use std::{env, num::NonZeroUsize, time::Duration};
+use std::{
+    env,
+    num::{NonZeroU32, NonZeroUsize},
+    time::Duration,
+};
 
 use anyhow::Context;
 use serde::Deserialize;
@@ -252,6 +256,9 @@ pub(crate) struct OptionalENConfig {
         default = "OptionalENConfig::default_max_l1_batches_per_tree_iter"
     )]
     pub max_l1_batches_per_tree_iter: usize,
+    /// Maximum number of files concurrently opened by Merkle tree RocksDB. Useful to fit into OS limits; can be used
+    /// as a rudimentary way to control RAM usage of the tree.
+    pub merkle_tree_max_open_files: Option<NonZeroU32>,
     /// Chunk size for multi-get operations. Can speed up loading data for the Merkle tree on some environments,
     /// but the effects vary wildly depending on the setup (e.g., the filesystem used).
     #[serde(default = "OptionalENConfig::default_merkle_tree_multi_get_chunk_size")]
@@ -260,6 +267,11 @@ pub(crate) struct OptionalENConfig {
     /// The default value is 128 MiB.
     #[serde(default = "OptionalENConfig::default_merkle_tree_block_cache_size_mb")]
     merkle_tree_block_cache_size_mb: usize,
+    /// If specified, RocksDB indices and Bloom filters will be managed by the block cache, rather than
+    /// being loaded entirely into RAM on the RocksDB initialization. The block cache capacity should be increased
+    /// correspondingly; otherwise, RocksDB performance can significantly degrade.
+    #[serde(default)]
+    pub merkle_tree_include_indices_and_filters_in_block_cache: bool,
     /// Byte capacity of memtables (recent, non-persisted changes to RocksDB). Setting this to a reasonably
     /// large value (order of 512 MiB) is helpful for large DBs that experience write stalls.
     #[serde(default = "OptionalENConfig::default_merkle_tree_memtable_capacity_mb")]
