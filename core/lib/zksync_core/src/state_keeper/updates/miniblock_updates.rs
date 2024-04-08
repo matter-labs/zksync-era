@@ -133,7 +133,7 @@ impl MiniblockUpdates {
         self.block_execution_metrics += execution_metrics;
         self.txs_encoding_size += tx.bootloader_encoding_size();
         self.payload_encoding_size +=
-            zksync_protobuf::repr::encode::<zksync_dal::models::proto::Transaction>(&tx).len();
+            zksync_protobuf::repr::encode::<zksync_dal::consensus::proto::Transaction>(&tx).len();
         self.storage_logs
             .extend(tx_execution_result.logs.storage_logs);
 
@@ -187,7 +187,7 @@ mod tests {
         let tx = create_transaction(10, 100);
         let bootloader_encoding_size = tx.bootloader_encoding_size();
         let payload_encoding_size =
-            zksync_protobuf::repr::encode::<zksync_dal::models::proto::Transaction>(&tx).len();
+            zksync_protobuf::repr::encode::<zksync_dal::consensus::proto::Transaction>(&tx).len();
 
         accumulator.extend_from_executed_transaction(
             tx,

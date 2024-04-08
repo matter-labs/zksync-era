@@ -251,7 +251,7 @@ mod tests {
     fn max_size_miniblock_sealer() {
         let tx = create_transaction(10, 100);
         let tx_encoding_size =
-            zksync_protobuf::repr::encode::<zksync_dal::models::proto::Transaction>(&tx).len();
+            zksync_protobuf::repr::encode::<zksync_dal::consensus::proto::Transaction>(&tx).len();
 
         let mut max_payload_sealer = MiniblockMaxPayloadSizeSealer {
             max_payload_size: tx_encoding_size,

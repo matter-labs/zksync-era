@@ -1,3 +1,5 @@
+pub mod proto;
+
 #[cfg(test)]
 mod tests;
 
@@ -15,7 +17,7 @@ use zksync_types::{
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
-use crate::models::{parse_h160, parse_h256, proto};
+use crate::models::{parse_h160, parse_h256};
 
 /// L2 block (= miniblock) payload.
 #[derive(Debug, PartialEq)]
@@ -34,7 +36,7 @@ pub struct Payload {
 }
 
 impl ProtoFmt for Payload {
-    type Proto = super::proto::Payload;
+    type Proto = proto::Payload;
 
     fn read(message: &Self::Proto) -> anyhow::Result<Self> {
         let mut transactions = Vec::with_capacity(message.transactions.len());
