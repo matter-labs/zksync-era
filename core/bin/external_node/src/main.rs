@@ -51,7 +51,7 @@ use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
-use zksync_web3_decl::{client::L2Client, namespaces::EnNamespaceClient};
+use zksync_web3_decl::{client::L2Client, jsonrpsee, namespaces::EnNamespaceClient};
 
 use crate::{
     config::{observability::observability_config_from_env, ExternalNodeConfig},
@@ -431,10 +431,15 @@ async fn run_api(
     let whitelisted_tokens_for_aa_cache_clone = whitelisted_tokens_for_aa_cache.clone();
     let mut stop_receiver_for_task = stop_receiver.clone();
     task_handles.push(task::spawn(async move {
-        loop {
+        while !*stop_receiver_for_task.borrow_and_update() {
             match main_node_client.whitelisted_tokens_for_aa().await {
                 Ok(tokens) => {
                     *whitelisted_tokens_for_aa_cache_clone.write().await = tokens;
+                }
+                Err(jsonrpsee::core::client::Error::Call(error))
+                    if error.code() == jsonrpsee::types::error::METHOD_NOT_FOUND_CODE =>
+                {
+                    // Method is not supported by the main node, do nothing.
                 }
                 Err(err) => {
                     tracing::error!("Failed to query `whitelisted_tokens_for_aa`, error: {err:?}");
@@ -446,6 +451,7 @@ async fn run_api(
                 .await
                 .ok();
         }
+        Ok(())
     }));
 
     let tx_sender = tx_sender_builder

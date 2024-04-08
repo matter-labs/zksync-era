@@ -18,7 +18,7 @@ transaction_slots = 250
 
 # 2^50, the maximal allowed gas limit in a batch.
 max_allowed_l2_tx_gas_limit = 1125899906842624
-block_commit_deadline_ms = 2500
+block_commit_deadline_ms = 5000
 miniblock_commit_deadline_ms = 1000
 miniblock_seal_queue_capacity = 10
 # Max gas that can used to include single block in aggregated operation
