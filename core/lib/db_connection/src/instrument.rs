@@ -403,6 +403,12 @@ where
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_optional(conn)).await
     }
+
+    /// Fetches a single row using this query.
+    pub async fn fetch_one<DB: DbMarker>(self, storage: &mut Connection<'_, DB>) -> DalResult<O> {
+        let (conn, tags) = storage.conn_and_tags();
+        self.data.fetch(tags, self.query.fetch_one(conn)).await
+    }
 }
 
 impl<'q, F, O, A> Instrumented<'_, Map<'q, Postgres, F, A>>
