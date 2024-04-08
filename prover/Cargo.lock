@@ -454,7 +454,7 @@ dependencies = [
  "bitflags 2.4.2",
  "cexpr",
  "clang-sys",
- "itertools 0.12.1",
+ "itertools 0.11.0",
  "lazy_static",
  "lazycell",
  "log",
@@ -886,7 +886,7 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#e9a20de5f2a2f960e22e3b66e3ea2782128403f7"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#6255bf32164eae9d13b0a655b9c4fbbaf6563c1b"
 dependencies = [
  "derivative",
  "serde",
@@ -3834,7 +3834,7 @@ dependencies = [
 [[package]]
 name = "pairing_ce"
 version = "0.28.5"
-source = "git+https://github.com/matter-labs/pairing.git#f55393fd366596eac792d78525d26e9c4d6ed1ca"
+source = "git+https://github.com/matter-labs/pairing.git#d24f2c5871089c4cd4f54c0ca266bb9fef6115eb"
 dependencies = [
  "byteorder",
  "cfg-if 1.0.0",
@@ -5326,7 +5326,7 @@ dependencies = [
 [[package]]
 name = "shivini"
 version = "0.2.0"
-source = "git+https://github.com/matter-labs/era-shivini.git?branch=v1.5.0#0c36314d1715ce858d366954920d005447cd6be2"
+source = "git+https://github.com/matter-labs/era-shivini.git?branch=v1.5.0#e77678baa55bfaf56fe3b29724b50ae21fe92fa2"
 dependencies = [
  "bincode",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -7330,7 +7330,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#ff60cee4e0b1cae5e920f6d041e84851377327ca"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#b2d0db2f08de3037aebcaa8b394981e57158bdbe"
 dependencies = [
  "arrayvec 0.7.4",
  "boojum",
@@ -7388,7 +7388,7 @@ dependencies = [
 [[package]]
 name = "zkevm_opcode_defs"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0#dc74cf4e1167a9636e14725da09c8020a8bfa26b"
+source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0#109d9f734804a8b9dc0531c0b576e2a0f55a40de"
 dependencies = [
  "bitflags 2.4.2",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",

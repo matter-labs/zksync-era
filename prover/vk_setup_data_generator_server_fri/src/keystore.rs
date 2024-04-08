@@ -317,7 +317,7 @@ impl Keystore {
     pub fn load_keys_to_data_source(&self) -> anyhow::Result<InMemoryDataSource> {
         let mut data_source = InMemoryDataSource::new();
         for base_circuit_type in
-            (BaseLayerCircuitType::VM as u8)..=(BaseLayerCircuitType::L1MessagesHasher as u8)
+            (BaseLayerCircuitType::VM as u8)..=(BaseLayerCircuitType::Secp256r1Verify as u8)
         {
             data_source
                 .set_base_layer_vk(self.load_base_layer_verification_key(base_circuit_type)?)
@@ -325,7 +325,7 @@ impl Keystore {
         }
 
         for circuit_type in ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8
-            ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8
+            ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForEIP4844Repack as u8
         {
             data_source
                 .set_recursion_layer_vk(self.load_recursive_layer_verification_key(circuit_type)?)

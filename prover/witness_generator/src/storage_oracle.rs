@@ -36,14 +36,20 @@ impl<T: Storage> Storage for StorageOracle<T> {
 
     fn get_access_refund(
         &mut self,
-        _: u32,
-        _: &zk_evm::aux_structures::LogQuery,
+        _monotonic_cycle_counter: u32,
+        partial_query: &zk_evm::aux_structures::LogQuery,
     ) -> StorageAccessRefund {
-        todo!()
+        // todo!() -- to figure out what needs to go in here
+        // if partial_query.aux_byte == 4 {
+        //     // Any transient access is warm. Also, no refund needs to be provided as it is already cheap
+        //     StorageAccessRefund::Warm { ergs: 0 }
+        // } else {
+        StorageAccessRefund::Cold
+        // }
     }
 
-    fn start_new_tx(&mut self, _: zk_evm::aux_structures::Timestamp) {
-        todo!()
+    fn start_new_tx(&mut self, _timestamp: zk_evm::aux_structures::Timestamp) {
+        // todo!()
     }
 
     fn execute_partial_query(
