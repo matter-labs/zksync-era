@@ -569,6 +569,61 @@ fn test_basic_exp_vectors() {
     );
 }
 
+#[test]
+fn test_basic_signextend_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    let mut expected_result: [u8; 32] = [0u8; 32];
+    hex::decode_to_slice(
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffb4da6c",
+        &mut expected_result,
+    )
+    .unwrap();
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push32 179,624,556
+                hex::decode("7F").unwrap(),
+                u256_to_h256(179_624_556.into()).0.to_vec(),
+                // push32 2
+                hex::decode("7F").unwrap(),
+                u256_to_h256(2.into()).0.to_vec(),
+                // signextend
+                hex::decode("0B").unwrap(),
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        h256_to_u256(H256::from_slice(&expected_result))
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push32 179,624,556
+                hex::decode("7F").unwrap(),
+                u256_to_h256(179_624_556.into()).0.to_vec(),
+                // push32 3
+                hex::decode("7F").unwrap(),
+                u256_to_h256(3.into()).0.to_vec(),
+                // signextend
+                hex::decode("0B").unwrap(),
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        179_624_556.into()
+    );
+}
+
 fn assert_deployed_hash<H: HistoryMode>(
     tester: &mut VmTester<H>,
     address: Address,
