@@ -1993,7 +1993,7 @@
     fs-extra "^11.1.1"
     semver "^7.5.1"
 
-"@matterlabs/hardhat-zksync-solc@0.4.2":
+"@matterlabs/hardhat-zksync-solc@0.4.2", "@matterlabs/hardhat-zksync-solc@^0.4.2":
   version "0.4.2"
   resolved "https://registry.yarnpkg.com/@matterlabs/hardhat-zksync-solc/-/hardhat-zksync-solc-0.4.2.tgz#64121082e88c5ab22eb4e9594d120e504f6af499"
   integrity sha512-6NFWPSZiOAoo7wNuhMg4ztj7mMEH+tLrx09WuCbcURrHPijj/KxYNsJD6Uw5lapKr7G8H7SQISGid1/MTXVmXQ==
@@ -2014,7 +2014,7 @@
     chalk "4.1.2"
     dockerode "^3.3.4"
 
-"@matterlabs/hardhat-zksync-solc@^1.0.5", "@matterlabs/hardhat-zksync-solc@^1.0.6":
+"@matterlabs/hardhat-zksync-solc@^1.0.5":
   version "1.1.4"
   resolved "https://registry.yarnpkg.com/@matterlabs/hardhat-zksync-solc/-/hardhat-zksync-solc-1.1.4.tgz#04a2fad6fb6b6944c64ad969080ee65b9af3f617"
   integrity sha512-4/usbogh9neewR2/v8Dn2OzqVblZMUuT/iH2MyPZgPRZYQlL4SlZtMvokU9UQjZT6iSoaKCbbdWESHDHSzfUjA==
@@ -2503,11 +2503,6 @@
   version "4.9.5"
   resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.9.5.tgz#1eed23d4844c861a1835b5d33507c1017fa98de8"
   integrity sha512-ZK+W5mVhRppff9BE6YdR8CC52C8zAvsVAiWhEtQ5+oNxFE6h1WdeWo+FJSF8KKvtxxVYZ7MTP/5KoVpAU3aSWg==
-
-"@openzeppelin/contracts@^4.8.0":
-  version "4.9.6"
-  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.9.6.tgz#2a880a24eb19b4f8b25adc2a5095f2aa27f39677"
-  integrity sha512-xSmezSupL+y9VkHZJGDoCBpmnB2ogM13ccaYDWqJTfS3dbuHkgjuwDFUmaFauBCboQMGB/S5UqUl2y54X99BmA==
 
 "@pkgr/core@^0.1.0":
   version "0.1.1"
@@ -8099,7 +8094,8 @@ kleur@^3.0.3:
   version "0.1.0"
   dependencies:
     dotenv "^16.0.3"
-    solhint-plugin-prettier "^0.0.5"
+  optionalDependencies:
+    zksync-web3 "^0.14.3"
 
 "l2-contracts@link:contracts/l2-contracts":
   version "0.1.0"
@@ -10438,13 +10434,6 @@ solc@0.8.17:
     semver "^5.5.0"
     tmp "0.0.33"
 
-solhint-plugin-prettier@^0.0.5:
-  version "0.0.5"
-  resolved "https://registry.yarnpkg.com/solhint-plugin-prettier/-/solhint-plugin-prettier-0.0.5.tgz#e3b22800ba435cd640a9eca805a7f8bc3e3e6a6b"
-  integrity sha512-7jmWcnVshIrO2FFinIvDQmhQpfpS2rRRn3RejiYgnjIE68xO2bvrYvjqVNfrio4xH9ghOqn83tKuTzLjEbmGIA==
-  dependencies:
-    prettier-linter-helpers "^1.0.0"
-
 solhint@^3.3.2, solhint@^3.6.2:
   version "3.6.2"
   resolved "https://registry.yarnpkg.com/solhint/-/solhint-3.6.2.tgz#2b2acbec8fdc37b2c68206a71ba89c7f519943fe"
@@ -10862,7 +10851,7 @@ synckit@^0.8.6:
     fast-glob "^3.3.2"
     hardhat "^2.18.3"
     preprocess "^3.2.0"
-    zksync-ethers "https://github.com/kelemeno/zksync-ethers#ethers-v5-feat/bridgehub"
+    zksync-web3 "^0.14.3"
 
 table-layout@^1.0.2:
   version "1.0.2"
@@ -11770,9 +11759,10 @@ yocto-queue@^1.0.0:
   resolved "https://registry.yarnpkg.com/yocto-queue/-/yocto-queue-1.0.0.tgz#7f816433fb2cbc511ec8bf7d263c3b58a1a3c251"
   integrity sha512-9bnSc/HEW2uRy67wc+T8UwauLuPJVn28jb+GtJY16iiKWyvmYJRXVT4UamsAEGQfPohgr2q4Tq0sQbQlxTfi1g==
 
-"zksync-ethers@https://github.com/kelemeno/zksync-ethers#ethers-v5-feat/bridgehub":
-  version "5.1.0"
-  resolved "https://github.com/kelemeno/zksync-ethers#d5d8d59953b705100c03ef61a564c51b6db151fc"
+zksync-ethers@^5.0.0:
+  version "5.7.0"
+  resolved "https://registry.yarnpkg.com/zksync-ethers/-/zksync-ethers-5.7.0.tgz#edf465eb564ed60d6a1cc3de5978b8bd8481c230"
+  integrity sha512-X99c5APICTlRzyXXjfwkEjRzOPp3Jwo62+z2DVGaZbe+b9Apbizcd2UGV4NGomoAR2GXPbeiSqi1cf3Hbo3cQw==
   dependencies:
     ethers "~5.7.0"
 
@@ -11781,6 +11771,11 @@ yocto-queue@^1.0.0:
   resolved "https://github.com/zksync-sdk/zksync-ethers#491cbdb0b55df6ba918e8255cd25176359154251"
   dependencies:
     ethers "~5.7.0"
+
+zksync-web3@^0.14.3:
+  version "0.14.4"
+  resolved "https://registry.yarnpkg.com/zksync-web3/-/zksync-web3-0.14.4.tgz#0b70a7e1a9d45cc57c0971736079185746d46b1f"
+  integrity sha512-kYehMD/S6Uhe1g434UnaMN+sBr9nQm23Ywn0EUP5BfQCsbjcr3ORuS68PosZw8xUTu3pac7G6YMSnNHk+fwzvg==
 
 zksync-web3@^0.15.4, zksync-web3@^0.15.5:
   version "0.15.5"
