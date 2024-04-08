@@ -20,7 +20,7 @@ impl ReadStorageFactory for PostgresFactory {
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
         Ok(Some(
-            AsyncRocksdbCache::access_storage_pg(&self.pool, l1_batch_number).await?,
+            PgOrRocksdbStorage::access_storage_pg(&self.pool, l1_batch_number).await?,
         ))
     }
 }
@@ -55,7 +55,7 @@ impl ReadStorageFactory for RocksdbFactory {
             .await
             .context("Failed getting a connection to Postgres")?;
         let Some(rocksdb_storage) = builder
-            .synchronize(&mut conn, stop_receiver)
+            .synchronize(&mut conn, stop_receiver, None)
             .await
             .context("Failed synchronizing state keeper's RocksDB to Postgres")?
         else {

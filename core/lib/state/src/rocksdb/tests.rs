@@ -82,7 +82,7 @@ async fn sync_test_storage(dir: &TempDir, conn: &mut Connection<'_, Core>) -> Ro
         .await
         .expect("Failed initializing RocksDB");
     builder
-        .synchronize(conn, &stop_receiver)
+        .synchronize(conn, &stop_receiver, None)
         .await
         .unwrap()
         .expect("Storage synchronization unexpectedly stopped")
@@ -132,7 +132,7 @@ async fn rocksdb_storage_syncing_fault_tolerance() {
         }
     });
     let storage = storage
-        .synchronize(&mut conn, &stop_receiver)
+        .synchronize(&mut conn, &stop_receiver, None)
         .await
         .unwrap();
     assert!(storage.is_none());
@@ -145,7 +145,7 @@ async fn rocksdb_storage_syncing_fault_tolerance() {
 
     let (_stop_sender, stop_receiver) = watch::channel(false);
     let mut storage = storage
-        .synchronize(&mut conn, &stop_receiver)
+        .synchronize(&mut conn, &stop_receiver, None)
         .await
         .unwrap()
         .expect("Storage synchronization unexpectedly stopped");

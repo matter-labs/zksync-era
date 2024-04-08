@@ -9,6 +9,7 @@ use zksync_config::{
     DBConfig,
 };
 use zksync_dal::{ConnectionPool, Core};
+use zksync_state::AsyncCatchupTask;
 use zksync_types::L2ChainId;
 
 pub use self::{
@@ -20,7 +21,7 @@ pub use self::{
     keeper::ZkSyncStateKeeper,
     mempool_actor::MempoolFetcher,
     seal_criteria::SequencerSealer,
-    state_keeper_storage::{AsyncCatchupTask, AsyncRocksdbCache},
+    state_keeper_storage::AsyncRocksdbCache,
     types::MempoolGuard,
 };
 use crate::fee_model::BatchFeeModelInputProvider;

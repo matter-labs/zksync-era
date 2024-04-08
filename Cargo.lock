@@ -7265,10 +7265,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "once_cell",
  "tokio",
  "zksync_dal",
  "zksync_db_connection",
  "zksync_state",
+ "zksync_storage",
  "zksync_types",
 ]
 
@@ -8708,6 +8710,7 @@ dependencies = [
  "chrono",
  "itertools 0.10.5",
  "mini-moka",
+ "once_cell",
  "rand 0.8.5",
  "tempfile",
  "test-casing",

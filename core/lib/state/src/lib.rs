@@ -18,6 +18,7 @@ use zksync_types::{
 };
 
 mod cache;
+mod catchup;
 mod in_memory;
 mod postgres;
 mod rocksdb;
@@ -30,6 +31,7 @@ mod witness;
 
 pub use self::{
     cache::sequential_cache::SequentialCache,
+    catchup::AsyncCatchupTask,
     in_memory::InMemoryStorage,
     postgres::{PostgresStorage, PostgresStorageCaches, PostgresStorageCachesTask},
     rocksdb::{RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily},

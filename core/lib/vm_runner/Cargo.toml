@@ -14,8 +14,10 @@ publish = false
 zksync_dal.workspace = true
 zksync_db_connection.workspace = true
 zksync_state.workspace = true
+zksync_storage.workspace = true
 zksync_types.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true
+once_cell.workspace = true
 tokio.workspace = true
