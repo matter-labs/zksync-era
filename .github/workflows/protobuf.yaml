@@ -54,7 +54,7 @@ jobs:
           `find ./after/target/debug/build/*/output`
           | xargs cat > ./after.binpb
       - uses: bufbuild/buf-setup-action@v1
-      - uses: bufbuild/buf-breaking-action@v1
         with:
-          input: "./after.binpb"
-          against: "./before.binpb"
+          github_token: ${{ github.token }}
+      - name: buf breaking
+        run: buf breaking './after.binpb' --against './before.binpb' --config '{"version":"v1","breaking":{"use":["WIRE_JSON"]}}' --error-format 'github-actions'

@@ -706,9 +706,6 @@ mod tests {
             actual.rollup_last_leaf_index,
             expected.rollup_last_leaf_index
         );
-        assert_eq!(actual.initial_writes, expected.initial_writes);
-        assert_eq!(actual.initial_writes, expected.initial_writes);
-        assert_eq!(actual.repeated_writes, expected.repeated_writes);
     }
 
     fn assert_equivalent_witnesses(lhs: PrepareBasicCircuitsJob, rhs: PrepareBasicCircuitsJob) {

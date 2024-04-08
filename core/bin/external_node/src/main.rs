@@ -51,7 +51,7 @@ use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
-use zksync_web3_decl::{client::L2Client, namespaces::EnNamespaceClient};
+use zksync_web3_decl::{client::L2Client, jsonrpsee, namespaces::EnNamespaceClient};
 
 use crate::{
     config::{observability::observability_config_from_env, ExternalNodeConfig},
@@ -444,6 +444,11 @@ async fn run_api(
                 match main_node_client.whitelisted_tokens_for_aa().await {
                     Ok(tokens) => {
                         *whitelisted_tokens_for_aa_cache_clone.write().await = tokens;
+                    }
+                    Err(jsonrpsee::core::client::Error::Call(error))
+                        if error.code() == jsonrpsee::types::error::METHOD_NOT_FOUND_CODE =>
+                    {
+                        // Method is not supported by the main node, do nothing.
                     }
                     Err(err) => {
                         tracing::error!(
