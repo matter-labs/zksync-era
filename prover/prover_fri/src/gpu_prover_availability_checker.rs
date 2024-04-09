@@ -34,9 +34,17 @@ pub mod availability_checker {
         pub async fn run(
             self,
             stop_receiver: tokio::sync::watch::Receiver<bool>,
+            init_receiver: tokio::sync::oneshot::Receiver<()>,
         ) -> anyhow::Result<()> {
             while !*stop_receiver.borrow() {
-                tokio::time::sleep(self.polling_interval).await;
+                match init_receiver.try_recv() {
+                    Ok(_) => (),
+                    Err(tokio::sync::oneshot::error::TryRecvError::Empty) => continue,
+                    Err(tokio::sync::oneshot::error::TryRecvError::Closed) => {
+                        tracing::error!("Init receiver was closed");
+                        return Ok(());
+                    }
+                }
 
                 let status = self
                     .pool
@@ -71,6 +79,8 @@ pub mod availability_checker {
                     }
                     Some(_) => (),
                 }
+
+                tokio::time::sleep(self.polling_interval).await;
             }
 
             tracing::info!("Availability checker was shut down");

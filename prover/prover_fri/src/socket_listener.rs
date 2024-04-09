@@ -42,7 +42,10 @@ pub mod gpu_socket_listener {
                 zone,
             }
         }
-        async fn init(&self) -> anyhow::Result<TcpListener> {
+        async fn init(
+            &self,
+            init_sender: tokio::sync::oneshot::Sender<()>,
+        ) -> anyhow::Result<TcpListener> {
             let listening_address = SocketAddr::new(self.address.host, self.address.port);
             tracing::info!(
                 "Starting assembly receiver at host: {}, port: {}",
@@ -65,14 +68,16 @@ pub mod gpu_socket_listener {
                     self.zone.clone(),
                 )
                 .await;
+            init_sender.send(()).expect("Failed sending init signal");
             Ok(listener)
         }
 
         pub async fn listen_incoming_connections(
             self,
             stop_receiver: watch::Receiver<bool>,
+            init_sender: tokio::sync::oneshot::Sender<()>,
         ) -> anyhow::Result<()> {
-            let listener = self.init().await.context("init()")?;
+            let listener = self.init(init_sender).await.context("init()")?;
             let mut now = Instant::now();
             loop {
                 if *stop_receiver.borrow() {

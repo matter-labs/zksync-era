@@ -45,7 +45,7 @@ mod tests {
                 },
                 max_retries: 5,
             }),
-            availability_check_interval_in_secs: 1_800,
+            availability_check_interval_in_secs: Some(1_800),
         }
     }
 

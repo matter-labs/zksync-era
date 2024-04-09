@@ -25,7 +25,7 @@ pub struct FriProverConfig {
     pub queue_capacity: usize,
     pub witness_vector_receiver_port: u16,
     pub zone_read_url: String,
-    pub availability_check_interval_in_secs: u32,
+    pub availability_check_interval_in_secs: Option<u32>,
 
     // whether to write to public GCS bucket for https://github.com/matter-labs/era-boojum-validator-cli
     pub shall_save_to_public_bucket: bool,

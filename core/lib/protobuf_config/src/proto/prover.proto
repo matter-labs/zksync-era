@@ -34,7 +34,7 @@ message Prover {
     optional uint64 queue_capacity = 10; // required
     optional uint32 witness_vector_receiver_port = 11; // required; u16
     optional string zone_read_url = 12; // required
-    optional uint32 availability_check_interval_in_secs = 21; // required; s
+    optional uint32 availability_check_interval_in_secs = 21; // optional; s
     optional bool shall_save_to_public_bucket = 13; // required
     optional config.object_store.ObjectStore object_store = 20;
 }
