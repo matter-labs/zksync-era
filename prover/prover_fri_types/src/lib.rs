@@ -194,9 +194,6 @@ impl ProverServiceDataKey {
     }
 
     pub fn name(&self) -> String {
-        if self.is_eip4844() {
-            return "eip4844".to_string();
-        }
         match self.round {
             AggregationRound::BasicCircuits => {
                 format!("basic_{}", self.circuit_id)

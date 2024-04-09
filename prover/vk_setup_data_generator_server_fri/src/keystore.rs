@@ -349,6 +349,7 @@ impl Keystore {
             ..=(BaseLayerCircuitType::Secp256r1Verify as u8))
             .chain(std::iter::once(BaseLayerCircuitType::EIP4844Repack as u8))
         {
+            print!("Saving base circuit for {:?}", base_circuit_type);
             let vk = source.get_base_layer_vk(base_circuit_type).map_err(|err| {
                 anyhow::anyhow!("No vk exist for circuit type: {base_circuit_type}: {err}")
             })?;
