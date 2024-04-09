@@ -147,16 +147,22 @@ impl ProverServiceDataKey {
     pub fn all_boojum() -> Vec<ProverServiceDataKey> {
         let mut results = vec![];
         for numeric_circuit in
-            BaseLayerCircuitType::VM as u8..=BaseLayerCircuitType::L1MessagesHasher as u8
+            (BaseLayerCircuitType::VM as u8..=BaseLayerCircuitType::Secp256r1Verify as u8).chain(
+                BaseLayerCircuitType::EIP4844Repack as u8
+                    ..BaseLayerCircuitType::EIP4844Repack as u8,
+            )
         {
             results.push(ProverServiceDataKey::new_basic(numeric_circuit))
         }
-        for numeric_circuit in ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8
-            ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8
+        for numeric_circuit in (ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8
+            ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForEIP4844Repack as u8)
+            .chain(
+                ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8
+                    ..ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
+            )
         {
             results.push(ProverServiceDataKey::new_recursive(numeric_circuit))
         }
-        results.push(ProverServiceDataKey::eip4844());
         // Don't include snark, as it uses the old proving system.
 
         results
