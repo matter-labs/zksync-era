@@ -1079,6 +1079,12 @@ dependencies = [
 [[package]]
 name = "compile-fmt"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bed69047ed42e52c7e38d6421eeb8ceefb4f2a2b52eed59137f7bad7908f6800"
+
+[[package]]
+name = "compile-fmt"
+version = "0.1.0"
 source = "git+https://github.com/slowli/compile-fmt.git?rev=c6a41c846c9a6f70cdba4b44c9f3922242ffcf12#c6a41c846c9a6f70cdba4b44c9f3922242ffcf12"
 
 [[package]]
@@ -3290,7 +3296,7 @@ dependencies = [
  "once_cell",
  "thiserror",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4)",
  "zk_evm 1.3.1",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zk_evm 1.4.0",
@@ -4152,6 +4158,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "prometheus-client"
+version = "0.22.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1ca959da22a332509f2a73ae9e5f23f9dcfc31fd3a54d71f159495bd5909baa"
+dependencies = [
+ "dtoa",
+ "itoa",
+ "parking_lot",
+ "prometheus-client-derive-encode",
+]
+
+[[package]]
 name = "prometheus-client-derive-encode"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4170,7 +4188,7 @@ dependencies = [
  "metrics",
  "metrics-exporter-prometheus",
  "tokio",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4)",
  "vise-exporter",
 ]
 
@@ -6609,31 +6627,54 @@ name = "vise"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1#1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1"
 dependencies = [
- "compile-fmt",
+ "compile-fmt 0.1.0 (git+https://github.com/slowli/compile-fmt.git?rev=c6a41c846c9a6f70cdba4b44c9f3922242ffcf12)",
  "elsa",
  "linkme",
  "once_cell",
- "prometheus-client",
- "vise-macros",
+ "prometheus-client 0.21.2",
+ "vise-macros 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
+]
+
+[[package]]
+name = "vise"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4#a5bb80c9ce7168663114ee30e794d6dc32159ee4"
+dependencies = [
+ "compile-fmt 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "elsa",
+ "linkme",
+ "once_cell",
+ "prometheus-client 0.22.2",
+ "vise-macros 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4)",
 ]
 
 [[package]]
 name = "vise-exporter"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1#1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1"
+source = "git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4#a5bb80c9ce7168663114ee30e794d6dc32159ee4"
 dependencies = [
  "hyper",
  "metrics-exporter-prometheus",
  "once_cell",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4)",
 ]
 
 [[package]]
 name = "vise-macros"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1#1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1"
+dependencies = [
+ "proc-macro2 1.0.78",
+ "quote 1.0.35",
+ "syn 2.0.48",
+]
+
+[[package]]
+name = "vise-macros"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4#a5bb80c9ce7168663114ee30e794d6dc32159ee4"
 dependencies = [
  "proc-macro2 1.0.78",
  "quote 1.0.35",
@@ -7487,7 +7528,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4)",
 ]
 
 [[package]]
@@ -7551,7 +7592,7 @@ dependencies = [
  "rand 0.8.5",
  "thiserror",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4)",
  "zksync_concurrency",
  "zksync_consensus_roles",
  "zksync_protobuf",
@@ -7628,7 +7669,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4)",
  "zksync_consensus_roles",
  "zksync_consensus_storage",
  "zksync_contracts",
@@ -7653,7 +7694,7 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4)",
  "zksync_health_check",
 ]
 
@@ -7678,7 +7719,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4)",
 ]
 
 [[package]]
@@ -7705,7 +7746,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4)",
  "zksync_config",
  "zksync_protobuf",
  "zksync_types",
@@ -7729,7 +7770,7 @@ dependencies = [
  "structopt",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
  "vk_setup_data_generator_server_fri",
  "vlog",
  "zkevm_test_harness 1.3.3",
@@ -7798,7 +7839,7 @@ dependencies = [
  "shivini",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
  "vk_setup_data_generator_server_fri",
  "vlog",
  "zkevm_test_harness 1.4.2",
@@ -7827,7 +7868,7 @@ dependencies = [
  "serde",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
  "vlog",
  "zksync_config",
  "zksync_env_config",
@@ -7857,7 +7898,7 @@ dependencies = [
  "reqwest",
  "serde",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
  "zksync_config",
  "zksync_object_store",
  "zksync_prover_fri_types",
@@ -7886,7 +7927,7 @@ dependencies = [
  "async-trait",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4)",
  "zksync_utils",
 ]
 
@@ -7900,7 +7941,7 @@ dependencies = [
  "mini-moka",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4)",
  "zksync_dal",
  "zksync_storage",
  "zksync_types",
@@ -7916,7 +7957,7 @@ dependencies = [
  "rocksdb",
  "thread_local",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=a5bb80c9ce7168663114ee30e794d6dc32159ee4)",
 ]
 
 [[package]]
@@ -8000,7 +8041,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
  "vk_setup_data_generator_server_fri",
  "vlog",
  "zk_evm 1.4.1",
@@ -8035,7 +8076,7 @@ dependencies = [
  "structopt",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.1.0 (git+https://github.com/matter-labs/vise.git?rev=1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1)",
  "vk_setup_data_generator_server_fri",
  "vlog",
  "zksync_config",
