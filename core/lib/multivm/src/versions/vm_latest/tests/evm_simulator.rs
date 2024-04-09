@@ -453,6 +453,73 @@ fn test_basic_mod_vectors() {
     );
 }
 
+#[test]
+fn test_basic_smod_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 3
+                hex::decode("60").unwrap(),
+                hex::decode("03").unwrap(),
+                // push1 10
+                hex::decode("60").unwrap(),
+                hex::decode("0A").unwrap(),
+                // smod
+                hex::decode("07").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        1.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push2 6
+                hex::decode("61").unwrap(),
+                hex::decode("0006").unwrap(),
+                // push1 -4087
+                hex::decode("61").unwrap(),
+                hex::decode("F009").unwrap(),
+                // smod
+                hex::decode("07").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        3.into() // 3
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push0
+                hex::decode("5F").unwrap(),
+                // push1 14
+                hex::decode("60").unwrap(),
+                hex::decode("0E").unwrap(),
+                // smod
+                hex::decode("07").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+}
+
 fn assert_deployed_hash<H: HistoryMode>(
     tester: &mut VmTester<H>,
     address: Address,
