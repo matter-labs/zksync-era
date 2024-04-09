@@ -283,7 +283,12 @@ describe('Block reverting test', function () {
         await mainNode.terminate();
 
         console.log('Ask block_reverter to suggest to which L1 batch we should revert');
-        const values_json = runBlockReverter(['print-suggested-values', '--json']);
+        const values_json = runBlockReverter([
+            'print-suggested-values',
+            '--json',
+            '--operator-address',
+            '0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7'
+        ]);
         console.log(`values = ${values_json}`);
         const values = parseSuggestedValues(values_json);
         assert(lastExecuted.eq(values.lastExecutedL1BatchNumber));
