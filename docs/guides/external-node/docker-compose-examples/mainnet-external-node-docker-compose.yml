@@ -1,12 +1,32 @@
 version: '3.2'
 services:
+  prometheus:
+    image: prom/prometheus:v2.35.0
+    volumes:
+      - mainnet-prometheus-data:/prometheus
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+  grafana:
+    image: grafana/grafana:9.3.6
+    volumes:
+      - mainnet-grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    ports:
+      - "3000:3000"
+    expose:
+      - 3000
   postgres:
     image: "postgres:14"
     command: postgres -c 'max_connections=200'
     ports:
-      - 127.0.0.1:5432:5432
+      - "5432:5432"
     volumes:
-      - postgres:/var/lib/postgresql/data
+      - mainnet-postgres:/var/lib/postgresql/data
     healthcheck:
       interval: 1s
       timeout: 3s
@@ -19,8 +39,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    ports:
+      - "3322:3322"
     volumes:
-      - rocksdb:/db
+      - mainnet-rocksdb:/db
     expose:
       - 3060
       - 3061
@@ -32,6 +54,7 @@ services:
       EN_HTTP_PORT: 3060
       EN_WS_PORT: 3061
       EN_HEALTHCHECK_PORT: 3081
+      EN_PROMETHEUS_PORT: 3322
       EN_ETH_CLIENT_URL: https://ethereum-rpc.publicnode.com
       EN_MAIN_NODE_URL: https://zksync2-mainnet.zksync.io
       EN_L1_CHAIN_ID: 1
@@ -46,5 +69,7 @@ services:
       - --enable-snapshots-recovery
 
 volumes:
-  postgres: {}
-  rocksdb: {}
+  mainnet-postgres: {}
+  mainnet-rocksdb: {}
+  mainnet-prometheus-data: { }
+  mainnet-grafana-data: { }
