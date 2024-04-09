@@ -119,6 +119,25 @@ fn test_evm_vector(mut bytecode: Vec<u8>) -> U256 {
         "Transaction wasn't successful"
     );
 
+    for event in tx_result.logs.events {
+        let debug_topic = vec![H256::from_str(
+            "0x00debdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebde",
+        )
+        .unwrap()];
+        let debug_string_topic = vec![H256::from_str(
+            "0x00debdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdf",
+        )
+        .unwrap()];
+
+        if event.indexed_topics == debug_topic {
+            println!("PRINTED: 0x{:02x}", U256::from_big_endian(&event.value));
+        }
+
+        if event.indexed_topics == debug_string_topic {
+            println!("PRINTED: {}", String::from_utf8(event.value).unwrap());
+        }
+    }
+
     let batch_result = vm.vm.execute(VmExecutionMode::Batch);
     assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
 
