@@ -5,6 +5,7 @@ use std::{
 
 use ethabi::{encode, Contract, Token};
 use itertools::Itertools;
+use tracing::Instrument;
 // FIXME: 1.4.1 should not be imported from 1.5.0
 use zk_evm_1_4_1::sha2::{self};
 use zk_evm_1_5_0::zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32};
@@ -614,6 +615,96 @@ fn test_basic_signextend_vectors() {
                 // push32 0
                 hex::decode("7F").unwrap(),
                 H256::zero().0.to_vec(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        179_624_556.into()
+    );
+}
+
+#[test]
+fn test_basic_dup_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 3
+                hex::decode("60").unwrap(),
+                hex::decode("03").unwrap(),
+                // push1 10
+                hex::decode("60").unwrap(),
+                hex::decode("0A").unwrap(),
+                // push1 255
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // dup3
+                hex::decode("82").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        3.into()
+    );
+
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push32 179,624,556
+                hex::decode("7F").unwrap(),
+                u256_to_h256(179_624_556.into()).0.to_vec(),
+                // push1 255
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // push1 3
+                hex::decode("60").unwrap(),
+                hex::decode("03").unwrap(),
+                // push1 255
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // push1 3
+                hex::decode("60").unwrap(),
+                hex::decode("03").unwrap(),
+                // push1 255
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // push1 3
+                hex::decode("60").unwrap(),
+                hex::decode("03").unwrap(),
+                // push1 255
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // push1 3
+                hex::decode("60").unwrap(),
+                hex::decode("03").unwrap(),
+                // push1 255
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // push1 3
+                hex::decode("60").unwrap(),
+                hex::decode("03").unwrap(),
+                // push1 255
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // push1 3
+                hex::decode("60").unwrap(),
+                hex::decode("03").unwrap(),
+                // push1 255
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // push1 3
+                hex::decode("60").unwrap(),
+                hex::decode("03").unwrap(),
+                // push1 255
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // 16 pushes
+                // dup16
+                hex::decode("8F").unwrap(),
                 // sstore
                 hex::decode("55").unwrap(),
             ]
