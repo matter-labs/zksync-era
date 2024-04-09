@@ -13,7 +13,7 @@ use zksync_types::{
     snapshots::SnapshotRecoveryStatus,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     Address, Execute, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber,
-    PriorityOpId, ProtocolVersionId, H160, H256, U256,
+    PriorityOpId, ProtocolVersion, ProtocolVersionId, H160, H256, U256,
 };
 
 use crate::{
@@ -172,14 +172,14 @@ async fn workflow_with_submit_tx_equal_hashes() {
 
     let tx = mock_l2_transaction();
     let result = transactions_dal
-        .insert_transaction_l2(tx.clone(), mock_tx_execution_metrics())
+        .insert_transaction_l2(&tx, mock_tx_execution_metrics())
         .await
         .unwrap();
 
     assert_eq!(result, L2TxSubmissionResult::Added);
 
     let result = transactions_dal
-        .insert_transaction_l2(tx, mock_tx_execution_metrics())
+        .insert_transaction_l2(&tx, mock_tx_execution_metrics())
         .await
         .unwrap();
 
@@ -198,7 +198,7 @@ async fn workflow_with_submit_tx_diff_hashes() {
     let initiator_address = tx.common_data.initiator_address;
 
     let result = transactions_dal
-        .insert_transaction_l2(tx, mock_tx_execution_metrics())
+        .insert_transaction_l2(&tx, mock_tx_execution_metrics())
         .await
         .unwrap();
 
@@ -208,7 +208,7 @@ async fn workflow_with_submit_tx_diff_hashes() {
     tx.common_data.nonce = nonce;
     tx.common_data.initiator_address = initiator_address;
     let result = transactions_dal
-        .insert_transaction_l2(tx, mock_tx_execution_metrics())
+        .insert_transaction_l2(&tx, mock_tx_execution_metrics())
         .await
         .unwrap();
 
@@ -221,8 +221,9 @@ async fn remove_stuck_txs() {
     let storage = &mut connection_pool.connection().await.unwrap();
     let mut protocol_versions_dal = ProtocolVersionsDal { storage };
     protocol_versions_dal
-        .save_protocol_version_with_tx(Default::default())
-        .await;
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
 
     let storage = protocol_versions_dal.storage;
     let mut transactions_dal = TransactionsDal { storage };
@@ -231,13 +232,13 @@ async fn remove_stuck_txs() {
     let mut tx = mock_l2_transaction();
     tx.received_timestamp_ms = unix_timestamp_ms() - Duration::new(1000, 0).as_millis() as u64;
     transactions_dal
-        .insert_transaction_l2(tx, mock_tx_execution_metrics())
+        .insert_transaction_l2(&tx, mock_tx_execution_metrics())
         .await
         .unwrap();
     // Tx in mempool
     let tx = mock_l2_transaction();
     transactions_dal
-        .insert_transaction_l2(tx, mock_tx_execution_metrics())
+        .insert_transaction_l2(&tx, mock_tx_execution_metrics())
         .await
         .unwrap();
 
@@ -245,15 +246,16 @@ async fn remove_stuck_txs() {
     let mut tx = mock_l1_execute();
     tx.received_timestamp_ms = unix_timestamp_ms() - Duration::new(1000, 0).as_millis() as u64;
     transactions_dal
-        .insert_transaction_l1(tx, L1BlockNumber(1))
-        .await;
+        .insert_transaction_l1(&tx, L1BlockNumber(1))
+        .await
+        .unwrap();
 
     // Old executed tx
     let mut executed_tx = mock_l2_transaction();
     executed_tx.received_timestamp_ms =
         unix_timestamp_ms() - Duration::new(1000, 0).as_millis() as u64;
     transactions_dal
-        .insert_transaction_l2(executed_tx.clone(), mock_tx_execution_metrics())
+        .insert_transaction_l2(&executed_tx, mock_tx_execution_metrics())
         .await
         .unwrap();
 
@@ -278,7 +280,8 @@ async fn remove_stuck_txs() {
             &[mock_execution_result(executed_tx.clone())],
             U256::from(1),
         )
-        .await;
+        .await
+        .unwrap();
 
     // Get all txs
     transactions_dal.reset_mempool().await.unwrap();

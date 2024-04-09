@@ -13,7 +13,7 @@ use crate::{
         StorageApiTransaction, StorageTransaction, StorageTransactionDetails,
         StorageTransactionReceipt,
     },
-    Core, CoreDal, SqlxError,
+    Core, CoreDal,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -33,7 +33,7 @@ impl TransactionsWeb3Dal<'_, '_> {
     pub async fn get_transaction_receipts(
         &mut self,
         hashes: &[H256],
-    ) -> Result<Vec<TransactionReceipt>, SqlxError> {
+    ) -> DalResult<Vec<TransactionReceipt>> {
         let hash_bytes: Vec<_> = hashes.iter().map(H256::as_bytes).collect();
         let mut receipts: Vec<TransactionReceipt> = sqlx::query_as!(
             StorageTransactionReceipt,
@@ -80,7 +80,9 @@ impl TransactionsWeb3Dal<'_, '_> {
             FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
             &hash_bytes as &[&[u8]]
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_transaction_receipts")
+        .with_arg("hashes.len", &hashes.len())
+        .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(Into::into)
@@ -420,7 +422,7 @@ mod tests {
 
         for tx in &txs {
             conn.transactions_dal()
-                .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+                .insert_transaction_l2(tx, TransactionExecutionMetrics::default())
                 .await
                 .unwrap();
         }
@@ -442,7 +444,8 @@ mod tests {
 
         conn.transactions_dal()
             .mark_txs_as_executed_in_miniblock(MiniblockNumber(1), &tx_results, U256::from(1))
-            .await;
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -450,8 +453,9 @@ mod tests {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         let tx = mock_l2_transaction();
         let tx_hash = tx.hash();
         prepare_transactions(&mut conn, vec![tx]).await;
@@ -500,8 +504,9 @@ mod tests {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
 
         let tx1 = mock_l2_transaction();
         let tx1_hash = tx1.hash();
@@ -528,8 +533,9 @@ mod tests {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         let tx = mock_l2_transaction();
         let tx_hash = tx.hash();
         prepare_transactions(&mut conn, vec![tx]).await;
@@ -555,8 +561,9 @@ mod tests {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
 
         let initiator = Address::repeat_byte(1);
         let next_nonce = conn
@@ -574,7 +581,7 @@ mod tests {
             tx.common_data.initiator_address = initiator;
             tx_by_nonce.insert(nonce, tx.clone());
             conn.transactions_dal()
-                .insert_transaction_l2(tx, TransactionExecutionMetrics::default())
+                .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
                 .await
                 .unwrap();
         }
@@ -589,7 +596,8 @@ mod tests {
         // Reject the transaction with nonce 1, so that it'd be not taken into account.
         conn.transactions_dal()
             .mark_tx_as_rejected(tx_by_nonce[&1].hash(), "oops")
-            .await;
+            .await
+            .unwrap();
         let next_nonce = conn
             .transactions_web3_dal()
             .next_nonce_by_initiator_account(initiator, 0)
@@ -610,7 +618,8 @@ mod tests {
         ];
         conn.transactions_dal()
             .mark_txs_as_executed_in_miniblock(miniblock.number, &executed_txs, 1.into())
-            .await;
+            .await
+            .unwrap();
 
         let next_nonce = conn
             .transactions_web3_dal()
@@ -638,7 +647,7 @@ mod tests {
         tx.common_data.nonce = Nonce(1);
         tx.common_data.initiator_address = initiator;
         conn.transactions_dal()
-            .insert_transaction_l2(tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
 

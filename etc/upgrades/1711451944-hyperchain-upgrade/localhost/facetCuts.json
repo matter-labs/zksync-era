@@ -82,7 +82,7 @@
     "isFreezable": false
   },
   {
-    "facet": "0x2405E6F1862Aed3F95C4Cd82d7E017Dd9D811171",
+    "facet": "0x35fA8505ebdB4fDD76d70F048Ea90B3726597fBf",
     "selectors": [
       "0x0e18b681",
       "0x64bf8d66",
@@ -91,10 +91,10 @@
       "0x4dd18bf5",
       "0x1cc5d103",
       "0xbe6f11cf",
+      "0xe76db865",
       "0x235d9eb5",
       "0x21f603d7",
       "0x4623c91d",
-      "0x87c905b7",
       "0x17338945",
       "0xfc57565f"
     ],
@@ -102,7 +102,7 @@
     "isFreezable": false
   },
   {
-    "facet": "0x481AEE58763323AB8AfA28FD0E2689fA27a3fa28",
+    "facet": "0xf1dA787e2d08421791d8c74D2e3030051eeC636C",
     "selectors": [
       "0x1de72e34",
       "0xea6c029c",
@@ -149,7 +149,7 @@
     "isFreezable": false
   },
   {
-    "facet": "0x4a057Fc6DbF26dB331C0129AED5A100A21562c7d",
+    "facet": "0xAa3cc72Aa62cA82c2552c16c0732Db26a3C259c7",
     "selectors": [
       "0x12f43dab",
       "0x6c0960f9",
@@ -164,7 +164,7 @@
     "isFreezable": true
   },
   {
-    "facet": "0x93dE326B1340D1abEe85Bd6576747Dd9C5104BCC",
+    "facet": "0x269f9Cc9D36c097120D25fD9A90206DD674d48C6",
     "selectors": [
       "0x701f58c5",
       "0x6edd4f12",

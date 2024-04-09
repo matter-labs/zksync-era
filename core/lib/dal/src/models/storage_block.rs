@@ -243,6 +243,10 @@ impl TryInto<L1BatchMetadata> for StorageL1Batch {
                         .default_aa_code_hash
                         .ok_or(StorageL1BatchConvertError::Incomplete)?,
                 ),
+                protocol_version: self
+                    .protocol_version
+                    .map(|v| (v as u16).try_into().unwrap())
+                    .ok_or(StorageL1BatchConvertError::Incomplete)?,
             },
             state_diffs_compressed: self.compressed_state_diffs.unwrap_or_default(),
             events_queue_commitment: self.events_queue_commitment.map(|v| H256::from_slice(&v)),

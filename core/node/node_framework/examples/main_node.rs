@@ -167,6 +167,7 @@ impl MainNodeBuilder {
         self.node.add_layer(EthWatchLayer::new(
             ETHWatchConfig::from_env()?,
             ContractsConfig::from_env()?,
+            GenesisConfig::from_env()?,
         ));
         Ok(self)
     }

@@ -369,7 +369,7 @@ impl StateKeeperIO for ExternalIO {
                 protocol_version.base_system_contracts,
                 protocol_version.l2_system_upgrade_tx_hash,
             )
-            .await;
+            .await?;
 
         let BaseSystemContractsHashes {
             bootloader,
