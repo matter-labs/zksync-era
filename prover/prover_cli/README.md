@@ -1,9 +1,9 @@
-# Tool to better understand and debug provers
+# CLI to better understand and debug provers
 
 For now, it has only one command 'file-info'
 
 ```
-cargo run --release  file-info /zksync-era/prover/artifacts/proofs_fri/l1_batch_proof_1.bin
+cargo run -- file-info --file-path /zksync-era/prover/artifacts/proofs_fri/l1_batch_proof_1.bin
 ```
 
 Example outputs:

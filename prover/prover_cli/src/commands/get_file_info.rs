@@ -1,8 +1,7 @@
 use std::fs;
 
-use clap::{Parser, Subcommand};
+use clap::Args as ClapArgs;
 use colored::Colorize;
-use tracing::level_filters::LevelFilter;
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{
@@ -18,23 +17,10 @@ use zksync_prover_fri_types::{
 };
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 
-#[derive(Debug, Parser)]
-#[command(
-    author = "Matter Labs",
-    version,
-    about = "Debugging tools for prover related things",
-    long_about = None
-)]
-
-struct Cli {
-    #[command(subcommand)]
-    command: Command,
-}
-
-#[derive(Debug, Subcommand)]
-enum Command {
-    #[command(name = "file-info")]
-    FileInfo { file_path: String },
+#[derive(ClapArgs)]
+pub(crate) struct Args {
+    #[clap(short, long)]
+    file_path: String,
 }
 
 fn pretty_print_size_hint(size_hint: (Option<usize>, Option<usize>)) {
@@ -204,7 +190,8 @@ fn pretty_print_l1_proof(result: &L1BatchProofForL1) {
     println!("  This proof will pass on L1, if L1 executor computes the block commitment that is matching exactly the Inputs value above");
 }
 
-fn file_info(path: String) {
+pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
+    let path = args.file_path;
     println!("Reading file {} and guessing the type.", path.bold());
 
     let bytes = fs::read(path).unwrap();
@@ -214,14 +201,14 @@ fn file_info(path: String) {
     if let Some(circuit) = maybe_circuit {
         println!("  Parsing file as CircuitWrapper.");
         pretty_print_circuit_wrapper(&circuit);
-        return;
+        return Ok(());
     }
     println!("  NOT a CircuitWrapper.");
     let maybe_fri_proof: Option<FriProofWrapper> = bincode::deserialize(&bytes).ok();
     if let Some(fri_proof) = maybe_fri_proof {
         println!("  Parsing file as FriProofWrapper.");
         pretty_print_proof(&fri_proof);
-        return;
+        return Ok(());
     }
     println!("  NOT a FriProofWrapper.");
 
@@ -232,19 +219,5 @@ fn file_info(path: String) {
     } else {
         println!("  NOT a L1BatchProof.");
     }
-}
-
-fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::builder()
-                .with_default_directive(LevelFilter::INFO.into())
-                .from_env_lossy(),
-        )
-        .init();
-
-    let opt = Cli::parse();
-    match opt.command {
-        Command::FileInfo { file_path } => file_info(file_path),
-    }
+    Ok(())
 }

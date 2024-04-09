@@ -4350,17 +4350,24 @@ name = "prover_cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bincode",
  "clap 4.4.6",
+ "colored",
  "env_logger 0.10.2",
  "eyre",
+ "hex",
  "log",
  "prover_dal",
  "sqlx",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
  "zksync_basic_types",
  "zksync_config",
  "zksync_db_connection",
  "zksync_env_config",
+ "zksync_prover_fri_types",
+ "zksync_prover_interface",
  "zksync_types",
 ]
 
