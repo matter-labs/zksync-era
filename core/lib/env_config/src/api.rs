@@ -12,8 +12,6 @@ impl FromEnv for ApiConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             web3_json_rpc: Web3JsonRpcConfig::from_env().context("Web3JsonRpcConfig")?,
-            contract_verification: ContractVerificationApiConfig::from_env()
-                .context("ContractVerificationApiConfig")?,
             prometheus: PrometheusConfig::from_env().context("PrometheusConfig")?,
             healthcheck: HealthCheckConfig::from_env().context("HealthCheckConfig")?,
             merkle_tree: MerkleTreeApiConfig::from_env().context("MerkleTreeApiConfig")?,
@@ -51,7 +49,7 @@ mod tests {
     use std::num::NonZeroU32;
 
     use super::*;
-    use crate::test_utils::{hash, EnvMutex};
+    use crate::test_utils::{addr, hash, EnvMutex};
 
     static MUTEX: EnvMutex = EnvMutex::new();
 
@@ -88,10 +86,12 @@ mod tests {
                 max_response_body_size_mb: Some(10),
                 websocket_requests_per_minute_limit: Some(NonZeroU32::new(10).unwrap()),
                 tree_api_url: None,
-            },
-            contract_verification: ContractVerificationApiConfig {
-                port: 3070,
-                url: "http://127.0.0.1:3070".into(),
+                mempool_cache_update_interval: Some(50),
+                mempool_cache_size: Some(10000),
+                whitelisted_tokens_for_aa: vec![
+                    addr("0x0000000000000000000000000000000000000001"),
+                    addr("0x0000000000000000000000000000000000000002"),
+                ],
             },
             prometheus: PrometheusConfig {
                 listener_port: 3312,
@@ -124,6 +124,7 @@ mod tests {
             API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR=1.2
             API_WEB3_JSON_RPC_REQUEST_TIMEOUT=10
             API_WEB3_JSON_RPC_ACCOUNT_PKS="0x0000000000000000000000000000000000000000000000000000000000000001,0x0000000000000000000000000000000000000000000000000000000000000002"
+            API_WEB3_JSON_RPC_WHITELISTED_TOKENS_FOR_AA="0x0000000000000000000000000000000000000001,0x0000000000000000000000000000000000000002"
             API_WEB3_JSON_RPC_ESTIMATE_GAS_SCALE_FACTOR=1.0
             API_WEB3_JSON_RPC_ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION=1000
             API_WEB3_JSON_RPC_L1_TO_L2_TRANSACTIONS_COMPATIBILITY_MODE=true
@@ -135,6 +136,8 @@ mod tests {
             API_WEB3_JSON_RPC_FEE_HISTORY_LIMIT=100
             API_WEB3_JSON_RPC_MAX_BATCH_REQUEST_SIZE=200
             API_WEB3_JSON_RPC_WEBSOCKET_REQUESTS_PER_MINUTE_LIMIT=10
+            API_WEB3_JSON_RPC_MEMPOOL_CACHE_SIZE=10000
+            API_WEB3_JSON_RPC_MEMPOOL_CACHE_UPDATE_INTERVAL=50
             API_CONTRACT_VERIFICATION_PORT="3070"
             API_CONTRACT_VERIFICATION_URL="http://127.0.0.1:3070"
             API_WEB3_JSON_RPC_MAX_RESPONSE_BODY_SIZE_MB=10

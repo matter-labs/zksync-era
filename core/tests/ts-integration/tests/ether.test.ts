@@ -16,13 +16,13 @@ describe('ETH token checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let bob: zksync.Wallet;
-    let chainId: BigNumberish;
+    // let chainId: BigNumberish;
 
     beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         bob = testMaster.newEmptyAccount();
-        chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
+        // chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
     });
 
     test('Can perform a deposit', async () => {

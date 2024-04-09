@@ -110,9 +110,26 @@ pub const EC_MUL_PRECOMPILE_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x07,
 ]);
 
+pub const P256VERIFY_PRECOMPILE_ADDRESS: Address = H160([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x01, 0x00,
+]);
+
+pub const CODE_ORACLE_ADDRESS: Address = H160([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x80, 0x12,
+]);
+
 pub const ERC20_TRANSFER_TOPIC: H256 = H256([
     221, 242, 82, 173, 27, 226, 200, 155, 105, 194, 176, 104, 252, 55, 141, 170, 149, 43, 167, 241,
     99, 196, 161, 22, 40, 245, 90, 77, 245, 35, 179, 239,
+]);
+
+/// This contract is specifically outside of the system contract address space as it can relay any call so it breaks
+/// the trust of system contracts.
+pub const GAS_BOUND_CALLER_ADDRESS: Address = H160([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x01, 0x00, 0x00,
 ]);
 
 // TODO (SMA-240): Research whether using zero address is ok
@@ -120,3 +137,11 @@ pub const MINT_AND_BURN_ADDRESS: H160 = H160::zero();
 
 // The `storage_log.value` database value for a contract that was deployed in a failed transaction.
 pub const FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH: H256 = H256::zero();
+
+pub const ETHEREUM_SHARED_BRIDGE_ADDRESS: Address = H160([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x01,
+]);
+// Default ERA_CHAIN_ID.  All hyeprchains starts with this chain id and later on
+// it will be changed to proper one
+pub const DEFAULT_ERA_CHAIN_ID: u32 = 270;

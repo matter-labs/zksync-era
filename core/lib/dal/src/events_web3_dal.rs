@@ -3,18 +3,17 @@ use sqlx::{
     query::{Query, QueryAs},
     Postgres, Row,
 };
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{
     api::{GetLogsFilter, Log},
     Address, MiniblockNumber, H256,
 };
 
-use crate::{
-    instrument::InstrumentExt, models::storage_event::StorageWeb3Log, SqlxError, StorageProcessor,
-};
+use crate::{models::storage_event::StorageWeb3Log, Core};
 
 #[derive(Debug)]
 pub struct EventsWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl EventsWeb3Dal<'_, '_> {
@@ -24,104 +23,95 @@ impl EventsWeb3Dal<'_, '_> {
         &mut self,
         filter: &GetLogsFilter,
         offset: usize,
-    ) -> Result<Option<MiniblockNumber>, SqlxError> {
-        {
-            let (where_sql, arg_index) = self.build_get_logs_where_clause(filter);
+    ) -> DalResult<Option<MiniblockNumber>> {
+        let (where_sql, arg_index) = self.build_get_logs_where_clause(filter);
 
-            let query = format!(
-                r#"
-                    SELECT miniblock_number
-                    FROM events
-                    WHERE {}
-                    ORDER BY miniblock_number ASC, event_index_in_block ASC
-                    LIMIT 1 OFFSET ${}
-                "#,
-                where_sql, arg_index
-            );
+        let query = format!(
+            r#"
+                SELECT miniblock_number
+                FROM events
+                WHERE {}
+                ORDER BY miniblock_number ASC, event_index_in_block ASC
+                LIMIT 1 OFFSET ${}
+            "#,
+            where_sql, arg_index
+        );
 
-            let mut query = sqlx::query(&query);
+        let mut query = sqlx::query(&query);
 
-            // Bind address params - noop if there are no addresses
+        // Bind address params - noop if there are no addresses
+        query = Self::bind_params_for_optional_filter_query(
+            query,
+            filter.addresses.iter().map(Address::as_bytes).collect(),
+        );
+        for (_, topics) in &filter.topics {
+            // Bind topic params - noop if there are no topics
             query = Self::bind_params_for_optional_filter_query(
                 query,
-                filter.addresses.iter().map(Address::as_bytes).collect(),
+                topics.iter().map(H256::as_bytes).collect(),
             );
-            for (_, topics) in &filter.topics {
-                // Bind topic params - noop if there are no topics
-                query = Self::bind_params_for_optional_filter_query(
-                    query,
-                    topics.iter().map(H256::as_bytes).collect(),
-                );
-            }
-            query = query.bind(offset as i32);
-            let log = query
-                .instrument("get_log_block_number")
-                .report_latency()
-                .with_arg("filter", filter)
-                .with_arg("offset", &offset)
-                .fetch_optional(self.storage)
-                .await?;
-
-            Ok(log.map(|row| MiniblockNumber(row.get::<i64, _>("miniblock_number") as u32)))
         }
+        query = query.bind(offset as i32);
+        let log = query
+            .instrument("get_log_block_number")
+            .report_latency()
+            .with_arg("filter", filter)
+            .with_arg("offset", &offset)
+            .fetch_optional(self.storage)
+            .await?;
+
+        Ok(log.map(|row| MiniblockNumber(row.get::<i64, _>("miniblock_number") as u32)))
     }
 
     /// Returns logs for given filter.
     #[allow(clippy::type_complexity)]
-    pub async fn get_logs(
-        &mut self,
-        filter: GetLogsFilter,
-        limit: usize,
-    ) -> Result<Vec<Log>, SqlxError> {
-        {
-            let (where_sql, arg_index) = self.build_get_logs_where_clause(&filter);
-
-            let query = format!(
-                r#"
-                WITH events_select AS (
-                    SELECT
-                        address, topic1, topic2, topic3, topic4, value,
-                        miniblock_number, tx_hash, tx_index_in_block,
-                        event_index_in_block, event_index_in_tx
-                    FROM events
-                    WHERE {}
-                    ORDER BY miniblock_number ASC, event_index_in_block ASC
-                    LIMIT ${}
-                )
-                SELECT miniblocks.hash as "block_hash", miniblocks.l1_batch_number as "l1_batch_number", events_select.*
-                FROM events_select
-                LEFT JOIN miniblocks ON events_select.miniblock_number = miniblocks.number
+    pub async fn get_logs(&mut self, filter: GetLogsFilter, limit: usize) -> DalResult<Vec<Log>> {
+        let (where_sql, arg_index) = self.build_get_logs_where_clause(&filter);
+        let query = format!(
+            r#"
+            WITH events_select AS (
+                SELECT
+                    address, topic1, topic2, topic3, topic4, value,
+                    miniblock_number, tx_hash, tx_index_in_block,
+                    event_index_in_block, event_index_in_tx
+                FROM events
+                WHERE {}
                 ORDER BY miniblock_number ASC, event_index_in_block ASC
-                "#,
-                where_sql, arg_index
-            );
+                LIMIT ${}
+            )
+            SELECT miniblocks.hash as "block_hash", miniblocks.l1_batch_number as "l1_batch_number", events_select.*
+            FROM events_select
+            LEFT JOIN miniblocks ON events_select.miniblock_number = miniblocks.number
+            ORDER BY miniblock_number ASC, event_index_in_block ASC
+            "#,
+            where_sql, arg_index
+        );
 
-            let mut query = sqlx::query_as(&query);
+        let mut query = sqlx::query_as(&query);
 
-            // Bind address params - noop if there are no addresses
+        // Bind address params - noop if there are no addresses
+        query = Self::bind_params_for_optional_filter_query_as(
+            query,
+            filter.addresses.iter().map(Address::as_bytes).collect(),
+        );
+        for (_, topics) in &filter.topics {
+            // Bind topic params - noop if there are no topics
             query = Self::bind_params_for_optional_filter_query_as(
                 query,
-                filter.addresses.iter().map(Address::as_bytes).collect(),
+                topics.iter().map(H256::as_bytes).collect(),
             );
-            for (_, topics) in &filter.topics {
-                // Bind topic params - noop if there are no topics
-                query = Self::bind_params_for_optional_filter_query_as(
-                    query,
-                    topics.iter().map(H256::as_bytes).collect(),
-                );
-            }
-            query = query.bind(limit as i32);
-
-            let db_logs: Vec<StorageWeb3Log> = query
-                .instrument("get_logs")
-                .report_latency()
-                .with_arg("filter", &filter)
-                .with_arg("limit", &limit)
-                .fetch_all(self.storage)
-                .await?;
-            let logs = db_logs.into_iter().map(Into::into).collect();
-            Ok(logs)
         }
+        query = query.bind(limit as i32);
+
+        let db_logs: Vec<StorageWeb3Log> = query
+            .instrument("get_logs")
+            .report_latency()
+            .with_arg("filter", &filter)
+            .with_arg("limit", &limit)
+            .fetch_all(self.storage)
+            .await?;
+        let logs = db_logs.into_iter().map(Into::into).collect();
+        Ok(logs)
     }
 
     fn build_get_logs_where_clause(&self, filter: &GetLogsFilter) -> (String, u8) {
@@ -193,10 +183,7 @@ impl EventsWeb3Dal<'_, '_> {
         }
     }
 
-    pub async fn get_all_logs(
-        &mut self,
-        from_block: MiniblockNumber,
-    ) -> Result<Vec<Log>, SqlxError> {
+    pub async fn get_all_logs(&mut self, from_block: MiniblockNumber) -> DalResult<Vec<Log>> {
         {
             let db_logs: Vec<StorageWeb3Log> = sqlx::query_as!(
                 StorageWeb3Log,
@@ -246,7 +233,9 @@ impl EventsWeb3Dal<'_, '_> {
                 "#,
                 i64::from(from_block.0)
             )
-            .fetch_all(self.storage.conn())
+            .instrument("get_all_logs")
+            .with_arg("from_block", &from_block)
+            .fetch_all(self.storage)
             .await?;
             let logs = db_logs.into_iter().map(Into::into).collect();
             Ok(logs)
@@ -259,12 +248,12 @@ mod tests {
     use zksync_types::{Address, H256};
 
     use super::*;
-    use crate::connection::ConnectionPool;
+    use crate::{ConnectionPool, Core};
 
     #[tokio::test]
     async fn test_build_get_logs_where_clause() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let storage = &mut connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let storage = &mut connection_pool.connection().await.unwrap();
         let events_web3_dal = EventsWeb3Dal { storage };
         let filter = GetLogsFilter {
             from_block: MiniblockNumber(100),
@@ -284,8 +273,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_build_get_logs_with_multiple_topics_where_clause() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let storage = &mut connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let storage = &mut connection_pool.connection().await.unwrap();
         let events_web3_dal = EventsWeb3Dal { storage };
         let filter = GetLogsFilter {
             from_block: MiniblockNumber(10),
@@ -318,8 +307,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_build_get_logs_with_no_address_where_clause() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let storage = &mut connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let storage = &mut connection_pool.connection().await.unwrap();
         let events_web3_dal = EventsWeb3Dal { storage };
         let filter = GetLogsFilter {
             from_block: MiniblockNumber(10),

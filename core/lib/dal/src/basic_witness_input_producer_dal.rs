@@ -1,17 +1,21 @@
+#![doc = include_str!("../doc/BasicWitnessInputProducerDal.md")]
+
 use std::time::{Duration, Instant};
 
 use sqlx::postgres::types::PgInterval;
+use zksync_db_connection::{
+    connection::Connection,
+    error::DalResult,
+    instrument::InstrumentExt,
+    utils::{duration_to_naive_time, pg_interval_from_duration},
+};
 use zksync_types::L1BatchNumber;
 
-use crate::{
-    instrument::InstrumentExt,
-    time_utils::{duration_to_naive_time, pg_interval_from_duration},
-    StorageProcessor,
-};
+use crate::Core;
 
 #[derive(Debug)]
 pub struct BasicWitnessInputProducerDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 /// The amount of attempts to process a job before giving up.
@@ -49,7 +53,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
     pub async fn create_basic_witness_input_producer_job(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -62,6 +66,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
             BasicWitnessInputProducerJobStatus::Queued as BasicWitnessInputProducerJobStatus,
         )
         .instrument("create_basic_witness_input_producer_job")
+        .with_arg("l1_batch_number", &l1_batch_number)
         .report_latency()
         .execute(self.storage)
         .await?;
@@ -71,7 +76,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
 
     pub async fn get_next_basic_witness_input_producer_job(
         &mut self,
-    ) -> sqlx::Result<Option<L1BatchNumber>> {
+    ) -> DalResult<Option<L1BatchNumber>> {
         let l1_batch_number = sqlx::query!(
             r#"
             UPDATE basic_witness_input_producer_jobs
@@ -148,7 +153,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
         started_at: Instant,
         object_path: &str,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE basic_witness_input_producer_jobs
@@ -166,6 +171,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
             object_path,
         )
         .instrument("mark_job_as_successful")
+        .with_arg("l1_batch_number", &l1_batch_number)
         .report_latency()
         .execute(self.storage)
         .await?;
@@ -178,7 +184,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
         started_at: Instant,
         error: String,
-    ) -> sqlx::Result<Option<u32>> {
+    ) -> DalResult<Option<u32>> {
         let attempts = sqlx::query!(
             r#"
             UPDATE basic_witness_input_producer_jobs
@@ -200,6 +206,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
             BasicWitnessInputProducerJobStatus::Successful as BasicWitnessInputProducerJobStatus,
         )
         .instrument("mark_job_as_failed")
+        .with_arg("l1_batch_number", &l1_batch_number)
         .report_latency()
         .fetch_optional(self.storage)
         .await?

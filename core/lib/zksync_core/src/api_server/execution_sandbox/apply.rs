@@ -12,11 +12,11 @@ use anyhow::Context as _;
 use multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface},
     utils::adjust_pubdata_price_for_tx,
-    vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryDisabled},
+    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryDisabled},
     VmInstance,
 };
 use tokio::runtime::Handle;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_state::{PostgresStorage, ReadStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
@@ -51,7 +51,7 @@ struct Sandbox<'a> {
 
 impl<'a> Sandbox<'a> {
     async fn new(
-        mut connection: StorageProcessor<'a>,
+        mut connection: Connection<'a, Core>,
         shared_args: TxSharedArgs,
         execution_args: &'a TxExecutionArgs,
         block_args: BlockArgs,
@@ -108,7 +108,7 @@ impl<'a> Sandbox<'a> {
     }
 
     async fn load_l2_block_info(
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut Connection<'_, Core>,
         is_pending_block: bool,
         resolved_block_info: &ResolvedBlockInfo,
     ) -> anyhow::Result<(L2BlockEnv, Option<StoredL2BlockInfo>)> {
@@ -237,7 +237,7 @@ impl<'a> Sandbox<'a> {
             version: resolved_block_info.protocol_version,
             base_system_smart_contracts: base_system_contracts
                 .get_by_protocol_version(resolved_block_info.protocol_version),
-            gas_limit: BLOCK_GAS_LIMIT,
+            bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             execution_mode: execution_args.execution_mode,
             default_validation_computational_gas_limit: validation_computational_gas_limit,
             chain_id,
@@ -278,6 +278,7 @@ impl<'a> Sandbox<'a> {
             storage_view.clone(),
             protocol_version.into_api_vm_version(),
         ));
+
         (vm, storage_view)
     }
 }
@@ -291,7 +292,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     // current L1 prices for gas or pubdata.
     adjust_pubdata_price: bool,
     execution_args: &TxExecutionArgs,
-    connection_pool: &ConnectionPool,
+    connection_pool: &ConnectionPool<Core>,
     tx: Transaction,
     block_args: BlockArgs,
     apply: impl FnOnce(
@@ -304,7 +305,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
 
     let rt_handle = vm_permit.rt_handle();
     let connection = rt_handle
-        .block_on(connection_pool.access_storage_tagged("api"))
+        .block_on(connection_pool.connection_tagged("api"))
         .context("failed acquiring DB connection")?;
     let connection_acquire_time = stage_started_at.elapsed();
     // We don't want to emit too many logs.
@@ -353,7 +354,7 @@ struct StoredL2BlockInfo {
 impl StoredL2BlockInfo {
     /// If `miniblock_hash` is `None`, it needs to be fetched from the storage.
     async fn new(
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut Connection<'_, Core>,
         miniblock_number: MiniblockNumber,
         miniblock_hash: Option<H256>,
     ) -> anyhow::Result<Self> {
@@ -427,7 +428,7 @@ impl BlockArgs {
 
     async fn resolve_block_info(
         &self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<ResolvedBlockInfo> {
         let (state_l2_block_number, vm_l1_batch_number, l1_batch_timestamp);
 
@@ -435,14 +436,12 @@ impl BlockArgs {
             vm_l1_batch_number = connection
                 .blocks_dal()
                 .get_sealed_l1_batch_number()
-                .await
-                .context("failed getting sealed L1 batch number")?
+                .await?
                 .context("no L1 batches in storage")?;
             let sealed_miniblock_header = connection
                 .blocks_dal()
                 .get_last_sealed_miniblock_header()
-                .await
-                .context("failed getting sealed miniblock header")?
+                .await?
                 .context("no miniblocks in storage")?;
 
             state_l2_block_number = sealed_miniblock_header.number;
@@ -464,8 +463,7 @@ impl BlockArgs {
             connection
                 .blocks_dal()
                 .get_miniblock_header(self.resolved_block_number)
-                .await
-                .context("failed getting header of resolved miniblock")?
+                .await?
                 .context("resolved miniblock disappeared from storage")?
         };
 
@@ -473,8 +471,7 @@ impl BlockArgs {
             let miniblock_header = connection
                 .blocks_dal()
                 .get_miniblock_header(self.resolved_block_number)
-                .await
-                .context("failed getting resolved miniblock header")?
+                .await?
                 .context("resolved miniblock is not in storage")?;
             Some(miniblock_header.batch_fee_input)
         } else {

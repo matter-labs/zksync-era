@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 
+use zksync_types::snapshots::SnapshotVersion;
 use zksync_web3_decl::namespaces::SnapshotsNamespaceClient;
 
 use super::*;
@@ -27,8 +28,8 @@ impl SnapshotBasicsTest {
 
 #[async_trait]
 impl HttpTest for SnapshotBasicsTest {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
-        let mut storage = pool.access_storage().await.unwrap();
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+        let mut storage = pool.connection().await.unwrap();
         store_miniblock(
             &mut storage,
             MiniblockNumber(1),
@@ -38,7 +39,12 @@ impl HttpTest for SnapshotBasicsTest {
         seal_l1_batch(&mut storage, L1BatchNumber(1)).await?;
         storage
             .snapshots_dal()
-            .add_snapshot(L1BatchNumber(1), Self::CHUNK_COUNT, "file:///factory_deps")
+            .add_snapshot(
+                SnapshotVersion::Version0,
+                L1BatchNumber(1),
+                Self::CHUNK_COUNT,
+                "file:///factory_deps",
+            )
             .await?;
 
         for &chunk_id in &self.chunk_ids {

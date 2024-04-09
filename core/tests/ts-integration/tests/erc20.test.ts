@@ -10,7 +10,7 @@ import * as zksync from 'zksync-ethers';
 import { BigNumber, utils as etherUtils } from 'ethers';
 import * as ethers from 'ethers';
 import { scaledGasPrice, waitUntilBlockFinalized } from '../src/helpers';
-import { L2_ETH_PER_ACCOUNT } from '../src/context-owner';
+import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 
 describe('ERC20 contract checks', () => {
     let testMaster: TestMaster;
@@ -18,13 +18,13 @@ describe('ERC20 contract checks', () => {
     let bob: zksync.Wallet;
     let tokenDetails: Token;
     let aliceErc20: zksync.Contract;
-    let chainId: ethers.BigNumberish;
+    // let chainId: ethers.BigNumberish;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         bob = testMaster.newEmptyAccount();
-        chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
+        // chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
 
         tokenDetails = testMaster.environment().erc20Token;
         aliceErc20 = new zksync.Contract(tokenDetails.l2Address, zksync.utils.IERC20, alice);
@@ -130,7 +130,7 @@ describe('ERC20 contract checks', () => {
 
         // Fund bob's account to perform a transaction from it.
         await alice
-            .transfer({ to: bob.address, amount: L2_ETH_PER_ACCOUNT.div(8), token: zksync.utils.ETH_ADDRESS })
+            .transfer({ to: bob.address, amount: L2_DEFAULT_ETH_PER_ACCOUNT.div(8), token: zksync.utils.ETH_ADDRESS })
             .then((tx) => tx.wait());
 
         await expect(aliceErc20.allowance(alice.address, bob.address)).resolves.bnToBeEq(0);

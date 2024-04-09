@@ -1,24 +1,25 @@
+use zksync_db_connection::{
+    connection::Connection, error::DalResult, instrument::InstrumentExt, metrics::MethodLatency,
+};
 use zksync_types::{api::en, MiniblockNumber};
 
 use crate::{
-    instrument::InstrumentExt,
-    metrics::MethodLatency,
     models::storage_sync::{StorageSyncBlock, SyncBlock},
-    StorageProcessor,
+    Core, CoreDal,
 };
 
 /// DAL subset dedicated to the EN synchronization.
 #[derive(Debug)]
 pub struct SyncDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut Connection<'c, Core>,
 }
 
 impl SyncDal<'_, '_> {
     pub(super) async fn sync_block_inner(
         &mut self,
         block_number: MiniblockNumber,
-    ) -> anyhow::Result<Option<SyncBlock>> {
-        let Some(block) = sqlx::query_as!(
+    ) -> DalResult<Option<SyncBlock>> {
+        let Some(mut block) = sqlx::query_as!(
             StorageSyncBlock,
             r#"
             SELECT
@@ -63,6 +64,7 @@ impl SyncDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
+        .try_map(SyncBlock::try_from)
         .instrument("sync_dal_sync_block.block")
         .with_arg("block_number", &block_number)
         .fetch_optional(self.storage)
@@ -71,7 +73,6 @@ impl SyncDal<'_, '_> {
             return Ok(None);
         };
 
-        let mut block = SyncBlock::try_from(block)?;
         // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
         #[allow(deprecated)]
         self.storage
@@ -85,7 +86,7 @@ impl SyncDal<'_, '_> {
         &mut self,
         block_number: MiniblockNumber,
         include_transactions: bool,
-    ) -> anyhow::Result<Option<en::SyncBlock>> {
+    ) -> DalResult<Option<en::SyncBlock>> {
         let _latency = MethodLatency::new("sync_dal_sync_block");
         let Some(block) = self.sync_block_inner(block_number).await? else {
             return Ok(None);
@@ -118,18 +119,19 @@ mod tests {
             create_miniblock_header, create_snapshot_recovery, mock_execution_result,
             mock_l2_transaction,
         },
-        ConnectionPool,
+        ConnectionPool, Core,
     };
 
     #[tokio::test]
     async fn sync_block_basics() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
 
         // Simulate genesis.
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
             .await
@@ -163,8 +165,9 @@ mod tests {
         };
         let tx = mock_l2_transaction();
         conn.transactions_dal()
-            .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
-            .await;
+            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_miniblock(&miniblock_header)
             .await
@@ -175,7 +178,8 @@ mod tests {
                 &[mock_execution_result(tx.clone())],
                 1.into(),
             )
-            .await;
+            .await
+            .unwrap();
 
         let block = conn
             .sync_dal()
@@ -239,13 +243,14 @@ mod tests {
 
     #[tokio::test]
     async fn sync_block_after_snapshot_recovery() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
 
         // Simulate snapshot recovery.
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         let snapshot_recovery = create_snapshot_recovery();
         conn.snapshot_recovery_dal()
             .insert_initial_recovery_status(&snapshot_recovery)

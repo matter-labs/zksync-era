@@ -6,18 +6,17 @@ use vise::{
     Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver, Metrics,
     Unit,
 };
+use zksync_shared_metrics::{BlockStage, APP_METRICS};
 use zksync_types::block::L1BatchHeader;
 use zksync_utils::time::seconds_since_epoch;
 
 use super::MetadataCalculator;
-use crate::metrics::{BlockStage, APP_METRICS};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
 pub(super) enum TreeUpdateStage {
     LoadChanges,
     Compute,
-    CheckConsistency,
     SavePostgres,
     SaveRocksdb,
     SaveGcs,

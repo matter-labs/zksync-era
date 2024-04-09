@@ -1,7 +1,7 @@
 use std::{net::SocketAddr, num::NonZeroU32, time::Duration};
 
 use serde::Deserialize;
-use zksync_basic_types::H256;
+use zksync_basic_types::{Address, H256};
 
 pub use crate::configs::PrometheusConfig;
 
@@ -10,8 +10,6 @@ pub use crate::configs::PrometheusConfig;
 pub struct ApiConfig {
     /// Configuration options for the Web3 JSON RPC servers.
     pub web3_json_rpc: Web3JsonRpcConfig,
-    /// Configuration options for the REST servers.
-    pub contract_verification: ContractVerificationApiConfig,
     /// Configuration options for the Prometheus exporter.
     pub prometheus: PrometheusConfig,
     /// Configuration options for the Health check.
@@ -32,7 +30,8 @@ pub struct Web3JsonRpcConfig {
     pub ws_url: String,
     /// Max possible limit of entities to be requested once.
     pub req_entities_limit: Option<u32>,
-    /// Whether to support methods installing filters and querying filter changes.
+    /// Whether to support HTTP methods that install filters and query filter changes.
+    /// WS methods are unaffected.
     ///
     /// When to set this value to `true`:
     /// Filters are local to the specific node they were created at. Meaning if
@@ -96,6 +95,15 @@ pub struct Web3JsonRpcConfig {
     pub websocket_requests_per_minute_limit: Option<NonZeroU32>,
     /// Tree API url, currently used to proxy `getProof` calls to the tree
     pub tree_api_url: Option<String>,
+    /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
+    /// In milliseconds. Default is 50 milliseconds.
+    pub mempool_cache_update_interval: Option<u64>,
+    /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
+    pub mempool_cache_size: Option<usize>,
+    /// List of L2 token addresses that are white-listed to use by paymasters
+    /// (additionally to natively bridged tokens).
+    #[serde(default)]
+    pub whitelisted_tokens_for_aa: Vec<Address>,
 }
 
 impl Web3JsonRpcConfig {
@@ -130,7 +138,10 @@ impl Web3JsonRpcConfig {
             max_batch_request_size: Default::default(),
             max_response_body_size_mb: Default::default(),
             websocket_requests_per_minute_limit: Default::default(),
+            mempool_cache_update_interval: Default::default(),
+            mempool_cache_size: Default::default(),
             tree_api_url: None,
+            whitelisted_tokens_for_aa: Default::default(),
         }
     }
 
@@ -209,6 +220,14 @@ impl Web3JsonRpcConfig {
 
     pub fn tree_api_url(&self) -> Option<&str> {
         self.tree_api_url.as_deref()
+    }
+
+    pub fn mempool_cache_update_interval(&self) -> Duration {
+        Duration::from_millis(self.mempool_cache_update_interval.unwrap_or(50))
+    }
+
+    pub fn mempool_cache_size(&self) -> usize {
+        self.mempool_cache_size.unwrap_or(10_000)
     }
 }
 

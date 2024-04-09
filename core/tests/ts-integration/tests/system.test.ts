@@ -7,7 +7,7 @@
 
 import { TestMaster } from '../src/index';
 import { shouldChangeTokenBalances } from '../src/modifiers/balance-checker';
-import { L2_ETH_PER_ACCOUNT } from '../src/context-owner';
+import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
@@ -15,6 +15,15 @@ import { BigNumberish, BytesLike } from 'ethers';
 import { serialize, hashBytecode } from 'zksync-ethers/build/src/utils';
 import { deployOnAnyLocalAddress, ForceDeployment } from '../src/system';
 import { getTestContract } from '../src/helpers';
+
+import {
+    GasBoundCaller,
+    GasBoundCallerFactory,
+    L1Messenger,
+    L1MessengerFactory,
+    SystemContext,
+    SystemContextFactory
+} from 'system-contracts/typechain';
 
 const contracts = {
     counter: getTestContract('Counter'),
@@ -52,6 +61,44 @@ describe('System behavior checks', () => {
         expect(result_b).toEqual('0x');
     });
 
+    test('GasBoundCaller should be deployed and works correctly', async () => {
+        const gasBoundCallerAddress = '0x0000000000000000000000000000000000010000';
+        const l1MessengerAddress = '0x0000000000000000000000000000000000008008';
+        const systemContextAddress = '0x000000000000000000000000000000000000800b';
+        const systemContext: SystemContext = SystemContextFactory.connect(systemContextAddress, alice._signerL2());
+        const l1Messenger: L1Messenger = L1MessengerFactory.connect(l1MessengerAddress, alice._signerL2());
+        const gasBoundCaller: GasBoundCaller = GasBoundCallerFactory.connect(gasBoundCallerAddress, alice._signerL2());
+
+        const pubdataToSend = 5000;
+        const gasSpentOnPubdata = (await systemContext.gasPerPubdataByte()).mul(pubdataToSend);
+
+        const pubdata = ethers.utils.hexlify(ethers.utils.randomBytes(pubdataToSend));
+
+        await expect(
+            (
+                await gasBoundCaller.gasBoundCall(
+                    l1MessengerAddress,
+                    gasSpentOnPubdata,
+                    l1Messenger.interface.encodeFunctionData('sendToL1', [pubdata]),
+                    {
+                        gasLimit: 80_000_000
+                    }
+                )
+            ).wait()
+        ).toBeRejected();
+
+        await (
+            await gasBoundCaller.gasBoundCall(
+                l1MessengerAddress,
+                80_000_000,
+                l1Messenger.interface.encodeFunctionData('sendToL1', [pubdata]),
+                {
+                    gasLimit: 80_000_000
+                }
+            )
+        ).wait();
+    });
+
     test('Should check that system contracts and SDK create same CREATE/CREATE2 addresses', async () => {
         const deployerContract = new zksync.Contract(
             zksync.utils.CONTRACT_DEPLOYER_ADDRESS,
@@ -75,25 +122,32 @@ describe('System behavior checks', () => {
     });
 
     test('Should accept transactions with small gasPerPubdataByte', async () => {
-        // The number "10" was chosen because we have a different error for lesser `smallGasPerPubdata`.
-        const smallGasPerPubdata = 10;
+        const smallGasPerPubdata = 1;
         const senderNonce = await alice.getTransactionCount();
 
-        // This tx should be accepted by the server, but would never be executed, so we don't wait for the receipt.
-        await alice.sendTransaction({
-            to: alice.address,
-            customData: {
-                gasPerPubdata: smallGasPerPubdata
-            }
-        });
-
-        // Now send the next tx with the same nonce: it should override the previous one and be executed.
-        await expect(
-            alice.sendTransaction({
+        // A safe low value to determine whether we can run this test.
+        // It's higher than `smallGasPerPubdata` to not make the test flaky.
+        const gasPerPubdataThreshold = 5;
+        const response = await alice.provider.send('zks_estimateFee', [
+            { from: alice.address, to: alice.address, value: '0x1' }
+        ]);
+        if (response.gas_per_pubdata_limit > gasPerPubdataThreshold) {
+            // This tx should be accepted by the server, but would never be executed, so we don't wait for the receipt.
+            await alice.sendTransaction({
                 to: alice.address,
-                nonce: senderNonce
-            })
-        ).toBeAccepted([]);
+                customData: {
+                    gasPerPubdata: smallGasPerPubdata
+                }
+            });
+            // We don't wait for the transaction receipt because it never executed.
+            // When another transaction with the same nonce is made, it overwrites the previous transaction and this one should be executed.
+            await expect(
+                alice.sendTransaction({
+                    to: alice.address,
+                    nonce: senderNonce
+                })
+            ).toBeAccepted([]);
+        }
     });
 
     test('Should check that bootloader utils: Legacy tx hash', async () => {
@@ -183,8 +237,7 @@ describe('System behavior checks', () => {
             from: alice.address,
             data: '0x',
             value: 0,
-            maxFeePerGas: 12000,
-            maxPriorityFeePerGas: 100,
+            gasPrice: 12000,
             customData: {
                 gasPerPubdata: zksync.utils.DEFAULT_GAS_PER_PUBDATA_LIMIT
             }
@@ -218,7 +271,7 @@ describe('System behavior checks', () => {
         await alice.transfer({ amount, to: bob.address, token: l2Token }).then((tx) => tx.wait());
         testMaster.reporter.debug('Sent L2 token to Bob');
         await alice
-            .transfer({ amount: L2_ETH_PER_ACCOUNT.div(8), to: bob.address, token: zksync.utils.ETH_ADDRESS })
+            .transfer({ amount: L2_DEFAULT_ETH_PER_ACCOUNT.div(8), to: bob.address, token: zksync.utils.ETH_ADDRESS })
             .then((tx) => tx.wait());
         testMaster.reporter.debug('Sent ethereum on L2 to Bob');
 
@@ -292,6 +345,7 @@ describe('System behavior checks', () => {
     });
 
     // TODO (SMA-1713): the test is flaky.
+    // NOTE: it does the same thing as the upgrade test, so consider removing it.
     test.skip('Should test forceDeploy', async () => {
         // Testing forcedDeploys involves small upgrades of smart contacts.
         // Thus, it is not appropriate to do them anywhere else except for localhost.
@@ -372,7 +426,7 @@ describe('System behavior checks', () => {
 
     it('should reject transaction with huge gas limit', async () => {
         await expect(
-            alice.sendTransaction({ to: alice.address, gasLimit: ethers.BigNumber.from(2).pow(32) })
+            alice.sendTransaction({ to: alice.address, gasLimit: ethers.BigNumber.from(2).pow(51) })
         ).toBeRejected('exceeds block gas limit');
     });
 

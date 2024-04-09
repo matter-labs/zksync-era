@@ -4,6 +4,8 @@ import * as ethers from 'ethers';
 import * as hre from 'hardhat';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
 
+export const additionalMultiplier = 100; // scale by another x% when tests need to be repeated due to failed txs
+
 /**
  * Loads the test contract
  *
@@ -104,7 +106,6 @@ export async function scaledGasPrice(wallet: ethers.Wallet | zksync.Wallet): Pro
     const gasPrice = await wallet.getGasPrice();
     // Increase by 40%.
     // increase by x to scale
-    const additionalMultiplier = 100; // scale by another x% when tests need to be repeated due to failed txs
     return gasPrice
         .mul(140)
         .div(100)

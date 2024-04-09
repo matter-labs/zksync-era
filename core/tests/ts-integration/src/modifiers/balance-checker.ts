@@ -7,7 +7,7 @@ import * as ethers from 'ethers';
 import { TestMessage } from '../matchers/matcher-helpers';
 import { MatcherModifier, MatcherMessage } from '.';
 import { Fee } from '../types';
-import { Ierc20Factory as IERC20Factory } from 'zksync-ethers/build/typechain/IERC20Factory';
+import { Ierc20Factory as IERC20Factory } from 'zksync-ethers/build/typechain/Ierc20Factory';
 
 /**
  * Modifier that ensures that fee was taken from the wallet for a transaction.

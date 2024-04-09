@@ -9,11 +9,10 @@ use std::{
 use tokio::sync::watch;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::{Error, EthInterface};
-use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{U256, U64};
 
 use self::metrics::METRICS;
-use super::L1TxParamsProvider;
+use super::{L1TxParamsProvider, PubdataPricing};
 use crate::state_keeper::metrics::KEEPER_METRICS;
 
 mod metrics;
@@ -33,6 +32,7 @@ pub struct GasAdjuster {
     pub(super) config: GasAdjusterConfig,
     pubdata_sending_mode: PubdataSendingMode,
     eth_client: Arc<dyn EthInterface>,
+    pubdata_pricing: Arc<dyn PubdataPricing>,
 }
 
 impl GasAdjuster {
@@ -40,6 +40,7 @@ impl GasAdjuster {
         eth_client: Arc<dyn EthInterface>,
         config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
+        pubdata_pricing: Arc<dyn PubdataPricing>,
     ) -> Result<Self, Error> {
         // Subtracting 1 from the "latest" block number to prevent errors in case
         // the info about the latest block is not yet present on the node.
@@ -72,6 +73,7 @@ impl GasAdjuster {
             config,
             pubdata_sending_mode,
             eth_client,
+            pubdata_pricing,
         })
     }
 
@@ -136,16 +138,6 @@ impl GasAdjuster {
         gas_price
     }
 
-    fn bound_blob_base_fee(&self, blob_base_fee: f64) -> u64 {
-        let max_blob_base_fee = self.config.max_blob_base_fee();
-        if blob_base_fee > max_blob_base_fee as f64 {
-            tracing::error!("Blob base fee is too high: {blob_base_fee}, using max allowed: {max_blob_base_fee}");
-            KEEPER_METRICS.gas_price_too_high.inc();
-            return max_blob_base_fee;
-        }
-        blob_base_fee as u64
-    }
-
     pub async fn run(self: Arc<Self>, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
@@ -179,6 +171,10 @@ impl GasAdjuster {
     }
 
     pub(crate) fn estimate_effective_pubdata_price(&self) -> u64 {
+        if let Some(price) = self.config.internal_enforced_pubdata_price {
+            return price;
+        }
+
         match self.pubdata_sending_mode {
             PubdataSendingMode::Blobs => {
                 const BLOB_GAS_PER_BYTE: u64 = 1; // `BYTES_PER_BLOB` = `GAS_PER_BLOB` = 2 ^ 17.
@@ -198,10 +194,11 @@ impl GasAdjuster {
                     * BLOB_GAS_PER_BYTE as f64
                     * self.config.internal_pubdata_pricing_multiplier;
 
-                self.bound_blob_base_fee(calculated_price)
+                self.pubdata_pricing
+                    .bound_blob_base_fee(calculated_price, self.config.max_blob_base_fee())
             }
             PubdataSendingMode::Calldata => {
-                self.estimate_effective_gas_price() * L1_GAS_PER_PUBDATA_BYTE as u64
+                self.estimate_effective_gas_price() * self.pubdata_pricing.pubdata_byte_gas()
             }
         }
     }
