@@ -13,6 +13,11 @@ use crate::{
 /// Factory that can produce a [`ReadStorage`] implementation on demand.
 #[async_trait]
 pub trait ReadStorageFactory: Debug + Send + Sync + 'static {
+    /// Creates a [`PgOrRocksdbStorage`] entity over either a Postgres connection or RocksDB
+    /// instance. The specific criteria on which one are left up to the implementation.
+    ///
+    /// The idea is that in either case this provides a valid [`ReadStorage`] implementation
+    /// that can be used by the caller.
     async fn access_storage(
         &self,
         stop_receiver: &watch::Receiver<bool>,
@@ -24,7 +29,9 @@ pub trait ReadStorageFactory: Debug + Send + Sync + 'static {
 /// underneath.
 #[derive(Debug)]
 pub enum PgOrRocksdbStorage<'a> {
+    /// Implementation over a Postgres connection.
     Postgres(PostgresStorage<'a>),
+    /// Implementation over a RocksDB cache instance.
     Rocksdb(RocksdbStorage),
 }
 

@@ -5,8 +5,6 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_state::{PgOrRocksdbStorage, ReadStorageFactory, RocksdbStorage};
 use zksync_types::L1BatchNumber;
 
-use crate::state_keeper::AsyncRocksdbCache;
-
 #[derive(Debug, Clone)]
 pub struct PostgresFactory {
     pool: ConnectionPool<Core>,

@@ -12,23 +12,48 @@ use zksync_state::{
 use zksync_storage::RocksDB;
 use zksync_types::{block::MiniblockExecutionData, L1BatchNumber};
 
+/// Data needed to re-execute an L1 batch.
+#[derive(Debug)]
 pub struct BatchData {
+    /// L1 batch number this data belongs to.
+    pub l1_batch_number: L1BatchNumber,
     /// List of miniblocks and corresponding transactions that were executed within batch.
-    pub(crate) miniblocks: Vec<MiniblockExecutionData>,
+    pub miniblocks: Vec<MiniblockExecutionData>,
 }
 
+/// Functionality to fetch data about processed/unprocessed batches for a particular VM runner
+/// instance.
 #[async_trait]
 pub trait VmRunnerStorageLoader: Debug + Send + Sync + 'static {
-    /// Loads the next L1 batch data from the database.
+    /// Unique name of the VM runner instance.
+    fn name() -> &'static str;
+
+    /// Loads next unprocessed L1 batch along with all transactions that VM runner needs to
+    /// re-execute. These are the transactions that are included in a sealed miniblock belonging
+    /// to a sealed L1 batch (with state keeper being the source of truth). The order of the
+    /// transactions is the same as it was when state keeper executed them.
+    ///
+    /// Can return `None` if there are no batches to be processed.
     ///
     /// # Errors
     ///
-    /// Propagates DB errors. Also returns an error if environment doesn't correspond to a pending L1 batch.
-    async fn load_next_batch(conn: Connection<'_, Core>) -> anyhow::Result<BatchData>;
+    /// Propagates DB errors.
+    async fn load_next_batch(conn: Connection<'_, Core>) -> anyhow::Result<Option<BatchData>>;
 
+    /// Returns the last L1 batch number that has been processed by this VM runner instance.
+    ///
+    /// # Errors
+    ///
+    /// Propagates DB errors.
     async fn latest_processed_batch(conn: Connection<'_, Core>) -> anyhow::Result<L1BatchNumber>;
 }
 
+/// Abstraction for VM runner's storage layer that provides two main features:
+///
+/// 1. A [`ReadStorageFactory`] implementation backed by either Postgres or RocksDB (if it's
+/// caught up). Always initialized as a `Postgres` variant and is then mutated into `Rocksdb`
+/// once RocksDB cache is caught up.
+/// 2. Loads data needed to re-execute the next unprocessed L1 batch.
 #[derive(Debug)]
 pub struct VmRunnerStorage<L: VmRunnerStorageLoader> {
     pool: ConnectionPool<Core>,
@@ -37,15 +62,16 @@ pub struct VmRunnerStorage<L: VmRunnerStorageLoader> {
 }
 
 impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
+    /// Creates a new VM runner storage using provided Postgres pool and RocksDB path.
     pub async fn new(
         pool: ConnectionPool<Core>,
-        state_keeper_db_path: String,
-        enum_index_migration_chunk_size: usize,
+        rocksdb_path: String,
+        enum_index_migration_chunk_size: usize, // TODO: Remove
     ) -> anyhow::Result<(Self, AsyncCatchupTask)> {
         let rocksdb_cell = Arc::new(OnceCell::new());
         let task = AsyncCatchupTask::new(
             pool.clone(),
-            state_keeper_db_path,
+            rocksdb_path,
             enum_index_migration_chunk_size,
             rocksdb_cell.clone(),
             Some(L::latest_processed_batch(pool.connection().await?).await?),
@@ -68,7 +94,7 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
         if let Some(rocksdb) = self.rocksdb_cell.get() {
             let mut connection = self
                 .pool
-                .connection_tagged("vm_runner")
+                .connection_tagged(L::name())
                 .await
                 .context("Failed getting a Postgres connection")?;
             PgOrRocksdbStorage::access_storage_rocksdb(
@@ -88,7 +114,17 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
         }
     }
 
-    pub(crate) async fn load_next_batch(&self) -> anyhow::Result<BatchData> {
+    /// Loads next unprocessed L1 batch along with all transactions that VM runner needs to
+    /// re-execute. These are the transactions that are included in a sealed miniblock belonging
+    /// to a sealed L1 batch (with state keeper being the source of truth). The order of the
+    /// transactions is the same as it was when state keeper executed them.
+    ///
+    /// Can return `None` if there are no batches to be processed.
+    ///
+    /// # Errors
+    ///
+    /// Propagates DB errors.
+    pub async fn load_next_batch(&self) -> anyhow::Result<Option<BatchData>> {
         let conn = self.pool.connection().await?;
         L::load_next_batch(conn).await
     }

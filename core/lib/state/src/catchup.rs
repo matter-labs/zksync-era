@@ -9,6 +9,10 @@ use zksync_types::L1BatchNumber;
 
 use crate::{RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily};
 
+/// A runnable task that blocks until the provided RocksDB cache instance is caught up with
+/// Postgres.
+///
+/// See [`ReadStorageFactory`] for more context.
 #[derive(Debug)]
 pub struct AsyncCatchupTask {
     pool: ConnectionPool<Core>,
@@ -19,6 +23,8 @@ pub struct AsyncCatchupTask {
 }
 
 impl AsyncCatchupTask {
+    /// Create a new catchup task with the provided Postgres and RocksDB instances. Optionally
+    /// accepts the last L1 batch number to catch up to (defaults to latest if not specified).
     pub fn new(
         pool: ConnectionPool<Core>,
         state_keeper_db_path: String,
@@ -35,6 +41,7 @@ impl AsyncCatchupTask {
         }
     }
 
+    /// Block until RocksDB cache instance is caught up with Postgres.
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         tracing::debug!("Catching up RocksDB asynchronously");
         let mut rocksdb_builder: RocksdbStorageBuilder =
