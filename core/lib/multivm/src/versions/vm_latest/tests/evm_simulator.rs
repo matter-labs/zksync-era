@@ -624,7 +624,6 @@ fn test_basic_signextend_vectors() {
     );
 }
 
-
 #[test]
 fn test_basic_lt_vectors() {
     // Here we just try to test some small EVM contracts and ensure that they work.
@@ -769,7 +768,8 @@ fn test_basic_slt_vectors() {
             vec![
                 // push32 -3
                 hex::decode("7F").unwrap(),
-                hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFD").unwrap(),
+                hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFD")
+                    .unwrap(),
                 // push1 13
                 hex::decode("60").unwrap(),
                 hex::decode("0D").unwrap(),
@@ -793,7 +793,8 @@ fn test_basic_slt_vectors() {
                 hex::decode("07").unwrap(),
                 // push32 -8
                 hex::decode("7F").unwrap(),
-                hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF8").unwrap(),
+                hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF8")
+                    .unwrap(),
                 // slt
                 hex::decode("12").unwrap(),
                 // push0
@@ -837,7 +838,8 @@ fn test_basic_sgt_vectors() {
             vec![
                 // push32 -3
                 hex::decode("7F").unwrap(),
-                hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFD").unwrap(),
+                hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFD")
+                    .unwrap(),
                 // push1 13
                 hex::decode("60").unwrap(),
                 hex::decode("0D").unwrap(),
@@ -861,7 +863,8 @@ fn test_basic_sgt_vectors() {
                 hex::decode("07").unwrap(),
                 // push32 -8
                 hex::decode("7F").unwrap(),
-                hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF8").unwrap(),
+                hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF8")
+                    .unwrap(),
                 // sgt
                 hex::decode("13").unwrap(),
                 // push0
@@ -1002,6 +1005,53 @@ fn test_basic_iszero_vectors() {
             .concat()
         ),
         1.into()
+    );
+}
+
+#[test]
+fn test_basic_xor_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 51
+                hex::decode("60").unwrap(),
+                hex::decode("33").unwrap(),
+                // push1 18
+                hex::decode("60").unwrap(),
+                hex::decode("12").unwrap(),
+                // xor
+                hex::decode("18").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        33.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 3
+                hex::decode("60").unwrap(),
+                hex::decode("03").unwrap(),
+                // push1 12
+                hex::decode("60").unwrap(),
+                hex::decode("0C").unwrap(),
+                // xor
+                hex::decode("18").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        15.into()
     );
 }
 
