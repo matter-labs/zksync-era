@@ -182,6 +182,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 #[cfg(not(feature = "gpu"))]
 async fn get_prover_tasks(
     prover_config: FriProverConfig,
@@ -218,6 +219,7 @@ async fn get_prover_tasks(
     Ok(vec![tokio::spawn(prover.run(stop_receiver, None))])
 }
 
+#[allow(clippy::too_many_arguments)]
 #[cfg(feature = "gpu")]
 async fn get_prover_tasks(
     prover_config: FriProverConfig,
