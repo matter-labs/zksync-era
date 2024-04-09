@@ -7,7 +7,7 @@ use local_ip_address::local_ip;
 use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tokio::{
-    sync::{oneshot, oneshot::Sender, watch::Receiver},
+    sync::{oneshot, oneshot::Sender, watch::Receiver, Notify},
     task::JoinHandle,
 };
 use zksync_config::configs::{
@@ -143,7 +143,7 @@ async fn main() -> anyhow::Result<()> {
         .context("failed to build a connection pool")?;
     let port = prover_config.witness_vector_receiver_port;
 
-    let (init_signal_sender, init_signal_receiver) = oneshot::channel();
+    let notify = Arc::new(Notify::new());
 
     let prover_tasks = get_prover_tasks(
         prover_config,
@@ -152,8 +152,7 @@ async fn main() -> anyhow::Result<()> {
         public_blob_store,
         pool,
         circuit_ids_for_round_to_be_proven,
-        init_signal_sender,
-        init_signal_receiver,
+        notify,
     )
     .await
     .context("get_prover_tasks()")?;
@@ -191,8 +190,7 @@ async fn get_prover_tasks(
     public_blob_store: Option<Arc<dyn ObjectStore>>,
     pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
-    _init_sender: Sender<()>,
-    _init_receiver: oneshot::Receiver<()>,
+    _init_notifier: Notify,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
@@ -228,8 +226,7 @@ async fn get_prover_tasks(
     public_blob_store: Option<Arc<dyn ObjectStore>>,
     pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
-    init_sender: Sender<()>,
-    init_receiver: oneshot::Receiver<()>,
+    init_notifier: Arc<Notify>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use gpu_prover_job_processor::gpu_prover;
     use socket_listener::gpu_socket_listener;
@@ -278,11 +275,13 @@ async fn get_prover_tasks(
 
     let mut tasks = vec![
         tokio::spawn(
-            socket_listener.listen_incoming_connections(stop_receiver.clone(), init_sender),
+            socket_listener
+                .listen_incoming_connections(stop_receiver.clone(), init_notifier.clone()),
         ),
         tokio::spawn(prover.run(stop_receiver.clone(), None)),
     ];
 
+    // TODO(PLA-874): remove the check after making the availability checker required
     if let Some(check_interval) = prover_config.availability_check_interval_in_secs {
         let availability_checker =
             gpu_prover_availability_checker::availability_checker::AvailabilityChecker::new(
@@ -293,7 +292,7 @@ async fn get_prover_tasks(
             );
 
         tasks.push(tokio::spawn(
-            availability_checker.run(stop_receiver.clone(), init_receiver),
+            availability_checker.run(stop_receiver.clone(), init_notifier),
         ));
     }
 

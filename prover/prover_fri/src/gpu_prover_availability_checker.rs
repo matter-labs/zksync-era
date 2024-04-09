@@ -3,6 +3,7 @@ pub mod availability_checker {
     use std::time::Duration;
 
     use prover_dal::{ConnectionPool, Prover, ProverDal};
+    use tokio::sync::Notify;
     use zksync_types::prover_dal::{GpuProverInstanceStatus, SocketAddress};
 
     use crate::metrics::{KillingReason, METRICS};
@@ -34,20 +35,11 @@ pub mod availability_checker {
         pub async fn run(
             self,
             stop_receiver: tokio::sync::watch::Receiver<bool>,
-            mut init_receiver: tokio::sync::oneshot::Receiver<()>,
+            init_notifier: Arc<Notify>,
         ) -> anyhow::Result<()> {
+            init_notifier.notified().await;
+
             while !*stop_receiver.borrow() {
-                tokio::time::sleep(self.polling_interval).await;
-
-                match init_receiver.try_recv() {
-                    Ok(_) => (),
-                    Err(tokio::sync::oneshot::error::TryRecvError::Empty) => continue,
-                    Err(tokio::sync::oneshot::error::TryRecvError::Closed) => {
-                        tracing::error!("Init receiver was closed");
-                        return Ok(());
-                    }
-                }
-
                 let status = self
                     .pool
                     .connection()
@@ -81,6 +73,8 @@ pub mod availability_checker {
                     }
                     Some(_) => (),
                 }
+
+                tokio::time::sleep(self.polling_interval).await;
             }
 
             tracing::info!("Availability checker was shut down");
