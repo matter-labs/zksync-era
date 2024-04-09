@@ -5,12 +5,12 @@ use zksync_basic_types::{L1BatchNumber, MiniblockNumber};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::ProtocolVersionId;
 use zksync_web3_decl::{
-    client::L2Client,
+    client::BoxedL2Client,
     namespaces::{EnNamespaceClient, ZksNamespaceClient},
 };
 
 pub async fn get_l1_batch_remote_protocol_version(
-    main_node_client: &L2Client,
+    main_node_client: &BoxedL2Client,
     l1_batch_number: L1BatchNumber,
 ) -> anyhow::Result<Option<ProtocolVersionId>> {
     let Some((miniblock, _)) = main_node_client
@@ -28,7 +28,7 @@ pub async fn get_l1_batch_remote_protocol_version(
 // Synchronizes protocol version in `l1_batches` and `miniblocks` tables between EN and main node.
 pub async fn sync_versions(
     connection_pool: ConnectionPool<Core>,
-    main_node_client: L2Client,
+    main_node_client: BoxedL2Client,
 ) -> anyhow::Result<()> {
     tracing::info!("Starting syncing protocol version of blocks");
 

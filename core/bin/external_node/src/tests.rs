@@ -1,0 +1,197 @@
+//! High-level tests for EN.
+
+use zksync_basic_types::protocol_version::ProtocolVersionId;
+use zksync_core::genesis::{insert_genesis_batch, GenesisParams};
+use zksync_eth_client::clients::MockEthereum;
+use zksync_types::{api, ethabi, fee_model::FeeParams, L1BatchNumber, MiniblockNumber, H256};
+use zksync_web3_decl::client::{BoxedL2Client, MockL2Client};
+
+use super::*;
+
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
+const POLL_INTERVAL: Duration = Duration::from_millis(100);
+
+fn block_details_base(hash: H256) -> api::BlockDetailsBase {
+    api::BlockDetailsBase {
+        timestamp: 0,
+        l1_tx_count: 0,
+        l2_tx_count: 0,
+        root_hash: Some(hash),
+        status: api::BlockStatus::Sealed,
+        commit_tx_hash: None,
+        committed_at: None,
+        prove_tx_hash: None,
+        proven_at: None,
+        execute_tx_hash: None,
+        executed_at: None,
+        l1_gas_price: 0,
+        l2_fair_gas_price: 0,
+        base_system_contracts_hashes: Default::default(),
+    }
+}
+
+#[derive(Debug)]
+struct TestEnvironment {
+    sigint_receiver: Option<oneshot::Receiver<()>>,
+    app_health_sender: Option<oneshot::Sender<Arc<AppHealthCheck>>>,
+}
+
+impl TestEnvironment {
+    fn new() -> (Self, TestEnvironmentHandles) {
+        let (sigint_sender, sigint_receiver) = oneshot::channel();
+        let (app_health_sender, app_health_receiver) = oneshot::channel();
+        let this = Self {
+            sigint_receiver: Some(sigint_receiver),
+            app_health_sender: Some(app_health_sender),
+        };
+        let handles = TestEnvironmentHandles {
+            sigint_sender,
+            app_health_receiver,
+        };
+        (this, handles)
+    }
+}
+
+impl NodeEnvironment for TestEnvironment {
+    fn setup_sigint_handler(&mut self) -> oneshot::Receiver<()> {
+        self.sigint_receiver
+            .take()
+            .expect("requested to setup sigint handler twice")
+    }
+
+    fn set_app_health(&mut self, health: Arc<AppHealthCheck>) {
+        self.app_health_sender
+            .take()
+            .expect("set app health twice")
+            .send(health)
+            .ok();
+    }
+}
+
+#[derive(Debug)]
+struct TestEnvironmentHandles {
+    sigint_sender: oneshot::Sender<()>,
+    app_health_receiver: oneshot::Receiver<Arc<AppHealthCheck>>,
+}
+
+#[tokio::test]
+async fn external_node_basics() {
+    let _guard = vlog::ObservabilityBuilder::new().build();
+    let temp_dir = tempfile::TempDir::new().unwrap();
+
+    let connection_pool = ConnectionPool::test_pool().await;
+    let mut storage = connection_pool.connection().await.unwrap();
+    let genesis_params = insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
+    let genesis_miniblock = storage
+        .blocks_dal()
+        .get_miniblock_header(MiniblockNumber(0))
+        .await
+        .unwrap()
+        .expect("No genesis miniblock");
+    drop(storage);
+
+    let opt = Cli {
+        revert_pending_l1_batch: false,
+        enable_consensus: false,
+        enable_snapshots_recovery: false,
+        components: "all".parse().unwrap(),
+    };
+    let mut config = ExternalNodeConfig::mock(&temp_dir);
+    config.postgres.database_url = connection_pool.database_url().to_owned();
+    let diamond_proxy_addr = config.remote.diamond_proxy_addr;
+
+    let l2_client = MockL2Client::new(move |method, params| {
+        tracing::info!("Called L2 client: {method}({params:?})");
+        match method {
+            "zks_L1BatchNumber" => Ok(serde_json::json!("0x0")),
+            "zks_getL1BatchDetails" => {
+                let (number,): (L1BatchNumber,) = serde_json::from_value(params)?;
+                assert_eq!(number, L1BatchNumber(0));
+                Ok(serde_json::to_value(api::L1BatchDetails {
+                    number: L1BatchNumber(0),
+                    base: block_details_base(genesis_params.root_hash),
+                })?)
+            }
+            "eth_blockNumber" => Ok(serde_json::json!("0x0")),
+            "eth_getBlockByNumber" => {
+                let (number, _): (api::BlockNumber, bool) = serde_json::from_value(params)?;
+                assert_eq!(number, api::BlockNumber::Number(0.into()));
+                Ok(serde_json::to_value(
+                    api::Block::<api::TransactionVariant> {
+                        hash: genesis_miniblock.hash,
+                        ..api::Block::default()
+                    },
+                )?)
+            }
+            "zks_getFeeParams" => Ok(serde_json::to_value(FeeParams::sensible_v1_default())?),
+
+            "en_whitelistedTokensForAA" => Ok(serde_json::json!([])),
+
+            _ => panic!("Unexpected call: {method}({params:?})"),
+        }
+    });
+    let l2_client = BoxedL2Client::new(l2_client);
+
+    let eth_client = MockEthereum::default().with_call_handler(move |call| {
+        tracing::info!("L1 call: {call:?}");
+        if call.contract_address() == diamond_proxy_addr {
+            match call.function_name() {
+                "getPubdataPricingMode" => return ethabi::Token::Uint(0.into()), // "rollup" mode encoding
+                "getProtocolVersion" => {
+                    return ethabi::Token::Uint((ProtocolVersionId::latest() as u16).into())
+                }
+                _ => { /* do nothing */ }
+            }
+        }
+        panic!("Unexpected L1 call: {call:?}");
+    });
+    let eth_client = Arc::new(eth_client);
+
+    let (env, env_handles) = TestEnvironment::new();
+    let node_handle = tokio::spawn(async move {
+        run_node(env, &opt, &config, connection_pool, l2_client, eth_client).await
+    });
+
+    // Wait until the node is ready.
+    let app_health = match env_handles.app_health_receiver.await {
+        Ok(app_health) => app_health,
+        Err(_) if node_handle.is_finished() => {
+            node_handle.await.unwrap().unwrap();
+            unreachable!("Node tasks should have panicked or errored");
+        }
+        Err(_) => unreachable!("Node tasks should have panicked or errored"),
+    };
+
+    let known_components = [
+        "reorg_detector",
+        "consistency_checker",
+        "http_api",
+        "ws_api",
+        "sync_state",
+        "tree",
+        "commitment_generator",
+    ];
+    loop {
+        let health = app_health.check_health().await;
+        tracing::info!(?health, "received health data");
+        if matches!(health.inner().status(), HealthStatus::Ready)
+            && known_components
+                .iter()
+                .all(|name| health.components().contains_key(name))
+        {
+            break;
+        }
+        tokio::time::sleep(POLL_INTERVAL).await;
+    }
+
+    // Stop the node and check that it timely terminates.
+    env_handles.sigint_sender.send(()).unwrap();
+
+    tokio::time::timeout(SHUTDOWN_TIMEOUT, node_handle)
+        .await
+        .expect("Node hanged up during shutdown")
+        .expect("Node panicked")
+        .expect("Node errored");
+}

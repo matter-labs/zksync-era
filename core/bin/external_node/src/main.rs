@@ -5,7 +5,7 @@ use clap::Parser;
 use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{
-    sync::{watch, RwLock},
+    sync::{oneshot, watch, RwLock},
     task::{self, JoinHandle},
 };
 use zksync_concurrency::{ctx, scope};
@@ -45,13 +45,17 @@ use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::{
     connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,
 };
-use zksync_eth_client::clients::QueryClient;
+use zksync_eth_client::{clients::QueryClient, EthInterface};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
-use zksync_web3_decl::{client::L2Client, jsonrpsee, namespaces::EnNamespaceClient};
+use zksync_web3_decl::{
+    client::{BoxedL2Client, L2Client},
+    jsonrpsee,
+    namespaces::EnNamespaceClient,
+};
 
 use crate::{
     config::{observability::observability_config_from_env, ExternalNodeConfig},
@@ -63,6 +67,8 @@ mod config;
 mod helpers;
 mod init;
 mod metrics;
+#[cfg(test)]
+mod tests;
 mod version_sync_task;
 
 const RELEASE_MANIFEST: &str = include_str!("../../../../.github/release-please/manifest.json");
@@ -74,7 +80,7 @@ async fn build_state_keeper(
     state_keeper_db_path: String,
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
-    main_node_client: L2Client,
+    main_node_client: BoxedL2Client,
     output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
@@ -169,7 +175,8 @@ async fn run_tree(
 async fn run_core(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
-    main_node_client: L2Client,
+    main_node_client: BoxedL2Client,
+    eth_client: Arc<dyn EthInterface>,
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
@@ -229,7 +236,7 @@ async fn run_core(
 
         let pool = connection_pool.clone();
         let sync_state = sync_state.clone();
-        let main_node_client = Arc::new(main_node_client.clone());
+        let main_node_client = main_node_client.clone();
         let mut stop_receiver = stop_receiver.clone();
         async move {
             // We instantiate the root context here, since the consensus task is the only user of the
@@ -255,18 +262,6 @@ async fn run_core(
         }
     }));
 
-    let reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
-    app_health.insert_component(reorg_detector.health_check().clone());
-    task_handles.push(tokio::spawn({
-        let stop = stop_receiver.clone();
-        async move {
-            reorg_detector
-                .run(stop)
-                .await
-                .context("reorg_detector.run()")
-        }
-    }));
-
     let fee_address_migration_handle =
         task::spawn(state_keeper.run_fee_address_migration(connection_pool.clone()));
     let sk_handle = task::spawn(state_keeper.run());
@@ -288,16 +283,10 @@ async fn run_core(
         remote_diamond_proxy_addr
     };
 
-    let eth_client_url = config
-        .required
-        .eth_client_url()
-        .context("L1 client URL is incorrect")?;
-    let eth_client = QueryClient::new(&eth_client_url).unwrap();
-
     ensure_l1_batch_commit_data_generation_mode(
         config.optional.l1_batch_commit_data_generator_mode,
         diamond_proxy_addr,
-        &eth_client,
+        eth_client.as_ref(),
     )
     .await?;
 
@@ -312,7 +301,7 @@ async fn run_core(
     };
 
     let consistency_checker = ConsistencyChecker::new(
-        Arc::new(eth_client),
+        eth_client,
         10, // TODO (BFT-97): Make it a part of a proper EN config
         singleton_pool_builder
             .build()
@@ -366,7 +355,7 @@ async fn run_api(
     sync_state: SyncState,
     tree_reader: Option<Arc<dyn TreeApiClient>>,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
-    main_node_client: L2Client,
+    main_node_client: BoxedL2Client,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
     fee_params_fetcher: Arc<MainNodeFeeParamsFetcher>,
     components: &HashSet<Component>,
@@ -402,7 +391,7 @@ async fn run_api(
         let proxy_cache_updater_pool = singleton_pool_builder
             .build()
             .await
-            .context("failed to build a tree_pool")?;
+            .context("failed to build a proxy_cache_updater_pool")?;
         let proxy_cache_updater_handle = tokio::spawn(
             tx_proxy
                 .run_account_nonce_sweeper(proxy_cache_updater_pool.clone(), stop_receiver.clone()),
@@ -440,7 +429,7 @@ async fn run_api(
         let whitelisted_tokens_for_aa_cache_clone = whitelisted_tokens_for_aa_cache.clone();
         let mut stop_receiver_for_task = stop_receiver.clone();
         let whitelisted_tokens_update_task = task::spawn(async move {
-            loop {
+            while !*stop_receiver_for_task.borrow_and_update() {
                 match main_node_client.whitelisted_tokens_for_aa().await {
                     Ok(tokens) => {
                         *whitelisted_tokens_for_aa_cache_clone.write().await = tokens;
@@ -462,6 +451,7 @@ async fn run_api(
                     .await
                     .ok();
             }
+            Ok(())
         });
 
         let tx_sender = tx_sender_builder
@@ -535,10 +525,12 @@ async fn run_api(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn init_tasks(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
-    main_node_client: L2Client,
+    main_node_client: BoxedL2Client,
+    eth_client: Arc<dyn EthInterface>,
     task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
@@ -625,6 +617,7 @@ async fn init_tasks(
             config,
             connection_pool.clone(),
             main_node_client.clone(),
+            eth_client,
             task_handles,
             app_health,
             stop_receiver.clone(),
@@ -821,7 +814,50 @@ async fn main() -> anyhow::Result<()> {
         .context("Failed creating JSON-RPC client for main node")?
         .with_allowed_requests_per_second(config.optional.main_node_rate_limit_rps)
         .build();
+    let main_node_client = BoxedL2Client::new(main_node_client);
 
+    let eth_client_url = config
+        .required
+        .eth_client_url()
+        .context("L1 client URL is incorrect")?;
+    let eth_client = Arc::new(QueryClient::new(&eth_client_url)?);
+
+    run_node(
+        (),
+        &opt,
+        &config,
+        connection_pool,
+        main_node_client,
+        eth_client,
+    )
+    .await
+}
+
+trait NodeEnvironment {
+    fn setup_sigint_handler(&mut self) -> oneshot::Receiver<()>;
+
+    fn set_app_health(&mut self, health: Arc<AppHealthCheck>);
+}
+
+// Default implementation.
+impl NodeEnvironment for () {
+    fn setup_sigint_handler(&mut self) -> oneshot::Receiver<()> {
+        setup_sigint_handler()
+    }
+
+    fn set_app_health(&mut self, _health: Arc<AppHealthCheck>) {
+        // Do nothing
+    }
+}
+
+async fn run_node(
+    mut env: impl NodeEnvironment,
+    opt: &Cli,
+    config: &ExternalNodeConfig,
+    connection_pool: ConnectionPool<Core>,
+    main_node_client: BoxedL2Client,
+    eth_client: Arc<dyn EthInterface>,
+) -> anyhow::Result<()> {
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -881,7 +917,7 @@ async fn main() -> anyhow::Result<()> {
         opt.enable_snapshots_recovery,
     )
     .await?;
-    let sigint_receiver = setup_sigint_handler();
+    let sigint_receiver = env.setup_sigint_handler();
 
     // Revert the storage if needed.
     let reverter = BlockReverter::new(
@@ -928,10 +964,22 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("Rollback successfully completed");
     }
 
+    app_health.insert_component(reorg_detector.health_check().clone());
+    task_handles.push(tokio::spawn({
+        let stop = stop_receiver.clone();
+        async move {
+            reorg_detector
+                .run(stop)
+                .await
+                .context("reorg_detector.run()")
+        }
+    }));
+
     init_tasks(
-        &config,
-        connection_pool.clone(),
-        main_node_client.clone(),
+        config,
+        connection_pool,
+        main_node_client,
+        eth_client,
         &mut task_handles,
         &app_health,
         stop_receiver.clone(),
@@ -939,6 +987,8 @@ async fn main() -> anyhow::Result<()> {
     )
     .await
     .context("init_tasks")?;
+
+    env.set_app_health(app_health);
 
     let mut tasks = ManagedTasks::new(task_handles);
     tokio::select! {
