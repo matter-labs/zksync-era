@@ -320,6 +320,10 @@ impl ProtoRepr for proto::Prover {
             zone_read_url: required(&self.zone_read_url)
                 .context("zone_read_url")?
                 .clone(),
+            availability_check_interval_in_secs: *required(
+                &self.availability_check_interval_in_secs,
+            )
+            .context("availability_check_interval_in_secs")?,
             shall_save_to_public_bucket: *required(&self.shall_save_to_public_bucket)
                 .context("shall_save_to_public_bucket")?,
             object_store,
@@ -337,6 +341,7 @@ impl ProtoRepr for proto::Prover {
             queue_capacity: Some(this.queue_capacity.try_into().unwrap()),
             witness_vector_receiver_port: Some(this.witness_vector_receiver_port.into()),
             zone_read_url: Some(this.zone_read_url.clone()),
+            availability_check_interval_in_secs: Some(this.availability_check_interval_in_secs),
             shall_save_to_public_bucket: Some(this.shall_save_to_public_bucket),
             object_store: this.object_store.as_ref().map(ProtoRepr::build),
         }

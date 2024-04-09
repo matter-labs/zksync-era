@@ -39,6 +39,12 @@ pub enum CircuitBreakerError {
     Internal(#[from] anyhow::Error),
 }
 
+impl From<zksync_dal::DalError> for CircuitBreakerError {
+    fn from(err: zksync_dal::DalError) -> Self {
+        Self::Internal(err.generalize())
+    }
+}
+
 /// Checks circuit breakers
 #[derive(Debug)]
 pub struct CircuitBreakerChecker {

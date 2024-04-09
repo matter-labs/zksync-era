@@ -1,7 +1,7 @@
 use prover_dal::{Prover, ProverDal};
 use zksync_db_connection::connection_pool::ConnectionPool;
 
-use crate::house_keeper::periodic_job::PeriodicJob;
+use crate::house_keeper::{metrics::HOUSE_KEEPER_METRICS, periodic_job::PeriodicJob};
 
 #[derive(Debug)]
 pub struct FriProverJobArchiver {
@@ -38,7 +38,9 @@ impl PeriodicJob for FriProverJobArchiver {
             .archive_old_jobs(self.archiving_interval_secs)
             .await;
         tracing::info!("Archived {:?} fri prover jobs", archived_jobs);
-        metrics::counter!("server.prover_fri.archived_jobs", archived_jobs as u64);
+        HOUSE_KEEPER_METRICS
+            .prover_job_archived
+            .inc_by(archived_jobs as u64);
         Ok(())
     }
 

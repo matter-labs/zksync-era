@@ -43,9 +43,11 @@ use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},
     BoundEthInterface,
 };
+use zksync_eth_watch::start_eth_watch;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
+use zksync_shared_metrics::{InitStage, APP_METRICS};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{fee_model::FeeModelConfig, L2ChainId};
 
@@ -67,10 +69,10 @@ use crate::{
         },
         Aggregator, EthTxAggregator, EthTxManager,
     },
-    eth_watch::start_eth_watch,
     genesis::GenesisParams,
     house_keeper::{
         blocks_state_reporter::L1BatchMetricsReporter,
+        fri_gpu_prover_archiver::FriGpuProverArchiver,
         fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
         fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter,
         fri_prover_job_retry_manager::FriProverJobRetryManager,
@@ -86,7 +88,6 @@ use crate::{
         GasAdjusterSingleton, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
     },
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
-    metrics::{InitStage, APP_METRICS},
     state_keeper::{
         create_state_keeper, MempoolFetcher, MempoolGuard, OutputHandler, SequencerSealer,
         StateKeeperPersistence,
@@ -101,14 +102,12 @@ pub mod commitment_generator;
 pub mod consensus;
 pub mod consistency_checker;
 pub mod eth_sender;
-pub mod eth_watch;
 pub mod fee_model;
 pub mod gas_tracker;
 pub mod genesis;
 pub mod house_keeper;
 pub mod l1_gas_price;
 pub mod metadata_calculator;
-mod metrics;
 pub mod proof_data_handler;
 pub mod proto;
 pub mod reorg_detector;
@@ -1104,17 +1103,27 @@ async fn add_house_keeper_to_task_futures(
     task_futures.push(tokio::spawn(task));
 
     // TODO(PLA-862): remove after fields become required
-    if house_keeper_config.prover_job_archiver_enabled() {
+    if let Some((archiving_interval, archive_after)) =
+        house_keeper_config.prover_job_archiver_params()
+    {
         let fri_prover_jobs_archiver = FriProverJobArchiver::new(
             prover_connection_pool.clone(),
-            house_keeper_config
-                .prover_job_archiver_reporting_interval_ms
-                .unwrap(),
-            house_keeper_config
-                .prover_job_archiver_archiving_interval_secs
-                .unwrap(),
+            archiving_interval,
+            archive_after,
         );
         let task = fri_prover_jobs_archiver.run(stop_receiver.clone());
+        task_futures.push(tokio::spawn(task));
+    }
+
+    if let Some((archiving_interval, archive_after)) =
+        house_keeper_config.fri_gpu_prover_archiver_params()
+    {
+        let fri_gpu_prover_jobs_archiver = FriGpuProverArchiver::new(
+            prover_connection_pool.clone(),
+            archiving_interval,
+            archive_after,
+        );
+        let task = fri_gpu_prover_jobs_archiver.run(stop_receiver.clone());
         task_futures.push(tokio::spawn(task));
     }
 

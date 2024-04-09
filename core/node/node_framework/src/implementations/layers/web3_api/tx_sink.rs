@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use zksync_core::api_server::tx_sender::{master_pool_sink::MasterPoolSink, proxy::TxProxy};
-use zksync_web3_decl::jsonrpsee::http_client::{transport::HttpBackend, HttpClient};
+use zksync_web3_decl::client::L2Client;
 
 use crate::{
     implementations::resources::{pools::MasterPoolResource, web3_api::TxSinkResource},
@@ -33,9 +33,9 @@ impl WiringLayer for TxSinkLayer {
                 TxSinkResource(Arc::new(MasterPoolSink::new(pool)))
             }
             TxSinkLayer::ProxySink { main_node_url } => {
-                let client = HttpClient::<HttpBackend>::builder()
-                    .build(main_node_url)
-                    .map_err(|err| WiringError::Internal(err.into()))?;
+                let client = L2Client::http(main_node_url)
+                    .map_err(WiringError::Internal)?
+                    .build();
                 TxSinkResource(Arc::new(TxProxy::new(client)))
             }
         };

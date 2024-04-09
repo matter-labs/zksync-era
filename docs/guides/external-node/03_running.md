@@ -1,5 +1,9 @@
 # Running the External Node
 
+> [!NOTE]
+>
+> If you want to just run external with recommended default setting, please see directory docker-compose-examples
+
 This section assumes that you have prepared a configuration file as described on the
 [previous page](./02_configuration.md).
 

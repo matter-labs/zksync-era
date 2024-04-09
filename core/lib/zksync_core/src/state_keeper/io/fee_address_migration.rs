@@ -163,8 +163,7 @@ async fn is_fee_address_migrated(
     storage
         .blocks_dal()
         .is_fee_address_migrated(miniblock)
-        .await
-        .with_context(|| format!("Failed getting fee address for miniblock #{miniblock}"))?
+        .await?
         .with_context(|| format!("Miniblock #{miniblock} disappeared"))
 }
 
@@ -182,8 +181,9 @@ mod tests {
     async fn prepare_storage(storage: &mut Connection<'_, Core>) {
         storage
             .protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         for number in 0..5 {
             let miniblock = create_miniblock(number);
             storage

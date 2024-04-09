@@ -209,6 +209,7 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             deduplicated_events_logs: vec![],
             storage_refunds: vec![],
             user_l2_to_l1_logs: l2_to_l1_logs,
+            pubdata_costs: vec![],
         }
     }
 

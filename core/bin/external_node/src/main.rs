@@ -1,11 +1,11 @@
-use std::{collections::HashSet, future, net::Ipv4Addr, str::FromStr, sync::Arc, time::Duration};
+use std::{collections::HashSet, net::Ipv4Addr, str::FromStr, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
 use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{
-    sync::watch,
+    sync::{watch, RwLock},
     task::{self, JoinHandle},
 };
 use zksync_concurrency::{ctx, scope};
@@ -37,8 +37,7 @@ use zksync_core::{
         OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
     },
     sync_layer::{
-        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue,
-        MainNodeClient, SyncState,
+        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue, SyncState,
     },
     utils::ensure_l1_batch_commit_data_generation_mode,
 };
@@ -52,7 +51,7 @@ use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
-use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
+use zksync_web3_decl::{client::L2Client, jsonrpsee, namespaces::EnNamespaceClient};
 
 use crate::{
     config::{observability::observability_config_from_env, ExternalNodeConfig},
@@ -75,6 +74,7 @@ async fn build_state_keeper(
     state_keeper_db_path: String,
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
+    main_node_client: L2Client,
     output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
@@ -100,13 +100,10 @@ async fn build_state_keeper(
         true,
     ));
 
-    let main_node_url = config.required.main_node_url()?;
-    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
-        .context("Failed creating JSON-RPC client for main node")?;
     let io = ExternalIO::new(
         connection_pool,
         action_queue,
-        Box::new(main_node_client),
+        Box::new(main_node_client.for_component("external_io")),
         chain_id,
     )
     .await
@@ -131,11 +128,15 @@ async fn run_tree(
 ) -> anyhow::Result<Arc<dyn TreeApiClient>> {
     let metadata_calculator_config = MetadataCalculatorConfig {
         db_path: config.required.merkle_tree_path.clone(),
+        max_open_files: config.optional.merkle_tree_max_open_files,
         mode: MerkleTreeMode::Lightweight,
         delay_interval: config.optional.metadata_calculator_delay(),
         max_l1_batches_per_iter: config.optional.max_l1_batches_per_tree_iter,
         multi_get_chunk_size: config.optional.merkle_tree_multi_get_chunk_size,
         block_cache_capacity: config.optional.merkle_tree_block_cache_size(),
+        include_indices_and_filters_in_block_cache: config
+            .optional
+            .merkle_tree_include_indices_and_filters_in_block_cache,
         memtable_capacity: config.optional.merkle_tree_memtable_capacity(),
         stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
     };
@@ -168,7 +169,7 @@ async fn run_tree(
 async fn run_core(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
-    main_node_client: HttpClient,
+    main_node_client: L2Client,
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
@@ -202,6 +203,7 @@ async fn run_core(
         config.required.state_cache_path.clone(),
         config,
         connection_pool.clone(),
+        main_node_client.clone(),
         output_handler,
         stop_receiver.clone(),
         config.remote.l2_chain_id,
@@ -364,7 +366,7 @@ async fn run_api(
     sync_state: SyncState,
     tree_reader: Option<Arc<dyn TreeApiClient>>,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
-    main_node_client: HttpClient,
+    main_node_client: L2Client,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
     fee_params_fetcher: Arc<MainNodeFeeParamsFetcher>,
     components: &HashSet<Component>,
@@ -389,8 +391,14 @@ async fn run_api(
         }
     };
 
-    let (tx_sender, vm_barrier, cache_update_handle, proxy_cache_updater_handle) = {
-        let tx_proxy = TxProxy::new(main_node_client);
+    let (
+        tx_sender,
+        vm_barrier,
+        cache_update_handle,
+        proxy_cache_updater_handle,
+        whitelisted_tokens_update_handle,
+    ) = {
+        let tx_proxy = TxProxy::new(main_node_client.clone());
         let proxy_cache_updater_pool = singleton_pool_builder
             .build()
             .await
@@ -428,7 +436,36 @@ async fn run_api(
             )
         });
 
+        let whitelisted_tokens_for_aa_cache = Arc::new(RwLock::new(Vec::new()));
+        let whitelisted_tokens_for_aa_cache_clone = whitelisted_tokens_for_aa_cache.clone();
+        let mut stop_receiver_for_task = stop_receiver.clone();
+        let whitelisted_tokens_update_task = task::spawn(async move {
+            loop {
+                match main_node_client.whitelisted_tokens_for_aa().await {
+                    Ok(tokens) => {
+                        *whitelisted_tokens_for_aa_cache_clone.write().await = tokens;
+                    }
+                    Err(jsonrpsee::core::client::Error::Call(error))
+                        if error.code() == jsonrpsee::types::error::METHOD_NOT_FOUND_CODE =>
+                    {
+                        // Method is not supported by the main node, do nothing.
+                    }
+                    Err(err) => {
+                        tracing::error!(
+                            "Failed to query `whitelisted_tokens_for_aa`, error: {err:?}"
+                        );
+                    }
+                }
+
+                // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
+                tokio::time::timeout(Duration::from_secs(60), stop_receiver_for_task.changed())
+                    .await
+                    .ok();
+            }
+        });
+
         let tx_sender = tx_sender_builder
+            .with_whitelisted_tokens_for_aa(whitelisted_tokens_for_aa_cache)
             .build(
                 fee_params_fetcher,
                 Arc::new(vm_concurrency_limiter),
@@ -441,6 +478,7 @@ async fn run_api(
             vm_barrier,
             cache_update_handle,
             proxy_cache_updater_handle,
+            whitelisted_tokens_update_task,
         )
     };
 
@@ -492,6 +530,7 @@ async fn run_api(
 
     task_futures.extend(cache_update_handle);
     task_futures.push(proxy_cache_updater_handle);
+    task_futures.push(whitelisted_tokens_update_handle);
 
     Ok(())
 }
@@ -499,8 +538,8 @@ async fn run_api(
 async fn init_tasks(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
-    main_node_client: HttpClient,
-    task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
+    main_node_client: L2Client,
+    task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
     components: &HashSet<Component>,
@@ -514,21 +553,25 @@ async fn init_tasks(
     let version = semver::Version::parse(release_manifest_version)
         .context("version in manifest is a correct semver format")?;
     let pool = connection_pool.clone();
+    let mut stop_receiver_for_task = stop_receiver.clone();
     task_handles.push(tokio::spawn(async move {
-        loop {
+        while !*stop_receiver_for_task.borrow_and_update() {
             let protocol_version = pool
                 .connection()
-                .await
-                .unwrap()
+                .await?
                 .protocol_versions_dal()
                 .last_used_version_id()
                 .await
                 .map(|version| version as u16);
 
-            EN_METRICS.version[&(format!("{}", version), protocol_version)].set(1);
+            EN_METRICS.version[&(version.to_string(), protocol_version)].set(1);
 
-            tokio::time::sleep(Duration::from_secs(10)).await;
+            // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
+            tokio::time::timeout(Duration::from_secs(10), stop_receiver_for_task.changed())
+                .await
+                .ok();
         }
+        Ok(())
     }));
 
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
@@ -774,11 +817,14 @@ async fn main() -> anyhow::Result<()> {
         .main_node_url()
         .expect("Main node URL is incorrect");
     tracing::info!("Main node URL is: {main_node_url}");
-    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
-        .context("Failed creating JSON-RPC client for main node")?;
+    let main_node_client = L2Client::http(&main_node_url)
+        .context("Failed creating JSON-RPC client for main node")?
+        .with_allowed_requests_per_second(config.optional.main_node_rate_limit_rps)
+        .build();
 
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");
+    let (stop_sender, stop_receiver) = watch::channel(false);
 
     let app_health = Arc::new(AppHealthCheck::new(
         config.optional.healthcheck_slow_time_limit(),
@@ -797,30 +843,39 @@ async fn main() -> anyhow::Result<()> {
         app_health.clone(),
     );
     // Start scraping Postgres metrics before store initialization as well.
-    let metrics_pool = connection_pool.clone();
+    let pool_for_metrics = connection_pool.clone();
+    let mut stop_receiver_for_metrics = stop_receiver.clone();
+    let metrics_task = tokio::spawn(async move {
+        tokio::select! {
+            () = PostgresMetrics::run_scraping(pool_for_metrics, Duration::from_secs(60)) => {
+                tracing::warn!("Postgres metrics scraping unexpectedly stopped");
+            }
+            _ = stop_receiver_for_metrics.changed() => {
+                tracing::info!("Stop signal received, Postgres metrics scraping is shutting down");
+            }
+        }
+        Ok(())
+    });
+
     let version_sync_task_pool = connection_pool.clone();
     let version_sync_task_main_node_client = main_node_client.clone();
-    let mut task_handles = vec![
-        tokio::spawn(async move {
-            PostgresMetrics::run_scraping(metrics_pool, Duration::from_secs(60)).await;
-            Ok(())
-        }),
-        tokio::spawn(async move {
-            version_sync_task::sync_versions(
-                version_sync_task_pool,
-                version_sync_task_main_node_client,
-            )
-            .await?;
-            future::pending::<()>().await;
-            // ^ Since this is run as a task, we don't want it to exit on success (this would shut down the node).
-            Ok(())
-        }),
-    ];
+    let mut stop_receiver_for_version_sync = stop_receiver.clone();
+    let version_sync_task = tokio::spawn(async move {
+        version_sync_task::sync_versions(
+            version_sync_task_pool,
+            version_sync_task_main_node_client,
+        )
+        .await?;
+
+        stop_receiver_for_version_sync.changed().await.ok();
+        Ok(())
+    });
+    let mut task_handles = vec![metrics_task, version_sync_task];
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(
         &connection_pool,
-        &main_node_client,
+        main_node_client.clone(),
         &app_health,
         config.remote.l2_chain_id,
         opt.enable_snapshots_recovery,
@@ -860,8 +915,7 @@ async fn main() -> anyhow::Result<()> {
         let sealed_l1_batch_number = connection
             .blocks_dal()
             .get_sealed_l1_batch_number()
-            .await
-            .context("Failed getting sealed L1 batch number")?
+            .await?
             .context(
                 "Cannot roll back pending L1 batch since there are no L1 batches in Postgres",
             )?;
@@ -874,7 +928,6 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("Rollback successfully completed");
     }
 
-    let (stop_sender, stop_receiver) = watch::channel(false);
     init_tasks(
         &config,
         connection_pool.clone(),

@@ -79,8 +79,7 @@ impl ExternalIO {
             .await?
             .factory_deps_dal()
             .get_factory_dep(hash)
-            .await
-            .with_context(|| format!("failed getting bytecode for hash {hash:?}"))?;
+            .await?;
 
         Ok(match bytecode {
             Some(bytecode) => SystemContractCode {
@@ -371,7 +370,7 @@ impl StateKeeperIO for ExternalIO {
                 protocol_version.base_system_contracts,
                 protocol_version.l2_system_upgrade_tx_hash,
             )
-            .await;
+            .await?;
 
         let BaseSystemContractsHashes {
             bootloader,
