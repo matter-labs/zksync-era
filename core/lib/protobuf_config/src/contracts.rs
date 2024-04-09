@@ -13,7 +13,7 @@ impl ProtoRepr for proto::Contracts {
         let bridges = required(&self.bridges).context("bridges")?;
         let shared = required(&bridges.shared).context("shared")?;
         let erc20 = required(&bridges.erc20).context("erc20")?;
-        let weth_bridge = required(&bridges.weth).context("weth_bridge")?;
+        let weth_bridge = &bridges.weth;
 
         let ecosystem_contracts = if let Some(ecosystem_contracts) = &self.ecosystem_contracts {
             Some(EcosystemContracts {
@@ -71,17 +71,27 @@ impl ProtoRepr for proto::Contracts {
                 .and_then(|x| parse_h160(x))
                 .context("l2_shared_bridge_proxy_addr")?,
             l1_weth_bridge_proxy_addr: weth_bridge
-                .l1_address
                 .as_ref()
-                .map(|x| parse_h160(x))
-                .transpose()
-                .context("l1_weth_bridge_addr")?,
+                .map(|bridge| {
+                    bridge
+                        .l1_address
+                        .as_ref()
+                        .map(|x| parse_h160(x))
+                        .context("l1_weth_bridge_addr")
+                })
+                .transpose()?
+                .transpose()?,
             l2_weth_bridge_addr: weth_bridge
-                .l2_address
                 .as_ref()
-                .map(|x| parse_h160(x))
-                .transpose()
-                .context("l2_weth_bridge_addr")?,
+                .map(|bridge| {
+                    bridge
+                        .l2_address
+                        .as_ref()
+                        .map(|x| parse_h160(x))
+                        .context("l2_weth_bridge_addr")
+                })
+                .transpose()?
+                .transpose()?,
             l2_testnet_paymaster_addr: l2
                 .testnet_paymaster_addr
                 .as_ref()
