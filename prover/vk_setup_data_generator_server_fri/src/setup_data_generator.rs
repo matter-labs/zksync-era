@@ -49,6 +49,7 @@ pub fn generate_setup_data_common(
                 .into_inner(),
         )
     } else {
+        println!("circuit = {circuit:?}");
         (
             Some(keystore.load_finalization_hints(circuit.clone())?),
             data_source

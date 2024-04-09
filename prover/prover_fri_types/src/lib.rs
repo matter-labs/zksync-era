@@ -152,17 +152,17 @@ impl ProverServiceDataKey {
         {
             results.push(ProverServiceDataKey::new_basic(numeric_circuit))
         }
-        for numeric_circuit in (ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8
-            ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForEIP4844Repack as u8)
-            .chain(
-                ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8
-                    ..=ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
-            )
+        for numeric_circuit in ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8
+            ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForEIP4844Repack as u8
+        // .chain(
+        //     ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8
+        //         ..=ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
+        // )
         {
             results.push(ProverServiceDataKey::new_recursive(numeric_circuit))
         }
         // Don't include snark, as it uses the old proving system.
-
+        println!("results = {results:?}");
         results
     }
 

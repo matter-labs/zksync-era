@@ -838,9 +838,23 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#6fbbe8bf0a9aafe7d1f040d5b07dd9b9062b5834"
 dependencies = [
  "circuit_encodings 0.1.50",
+ "crossbeam 0.8.4",
+ "derivative",
+ "seq-macro",
+ "serde",
+ "snark_wrapper",
+ "zk_evm 1.5.0",
+ "zkevm_circuits 1.5.0",
+]
+
+[[package]]
+name = "circuit_definitions"
+version = "1.5.0"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#6fbbe8bf0a9aafe7d1f040d5b07dd9b9062b5834"
+dependencies = [
+ "circuit_encodings 0.1.50 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0)",
  "crossbeam 0.8.4",
  "derivative",
  "seq-macro",
@@ -881,6 +895,16 @@ dependencies = [
  "serde",
  "zk_evm 1.4.1",
  "zkevm_circuits 1.4.1",
+]
+
+[[package]]
+name = "circuit_encodings"
+version = "0.1.50"
+dependencies = [
+ "derivative",
+ "serde",
+ "zk_evm 1.5.0",
+ "zkevm_circuits 1.5.0",
 ]
 
 [[package]]
@@ -948,10 +972,22 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#6fbbe8bf0a9aafe7d1f040d5b07dd9b9062b5834"
 dependencies = [
  "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
  "circuit_encodings 0.1.50",
+ "derivative",
+ "rayon",
+ "serde",
+ "zk_evm 1.5.0",
+]
+
+[[package]]
+name = "circuit_sequencer_api"
+version = "0.1.50"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#6fbbe8bf0a9aafe7d1f040d5b07dd9b9062b5834"
+dependencies = [
+ "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
+ "circuit_encodings 0.1.50 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0)",
  "derivative",
  "rayon",
  "serde",
@@ -2885,7 +2921,6 @@ dependencies = [
 [[package]]
 name = "kzg"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#6fbbe8bf0a9aafe7d1f040d5b07dd9b9062b5834"
 dependencies = [
  "boojum",
  "derivative",
@@ -3284,7 +3319,7 @@ dependencies = [
  "circuit_sequencer_api 0.1.40",
  "circuit_sequencer_api 0.1.41",
  "circuit_sequencer_api 0.1.42",
- "circuit_sequencer_api 0.1.50",
+ "circuit_sequencer_api 0.1.50 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0)",
  "hex",
  "itertools 0.10.5",
  "once_cell",
@@ -5332,7 +5367,7 @@ dependencies = [
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "boojum",
  "boojum-cuda",
- "circuit_definitions",
+ "circuit_definitions 1.5.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0)",
  "cudart",
  "cudart-sys",
  "derivative",
@@ -6646,7 +6681,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
- "circuit_definitions",
+ "circuit_definitions 1.5.0",
  "clap 4.4.6",
  "hex",
  "itertools 0.10.5",
@@ -7432,16 +7467,15 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#6fbbe8bf0a9aafe7d1f040d5b07dd9b9062b5834"
 dependencies = [
  "bincode",
- "circuit_definitions",
+ "circuit_definitions 1.5.0",
  "circuit_sequencer_api 0.1.50",
  "codegen",
  "crossbeam 0.8.4",
  "curl",
  "derivative",
- "env_logger 0.11.2",
+ "env_logger 0.9.3",
  "hex",
  "kzg",
  "lazy_static",
@@ -7784,7 +7818,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "circuit_definitions",
+ "circuit_definitions 1.5.0",
  "ctrlc",
  "futures 0.3.30",
  "local-ip-address",
@@ -7839,7 +7873,7 @@ dependencies = [
 name = "zksync_prover_fri_types"
 version = "0.1.0"
 dependencies = [
- "circuit_definitions",
+ "circuit_definitions 1.5.0",
  "serde",
  "zksync_object_store",
  "zksync_types",
@@ -7868,7 +7902,7 @@ name = "zksync_prover_interface"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "circuit_sequencer_api 0.1.50",
+ "circuit_sequencer_api 0.1.50 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0)",
  "serde",
  "serde_with",
  "strum",
@@ -7983,7 +8017,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
- "circuit_definitions",
+ "circuit_definitions 1.5.0",
  "const-decoder",
  "ctrlc",
  "futures 0.3.30",
