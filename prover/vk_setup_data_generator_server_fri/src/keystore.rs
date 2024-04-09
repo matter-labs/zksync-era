@@ -189,15 +189,6 @@ impl Keystore {
         Self::save_json_pretty(filepath, &vk)
     }
 
-    pub fn save_4844_verification_key(&self, vk: EIP4844VerificationKey) -> anyhow::Result<()> {
-        let filepath = self.get_file_path(
-            ProverServiceDataKey::eip4844(),
-            ProverServiceDataType::VerificationKey,
-        );
-        tracing::info!("saving 4844 verification key to: {}", filepath);
-        Self::save_json_pretty(filepath, &vk)
-    }
-
     ///
     /// Finalization hints
     ///
@@ -316,8 +307,12 @@ impl Keystore {
     /// Keys are loaded from the default 'base path' files.
     pub fn load_keys_to_data_source(&self) -> anyhow::Result<InMemoryDataSource> {
         let mut data_source = InMemoryDataSource::new();
-        for base_circuit_type in
-            (BaseLayerCircuitType::VM as u8)..=(BaseLayerCircuitType::Secp256r1Verify as u8)
+        for base_circuit_type in ((BaseLayerCircuitType::VM as u8)
+            ..=(BaseLayerCircuitType::Secp256r1Verify as u8))
+            .chain(
+                BaseLayerCircuitType::EIP4844Repack as u8
+                    ..=BaseLayerCircuitType::EIP4844Repack as u8,
+            )
         {
             data_source
                 .set_base_layer_vk(self.load_base_layer_verification_key(base_circuit_type)?)
@@ -331,6 +326,13 @@ impl Keystore {
                 .set_recursion_layer_vk(self.load_recursive_layer_verification_key(circuit_type)?)
                 .unwrap();
         }
+
+        data_source
+            .set_recursion_tip_vk(self.load_recursive_layer_verification_key(
+                ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
+            )?)
+            .unwrap();
+
         data_source
             .set_recursion_layer_node_vk(self.load_recursive_layer_verification_key(
                 ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
@@ -349,6 +351,7 @@ impl Keystore {
             ..=(BaseLayerCircuitType::Secp256r1Verify as u8))
             .chain(std::iter::once(BaseLayerCircuitType::EIP4844Repack as u8))
         {
+            print!("Saving base circuit for {:?}", base_circuit_type);
             let vk = source.get_base_layer_vk(base_circuit_type).map_err(|err| {
                 anyhow::anyhow!("No vk exist for circuit type: {base_circuit_type}: {err}")
             })?;

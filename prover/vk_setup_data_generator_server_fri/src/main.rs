@@ -96,8 +96,6 @@ enum CircuitSelector {
     Recursive,
     /// Select circuits from basic group.
     Basic,
-    /// EIP 4844 circuit
-    Eip4844,
 }
 
 #[derive(Debug, Parser)]
@@ -198,7 +196,6 @@ fn generate_setup_keys(
                 .numeric_circuit
                 .expect("--numeric-circuit must be provided"),
         ),
-        CircuitSelector::Eip4844 => ProverServiceDataKey::eip4844(),
     };
 
     let digest = generator

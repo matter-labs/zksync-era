@@ -39,10 +39,12 @@ impl<T: Storage> Storage for StorageOracle<T> {
 
     fn get_access_refund(
         &mut self,
-        _monotonic_cycle_counter: u32,
+        monotonic_cycle_counter: u32,
         partial_query: &zk_evm::aux_structures::LogQuery,
     ) -> StorageAccessRefund {
-        if partial_query.aux_byte == TRANSIENT_STORAGE_AUX_BYTE {
+        self.inn
+            .get_access_refund(monotonic_cycle_counter, partial_query)
+        /*if partial_query.aux_byte == TRANSIENT_STORAGE_AUX_BYTE {
             // Any transient access is warm. Also, no refund needs to be provided as it is already cheap
             StorageAccessRefund::Warm { ergs: 0 }
         } else if partial_query.aux_byte == STORAGE_AUX_BYTE {
@@ -56,7 +58,7 @@ impl<T: Storage> Storage for StorageOracle<T> {
             }
         } else {
             unreachable!()
-        }
+        }*/
     }
 
     fn start_new_tx(&mut self, _timestamp: zk_evm::aux_structures::Timestamp) {

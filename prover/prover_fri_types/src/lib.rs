@@ -54,7 +54,7 @@ impl StoredObject for CircuitWrapper {
 pub enum FriProofWrapper {
     Base(ZkSyncBaseLayerProof),
     Recursive(ZkSyncRecursionLayerProof),
-    Eip4844(ZkSyncBaseProof),
+    //Eip4844(ZkSyncBaseProof),
 }
 
 impl StoredObject for FriProofWrapper {
@@ -146,11 +146,9 @@ impl ProverServiceDataKey {
 
     pub fn all_boojum() -> Vec<ProverServiceDataKey> {
         let mut results = vec![];
-        for numeric_circuit in
-            (BaseLayerCircuitType::VM as u8..=BaseLayerCircuitType::Secp256r1Verify as u8).chain(
-                BaseLayerCircuitType::EIP4844Repack as u8
-                    ..BaseLayerCircuitType::EIP4844Repack as u8,
-            )
+        for numeric_circuit in (BaseLayerCircuitType::VM as u8
+            ..=BaseLayerCircuitType::Secp256r1Verify as u8)
+            .chain(std::iter::once(BaseLayerCircuitType::EIP4844Repack as u8))
         {
             results.push(ProverServiceDataKey::new_basic(numeric_circuit))
         }
@@ -158,7 +156,7 @@ impl ProverServiceDataKey {
             ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForEIP4844Repack as u8)
             .chain(
                 ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8
-                    ..ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
+                    ..=ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
             )
         {
             results.push(ProverServiceDataKey::new_recursive(numeric_circuit))
@@ -176,27 +174,11 @@ impl ProverServiceDataKey {
         }
     }
 
-    /// Key for 4844 circuit.
-    // Currently this is a special 'aux' style circuit (as we have just one),
-    // But from VM 1.5.0 it will change into a 'basic' circuit.
-    pub fn eip4844() -> Self {
-        Self {
-            circuit_id: EIP_4844_CIRCUIT_ID,
-            round: AggregationRound::BasicCircuits,
-        }
-    }
-    pub fn is_eip4844(&self) -> bool {
-        self.circuit_id == EIP_4844_CIRCUIT_ID && self.round == AggregationRound::BasicCircuits
-    }
-
     pub fn is_base_layer(&self) -> bool {
-        self.round == AggregationRound::BasicCircuits && !self.is_eip4844()
+        self.round == AggregationRound::BasicCircuits
     }
 
     pub fn name(&self) -> String {
-        if self.is_eip4844() {
-            return "eip4844".to_string();
-        }
         match self.round {
             AggregationRound::BasicCircuits => {
                 format!("basic_{}", self.circuit_id)

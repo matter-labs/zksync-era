@@ -396,7 +396,7 @@ async fn update_database(
     // In the future, this will be included in the above call.
     // For now, there are [`MAX_4844_BLOBS_PER_BLOCK`] proofs, even though there may be less blobs.
     // The proofs are expected as per: https://github.com/matter-labs/era-zkevm_circuits/blob/v1.4.2/src/scheduler/mod.rs#L1165
-    for index in 0..MAX_4844_BLOBS_PER_BLOCK {
+    /*for index in 0..MAX_4844_BLOBS_PER_BLOCK {
         prover_connection
             .fri_prover_jobs_dal()
             .insert_prover_job(
@@ -410,7 +410,7 @@ async fn update_database(
                 protocol_version_id,
             )
             .await;
-    }
+    }*/
     prover_connection
         .fri_witness_generator_dal()
         .create_aggregation_jobs(
@@ -689,6 +689,14 @@ async fn generate_witness(
         );
 
         const ARRAY_REPEAT_VALUE: std::option::Option<Vec<u8>> = None;
+
+        let mut repacked_4844_inputs = [ARRAY_REPEAT_VALUE; 16];
+
+        for (x, y) in eip_4844_blobs.blobs().iter().enumerate() {
+            repacked_4844_inputs[x] = Some(y.clone());
+        }
+        let path = KZG_TRUSTED_SETUP_FILE.path().to_str().unwrap();
+
         let (scheduler_witness, block_witness) = zkevm_test_harness::external_calls::run(
             Address::zero(),
             BOOTLOADER_ADDRESS,
@@ -703,7 +711,8 @@ async fn generate_witness(
             geometry_config,
             storage_oracle,
             &mut tree,
-            [ARRAY_REPEAT_VALUE; 16],
+            path,
+            repacked_4844_inputs,
             |circuit| {
                 circuit_sender.blocking_send(circuit).unwrap();
             },

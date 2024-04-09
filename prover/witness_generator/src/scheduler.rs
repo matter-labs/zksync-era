@@ -261,36 +261,18 @@ pub async fn prepare_job(
     WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::Scheduler.into()]
         .observe(started_at.elapsed());
 
-    let recursive_proofs: Result<Vec<ZkSyncRecursionProof>, anyhow::Error> = proofs.into_iter().map(|wrapper| {
-        match wrapper {
-            FriProofWrapper::Base(_) => Err(anyhow::anyhow!(
-                "Expected only recursive proofs for scheduler l1 batch {l1_batch_number}, got Base"
-            )),
-            FriProofWrapper::Recursive(recursive_proof) => {
-                Ok(recursive_proof.into_inner())
-            }
-            FriProofWrapper::Eip4844(_) => {
-                Err(anyhow::anyhow!("Expected only recursive proofs for  scheduler l1 batch {l1_batch_number}, got EIP4844"))
-            }
-        }
-    }).collect();
-    let recursive_proofs = recursive_proofs?;
-
-    let proofs = load_proofs_for_job_ids(&proof_job_ids.eip_4844_proof_ids, object_store).await;
-
-    let eip_4844_proofs: Result<Vec<ZkSyncBaseProof>, anyhow::Error> = proofs
+    let recursive_proofs: Result<Vec<ZkSyncRecursionProof>, anyhow::Error> = proofs
         .into_iter()
         .map(|wrapper| match wrapper {
             FriProofWrapper::Base(_) => Err(anyhow::anyhow!(
-                "Expected only EIP4844 proofs for scheduler l1 batch {l1_batch_number}, got Base"
+                "Expected only recursive proofs for scheduler l1 batch {l1_batch_number}, got Base"
             )),
-            FriProofWrapper::Recursive(_) => Err(anyhow::anyhow!(
-            "Expected only EIP4844 proofs for scheduler l1 batch {l1_batch_number}, got Recursive"
-        )),
-            FriProofWrapper::Eip4844(eip_4844_proof) => Ok(eip_4844_proof),
+            FriProofWrapper::Recursive(recursive_proof) => Ok(recursive_proof.into_inner()),
         })
         .collect();
-    let eip_4844_proofs = eip_4844_proofs?;
+    let recursive_proofs = recursive_proofs?;
+
+    let proofs = load_proofs_for_job_ids(&proof_job_ids.eip_4844_proof_ids, object_store).await;
 
     let started_at = Instant::now();
     let keystore = Keystore::default();
