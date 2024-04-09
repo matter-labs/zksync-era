@@ -20,8 +20,8 @@ use zksync_core::{
 use zksync_types::{api::BridgeAddresses, fee_model::FeeParams, ETHEREUM_ADDRESS};
 use zksync_web3_decl::{
     client::L2Client,
-    error::{ClientRpcContext, Web3Error},
-    jsonrpsee::http_client::HttpClientBuilder,
+    error::ClientRpcContext,
+    jsonrpsee::{core::ClientError, http_client::HttpClientBuilder, types::error::ErrorCode},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
 pub(crate) mod observability;
