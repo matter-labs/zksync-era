@@ -7,7 +7,7 @@ use local_ip_address::local_ip;
 use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tokio::{
-    sync::{oneshot, oneshot::Sender, watch::Receiver, Notify},
+    sync::{oneshot, watch::Receiver, Notify},
     task::JoinHandle,
 };
 use zksync_config::configs::{
@@ -190,7 +190,7 @@ async fn get_prover_tasks(
     public_blob_store: Option<Arc<dyn ObjectStore>>,
     pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
-    _init_notifier: Notify,
+    _init_notifier: Arc<Notify>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
