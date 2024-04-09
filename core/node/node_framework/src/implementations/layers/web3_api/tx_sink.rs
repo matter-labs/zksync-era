@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
 use zksync_core::api_server::tx_sender::{master_pool_sink::MasterPoolSink, proxy::TxProxy};
-use zksync_web3_decl::client::L2Client;
 
 use crate::{
-    implementations::resources::{pools::MasterPoolResource, web3_api::TxSinkResource},
+    implementations::resources::{
+        main_node_client::MainNodeClientResource, pools::MasterPoolResource,
+        web3_api::TxSinkResource,
+    },
     service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -13,7 +15,7 @@ use crate::{
 #[non_exhaustive]
 pub enum TxSinkLayer {
     MasterPoolSink,
-    ProxySink { main_node_url: String },
+    ProxySink,
 }
 
 #[async_trait::async_trait]
@@ -32,10 +34,8 @@ impl WiringLayer for TxSinkLayer {
                     .await?;
                 TxSinkResource(Arc::new(MasterPoolSink::new(pool)))
             }
-            TxSinkLayer::ProxySink { main_node_url } => {
-                let client = L2Client::http(main_node_url)
-                    .map_err(WiringError::Internal)?
-                    .build();
+            TxSinkLayer::ProxySink => {
+                let MainNodeClientResource(client) = context.get_resource().await?;
                 TxSinkResource(Arc::new(TxProxy::new(client)))
             }
         };

@@ -10,7 +10,7 @@ use zksync_types::{
     get_code_key, Address, MiniblockNumber, ProtocolVersionId, H256, U64,
 };
 use zksync_web3_decl::{
-    client::L2Client,
+    client::BoxedL2Client,
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
@@ -47,7 +47,7 @@ pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
 }
 
 #[async_trait]
-impl MainNodeClient for L2Client {
+impl MainNodeClient for BoxedL2Client {
     async fn fetch_system_contract_by_hash(
         &self,
         hash: H256,

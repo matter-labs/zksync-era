@@ -16,7 +16,7 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType, api, L1BatchNumber, MiniblockNumber, H256,
 };
 use zksync_web3_decl::{
-    client::L2Client,
+    client::BoxedL2Client,
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     namespaces::ZksNamespaceClient,
 };
@@ -87,7 +87,7 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
 }
 
 #[async_trait]
-impl MainNodeClient for L2Client {
+impl MainNodeClient for BoxedL2Client {
     async fn resolve_l1_batch_to_miniblock(
         &self,
         number: L1BatchNumber,
@@ -255,7 +255,7 @@ pub struct BatchStatusUpdater {
 impl BatchStatusUpdater {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(client: L2Client, pool: ConnectionPool<Core>) -> Self {
+    pub fn new(client: BoxedL2Client, pool: ConnectionPool<Core>) -> Self {
         Self::from_parts(
             Box::new(client.for_component("batch_status_updater")),
             pool,

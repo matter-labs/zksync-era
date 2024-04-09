@@ -1,12 +1,11 @@
-use std::sync::Arc;
-
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, scope};
 use zksync_core::{
     consensus::{self, MainNodeConfig},
-    sync_layer::{ActionQueueSender, MainNodeClient, SyncState},
+    sync_layer::{ActionQueueSender, SyncState},
 };
 use zksync_dal::{ConnectionPool, Core};
+use zksync_web3_decl::client::BoxedL2Client;
 
 use crate::{
     implementations::resources::{
@@ -136,7 +135,7 @@ impl Task for MainNodeConsensusTask {
 pub struct FetcherTask {
     config: Option<(consensus::Config, consensus::Secrets)>,
     pool: ConnectionPool<Core>,
-    main_node_client: Arc<dyn MainNodeClient>,
+    main_node_client: BoxedL2Client,
     sync_state: SyncState,
     action_queue_sender: ActionQueueSender,
 }

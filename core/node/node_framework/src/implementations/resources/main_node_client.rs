@@ -1,11 +1,9 @@
-use std::sync::Arc;
-
-use zksync_core::sync_layer::MainNodeClient;
+use zksync_web3_decl::client::BoxedL2Client;
 
 use crate::resource::Resource;
 
 #[derive(Debug, Clone)]
-pub struct MainNodeClientResource(pub Arc<dyn MainNodeClient>);
+pub struct MainNodeClientResource(pub BoxedL2Client);
 
 impl Resource for MainNodeClientResource {
     fn name() -> String {
