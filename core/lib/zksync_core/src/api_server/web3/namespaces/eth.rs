@@ -230,7 +230,7 @@ impl EthNamespace {
             .blocks_web3_dal()
             .get_api_block(block_number)
             .await
-            .with_context(|| format!("get_api_block({block_number})"))?
+            .map_err(DalError::generalize)?
         else {
             return Ok(None);
         };
@@ -292,7 +292,7 @@ impl EthNamespace {
             .blocks_web3_dal()
             .get_block_tx_count(block_number)
             .await
-            .with_context(|| format!("get_block_tx_count({block_number})"))?;
+            .map_err(DalError::generalize)?;
 
         if tx_count.is_some() {
             self.set_block_diff(block_number); // only report block diff for existing miniblocks
@@ -320,7 +320,7 @@ impl EthNamespace {
             .blocks_web3_dal()
             .get_api_block(block_number)
             .await
-            .with_context(|| format!("get_api_block({block_number})"))?
+            .map_err(DalError::generalize)?
         else {
             return Ok(None);
         };
