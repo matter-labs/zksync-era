@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_types::{
@@ -104,11 +103,7 @@ impl IoCursor {
         let mut this = Self::new(storage).await?;
         // It's important to know whether we have opened a new batch already or just sealed the previous one.
         // Depending on it, we must either insert `OpenBatch` item into the queue, or not.
-        let was_new_batch_open = storage
-            .blocks_dal()
-            .pending_batch_exists()
-            .await
-            .context("Failed checking whether pending L1 batch exists")?;
+        let was_new_batch_open = storage.blocks_dal().pending_batch_exists().await?;
         if !was_new_batch_open {
             this.l1_batch -= 1; // Should continue from the last L1 batch present in the storage
         }

@@ -84,7 +84,7 @@ impl SnapshotsDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
         chunk_id: u64,
         storage_logs_filepath: &str,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE snapshots
@@ -98,7 +98,10 @@ impl SnapshotsDal<'_, '_> {
             chunk_id as i32 + 1,
             storage_logs_filepath,
         )
-        .execute(self.storage.conn())
+        .instrument("add_storage_logs_filepath_for_snapshot")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .with_arg("chunk_id", &chunk_id)
+        .execute(self.storage)
         .await?;
 
         Ok(())

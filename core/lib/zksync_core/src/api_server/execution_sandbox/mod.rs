@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::runtime::Handle;
-use zksync_dal::{Connection, Core, CoreDal};
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     api, fee_model::BatchFeeInput, AccountTreeId, Address, L1BatchNumber, L2ChainId,
@@ -155,7 +155,7 @@ async fn get_pending_state(
         .blocks_web3_dal()
         .resolve_block_id(block_id)
         .await
-        .with_context(|| format!("failed resolving block ID {block_id:?}"))?
+        .map_err(DalError::generalize)?
         .context("pending block should always be present in Postgres")?;
     Ok((block_id, resolved_block_number))
 }
@@ -279,7 +279,7 @@ impl BlockArgs {
             .blocks_web3_dal()
             .resolve_block_id(block_id)
             .await
-            .with_context(|| format!("failed resolving block ID {block_id:?}"))?;
+            .map_err(DalError::generalize)?;
         let Some(resolved_block_number) = resolved_block_number else {
             return Err(BlockArgsError::Missing);
         };
@@ -295,7 +295,7 @@ impl BlockArgs {
             .blocks_web3_dal()
             .get_expected_l1_batch_timestamp(&l1_batch)
             .await
-            .with_context(|| format!("failed getting timestamp for {l1_batch:?}"))?
+            .map_err(DalError::generalize)?
             .context("missing timestamp for non-pending block")?;
         Ok(Self {
             block_id,
