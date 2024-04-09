@@ -54,7 +54,7 @@ impl StoredObject for CircuitWrapper {
 pub enum FriProofWrapper {
     Base(ZkSyncBaseLayerProof),
     Recursive(ZkSyncRecursionLayerProof),
-    Eip4844(ZkSyncBaseProof),
+    //Eip4844(ZkSyncBaseProof),
 }
 
 impl StoredObject for FriProofWrapper {
