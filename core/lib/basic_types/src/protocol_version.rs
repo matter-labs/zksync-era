@@ -45,6 +45,7 @@ pub enum ProtocolVersionId {
     Version21,
     Version22,
     Version23,
+    Version24,
     Local,
 }
 
@@ -54,7 +55,7 @@ impl ProtocolVersionId {
     }
 
     pub fn next() -> Self {
-        Self::Version23
+        Self::Version24
     }
 
     /// Returns VM version to be used by API for this protocol version.
@@ -84,7 +85,8 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
             ProtocolVersionId::Version21 => VmVersion::Vm1_4_2,
             ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
-            ProtocolVersionId::Version23 => VmVersion::Vm1_4_2,
+            ProtocolVersionId::Version23 => VmVersion::Vm1_5_0,
+            ProtocolVersionId::Version24 => VmVersion::Vm1_5_0,
             ProtocolVersionId::Local => VmVersion::Local,
         }
     }
@@ -112,6 +114,10 @@ impl ProtocolVersionId {
         self == &ProtocolVersionId::Version20
     }
 
+    pub fn is_pre_1_4_1(&self) -> bool {
+        self < &ProtocolVersionId::Version20
+    }
+
     pub fn is_post_1_4_1(&self) -> bool {
         self >= &ProtocolVersionId::Version20
     }
@@ -124,10 +130,16 @@ impl ProtocolVersionId {
         self < &ProtocolVersionId::Version21
     }
 
+    pub fn is_1_4_2(&self) -> bool {
+        self == &ProtocolVersionId::Version21 || self == &ProtocolVersionId::Version22
+    }
+
     pub fn is_pre_1_5_0(&self) -> bool {
-        // In the current codebase all the protocol versions are pre-1.5.0.
-        // This method will be updated once the v1.5.0 is added to the server
-        true
+        self < &ProtocolVersionId::Version23
+    }
+
+    pub fn is_post_1_5_0(&self) -> bool {
+        self >= &ProtocolVersionId::Version23
     }
 }
 
@@ -213,7 +225,8 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
             ProtocolVersionId::Version21 => VmVersion::Vm1_4_2,
             ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
-            ProtocolVersionId::Version23 => VmVersion::Vm1_4_2,
+            ProtocolVersionId::Version23 => VmVersion::Vm1_5_0,
+            ProtocolVersionId::Version24 => VmVersion::Vm1_5_0,
             ProtocolVersionId::Local => VmVersion::Local,
         }
     }

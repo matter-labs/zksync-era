@@ -26,7 +26,7 @@ pub trait TxSink: std::fmt::Debug + Send + Sync + 'static {
     /// Ensures that transaction is propagated to the mempool.
     async fn submit_tx(
         &self,
-        tx: L2Tx,
+        tx: &L2Tx,
         execution_metrics: TransactionExecutionMetrics,
     ) -> Result<L2TxSubmissionResult, SubmitTxError>;
 

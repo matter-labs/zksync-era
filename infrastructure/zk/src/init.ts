@@ -63,7 +63,7 @@ const initSetup = async ({
     if (!skipSubmodulesCheckout) {
         await announced('Checkout submodules', submoduleUpdate());
     }
-    if (deploymentMode == contract.DeploymentMode.Validium) {
+    if (deploymentMode == DeploymentMode.Validium) {
         await announced('Checkout era-contracts for Validium mode', validiumSubmoduleCheckout());
     }
 
@@ -115,7 +115,7 @@ const initBridgehubStateTransition = async (deploymentMode: DeploymentMode) => {
 type InitHyperchainOptions = { includePaymaster: boolean; baseTokenName?: string };
 const initHyperchain = async ({ includePaymaster, baseTokenName }: InitHyperchainOptions): Promise<void> => {
     await announced('Registering Hyperchain', contract.registerHyperchain({ baseTokenName }));
-    await announced('Running server genesis setup', server.genesisFromSources({ setChainId: true }));
+    await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster }));
 };
 
@@ -160,7 +160,7 @@ const lightweightInitCmdAction = async (): Promise<void> => {
 };
 
 export async function validiumSubmoduleCheckout() {
-    await utils.exec(`cd contracts && git checkout origin/feat_validium_mode`);
+    await utils.exec(`cd contracts && git checkout origin/feat-validium-1-5-0-integration`);
 }
 
 type InitSharedBridgeCmdActionOptions = InitSetupOptions;
@@ -185,7 +185,7 @@ export const initHyperCmdAction = async ({
     deploymentMode
 }: InitHyperCmdActionOptions): Promise<void> => {
     if (bumpChainId) {
-        await config.bumpChainId();
+        config.bumpChainId();
     }
     if (!skipSetupCompletely) {
         await initSetup({ skipEnvSetup: false, skipSubmodulesCheckout: false, runObservability, deploymentMode });
@@ -199,7 +199,8 @@ export const initCommand = new Command('init')
     .option('--skip-submodules-checkout')
     .option('--skip-env-setup')
     .option('--base-token-name <base-token-name>', 'base token name')
-    .option('--validium-mode')
+    .option('--validium-mode', 'deploy contracts in Validium mode')
+    .option('--run-observability', 'run observability suite')
     .description('Deploys the shared bridge and registers a hyperchain locally, as quickly as possible.')
     .action(initDevCmdAction);
 
@@ -212,6 +213,8 @@ initCommand
     .command('shared-bridge')
     .description('Deploys only the shared bridge and initializes governance. It does not deploy L2 contracts.')
     .option('--skip-submodules-checkout')
+    .option('--validium-mode', 'deploy contracts in Validium mode')
+    .option('--run-observability', 'run observability suite')
     .action(initSharedBridgeCmdAction);
 
 initCommand
@@ -220,4 +223,6 @@ initCommand
     .option('--skip-setup-completely', 'skip the setup completely, use this if server was started already')
     .option('--bump-chain-id', 'bump chain id to not conflict with previously deployed hyperchain')
     .option('--base-token-name <base-token-name>', 'base token name')
+    .option('--validium-mode', 'deploy contracts in Validium mode')
+    .option('--run-observability', 'run observability suite')
     .action(initHyperCmdAction);

@@ -6,7 +6,140 @@
         {
           "indexed": true,
           "internalType": "address",
-          "name": "_stateTransitionChain",
+          "name": "oldAdmin",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newAdmin",
+          "type": "address"
+        }
+      ],
+      "name": "NewAdmin",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "_hyperchainContract",
+          "type": "address"
+        }
+      ],
+      "name": "NewHyperchain",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "oldInitialCutHash",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "newInitialCutHash",
+          "type": "bytes32"
+        }
+      ],
+      "name": "NewInitialCutHash",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "oldPendingAdmin",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newPendingAdmin",
+          "type": "address"
+        }
+      ],
+      "name": "NewPendingAdmin",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "oldProtocolVersion",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "newProtocolVersion",
+          "type": "uint256"
+        }
+      ],
+      "name": "NewProtocolVersion",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "protocolVersion",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "upgradeCutHash",
+          "type": "bytes32"
+        }
+      ],
+      "name": "NewUpgradeCutHash",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "oldValidatorTimelock",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newValidatorTimelock",
+          "type": "address"
+        }
+      ],
+      "name": "NewValidatorTimelock",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "_hyperchain",
           "type": "address"
         },
         {
@@ -108,23 +241,11 @@
       "type": "event"
     },
     {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "uint256",
-          "name": "_chainId",
-          "type": "uint256"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "_stateTransitionContract",
-          "type": "address"
-        }
-      ],
-      "name": "StateTransitionNewChain",
-      "type": "event"
+      "inputs": [],
+      "name": "acceptAdmin",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
     },
     {
       "inputs": [],
@@ -147,6 +268,56 @@
           "type": "uint256"
         },
         {
+          "components": [
+            {
+              "internalType": "enum PubdataPricingMode",
+              "name": "pubdataPricingMode",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint32",
+              "name": "batchOverheadL1Gas",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint32",
+              "name": "maxPubdataPerBatch",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint32",
+              "name": "maxL2GasPerBatch",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint32",
+              "name": "priorityTxMaxPubdata",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "minimalL2GasPrice",
+              "type": "uint64"
+            }
+          ],
+          "internalType": "struct FeeParams",
+          "name": "_newFeeParams",
+          "type": "tuple"
+        }
+      ],
+      "name": "changeFeeParams",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
+        {
           "internalType": "address",
           "name": "_baseToken",
           "type": "address"
@@ -158,7 +329,7 @@
         },
         {
           "internalType": "address",
-          "name": "_governor",
+          "name": "_admin",
           "type": "address"
         },
         {
@@ -168,6 +339,63 @@
         }
       ],
       "name": "createNewChain",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "components": [
+                {
+                  "internalType": "address",
+                  "name": "facet",
+                  "type": "address"
+                },
+                {
+                  "internalType": "enum Diamond.Action",
+                  "name": "action",
+                  "type": "uint8"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "isFreezable",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes4[]",
+                  "name": "selectors",
+                  "type": "bytes4[]"
+                }
+              ],
+              "internalType": "struct Diamond.FacetCut[]",
+              "name": "facetCuts",
+              "type": "tuple[]"
+            },
+            {
+              "internalType": "address",
+              "name": "initAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes",
+              "name": "initCalldata",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct Diamond.DiamondCutData",
+          "name": "_diamondCut",
+          "type": "tuple"
+        }
+      ],
+      "name": "executeUpgrade",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -218,6 +446,25 @@
       "type": "function"
     },
     {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        }
+      ],
+      "name": "hyperchain",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [],
       "name": "initialCutHash",
       "outputs": [
@@ -236,7 +483,7 @@
           "components": [
             {
               "internalType": "address",
-              "name": "governor",
+              "name": "owner",
               "type": "address"
             },
             {
@@ -315,7 +562,7 @@
             }
           ],
           "internalType": "struct StateTransitionManagerInitializeData",
-          "name": "_initalizeData",
+          "name": "_initializeData",
           "type": "tuple"
         }
       ],
@@ -335,6 +582,62 @@
         }
       ],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_protocolVersion",
+          "type": "uint256"
+        }
+      ],
+      "name": "protocolVersionDeadline",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_protocolVersion",
+          "type": "uint256"
+        }
+      ],
+      "name": "protocolVersionIsActive",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "_hyperchainContract",
+          "type": "address"
+        }
+      ],
+      "name": "registerAlreadyDeployedHyperchain",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
@@ -442,11 +745,88 @@
         },
         {
           "internalType": "uint256",
+          "name": "_oldprotocolVersionDeadline",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
           "name": "_newProtocolVersion",
           "type": "uint256"
         }
       ],
       "name": "setNewVersionUpgrade",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_newPendingAdmin",
+          "type": "address"
+        }
+      ],
+      "name": "setPendingAdmin",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bool",
+          "name": "_zkPorterIsAvailable",
+          "type": "bool"
+        }
+      ],
+      "name": "setPorterAvailability",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_maxGasLimit",
+          "type": "uint256"
+        }
+      ],
+      "name": "setPriorityTxMaxGasLimit",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint128",
+          "name": "_nominator",
+          "type": "uint128"
+        },
+        {
+          "internalType": "uint128",
+          "name": "_denominator",
+          "type": "uint128"
+        }
+      ],
+      "name": "setTokenMultiplier",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -511,6 +891,29 @@
     {
       "inputs": [
         {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "_validator",
+          "type": "address"
+        },
+        {
+          "internalType": "bool",
+          "name": "_active",
+          "type": "bool"
+        }
+      ],
+      "name": "setValidator",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "address",
           "name": "_validatorTimelock",
           "type": "address"
@@ -519,25 +922,6 @@
       "name": "setValidatorTimelock",
       "outputs": [],
       "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "_chainId",
-          "type": "uint256"
-        }
-      ],
-      "name": "stateTransition",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
       "type": "function"
     },
     {
@@ -551,6 +935,81 @@
         }
       ],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        }
+      ],
+      "name": "unfreezeChain",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_oldProtocolVersion",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "components": [
+                {
+                  "internalType": "address",
+                  "name": "facet",
+                  "type": "address"
+                },
+                {
+                  "internalType": "enum Diamond.Action",
+                  "name": "action",
+                  "type": "uint8"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "isFreezable",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes4[]",
+                  "name": "selectors",
+                  "type": "bytes4[]"
+                }
+              ],
+              "internalType": "struct Diamond.FacetCut[]",
+              "name": "facetCuts",
+              "type": "tuple[]"
+            },
+            {
+              "internalType": "address",
+              "name": "initAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes",
+              "name": "initCalldata",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct Diamond.DiamondCutData",
+          "name": "_diamondCut",
+          "type": "tuple"
+        }
+      ],
+      "name": "upgradeChainFromVersion",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {

@@ -1,9 +1,11 @@
 use std::convert::TryFrom;
 
-use zk_evm_1_4_1::{
+use zk_evm_1_5_0::{
     abstractions::{Memory, PrecompileCyclesWitness, PrecompilesProcessor},
     aux_structures::{LogQuery, MemoryQuery, Timestamp},
-    zk_evm_abstractions::precompiles::{ecrecover, keccak256, sha256, PrecompileAddress},
+    zk_evm_abstractions::precompiles::{
+        ecrecover, keccak256, secp256r1_verify, sha256, PrecompileAddress,
+    },
 };
 
 use super::OracleWithHistory;
@@ -91,6 +93,14 @@ impl<H: HistoryMode> PrecompilesProcessor for PrecompilesProcessorWithHistory<H>
                 PrecompileAddress::Ecrecover => {
                     // pure function call, non-revertable
                     ecrecover::ecrecover_function::<M, false>(
+                        monotonic_cycle_counter,
+                        query,
+                        memory,
+                    )
+                    .0
+                }
+                PrecompileAddress::Secp256r1Verify => {
+                    secp256r1_verify::secp256r1_verify_function::<M, false>(
                         monotonic_cycle_counter,
                         query,
                         memory,
