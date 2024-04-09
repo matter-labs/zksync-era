@@ -42,6 +42,8 @@ zksync_web3_decl = { workspace = true, features = [
 zksync_object_store.workspace = true
 zksync_health_check.workspace = true
 vlog.workspace = true
+zksync_eth_watch.workspace = true
+zksync_shared_metrics.workspace = true
 
 multivm.workspace = true
 

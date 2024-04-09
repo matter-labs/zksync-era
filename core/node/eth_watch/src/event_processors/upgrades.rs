@@ -3,7 +3,7 @@ use std::convert::TryFrom;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{web3::types::Log, ProtocolUpgrade, ProtocolVersionId, H256};
 
-use crate::eth_watch::{
+use crate::{
     client::{Error, EthClient},
     event_processors::EventProcessor,
     metrics::{PollStage, METRICS},
@@ -75,8 +75,9 @@ impl EventProcessor for UpgradesEventProcessor {
             let new_version = previous_version.apply_upgrade(upgrade, scheduler_vk_hash);
             storage
                 .protocol_versions_dal()
-                .save_protocol_version_with_tx(new_version)
-                .await;
+                .save_protocol_version_with_tx(&new_version)
+                .await
+                .unwrap();
         }
         stage_latency.observe();
         self.last_seen_version_id = last_id;

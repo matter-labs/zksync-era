@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
+use zksync_shared_metrics::{CheckerComponent, EN_METRICS};
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::{
     client::L2Client,
@@ -12,10 +13,7 @@ use zksync_web3_decl::{
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
-use crate::{
-    metrics::{CheckerComponent, EN_METRICS},
-    utils::binary_search_with,
-};
+use crate::utils::binary_search_with;
 
 #[cfg(test)]
 mod tests;

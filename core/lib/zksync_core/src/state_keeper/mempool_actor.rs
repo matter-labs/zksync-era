@@ -247,7 +247,7 @@ mod tests {
         let mut storage = pool.connection().await.unwrap();
         storage
             .transactions_dal()
-            .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&transaction, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         drop(storage);
@@ -302,7 +302,7 @@ mod tests {
         let mut storage = pool.connection().await.unwrap();
         storage
             .transactions_dal()
-            .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&transaction, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         drop(storage);
@@ -354,7 +354,7 @@ mod tests {
             .unwrap();
         storage
             .transactions_dal()
-            .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&transaction, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         drop(storage);

@@ -257,17 +257,20 @@ impl BlockReverter {
         transaction
             .transactions_dal()
             .reset_transactions_state(last_miniblock_to_keep)
-            .await;
+            .await
+            .expect("failed resetting transaction state");
         tracing::info!("rolling back events...");
         transaction
             .events_dal()
             .rollback_events(last_miniblock_to_keep)
-            .await;
+            .await
+            .expect("failed rolling back events");
         tracing::info!("rolling back l2 to l1 logs...");
         transaction
             .events_dal()
             .rollback_l2_to_l1_logs(last_miniblock_to_keep)
-            .await;
+            .await
+            .expect("failed rolling back L2-to-L1 logs");
         tracing::info!("rolling back created tokens...");
         transaction
             .tokens_dal()

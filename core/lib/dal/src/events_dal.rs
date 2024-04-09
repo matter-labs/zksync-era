@@ -2,7 +2,10 @@ use std::{collections::HashMap, fmt};
 
 use sqlx::types::chrono::Utc;
 use zksync_db_connection::{
-    connection::Connection, error::DalResult, instrument::InstrumentExt, write_str, writeln_str,
+    connection::Connection,
+    error::DalResult,
+    instrument::{CopyStatement, InstrumentExt},
+    write_str, writeln_str,
 };
 use zksync_system_constants::L1_MESSENGER_ADDRESS;
 use zksync_types::{
@@ -15,7 +18,7 @@ use zksync_types::{
 
 use crate::{
     models::storage_event::{StorageL2ToL1Log, StorageWeb3Log},
-    Core, CoreDal, SqlxError,
+    Core, CoreDal,
 };
 
 /// Wrapper around an optional event topic allowing to hex-format it for `COPY` instructions.
@@ -43,12 +46,10 @@ impl EventsDal<'_, '_> {
         &mut self,
         block_number: MiniblockNumber,
         all_block_events: &[(IncludedTxLocation, Vec<&VmEvent>)],
-    ) {
-        let mut copy = self
-            .storage
-            .conn()
-            .copy_in_raw(
-                "COPY events(
+    ) -> DalResult<()> {
+        let events_len = all_block_events.len();
+        let copy = CopyStatement::new(
+            "COPY events(
                     miniblock_number, tx_hash, tx_index_in_block, address,
                     event_index_in_block, event_index_in_tx,
                     topic1, topic2, topic3, topic4, value,
@@ -56,9 +57,12 @@ impl EventsDal<'_, '_> {
                     created_at, updated_at
                 )
                 FROM STDIN WITH (DELIMITER '|')",
-            )
-            .await
-            .unwrap();
+        )
+        .instrument("save_events")
+        .with_arg("block_number", &block_number)
+        .with_arg("events.len", &events_len)
+        .start(self.storage)
+        .await?;
 
         let mut buffer = String::new();
         let now = Utc::now().naive_utc().to_string();
@@ -94,13 +98,11 @@ impl EventsDal<'_, '_> {
                 event_index_in_block += 1;
             }
         }
-        copy.send(buffer.as_bytes()).await.unwrap();
-        // note: all the time spent in this function is spent in `copy.finish()`
-        copy.finish().await.unwrap();
+        copy.send(buffer.as_bytes()).await
     }
 
     /// Removes events with a block number strictly greater than the specified `block_number`.
-    pub async fn rollback_events(&mut self, block_number: MiniblockNumber) {
+    pub async fn rollback_events(&mut self, block_number: MiniblockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM events
@@ -109,9 +111,11 @@ impl EventsDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("rollback_events")
+        .with_arg("block_number", &block_number)
+        .execute(self.storage)
+        .await?;
+        Ok(())
     }
 
     /// Saves user L2-to-L1 logs from a miniblock. Logs must be ordered by transaction location
@@ -120,21 +124,22 @@ impl EventsDal<'_, '_> {
         &mut self,
         block_number: MiniblockNumber,
         all_block_l2_to_l1_logs: &[(IncludedTxLocation, Vec<&UserL2ToL1Log>)],
-    ) {
-        let mut copy = self
-            .storage
-            .conn()
-            .copy_in_raw(
-                "COPY l2_to_l1_logs(
+    ) -> DalResult<()> {
+        let logs_len = all_block_l2_to_l1_logs.len();
+        let copy = CopyStatement::new(
+            "COPY l2_to_l1_logs(
                     miniblock_number, log_index_in_miniblock, log_index_in_tx, tx_hash,
                     tx_index_in_miniblock, tx_index_in_l1_batch,
                     shard_id, is_service, sender, key, value,
                     created_at, updated_at
                 )
                 FROM STDIN WITH (DELIMITER '|')",
-            )
-            .await
-            .unwrap();
+        )
+        .instrument("save_user_l2_to_l1_logs")
+        .with_arg("block_number", &block_number)
+        .with_arg("logs.len", &logs_len)
+        .start(self.storage)
+        .await?;
 
         let mut buffer = String::new();
         let now = Utc::now().naive_utc().to_string();
@@ -172,12 +177,12 @@ impl EventsDal<'_, '_> {
                 log_index_in_miniblock += 1;
             }
         }
-        copy.send(buffer.as_bytes()).await.unwrap();
-        copy.finish().await.unwrap();
+
+        copy.send(buffer.as_bytes()).await
     }
 
     /// Removes all L2-to-L1 logs with a miniblock number strictly greater than the specified `block_number`.
-    pub async fn rollback_l2_to_l1_logs(&mut self, block_number: MiniblockNumber) {
+    pub async fn rollback_l2_to_l1_logs(&mut self, block_number: MiniblockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM l2_to_l1_logs
@@ -186,18 +191,20 @@ impl EventsDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("rollback_l2_to_l1_logs")
+        .with_arg("block_number", &block_number)
+        .execute(self.storage)
+        .await?;
+        Ok(())
     }
 
     pub(crate) async fn get_logs_by_tx_hashes(
         &mut self,
         hashes: &[H256],
-    ) -> Result<HashMap<H256, Vec<api::Log>>, SqlxError> {
+    ) -> DalResult<HashMap<H256, Vec<api::Log>>> {
         let hashes = hashes
             .iter()
-            .map(|hash| hash.as_bytes().to_vec())
+            .map(|hash| hash.as_bytes())
             .collect::<Vec<_>>();
         let logs: Vec<_> = sqlx::query_as!(
             StorageWeb3Log,
@@ -224,19 +231,19 @@ impl EventsDal<'_, '_> {
                 miniblock_number ASC,
                 event_index_in_block ASC
             "#,
-            &hashes[..],
+            &hashes[..] as &[&[u8]],
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_logs_by_tx_hashes")
+        .with_arg("hashes.len", &hashes.len())
+        .fetch_all(self.storage)
         .await?;
 
         let mut result = HashMap::<H256, Vec<api::Log>>::new();
-
         for storage_log in logs {
             let current_log = api::Log::from(storage_log);
             let tx_hash = current_log.transaction_hash.unwrap();
             result.entry(tx_hash).or_default().push(current_log);
         }
-
         Ok(result)
     }
 
@@ -287,7 +294,7 @@ impl EventsDal<'_, '_> {
     pub(crate) async fn get_l2_to_l1_logs_by_hashes(
         &mut self,
         hashes: &[H256],
-    ) -> Result<HashMap<H256, Vec<api::L2ToL1Log>>, SqlxError> {
+    ) -> DalResult<HashMap<H256, Vec<api::L2ToL1Log>>> {
         let hashes = &hashes
             .iter()
             .map(|hash| hash.as_bytes().to_vec())
@@ -319,11 +326,12 @@ impl EventsDal<'_, '_> {
             "#,
             &hashes[..]
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_l2_to_l1_logs_by_hashes")
+        .with_arg("hashes", &hashes.len())
+        .fetch_all(self.storage)
         .await?;
 
         let mut result = HashMap::<H256, Vec<api::L2ToL1Log>>::new();
-
         for storage_log in logs {
             let current_log = api::L2ToL1Log::from(storage_log);
             result
@@ -331,7 +339,6 @@ impl EventsDal<'_, '_> {
                 .or_default()
                 .push(current_log);
         }
-
         Ok(result)
     }
 
@@ -425,14 +432,18 @@ mod tests {
     async fn storing_events() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
-        conn.events_dal().rollback_events(MiniblockNumber(0)).await;
+        conn.events_dal()
+            .rollback_events(MiniblockNumber(0))
+            .await
+            .unwrap();
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
             .unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(1))
             .await
@@ -460,7 +471,8 @@ mod tests {
         ];
         conn.events_dal()
             .save_events(MiniblockNumber(1), &all_events)
-            .await;
+            .await
+            .unwrap();
 
         let logs = conn
             .events_web3_dal()
@@ -503,14 +515,16 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         conn.events_dal()
             .rollback_l2_to_l1_logs(MiniblockNumber(0))
-            .await;
+            .await
+            .unwrap();
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
             .unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(1))
             .await
@@ -538,7 +552,8 @@ mod tests {
         ];
         conn.events_dal()
             .save_user_l2_to_l1_logs(MiniblockNumber(1), &all_logs)
-            .await;
+            .await
+            .unwrap();
 
         let logs = conn
             .events_dal()

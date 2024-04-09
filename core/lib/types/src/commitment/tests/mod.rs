@@ -45,3 +45,8 @@ fn post_boojum_1_4_1() {
 fn post_boojum_1_4_2() {
     run_test("post_boojum_1_4_2_test");
 }
+
+#[test]
+fn post_boojum_1_5_0() {
+    run_test("post_boojum_1_5_0_test");
+}

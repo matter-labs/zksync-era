@@ -109,6 +109,7 @@ async fn test_require_eip712() {
     vm.vm.push_transaction(transaction);
     let result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!result.result.is_failed());
+
     assert_eq!(
         vm.get_eth_balance(beneficiary.address),
         U256::from(888000088)

@@ -334,7 +334,14 @@ describe('Block reverting test', function () {
             amount: depositAmount,
             to: alice.address
         });
-        const l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
+
+        let l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
+        while (!l1TxResponse) {
+            console.log(`Deposit ${depositHandle.hash} is not visible to the L1 network; sleeping`);
+            await utils.sleep(1);
+            l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
+        }
+
         // TODO: it would be nice to know WHY it "doesn't work well with block reversions" and what it actually means.
         console.log(
             "ethers doesn't work well with block reversions, so wait for the receipt before calling `.waitFinalize()`."
