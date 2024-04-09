@@ -20,8 +20,10 @@ use jsonrpsee::{
 use serde::de::DeserializeOwned;
 use tokio::time::Instant;
 
+pub use self::boxed::BoxedL2Client;
 use self::metrics::{L2ClientMetrics, METRICS};
 
+mod boxed;
 mod metrics;
 #[cfg(test)]
 mod tests;
