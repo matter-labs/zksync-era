@@ -1,5 +1,6 @@
 //! High-level tests for EN.
 
+use assert_matches::assert_matches;
 use zksync_basic_types::protocol_version::ProtocolVersionId;
 use zksync_core::genesis::{insert_genesis_batch, GenesisParams};
 use zksync_eth_client::clients::MockEthereum;
@@ -76,9 +77,11 @@ struct TestEnvironmentHandles {
 
 #[tokio::test]
 async fn external_node_basics() {
-    let _guard = vlog::ObservabilityBuilder::new().build();
+    let _guard = vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
     let temp_dir = tempfile::TempDir::new().unwrap();
 
+    // Simplest case to mock: the EN already has a genesis L1 batch / miniblock, and it's the only L1 batch / miniblock
+    // in the network.
     let connection_pool = ConnectionPool::test_pool().await;
     let mut storage = connection_pool.connection().await.unwrap();
     let genesis_params = insert_genesis_batch(&mut storage, &GenesisParams::mock())
@@ -125,8 +128,8 @@ async fn external_node_basics() {
                     },
                 )?)
             }
-            "zks_getFeeParams" => Ok(serde_json::to_value(FeeParams::sensible_v1_default())?),
 
+            "zks_getFeeParams" => Ok(serde_json::to_value(FeeParams::sensible_v1_default())?),
             "en_whitelistedTokensForAA" => Ok(serde_json::json!([])),
 
             _ => panic!("Unexpected call: {method}({params:?})"),
@@ -142,7 +145,7 @@ async fn external_node_basics() {
                 "getProtocolVersion" => {
                     return ethabi::Token::Uint((ProtocolVersionId::latest() as u16).into())
                 }
-                _ => { /* do nothing */ }
+                _ => { /* unknown call; panic below */ }
             }
         }
         panic!("Unexpected L1 call: {call:?}");
@@ -169,17 +172,16 @@ async fn external_node_basics() {
         "consistency_checker",
         "http_api",
         "ws_api",
-        "sync_state",
         "tree",
         "commitment_generator",
     ];
     loop {
-        let health = app_health.check_health().await;
-        tracing::info!(?health, "received health data");
-        if matches!(health.inner().status(), HealthStatus::Ready)
+        let health_data = app_health.check_health().await;
+        tracing::info!(?health_data, "received health data");
+        if matches!(health_data.inner().status(), HealthStatus::Ready)
             && known_components
                 .iter()
-                .all(|name| health.components().contains_key(name))
+                .all(|name| health_data.components().contains_key(name))
         {
             break;
         }
@@ -194,4 +196,13 @@ async fn external_node_basics() {
         .expect("Node hanged up during shutdown")
         .expect("Node panicked")
         .expect("Node errored");
+
+    // Check that the node health was appropriately updated.
+    let health_data = app_health.check_health().await;
+    tracing::info!(?health_data, "final health data");
+    assert_matches!(health_data.inner().status(), HealthStatus::ShutDown);
+    for name in known_components {
+        let component_health = &health_data.components()[name];
+        assert_matches!(component_health.status(), HealthStatus::ShutDown);
+    }
 }
