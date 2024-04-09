@@ -34,7 +34,7 @@ pub mod availability_checker {
         pub async fn run(
             self,
             stop_receiver: tokio::sync::watch::Receiver<bool>,
-            init_receiver: tokio::sync::oneshot::Receiver<()>,
+            mut init_receiver: tokio::sync::oneshot::Receiver<()>,
         ) -> anyhow::Result<()> {
             while !*stop_receiver.borrow() {
                 match init_receiver.try_recv() {
