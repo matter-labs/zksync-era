@@ -87,8 +87,6 @@ state_keeper:
   fee_model_version: V1
   validation_computational_gas_limit: 300000
   save_call_traces: true
-  virtual_blocks_interval: 1
-  virtual_blocks_per_miniblock: 1
   max_circuits_per_batch: 24100
 mempool:
   delay_interval: 100
