@@ -176,21 +176,8 @@ impl ProverServiceDataKey {
         }
     }
 
-    /// Key for 4844 circuit.
-    // Currently this is a special 'aux' style circuit (as we have just one),
-    // But from VM 1.5.0 it will change into a 'basic' circuit.
-    pub fn eip4844() -> Self {
-        Self {
-            circuit_id: EIP_4844_CIRCUIT_ID,
-            round: AggregationRound::BasicCircuits,
-        }
-    }
-    pub fn is_eip4844(&self) -> bool {
-        self.circuit_id == EIP_4844_CIRCUIT_ID && self.round == AggregationRound::BasicCircuits
-    }
-
     pub fn is_base_layer(&self) -> bool {
-        self.round == AggregationRound::BasicCircuits && !self.is_eip4844()
+        self.round == AggregationRound::BasicCircuits
     }
 
     pub fn name(&self) -> String {
