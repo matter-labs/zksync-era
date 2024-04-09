@@ -69,10 +69,6 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 &self.estimate_gas_acceptable_overestimation,
             )
             .context("acceptable_overestimation")?,
-            l1_to_l2_transactions_compatibility_mode: *required(
-                &self.l1_to_l2_transactions_compatibility_mode,
-            )
-            .context("l1_to_l2_transactions_compatibility_mode")?,
             max_tx_size: required(&self.max_tx_size)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("max_tx_size")?,
@@ -157,9 +153,6 @@ impl ProtoRepr for proto::Web3JsonRpc {
             estimate_gas_scale_factor: Some(this.estimate_gas_scale_factor),
             estimate_gas_acceptable_overestimation: Some(
                 this.estimate_gas_acceptable_overestimation,
-            ),
-            l1_to_l2_transactions_compatibility_mode: Some(
-                this.l1_to_l2_transactions_compatibility_mode,
             ),
             max_tx_size: Some(this.max_tx_size.try_into().unwrap()),
             vm_execution_cache_misses_limit: this
