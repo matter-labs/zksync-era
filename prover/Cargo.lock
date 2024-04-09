@@ -1871,16 +1871,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 
 [[package]]
-name = "eyre"
-version = "0.6.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7cd915d99f24784cdc19fd37ef22b97e3ff0ae756c7e492e9fbfe897d61e2aec"
-dependencies = [
- "indenter",
- "once_cell",
-]
-
-[[package]]
 name = "fastrand"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2725,12 +2715,6 @@ dependencies = [
  "quote 1.0.35",
  "syn 1.0.109",
 ]
-
-[[package]]
-name = "indenter"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce23b50ad8242c51a442f3ff322d56b02f08852c77e4c0b4d3fd684abc89c683"
 
 [[package]]
 name = "indexmap"
@@ -4354,11 +4338,9 @@ dependencies = [
  "clap 4.4.6",
  "colored",
  "env_logger 0.10.2",
- "eyre",
  "hex",
  "log",
  "prover_dal",
- "sqlx",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -6300,20 +6282,6 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
-]
-
-[[package]]
-name = "tools"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "clap 4.4.6",
- "colored",
- "hex",
- "tracing",
- "tracing-subscriber",
- "zksync_prover_fri_types",
- "zksync_prover_interface",
 ]
 
 [[package]]
