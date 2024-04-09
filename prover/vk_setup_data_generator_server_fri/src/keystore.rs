@@ -413,6 +413,26 @@ impl Keystore {
         )
         .context("save_finalization_hints()")?;
 
+        // Recursion tip
+        self.save_recursive_layer_verification_key(source.get_recursion_tip_vk().map_err(
+            |err| anyhow::anyhow!("No vk exist for recursion tip layer circuit: {err}"),
+        )?)
+        .context("save_recursion_tip_vk")?;
+
+        let node_hint = source
+            .get_recursion_tip_finalization_hint()
+            .map_err(|err| {
+                anyhow::anyhow!("No finalization hint exist for recursion tip layer circuit: {err}")
+            })?
+            .into_inner();
+        self.save_finalization_hints(
+            ProverServiceDataKey::new_recursive(
+                ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
+            ),
+            &node_hint,
+        )
+        .context("save_finalization_hints()")?;
+
         // Scheduler
         self.save_recursive_layer_verification_key(
             source
