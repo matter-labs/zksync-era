@@ -53,6 +53,7 @@ use zksync_types::{
     basic_fri_types::{
         AggregationRound, Eip4844Blobs, EIP_4844_BLOB_SIZE, MAX_4844_BLOBS_PER_BLOCK,
     },
+    block::StorageOracleInfo,
     protocol_version::ProtocolVersionId,
     Address, L1BatchNumber, BOOTLOADER_ADDRESS, H256, U256,
 };
@@ -596,13 +597,15 @@ async fn generate_witness(
         .map(|hash| u256_to_h256(*hash))
         .collect();
 
-    let storage_refunds = connection
+    let StorageOracleInfo {
+        storage_refunds,
+        pubdata_costs,
+    } = connection
         .blocks_dal()
         .get_storage_oracle_info(input.block_number)
         .await
         .unwrap()
-        .unwrap()
-        .storage_refunds;
+        .unwrap();
 
     let mut used_bytecodes = connection
         .factory_deps_dal()
@@ -679,7 +682,11 @@ async fn generate_witness(
 
         let vm_storage_oracle: VmStorageOracle<StorageView<PostgresStorage<'_>>, HistoryDisabled> =
             VmStorageOracle::new(storage_view.clone());
-        let storage_oracle = StorageOracle::new(vm_storage_oracle, storage_refunds);
+        let storage_oracle = StorageOracle::new(
+            vm_storage_oracle,
+            storage_refunds,
+            pubdata_costs.expect("pubdata costs should be present"),
+        );
 
         const ARRAY_REPEAT_VALUE: std::option::Option<Vec<u8>> = None;
         let (scheduler_witness, block_witness) = zkevm_test_harness::external_calls::run(

@@ -11,13 +11,15 @@ use zk_evm::{
 pub struct StorageOracle<T> {
     inn: T,
     storage_refunds: std::vec::IntoIter<u32>,
+    pubdata_costs: std::vec::IntoIter<i32>,
 }
 
 impl<T> StorageOracle<T> {
-    pub fn new(inn: T, storage_refunds: Vec<u32>) -> Self {
+    pub fn new(inn: T, storage_refunds: Vec<u32>, pubdata_costs: Vec<i32>) -> Self {
         Self {
             inn,
             storage_refunds: storage_refunds.into_iter(),
+            pubdata_costs: pubdata_costs.into_iter(),
         }
     }
 }
@@ -66,10 +68,11 @@ impl<T: Storage> Storage for StorageOracle<T> {
         monotonic_cycle_counter: u32,
         query: LogQuery,
     ) -> (LogQuery, PubdataCost) {
-        let (query, wrong_val) = self
+        let (query, _) = self
             .inn
             .execute_partial_query(monotonic_cycle_counter, query);
-        (query, wrong_val)
+        let pubdata_cost = self.pubdata_costs.next().expect("Missing pubdata cost");
+        (query, PubdataCost(pubdata_cost))
     }
 
     fn finish_frame(&mut self, timestamp: Timestamp, panicked: bool) {
