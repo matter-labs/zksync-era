@@ -5,6 +5,7 @@ use clap::Parser;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
+        base_token_fetcher::BaseTokenFetcherConfig,
         chain::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
             StateKeeperConfig,
@@ -273,5 +274,6 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         object_store_config: ObjectStoreConfig::from_env().ok(),
         observability: ObservabilityConfig::from_env().ok(),
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
+        base_token_fetcher: BaseTokenFetcherConfig::from_env().ok(),
     })
 }

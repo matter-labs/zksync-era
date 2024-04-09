@@ -60,6 +60,7 @@ use crate::{
         tx_sender::{ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
         web3::{self, state::InternalApiConfig, Namespace},
     },
+    base_token_fetcher::{BaseTokenFetcher, ConversionRateFetcher, NoOpConversionRateFetcher},
     basic_witness_input_producer::BasicWitnessInputProducer,
     commitment_generator::CommitmentGenerator,
     eth_sender::{
@@ -96,11 +97,13 @@ use crate::{
 };
 
 pub mod api_server;
+pub mod base_token_fetcher;
 pub mod basic_witness_input_producer;
 pub mod block_reverter;
 pub mod commitment_generator;
 pub mod consensus;
 pub mod consistency_checker;
+pub mod dev_api_conversion_rate;
 pub mod eth_sender;
 pub mod fee_model;
 pub mod gas_tracker;
@@ -188,6 +191,10 @@ pub enum Component {
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
+    /// Base Token fetcher
+    BaseTokenFetcher,
+    /// Conversion rate API, for local development.
+    DevConversionRateApi,
     /// Component generating BFT consensus certificates for miniblocks.
     Consensus,
     /// Component generating commitment for L1 batches.
@@ -226,6 +233,8 @@ impl FromStr for Components {
             "eth_tx_aggregator" => Ok(Components(vec![Component::EthTxAggregator])),
             "eth_tx_manager" => Ok(Components(vec![Component::EthTxManager])),
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
+            "base_token_fetcher" => Ok(Components(vec![Component::BaseTokenFetcher])),
+            "dev_conversion_rate_api" => Ok(Components(vec![Component::DevConversionRateApi])),
             "consensus" => Ok(Components(vec![Component::Consensus])),
             "commitment_generator" => Ok(Components(vec![Component::CommitmentGenerator])),
             other => Err(format!("{} is not a valid component name", other)),
@@ -307,22 +316,6 @@ pub async fn initialize_components(
         panic!("Circuit breaker triggered: {}", err);
     });
 
-    let query_client = QueryClient::new(&eth.web3_url).unwrap();
-    let gas_adjuster_config = eth.gas_adjuster.context("gas_adjuster")?;
-    let sender = eth.sender.as_ref().context("sender")?;
-    let pubdata_pricing: Arc<dyn PubdataPricing> =
-        match genesis_config.l1_batch_commit_data_generator_mode {
-            L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupPubdataPricing {}),
-            L1BatchCommitDataGeneratorMode::Validium => Arc::new(ValidiumPubdataPricing {}),
-        };
-
-    let mut gas_adjuster = GasAdjusterSingleton::new(
-        eth.web3_url.clone(),
-        gas_adjuster_config,
-        sender.pubdata_sending_mode,
-        pubdata_pricing,
-    );
-
     let (stop_sender, stop_receiver) = watch::channel(false);
 
     // Prometheus exporter and circuit breaker checker should run for every component configuration.
@@ -347,6 +340,50 @@ pub async fn initialize_components(
         prometheus_task,
         tokio::spawn(circuit_breaker_checker.run(stop_receiver.clone())),
     ];
+
+    let query_client = QueryClient::new(&eth.web3_url).unwrap();
+    let gas_adjuster_config = eth.gas_adjuster.context("gas_adjuster")?;
+    let sender = eth.sender.as_ref().context("sender")?;
+    let pubdata_pricing: Arc<dyn PubdataPricing> =
+        match genesis_config.l1_batch_commit_data_generator_mode {
+            L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupPubdataPricing {}),
+            L1BatchCommitDataGeneratorMode::Validium => Arc::new(ValidiumPubdataPricing {}),
+        };
+
+    if components.contains(&Component::DevConversionRateApi) {
+        let base_token_fetcher_config = configs
+            .base_token_fetcher
+            .clone()
+            .context("base_token_fetcher_config")?;
+
+        let stop_receiver = stop_receiver.clone();
+        let conversion_rate_task = tokio::spawn(async move {
+            dev_api_conversion_rate::run_server(stop_receiver, &base_token_fetcher_config).await
+        });
+        task_futures.push(conversion_rate_task);
+    };
+
+    let base_token_fetcher = if components.contains(&Component::BaseTokenFetcher) {
+        Arc::new(
+            BaseTokenFetcher::new(
+                configs
+                    .base_token_fetcher
+                    .clone()
+                    .context("base_token_fetcher_config")?,
+            )
+            .await?,
+        ) as Arc<dyn ConversionRateFetcher>
+    } else {
+        Arc::new(NoOpConversionRateFetcher::new())
+    };
+
+    let mut gas_adjuster = GasAdjusterSingleton::new(
+        eth.web3_url.clone(),
+        gas_adjuster_config,
+        sender.pubdata_sending_mode,
+        base_token_fetcher,
+        pubdata_pricing,
+    );
 
     if components.contains(&Component::WsApi)
         || components.contains(&Component::HttpApi)
