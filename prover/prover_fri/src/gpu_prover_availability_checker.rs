@@ -1,6 +1,6 @@
 #[cfg(feature = "gpu")]
 pub mod availability_checker {
-    use std::time::Duration;
+    use std::{sync::Arc, time::Duration};
 
     use prover_dal::{ConnectionPool, Prover, ProverDal};
     use tokio::sync::Notify;
