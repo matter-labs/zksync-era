@@ -326,6 +326,13 @@ impl Keystore {
                 .set_recursion_layer_vk(self.load_recursive_layer_verification_key(circuit_type)?)
                 .unwrap();
         }
+
+        data_source
+            .set_recursion_tip_vk(self.load_recursive_layer_verification_key(
+                ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
+            )?)
+            .unwrap();
+
         data_source
             .set_recursion_layer_node_vk(self.load_recursive_layer_verification_key(
                 ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
