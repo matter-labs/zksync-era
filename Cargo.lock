@@ -7265,8 +7265,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "multivm",
  "once_cell",
+ "tempfile",
  "tokio",
+ "vm_utils",
  "zksync_dal",
  "zksync_db_connection",
  "zksync_state",

@@ -17,7 +17,13 @@ zksync_state.workspace = true
 zksync_storage.workspace = true
 zksync_types.workspace = true
 
+multivm.workspace = true
+vm_utils.workspace = true
+
 anyhow.workspace = true
 async-trait.workspace = true
 once_cell.workspace = true
 tokio.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

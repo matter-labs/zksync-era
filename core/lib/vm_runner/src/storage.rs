@@ -3,20 +3,26 @@ use std::{fmt::Debug, sync::Arc};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use multivm::interface::L1BatchEnv;
+use multivm::vm_1_4_2::SystemEnv;
 use once_cell::sync::OnceCell;
 use tokio::sync::watch;
-use zksync_dal::{Connection, ConnectionPool, Core};
+use vm_utils::storage::L1BatchParamsProvider;
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_state::{
     AsyncCatchupTask, PgOrRocksdbStorage, ReadStorageFactory, StateKeeperColumnFamily,
 };
 use zksync_storage::RocksDB;
+use zksync_types::L2ChainId;
 use zksync_types::{block::MiniblockExecutionData, L1BatchNumber};
 
 /// Data needed to re-execute an L1 batch.
 #[derive(Debug)]
 pub struct BatchData {
-    /// L1 batch number this data belongs to.
-    pub l1_batch_number: L1BatchNumber,
+    /// Parameters for L1 batch this data belongs to.
+    pub l1_batch_env: L1BatchEnv,
+    /// Execution process parameters.
+    pub system_env: SystemEnv,
     /// List of miniblocks and corresponding transactions that were executed within batch.
     pub miniblocks: Vec<MiniblockExecutionData>,
 }
@@ -38,14 +44,16 @@ pub trait VmRunnerStorageLoader: Debug + Send + Sync + 'static {
     /// # Errors
     ///
     /// Propagates DB errors.
-    async fn load_next_batch(conn: Connection<'_, Core>) -> anyhow::Result<Option<BatchData>>;
+    async fn first_unprocessed_batch(
+        conn: &Connection<'_, Core>,
+    ) -> anyhow::Result<Option<L1BatchNumber>>;
 
     /// Returns the last L1 batch number that has been processed by this VM runner instance.
     ///
     /// # Errors
     ///
     /// Propagates DB errors.
-    async fn latest_processed_batch(conn: Connection<'_, Core>) -> anyhow::Result<L1BatchNumber>;
+    async fn latest_processed_batch(conn: &Connection<'_, Core>) -> anyhow::Result<L1BatchNumber>;
 }
 
 /// Abstraction for VM runner's storage layer that provides two main features:
@@ -57,6 +65,9 @@ pub trait VmRunnerStorageLoader: Debug + Send + Sync + 'static {
 #[derive(Debug)]
 pub struct VmRunnerStorage<L: VmRunnerStorageLoader> {
     pool: ConnectionPool<Core>,
+    l1_batch_params_provider: L1BatchParamsProvider,
+    validation_computational_gas_limit: u32,
+    chain_id: L2ChainId,
     rocksdb_cell: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
     _marker: PhantomData<L>,
 }
@@ -67,18 +78,28 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
         pool: ConnectionPool<Core>,
         rocksdb_path: String,
         enum_index_migration_chunk_size: usize, // TODO: Remove
+        validation_computational_gas_limit: u32,
+        chain_id: L2ChainId,
     ) -> anyhow::Result<(Self, AsyncCatchupTask)> {
+        let mut conn = pool.connection_tagged(L::name()).await?;
+        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut conn)
+            .await
+            .context("Аailed initializing L1 batch params provider")?;
         let rocksdb_cell = Arc::new(OnceCell::new());
         let task = AsyncCatchupTask::new(
             pool.clone(),
             rocksdb_path,
             enum_index_migration_chunk_size,
             rocksdb_cell.clone(),
-            Some(L::latest_processed_batch(pool.connection().await?).await?),
+            Some(L::latest_processed_batch(&conn).await?),
         );
+        drop(conn);
         Ok((
             Self {
                 pool,
+                l1_batch_params_provider,
+                validation_computational_gas_limit,
+                chain_id,
                 rocksdb_cell,
                 _marker: PhantomData,
             },
@@ -125,8 +146,42 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
     ///
     /// Propagates DB errors.
     pub async fn load_next_batch(&self) -> anyhow::Result<Option<BatchData>> {
-        let conn = self.pool.connection().await?;
-        L::load_next_batch(conn).await
+        let mut conn = self.pool.connection().await?;
+        let Some(l1_batch_number) = L::first_unprocessed_batch(&conn).await? else {
+            return Ok(None);
+        };
+        let first_miniblock_in_batch = self
+            .l1_batch_params_provider
+            .load_first_miniblock_in_batch(&mut conn, l1_batch_number)
+            .await
+            .with_context(|| {
+                format!(
+                    "Аailed loading first miniblock for L1 batch #{}",
+                    l1_batch_number
+                )
+            })?;
+        let Some(first_miniblock_in_batch) = first_miniblock_in_batch else {
+            anyhow::bail!("Tried to re-execute L1 batch #{l1_batch_number} which does not contain any miniblocks");
+        };
+        let (system_env, l1_batch_env) = self
+            .l1_batch_params_provider
+            .load_l1_batch_params(
+                &mut conn,
+                &first_miniblock_in_batch,
+                self.validation_computational_gas_limit,
+                self.chain_id,
+            )
+            .await
+            .with_context(|| format!("Аailed loading params for L1 batch #{}", l1_batch_number))?;
+        let miniblocks = conn
+            .transactions_dal()
+            .get_miniblocks_to_execute_for_l1_batch(l1_batch_number)
+            .await?;
+        Ok(Some(BatchData {
+            l1_batch_env,
+            system_env,
+            miniblocks,
+        }))
     }
 }
 
