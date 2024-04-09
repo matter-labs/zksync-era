@@ -12,7 +12,7 @@ import { extractFee } from '../src/modifiers/balance-checker';
 import { TestMessage } from '../src/matchers/matcher-helpers';
 import { Address } from 'zksync-ethers/build/src/types';
 import * as hre from 'hardhat';
-import { Deployer } from 'matterlabs/hardhat-zksync-deploy';
+import { Deployer } from '@matterlabs/hardhat-zksync-deploy';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-deploy/dist/types';
 
 const contracts = {
@@ -49,14 +49,15 @@ describe('Paymaster tests', () => {
     test('Should deploy a paymaster', async () => {
         paymaster = await deployContract(alice, contracts.customPaymaster, []);
         // Supplying paymaster with ETH it would need to cover the fees for the user
-        await alice
-            .transfer({ to: paymaster.address, amount: L2_DEFAULT_ETH_PER_ACCOUNT.div(4) })
-            .then((tx) => tx.wait());
+        await alice.transfer({ to: paymaster.address, amount: L2_DEFAULT_ETH_PER_ACCOUNT.div(4) }).then((tx) => tx.wait());
     });
 
     test('Should pay fee with paymaster', async () => {
-        const correctSignature = new Uint8Array(46);
+        paymaster = await deployContract(alice, contracts.customPaymaster, []);
+        // Supplying paymaster with ETH it would need to cover the fees for the user
+        await alice.transfer({ to: paymaster.address, amount: L2_DEFAULT_ETH_PER_ACCOUNT.div(4) }).then((tx) => tx.wait());
 
+        const correctSignature = new Uint8Array(46);
         const paymasterParamsForEstimation = await getTestPaymasterParamsForFeeEstimation(
             erc20,
             alice.address,
@@ -74,7 +75,6 @@ describe('Paymaster tests', () => {
                 paymasterParams: paymasterParamsForEstimation
             }
         });
-
         const txPromise = sendTxWithTestPaymasterParams(
             tx,
             alice.provider,
@@ -183,8 +183,6 @@ describe('Paymaster tests', () => {
         });
         const txPromise = alice.sendTransaction({
             ...tx,
-            maxFeePerGas: gasPrice,
-            maxPriorityFeePerGas: gasPrice,
             gasLimit,
             customData: {
                 gasPerPubdata: utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
@@ -201,6 +199,7 @@ describe('Paymaster tests', () => {
     });
 
     test('Should reject tx with invalid paymaster input', async () => {
+        paymaster = await deployContract(alice, contracts.customPaymaster, []);
         const paymasterParamsForEstimation = await getTestPaymasterParamsForFeeEstimation(
             erc20,
             alice.address,
@@ -233,7 +232,7 @@ describe('Paymaster tests', () => {
     });
 
     it('Should deploy nonce-check paymaster and not fail validation', async function () {
-        const deployer = new Deployer(hre, alice);
+        const deployer = new Deployer(hre as any, alice as any);
         const paymaster = await deployPaymaster(deployer);
         const token = testMaster.environment().erc20Token;
 
@@ -385,7 +384,6 @@ async function getTestPaymasterParamsForFeeEstimation(
     // While the "correct" paymaster signature may not be available in the true mainnet
     // paymasters, it is accessible in this test to make the test paymaster simpler.
     const correctSignature = new Uint8Array(46);
-
     const aliceERC20Balance = await erc20.balanceOf(senderAddress);
     const paramsForFeeEstimation = zksync.utils.getPaymasterParams(paymasterAddress, {
         type: 'ApprovalBased',
@@ -398,7 +396,6 @@ async function getTestPaymasterParamsForFeeEstimation(
         // to cover the fee for him.
         innerInput: getTestPaymasterInnerInput(correctSignature, ethers.BigNumber.from(1))
     });
-
     return paramsForFeeEstimation;
 }
 
