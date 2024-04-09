@@ -1,3 +1,5 @@
+__imports__ = [ "configs/dev.toml" ]
+
 sqlx_offline = true
 database_url = "postgres://postgres:notsecurepassword@postgres/zksync_local"
 database_prover_url = "postgres://postgres:notsecurepassword@postgres/prover_local"
@@ -6,8 +8,6 @@ test_database_prover_url = "postgres://postgres:notsecurepassword@host:5433/prov
 
 # for loadtest
 l1_rpc_address = "http://reth:8545"
-
-__imports__ = [ "configs/dev.toml" ]
 
 [eth_client]
 web3_url = "http://reth:8545"
