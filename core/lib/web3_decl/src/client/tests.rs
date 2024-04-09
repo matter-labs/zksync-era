@@ -189,108 +189,33 @@ async fn rate_limiting_with_rng_and_threads(rate_limit: usize) {
     test_rate_limiting_with_rng(rate_limit, RNG_SEED).await;
 }
 
-#[derive(Debug, Clone)]
-struct MockClient;
-
-#[async_trait]
-impl ClientT for MockClient {
-    async fn notification<Params>(&self, _method: &str, _params: Params) -> Result<(), Error>
-    where
-        Params: ToRpcParams + Send,
-    {
-        unreachable!("never called")
-    }
-
-    async fn request<R, Params>(&self, method: &str, _params: Params) -> Result<R, Error>
-    where
-        R: DeserializeOwned,
-        Params: ToRpcParams + Send,
-    {
-        match method {
-            "ok" => Ok(serde_json::from_value(serde_json::json!("ok"))?),
-            "slow" => {
-                tokio::time::sleep(Duration::from_millis(10)).await;
-                Ok(serde_json::from_value(serde_json::json!("slow"))?)
-            }
-            "rate_limit" => {
-                let http_err = transport::Error::RequestFailure { status_code: 429 };
-                Err(Error::Transport(http_err.into()))
-            }
-            "eth_getBlockNumber" => Ok(serde_json::from_value(serde_json::json!("0x1"))?),
-            _ => {
-                let unknown_method_err =
-                    ErrorObject::borrowed(ErrorCode::MethodNotFound.code(), "oops", None);
-                Err(Error::Call(unknown_method_err))
-            }
-        }
-    }
-
-    async fn batch_request<'a, R>(
-        &self,
-        batch: BatchRequestBuilder<'a>,
-    ) -> Result<BatchResponse<'a, R>, Error>
-    where
-        R: DeserializeOwned + fmt::Debug + 'a,
-    {
-        let request_handlers = batch
-            .into_iter()
-            .map(|(method, _)| self.request::<serde_json::Value, _>(method, [()]));
-        let response_results = future::join_all(request_handlers).await;
-        let mut responses = vec![];
-        let mut successful_calls = 0;
-        let mut failed_calls = 0;
-        for result in response_results {
-            match result {
-                Ok(value) => {
-                    responses.push(Ok(serde_json::from_value(value)?));
-                    successful_calls += 1;
-                }
-                Err(Error::Call(err)) => {
-                    responses.push(Err(err));
-                    failed_calls += 1;
-                }
-                Err(err) => return Err(err),
-            }
-        }
-        Ok(BatchResponse::new(
-            successful_calls,
-            responses,
-            failed_calls,
-        ))
-    }
-}
-
-#[async_trait]
-impl SubscriptionClientT for MockClient {
-    async fn subscribe<'a, Notif, Params>(
-        &self,
-        _subscribe_method: &'a str,
-        _params: Params,
-        _unsubscribe_method: &'a str,
-    ) -> Result<Subscription<Notif>, Error>
-    where
-        Params: ToRpcParams + Send,
-        Notif: DeserializeOwned,
-    {
-        unreachable!("never called")
-    }
-
-    async fn subscribe_to_method<'a, Notif>(
-        &self,
-        _method: &'a str,
-    ) -> Result<Subscription<Notif>, Error>
-    where
-        Notif: DeserializeOwned,
-    {
-        unreachable!("never called")
-    }
-}
-
 #[tokio::test]
 async fn wrapping_mock_client() {
     tokio::time::pause();
 
-    let mut client = L2ClientBuilder::new(MockClient)
+    let client = MockL2Client::new_async(|method, _| {
+        Box::pin(async move {
+            match method {
+                "ok" => Ok(serde_json::from_value(serde_json::json!("ok"))?),
+                "slow" => {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                    Ok(serde_json::from_value(serde_json::json!("slow"))?)
+                }
+                "rate_limit" => {
+                    let http_err = transport::Error::RequestFailure { status_code: 429 };
+                    Err(Error::Transport(http_err.into()))
+                }
+                "eth_getBlockNumber" => Ok(serde_json::from_value(serde_json::json!("0x1"))?),
+                _ => {
+                    let unknown_method_err =
+                        ErrorObject::borrowed(ErrorCode::MethodNotFound.code(), "oops", None);
+                    Err(Error::Call(unknown_method_err))
+                }
+            }
+        })
+    });
+
+    let mut client = L2ClientBuilder::new(client)
         .with_allowed_requests_per_second(NonZeroUsize::new(100).unwrap())
         .build()
         .for_component("test");
