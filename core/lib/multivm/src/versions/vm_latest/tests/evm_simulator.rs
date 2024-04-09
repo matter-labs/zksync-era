@@ -360,6 +360,53 @@ fn test_basic_div_vectors() {
     )
 }
 
+#[test]
+fn test_basic_sdiv_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push2 6
+                hex::decode("61").unwrap(),
+                hex::decode("0006").unwrap(),
+                // push2 -4096
+                hex::decode("61").unwrap(),
+                hex::decode("F000").unwrap(),
+                // sdiv
+                hex::decode("05").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        10240.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push2 0
+                hex::decode("61").unwrap(),
+                hex::decode("0000").unwrap(),
+                // push2 32
+                hex::decode("61").unwrap(),
+                hex::decode("0020").unwrap(),
+                // sdiv
+                hex::decode("05").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+}
+
 fn assert_deployed_hash<H: HistoryMode>(
     tester: &mut VmTester<H>,
     address: Address,
