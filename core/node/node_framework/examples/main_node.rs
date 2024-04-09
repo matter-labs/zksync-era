@@ -147,10 +147,10 @@ impl MainNodeBuilder {
     fn add_state_keeper_layer(mut self) -> anyhow::Result<Self> {
         let wallets = Wallets::from_env()?;
         let mempool_io_layer = MempoolIOLayer::new(
+            NetworkConfig::from_env()?,
             ContractsConfig::from_env()?,
             StateKeeperConfig::from_env()?,
             MempoolConfig::from_env()?,
-            GenesisConfig::from_env()?,
             wallets.state_keeper.context("State keeper wallets")?,
         );
         let main_node_batch_executor_builder_layer =

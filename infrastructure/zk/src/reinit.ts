@@ -15,7 +15,7 @@ const reinitDevCmdAction = async (): Promise<void> => {
         skipTestTokenDeployment: true,
         // TODO set proper values
         runObservability: true,
-        validiumMode: false
+        deploymentMode: DeploymentMode.Rollup
     });
 };
 
@@ -23,12 +23,13 @@ type ReinitHyperCmdActionOptions = { baseTokenName?: string; validiumMode: boole
 const reinitHyperCmdAction = async ({ baseTokenName, validiumMode }: ReinitHyperCmdActionOptions): Promise<void> => {
     // skipSetupCompletely, because we only want to compile
     // bumpChainId, because we want to reinitialize hyperchain with a new chain id
+    let deploymentMode = validiumMode !== undefined ? DeploymentMode.Validium : DeploymentMode.Rollup;
     await initHyperCmdAction({
         skipSetupCompletely: true,
         baseTokenName: baseTokenName,
         bumpChainId: true,
         runObservability: false,
-        validiumMode
+        deploymentMode
     });
 };
 

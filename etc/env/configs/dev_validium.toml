@@ -1,3 +1,7 @@
+__imports__ = [ "base", "l1-inits/.init.env", "l2-inits/dev.init.env" ]
+
+ZKSYNC_ACTION="dont_ask"
+
 [chain.state_keeper]
 compute_overhead_part=1.0
 pubdata_overhead_part=0.0
