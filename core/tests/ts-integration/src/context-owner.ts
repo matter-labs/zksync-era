@@ -7,6 +7,7 @@ import { lookupPrerequisites } from './prerequisites';
 import { Reporter } from './reporter';
 import { additionalMultiplier, scaledGasPrice } from './helpers';
 import { RetryProvider } from './retry-provider';
+import { start } from 'repl';
 
 // These amounts of ETH would be provided to each test suite through its "main" account.
 // It is assumed to be enough to run a set of "normal" transactions.
@@ -476,7 +477,6 @@ export class TestContextOwner {
         l1TxPromises.push(...ethTransfers);
         l1TxPromises.push(...erc20Transfers);
         l1TxPromises.push(...BaseErc20Transfers);
-
         this.reporter.debug(`Sent ${l1TxPromises.length} initial transactions on L1`);
         await Promise.all(l1TxPromises);
 
@@ -590,12 +590,30 @@ export async function sendTransfers(
         wallet instanceof zksync.Wallet
             ? new zksync.Contract(token, zksync.utils.IERC20, wallet)
             : new ethers.Contract(token, zksync.utils.IERC20, wallet);
-    const startNonce = overrideStartNonce ?? (await wallet.getTransactionCount());
+    let startNonce = overrideStartNonce ?? (await wallet.getTransactionCount());
     reporter?.debug(`Sending transfers. Token address is ${token}`);
 
     const walletsPK = Array.from(Object.values(wallets));
 
     const txPromises: Promise<any>[] = [];
+
+    // const tx = {
+    //     to: '0xf11aa57C0019A0dcEE16132e638A3a35D15512D1',
+    //     value,
+    //     nonce: startNonce,
+    //     gasPrice
+    // };
+
+    // let transactionResponse = await wallet.sendTransaction(tx);
+
+    // txPromises.push(
+    //     transactionResponse.wait().then((tx) => {
+    //         reporter?.debug(`Obtained receipt for ETH transfer tx: ${tx.transactionHash} `);
+    //         return tx;
+    //     })
+    // );
+
+    startNonce += 1;
 
     for (let index = 0; index < walletsPK.length; index++) {
         const testWalletPK = walletsPK[index];
