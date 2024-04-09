@@ -59,7 +59,7 @@ describe('Block reverting test', function () {
     let mainContract: Contract;
     let blocksCommittedBeforeRevert: number;
     let logs: fs.WriteStream;
-    let operator_address = process.env.ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR;
+    let operatorAddress = process.env.ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR;
 
     let enable_consensus = process.env.ENABLE_CONSENSUS == 'true';
     let components = 'api,tree,eth,state_keeper,commitment_generator';
