@@ -573,6 +573,74 @@ fn test_basic_exp_vectors() {
 }
 
 #[test]
+fn test_basic_lt_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 8
+                hex::decode("60").unwrap(),
+                hex::decode("08").unwrap(),
+                // push1 10
+                hex::decode("60").unwrap(),
+                hex::decode("0A").unwrap(),
+                // lt
+                hex::decode("10").unwrap(),
+                // push32 0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 24
+                hex::decode("60").unwrap(),
+                hex::decode("18").unwrap(),
+                // push1 10
+                hex::decode("60").unwrap(),
+                hex::decode("0A").unwrap(),
+                // lt
+                hex::decode("10").unwrap(),
+                // push32 0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        1.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 10
+                hex::decode("60").unwrap(),
+                hex::decode("0A").unwrap(),
+                // push1 10
+                hex::decode("60").unwrap(),
+                hex::decode("0A").unwrap(),
+                // lt
+                hex::decode("10").unwrap(),
+                // push32 0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+}
+
+#[test]
 fn test_basic_signextend_vectors() {
     // Here we just try to test some small EVM contracts and ensure that they work.
     let mut expected_result: [u8; 32] = [0u8; 32];
