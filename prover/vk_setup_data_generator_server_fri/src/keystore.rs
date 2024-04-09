@@ -316,8 +316,11 @@ impl Keystore {
     /// Keys are loaded from the default 'base path' files.
     pub fn load_keys_to_data_source(&self) -> anyhow::Result<InMemoryDataSource> {
         let mut data_source = InMemoryDataSource::new();
-        for base_circuit_type in
-            (BaseLayerCircuitType::VM as u8)..=(BaseLayerCircuitType::Secp256r1Verify as u8)
+        for base_circuit_type in (BaseLayerCircuitType::VM as u8)
+            ..=(BaseLayerCircuitType::Secp256r1Verify as u8).chain(
+                BaseLayerCircuitType::EIP4844Repack as u8
+                    ..BaseLayerCircuitType::EIP4844Repack as u8,
+            )
         {
             data_source
                 .set_base_layer_vk(self.load_base_layer_verification_key(base_circuit_type)?)
