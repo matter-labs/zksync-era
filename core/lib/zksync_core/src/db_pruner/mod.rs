@@ -292,8 +292,9 @@ mod tests {
         miniblocks_per_batch: u64,
     ) {
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
 
         for l1_batch_number in 0..l1_batches_count {
             for miniblock_index in 0..miniblocks_per_batch {
@@ -313,6 +314,7 @@ mod tests {
                     base_system_contracts_hashes: Default::default(),
                     protocol_version: Some(Default::default()),
                     virtual_blocks: 0,
+                    gas_limit: 0,
                 };
 
                 conn.blocks_dal()

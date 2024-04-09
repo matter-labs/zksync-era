@@ -66,7 +66,8 @@ mod tests {
         ];
         conn.events_dal()
             .save_user_l2_to_l1_logs(miniblock_number, &all_logs)
-            .await;
+            .await
+            .unwrap();
     }
 
     async fn insert_events(conn: &mut Connection<'_, Core>, miniblock_number: MiniblockNumber) {
@@ -88,7 +89,8 @@ mod tests {
         ];
         conn.events_dal()
             .save_events(miniblock_number, &all_events)
-            .await;
+            .await
+            .unwrap();
     }
 
     async fn insert_l1_batch(conn: &mut Connection<'_, Core>, l1_batch_number: L1BatchNumber) {
@@ -122,8 +124,9 @@ mod tests {
 
     async fn insert_realistic_l1_batches(conn: &mut Connection<'_, Core>, l1_batches_count: u32) {
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
 
         for l1_batch_number in 0..l1_batches_count {
             insert_l1_batch(conn, L1BatchNumber(l1_batch_number)).await;

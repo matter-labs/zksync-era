@@ -324,14 +324,12 @@ impl<'a> SnapshotsApplier<'a> {
         if storage_transaction
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
-            .await
-            .map_err(|err| SnapshotsApplierError::db(err, "failed to check need of recovery"))?
+            .await?
             .is_some()
             && storage_transaction
                 .blocks_dal()
                 .get_sealed_miniblock_number()
-                .await
-                .map_err(|err| SnapshotsApplierError::db(err, "failed to check need of recovery"))?
+                .await?
                 .is_some()
         {
             return Ok(());
@@ -367,18 +365,14 @@ impl<'a> SnapshotsApplier<'a> {
             storage_transaction
                 .snapshot_recovery_dal()
                 .insert_initial_recovery_status(&this.applied_snapshot_status)
-                .await
-                .map_err(|err| {
-                    SnapshotsApplierError::db(err, "failed persisting initial recovery status")
-                })?;
+                .await?;
             storage_transaction
                 .pruning_dal()
                 .soft_prune_batches_range(
                     this.applied_snapshot_status.l1_batch_number,
                     this.applied_snapshot_status.miniblock_number,
                 )
-                .await
-                .map_err(|err| SnapshotsApplierError::db(err, "failed inserting pruning info"))?;
+                .await?;
 
             storage_transaction
                 .pruning_dal()
@@ -386,8 +380,7 @@ impl<'a> SnapshotsApplier<'a> {
                     this.applied_snapshot_status.l1_batch_number,
                     this.applied_snapshot_status.miniblock_number,
                 )
-                .await
-                .map_err(|err| SnapshotsApplierError::db(err, "failed inserting pruning info"))?;
+                .await?;
         }
         storage_transaction.commit().await?;
         drop(storage);

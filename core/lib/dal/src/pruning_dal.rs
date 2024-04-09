@@ -1,6 +1,4 @@
-use anyhow::anyhow;
-use sqlx::error::BoxDynError;
-use zksync_db_connection::{connection::Connection, instrument::InstrumentExt};
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{L1BatchNumber, MiniblockNumber};
 
 use crate::Core;
@@ -26,7 +24,7 @@ pub enum PruneType {
 }
 
 impl PruningDal<'_, '_> {
-    pub async fn get_pruning_info(&mut self) -> sqlx::Result<PruningInfo> {
+    pub async fn get_pruning_info(&mut self) -> DalResult<PruningInfo> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -91,7 +89,7 @@ impl PruningDal<'_, '_> {
         &mut self,
         last_l1_batch_to_prune: L1BatchNumber,
         last_miniblock_to_prune: MiniblockNumber,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -124,13 +122,7 @@ impl PruningDal<'_, '_> {
         &mut self,
         last_l1_batch_to_prune: L1BatchNumber,
         last_miniblock_to_prune: MiniblockNumber,
-    ) -> sqlx::Result<()> {
-        if !self.storage.in_transaction() {
-            return Err(sqlx::Error::Configuration(BoxDynError::from(anyhow!(
-                "This operation must be performed from inside transaction!"
-            ))));
-        }
-
+    ) -> DalResult<()> {
         let row = sqlx::query!(
             r#"
             SELECT
