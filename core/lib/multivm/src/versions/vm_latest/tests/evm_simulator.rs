@@ -829,6 +829,74 @@ fn test_basic_slt_vectors() {
     );
 }
 
+#[test]
+fn test_basic_sgt_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push32 -3
+                hex::decode("7F").unwrap(),
+                hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFD").unwrap(),
+                // push1 13
+                hex::decode("60").unwrap(),
+                hex::decode("0D").unwrap(),
+                // sgt
+                hex::decode("13").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        1.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 7
+                hex::decode("60").unwrap(),
+                hex::decode("07").unwrap(),
+                // push32 -8
+                hex::decode("7F").unwrap(),
+                hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF8").unwrap(),
+                // sgt
+                hex::decode("13").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 50
+                hex::decode("60").unwrap(),
+                hex::decode("3C").unwrap(),
+                // push1 50
+                hex::decode("60").unwrap(),
+                hex::decode("3C").unwrap(),
+                // sgt
+                hex::decode("13").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+}
+
 fn assert_deployed_hash<H: HistoryMode>(
     tester: &mut VmTester<H>,
     address: Address,
