@@ -311,7 +311,7 @@ impl Keystore {
             ..=(BaseLayerCircuitType::Secp256r1Verify as u8))
             .chain(
                 BaseLayerCircuitType::EIP4844Repack as u8
-                    ..BaseLayerCircuitType::EIP4844Repack as u8,
+                    ..=BaseLayerCircuitType::EIP4844Repack as u8,
             )
         {
             data_source

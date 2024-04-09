@@ -146,11 +146,9 @@ impl ProverServiceDataKey {
 
     pub fn all_boojum() -> Vec<ProverServiceDataKey> {
         let mut results = vec![];
-        for numeric_circuit in
-            (BaseLayerCircuitType::VM as u8..=BaseLayerCircuitType::Secp256r1Verify as u8).chain(
-                BaseLayerCircuitType::EIP4844Repack as u8
-                    ..BaseLayerCircuitType::EIP4844Repack as u8,
-            )
+        for numeric_circuit in (BaseLayerCircuitType::VM as u8
+            ..=BaseLayerCircuitType::Secp256r1Verify as u8)
+            .chain(std::iter::once(BaseLayerCircuitType::EIP4844Repack as u8))
         {
             results.push(ProverServiceDataKey::new_basic(numeric_circuit))
         }
@@ -158,7 +156,7 @@ impl ProverServiceDataKey {
             ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForEIP4844Repack as u8)
             .chain(
                 ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8
-                    ..ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
+                    ..=ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
             )
         {
             results.push(ProverServiceDataKey::new_recursive(numeric_circuit))
