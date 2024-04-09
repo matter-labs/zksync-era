@@ -172,6 +172,7 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             virtual_blocks_interval: self.sample(rng),
             virtual_blocks_per_miniblock: self.sample(rng),
             enum_index_migration_chunk_size: self.sample(rng),
+            max_circuits_per_batch: self.sample(rng),
             // These values are not involved into files serialization skip them
             fee_account_addr: None,
             bootloader_hash: None,
@@ -371,6 +372,7 @@ impl Distribution<configs::eth_sender::GasAdjusterConfig> for EncodeDist {
             pricing_formula_parameter_b: self.sample(rng),
             internal_l1_pricing_multiplier: self.sample(rng),
             internal_enforced_l1_gas_price: self.sample(rng),
+            internal_enforced_pubdata_price: self.sample(rng),
             poll_period: self.sample(rng),
             max_l1_gas_price: self.sample(rng),
             num_samples_for_blob_base_fee_estimate: self.sample(rng),
@@ -659,6 +661,7 @@ impl Distribution<configs::ObservabilityConfig> for EncodeDist {
             log_format: self.sample(rng),
             opentelemetry: self.sample(rng),
             sporadic_crypto_errors_substrs: self.sample_collect(rng),
+            log_directives: self.sample(rng),
         }
     }
 }

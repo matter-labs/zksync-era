@@ -81,6 +81,9 @@ impl ProtoRepr for proto::StateKeeper {
                 .map(|x| x.try_into())
                 .transpose()
                 .context("enum_index_migration_chunk_size")?,
+            max_circuits_per_batch: required(&self.max_circuits_per_batch)
+                .and_then(|x| Ok((*x).try_into()?))
+                .context("max_circuits_per_batch")?,
 
             // We need these values only for instantiating configs from environmental variables, so it's not
             // needed during the initialization from files
@@ -122,6 +125,7 @@ impl ProtoRepr for proto::StateKeeper {
                 .enum_index_migration_chunk_size
                 .as_ref()
                 .map(|x| (*x).try_into().unwrap()),
+            max_circuits_per_batch: Some(this.max_circuits_per_batch.try_into().unwrap()),
         }
     }
 }

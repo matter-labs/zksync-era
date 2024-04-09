@@ -200,7 +200,7 @@ impl DebugNamespace {
             .take()
             .unwrap_or_default();
         let call = Call::new_high_level(
-            tx.common_data.fee.gas_limit.as_u32(),
+            tx.common_data.fee.gas_limit.as_u64(),
             result.statistics.gas_used,
             tx.execute.value,
             tx.execute.calldata,

@@ -8,7 +8,7 @@ use zksync_types::{
     l2_to_l1_log::L2ToL1Log,
     vm_trace::Call,
     web3::types::{BlockHeader, U64},
-    Bytes, L1BatchNumber, MiniblockNumber, H160, H2048, H256, U256,
+    Bytes, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H160, H2048, H256, U256,
 };
 use zksync_utils::bigdecimal_to_u256;
 
@@ -473,6 +473,13 @@ impl BlocksWeb3Dal<'_, '_> {
         &mut self,
         block_number: MiniblockNumber,
     ) -> DalResult<Vec<Call>> {
+        let protocol_version = self
+            .storage
+            .blocks_dal()
+            .get_miniblock_protocol_version_id(block_number)
+            .await?
+            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
+
         Ok(sqlx::query_as!(
             CallTrace,
             r#"
@@ -493,7 +500,7 @@ impl BlocksWeb3Dal<'_, '_> {
         .fetch_all(self.storage)
         .await?
         .into_iter()
-        .map(Call::from)
+        .map(|call_trace| call_trace.into_call(protocol_version))
         .collect())
     }
 
@@ -697,8 +704,9 @@ mod tests {
             .await
             .unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         let header = MiniblockHeader {
             l1_tx_count: 3,
             l2_tx_count: 5,
@@ -748,8 +756,9 @@ mod tests {
         assert_eq!(miniblock_number.unwrap(), None);
 
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
             .await
@@ -767,8 +776,9 @@ mod tests {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
 
         let miniblock_number = conn
             .blocks_web3_dal()
@@ -851,8 +861,9 @@ mod tests {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
             .await
@@ -880,8 +891,9 @@ mod tests {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(1))
             .await
@@ -891,7 +903,7 @@ mod tests {
         let mut tx_results = vec![];
         for (i, tx) in transactions.into_iter().enumerate() {
             conn.transactions_dal()
-                .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+                .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
                 .await
                 .unwrap();
             let mut tx_result = mock_execution_result(tx);
@@ -905,7 +917,8 @@ mod tests {
         }
         conn.transactions_dal()
             .mark_txs_as_executed_in_miniblock(MiniblockNumber(1), &tx_results, 1.into())
-            .await;
+            .await
+            .unwrap();
 
         let traces = conn
             .blocks_web3_dal()
