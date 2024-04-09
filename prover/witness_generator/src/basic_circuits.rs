@@ -709,9 +709,9 @@ async fn generate_witness(
             Vec::default(),
             MAX_CYCLES_FOR_TX as usize,
             geometry_config,
-            path,
             storage_oracle,
             &mut tree,
+            path,
             repacked_4844_inputs,
             |circuit| {
                 circuit_sender.blocking_send(circuit).unwrap();

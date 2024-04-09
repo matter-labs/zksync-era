@@ -465,7 +465,7 @@ dependencies = [
  "blake2s_simd",
  "byteorder",
  "cfg-if 1.0.0",
- "crossbeam 0.7.3",
+ "crossbeam",
  "futures 0.3.28",
  "hex",
  "lazy_static",
@@ -686,7 +686,7 @@ dependencies = [
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "const_format",
  "convert_case",
- "crossbeam 0.8.2",
+ "crossbeam",
  "crypto-bigint 0.5.3",
  "cs_derive",
  "derivative",
@@ -1002,7 +1002,7 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#05502ec874bd1dbfd8a72cd7df340a2fe3f6d3a0"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#6fbbe8bf0a9aafe7d1f040d5b07dd9b9062b5834"
 dependencies = [
  "derivative",
  "serde",
@@ -1064,7 +1064,7 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#05502ec874bd1dbfd8a72cd7df340a2fe3f6d3a0"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#6fbbe8bf0a9aafe7d1f040d5b07dd9b9062b5834"
 dependencies = [
  "bellman_ce",
  "circuit_encodings 0.1.50",
@@ -1353,20 +1353,6 @@ dependencies = [
  "crossbeam-epoch 0.8.2",
  "crossbeam-queue 0.2.3",
  "crossbeam-utils 0.7.2",
-]
-
-[[package]]
-name = "crossbeam"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2801af0d36612ae591caa9568261fddce32ce6e08a7275ea334a06a4ad021a2c"
-dependencies = [
- "cfg-if 1.0.0",
- "crossbeam-channel 0.5.8",
- "crossbeam-deque 0.8.3",
- "crossbeam-epoch 0.9.15",
- "crossbeam-queue 0.3.8",
- "crossbeam-utils 0.8.16",
 ]
 
 [[package]]
@@ -4231,7 +4217,7 @@ dependencies = [
 [[package]]
 name = "pairing_ce"
 version = "0.28.5"
-source = "git+https://github.com/matter-labs/pairing.git#f55393fd366596eac792d78525d26e9c4d6ed1ca"
+source = "git+https://github.com/matter-labs/pairing.git#d24f2c5871089c4cd4f54c0ca266bb9fef6115eb"
 dependencies = [
  "byteorder",
  "cfg-if 1.0.0",
@@ -7868,7 +7854,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.5.0#06deb82ef51666b21ac5ebb543366906db04916b"
+source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.5.0#435b444e26a075a7d24ad0e34a79d1b29553cff7"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -8018,7 +8004,7 @@ dependencies = [
 [[package]]
 name = "zkevm_opcode_defs"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0#dc74cf4e1167a9636e14725da09c8020a8bfa26b"
+source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0#109d9f734804a8b9dc0531c0b576e2a0f55a40de"
 dependencies = [
  "bitflags 2.4.1",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -8754,7 +8740,7 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "chrono",
- "circuit_sequencer_api 0.1.42",
+ "circuit_sequencer_api 0.1.50",
  "serde",
  "serde_with",
  "strum",

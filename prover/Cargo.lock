@@ -7868,7 +7868,7 @@ name = "zksync_prover_interface"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "circuit_sequencer_api 0.1.42",
+ "circuit_sequencer_api 0.1.50",
  "serde",
  "serde_with",
  "strum",

@@ -189,15 +189,6 @@ impl Keystore {
         Self::save_json_pretty(filepath, &vk)
     }
 
-    pub fn save_4844_verification_key(&self, vk: EIP4844VerificationKey) -> anyhow::Result<()> {
-        let filepath = self.get_file_path(
-            ProverServiceDataKey::eip4844(),
-            ProverServiceDataType::VerificationKey,
-        );
-        tracing::info!("saving 4844 verification key to: {}", filepath);
-        Self::save_json_pretty(filepath, &vk)
-    }
-
     ///
     /// Finalization hints
     ///
