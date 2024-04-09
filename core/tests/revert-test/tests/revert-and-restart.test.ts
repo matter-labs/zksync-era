@@ -193,7 +193,14 @@ describe('Block reverting test', function () {
             amount: depositAmount,
             to: alice.address
         });
-        const l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
+
+        let l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
+        while (!l1TxResponse) {
+            console.log(`Deposit ${depositHandle.hash} is not visible to the L1 network; sleeping`);
+            await utils.sleep(1);
+            l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
+        }
+
         // ethers doesn't work well with block reversions, so wait for the receipt before calling `.waitFinalize()`.
         const l2Tx = await alice._providerL2().getL2TransactionFromPriorityOp(l1TxResponse);
         let receipt = null;

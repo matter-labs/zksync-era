@@ -7,6 +7,7 @@ use std::{
 
 use tokio::sync::{watch, RwLock};
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Core, CoreDal};
+use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_types::{
     api::{BlockId, Transaction, TransactionDetails, TransactionId},
     fee::TransactionExecutionMetrics,
@@ -20,7 +21,6 @@ use zksync_web3_decl::{
 };
 
 use super::{tx_sink::TxSink, SubmitTxError};
-use crate::metrics::{TxStage, APP_METRICS};
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct TxCache {
@@ -216,14 +216,14 @@ impl TxProxy {
 impl TxSink for TxProxy {
     async fn submit_tx(
         &self,
-        tx: L2Tx,
+        tx: &L2Tx,
         _execution_metrics: TransactionExecutionMetrics,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         // We're running an external node: we have to proxy the transaction to the main node.
         // But before we do that, save the tx to cache in case someone will request it
         // Before it reaches the main node.
         self.save_tx(tx.clone()).await;
-        self.submit_tx_impl(&tx).await?;
+        self.submit_tx_impl(tx).await?;
         // Now, after we are sure that the tx is on the main node, remove it from cache
         // since we don't want to store txs that might have been replaced or otherwise removed
         // from the mempool.

@@ -38,9 +38,6 @@ struct Cli {
     /// Generate genesis block for the first contract deployment using temporary DB.
     #[arg(long)]
     genesis: bool,
-    /// Set chain id (temporary will be moved to genesis config)
-    #[arg(long)]
-    set_chain_id: bool,
     /// Rebuild tree.
     #[arg(long)]
     rebuild_tree: bool,
@@ -112,6 +109,10 @@ async fn main() -> anyhow::Result<()> {
         .context("Invalid log format")?;
 
     let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    if let Some(log_directives) = observability_config.log_directives {
+        builder = builder.with_log_directives(log_directives);
+    }
+
     if let Some(sentry_url) = &observability_config.sentry_url {
         builder = builder
             .with_sentry_url(sentry_url)
@@ -177,19 +178,16 @@ async fn main() -> anyhow::Result<()> {
             .await
             .context("genesis_init")?;
 
-        if opt.set_chain_id {
+        if let Some(shared_bridge) = &genesis.shared_bridge {
             let eth_client = configs.eth.as_ref().context("eth config")?;
-
-            if let Some(shared_bridge) = &genesis.shared_bridge {
-                genesis::save_set_chain_id_tx(
-                    &eth_client.web3_url,
-                    contracts_config.diamond_proxy_addr,
-                    shared_bridge.state_transition_proxy_addr,
-                    &postgres_config,
-                )
-                .await
-                .context("Failed to save SetChainId upgrade transaction")?;
-            }
+            genesis::save_set_chain_id_tx(
+                &eth_client.web3_url,
+                contracts_config.diamond_proxy_addr,
+                shared_bridge.state_transition_proxy_addr,
+                &postgres_config,
+            )
+            .await
+            .context("Failed to save SetChainId upgrade transaction")?;
         }
 
         if opt.genesis {
