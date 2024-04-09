@@ -694,8 +694,76 @@ fn test_basic_gt_vectors() {
                 // push1 12
                 hex::decode("60").unwrap(),
                 hex::decode("0C").unwrap(),
-                // lt
+                // gt
                 hex::decode("11").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+}
+
+#[test]
+fn test_basic_slt_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push32 -3
+                hex::decode("7F").unwrap(),
+                hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFD").unwrap(),
+                // push1 13
+                hex::decode("60").unwrap(),
+                hex::decode("0D").unwrap(),
+                // slt
+                hex::decode("12").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 7
+                hex::decode("60").unwrap(),
+                hex::decode("07").unwrap(),
+                // push32 -8
+                hex::decode("7F").unwrap(),
+                hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF8").unwrap(),
+                // slt
+                hex::decode("12").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        1.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 50
+                hex::decode("60").unwrap(),
+                hex::decode("3C").unwrap(),
+                // push1 50
+                hex::decode("60").unwrap(),
+                hex::decode("3C").unwrap(),
+                // slt
+                hex::decode("12").unwrap(),
                 // push0
                 hex::decode("5F").unwrap(),
                 // sstore
