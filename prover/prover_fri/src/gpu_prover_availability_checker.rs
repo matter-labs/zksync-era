@@ -37,6 +37,8 @@ pub mod availability_checker {
             mut init_receiver: tokio::sync::oneshot::Receiver<()>,
         ) -> anyhow::Result<()> {
             while !*stop_receiver.borrow() {
+                tokio::time::sleep(self.polling_interval).await;
+
                 match init_receiver.try_recv() {
                     Ok(_) => (),
                     Err(tokio::sync::oneshot::error::TryRecvError::Empty) => continue,
@@ -79,8 +81,6 @@ pub mod availability_checker {
                     }
                     Some(_) => (),
                 }
-
-                tokio::time::sleep(self.polling_interval).await;
             }
 
             tracing::info!("Availability checker was shut down");
