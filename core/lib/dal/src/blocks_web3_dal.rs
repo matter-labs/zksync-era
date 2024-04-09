@@ -704,8 +704,9 @@ mod tests {
             .await
             .unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         let header = MiniblockHeader {
             l1_tx_count: 3,
             l2_tx_count: 5,
@@ -755,8 +756,9 @@ mod tests {
         assert_eq!(miniblock_number.unwrap(), None);
 
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
             .await
@@ -774,8 +776,9 @@ mod tests {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
 
         let miniblock_number = conn
             .blocks_web3_dal()
@@ -858,8 +861,9 @@ mod tests {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
             .await
@@ -887,8 +891,9 @@ mod tests {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(1))
             .await
@@ -898,7 +903,7 @@ mod tests {
         let mut tx_results = vec![];
         for (i, tx) in transactions.into_iter().enumerate() {
             conn.transactions_dal()
-                .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+                .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
                 .await
                 .unwrap();
             let mut tx_result = mock_execution_result(tx);
@@ -912,7 +917,8 @@ mod tests {
         }
         conn.transactions_dal()
             .mark_txs_as_executed_in_miniblock(MiniblockNumber(1), &tx_results, 1.into())
-            .await;
+            .await
+            .unwrap();
 
         let traces = conn
             .blocks_web3_dal()

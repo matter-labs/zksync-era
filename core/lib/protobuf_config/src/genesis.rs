@@ -125,7 +125,7 @@ impl ProtoRepr for proto::Genesis {
         Self {
             genesis_root: this.genesis_root_hash.map(|x| format!("{:?}", x)),
             genesis_rollup_leaf_index: this.rollup_last_leaf_index,
-            genesis_batch_commitment: this.genesis_root_hash.map(|x| format!("{:?}", x)),
+            genesis_batch_commitment: this.genesis_commitment.map(|x| format!("{:?}", x)),
             genesis_protocol_version: this.protocol_version.map(|x| x as u32),
             default_aa_hash: this.default_aa_hash.map(|x| format!("{:?}", x)),
             bootloader_hash: this.bootloader_hash.map(|x| format!("{:?}", x)),

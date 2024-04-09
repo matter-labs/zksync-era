@@ -51,7 +51,7 @@ use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
-use zksync_web3_decl::{client::L2Client, namespaces::EnNamespaceClient};
+use zksync_web3_decl::{client::L2Client, jsonrpsee, namespaces::EnNamespaceClient};
 
 use crate::{
     config::{observability::observability_config_from_env, ExternalNodeConfig},
@@ -128,11 +128,15 @@ async fn run_tree(
 ) -> anyhow::Result<Arc<dyn TreeApiClient>> {
     let metadata_calculator_config = MetadataCalculatorConfig {
         db_path: config.required.merkle_tree_path.clone(),
+        max_open_files: config.optional.merkle_tree_max_open_files,
         mode: MerkleTreeMode::Lightweight,
         delay_interval: config.optional.metadata_calculator_delay(),
         max_l1_batches_per_iter: config.optional.max_l1_batches_per_tree_iter,
         multi_get_chunk_size: config.optional.merkle_tree_multi_get_chunk_size,
         block_cache_capacity: config.optional.merkle_tree_block_cache_size(),
+        include_indices_and_filters_in_block_cache: config
+            .optional
+            .merkle_tree_include_indices_and_filters_in_block_cache,
         memtable_capacity: config.optional.merkle_tree_memtable_capacity(),
         stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
     };
@@ -440,6 +444,11 @@ async fn run_api(
                 match main_node_client.whitelisted_tokens_for_aa().await {
                     Ok(tokens) => {
                         *whitelisted_tokens_for_aa_cache_clone.write().await = tokens;
+                    }
+                    Err(jsonrpsee::core::client::Error::Call(error))
+                        if error.code() == jsonrpsee::types::error::METHOD_NOT_FOUND_CODE =>
+                    {
+                        // Method is not supported by the main node, do nothing.
                     }
                     Err(err) => {
                         tracing::error!(

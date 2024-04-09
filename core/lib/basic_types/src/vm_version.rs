@@ -10,6 +10,7 @@ pub enum VmVersion {
     VmBoojumIntegration,
     Vm1_4_1,
     Vm1_4_2,
+    Vm1_5_0,
     // kl todo delete local vm verion
     Local,
 }
