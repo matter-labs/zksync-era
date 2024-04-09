@@ -319,8 +319,12 @@ impl Keystore {
                 .unwrap();
         }
 
-        for circuit_type in ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8
-            ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForEIP4844Repack as u8
+        for circuit_type in (ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8
+            ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForEIP4844Repack as u8)
+            .chain(
+                ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8
+                    ..=ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
+            )
         {
             data_source
                 .set_recursion_layer_vk(self.load_recursive_layer_verification_key(circuit_type)?)
