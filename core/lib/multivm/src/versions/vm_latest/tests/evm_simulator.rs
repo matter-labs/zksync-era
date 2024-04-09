@@ -628,28 +628,30 @@ fn test_basic_signextend_vectors() {
 #[test]
 fn test_basic_dup_vectors() {
     // Here we just try to test some small EVM contracts and ensure that they work.
-    assert_eq!(
-        test_evm_vector(
-            vec![
-                // push1 3
-                hex::decode("60").unwrap(),
-                hex::decode("03").unwrap(),
-                // push1 10
-                hex::decode("60").unwrap(),
-                hex::decode("0A").unwrap(),
-                // push1 255
-                hex::decode("60").unwrap(),
-                hex::decode("FF").unwrap(),
-                // dup3
-                hex::decode("82").unwrap(),
-                // sstore
-                hex::decode("55").unwrap(),
-            ]
-            .into_iter()
-            .concat()
-        ),
-        3.into()
+    let evm_output = test_evm_vector(
+        vec![
+            // push32 10
+            hex::decode("7F").unwrap(),
+            u256_to_h256(10.into()).0.to_vec(),
+            // push32 255
+            hex::decode("7F").unwrap(),
+            u256_to_h256(255.into()).0.to_vec(),
+            // push32 100
+            hex::decode("7F").unwrap(),
+            u256_to_h256(100.into()).0.to_vec(),
+            // dup2
+            hex::decode("81").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
     );
+    println!("Output: {evm_output}");
+    assert_eq!(evm_output, 255.into());
 
     assert_eq!(
         test_evm_vector(
@@ -705,6 +707,9 @@ fn test_basic_dup_vectors() {
                 // 16 pushes
                 // dup16
                 hex::decode("8F").unwrap(),
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
                 // sstore
                 hex::decode("55").unwrap(),
             ]
