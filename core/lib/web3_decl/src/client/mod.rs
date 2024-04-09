@@ -74,6 +74,11 @@ pub trait L2ClientBase: SubscriptionClientT + Clone + fmt::Debug + Send + Sync +
 
 impl<T: SubscriptionClientT + Clone + fmt::Debug + Send + Sync + 'static> L2ClientBase for T {}
 
+pub trait TaggedClient {
+    /// Sets the component operating this client. This is used in logging etc.
+    fn for_component(self, component_name: &'static str) -> Self;
+}
+
 /// JSON-RPC client for the main node with built-in middleware support.
 ///
 /// The client should be used instead of `HttpClient` etc. A single instance of the client should be built
@@ -105,12 +110,6 @@ impl L2Client {
 }
 
 impl<C: L2ClientBase> L2Client<C> {
-    /// Sets the component operating this client. This is used in logging etc.
-    pub fn for_component(mut self, component_name: &'static str) -> Self {
-        self.component_name = component_name;
-        self
-    }
-
     async fn limit_rate(&self, origin: CallOrigin<'_>) -> Result<(), Error> {
         const RATE_LIMIT_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -159,6 +158,13 @@ impl<C: L2ClientBase> L2Client<C> {
             self.metrics.observe_error(self.component_name, origin, err);
         }
         call_result
+    }
+}
+
+impl<C: L2ClientBase> TaggedClient for L2Client<C> {
+    fn for_component(mut self, component_name: &'static str) -> Self {
+        self.component_name = component_name;
+        self
     }
 }
 

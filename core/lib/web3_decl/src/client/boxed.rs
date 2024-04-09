@@ -11,6 +11,8 @@ use serde::de::DeserializeOwned;
 use tokio::sync::mpsc;
 use tracing::Instrument;
 
+use super::TaggedClient;
+
 #[derive(Debug)]
 pub struct RawParams(Option<Box<JsonRawValue>>);
 
@@ -29,6 +31,11 @@ impl ToRpcParams for RawParams {
 #[async_trait]
 trait ObjectSafeClient: 'static + Send + Sync + fmt::Debug {
     fn clone_boxed(&self) -> Box<dyn ObjectSafeClient>;
+
+    fn for_component_boxed(
+        self: Box<Self>,
+        component_name: &'static str,
+    ) -> Box<dyn ObjectSafeClient>;
 
     async fn notification(&self, method: &str, params: RawParams) -> Result<(), Error>;
 
@@ -55,10 +62,17 @@ trait ObjectSafeClient: 'static + Send + Sync + fmt::Debug {
 #[async_trait]
 impl<C> ObjectSafeClient for C
 where
-    C: 'static + Send + Sync + Clone + fmt::Debug + SubscriptionClientT,
+    C: 'static + Send + Sync + Clone + fmt::Debug + SubscriptionClientT + TaggedClient,
 {
     fn clone_boxed(&self) -> Box<dyn ObjectSafeClient> {
         Box::new(self.clone())
+    }
+
+    fn for_component_boxed(
+        self: Box<Self>,
+        component_name: &'static str,
+    ) -> Box<dyn ObjectSafeClient> {
+        Box::new(self.for_component(component_name))
     }
 
     async fn notification(&self, method: &str, params: RawParams) -> Result<(), Error> {
@@ -107,9 +121,13 @@ impl Clone for BoxedL2Client {
 impl BoxedL2Client {
     pub fn new<C>(client: C) -> Self
     where
-        C: 'static + Send + Sync + Clone + fmt::Debug + SubscriptionClientT,
+        C: 'static + Send + Sync + Clone + fmt::Debug + SubscriptionClientT + TaggedClient,
     {
         Self(Box::new(client))
+    }
+
+    pub fn for_component(self, component_name: &'static str) -> Self {
+        Self(self.0.for_component_boxed(component_name))
     }
 
     fn translate_subscription<N: DeserializeOwned>(

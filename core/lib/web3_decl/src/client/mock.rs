@@ -11,15 +11,17 @@ use jsonrpsee::core::{
 };
 use serde::de::DeserializeOwned;
 
+use super::TaggedClient;
+
 type MockHandleResult<'a> =
     Pin<Box<dyn Future<Output = Result<serde_json::Value, Error>> + Send + 'a>>;
-type RequestHandler =
-    dyn for<'a> Fn(&'a str, &'a serde_json::Value) -> MockHandleResult<'a> + Send + Sync;
+type RequestHandler = dyn Fn(&str, serde_json::Value) -> MockHandleResult<'_> + Send + Sync;
 
 /// Mock L2 client implementation.
 #[derive(Clone)]
 pub struct MockL2Client {
     request_handler: Arc<RequestHandler>,
+    component_name: &'static str,
 }
 
 impl fmt::Debug for MockL2Client {
@@ -34,26 +36,32 @@ impl MockL2Client {
     /// Creates an L2 client based on the provided request handler.
     pub fn new<F>(request_handler: F) -> Self
     where
-        F: Fn(&str, &serde_json::Value) -> Result<serde_json::Value, Error> + Send + Sync + 'static,
+        F: Fn(&str, serde_json::Value) -> Result<serde_json::Value, Error> + Send + Sync + 'static,
     {
         Self {
             request_handler: Arc::new(move |method, params| {
                 Box::pin(future::ready(request_handler(method, params)))
             }),
+            component_name: "",
         }
     }
 
     /// Creates an L2 client based on the provided async request handler.
     pub fn new_async<F>(request_handler: F) -> Self
     where
-        F: for<'a> Fn(&'a str, &'a serde_json::Value) -> MockHandleResult<'a>
-            + Send
-            + Sync
-            + 'static,
+        F: Fn(&str, serde_json::Value) -> MockHandleResult<'_> + Send + Sync + 'static,
     {
         Self {
             request_handler: Arc::new(request_handler),
+            component_name: "",
         }
+    }
+}
+
+impl TaggedClient for MockL2Client {
+    fn for_component(mut self, component_name: &'static str) -> Self {
+        self.component_name = component_name;
+        self
     }
 }
 
@@ -75,9 +83,9 @@ impl ClientT for MockL2Client {
         let params: serde_json::Value = if let Some(raw_value) = params {
             serde_json::from_str(raw_value.get())?
         } else {
-            serde_json::json!(null)
+            serde_json::Value::Null
         };
-        let raw_response = (self.request_handler)(method, &params).await?;
+        let raw_response = (self.request_handler)(method, params).await?;
         Ok(serde_json::from_value(raw_response)?)
     }
 
