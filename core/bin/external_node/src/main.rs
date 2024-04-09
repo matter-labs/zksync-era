@@ -267,8 +267,6 @@ async fn run_core(
         }
     }));
 
-    let fee_address_migration_handle =
-        task::spawn(state_keeper.run_fee_address_migration(connection_pool.clone()));
     let sk_handle = task::spawn(state_keeper.run());
     let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
@@ -347,7 +345,6 @@ async fn run_core(
 
     task_handles.extend([
         sk_handle,
-        fee_address_migration_handle,
         fee_params_fetcher_handle,
         consistency_checker_handle,
         commitment_generator_handle,

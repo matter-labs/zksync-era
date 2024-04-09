@@ -849,7 +849,7 @@ async fn add_state_keeper_to_task_futures(
         db_config,
         l2chain_id,
         mempool_config,
-        state_keeper_pool.clone(),
+        state_keeper_pool,
         mempool.clone(),
         batch_fee_input_provider.clone(),
         OutputHandler::new(Box::new(persistence)),
@@ -863,9 +863,6 @@ async fn add_state_keeper_to_task_futures(
         stop_receiver_clone.changed().await?;
         result
     }));
-    task_futures.push(tokio::spawn(
-        state_keeper.run_fee_address_migration(state_keeper_pool),
-    ));
     task_futures.push(tokio::spawn(state_keeper.run()));
 
     let mempool_fetcher_pool = pool_builder
