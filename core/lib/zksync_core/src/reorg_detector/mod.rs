@@ -397,7 +397,6 @@ impl ReorgDetector {
                 Ok(()) => {}
             }
 
-            // FIXME: use this everywhere
             if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
                 .await
                 .is_ok()

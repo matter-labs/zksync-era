@@ -282,7 +282,7 @@ impl BatchStatusUpdater {
         self.health_updater.subscribe()
     }
 
-    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut storage = self.pool.connection_tagged("sync_layer").await?;
         let mut cursor = UpdaterCursor::new(&mut storage).await?;
         drop(storage);
@@ -290,12 +290,7 @@ impl BatchStatusUpdater {
         self.health_updater
             .update(Health::from(HealthStatus::Ready).with_details(cursor));
 
-        loop {
-            if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, exiting the batch status updater routine");
-                return Ok(());
-            }
-
+        while !*stop_receiver.borrow_and_update() {
             // Status changes are created externally, so that even if we will receive a network error
             // while requesting the changes, we will be able to process what we already fetched.
             let mut status_changes = StatusChanges::default();
@@ -309,7 +304,12 @@ impl BatchStatusUpdater {
             }
 
             if status_changes.is_empty() {
-                tokio::time::sleep(self.sleep_interval).await;
+                if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
+                    .await
+                    .is_ok()
+                {
+                    break;
+                }
             } else {
                 self.apply_status_changes(&mut cursor, status_changes)
                     .await?;
@@ -317,6 +317,9 @@ impl BatchStatusUpdater {
                     .update(Health::from(HealthStatus::Ready).with_details(cursor));
             }
         }
+
+        tracing::info!("Stop signal received, exiting the batch status updater routine");
+        Ok(())
     }
 
     /// Goes through the already fetched batches trying to update their statuses.

@@ -33,13 +33,8 @@ impl MainNodeFeeParamsFetcher {
         }
     }
 
-    pub async fn run(self: Arc<Self>, stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
-        loop {
-            if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, MainNodeFeeParamsFetcher is shutting down");
-                break;
-            }
-
+    pub async fn run(self: Arc<Self>, mut stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
+        while !*stop_receiver.borrow_and_update() {
             let fetch_result = self
                 .client
                 .get_fee_params()
@@ -50,14 +45,26 @@ impl MainNodeFeeParamsFetcher {
                 Err(err) => {
                     tracing::warn!("Unable to get the gas price: {}", err);
                     // A delay to avoid spamming the main node with requests.
-                    tokio::time::sleep(SLEEP_INTERVAL).await;
+                    if tokio::time::timeout(SLEEP_INTERVAL, stop_receiver.changed())
+                        .await
+                        .is_ok()
+                    {
+                        break;
+                    }
                     continue;
                 }
             };
             *self.main_node_fee_params.write().unwrap() = main_node_fee_params;
 
-            tokio::time::sleep(SLEEP_INTERVAL).await;
+            if tokio::time::timeout(SLEEP_INTERVAL, stop_receiver.changed())
+                .await
+                .is_ok()
+            {
+                break;
+            }
         }
+
+        tracing::info!("Stop signal received, MainNodeFeeParamsFetcher is shutting down");
         Ok(())
     }
 }
