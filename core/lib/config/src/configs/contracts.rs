@@ -19,6 +19,7 @@ pub struct ContractsConfig {
     pub l2_weth_bridge_addr: Option<Address>,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l1_multicall3_addr: Address,
+    pub base_token_addr: Option<Address>,
 }
 
 impl ContractsConfig {
@@ -37,6 +38,7 @@ impl ContractsConfig {
             l2_testnet_paymaster_addr: Some(Address::repeat_byte(0x11)),
             l1_multicall3_addr: Address::repeat_byte(0x12),
             governance_addr: Address::repeat_byte(0x13),
+            base_token_addr: Some(Address::repeat_byte(0x14)),
         }
     }
 }

@@ -283,7 +283,7 @@ impl<'a> Instrumented<'a, ()> {
     }
 
     /// Wraps a provided argument validation error.
-    pub fn arg_error<E>(&self, arg_name: &'static str, err: E) -> DalError
+    pub fn arg_error<E>(&self, arg_name: &str, err: E) -> DalError
     where
         E: Into<anyhow::Error>,
     {

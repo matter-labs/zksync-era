@@ -10,6 +10,7 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::i_executor::commit::kzg::pubdata_to_blob_commitments;
 use zksync_types::{
+    blob::num_blobs_required,
     commitment::{AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchCommitment},
     event::convert_vm_events_to_log_queries,
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
@@ -230,9 +231,9 @@ impl CommitmentGenerator {
                     format!("`pubdata_input` is missing for L1 batch #{l1_batch_number}")
                 })?;
 
-                pubdata_to_blob_commitments(&pubdata_input)
+                pubdata_to_blob_commitments(num_blobs_required(&protocol_version), &pubdata_input)
             } else {
-                [H256::zero(), H256::zero()]
+                vec![H256::zero(); num_blobs_required(&protocol_version)]
             };
 
             CommitmentInput::PostBoojum {

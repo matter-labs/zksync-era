@@ -48,6 +48,13 @@ pub async fn sync_versions(
     // Uses binary search.
     let mut left_bound = L1BatchNumber(0);
     let mut right_bound = local_first_v22_l1_batch;
+    let snapshot_recovery = connection
+        .snapshot_recovery_dal()
+        .get_applied_snapshot_status()
+        .await?;
+    if let Some(snapshot_recovery) = snapshot_recovery {
+        left_bound = L1BatchNumber(snapshot_recovery.l1_batch_number.0 + 1)
+    }
 
     let right_bound_remote_version =
         get_l1_batch_remote_protocol_version(&main_node_client, right_bound).await?;

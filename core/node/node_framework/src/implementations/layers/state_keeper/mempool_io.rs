@@ -3,10 +3,10 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use zksync_config::{
     configs::{
-        chain::{MempoolConfig, StateKeeperConfig},
+        chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
         wallets,
     },
-    ContractsConfig, GenesisConfig,
+    ContractsConfig,
 };
 use zksync_core::state_keeper::{
     self, MempoolFetcher, MempoolGuard, MempoolIO, OutputHandler, SequencerSealer,
@@ -27,25 +27,25 @@ use crate::{
 
 #[derive(Debug)]
 pub struct MempoolIOLayer {
+    network_config: NetworkConfig,
     contracts_config: ContractsConfig,
     state_keeper_config: StateKeeperConfig,
-    genesis_config: GenesisConfig,
     mempool_config: MempoolConfig,
     wallets: wallets::StateKeeper,
 }
 
 impl MempoolIOLayer {
     pub fn new(
+        network_config: NetworkConfig,
         contracts_config: ContractsConfig,
         state_keeper_config: StateKeeperConfig,
         mempool_config: MempoolConfig,
-        genesis_config: GenesisConfig,
         wallets: wallets::StateKeeper,
     ) -> Self {
         Self {
+            network_config,
             contracts_config,
             state_keeper_config,
-            genesis_config,
             mempool_config,
             wallets,
         }
@@ -119,7 +119,7 @@ impl WiringLayer for MempoolIOLayer {
             &self.state_keeper_config,
             self.wallets.fee_account.address(),
             self.mempool_config.delay_interval(),
-            self.genesis_config.l2_chain_id,
+            self.network_config.zksync_network_id,
         )
         .await?;
         context.insert_resource(StateKeeperIOResource(Unique::new(Box::new(io))))?;
