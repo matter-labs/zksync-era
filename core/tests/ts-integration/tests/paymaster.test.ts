@@ -49,13 +49,17 @@ describe('Paymaster tests', () => {
     test('Should deploy a paymaster', async () => {
         paymaster = await deployContract(alice, contracts.customPaymaster, []);
         // Supplying paymaster with ETH it would need to cover the fees for the user
-        await alice.transfer({ to: paymaster.address, amount: L2_DEFAULT_ETH_PER_ACCOUNT.div(4) }).then((tx) => tx.wait());
+        await alice
+            .transfer({ to: paymaster.address, amount: L2_DEFAULT_ETH_PER_ACCOUNT.div(4) })
+            .then((tx) => tx.wait());
     });
 
     test('Should pay fee with paymaster', async () => {
         paymaster = await deployContract(alice, contracts.customPaymaster, []);
         // Supplying paymaster with ETH it would need to cover the fees for the user
-        await alice.transfer({ to: paymaster.address, amount: L2_DEFAULT_ETH_PER_ACCOUNT.div(4) }).then((tx) => tx.wait());
+        await alice
+            .transfer({ to: paymaster.address, amount: L2_DEFAULT_ETH_PER_ACCOUNT.div(4) })
+            .then((tx) => tx.wait());
 
         const correctSignature = new Uint8Array(46);
 
