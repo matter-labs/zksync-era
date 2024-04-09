@@ -32,9 +32,9 @@ describe('base ERC20 contract checks', () => {
         const amount = 1; // 1 wei is enough.
         const gasPrice = (await scaledGasPrice(alice)).div(100);
 
-        const initialL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);        
+        const initialL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
         await (await alice.approveERC20(baseTokenDetails.l1Address, initialL1Balance)).wait();
-        
+
         const initialEthBalance = await alice.getBalanceL1();
         const initialL2Balance = await alice.getBalance();
 
@@ -61,7 +61,7 @@ describe('base ERC20 contract checks', () => {
 
         const finalEthBalance = await alice.getBalanceL1();
         expect(initialEthBalance).bnToBeEq(finalEthBalance.add(fee)); // Fee should be taken from the ETH balance on L1.
-        
+
         // TODO: should all the following tests use strict equality?
 
         const finalL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
