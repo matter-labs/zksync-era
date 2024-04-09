@@ -43,9 +43,11 @@ use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},
     BoundEthInterface,
 };
+use zksync_eth_watch::start_eth_watch;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
+use zksync_shared_metrics::{InitStage, APP_METRICS};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{fee_model::FeeModelConfig, L2ChainId};
 
@@ -68,7 +70,6 @@ use crate::{
         },
         Aggregator, EthTxAggregator, EthTxManager,
     },
-    eth_watch::start_eth_watch,
     genesis::GenesisParams,
     house_keeper::{
         blocks_state_reporter::L1BatchMetricsReporter,
@@ -88,7 +89,6 @@ use crate::{
         GasAdjusterSingleton, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
     },
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
-    metrics::{InitStage, APP_METRICS},
     state_keeper::{
         create_state_keeper, MempoolFetcher, MempoolGuard, OutputHandler, SequencerSealer,
         StateKeeperPersistence,
@@ -105,14 +105,12 @@ pub mod consensus;
 pub mod consistency_checker;
 pub mod dev_api_conversion_rate;
 pub mod eth_sender;
-pub mod eth_watch;
 pub mod fee_model;
 pub mod gas_tracker;
 pub mod genesis;
 pub mod house_keeper;
 pub mod l1_gas_price;
 pub mod metadata_calculator;
-mod metrics;
 pub mod proof_data_handler;
 pub mod proto;
 pub mod reorg_detector;
@@ -882,7 +880,7 @@ async fn add_state_keeper_to_task_futures(
         .context("failed to build miniblock_sealer_pool")?;
     let (persistence, miniblock_sealer) = StateKeeperPersistence::new(
         miniblock_sealer_pool,
-        contracts_config.l2_erc20_bridge_addr.unwrap(),
+        contracts_config.l2_shared_bridge_addr,
         state_keeper_config.miniblock_seal_queue_capacity,
     );
     task_futures.push(tokio::spawn(miniblock_sealer.run()));

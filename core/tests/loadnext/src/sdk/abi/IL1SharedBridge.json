@@ -11,6 +11,37 @@
         },
         {
           "indexed": true,
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "l1Token",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "BridgehubDepositBaseTokenInitiated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "chainId",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
           "internalType": "bytes32",
           "name": "txDataHash",
           "type": "bytes32"
@@ -65,7 +96,7 @@
           "type": "uint256"
         }
       ],
-      "name": "BridgehubDepositInitiatedSharedBridge",
+      "name": "BridgehubDepositInitiated",
       "type": "event"
     },
     {
@@ -139,45 +170,7 @@
           "type": "uint256"
         }
       ],
-      "name": "DepositInitiatedSharedBridge",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        }
-      ],
-      "name": "EthReceived",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "chainId",
-          "type": "uint256"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "to",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        }
-      ],
-      "name": "EthWithdrawalFinalized",
+      "name": "LegacyDepositInitiated",
       "type": "event"
     },
     {
@@ -480,11 +473,6 @@
         },
         {
           "internalType": "uint256",
-          "name": "_mintValue",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
           "name": "_amount",
           "type": "uint256"
         },
@@ -620,7 +608,7 @@
           "type": "uint256"
         }
       ],
-      "name": "isWithdrawalFinalizedShared",
+      "name": "isWithdrawalFinalized",
       "outputs": [
         {
           "internalType": "bool",
@@ -636,7 +624,7 @@
       "name": "l1WethAddress",
       "outputs": [
         {
-          "internalType": "address payable",
+          "internalType": "address",
           "name": "",
           "type": "address"
         }
@@ -674,6 +662,32 @@
         }
       ],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        }
+      ],
+      "name": "receiveEth",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_eraFirstPostUpgradeBatch",
+          "type": "uint256"
+        }
+      ],
+      "name": "setEraFirstPostUpgradeBatch",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     }
   ]

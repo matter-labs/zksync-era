@@ -110,6 +110,10 @@ async fn main() -> anyhow::Result<()> {
         .context("Invalid log format")?;
 
     let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    if let Some(log_directives) = observability_config.log_directives {
+        builder = builder.with_log_directives(log_directives);
+    }
+
     if let Some(sentry_url) = &observability_config.sentry_url {
         builder = builder
             .with_sentry_url(sentry_url)

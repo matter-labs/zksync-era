@@ -27,17 +27,19 @@ fn test_l1_tx_execution() {
     // Here instead of marking code hash via the bootloader means, we will be
     // using L1->L2 communication, the same it would likely be done during the priority mode.
 
-    // There are always at least 7 initial writes here, because we pay fees from l1:
+    // There are always at least 9 initial writes here, because we pay fees from l1:
     // - `totalSupply` of ETH token
     // - balance of the refund recipient
     // - balance of the bootloader
     // - `tx_rolling` hash
+    // - `gasPerPubdataByte`
+    // - `basePubdataSpent`
     // - rolling hash of L2->L1 logs
     // - transaction number in block counter
     // - L2->L1 log counter in `L1Messenger`
 
-    // TODO(PLA-537): right now we are using 4 slots instead of 7 due to 0 fee for transaction.
-    let basic_initial_writes = 4;
+    // TODO(PLA-537): right now we are using 5 slots instead of 9 due to 0 fee for transaction.
+    let basic_initial_writes = 5;
 
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
@@ -109,8 +111,9 @@ fn test_l1_tx_execution() {
     let res = vm.vm.execute(VmExecutionMode::OneTx);
     let storage_logs = res.logs.storage_logs;
     let res = StorageWritesDeduplicator::apply_on_empty_state(&storage_logs);
-    // We changed one slot inside contract
-    assert_eq!(res.initial_storage_writes - basic_initial_writes, 1);
+    // We changed one slot inside contract. However, the rewrite of the `basePubdataSpent` didn't happen, since it was the same
+    // as the start of the previous tx. Thus we have `+1` slot for the changed counter and `-1` slot for base pubdata spent
+    assert_eq!(res.initial_storage_writes - basic_initial_writes, 0);
 
     // No repeated writes
     let repeated_writes = res.repeated_storage_writes;
@@ -119,7 +122,8 @@ fn test_l1_tx_execution() {
     vm.vm.push_transaction(tx);
     let storage_logs = vm.vm.execute(VmExecutionMode::OneTx).logs.storage_logs;
     let res = StorageWritesDeduplicator::apply_on_empty_state(&storage_logs);
-    // We do the same storage write, it will be deduplicated, so still 4 initial write and 0 repeated
+    // We do the same storage write, it will be deduplicated, so still 4 initial write and 0 repeated.
+    // But now the base pubdata spent has changed too.
     assert_eq!(res.initial_storage_writes - basic_initial_writes, 1);
     assert_eq!(res.repeated_storage_writes, repeated_writes);
 
@@ -137,7 +141,7 @@ fn test_l1_tx_execution() {
 
     let res = StorageWritesDeduplicator::apply_on_empty_state(&result.logs.storage_logs);
     // There are only basic initial writes
-    assert_eq!(res.initial_storage_writes - basic_initial_writes, 2);
+    assert_eq!(res.initial_storage_writes - basic_initial_writes, 1);
 }
 
 #[test]

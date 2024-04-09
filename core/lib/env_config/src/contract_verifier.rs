@@ -35,7 +35,7 @@ mod tests {
             CONTRACT_VERIFIER_PROMETHEUS_PORT=3314
             CONTRACT_VERIFIER_PORT=3070
             CONTRACT_VERIFIER_URL=127.0.0.1:3070
-            CONTRACT_THREADS_PER_SERVER=128
+            CONTRACT_VERIFIER_THREADS_PER_SERVER=128
 
         "#;
         lock.set_env(config);

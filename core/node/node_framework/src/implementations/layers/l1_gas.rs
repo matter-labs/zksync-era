@@ -16,7 +16,8 @@ use zksync_types::fee_model::FeeModelConfig;
 
 use crate::{
     implementations::resources::{
-        eth_interface::EthInterfaceResource, fee_input::FeeInputResource, conversion_rate_fetcher::ConversionRateFetcherResource,
+        conversion_rate_fetcher::ConversionRateFetcherResource,
+        eth_interface::EthInterfaceResource, fee_input::FeeInputResource,
         l1_tx_params::L1TxParamsResource,
     },
     service::{ServiceContext, StopReceiver},
@@ -48,8 +49,6 @@ impl SequencerL1GasLayer {
     }
 }
 
-
-
 #[async_trait::async_trait]
 impl WiringLayer for SequencerL1GasLayer {
     fn layer_name(&self) -> &'static str {
@@ -63,11 +62,19 @@ impl WiringLayer for SequencerL1GasLayer {
                 L1BatchCommitDataGeneratorMode::Validium => Arc::new(ValidiumPubdataPricing {}),
             };
         let client = context.get_resource::<EthInterfaceResource>().await?.0;
-        let conversion_fetcher = context.get_resource::<ConversionRateFetcherResource>().await?.0;
-        let adjuster =
-            GasAdjuster::new(client, self.gas_adjuster_config, self.pubdata_sending_mode, conversion_fetcher, pubdata_pricing)
-                .await
-                .context("GasAdjuster::new()")?;
+        let conversion_fetcher = context
+            .get_resource::<ConversionRateFetcherResource>()
+            .await?
+            .0;
+        let adjuster = GasAdjuster::new(
+            client,
+            self.gas_adjuster_config,
+            self.pubdata_sending_mode,
+            conversion_fetcher,
+            pubdata_pricing,
+        )
+        .await
+        .context("GasAdjuster::new()")?;
         let gas_adjuster = Arc::new(adjuster);
 
         let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(

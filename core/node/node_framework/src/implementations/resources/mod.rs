@@ -1,5 +1,6 @@
 pub mod action_queue;
 pub mod circuit_breakers;
+pub mod conversion_rate_fetcher;
 pub mod eth_interface;
 pub mod fee_input;
 pub mod healthcheck;
@@ -11,4 +12,3 @@ pub mod pools;
 pub mod state_keeper;
 pub mod sync_state;
 pub mod web3_api;
-pub mod conversion_rate_fetcher;
