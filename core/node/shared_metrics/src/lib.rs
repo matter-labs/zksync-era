@@ -135,8 +135,6 @@ pub struct AppMetrics {
     pub block_latency: Family<BlockStage, Histogram<Duration>>,
     #[metrics(buckets = Buckets::LATENCIES)]
     pub miniblock_latency: Family<MiniblockStage, Histogram<Duration>>,
-    /// Latest virtual block number produced by the state keeper.
-    pub miniblock_virtual_block_number: Family<MiniblockStage, Gauge<u64>>,
     pub processed_txs: Family<TxStage, Counter>,
     pub processed_l1_txs: Family<TxStage, Counter>,
 
