@@ -49,9 +49,9 @@ export interface BasePromptOptions {
 let isLocalhost = false;
 
 // An init command that allows configuring and spinning up a new hyperchain network.
-async function initHyperchain(envName: string, runObservability: boolean, deploymentMode: DeploymentMode) {
+async function initHyperchain(envName: string, runObservability: boolean, validiumMode: boolean) {
     await announced('Initializing hyperchain creation', setupConfiguration(envName, runObservability));
-    await init.initHyperCmdAction({ skipSetupCompletely: false, bumpChainId: true, runObservability, deploymentMode });
+    await init.initHyperCmdAction({ skipSetupCompletely: false, bumpChainId: true, runObservability, validiumMode });
 
     // if we used matterlabs/geth network, we need custom ENV file for hyperchain compose parts
     // This breaks `zk status prover` command, but neccessary for working in isolated docker-network
@@ -769,7 +769,7 @@ async function configDemoHyperchain(cmd: Command) {
         testTokenOptions: { envFile: process.env.CHAIN_ETH_NETWORK! },
         // TODO set the proper values
         runObservability: false,
-        deploymentMode: DeploymentMode.Rollup
+        validiumMode: false
     });
 
     env.mergeInitToEnv();
@@ -822,8 +822,7 @@ initHyperchainCommand
     .description('Wizard for hyperchain creation/configuration')
     .option('--validium-mode')
     .action(async (cmd: Command) => {
-        let deploymentMode = cmd.validiumMode !== undefined ? DeploymentMode.Validium : DeploymentMode.Rollup;
-        await initHyperchain(cmd.envName, cmd.runObservability, deploymentMode);
+        await initHyperchain(cmd.envName, cmd.runObservability, cmd.validiumMode);
     });
 initHyperchainCommand
     .command('docker-setup')
