@@ -75,8 +75,8 @@ pub async fn save_proof(
 
     // We save the scheduler proofs in public bucket,
     // so that it can be verified independently while we're doing shadow proving
-    let (circuit_type, is_scheduler_proof) = match &proof {
-        FriProofWrapper::Base(base) => (base.numeric_circuit_type(), false),
+    let (circuit_type, is_scheduler_proof, is_recursive_tip_proof) = match &proof {
+        FriProofWrapper::Base(base) => (base.numeric_circuit_type(), false, false),
         FriProofWrapper::Recursive(recursive_circuit) => match recursive_circuit {
             ZkSyncRecursionLayerProof::SchedulerCircuit(_) => {
                 if shall_save_to_public_bucket {
@@ -86,9 +86,12 @@ pub async fn save_proof(
                         .await
                         .unwrap();
                 }
-                (recursive_circuit.numeric_circuit_type(), true)
+                (recursive_circuit.numeric_circuit_type(), true, false)
             }
-            _ => (recursive_circuit.numeric_circuit_type(), false),
+            ZkSyncRecursionLayerProof::RecursionTipCircuit(_) => {
+                (recursive_circuit.numeric_circuit_type(), false, true)
+            }
+            _ => (recursive_circuit.numeric_circuit_type(), false, false),
         },
         //FriProofWrapper::Eip4844(_) => (ProverServiceDataKey::eip4844().circuit_id, false),
     };
@@ -119,6 +122,12 @@ pub async fn save_proof(
                 job_metadata.block_number,
                 job_metadata.sequence_number,
             )
+            .await;
+    }
+    if is_recursive_tip_proof {
+        transaction
+            .fri_witness_generator_dal()
+            .mark_scheduler_jobs_as_queued(artifacts.block_number.0.into())
             .await;
     }
     transaction.commit().await.unwrap();

@@ -37,6 +37,8 @@ impl SchedulerCircuitQueuer {
         conn.fri_scheduler_dependency_tracker_dal()
             .mark_l1_batches_queued(l1_batch_numbers)
             .await;
+
+        // conn.
         metrics::counter!(
             "server.scheduler_fri_witness_generator.waiting_to_queued_jobs_transitions",
             len as u64

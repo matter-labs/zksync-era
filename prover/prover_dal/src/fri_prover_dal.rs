@@ -568,6 +568,30 @@ impl FriProverDal<'_, '_> {
         .map(|row| row.id as u32)
     }
 
+    pub async fn get_recursion_tip_proof_job_id(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Option<u32> {
+        sqlx::query!(
+            r#"
+            SELECT
+                id
+            FROM
+                prover_jobs_fri
+            WHERE
+                l1_batch_number = $1
+                AND status = 'successful'
+                AND aggregation_round = $2
+            "#,
+            i64::from(l1_batch_number.0),
+            AggregationRound::RecursionTip as i16,
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .ok()?
+        .map(|row| row.id as u32)
+    }
+
     pub async fn archive_old_jobs(&mut self, archiving_interval_secs: u64) -> usize {
         let archiving_interval_secs =
             pg_interval_from_duration(Duration::from_secs(archiving_interval_secs));

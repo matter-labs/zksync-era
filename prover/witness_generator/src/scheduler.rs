@@ -147,14 +147,15 @@ impl JobProcessor for SchedulerWitnessGenerator {
         else {
             return Ok(None);
         };
-        let proof_job_ids = prover_connection
-            .fri_scheduler_dependency_tracker_dal()
-            .get_final_prover_job_ids_for(l1_batch_number)
-            .await;
+        let recursion_tip_job_id = prover_connection
+            .fri_prover_jobs_dal()
+            .get_recursion_tip_proof_job_id(l1_batch_number)
+            .await
+            .unwrap();
 
         Ok(Some((
             l1_batch_number,
-            prepare_job(l1_batch_number, proof_job_ids, &*self.object_store)
+            prepare_job(l1_batch_number, recursion_tip_job_id, &*self.object_store)
                 .await
                 .context("prepare_job()")?,
         )))
@@ -257,25 +258,26 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
 pub async fn prepare_job(
     l1_batch_number: L1BatchNumber,
-    proof_job_ids: FinalProofIds,
+    recursion_tip_job_id: u32,
     object_store: &dyn ObjectStore,
 ) -> anyhow::Result<SchedulerWitnessGeneratorJob> {
     let started_at = Instant::now();
-    let proofs = load_proofs_for_job_ids(&proof_job_ids.node_proof_ids, object_store).await;
+    let recursion_tip_proof = object_store.get(recursion_tip_job_id).await.unwrap();
+    // let proofs = load_proofs_for_job_ids(&proof_job_ids.node_proof_ids, object_store).await;
     WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::Scheduler.into()]
         .observe(started_at.elapsed());
 
-    let recursive_proofs: Result<Vec<ZkSyncRecursionProof>, anyhow::Error> = proofs
-        .into_iter()
-        .map(|wrapper| match wrapper {
-            FriProofWrapper::Base(_) => Err(anyhow::anyhow!(
-                "Expected only recursive proofs for scheduler l1 batch {l1_batch_number}, got Base"
-            )),
-            FriProofWrapper::Recursive(recursive_proof) => Ok(recursive_proof.into_inner()),
-        })
-        .collect();
+    // let recursive_proofs: Result<Vec<ZkSyncRecursionProof>, anyhow::Error> = proofs
+    //     .into_iter()
+    //     .map(|wrapper| match wrapper {
+    //         FriProofWrapper::Base(_) => Err(anyhow::anyhow!(
+    //             "Expected only recursive proofs for scheduler l1 batch {l1_batch_number}, got Base"
+    //         )),
+    //         FriProofWrapper::Recursive(recursive_proof) => Ok(recursive_proof.into_inner()),
+    //     })
+    //     .collect();
     // These shoudl go into the recursion tip -- and then recursion tip proof should go to scheduler.
-    let recursive_proofs = recursive_proofs?;
+    // let recursive_proofs = recursive_proofs?;
 
     let started_at = Instant::now();
     let keystore = Keystore::default();
@@ -294,7 +296,7 @@ pub async fn prepare_job(
         )
         .context("get_recursion_tip_vk()")?;
 
-    scheduler_witness.proof_witnesses = recursive_proofs.into();
+    scheduler_witness.proof_witnesses = vec![recursion_tip_proof].into();
 
     let leaf_vk_commits = get_leaf_vk_params(&keystore).context("get_leaf_vk_params()")?;
     let leaf_layer_params = leaf_vk_commits
