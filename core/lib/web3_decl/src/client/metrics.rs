@@ -3,9 +3,12 @@
 use std::time::Duration;
 
 use jsonrpsee::{core::client, http_client::transport};
-use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics, Unit};
+use vise::{
+    Buckets, Counter, DurationAsSecs, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Info,
+    Metrics, Unit,
+};
 
-use super::{AcquireStats, CallOrigin};
+use super::{AcquireStats, CallOrigin, SharedRateLimit};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
 pub(super) struct RequestLabels {
@@ -42,9 +45,18 @@ pub(super) struct GenericErrorLabels {
     kind: CallErrorKind,
 }
 
+#[derive(Debug, EncodeLabelSet)]
+struct L2ClientConfigLabels {
+    rate_limit: usize,
+    #[metrics(unit = Unit::Seconds)]
+    rate_limit_window: DurationAsSecs,
+}
+
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "l2_client")]
 pub(super) struct L2ClientMetrics {
+    /// Client configuration.
+    info: Info<L2ClientConfigLabels>,
     /// Number of requests timed out in the rate-limiting logic.
     pub rate_limit_timeout: Family<RequestLabels, Counter>,
     /// Latency of rate-limiting logic for rate-limited requests.
@@ -59,6 +71,20 @@ pub(super) struct L2ClientMetrics {
 }
 
 impl L2ClientMetrics {
+    pub fn observe_config(&self, rate_limit: &SharedRateLimit) {
+        let config_labels = L2ClientConfigLabels {
+            rate_limit: rate_limit.rate_limit,
+            rate_limit_window: rate_limit.rate_limit_window.into(),
+        };
+        if let Err(err) = self.info.set(config_labels) {
+            tracing::warn!(
+                "Error setting configuration info {:?} for L2 client; already set to {:?}",
+                err.into_inner(),
+                self.info.get()
+            );
+        }
+    }
+
     pub fn observe_rate_limit_latency(
         &self,
         component: &'static str,
