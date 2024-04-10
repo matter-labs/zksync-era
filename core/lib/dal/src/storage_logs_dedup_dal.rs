@@ -127,7 +127,7 @@ impl StorageLogsDedupDal<'_, '_> {
     pub async fn get_protective_reads_for_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<HashSet<StorageKey>> {
+    ) -> DalResult<HashSet<StorageKey>> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -140,7 +140,9 @@ impl StorageLogsDedupDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_protective_reads_for_l1_batch")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_all(self.storage)
         .await?;
 
         Ok(rows

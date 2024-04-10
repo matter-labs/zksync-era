@@ -98,8 +98,6 @@ pub struct InternalApiConfig {
     pub req_entities_limit: usize,
     pub fee_history_limit: u64,
     pub filters_disabled: bool,
-    pub mempool_cache_update_interval: Duration,
-    pub mempool_cache_size: usize,
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
@@ -140,8 +138,6 @@ impl InternalApiConfig {
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
             filters_disabled: web3_config.filters_disabled,
-            mempool_cache_update_interval: web3_config.mempool_cache_update_interval(),
-            mempool_cache_size: web3_config.mempool_cache_size(),
             dummy_verifier: genesis_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
         }
@@ -236,7 +232,7 @@ pub(crate) struct RpcState {
     /// Number of the first locally available miniblock / L1 batch. May differ from 0 if the node state was recovered
     /// from a snapshot.
     pub(super) start_info: BlockStartInfo,
-    pub(super) mempool_cache: MempoolCache,
+    pub(super) mempool_cache: Option<MempoolCache>,
     pub(super) last_sealed_miniblock: SealedMiniblockNumber,
 }
 
@@ -286,7 +282,7 @@ impl RpcState {
             .blocks_web3_dal()
             .resolve_block_id(block)
             .await
-            .context("resolve_block_id")?
+            .map_err(DalError::generalize)?
             .ok_or(Web3Error::NoBlock)
     }
 
@@ -312,7 +308,7 @@ impl RpcState {
                 .blocks_web3_dal()
                 .resolve_block_id(block)
                 .await
-                .context("resolve_block_id")?),
+                .map_err(DalError::generalize)?),
         }
     }
 
@@ -359,15 +355,10 @@ impl RpcState {
     pub async fn resolve_filter_block_hash(&self, filter: &mut Filter) -> Result<(), Web3Error> {
         match (filter.block_hash, filter.from_block, filter.to_block) {
             (Some(block_hash), None, None) => {
+                let mut storage = self.acquire_connection().await?;
                 let block_number = self
-                    .acquire_connection()
-                    .await?
-                    .blocks_web3_dal()
-                    .resolve_block_id(api::BlockId::Hash(block_hash))
-                    .await
-                    .context("resolve_block_id")?
-                    .ok_or(Web3Error::NoBlock)?;
-
+                    .resolve_block(&mut storage, api::BlockId::Hash(block_hash))
+                    .await?;
                 filter.from_block = Some(api::BlockNumber::Number(block_number.0.into()));
                 filter.to_block = Some(api::BlockNumber::Number(block_number.0.into()));
                 Ok(())
@@ -383,13 +374,13 @@ impl RpcState {
         &self,
         filter: &Filter,
     ) -> Result<MiniblockNumber, Web3Error> {
+        let mut connection = self.acquire_connection().await?;
         let pending_block = self
-            .acquire_connection()
+            .resolve_block_unchecked(
+                &mut connection,
+                api::BlockId::Number(api::BlockNumber::Pending),
+            )
             .await?
-            .blocks_web3_dal()
-            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
-            .await
-            .context("resolve_block_id")?
             .context("Pending block number shouldn't be None")?;
         let block_number = match filter.from_block {
             Some(api::BlockNumber::Number(number)) => {

@@ -19,7 +19,7 @@ impl SyncDal<'_, '_> {
         &mut self,
         block_number: MiniblockNumber,
     ) -> DalResult<Option<SyncBlock>> {
-        let Some(mut block) = sqlx::query_as!(
+        let block = sqlx::query_as!(
             StorageSyncBlock,
             r#"
             SELECT
@@ -68,18 +68,9 @@ impl SyncDal<'_, '_> {
         .instrument("sync_dal_sync_block.block")
         .with_arg("block_number", &block_number)
         .fetch_optional(self.storage)
-        .await?
-        else {
-            return Ok(None);
-        };
+        .await?;
 
-        // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
-        #[allow(deprecated)]
-        self.storage
-            .blocks_dal()
-            .maybe_load_fee_address(&mut block.fee_account_address, block.number)
-            .await?;
-        Ok(Some(block))
+        Ok(block)
     }
 
     pub async fn sync_block(

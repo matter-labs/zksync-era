@@ -7,7 +7,7 @@ use local_ip_address::local_ip;
 use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tokio::{
-    sync::{oneshot, watch::Receiver},
+    sync::{oneshot, watch::Receiver, Notify},
     task::JoinHandle,
 };
 use zksync_config::configs::{
@@ -142,6 +142,9 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("failed to build a connection pool")?;
     let port = prover_config.witness_vector_receiver_port;
+
+    let notify = Arc::new(Notify::new());
+
     let prover_tasks = get_prover_tasks(
         prover_config,
         stop_receiver.clone(),
@@ -149,11 +152,13 @@ async fn main() -> anyhow::Result<()> {
         public_blob_store,
         pool,
         circuit_ids_for_round_to_be_proven,
+        notify,
     )
     .await
     .context("get_prover_tasks()")?;
 
     let mut tasks = vec![tokio::spawn(exporter_config.run(stop_receiver))];
+
     tasks.extend(prover_tasks);
 
     let mut tasks = ManagedTasks::new(tasks);
@@ -176,6 +181,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 #[cfg(not(feature = "gpu"))]
 async fn get_prover_tasks(
     prover_config: FriProverConfig,
@@ -184,6 +190,7 @@ async fn get_prover_tasks(
     public_blob_store: Option<Arc<dyn ObjectStore>>,
     pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
+    _init_notifier: Arc<Notify>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
@@ -210,6 +217,7 @@ async fn get_prover_tasks(
     Ok(vec![tokio::spawn(prover.run(stop_receiver, None))])
 }
 
+#[allow(clippy::too_many_arguments)]
 #[cfg(feature = "gpu")]
 async fn get_prover_tasks(
     prover_config: FriProverConfig,
@@ -218,6 +226,7 @@ async fn get_prover_tasks(
     public_blob_store: Option<Arc<dyn ObjectStore>>,
     pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
+    init_notifier: Arc<Notify>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use gpu_prover_job_processor::gpu_prover;
     use socket_listener::gpu_socket_listener;
@@ -263,17 +272,29 @@ async fn get_prover_tasks(
         prover_config.specialized_group_id,
         zone.clone(),
     );
-    let availability_checker =
-        gpu_prover_availability_checker::availability_checker::AvailabilityChecker::new(
-            address,
-            zone,
-            prover_config.availability_check_interval_in_secs,
-            pool,
-        );
 
-    Ok(vec![
-        tokio::spawn(socket_listener.listen_incoming_connections(stop_receiver.clone())),
+    let mut tasks = vec![
+        tokio::spawn(
+            socket_listener
+                .listen_incoming_connections(stop_receiver.clone(), init_notifier.clone()),
+        ),
         tokio::spawn(prover.run(stop_receiver.clone(), None)),
-        tokio::spawn(availability_checker.run(stop_receiver.clone())),
-    ])
+    ];
+
+    // TODO(PLA-874): remove the check after making the availability checker required
+    if let Some(check_interval) = prover_config.availability_check_interval_in_secs {
+        let availability_checker =
+            gpu_prover_availability_checker::availability_checker::AvailabilityChecker::new(
+                address,
+                zone,
+                check_interval,
+                pool,
+            );
+
+        tasks.push(tokio::spawn(
+            availability_checker.run(stop_receiver.clone(), init_notifier),
+        ));
+    }
+
+    Ok(tasks)
 }

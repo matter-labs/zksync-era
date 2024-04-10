@@ -422,11 +422,8 @@ impl Distribution<configs::FriProverConfig> for EncodeDist {
             prometheus_port: self.sample(rng),
             max_attempts: self.sample(rng),
             generation_timeout_in_secs: self.sample(rng),
-            base_layer_circuit_ids_to_be_verified: self.sample_collect(rng),
-            recursive_layer_circuit_ids_to_be_verified: self.sample_collect(rng),
             setup_load_mode: self.sample(rng),
             specialized_group_id: self.sample(rng),
-            witness_vector_generator_thread_count: self.sample(rng),
             queue_capacity: self.sample(rng),
             witness_vector_receiver_port: self.sample(rng),
             zone_read_url: self.sample(rng),
@@ -618,35 +615,6 @@ impl Distribution<configs::SnapshotsCreatorConfig> for EncodeDist {
             storage_logs_chunk_size: self.sample(rng),
             concurrent_queries_count: self.sample(rng),
             object_store: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::witness_generator::BasicWitnessGeneratorDataSource> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(
-        &self,
-        rng: &mut R,
-    ) -> configs::witness_generator::BasicWitnessGeneratorDataSource {
-        type T = configs::witness_generator::BasicWitnessGeneratorDataSource;
-        match rng.gen_range(0..2) {
-            0 => T::FromPostgres,
-            1 => T::FromPostgresShadowBlob,
-            _ => T::FromBlob,
-        }
-    }
-}
-
-impl Distribution<configs::WitnessGeneratorConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::WitnessGeneratorConfig {
-        configs::WitnessGeneratorConfig {
-            generation_timeout_in_secs: self.sample(rng),
-            initial_setup_key_path: self.sample(rng),
-            key_download_url: self.sample(rng),
-            max_attempts: self.sample(rng),
-            blocks_proving_percentage: self.sample(rng),
-            dump_arguments_for_blocks: self.sample_collect(rng),
-            last_l1_batch_to_process: self.sample(rng),
-            data_source: self.sample(rng),
         }
     }
 }
