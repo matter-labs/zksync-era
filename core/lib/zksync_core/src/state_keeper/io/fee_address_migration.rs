@@ -20,8 +20,7 @@ pub(crate) async fn migrate_pending_miniblocks(
     let l1_batches_have_fee_account_address = storage
         .blocks_dal()
         .check_l1_batches_have_fee_account_address()
-        .await
-        .context("failed getting metadata for l1_batches table")?;
+        .await?;
     if !l1_batches_have_fee_account_address {
         tracing::info!("`l1_batches.fee_account_address` column is removed; assuming that the migration is complete");
         return Ok(());
@@ -31,8 +30,7 @@ pub(crate) async fn migrate_pending_miniblocks(
     let rows_affected = storage
         .blocks_dal()
         .copy_fee_account_address_for_pending_miniblocks()
-        .await
-        .context("failed migrating `fee_account_address` for pending miniblocks")?;
+        .await?;
     let elapsed = started_at.elapsed();
     tracing::info!("Migrated `fee_account_address` for {rows_affected} miniblocks in {elapsed:?}");
     Ok(())
@@ -99,8 +97,7 @@ async fn migrate_miniblocks_inner(
     let l1_batches_have_fee_account_address = storage
         .blocks_dal()
         .check_l1_batches_have_fee_account_address()
-        .await
-        .context("Failed getting metadata for l1_batches table")?;
+        .await?;
     drop(storage);
     if !l1_batches_have_fee_account_address {
         tracing::info!("`l1_batches.fee_account_address` column is removed; assuming that the migration is complete");
@@ -130,8 +127,7 @@ async fn migrate_miniblocks_inner(
             let rows_affected = storage
                 .blocks_dal()
                 .copy_fee_account_address_for_miniblocks(chunk.clone())
-                .await
-                .with_context(|| format!("Failed migrating miniblocks chunk {chunk:?}"))?;
+                .await?;
             tracing::debug!("Migrated {rows_affected} miniblocks in chunk {chunk:?}");
             miniblocks_affected += rows_affected;
         }

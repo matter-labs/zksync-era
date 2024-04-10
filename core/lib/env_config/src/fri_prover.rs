@@ -28,11 +28,8 @@ mod tests {
             prometheus_port: 3315,
             max_attempts: 10,
             generation_timeout_in_secs: 300,
-            base_layer_circuit_ids_to_be_verified: vec![1, 5],
-            recursive_layer_circuit_ids_to_be_verified: vec![1, 2, 3],
             setup_load_mode: SetupLoadMode::FromDisk,
             specialized_group_id: 10,
-            witness_vector_generator_thread_count: Some(5),
             queue_capacity: 10,
             witness_vector_receiver_port: 3316,
             zone_read_url: "http://metadata.google.internal/computeMetadata/v1/instance/zone"
@@ -45,7 +42,7 @@ mod tests {
                 },
                 max_retries: 5,
             }),
-            availability_check_interval_in_secs: 1_800,
+            availability_check_interval_in_secs: Some(1_800),
         }
     }
 
@@ -57,11 +54,8 @@ mod tests {
             FRI_PROVER_PROMETHEUS_PORT="3315"
             FRI_PROVER_MAX_ATTEMPTS="10"
             FRI_PROVER_GENERATION_TIMEOUT_IN_SECS="300"
-            FRI_PROVER_BASE_LAYER_CIRCUIT_IDS_TO_BE_VERIFIED="1,5"
-            FRI_PROVER_RECURSIVE_LAYER_CIRCUIT_IDS_TO_BE_VERIFIED="1,2,3"
             FRI_PROVER_SETUP_LOAD_MODE="FromDisk"
             FRI_PROVER_SPECIALIZED_GROUP_ID="10"
-            FRI_PROVER_WITNESS_VECTOR_GENERATOR_THREAD_COUNT="5"
             FRI_PROVER_QUEUE_CAPACITY="10"
             FRI_PROVER_WITNESS_VECTOR_RECEIVER_PORT="3316"
             FRI_PROVER_ZONE_READ_URL="http://metadata.google.internal/computeMetadata/v1/instance/zone"
