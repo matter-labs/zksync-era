@@ -51,6 +51,7 @@ use zksync_node_framework::{
             StateKeeperLayer,
         },
         web3_api::{
+            caches::MempoolCacheLayer,
             server::{Web3ServerLayer, Web3ServerOptionalConfig},
             tree_api_client::TreeApiClientLayer,
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
@@ -211,6 +212,15 @@ impl MainNodeBuilder {
             postgres_storage_caches_config,
             rpc_config.vm_concurrency_limit(),
             ApiContracts::load_from_disk(), // TODO (BFT-138): Allow to dynamically reload API contracts
+        ));
+        Ok(self)
+    }
+
+    fn add_api_caches_layer(mut self) -> anyhow::Result<Self> {
+        let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
+        self.node.add_layer(MempoolCacheLayer::new(
+            rpc_config.mempool_cache_size(),
+            rpc_config.mempool_cache_update_interval(),
         ));
         Ok(self)
     }
@@ -407,6 +417,7 @@ fn main() -> anyhow::Result<()> {
         .add_healthcheck_layer()?
         .add_tx_sender_layer()?
         .add_tree_api_client_layer()?
+        .add_api_caches_layer()?
         .add_http_web3_api_layer()?
         .add_ws_web3_api_layer()?
         .add_house_keeper_layer()?

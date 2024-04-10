@@ -3,6 +3,7 @@ use std::sync::Arc;
 use zksync_core::api_server::{
     tree::TreeApiClient,
     tx_sender::{tx_sink::TxSink, TxSender},
+    web3::mempool_cache::MempoolCache,
 };
 
 use crate::resource::Resource;
@@ -31,5 +32,14 @@ pub struct TreeApiClientResource(pub Arc<dyn TreeApiClient>);
 impl Resource for TreeApiClientResource {
     fn name() -> String {
         "api/tree_api_client".into()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MempoolCacheResource(pub MempoolCache);
+
+impl Resource for MempoolCacheResource {
+    fn name() -> String {
+        "api/mempool_cache".into()
     }
 }
