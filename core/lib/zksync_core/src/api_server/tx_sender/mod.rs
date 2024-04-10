@@ -1,6 +1,6 @@
 //! Helper module to submit transactions into the zkSync Network.
 
-use std::{cmp, sync::Arc, time::Instant};
+use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use multivm::{
@@ -850,12 +850,8 @@ impl TxSender {
             .estimate_gas_binary_search_iterations
             .observe(number_of_iterations);
 
-        let tx_body_gas_limit = cmp::min(
-            MAX_L2_TX_GAS_LIMIT,
-            ((upper_bound as f64) * estimated_fee_scale_factor) as u64,
-        );
-
-        let suggested_gas_limit = tx_body_gas_limit + additional_gas_for_pubdata;
+        let suggested_gas_limit =
+            ((upper_bound + additional_gas_for_pubdata) as f64 * estimated_fee_scale_factor) as u64;
         let (result, tx_metrics) = self
             .estimate_gas_step(
                 vm_permit,
@@ -897,30 +893,29 @@ impl TxSender {
             )
         } as u64;
 
-        let full_gas_limit =
-            match tx_body_gas_limit.overflowing_add(additional_gas_for_pubdata + overhead) {
-                (value, false) => {
-                    if value > max_gas_limit {
-                        return Err(SubmitTxError::ExecutionReverted(
-                            "exceeds block gas limit".to_string(),
-                            vec![],
-                        ));
-                    }
-
-                    value
-                }
-                (_, true) => {
+        let full_gas_limit = match suggested_gas_limit.overflowing_add(overhead) {
+            (value, false) => {
+                if value > max_gas_limit {
                     return Err(SubmitTxError::ExecutionReverted(
                         "exceeds block gas limit".to_string(),
                         vec![],
                     ));
                 }
-            };
+
+                value
+            }
+            (_, true) => {
+                return Err(SubmitTxError::ExecutionReverted(
+                    "exceeds block gas limit".to_string(),
+                    vec![],
+                ));
+            }
+        };
 
         tracing::info!(
             initiator = ?tx.initiator_account(),
             nonce = %tx.nonce().unwrap_or(Nonce(0)),
-            "fee estimation: gas for pubdata: {}, tx body gas: {tx_body_gas_limit}, overhead gas: {overhead} \
+            "fee estimation: gas for pubdata: {}, suggested gas: {suggested_gas_limit}, overhead gas: {overhead} \
             (with params base_fee: {base_fee}, gas_per_pubdata_byte: {gas_per_pubdata_byte})",
             (tx_metrics.pubdata_published as u64) * gas_per_pubdata_byte,
         );
