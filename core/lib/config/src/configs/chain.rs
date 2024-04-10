@@ -149,9 +149,6 @@ pub struct StateKeeperConfig {
     pub validation_computational_gas_limit: u32,
     pub save_call_traces: bool,
 
-    pub virtual_blocks_interval: u32,
-    pub virtual_blocks_per_miniblock: u32,
-
     /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
     pub enum_index_migration_chunk_size: Option<usize>,
 
@@ -201,8 +198,6 @@ impl StateKeeperConfig {
             fee_model_version: FeeModelVersion::V2,
             validation_computational_gas_limit: 300000,
             save_call_traces: true,
-            virtual_blocks_interval: 1,
-            virtual_blocks_per_miniblock: 1,
             enum_index_migration_chunk_size: None,
             max_circuits_per_batch: 24100,
             bootloader_hash: None,
@@ -243,6 +238,11 @@ impl CircuitBreakerConfig {
 
     pub fn http_req_retry_interval(&self) -> Duration {
         Duration::from_secs(self.http_req_retry_interval_sec as u64)
+    }
+
+    pub fn replication_lag_limit(&self) -> Option<Duration> {
+        self.replication_lag_limit_sec
+            .map(|limit| Duration::from_secs(limit.into()))
     }
 }
 
