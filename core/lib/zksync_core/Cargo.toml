@@ -44,7 +44,6 @@ zksync_health_check.workspace = true
 vlog.workspace = true
 zksync_eth_watch.workspace = true
 zksync_shared_metrics.workspace = true
-zksync_block_reverter.workspace = true
 
 multivm.workspace = true
 
