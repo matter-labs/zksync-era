@@ -614,18 +614,7 @@ impl BlocksWeb3Dal<'_, '_> {
         .fetch_optional(self.storage)
         .await?;
 
-        let Some(storage_block_details) = storage_block_details else {
-            return Ok(None);
-        };
-        let mut details = api::BlockDetails::from(storage_block_details);
-
-        // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
-        #[allow(deprecated)]
-        self.storage
-            .blocks_dal()
-            .maybe_load_fee_address(&mut details.operator_address, details.number)
-            .await?;
-        Ok(Some(details))
+        Ok(storage_block_details.map(Into::into))
     }
 
     pub async fn get_l1_batch_details(
