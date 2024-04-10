@@ -7,9 +7,8 @@ use anyhow::Context as _;
 use chrono::{DateTime, Utc};
 use rand::random;
 use tokio::runtime::Handle;
-use zksync_dal::{pruning_dal::PruningInfo, Connection, ConnectionPool, Core, CoreDal, DalError};
-use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
-use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
+use zksync_dal::{pruning_dal::PruningInfo, Connection, Core, CoreDal, DalError};
+use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     api, fee_model::BatchFeeInput, AccountTreeId, Address, L1BatchNumber, L2ChainId,
     MiniblockNumber,
