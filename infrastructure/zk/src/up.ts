@@ -9,7 +9,7 @@ export function createVolumes() {
 }
 
 export async function up(runObservability: boolean, composeFile?: string) {
-    createVolumes()
+    createVolumes();
     if (composeFile) {
         await utils.spawn(`docker compose -f ${composeFile} up -d`);
     } else {
