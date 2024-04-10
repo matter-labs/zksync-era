@@ -68,22 +68,11 @@ impl RemoteENConfig {
             .get_main_contract()
             .rpc_context("get_main_contract")
             .await?;
-        let base_token_addr = match client.get_base_token_l1_address().await {
-            Err(ClientError::Call(err))
-                if [
-                    ErrorCode::MethodNotFound.code(),
-                    // This what Web3Error::NotImplemented gets
-                    // casted into in the api server.
-                    ErrorCode::InternalError.code(),
-                ]
-                .contains(&(err.code())) =>
-            {
-                // This is the fallback case for when the EN tries to interact
-                // with a node that does not implement the zks_baseTokenL1Address endpoint.
-                ETHEREUM_ADDRESS
-            }
-            response => response.context("Failed to fetch base token address")?,
-        };
+        let base_token_addr = client
+            .get_base_token_l1_address()
+            .rpc_context("Failed to fetch base token address")
+            .await?
+            .unwrap_or(ETHEREUM_ADDRESS);
         let l2_chain_id = client.chain_id().rpc_context("chain_id").await?;
         let l2_chain_id = L2ChainId::try_from(l2_chain_id.as_u64())
             .map_err(|err| anyhow::anyhow!("invalid chain ID supplied by main node: {err}"))?;

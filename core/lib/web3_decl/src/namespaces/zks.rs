@@ -46,7 +46,7 @@ pub trait ZksNamespace {
     async fn get_bridge_contracts(&self) -> RpcResult<BridgeAddresses>;
 
     #[method(name = "getBaseTokenL1Address")]
-    async fn get_base_token_l1_address(&self) -> RpcResult<Address>;
+    async fn get_base_token_l1_address(&self) -> RpcResult<Option<Address>>;
 
     #[method(name = "L1ChainId")]
     async fn l1_chain_id(&self) -> RpcResult<U64>;

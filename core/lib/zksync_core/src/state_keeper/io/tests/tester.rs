@@ -22,6 +22,7 @@ use zksync_types::{
 };
 
 use crate::{
+    base_token_fetcher::NoOpConversionRateFetcher,
     fee_model::MainNodeFeeInputProvider,
     genesis::create_genesis_l1_batch,
     l1_gas_price::{GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing},
@@ -78,6 +79,7 @@ impl Tester {
             Arc::new(eth_client),
             gas_adjuster_config,
             PubdataSendingMode::Calldata,
+            Arc::new(NoOpConversionRateFetcher),
             self.pubdata_pricing.clone(),
         )
         .await

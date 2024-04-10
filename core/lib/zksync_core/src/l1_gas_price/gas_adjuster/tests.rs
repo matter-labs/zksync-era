@@ -6,6 +6,7 @@ use zksync_eth_client::clients::MockEthereum;
 
 use super::{GasAdjuster, GasStatisticsInner, PubdataPricing};
 use crate::{
+    base_token_fetcher::NoOpConversionRateFetcher,
     l1_gas_price::{RollupPubdataPricing, ValidiumPubdataPricing},
     utils::testonly::DeploymentMode,
 };
@@ -73,6 +74,7 @@ async fn kept_updated(deployment_mode: DeploymentMode) {
             max_blob_base_fee: None,
         },
         PubdataSendingMode::Calldata,
+        Arc::new(NoOpConversionRateFetcher),
         pubdata_pricing,
     )
     .await

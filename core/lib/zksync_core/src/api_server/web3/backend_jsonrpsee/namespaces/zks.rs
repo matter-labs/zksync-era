@@ -168,7 +168,7 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn get_base_token_l1_address(&self) -> RpcResult<Address> {
+    async fn get_base_token_l1_address(&self) -> RpcResult<Option<Address>> {
         self.get_base_token_l1_address_impl()
             .map_err(|err| self.current_method().map_err(err))
     }

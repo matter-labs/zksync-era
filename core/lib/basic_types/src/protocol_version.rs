@@ -45,8 +45,8 @@ pub enum ProtocolVersionId {
     Version21,
     Version22,
     Version23,
-    Version24,
     Local,
+    Version24,
 }
 
 impl ProtocolVersionId {
