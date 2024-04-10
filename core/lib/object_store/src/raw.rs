@@ -24,6 +24,7 @@ pub enum Bucket {
     SchedulerWitnessJobsFri,
     ProofsFri,
     StorageSnapshot,
+    RecursionTipWitnessJobsFri,
 }
 
 impl Bucket {
@@ -40,6 +41,7 @@ impl Bucket {
             Self::SchedulerWitnessJobsFri => "scheduler_witness_jobs_fri",
             Self::ProofsFri => "proofs_fri",
             Self::StorageSnapshot => "storage_logs_snapshots",
+            Self::RecursionTipWitnessJobsFri => "recursion_tip_witness_jobs_fri",
         }
     }
 }

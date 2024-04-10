@@ -300,6 +300,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         closed_form_inputs_and_urls: &Vec<(u8, String, usize)>,
         scheduler_partial_input_blob_url: &str,
+        recursion_tip_witness_url: &str,
+        recursion_tip_circuits: [Option<i64>; 16],
         base_layer_to_recursive_layer_circuit_id: fn(u8) -> u8,
         protocol_version_id: ProtocolVersionId,
     ) {
@@ -378,15 +380,98 @@ impl FriWitnessGeneratorDal<'_, '_> {
             sqlx::query!(
                 r#"
                 INSERT INTO
-                    scheduler_dependency_tracker_fri (l1_batch_number, status, created_at, updated_at)
+                recursion_tip_witness_jobs_fri (
+                    l1_batch_number,
+                    recursion_tip_input_blob_url,
+                    protocol_version,
+                    status,
+                    created_at,
+                    updated_at
+                )
                 VALUES
-                    ($1, 'waiting_for_proofs', NOW(), NOW())
+                    ($1, $2, $3, 'waiting_for_proofs', NOW(), NOW())
                 ON CONFLICT (l1_batch_number) DO
                 UPDATE
                 SET
                     updated_at = NOW()
                 "#,
-                i64::from(block_number.0)
+                i64::from(block_number.0),
+                recursion_tip_witness_url,
+                protocol_version_id as i32,
+            )
+            .execute(self.storage.conn())
+            .await
+            .unwrap();
+
+            sqlx::query!(
+                r#"
+                INSERT INTO
+                    scheduler_dependency_tracker_fri (
+                        l1_batch_number,
+                        status, created_at,
+                        updated_at,
+                        circuit_1_final_prover_job_id,
+                        circuit_2_final_prover_job_id,
+                        circuit_3_final_prover_job_id,
+                        circuit_4_final_prover_job_id,
+                        circuit_5_final_prover_job_id,
+                        circuit_6_final_prover_job_id,
+                        circuit_7_final_prover_job_id,
+                        circuit_8_final_prover_job_id,
+                        circuit_9_final_prover_job_id,
+                        circuit_10_final_prover_job_id,
+                        circuit_11_final_prover_job_id,
+                        circuit_12_final_prover_job_id,
+                        circuit_13_final_prover_job_id,
+                        circuit_14_final_prover_job_id,
+                        circuit_15_final_prover_job_id,
+                        circuit_16_final_prover_job_id
+                    )
+                VALUES
+                    (
+                        $1,
+                        'waiting_for_proofs', 
+                        NOW(), 
+                        NOW(),
+                        $2,
+                        $3,
+                        $4,
+                        $5,
+                        $6,
+                        $7,
+                        $8,
+                        $9,
+                        $10,
+                        $11,
+                        $12,
+                        $13,
+                        $14,
+                        $15,
+                        $16,
+                        $17
+                    )
+                ON CONFLICT (l1_batch_number) DO
+                UPDATE
+                SET
+                    updated_at = NOW()
+                "#,
+                i64::from(block_number.0),
+                recursion_tip_circuits[0],
+                recursion_tip_circuits[1],
+                recursion_tip_circuits[2],
+                recursion_tip_circuits[3],
+                recursion_tip_circuits[4],
+                recursion_tip_circuits[5],
+                recursion_tip_circuits[6],
+                recursion_tip_circuits[7],
+                recursion_tip_circuits[8],
+                recursion_tip_circuits[9],
+                recursion_tip_circuits[10],
+                recursion_tip_circuits[11],
+                recursion_tip_circuits[12],
+                recursion_tip_circuits[13],
+                recursion_tip_circuits[14],
+                recursion_tip_circuits[15],
             )
             .execute(self.storage.conn())
             .await
@@ -923,6 +1008,24 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .collect()
     }
 
+    pub async fn mark_recursion_tip_jobs_as_queued(&mut self, l1_batch_number: i64) {
+        sqlx::query!(
+            r#"
+            UPDATE recursion_tip_witness_jobs_fri
+            SET
+                status = 'queued'
+            WHERE
+                l1_batch_number = $1
+                AND status != 'successful'
+                AND status != 'in_progress'
+            "#,
+            l1_batch_number
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
+
     pub async fn mark_scheduler_jobs_as_queued(&mut self, l1_batch_number: i64) {
         sqlx::query!(
             r#"
@@ -982,6 +1085,49 @@ impl FriWitnessGeneratorDal<'_, '_> {
             attempts: row.attempts as u64,
         })
         .collect()
+    }
+
+    pub async fn get_next_recursion_tip_witness_job(
+        &mut self,
+        protocol_versions: &[ProtocolVersionId],
+        picked_by: &str,
+    ) -> Option<L1BatchNumber> {
+        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
+        sqlx::query!(
+            r#"
+            UPDATE recursion_tip_witness_jobs_fri
+            SET
+                status = 'in_progress',
+                attempts = attempts + 1,
+                updated_at = NOW(),
+                processing_started_at = NOW(),
+                picked_by = $2
+            WHERE
+                l1_batch_number = (
+                    SELECT
+                        l1_batch_number
+                    FROM
+                        scheduler_witness_jobs_fri
+                    WHERE
+                        status = 'queued'
+                        AND protocol_version = ANY ($1)
+                    ORDER BY
+                        l1_batch_number ASC
+                    LIMIT
+                        1
+                    FOR UPDATE
+                        SKIP LOCKED
+                )
+            RETURNING
+                recursion_tip_witness_jobs_fri.*
+            "#,
+            &protocol_versions[..],
+            picked_by,
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| L1BatchNumber(row.l1_batch_number as u32))
     }
 
     pub async fn get_next_scheduler_witness_job(
@@ -1125,6 +1271,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             AggregationRound::BasicCircuits => "witness_inputs_fri",
             AggregationRound::LeafAggregation => "leaf_aggregation_witness_jobs_fri",
             AggregationRound::NodeAggregation => "node_aggregation_witness_jobs_fri",
+            AggregationRound::RecursionTip => "recursion_tip_witness_jobs_fri",
             AggregationRound::Scheduler => "scheduler_witness_jobs_fri",
         }
     }
