@@ -650,7 +650,7 @@ fn test_basic_dup_vectors() {
         .into_iter()
         .concat(),
     );
-    println!("Output: {evm_output}");
+
     assert_eq!(evm_output, 255.into());
 
     assert_eq!(
