@@ -5,7 +5,7 @@ use std::{
 
 use ethabi::{encode, Contract, Token};
 use itertools::Itertools;
-use tracing::Instrument;
+use tracing::{instrument::WithSubscriber, Instrument};
 // FIXME: 1.4.1 should not be imported from 1.5.0
 use zk_evm_1_4_1::sha2::{self};
 use zk_evm_1_5_0::zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32};
@@ -111,32 +111,15 @@ fn test_evm_vector(mut bytecode: Vec<u8>) -> U256 {
     );
 
     vm.vm.push_transaction(tx);
-    let tx_result: crate::vm_latest::VmExecutionResultAndLogs =
-        vm.vm.execute(VmExecutionMode::OneTx);
+
+    let debug_tracer = EvmDebugTracer::new();
+    let tracer_ptr = debug_tracer.into_tracer_pointer();
+    let tx_result = vm.vm.inspect(tracer_ptr.into(), VmExecutionMode::OneTx);
 
     assert!(
         !tx_result.result.is_failed(),
         "Transaction wasn't successful"
     );
-
-    for event in tx_result.logs.events {
-        let debug_topic = vec![H256::from_str(
-            "0x00debdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebde",
-        )
-        .unwrap()];
-        let debug_string_topic = vec![H256::from_str(
-            "0x00debdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdf",
-        )
-        .unwrap()];
-
-        if event.indexed_topics == debug_topic {
-            println!("PRINTED: 0x{:02x}", U256::from_big_endian(&event.value));
-        }
-
-        if event.indexed_topics == debug_string_topic {
-            println!("PRINTED: {}", String::from_utf8(event.value).unwrap());
-        }
-    }
 
     let batch_result = vm.vm.execute(VmExecutionMode::Batch);
     assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
