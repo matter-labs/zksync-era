@@ -1,4 +1,10 @@
-use std::{collections::HashSet, net::SocketAddr, num::NonZeroU32, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    net::SocketAddr,
+    num::NonZeroU32,
+    sync::Arc,
+    time::Duration,
+};
 
 use anyhow::Context as _;
 use chrono::NaiveDateTime;
@@ -15,7 +21,7 @@ use zksync_types::MiniblockNumber;
 use zksync_web3_decl::{
     jsonrpsee::{
         server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder},
-        RpcModule,
+        MethodCallback, Methods, RpcModule,
     },
     namespaces::{
         DebugNamespaceServer, EnNamespaceServer, EthNamespaceServer, EthPubSubServer,
@@ -497,6 +503,67 @@ impl ApiServer {
         })
     }
 
+    /// Overrides max response sizes for specific RPC methods by additionally wrapping their callbacks
+    /// to which the max response size is passed as a param.
+    fn override_method_response_sizes(
+        rpc: RpcModule<()>,
+        mut response_size_limits: HashMap<String, usize>,
+    ) -> anyhow::Result<Methods> {
+        let rpc = Methods::from(rpc);
+        let mut output_rpc = Methods::new();
+        for method_name in rpc.method_names() {
+            let method = rpc
+                .method(method_name)
+                .with_context(|| format!("method `{method_name}` disappeared from RPC module"))?;
+            // `remove()` is safe to use because `method_name`s are unique. We want to use it in order to check
+            // whether some unknown methods were configured.
+            let response_size_limit = response_size_limits.remove(method_name);
+
+            let method = match (method, response_size_limit) {
+                (MethodCallback::Sync(sync_method), Some(limit)) => {
+                    tracing::info!(
+                        "Overriding max response size to {limit}B for sync method `{method_name}`"
+                    );
+                    let sync_method = sync_method.clone();
+                    MethodCallback::Sync(Arc::new(move |id, params, _max_response_size| {
+                        sync_method(id, params, limit)
+                    }))
+                }
+                (MethodCallback::Async(async_method), Some(limit)) => {
+                    tracing::info!(
+                        "Overriding max response size to {limit}B for async method `{method_name}`"
+                    );
+                    let async_method = async_method.clone();
+                    MethodCallback::Async(Arc::new(
+                        move |id, params, connection_id, _max_response_size| {
+                            async_method(id, params, connection_id, limit)
+                        },
+                    ))
+                }
+                (MethodCallback::Unsubscription(unsub_method), Some(limit)) => {
+                    tracing::info!(
+                        "Overriding max response size to {limit}B for unsub method `{method_name}`"
+                    );
+                    let unsub_method = unsub_method.clone();
+                    MethodCallback::Unsubscription(Arc::new(
+                        move |id, params, connection_id, _max_response_size| {
+                            unsub_method(id, params, connection_id, limit)
+                        },
+                    ))
+                }
+                _ => method.clone(),
+            };
+            output_rpc.verify_and_insert(method_name, method)?;
+        }
+
+        if !response_size_limits.is_empty() {
+            tracing::warn!(
+                "Some methods have defined response size limits, but are not present in the RPC module: {response_size_limits:?}"
+            );
+        }
+        Ok(output_rpc)
+    }
+
     async fn run_jsonrpsee_server(
         self,
         mut stop_receiver: watch::Receiver<bool>,
@@ -558,6 +625,7 @@ impl ApiServer {
             "Built RPC module for {transport_str} server with {} methods: {registered_method_names:?}",
             registered_method_names.len()
         );
+        let rpc = Self::override_method_response_sizes(rpc, HashMap::new())?;
 
         // Setup CORS.
         let cors = is_http.then(|| {
