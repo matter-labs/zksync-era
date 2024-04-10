@@ -2,6 +2,8 @@
 
 use std::mem;
 
+use anyhow::ensure;
+
 use crate::{
     hasher::{HashTree, HasherWithStats},
     types::{
@@ -15,25 +17,30 @@ impl BlockOutputWithProofs {
     /// Verifies this output against the trusted old root hash of the tree and
     /// the applied instructions.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the proof doesn't verify.
+    /// As the errors are not actionable, a string error with the failing condition is returned.
     pub fn verify_proofs(
         &self,
         hasher: &dyn HashTree,
         old_root_hash: ValueHash,
         instructions: &[TreeInstruction],
-    ) {
-        assert_eq!(instructions.len(), self.logs.len());
+    ) -> anyhow::Result<()> {
+        ensure!(instructions.len() == self.logs.len());
 
         let mut root_hash = old_root_hash;
         for (op, &instruction) in self.logs.iter().zip(instructions) {
-            assert!(op.merkle_path.len() <= TREE_DEPTH);
+            ensure!(op.merkle_path.len() <= TREE_DEPTH);
             if matches!(instruction, TreeInstruction::Read(_)) {
-                assert_eq!(op.root_hash, root_hash);
-                assert!(op.base.is_read());
+                ensure!(
+                    op.root_hash == root_hash,
+                    "Condition failed: `op.root_hash == root_hash` ({:?} vs {:?})",
+                    op.root_hash,
+                    root_hash
+                );
+                ensure!(op.base.is_read());
             } else {
-                assert!(!op.base.is_read());
+                ensure!(!op.base.is_read());
             }
 
             let prev_entry = match op.base {
@@ -50,13 +57,24 @@ impl BlockOutputWithProofs {
             };
 
             let prev_hash = hasher.fold_merkle_path(&op.merkle_path, prev_entry);
-            assert_eq!(prev_hash, root_hash);
+            ensure!(
+                prev_hash == root_hash,
+                "Condition failed: `prev_hash == root_hash` ({:?} vs {:?})",
+                prev_hash,
+                root_hash
+            );
             if let TreeInstruction::Write(new_entry) = instruction {
                 let next_hash = hasher.fold_merkle_path(&op.merkle_path, new_entry);
-                assert_eq!(next_hash, op.root_hash);
+                ensure!(
+                    next_hash == op.root_hash,
+                    "Condition failed: `next_hash == op.root_hash` ({:?} vs {:?})",
+                    next_hash,
+                    op.root_hash
+                );
             }
             root_hash = op.root_hash;
         }
+        Ok(())
     }
 }
 
