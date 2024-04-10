@@ -2030,6 +2030,28 @@ fn test_basic_gas_vectors() {
 }
 
 #[test]
+fn test_basic_balance_vectors() {
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push20 0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7
+                hex::decode("73").unwrap(),
+                hex::decode("de03a0B5963f75f1C8485B355fF6D30f3093BDE7").unwrap(),
+                // balance
+                hex::decode("31").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    )
+}
+
+#[test]
 fn test_basic_pc_vectors() {
     assert_eq!(
         test_evm_vector(
