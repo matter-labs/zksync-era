@@ -36,7 +36,7 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
     let total_jobs = query.len();
     let successful_jobs = query
         .iter()
-        .filter(|row| row.get::<String, _>("status") == "successfull")
+        .filter(|row| row.get::<String, _>("status") == "successful")
         .count();
     let failed_jobs = query
         .iter()
