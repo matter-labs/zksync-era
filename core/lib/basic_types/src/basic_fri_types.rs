@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 const BLOB_CHUNK_SIZE: usize = 31;
 const ELEMENTS_PER_4844_BLOCK: usize = 4096;
-pub const MAX_4844_BLOBS_PER_BLOCK: usize = 2;
+pub const MAX_4844_BLOBS_PER_BLOCK: usize = 16;
 
 pub const EIP_4844_BLOB_SIZE: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
 
@@ -17,18 +17,18 @@ pub type Blob = Vec<u8>;
 
 /// Wrapper struct, containing EIP 4844 blobs and enforcing their invariants.
 /// Current invariants:
-///   - there are between [1, 2] blobs
+///   - there are between [1, 16] blobs
 ///   - all blobs are of the same size [`EIP_4844_BLOB_SIZE`]
 /// Creating a structure violating these constraints will panic.
 ///
 /// Note: blobs are padded to fit the correct size.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Eip4844Blobs {
-    blobs: Vec<Blob>,
+    blobs: [Option<Blob>; MAX_4844_BLOBS_PER_BLOCK],
 }
 
 impl Eip4844Blobs {
-    pub fn blobs(self) -> Vec<Blob> {
+    pub fn blobs(self) -> [Option<Blob>; MAX_4844_BLOBS_PER_BLOCK] {
         self.blobs
     }
 }
@@ -50,14 +50,26 @@ impl From<Vec<u8>> for Eip4844Blobs {
             chunks.len() <= MAX_4844_BLOBS_PER_BLOCK,
             "cannot create Eip4844Blobs, received too many blobs"
         );
-
-        Self { blobs: chunks }
+        let blobs = chunks
+            .iter()
+            .map(|blob| Some(blob.clone()))
+            .chain(std::iter::repeat_with(|| None))
+            .take(MAX_4844_BLOBS_PER_BLOCK)
+            .collect::<Vec<Option<Blob>>>()
+            .try_into()
+            .unwrap();
+        Self { blobs }
     }
 }
 
 impl From<Eip4844Blobs> for Vec<u8> {
     fn from(eip_4844_blobs: Eip4844Blobs) -> Self {
-        eip_4844_blobs.blobs.iter().flatten().copied().collect()
+        eip_4844_blobs
+            .blobs()
+            .into_iter()
+            .flatten()
+            .flatten()
+            .collect()
     }
 }
 

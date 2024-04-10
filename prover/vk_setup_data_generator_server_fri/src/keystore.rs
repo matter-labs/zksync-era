@@ -216,9 +216,16 @@ impl Keystore {
         if key.round == AggregationRound::NodeAggregation {
             key.circuit_id = ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8;
         }
-        Self::load_bincode_from_file(
+        println!("key = {:?}", key.clone());
+        println!(
+            "{:?}",
+            self.get_file_path(key.clone(), ProverServiceDataType::FinalizationHints)
+        );
+        let x = Self::load_bincode_from_file(
             self.get_file_path(key, ProverServiceDataType::FinalizationHints),
-        )
+        );
+        println!("succeeded");
+        x
     }
 
     ///
@@ -326,6 +333,8 @@ impl Keystore {
                     ..=ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
             )
         {
+            println!("setting VK = {:?}", circuit_type);
+            println!("");
             data_source
                 .set_recursion_layer_vk(self.load_recursive_layer_verification_key(circuit_type)?)
                 .unwrap();

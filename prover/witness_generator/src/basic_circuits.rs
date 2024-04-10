@@ -682,13 +682,6 @@ async fn generate_witness(
             pubdata_costs.expect("pubdata costs should be present"),
         );
 
-        const ARRAY_REPEAT_VALUE: std::option::Option<Vec<u8>> = None;
-
-        let mut repacked_4844_inputs = [ARRAY_REPEAT_VALUE; 16];
-
-        for (x, y) in eip_4844_blobs.blobs().iter().enumerate() {
-            repacked_4844_inputs[x] = Some(y.clone());
-        }
         let path = KZG_TRUSTED_SETUP_FILE.path().to_str().unwrap();
 
         let (scheduler_witness, block_witness) = zkevm_test_harness::external_calls::run(
@@ -706,7 +699,7 @@ async fn generate_witness(
             storage_oracle,
             &mut tree,
             path,
-            repacked_4844_inputs,
+            eip_4844_blobs.blobs(),
             |circuit| {
                 circuit_sender.blocking_send(circuit).unwrap();
             },
@@ -736,18 +729,25 @@ async fn generate_witness(
     let mut circuit_urls = vec![];
     let mut recursion_urls = vec![];
 
+    let mut mapping: HashMap<String, i32> = HashMap::new();
+
     let save_circuits = async {
         loop {
             tokio::select! {
                 Some(circuit) = circuit_receiver.recv() => {
+                    let count = mapping.entry(circuit.short_description().to_string() + " basic").or_default();
+                    *count += 1;
                     circuit_urls.push(
                         save_circuit(block_number, circuit, circuit_urls.len(), object_store).await,
                     );
                 }
-                Some((circuit_id, queue, inputs)) = queue_receiver.recv() => recursion_urls.push(
+                Some((circuit_id, queue, inputs)) = queue_receiver.recv() => {
+                    let count = mapping.entry(circuit_id.to_string() + " recursive").or_default();
+                    *count += 1;
+                    recursion_urls.push(
                     save_recursion_queue(block_number, circuit_id, queue, &inputs, object_store)
                         .await,
-                ),
+                )},
                 else => break,
             };
         }
@@ -779,6 +779,7 @@ async fn generate_witness(
 
     let (witnesses, ()) = tokio::join!(make_circuits, save_circuits);
 
+    println!("{mapping:?}");
     // let mut eip_4844_blob_urls = vec![];
     // // Note that the sequence number will be reused to determine ordering between blobs.
     // for (index, circuit) in eip_4844_circuits.into_iter().enumerate() {

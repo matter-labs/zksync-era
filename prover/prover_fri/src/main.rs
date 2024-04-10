@@ -230,9 +230,10 @@ async fn get_prover_tasks(
     let shared_witness_vector_queue = Arc::new(Mutex::new(witness_vector_queue));
     let consumer = shared_witness_vector_queue.clone();
 
-    let zone = get_zone(&prover_config.zone_read_url)
-        .await
-        .context("get_zone()")?;
+    // let zone = get_zone(&prover_config.zone_read_url)
+    //     .await
+    //     .context("get_zone()")?;
+    let zone = String::from("home");
     let local_ip = local_ip().context("Failed obtaining local IP address")?;
     let address = SocketAddress {
         host: local_ip,
@@ -274,6 +275,6 @@ async fn get_prover_tasks(
     Ok(vec![
         tokio::spawn(socket_listener.listen_incoming_connections(stop_receiver.clone())),
         tokio::spawn(prover.run(stop_receiver.clone(), None)),
-        tokio::spawn(availability_checker.run(stop_receiver.clone())),
+        // tokio::spawn(availability_checker.run(stop_receiver.clone())),
     ])
 }
