@@ -17,15 +17,12 @@ pub struct FriProverConfig {
     pub prometheus_port: u16,
     pub max_attempts: u32,
     pub generation_timeout_in_secs: u16,
-    pub base_layer_circuit_ids_to_be_verified: Vec<u8>,
-    pub recursive_layer_circuit_ids_to_be_verified: Vec<u8>,
     pub setup_load_mode: SetupLoadMode,
     pub specialized_group_id: u8,
-    pub witness_vector_generator_thread_count: Option<usize>,
     pub queue_capacity: usize,
     pub witness_vector_receiver_port: u16,
     pub zone_read_url: String,
-    pub availability_check_interval_in_secs: u32,
+    pub availability_check_interval_in_secs: Option<u32>,
 
     // whether to write to public GCS bucket for https://github.com/matter-labs/era-boojum-validator-cli
     pub shall_save_to_public_bucket: bool,

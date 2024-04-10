@@ -1,14 +1,32 @@
 version: '3.2'
 services:
+  prometheus:
+    image: prom/prometheus:v2.35.0
+    volumes:
+      - testnet-prometheus-data:/prometheus
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+  grafana:
+    image: grafana/grafana:9.3.6
+    volumes:
+      - testnet-grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    ports:
+      - "3000:3000"
+    expose:
+      - 3000
   postgres:
     image: "postgres:14"
     command: postgres -c 'max_connections=200'
     ports:
-      - 127.0.0.1:5432:5432
+      - "5432:5432"
     volumes:
-      - type: bind
-        source: volumes/testnet-external-node-postgres
-        target: /var/lib/postgresql/data
+      - testnet-postgres:/var/lib/postgresql/data
     healthcheck:
       interval: 1s
       timeout: 3s
@@ -17,17 +35,14 @@ services:
       # We bind only to localhost, so setting insecure password is acceptable here
       - POSTGRES_PASSWORD=notsecurepassword
   external-node:
-    image: "matterlabs/external-node:v22.0.1"
+    image: "matterlabs/external-node:e03e201-1712331604214-linux-amd64"
     depends_on:
       postgres:
         condition: service_healthy
+    ports:
+      - "3322:3322"
     volumes:
-      - type: bind
-        source: volumes/testnet-external-node-state-keeper
-        target: /usr/src/zksync/db/ext-node/state_keeper
-      - type: bind
-        source: volumes/testnet-external-node-merkle-tree
-        target: /usr/src/zksync/db/ext-node/lightweight
+      - testnet-rocksdb:/db
     expose:
       - 3060
       - 3061
@@ -39,6 +54,7 @@ services:
       EN_HTTP_PORT: 3060
       EN_WS_PORT: 3061
       EN_HEALTHCHECK_PORT: 3081
+      EN_PROMETHEUS_PORT: 3322
       EN_ETH_CLIENT_URL: https://ethereum-sepolia-rpc.publicnode.com
       EN_MAIN_NODE_URL: https://sepolia.era.zksync.dev
       EN_L1_CHAIN_ID: 11155111
@@ -52,3 +68,8 @@ services:
     command:
       - --enable-snapshots-recovery
 
+volumes:
+  testnet-postgres: {}
+  testnet-rocksdb: {}
+  testnet-prometheus-data: {}
+  testnet-grafana-data: {}

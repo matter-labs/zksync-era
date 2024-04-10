@@ -1406,7 +1406,7 @@ async fn circuit_breakers_for_components(
         circuit_breakers
             .insert(Box::new(ReplicationLagChecker {
                 pool,
-                replication_lag_limit_sec: circuit_breaker_config.replication_lag_limit_sec,
+                replication_lag_limit: circuit_breaker_config.replication_lag_limit(),
             }))
             .await;
     }

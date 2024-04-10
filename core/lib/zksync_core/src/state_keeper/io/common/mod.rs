@@ -89,8 +89,7 @@ pub(crate) async fn load_pending_batch(
     let pending_miniblocks = storage
         .transactions_dal()
         .get_miniblocks_to_reexecute()
-        .await
-        .context("failed loading miniblocks for re-execution")?;
+        .await?;
     let first_pending_miniblock = pending_miniblocks
         .first()
         .context("no pending miniblocks; was environment loaded for a correct L1 batch number?")?;
