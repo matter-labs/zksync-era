@@ -367,18 +367,20 @@ async fn run_api(
                     "Tree component is run locally; the specified tree API URL {url} is ignored"
                 );
             }
-
-            tree_reader
+            Some(tree_reader)
         }
-        None => {
-            let tree_api_url = &config
-                .api_component
-                .tree_api_url
-                .as_ref()
-                .context("Need to have a configured tree api url")?;
-            Arc::new(TreeApiHttpClient::new(tree_api_url))
-        }
+        None => config
+            .api_component
+            .tree_api_url
+            .as_ref()
+            .map(|url| Arc::new(TreeApiHttpClient::new(url)) as Arc<dyn TreeApiClient>),
     };
+    if tree_reader.is_none() {
+        tracing::info!(
+            "Tree reader is not set; `zks_getProof` RPC method will be unavailable. To enable, \
+             either specify `tree_api_url` for the API component, or run the tree in the same process as API"
+        );
+    }
 
     let (
         tx_sender,
@@ -473,16 +475,19 @@ async fn run_api(
     };
 
     if components.contains(&Component::HttpApi) {
-        let builder = ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
-            .http(config.required.http_port)
-            .with_filter_limit(config.optional.filters_limit)
-            .with_batch_request_size_limit(config.optional.max_batch_request_size)
-            .with_response_body_size_limit(config.optional.max_response_body_size())
-            .with_tx_sender(tx_sender.clone())
-            .with_vm_barrier(vm_barrier.clone())
-            .with_tree_api(tree_reader.clone())
-            .with_sync_state(sync_state.clone())
-            .enable_api_namespaces(config.optional.api_namespaces());
+        let mut builder =
+            ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
+                .http(config.required.http_port)
+                .with_filter_limit(config.optional.filters_limit)
+                .with_batch_request_size_limit(config.optional.max_batch_request_size)
+                .with_response_body_size_limit(config.optional.max_response_body_size())
+                .with_tx_sender(tx_sender.clone())
+                .with_vm_barrier(vm_barrier.clone())
+                .with_sync_state(sync_state.clone())
+                .enable_api_namespaces(config.optional.api_namespaces());
+        if let Some(tree_reader) = &tree_reader {
+            builder = builder.with_tree_api(tree_reader.clone());
+        }
 
         let http_server_handles = builder
             .build()
@@ -495,18 +500,21 @@ async fn run_api(
     }
 
     if components.contains(&Component::WsApi) {
-        let builder = ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
-            .ws(config.required.ws_port)
-            .with_filter_limit(config.optional.filters_limit)
-            .with_subscriptions_limit(config.optional.subscriptions_limit)
-            .with_batch_request_size_limit(config.optional.max_batch_request_size)
-            .with_response_body_size_limit(config.optional.max_response_body_size())
-            .with_polling_interval(config.optional.polling_interval())
-            .with_tx_sender(tx_sender)
-            .with_vm_barrier(vm_barrier)
-            .with_tree_api(tree_reader)
-            .with_sync_state(sync_state)
-            .enable_api_namespaces(config.optional.api_namespaces());
+        let mut builder =
+            ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
+                .ws(config.required.ws_port)
+                .with_filter_limit(config.optional.filters_limit)
+                .with_subscriptions_limit(config.optional.subscriptions_limit)
+                .with_batch_request_size_limit(config.optional.max_batch_request_size)
+                .with_response_body_size_limit(config.optional.max_response_body_size())
+                .with_polling_interval(config.optional.polling_interval())
+                .with_tx_sender(tx_sender)
+                .with_vm_barrier(vm_barrier)
+                .with_sync_state(sync_state)
+                .enable_api_namespaces(config.optional.api_namespaces());
+        if let Some(tree_reader) = tree_reader {
+            builder = builder.with_tree_api(tree_reader);
+        }
 
         let ws_server_handles = builder
             .build()
@@ -833,13 +841,15 @@ async fn main() -> anyhow::Result<()> {
     .await
 }
 
+/// Environment for the node encapsulating its interactions. Used in EN tests to mock signal sending etc.
 trait NodeEnvironment {
+    /// Sets the SIGINT handler, returning a future that will resolve when a signal is sent.
     fn setup_sigint_handler(&mut self) -> oneshot::Receiver<()>;
 
+    /// Sets the application health of the node.
     fn set_app_health(&mut self, health: Arc<AppHealthCheck>);
 }
 
-// Default implementation.
 impl NodeEnvironment for () {
     fn setup_sigint_handler(&mut self) -> oneshot::Receiver<()> {
         setup_sigint_handler()
