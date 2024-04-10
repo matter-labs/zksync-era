@@ -1,6 +1,7 @@
-use std::{net::SocketAddr, num::NonZeroU32, time::Duration};
+use std::{collections::HashMap, fmt, net::SocketAddr, num::NonZeroU32, time::Duration};
 
-use serde::Deserialize;
+use anyhow::Context as _;
+use serde::{de, Deserialize, Deserializer};
 use zksync_basic_types::{Address, H256};
 
 pub use crate::configs::PrometheusConfig;
@@ -16,6 +17,81 @@ pub struct ApiConfig {
     pub healthcheck: HealthCheckConfig,
     /// Configuration options for Merkle tree API.
     pub merkle_tree: MerkleTreeApiConfig,
+}
+
+/// Response size limits for specific RPC methods.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct MaxResponseSizeOverrides(HashMap<String, usize>);
+
+impl<S: Into<String>, const N: usize> From<[(S, usize); N]> for MaxResponseSizeOverrides {
+    fn from(tuples: [(S, usize); N]) -> Self {
+        Self(HashMap::from(
+            tuples.map(|(method_name, size)| (method_name.into(), size)),
+        ))
+    }
+}
+
+impl MaxResponseSizeOverrides {
+    fn parse_overrides_mb(s: &str) -> anyhow::Result<Self> {
+        let mut overrides = HashMap::new();
+        for part in s.split(',') {
+            let (method_name, size_mb) = part
+                .split_once('=')
+                .with_context(|| format!("Part `{part}` doesn't have form <method_name>=<size>"))?;
+            let method_name = method_name.trim();
+            let size_mb: usize = size_mb
+                .parse()
+                .with_context(|| format!("`{size_mb}` is not a valid size"))?;
+            let size = if size_mb == 0 {
+                usize::MAX
+            } else {
+                size_mb * super::BYTES_IN_MEGABYTE
+            };
+            if let Some(prev_size) = overrides.insert(method_name.to_owned(), size) {
+                anyhow::bail!(
+                    "Size override for `{method_name}` is redefined from {prev_size}B to {size}B"
+                );
+            }
+        }
+        Ok(Self(overrides))
+    }
+
+    /// Gets the override in bytes for the specified method, or `None` if it's not set.
+    pub fn get(&self, method_name: &str) -> Option<usize> {
+        self.0.get(method_name).copied()
+    }
+}
+
+impl<'de> Deserialize<'de> for MaxResponseSizeOverrides {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct ParseVisitor;
+
+        impl<'v> de::Visitor<'v> for ParseVisitor {
+            type Value = MaxResponseSizeOverrides;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("comma-separated list of <method_name>=<size> tuples, such as: eth_call=2,zks_getProof=0")
+            }
+
+            fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
+                MaxResponseSizeOverrides::parse_overrides_mb(value).map_err(E::custom)
+            }
+        }
+
+        deserializer.deserialize_str(ParseVisitor)
+    }
+}
+
+/// Response size limits for JSON-RPC servers.
+#[derive(Debug)]
+pub struct MaxResponseSize {
+    /// Global limit applied to all RPC methods. Measured in bytes.
+    pub global: usize,
+    /// Limits applied to specific methods. Limits are measured in bytes; method names are full (e.g., `eth_call`).
+    pub overrides: MaxResponseSizeOverrides,
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -89,6 +165,9 @@ pub struct Web3JsonRpcConfig {
     pub max_batch_request_size: Option<usize>,
     /// Maximum response body size in MiBs. Default is 10 MiB.
     pub max_response_body_size_mb: Option<usize>,
+    /// Method-specific overrides in MiBs for the maximum response body size.
+    #[serde(default)]
+    pub max_response_body_size_overrides_mb: MaxResponseSizeOverrides,
     /// Maximum number of requests per minute for the WebSocket server.
     /// The value is per active connection.
     /// Note: For HTTP, rate limiting is expected to be configured on the infra level.
@@ -137,6 +216,7 @@ impl Web3JsonRpcConfig {
             fee_history_limit: Default::default(),
             max_batch_request_size: Default::default(),
             max_response_body_size_mb: Default::default(),
+            max_response_body_size_overrides_mb: Default::default(),
             websocket_requests_per_minute_limit: Default::default(),
             mempool_cache_update_interval: Default::default(),
             mempool_cache_size: Default::default(),
@@ -208,8 +288,12 @@ impl Web3JsonRpcConfig {
         self.max_batch_request_size.unwrap_or(500)
     }
 
-    pub fn max_response_body_size(&self) -> usize {
-        self.max_response_body_size_mb.unwrap_or(10) * super::BYTES_IN_MEGABYTE
+    pub fn max_response_body_size(&self) -> MaxResponseSize {
+        let global = self.max_response_body_size_mb.unwrap_or(10) * super::BYTES_IN_MEGABYTE;
+        MaxResponseSize {
+            global,
+            overrides: self.max_response_body_size_overrides_mb.clone(),
+        }
     }
 
     pub fn websocket_requests_per_minute_limit(&self) -> NonZeroU32 {

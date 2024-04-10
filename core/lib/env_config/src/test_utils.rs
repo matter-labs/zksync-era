@@ -60,16 +60,11 @@ impl EnvMutexGuard<'_> {
                 continue;
             }
 
-            let elements: Vec<_> = line.split('=').collect();
-            assert_eq!(
-                elements.len(),
-                2,
-                "Incorrect line for setting environment variable: {}",
-                line
-            );
-
-            let variable_name: &OsStr = elements[0].as_ref();
-            let variable_value: &OsStr = elements[1].trim_matches('"').as_ref();
+            let (variable_name, variable_value) = line.split_once('=').unwrap_or_else(|| {
+                panic!("Incorrect line for setting environment variable: {}", line);
+            });
+            let variable_name: &OsStr = variable_name.as_ref();
+            let variable_value: &OsStr = variable_value.trim_matches('"').as_ref();
 
             if !self.redefined_vars.contains_key(variable_name) {
                 let prev_value = env::var_os(variable_name);

@@ -48,6 +48,8 @@ impl FromEnv for MerkleTreeApiConfig {
 mod tests {
     use std::num::NonZeroU32;
 
+    use zksync_config::configs::api::MaxResponseSizeOverrides;
+
     use super::*;
     use crate::test_utils::{addr, hash, EnvMutex};
 
@@ -84,6 +86,11 @@ mod tests {
                 fee_history_limit: Some(100),
                 max_batch_request_size: Some(200),
                 max_response_body_size_mb: Some(10),
+                max_response_body_size_overrides_mb: MaxResponseSizeOverrides::from([
+                    ("eth_call", 1 << 20),
+                    ("eth_getTransactionReceipt", 100 << 20),
+                    ("zks_getProof", usize::MAX),
+                ]),
                 websocket_requests_per_minute_limit: Some(NonZeroU32::new(10).unwrap()),
                 tree_api_url: None,
                 mempool_cache_update_interval: Some(50),
@@ -141,6 +148,7 @@ mod tests {
             API_CONTRACT_VERIFICATION_PORT="3070"
             API_CONTRACT_VERIFICATION_URL="http://127.0.0.1:3070"
             API_WEB3_JSON_RPC_MAX_RESPONSE_BODY_SIZE_MB=10
+            API_WEB3_JSON_RPC_MAX_RESPONSE_BODY_SIZE_OVERRIDES_MB="eth_call=1, eth_getTransactionReceipt=100, zks_getProof=0"
             API_PROMETHEUS_LISTENER_PORT="3312"
             API_PROMETHEUS_PUSHGATEWAY_URL="http://127.0.0.1:9091"
             API_PROMETHEUS_PUSH_INTERVAL_MS=100

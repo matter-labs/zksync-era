@@ -4,7 +4,7 @@ use zksync_basic_types::{
 };
 use zksync_consensus_utils::EncodeDist;
 
-use crate::configs::{self, eth_sender::PubdataSendingMode};
+use crate::configs::{self, api::MaxResponseSizeOverrides, eth_sender::PubdataSendingMode};
 
 trait Sample {
     fn sample(rng: &mut (impl Rng + ?Sized)) -> Self;
@@ -75,6 +75,10 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             fee_history_limit: self.sample(rng),
             max_batch_request_size: self.sample(rng),
             max_response_body_size_mb: self.sample(rng),
+            max_response_body_size_overrides_mb: MaxResponseSizeOverrides::from([
+                ("eth_call", self.sample(rng)),
+                ("zks_getProof", self.sample(rng)),
+            ]),
             websocket_requests_per_minute_limit: self.sample(rng),
             tree_api_url: self.sample(rng),
             mempool_cache_update_interval: self.sample(rng),

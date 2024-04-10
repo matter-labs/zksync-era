@@ -112,6 +112,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .map(|x| x.try_into())
                 .transpose()
                 .context("max_response_body_size_mb")?,
+            max_response_body_size_overrides_mb: Default::default(), // FIXME
             websocket_requests_per_minute_limit: self
                 .websocket_requests_per_minute_limit
                 .map(|x| x.try_into())
