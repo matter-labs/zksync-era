@@ -7,7 +7,13 @@
   "packages": {
       "core": {
         "release-type": "simple",
-        "component": "core"
+        "component": "core",
+        "extra-files": [
+          {
+            "type": "generic",
+            "path": "bin/external_node/Cargo.toml"
+          }
+        ]
       },
       "prover": {
         "release-type": "simple",

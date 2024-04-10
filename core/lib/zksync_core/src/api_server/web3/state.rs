@@ -98,8 +98,6 @@ pub struct InternalApiConfig {
     pub req_entities_limit: usize,
     pub fee_history_limit: u64,
     pub filters_disabled: bool,
-    pub mempool_cache_update_interval: Duration,
-    pub mempool_cache_size: usize,
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
@@ -140,8 +138,6 @@ impl InternalApiConfig {
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
             filters_disabled: web3_config.filters_disabled,
-            mempool_cache_update_interval: web3_config.mempool_cache_update_interval(),
-            mempool_cache_size: web3_config.mempool_cache_size(),
             dummy_verifier: genesis_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
         }
@@ -236,7 +232,7 @@ pub(crate) struct RpcState {
     /// Number of the first locally available miniblock / L1 batch. May differ from 0 if the node state was recovered
     /// from a snapshot.
     pub(super) start_info: BlockStartInfo,
-    pub(super) mempool_cache: MempoolCache,
+    pub(super) mempool_cache: Option<MempoolCache>,
     pub(super) last_sealed_miniblock: SealedMiniblockNumber,
 }
 
