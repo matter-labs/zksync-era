@@ -679,7 +679,7 @@ dependencies = [
 [[package]]
 name = "boojum"
 version = "0.2.0"
-source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#30300f043c9afaeeb35d0f7bd3cc0acaf69ccde4"
+source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#19988079852ea22576da6b09e39365e6cdc1368f"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -1520,7 +1520,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#30300f043c9afaeeb35d0f7bd3cc0acaf69ccde4"
+source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#19988079852ea22576da6b09e39365e6cdc1368f"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.69",
@@ -7946,7 +7946,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#b2d0db2f08de3037aebcaa8b394981e57158bdbe"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#4b6222b280426f3d8e792752081ce2a48db26a8a"
 dependencies = [
  "arrayvec 0.7.4",
  "boojum",
