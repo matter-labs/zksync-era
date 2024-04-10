@@ -53,9 +53,6 @@ const initSetup = async ({
     if (!skipSubmodulesCheckout) {
         await announced('Checkout submodules', submoduleUpdate());
     }
-    if (validiumMode) {
-        await announced('Checkout era-contracts for Validium mode', validiumSubmoduleCheckout());
-    }
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
         await announced('Checking environment', checkEnv());
@@ -147,10 +144,6 @@ const lightweightInitCmdAction = async (): Promise<void> => {
     await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster: true }));
     await announced('Initializing governance', contract.initializeGovernance());
 };
-
-export async function validiumSubmoduleCheckout() {
-    await utils.exec(`cd contracts && git checkout origin/feat-validium-1-5-0-integration`);
-}
 
 type InitSharedBridgeCmdActionOptions = InitSetupOptions;
 const initSharedBridgeCmdAction = async (options: InitSharedBridgeCmdActionOptions): Promise<void> => {
