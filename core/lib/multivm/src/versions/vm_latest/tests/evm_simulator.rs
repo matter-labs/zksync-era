@@ -2029,6 +2029,46 @@ fn test_basic_gas_vectors() {
     );
 }
 
+#[test]
+fn test_basic_pc_vectors() {
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 0xFF
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // pc
+                hex::decode("58").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        2.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push3 0xFFEEDD
+                hex::decode("62").unwrap(),
+                hex::decode("FFEEDD").unwrap(),
+                // pc
+                hex::decode("58").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        4.into()
+    );
+}
+
 fn assert_deployed_hash<H: HistoryMode>(
     tester: &mut VmTester<H>,
     address: Address,
