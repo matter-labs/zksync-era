@@ -16,5 +16,3 @@ l1_batch_commit_data_generator_mode="Validium"
 [eth_sender.gas_adjuster]
 max_blob_base_fee=0
 
-[_metadata]
-base=['dev.toml']
