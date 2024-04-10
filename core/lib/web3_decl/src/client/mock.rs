@@ -17,7 +17,8 @@ type MockHandleResult<'a> =
     Pin<Box<dyn Future<Output = Result<serde_json::Value, Error>> + Send + 'a>>;
 type RequestHandler = dyn Fn(&str, serde_json::Value) -> MockHandleResult<'_> + Send + Sync;
 
-/// Mock L2 client implementation.
+/// Mock L2 client implementation. For now, it only mocks requests and batch requests; all other
+/// interactions with the client will panic.
 #[derive(Clone)]
 pub struct MockL2Client {
     request_handler: Arc<RequestHandler>,
@@ -71,7 +72,7 @@ impl ClientT for MockL2Client {
     where
         Params: ToRpcParams + Send,
     {
-        unreachable!("never called")
+        unimplemented!("never used in the codebase")
     }
 
     async fn request<R, Params>(&self, method: &str, params: Params) -> Result<R, Error>
@@ -136,7 +137,7 @@ impl SubscriptionClientT for MockL2Client {
         Params: ToRpcParams + Send,
         Notif: DeserializeOwned,
     {
-        unreachable!("never called")
+        unimplemented!("never used in the codebase")
     }
 
     async fn subscribe_to_method<'a, Notif>(
@@ -146,6 +147,6 @@ impl SubscriptionClientT for MockL2Client {
     where
         Notif: DeserializeOwned,
     {
-        unreachable!("never called")
+        unimplemented!("never used in the codebase")
     }
 }

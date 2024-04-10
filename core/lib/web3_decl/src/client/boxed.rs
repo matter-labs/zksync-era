@@ -2,19 +2,17 @@ use std::fmt;
 
 use async_trait::async_trait;
 use jsonrpsee::core::{
-    client::{BatchResponse, ClientT, Error, Subscription, SubscriptionClientT},
+    client::{BatchResponse, ClientT, Error},
     params::BatchRequestBuilder,
     traits::ToRpcParams,
     JsonRawValue,
 };
 use serde::de::DeserializeOwned;
-use tokio::sync::mpsc;
-use tracing::Instrument;
 
 use super::TaggedClient;
 
 #[derive(Debug)]
-pub struct RawParams(Option<Box<JsonRawValue>>);
+struct RawParams(Option<Box<JsonRawValue>>);
 
 impl RawParams {
     fn new(params: impl ToRpcParams) -> Result<Self, serde_json::Error> {
@@ -28,6 +26,10 @@ impl ToRpcParams for RawParams {
     }
 }
 
+/// Object-safe version of [`ClientT`] + [`Clone`] + [`TaggedClient`].
+///
+/// The implementation is fairly straightforward: [`RawParams`] is used as a catch-all params type,
+/// and `serde_json::Value` is used as a catch-all response type.
 #[async_trait]
 trait ObjectSafeClient: 'static + Send + Sync + fmt::Debug {
     fn clone_boxed(&self) -> Box<dyn ObjectSafeClient>;
@@ -45,24 +47,12 @@ trait ObjectSafeClient: 'static + Send + Sync + fmt::Debug {
         &self,
         batch: BatchRequestBuilder<'a>,
     ) -> Result<BatchResponse<'a, serde_json::Value>, Error>;
-
-    async fn subscribe<'a>(
-        &self,
-        subscribe_method: &'a str,
-        params: RawParams,
-        unsubscribe_method: &'a str,
-    ) -> Result<Subscription<serde_json::Value>, Error>;
-
-    async fn subscribe_to_method<'a>(
-        &self,
-        method: &'a str,
-    ) -> Result<Subscription<serde_json::Value>, Error>;
 }
 
 #[async_trait]
 impl<C> ObjectSafeClient for C
 where
-    C: 'static + Send + Sync + Clone + fmt::Debug + SubscriptionClientT + TaggedClient,
+    C: 'static + Send + Sync + Clone + fmt::Debug + ClientT + TaggedClient,
 {
     fn clone_boxed(&self) -> Box<dyn ObjectSafeClient> {
         Box::new(self.clone())
@@ -89,26 +79,14 @@ where
     ) -> Result<BatchResponse<'a, serde_json::Value>, Error> {
         <C as ClientT>::batch_request(self, batch).await
     }
-
-    async fn subscribe<'a>(
-        &self,
-        subscribe_method: &'a str,
-        params: RawParams,
-        unsubscribe_method: &'a str,
-    ) -> Result<Subscription<serde_json::Value>, Error> {
-        <C as SubscriptionClientT>::subscribe(self, subscribe_method, params, unsubscribe_method)
-            .await
-    }
-
-    async fn subscribe_to_method<'a>(
-        &self,
-        method: &'a str,
-    ) -> Result<Subscription<serde_json::Value>, Error> {
-        <C as SubscriptionClientT>::subscribe_to_method(self, method).await
-    }
 }
 
-/// Boxed version of L2 client.
+/// Boxed version of an L2 client.
+///
+/// For now, it has two implementations:
+///
+/// - [`L2Client`](super::L2Client) is the main implementation based on HTTP JSON-RPC
+/// - [`MockL2Client`](super::MockL2Client) is a mock implementation.
 #[derive(Debug)]
 pub struct BoxedL2Client(Box<dyn ObjectSafeClient>);
 
@@ -119,55 +97,17 @@ impl Clone for BoxedL2Client {
 }
 
 impl BoxedL2Client {
+    /// Boxes the provided client.
     pub fn new<C>(client: C) -> Self
     where
-        C: 'static + Send + Sync + Clone + fmt::Debug + SubscriptionClientT + TaggedClient,
+        C: 'static + Send + Sync + Clone + fmt::Debug + ClientT + TaggedClient,
     {
         Self(Box::new(client))
     }
 
+    /// Tags this client with a component label, which will be shown in logs etc.
     pub fn for_component(self, component_name: &'static str) -> Self {
         Self(self.0.for_component_boxed(component_name))
-    }
-
-    fn translate_subscription<N: DeserializeOwned>(
-        mut raw: Subscription<serde_json::Value>,
-    ) -> Subscription<N> {
-        let kind = raw.kind().clone();
-        let (command_sender, mut command_receiver) = mpsc::channel(1);
-        let (notif_sender, notif_receiver) = mpsc::channel(1);
-        let translation_task = async move {
-            loop {
-                tokio::select! {
-                    Some(notif_result) = raw.next() => {
-                        match notif_result {
-                            Ok(json) => {
-                                if notif_sender.send(json).await.is_err() {
-                                    tracing::info!("Failed sending notification; exiting");
-                                    break;
-                                }
-                            },
-                            Err(err) => {
-                                tracing::warn!("Deserializing `serde_json::Value` failed: {err}");
-                                break;
-                            }
-                        }
-                    }
-                    Some(command) = command_receiver.recv() => {
-                        tracing::debug!(?command, "Received unsubscribe command; exiting");
-                        raw.unsubscribe().await.ok();
-                        break;
-                    }
-                    else => {
-                        // if either the command sender or the upstream notification is dropped, stop the loop immediately
-                        tracing::debug!("Command sender or upstream notification are dropped; exiting");
-                        break;
-                    }
-                }
-            }
-        };
-        tokio::spawn(translation_task.instrument(tracing::info_span!("translation_task", ?kind)));
-        Subscription::new(command_sender, notif_receiver, kind)
     }
 }
 
@@ -227,38 +167,20 @@ impl ClientT for BoxedL2Client {
     }
 }
 
-#[async_trait]
-impl SubscriptionClientT for BoxedL2Client {
-    async fn subscribe<'a, Notif, Params>(
-        &self,
-        subscribe_method: &'a str,
-        params: Params,
-        unsubscribe_method: &'a str,
-    ) -> Result<Subscription<Notif>, Error>
-    where
-        Params: ToRpcParams + Send,
-        Notif: DeserializeOwned,
-    {
-        let raw_subscription = self
-            .0
-            .as_ref()
-            .subscribe(
-                subscribe_method,
-                RawParams::new(params)?,
-                unsubscribe_method,
-            )
-            .await?;
-        Ok(Self::translate_subscription(raw_subscription))
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{client::MockL2Client, namespaces::EthNamespaceClient};
 
-    async fn subscribe_to_method<'a, Notif>(
-        &self,
-        method: &'a str,
-    ) -> Result<Subscription<Notif>, Error>
-    where
-        Notif: DeserializeOwned,
-    {
-        let raw_subscription = self.0.as_ref().subscribe_to_method(method).await?;
-        Ok(Self::translate_subscription(raw_subscription))
+    #[tokio::test]
+    async fn boxing_mock_client() {
+        let client = MockL2Client::new(|method, params| {
+            assert_eq!(method, "eth_blockNumber");
+            assert_eq!(params, serde_json::Value::Null);
+            Ok(serde_json::json!("0x42"))
+        });
+        let client = BoxedL2Client::new(client);
+        let block_number = client.get_block_number().await.unwrap();
+        assert_eq!(block_number, 0x42.into());
     }
 }

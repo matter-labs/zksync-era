@@ -1,4 +1,15 @@
-//! L2 HTTP client.
+//! L2 JSON-RPC clients, currently used for interaction between external nodes (from the client side)
+//! and the main node (from the server side).
+//!
+//! # Overview
+//!
+//! - [`L2Client`] is the main client implementation. It's parameterized by the transport (e.g., HTTP or WS),
+//!   with HTTP being the default option.
+//! - [`MockL2Client`] is a mock client useful for testing. Bear in mind that because of the client being generic,
+//!   mock tooling is fairly low-level. Prefer defining a domain-specific wrapper trait for the client functionality and mock it
+//!   where it's possible.
+//! - [`BoxedL2Client`] is a generic client (essentially, a wrapper around a trait object). Use it for dependency injection
+//!   instead of `L2Client`. Both `L2Client` and `MockL2Client` are convertible to `BoxedL2Client`.
 
 use std::{
     collections::HashSet,
