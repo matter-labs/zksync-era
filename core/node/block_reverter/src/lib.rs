@@ -3,7 +3,6 @@ use std::{path::Path, time::Duration};
 use bitflags::bitflags;
 use serde::Serialize;
 use tokio::time::sleep;
-
 use zksync_config::{ContractsConfig, ETHConfig};
 use zksync_contracts::zksync_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
