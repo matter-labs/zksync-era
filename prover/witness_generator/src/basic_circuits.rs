@@ -80,7 +80,6 @@ use crate::{
 
 pub struct BasicCircuitArtifacts {
     circuit_urls: Vec<(u8, String)>,
-    eip_4844_circuit_urls: Vec<(usize, String)>,
     queue_urls: Vec<(u8, String, usize)>,
     scheduler_witness: SchedulerCircuitInstanceWitness<
         GoldilocksField,
@@ -99,7 +98,6 @@ pub struct BasicCircuitArtifacts {
 #[derive(Debug)]
 struct BlobUrls {
     circuit_ids_and_urls: Vec<(u8, String)>,
-    eip_4844_circuit_urls: Vec<(usize, String)>,
     closed_form_inputs_and_urls: Vec<(u8, String, usize)>,
     scheduler_witness_url: String,
     recursion_tip_witness_url: String,
@@ -320,7 +318,6 @@ impl JobProcessor for BasicWitnessGenerator {
                     job_id,
                     BlobUrls {
                         circuit_ids_and_urls: artifacts.circuit_urls,
-                        eip_4844_circuit_urls: artifacts.eip_4844_circuit_urls,
                         closed_form_inputs_and_urls: artifacts.queue_urls,
                         scheduler_witness_url,
                         recursion_tip_witness_url,
@@ -391,7 +388,6 @@ async fn process_basic_circuits_job(
 
     BasicCircuitArtifacts {
         circuit_urls,
-        eip_4844_circuit_urls,
         queue_urls,
         scheduler_witness,
         aux_output_witness,
@@ -598,7 +594,6 @@ async fn generate_witness(
     eip_4844_blobs: Eip4844Blobs,
 ) -> (
     Vec<(u8, String)>,
-    Vec<(usize, String)>,
     Vec<(u8, String, usize)>,
     SchedulerCircuitInstanceWitness<
         GoldilocksField,
@@ -885,8 +880,6 @@ async fn generate_witness(
 
     (
         circuit_urls,
-        // eip_4844_blob_urls,
-        vec![],
         recursion_urls,
         scheduler_witness,
         block_aux_witness,

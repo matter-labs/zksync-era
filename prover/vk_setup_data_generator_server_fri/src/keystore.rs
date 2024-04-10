@@ -326,8 +326,12 @@ impl Keystore {
                 .unwrap();
         }
 
-        for circuit_type in ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8
-            ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForEIP4844Repack as u8
+        for circuit_type in (ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8
+            ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForEIP4844Repack as u8)
+            .chain(
+                ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8
+                    ..=ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
+            )
         {
             println!("setting VK = {:?}", circuit_type);
             println!("");

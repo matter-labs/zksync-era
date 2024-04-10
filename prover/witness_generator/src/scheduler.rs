@@ -10,6 +10,9 @@ use circuit_definitions::{
     // eip4844_proof_config,
 };
 use prover_dal::{Prover, ProverDal};
+use zkevm_test_harness::zkevm_circuits::recursion::{
+    leaf_layer::input::RecursionLeafParametersWitness, NUM_BASE_LAYER_CIRCUITS,
+};
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -44,7 +47,7 @@ use crate::{
 };
 
 pub struct SchedulerArtifacts {
-    // pub scheduler_circuit: ZkSyncRecursiveLayerCircuit,
+    pub scheduler_circuit: ZkSyncRecursiveLayerCircuit,
 }
 
 #[derive(Clone)]
@@ -56,7 +59,9 @@ pub struct SchedulerWitnessGeneratorJob {
         GoldilocksExt2,
     >,
     node_vk: ZkSyncRecursionLayerVerificationKey,
-    // eip_4844_vk: EIP4844VerificationKey,
+    recursion_tip_vk: ZkSyncRecursionLayerVerificationKey,
+    leaf_layer_parameters:
+        [RecursionLeafParametersWitness<GoldilocksField>; NUM_BASE_LAYER_CIRCUITS],
 }
 
 #[derive(Debug)]
@@ -91,24 +96,24 @@ impl SchedulerWitnessGenerator {
             AggregationRound::Scheduler,
             job.block_number.0
         );
-        // let config = SchedulerConfig {
-        //     proof_config: recursion_layer_proof_config(),
-        //     vk_fixed_parameters: job.node_vk.into_inner().fixed_parameters,
-        //     capacity: SCHEDULER_CAPACITY,
-        //     _marker: std::marker::PhantomData,
-        // };
+        let config = SchedulerConfig {
+            proof_config: recursion_layer_proof_config(),
+            vk_fixed_parameters: job.node_vk.clone().into_inner().fixed_parameters,
+            capacity: SCHEDULER_CAPACITY,
+            _marker: std::marker::PhantomData,
+            recursion_tip_vk: job.recursion_tip_vk.into_inner(),
+            node_layer_vk: job.node_vk.into_inner(),
+            leaf_layer_parameters: job.leaf_layer_parameters,
+        };
 
         // let eip_4844_config = eip4844_proof_config();
 
-        // let scheduler_circuit = SchedulerCircuit {
-        //     witness: job.scheduler_witness,
-        //     config,
-        //     transcript_params: (),
-        //     // eip4844_proof_config: Some(eip_4844_config),
-        //     // eip4844_vk: Some(job.eip_4844_vk.clone()),
-        //     // eip4844_vk_fixed_parameters: Some(job.eip_4844_vk.fixed_parameters),
-        //     _marker: std::marker::PhantomData,
-        // };
+        let scheduler_circuit = SchedulerCircuit {
+            witness: job.scheduler_witness,
+            config,
+            transcript_params: (),
+            _marker: std::marker::PhantomData,
+        };
         WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::Scheduler.into()]
             .observe(started_at.elapsed());
 
@@ -118,10 +123,9 @@ impl SchedulerWitnessGenerator {
             started_at.elapsed()
         );
 
-        // SchedulerArtifacts {
-        //     scheduler_circuit: ZkSyncRecursiveLayerCircuit::SchedulerCircuit(scheduler_circuit),
-        // }
-        SchedulerArtifacts {}
+        SchedulerArtifacts {
+            scheduler_circuit: ZkSyncRecursiveLayerCircuit::SchedulerCircuit(scheduler_circuit),
+        }
     }
 }
 
@@ -270,9 +274,8 @@ pub async fn prepare_job(
             FriProofWrapper::Recursive(recursive_proof) => Ok(recursive_proof.into_inner()),
         })
         .collect();
+    // These shoudl go into the recursion tip -- and then recursion tip proof should go to scheduler.
     let recursive_proofs = recursive_proofs?;
-
-    let proofs = load_proofs_for_job_ids(&proof_job_ids.eip_4844_proof_ids, object_store).await;
 
     let started_at = Instant::now();
     let keystore = Keystore::default();
@@ -281,24 +284,25 @@ pub async fn prepare_job(
             ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
         )
         .context("get_recursive_layer_vk_for_circuit_type()")?;
-    // let eip_4844_vk = keystore
-    //     .load_4844_verification_key()
-    //     .context("get_eip_4844_vk")?;
+
     let SchedulerPartialInputWrapper(mut scheduler_witness) =
         object_store.get(l1_batch_number).await.unwrap();
-    // scheduler_witness.node_layer_vk_witness = node_vk.clone().into_inner();
+
+    let recursion_tip_vk = keystore
+        .load_recursive_layer_verification_key(
+            ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
+        )
+        .context("get_recursion_tip_vk()")?;
 
     scheduler_witness.proof_witnesses = recursive_proofs.into();
-    // scheduler_witness.eip4844_proofs = eip_4844_proofs.into();
 
     let leaf_vk_commits = get_leaf_vk_params(&keystore).context("get_leaf_vk_params()")?;
-    // let leaf_layer_params = leaf_vk_commits
-    //     .iter()
-    //     .map(|el| el.1.clone())
-    //     .collect::<Vec<_>>()
-    //     .try_into()
-    //     .unwrap();
-    // scheduler_witness.leaf_layer_parameters = leaf_layer_params;
+    let leaf_layer_params = leaf_vk_commits
+        .iter()
+        .map(|el| el.1.clone())
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap();
 
     WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::Scheduler.into()]
         .observe(started_at.elapsed());
@@ -307,6 +311,7 @@ pub async fn prepare_job(
         block_number: l1_batch_number,
         scheduler_witness,
         node_vk,
-        // eip_4844_vk,
+        leaf_layer_parameters: leaf_layer_params,
+        recursion_tip_vk,
     })
 }

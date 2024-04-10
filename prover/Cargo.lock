@@ -623,7 +623,7 @@ dependencies = [
 [[package]]
 name = "boojum"
 version = "0.2.0"
-source = "git+https://github.com/matter-labs/era-boojum?branch=main#30300f043c9afaeeb35d0f7bd3cc0acaf69ccde4"
+source = "git+https://github.com/matter-labs/era-boojum?branch=main#19988079852ea22576da6b09e39365e6cdc1368f"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -1355,7 +1355,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum?branch=main#30300f043c9afaeeb35d0f7bd3cc0acaf69ccde4"
+source = "git+https://github.com/matter-labs/era-boojum?branch=main#19988079852ea22576da6b09e39365e6cdc1368f"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.78",
