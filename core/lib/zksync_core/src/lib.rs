@@ -21,6 +21,7 @@ use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker,
     CircuitBreakerChecker, CircuitBreakers,
 };
+use zksync_commitment_generator::CommitmentGenerator;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::{
     configs::{
@@ -61,7 +62,6 @@ use crate::{
         web3::{self, mempool_cache::MempoolCache, state::InternalApiConfig, Namespace},
     },
     basic_witness_input_producer::BasicWitnessInputProducer,
-    commitment_generator::CommitmentGenerator,
     eth_sender::{
         l1_batch_commit_data_generator::{
             L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
@@ -98,7 +98,6 @@ use crate::{
 pub mod api_server;
 pub mod basic_witness_input_producer;
 pub mod block_reverter;
-pub mod commitment_generator;
 pub mod consensus;
 pub mod consistency_checker;
 pub mod eth_sender;

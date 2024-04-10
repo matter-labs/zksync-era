@@ -8060,6 +8060,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_commitment_generator"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "itertools 0.10.5",
+ "metrics",
+ "multivm",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_commitment_utils",
+ "zksync_dal",
+ "zksync_health_check",
+ "zksync_l1_contract_interface",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "zksync_commitment_utils"
 version = "0.1.0"
 dependencies = [
@@ -8336,6 +8358,7 @@ dependencies = [
  "vlog",
  "vm_utils",
  "zksync_circuit_breaker",
+ "zksync_commitment_generator",
  "zksync_commitment_utils",
  "zksync_concurrency",
  "zksync_config",
@@ -8543,6 +8566,7 @@ dependencies = [
  "vise",
  "vlog",
  "zksync_basic_types",
+ "zksync_commitment_generator",
  "zksync_concurrency",
  "zksync_config",
  "zksync_consensus_roles",
@@ -8656,6 +8680,7 @@ dependencies = [
  "tracing",
  "vlog",
  "zksync_circuit_breaker",
+ "zksync_commitment_generator",
  "zksync_concurrency",
  "zksync_config",
  "zksync_contracts",
