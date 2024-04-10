@@ -912,12 +912,17 @@ impl TxSender {
             }
         };
 
+        let gas_for_pubdata = (tx_metrics.pubdata_published as u64) * gas_per_pubdata_byte;
+        let estimated_gas_for_pubdata =
+            (gas_for_pubdata as f64 * estimated_fee_scale_factor) as u64;
+
         tracing::info!(
             initiator = ?tx.initiator_account(),
             nonce = %tx.nonce().unwrap_or(Nonce(0)),
-            "fee estimation: gas for pubdata: {}, suggested gas: {suggested_gas_limit}, overhead gas: {overhead} \
-            (with params base_fee: {base_fee}, gas_per_pubdata_byte: {gas_per_pubdata_byte})",
-            (tx_metrics.pubdata_published as u64) * gas_per_pubdata_byte,
+            "fee estimation: gas for pubdata: {estimated_gas_for_pubdata}, computational gas: {}, overhead gas: {overhead} \
+            (with params base_fee: {base_fee}, gas_per_pubdata_byte: {gas_per_pubdata_byte}) \
+            estimated_fee_scale_factor: {estimated_fee_scale_factor}",
+            suggested_gas_limit - estimated_gas_for_pubdata,
         );
 
         Ok(Fee {
