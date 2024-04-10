@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, str::FromStr};
 
 use circuit_sequencer_api_1_4_2::sort_storage_access::sort_storage_access_queries;
 use itertools::Itertools;
@@ -15,15 +15,15 @@ use zksync_types::{
         extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages, L1MessengerL2ToL1Log,
     },
     writes::StateDiffRecord,
-    AccountTreeId, Address, StorageKey, L1_MESSENGER_ADDRESS, U256,
+    AccountTreeId, Address, StorageKey, H256, L1_MESSENGER_ADDRESS, U256,
 };
 use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
 use crate::{
     interface::{dyn_tracers::vm_1_5_0::DynTracer, tracer::TracerExecutionStatus},
     vm_latest::{
-        old_vm::utils::heap_page_from_base, BootloaderState, HistoryMode, SimpleMemory, VmTracer,
-        ZkSyncVmState,
+        old_vm::utils::{heap_page_from_base, IntoFixedLengthByteIterator},
+        BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState,
     },
 };
 
@@ -54,7 +54,6 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDebug
     ) {
         // FIXME: this catches not only Evm contracts
 
-        let code_address = state.vm_local_state.callstack.current.code_address;
         let opcode_variant = data.opcode.variant;
         let heap_page =
             heap_page_from_base(state.vm_local_state.callstack.current.base_memory_page).0;
@@ -66,8 +65,6 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDebug
         let value = data.src1_value.value;
 
         const DEBUG_SLOT: u32 = 32 * 32;
-        const STACK_POINT: u32 = DEBUG_SLOT + 32 * 5 + 32;
-        const BYTECODE_OFFSET: u32 = STACK_POINT + 1024 * 32;
 
         let debug_magic = U256::from_dec_str(
             "33509158800074003487174289148292687789659295220513886355337449724907776218753",
@@ -83,41 +80,35 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDebug
             return;
         }
 
-        let bytecode_len = memory
-            .read_slot(heap_page as usize, BYTECODE_OFFSET as usize / 32)
-            .value;
-        let ip = memory.read_slot(heap_page as usize, 32 + 1).value;
-        let tos = memory.read_slot(heap_page as usize, 32 + 2).value;
-        let gasleft = memory.read_slot(heap_page as usize, 32 + 3).value;
-        let true_opcode = memory.read_slot(heap_page as usize, 32 + 4).value.as_u32() as u8;
+        let how_to_print_value = memory.read_slot(heap_page as usize, 32 + 1).value;
+        let value_to_print = memory.read_slot(heap_page as usize, 32 + 2).value;
 
-        let opcode_id = memory.read_unaligned_bytes(heap_page as usize, ip.as_usize(), 1);
+        let print_as_hex_value =
+            U256::from_str("0x00debdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebde")
+                .unwrap();
+        let print_as_string_value =
+            U256::from_str("0x00debdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdf")
+                .unwrap();
 
-        let mut stack = vec![];
-        for i in 0..16 {
-            let point = tos - i * 32;
-            if point >= U256::from(STACK_POINT) {
-                stack.push(
-                    memory
-                        .read_slot(heap_page as usize, point.as_usize() / 32)
-                        .value,
+        if how_to_print_value == print_as_hex_value {
+            print!("PRINTED: ");
+            println!("0x{:02x}", value_to_print);
+        }
+
+        if how_to_print_value == print_as_string_value {
+            print!("PRINTED: ");
+            let mut value = value_to_print.0;
+            value.reverse();
+            for limb in value {
+                print!(
+                    "{}",
+                    String::from_utf8(limb.to_be_bytes().to_vec()).unwrap()
                 );
             }
+            println!("");
         }
 
         self.counter += 1;
-
-        println!(
-            "EVM execution at {}. TOS: {}, IP: {} (max: {}), OPCODE: 0x{}/0x{}, GASLEFT: {gasleft}, COUNTER: {}\nStack: {:#?}\n",
-            hex::encode(&code_address.0),
-            tos,
-            ip,
-            bytecode_len,
-            hex::encode(&opcode_id),
-            hex::encode(&[true_opcode]),
-            self.counter,
-            stack
-        );
     }
 }
 

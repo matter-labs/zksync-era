@@ -5,6 +5,7 @@ use std::{
 
 use ethabi::{encode, Contract, Token};
 use itertools::Itertools;
+use tracing::{instrument::WithSubscriber, Instrument};
 // FIXME: 1.4.1 should not be imported from 1.5.0
 use zk_evm_1_4_1::sha2::{self};
 use zk_evm_1_5_0::zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32};
@@ -110,32 +111,15 @@ fn test_evm_vector(mut bytecode: Vec<u8>) -> U256 {
     );
 
     vm.vm.push_transaction(tx);
-    let tx_result: crate::vm_latest::VmExecutionResultAndLogs =
-        vm.vm.execute(VmExecutionMode::OneTx);
+
+    let debug_tracer = EvmDebugTracer::new();
+    let tracer_ptr = debug_tracer.into_tracer_pointer();
+    let tx_result = vm.vm.inspect(tracer_ptr.into(), VmExecutionMode::OneTx);
 
     assert!(
         !tx_result.result.is_failed(),
         "Transaction wasn't successful"
     );
-
-    for event in tx_result.logs.events {
-        let debug_topic = vec![H256::from_str(
-            "0x00debdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebde",
-        )
-        .unwrap()];
-        let debug_string_topic = vec![H256::from_str(
-            "0x00debdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdebdf",
-        )
-        .unwrap()];
-
-        if event.indexed_topics == debug_topic {
-            println!("PRINTED: 0x{:02x}", U256::from_big_endian(&event.value));
-        }
-
-        if event.indexed_topics == debug_string_topic {
-            println!("PRINTED: {}", String::from_utf8(event.value).unwrap());
-        }
-    }
 
     let batch_result = vm.vm.execute(VmExecutionMode::Batch);
     assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
@@ -1204,6 +1188,105 @@ fn test_basic_byte_vectors() {
             .concat()
         ),
         0.into()
+    );
+}
+
+#[test]
+fn test_basic_jump_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 32
+                hex::decode("60").unwrap(),
+                hex::decode("20").unwrap(),
+                // push1 64
+                hex::decode("60").unwrap(),
+                hex::decode("40").unwrap(),
+                // push1 8
+                hex::decode("60").unwrap(),
+                hex::decode("08").unwrap(),
+                // jump
+                hex::decode("56").unwrap(),
+                // add
+                hex::decode("01").unwrap(),
+                // jumpdest
+                hex::decode("5B").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        64.into()
+    );
+}
+
+#[test]
+fn test_basic_jumpi_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 32
+                hex::decode("60").unwrap(),
+                hex::decode("20").unwrap(),
+                // push1 64
+                hex::decode("60").unwrap(),
+                hex::decode("40").unwrap(),
+                // push1 1
+                hex::decode("60").unwrap(),
+                hex::decode("01").unwrap(),
+                // push1 10
+                hex::decode("60").unwrap(),
+                hex::decode("0A").unwrap(),
+                // jumpi
+                hex::decode("57").unwrap(),
+                // add
+                hex::decode("01").unwrap(),
+                // jumpdest
+                hex::decode("5B").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        64.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 32
+                hex::decode("60").unwrap(),
+                hex::decode("20").unwrap(),
+                // push1 64
+                hex::decode("60").unwrap(),
+                hex::decode("40").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // push1 8
+                hex::decode("60").unwrap(),
+                hex::decode("09").unwrap(),
+                // jumpi
+                hex::decode("57").unwrap(),
+                // add
+                hex::decode("01").unwrap(),
+                // jumpdest
+                hex::decode("5B").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        96.into()
     );
 }
 
