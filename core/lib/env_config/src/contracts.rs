@@ -25,7 +25,6 @@ impl FromEnv for ContractsConfig {
 #[cfg(test)]
 mod tests {
     use zksync_config::configs::EcosystemContracts;
-
     use zksync_system_constants::ETHEREUM_SHARED_BRIDGE_ADDRESS;
 
     use super::*;
