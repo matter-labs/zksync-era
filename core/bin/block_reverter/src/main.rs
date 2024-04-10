@@ -86,7 +86,7 @@ async fn main() -> anyhow::Result<()> {
     }
     let _guard = builder.build();
 
-    let eth_sender = EthConfig::from_env().context("ETHSenderConfig::from_env()")?;
+    let eth_sender = EthConfig::from_env().context("EthConfig::from_env()")?;
     let db_config = DBConfig::from_env().context("DBConfig::from_env()")?;
     let default_priority_fee_per_gas = U256::from(
         eth_sender

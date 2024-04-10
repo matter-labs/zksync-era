@@ -144,8 +144,10 @@ impl EthClient for EthHttpQueryClient {
 
                 // safety check to prevent infinite recursion (quite unlikely)
                 if from_number >= mid {
+                    tracing::warn!("Infinite recursion detected while getting events: from_number={from_number:?}, mid={mid:?}");
                     return result;
                 }
+
                 tracing::warn!("Splitting block range in half: {from:?} - {mid:?} - {to:?}");
                 let mut first_half = self
                     .get_events(from, BlockNumber::Number(mid), RETRY_LIMIT)

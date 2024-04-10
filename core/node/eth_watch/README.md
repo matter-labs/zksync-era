@@ -1,6 +1,6 @@
 # zkSync Era Eth Watcher
 
-This crate contains implementation of zkSync Era Eth Watcher component, responsible for fetching the changes from the
+This crate contains an implementation of the zkSync Era Eth Watcher component, which fetches the changes from the
 corresponding L1 contract.
 
 ## Overview
