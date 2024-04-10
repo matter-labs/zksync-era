@@ -9,7 +9,10 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use circuit_definitions::{
     circuit_definitions::{base_layer::ZkSyncBaseLayerStorage, ZkSyncUniformCircuitInstance},
-    encodings::recursion_request::RecursionQueueSimulator,
+    encodings::{
+        recursion_request::{RecursionQueueSimulator, RecursionRequest},
+        FullWidthQueueSimulator,
+    },
     zkevm_circuits::fsm_input_output::ClosedFormInputCompactFormWitness,
 };
 // TODO: Switch to `vm_latest` once the prover supports v1.5.0
@@ -43,7 +46,7 @@ use zksync_prover_fri_types::{
     },
     get_current_pod_name,
     keys::ClosedFormInputKey,
-    AuxOutputWitnessWrapper, EIP_4844_CIRCUIT_ID,
+    AuxOutputWitnessWrapper, RecursionQueueWrapper, EIP_4844_CIRCUIT_ID,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_prover_interface::inputs::{BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob};
@@ -84,6 +87,12 @@ pub struct BasicCircuitArtifacts {
         GoldilocksExt2,
     >,
     aux_output_witness: BlockAuxilaryOutputWitness<GoldilocksField>,
+    recursion_queue: Vec<(
+        u64,
+        FullWidthQueueSimulator<GoldilocksField, RecursionRequest<GoldilocksField>, 8, 12, 1>,
+        Vec<ClosedFormInputCompactFormWitness<GoldilocksField>>,
+    )>,
+    recursion_tip_circuits: [Option<i64>; 16],
 }
 
 #[derive(Debug)]
@@ -91,6 +100,8 @@ struct BlobUrls {
     circuit_ids_and_urls: Vec<(u8, String)>,
     closed_form_inputs_and_urls: Vec<(u8, String, usize)>,
     scheduler_witness_url: String,
+    recursion_tip_witness_url: String,
+    recursion_tip_circuits: [Option<i64>; 16],
 }
 
 #[derive(Clone)]
@@ -291,6 +302,13 @@ impl JobProcessor for BasicWitnessGenerator {
                 )
                 .await;
 
+                let recursion_tip_witness_url = save_recursion_tip_artifacts(
+                    job_id,
+                    artifacts.recursion_queue,
+                    &*self.object_store,
+                )
+                .await;
+
                 WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::BasicCircuits.into()]
                     .observe(blob_started_at.elapsed());
 
@@ -302,6 +320,8 @@ impl JobProcessor for BasicWitnessGenerator {
                         circuit_ids_and_urls: artifacts.circuit_urls,
                         closed_form_inputs_and_urls: artifacts.queue_urls,
                         scheduler_witness_url,
+                        recursion_tip_witness_url,
+                        recursion_tip_circuits: artifacts.recursion_tip_circuits,
                     },
                 )
                 .await;
@@ -341,7 +361,15 @@ async fn process_basic_circuits_job(
 ) -> BasicCircuitArtifacts {
     let witness_gen_input =
         build_basic_circuits_witness_generator_input(&connection_pool, job, block_number).await;
-    let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) = generate_witness(
+    let (
+        circuit_urls,
+        // eip_4844_circuit_urls,
+        queue_urls,
+        scheduler_witness,
+        aux_output_witness,
+        recursion_queue,
+        recursion_tip_circuits,
+    ) = generate_witness(
         block_number,
         object_store,
         config,
@@ -363,6 +391,8 @@ async fn process_basic_circuits_job(
         queue_urls,
         scheduler_witness,
         aux_output_witness,
+        recursion_queue,
+        recursion_tip_circuits,
     }
 }
 
@@ -412,6 +442,8 @@ async fn update_database(
             block_number,
             &blob_urls.closed_form_inputs_and_urls,
             &blob_urls.scheduler_witness_url,
+            &blob_urls.recursion_tip_witness_url,
+            blob_urls.recursion_tip_circuits,
             get_recursive_layer_circuit_id_for_base_layer,
             protocol_version_id,
         )
@@ -461,6 +493,32 @@ async fn save_scheduler_artifacts(
         .unwrap();
     let wrapper = SchedulerPartialInputWrapper(scheduler_partial_input);
     object_store.put(block_number, &wrapper).await.unwrap()
+}
+
+async fn save_recursion_tip_artifacts(
+    block_number: L1BatchNumber,
+    recursion_queue: Vec<(
+        u64,
+        FullWidthQueueSimulator<GoldilocksField, RecursionRequest<GoldilocksField>, 8, 12, 1>,
+        Vec<ClosedFormInputCompactFormWitness<GoldilocksField>>,
+    )>,
+    object_store: &dyn ObjectStore,
+) -> String {
+    // let aux_output_witness_wrapper = AuxOutputWitnessWrapper(aux_output_witness);
+    // if shall_save_to_public_bucket {
+    //     public_object_store
+    //         .expect("public_object_store shall not be empty while running with shall_save_to_public_bucket config")
+    //         .put(block_number, &aux_output_witness_wrapper)
+    //         .await
+    //         .unwrap();
+    // }
+    let recursion_queue_wrapper = RecursionQueueWrapper(recursion_queue);
+    object_store
+        .put(block_number, &recursion_queue_wrapper)
+        .await
+        .unwrap()
+    // let wrapper = SchedulerPartialInputWrapper(scheduler_partial_input);
+    // object_store.put(block_number, &wrapper).await.unwrap()
 }
 
 async fn save_recursion_queue(
@@ -543,6 +601,12 @@ async fn generate_witness(
         GoldilocksExt2,
     >,
     BlockAuxilaryOutputWitness<GoldilocksField>,
+    Vec<(
+        u64,
+        FullWidthQueueSimulator<GoldilocksField, RecursionRequest<GoldilocksField>, 8, 12, 1>,
+        Vec<ClosedFormInputCompactFormWitness<GoldilocksField>>,
+    )>,
+    [Option<i64>; 16],
 ) {
     let mut connection = connection_pool.connection().await.unwrap();
     let header = connection
@@ -730,11 +794,18 @@ async fn generate_witness(
     let mut recursion_urls = vec![];
 
     let mut mapping: HashMap<String, i32> = HashMap::new();
-
+    let mut recursion_tip_circuits = [None; 16];
+    let mut recursion_queue = vec![];
     let save_circuits = async {
         loop {
             tokio::select! {
                 Some(circuit) = circuit_receiver.recv() => {
+                    let circuit_index = if circuit.numeric_circuit_type() == 255 {
+                        15
+                    } else {
+                        (circuit.numeric_circuit_type() - 1) as usize
+                    };
+                    recursion_tip_circuits[circuit_index] = Some(-1);
                     let count = mapping.entry(circuit.short_description().to_string() + " basic").or_default();
                     *count += 1;
                     circuit_urls.push(
@@ -744,6 +815,8 @@ async fn generate_witness(
                 Some((circuit_id, queue, inputs)) = queue_receiver.recv() => {
                     let count = mapping.entry(circuit_id.to_string() + " recursive").or_default();
                     *count += 1;
+                    // TODO: most likely can be computed from `ClosedInputFormat`s
+                    recursion_queue.push((circuit_id as u64, queue.clone(), inputs.clone()));
                     recursion_urls.push(
                     save_recursion_queue(block_number, circuit_id, queue, &inputs, object_store)
                         .await,
@@ -779,6 +852,7 @@ async fn generate_witness(
 
     let (witnesses, ()) = tokio::join!(make_circuits, save_circuits);
 
+    recursion_queue.sort_by_key(|(circuit, _, _)| circuit.clone());
     println!("{mapping:?}");
     // let mut eip_4844_blob_urls = vec![];
     // // Note that the sequence number will be reused to determine ordering between blobs.
@@ -809,6 +883,8 @@ async fn generate_witness(
         recursion_urls,
         scheduler_witness,
         block_aux_witness,
+        recursion_queue,
+        recursion_tip_circuits,
     )
 }
 

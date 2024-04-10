@@ -27,7 +27,7 @@ impl SchedulerCircuitQueuer {
         let len = l1_batch_numbers.len();
         for &l1_batch_number in l1_batch_numbers.iter() {
             conn.fri_witness_generator_dal()
-                .mark_scheduler_jobs_as_queued(l1_batch_number)
+                .mark_recursion_tip_jobs_as_queued(l1_batch_number)
                 .await;
             tracing::info!(
                 "Marked fri scheduler aggregation job for l1_batch {} as queued",
@@ -37,6 +37,8 @@ impl SchedulerCircuitQueuer {
         conn.fri_scheduler_dependency_tracker_dal()
             .mark_l1_batches_queued(l1_batch_numbers)
             .await;
+
+        // conn.
         metrics::counter!(
             "server.scheduler_fri_witness_generator.waiting_to_queued_jobs_transitions",
             len as u64
