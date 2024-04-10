@@ -4,14 +4,16 @@ pub use circuit_definitions;
 use circuit_definitions::{
     boojum::{cs::implementations::witness::WitnessVec, field::goldilocks::GoldilocksField},
     circuit_definitions::{
-        base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerProof, ZkSyncBaseProof},
+        base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerProof},
         // eip4844::EIP4844Circuit,
         recursion_layer::{
             ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType, ZkSyncRecursiveLayerCircuit,
         },
     },
-    zkevm_circuits::scheduler::{
-        aux::BaseLayerCircuitType, block_header::BlockAuxilaryOutputWitness,
+    encodings::{recursion_request::RecursionRequest, FullWidthQueueSimulator},
+    zkevm_circuits::{
+        fsm_input_output::ClosedFormInputCompactFormWitness,
+        scheduler::{aux::BaseLayerCircuitType, block_header::BlockAuxilaryOutputWitness},
     },
 };
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
@@ -187,9 +189,30 @@ impl ProverServiceDataKey {
                 format!("leaf_{}", self.circuit_id)
             }
             AggregationRound::NodeAggregation => "node".to_string(),
+            AggregationRound::RecursionTip => "recursion_tip".to_string(),
             AggregationRound::Scheduler => "scheduler".to_string(),
         }
     }
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct RecursionQueueWrapper(
+    pub  Vec<(
+        u64,
+        FullWidthQueueSimulator<GoldilocksField, RecursionRequest<GoldilocksField>, 8, 12, 1>,
+        Vec<ClosedFormInputCompactFormWitness<GoldilocksField>>,
+    )>,
+);
+
+impl StoredObject for RecursionQueueWrapper {
+    const BUCKET: Bucket = Bucket::RecursionTipWitnessJobsFri;
+    type Key<'a> = L1BatchNumber;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("recursion_queue_{key}.bin")
+    }
+
+    serialize_using_bincode!();
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]

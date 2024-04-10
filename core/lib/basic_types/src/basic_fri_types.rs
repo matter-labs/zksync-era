@@ -100,7 +100,8 @@ pub enum AggregationRound {
     BasicCircuits = 0,
     LeafAggregation = 1,
     NodeAggregation = 2,
-    Scheduler = 3,
+    RecursionTip = 3,
+    Scheduler = 4,
 }
 
 impl From<u8> for AggregationRound {
@@ -109,7 +110,8 @@ impl From<u8> for AggregationRound {
             0 => AggregationRound::BasicCircuits,
             1 => AggregationRound::LeafAggregation,
             2 => AggregationRound::NodeAggregation,
-            3 => AggregationRound::Scheduler,
+            3 => AggregationRound::RecursionTip,
+            4 => AggregationRound::Scheduler,
             _ => panic!("Invalid round"),
         }
     }
@@ -120,7 +122,8 @@ impl AggregationRound {
         match self {
             AggregationRound::BasicCircuits => Some(AggregationRound::LeafAggregation),
             AggregationRound::LeafAggregation => Some(AggregationRound::NodeAggregation),
-            AggregationRound::NodeAggregation => Some(AggregationRound::Scheduler),
+            AggregationRound::NodeAggregation => Some(AggregationRound::RecursionTip),
+            AggregationRound::RecursionTip => Some(AggregationRound::Scheduler),
             AggregationRound::Scheduler => None,
         }
     }
@@ -132,6 +135,7 @@ impl std::fmt::Display for AggregationRound {
             Self::BasicCircuits => "basic_circuits",
             Self::LeafAggregation => "leaf_aggregation",
             Self::NodeAggregation => "node_aggregation",
+            Self::RecursionTip => "recursion_tip",
             Self::Scheduler => "scheduler",
         })
     }
@@ -145,6 +149,7 @@ impl FromStr for AggregationRound {
             "basic_circuits" => Ok(AggregationRound::BasicCircuits),
             "leaf_aggregation" => Ok(AggregationRound::LeafAggregation),
             "node_aggregation" => Ok(AggregationRound::NodeAggregation),
+            "recursion_tip" => Ok(AggregationRound::RecursionTip),
             "scheduler" => Ok(AggregationRound::Scheduler),
             other => Err(format!(
                 "{} is not a valid round name for witness generation",
@@ -166,6 +171,7 @@ impl TryFrom<i32> for AggregationRound {
             x if x == AggregationRound::NodeAggregation as i32 => {
                 Ok(AggregationRound::NodeAggregation)
             }
+            x if x == AggregationRound::RecursionTip as i32 => Ok(AggregationRound::RecursionTip),
             x if x == AggregationRound::Scheduler as i32 => Ok(AggregationRound::Scheduler),
             _ => Err(()),
         }
