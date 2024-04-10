@@ -720,6 +720,104 @@ fn test_basic_dup_vectors() {
     );
 }
 
+#[test]
+fn test_basic_swap_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    let evm_output = test_evm_vector(
+        vec![
+            // push32 37
+            hex::decode("7F").unwrap(),
+            u256_to_h256(37.into()).0.to_vec(),
+            // push32 255
+            hex::decode("7F").unwrap(),
+            u256_to_h256(255.into()).0.to_vec(),
+            // push32 100
+            hex::decode("7F").unwrap(),
+            u256_to_h256(100.into()).0.to_vec(),
+            // swap2
+            //      input output
+            // 1     100     37
+            // 2     255    255
+            // 3      37    100
+            hex::decode("91").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(evm_output, 37.into());
+
+    let evm_output = vec![
+        // push32 179,624,556
+        hex::decode("7F").unwrap(),
+        u256_to_h256(179_624_556.into()).0.to_vec(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // 16 pushes
+        // push1 10
+        hex::decode("60").unwrap(),
+        hex::decode("0A").unwrap(),
+        // swap16
+        hex::decode("9F").unwrap(),
+        // push32 0
+        hex::decode("7F").unwrap(),
+        H256::zero().0.to_vec(),
+        // sstore
+        hex::decode("55").unwrap(),
+    ]
+    .into_iter()
+    .concat();
+    let evm_output = test_evm_vector(evm_output);
+    assert_eq!(evm_output, 179_624_556.into());
+}
+
 fn assert_deployed_hash<H: HistoryMode>(
     tester: &mut VmTester<H>,
     address: Address,
