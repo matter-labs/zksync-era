@@ -2052,6 +2052,27 @@ fn test_basic_balance_vectors() {
 }
 
 #[test]
+fn test_basic_origin_vectors() {
+    assert_ne!(
+        test_evm_vector(
+            vec![
+                // push0
+                hex::decode("5F").unwrap(),
+                // origin
+                hex::decode("32").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    )
+}
+
+#[test]
 fn test_basic_pc_vectors() {
     assert_eq!(
         test_evm_vector(
