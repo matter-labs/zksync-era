@@ -6303,20 +6303,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tools"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "clap 4.4.6",
- "colored",
- "hex",
- "tracing",
- "tracing-subscriber",
- "zksync_prover_fri_types",
- "zksync_prover_interface",
-]
-
-[[package]]
 name = "tower"
 version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
