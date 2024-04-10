@@ -36,8 +36,8 @@ Here's the code that does the parsing: [TransactionRequest::from_bytes][transact
 ### Priority queue (L1 Tx only)
 
 L1 transactions are first 'packaged' and then sent to our Ethereum contract. After this, the L1 contract records this
-transaction in L1 logs. Our 'eth_watcher' constantly monitors these logs through the
-[`get_priority_op_events`][get_priority_op_events] method and then adds them to the database (mempool).
+transaction in L1 logs. [The `eth_watcher` component][eth_watcher] constantly monitors these logs and then adds them to
+the database (mempool).
 
 ### RPC & validation (L2 Tx only)
 
@@ -79,9 +79,7 @@ The transaction can have three different results in state keeper:
 [transaction_request_from_bytes]:
   https://github.com/matter-labs/zksync-era/blob/main/core/lib/types/src/transaction_request.rs#L196
   'transaction request from bytes'
-[get_priority_op_events]:
-  https://github.com/matter-labs/zksync-era/blob/main/core/node/eth_watch/src/client.rs
-  'get priority op events'
+[eth_watcher]: https://github.com/matter-labs/zksync-era/blob/main/core/node/eth_watch 'Ethereum watcher component'
 [l1_tx]: https://github.com/matter-labs/zksync-era/blob/main/core/lib/types/src/l1/mod.rs#L183 'l1 tx'
 [l2_tx]: https://github.com/matter-labs/zksync-era/blob/main/core/lib/types/src/l2/mod.rs#L140 'l2 tx'
 [submit_tx]:

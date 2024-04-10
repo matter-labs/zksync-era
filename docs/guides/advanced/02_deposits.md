@@ -144,9 +144,8 @@ gas limit (641k) and set the gas per pubdata byte limit to 800. (TODO: explain w
 The call to requestL2Transaction, is adding the transaction to the priorityQueue and then emits the NewPriorityRequest.
 
 The zk server (that you started with `zk server` command) is listening on events that are emitted from this contract
-(via eth_watcher module -
-[`loop_iteration` function](https://github.com/matter-labs/zksync-era/blob/main/core/node/eth_watch/src/lib.rs#L165))
-and adds them to the postgres database (into `transactions` table).
+(via the [`eth_watcher` component](https://github.com/matter-labs/zksync-era/blob/main/core/node/eth_watch/)) and adds
+them to the postgres database (into `transactions` table).
 
 You can actually check it - by running the psql and looking at the contents of the table - then you'll notice that
 transaction was successfully inserted, and it was also marked as 'priority' (as it came from L1) - as regular
