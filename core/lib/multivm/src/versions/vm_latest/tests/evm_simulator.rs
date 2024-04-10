@@ -7,7 +7,7 @@ use std::{
     str::FromStr,
 };
 
-use tracing::Instrument;
+use tracing::{instrument::WithSubscriber, Instrument};
 // FIXME: 1.4.1 should not be imported from 1.5.0
 use chrono::{Datelike, Timelike, Utc};
 use csv::{ReaderBuilder, Writer, WriterBuilder};
