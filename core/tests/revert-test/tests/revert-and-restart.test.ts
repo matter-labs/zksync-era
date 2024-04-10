@@ -59,6 +59,7 @@ describe('Block reverting test', function () {
     let mainContract: Contract;
     let blocksCommittedBeforeRevert: number;
     let logs: fs.WriteStream;
+    let operatorAddress = process.env.ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR;
 
     let enable_consensus = process.env.ENABLE_CONSENSUS == 'true';
     let components = 'api,tree,eth,state_keeper,commitment_generator';
@@ -150,7 +151,7 @@ describe('Block reverting test', function () {
     step('revert blocks', async () => {
         const executedProcess = await utils.exec(
             'cd $ZKSYNC_HOME && ' +
-                'RUST_LOG=off cargo run --bin block_reverter --release -- print-suggested-values --json'
+                `RUST_LOG=off cargo run --bin block_reverter --release -- print-suggested-values --json --operator-address ${operatorAddress}`
             // ^ Switch off logs to not pollute the output JSON
         );
         const suggestedValuesOutput = executedProcess.stdout;

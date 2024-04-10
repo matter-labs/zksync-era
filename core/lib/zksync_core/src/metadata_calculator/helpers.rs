@@ -440,8 +440,7 @@ impl L1BatchWithLogs {
                 let protective_reads = storage
                     .storage_logs_dedup_dal()
                     .get_protective_reads_for_l1_batch(l1_batch_number)
-                    .await
-                    .context("cannot fetch protective reads")?;
+                    .await?;
                 if protective_reads.is_empty() {
                     tracing::warn!(
                         "Protective reads for L1 batch #{l1_batch_number} are empty. This is highly unlikely \
