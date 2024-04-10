@@ -363,7 +363,7 @@ async fn process_basic_circuits_job(
         build_basic_circuits_witness_generator_input(&connection_pool, job, block_number).await;
     let (
         circuit_urls,
-        eip_4844_circuit_urls,
+        // eip_4844_circuit_urls,
         queue_urls,
         scheduler_witness,
         aux_output_witness,

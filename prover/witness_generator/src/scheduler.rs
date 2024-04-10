@@ -262,7 +262,13 @@ pub async fn prepare_job(
     object_store: &dyn ObjectStore,
 ) -> anyhow::Result<SchedulerWitnessGeneratorJob> {
     let started_at = Instant::now();
-    let recursion_tip_proof = object_store.get(recursion_tip_job_id).await.unwrap();
+    let wrapper = object_store.get(recursion_tip_job_id).await.unwrap();
+    let recursion_tip_proof = match wrapper {
+        FriProofWrapper::Base(_) => Err(anyhow::anyhow!(
+            "Expected only recursive proofs for scheduler l1 batch {l1_batch_number}, got Base"
+        )),
+        FriProofWrapper::Recursive(recursive_proof) => Ok(recursive_proof.into_inner()),
+    }?;
     // let proofs = load_proofs_for_job_ids(&proof_job_ids.node_proof_ids, object_store).await;
     WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::Scheduler.into()]
         .observe(started_at.elapsed());
@@ -295,7 +301,6 @@ pub async fn prepare_job(
             ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
         )
         .context("get_recursion_tip_vk()")?;
-
     scheduler_witness.proof_witnesses = vec![recursion_tip_proof].into();
 
     let leaf_vk_commits = get_leaf_vk_params(&keystore).context("get_leaf_vk_params()")?;
