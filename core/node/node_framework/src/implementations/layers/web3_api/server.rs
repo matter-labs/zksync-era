@@ -1,4 +1,4 @@
-use std::num::NonZeroU32;
+use std::{num::NonZeroU32, time::Duration};
 
 use tokio::{sync::oneshot, task::JoinHandle};
 use zksync_circuit_breaker::replication_lag::ReplicationLagChecker;
@@ -27,7 +27,7 @@ pub struct Web3ServerOptionalConfig {
     pub response_body_size_limit: Option<usize>,
     pub websocket_requests_per_minute_limit: Option<NonZeroU32>,
     // used by circuit breaker.
-    pub replication_lag_limit_sec: Option<u32>,
+    pub replication_lag_limit: Option<Duration>,
 }
 
 impl Web3ServerOptionalConfig {
@@ -146,7 +146,7 @@ impl WiringLayer for Web3ServerLayer {
         if let Some(sync_state) = sync_state {
             api_builder = api_builder.with_sync_state(sync_state);
         }
-        let replication_lag_limit_sec = self.optional_config.replication_lag_limit_sec;
+        let replication_lag_limit = self.optional_config.replication_lag_limit;
         api_builder = self.optional_config.apply(api_builder);
         let server = api_builder.build()?;
 
@@ -163,7 +163,7 @@ impl WiringLayer for Web3ServerLayer {
             .breakers
             .insert(Box::new(ReplicationLagChecker {
                 pool: replica_pool,
-                replication_lag_limit_sec,
+                replication_lag_limit,
             }))
             .await;
 

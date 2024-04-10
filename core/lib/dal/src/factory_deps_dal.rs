@@ -143,7 +143,7 @@ impl FactoryDepsDal<'_, '_> {
     pub async fn get_factory_deps_for_revert(
         &mut self,
         block_number: MiniblockNumber,
-    ) -> sqlx::Result<Vec<H256>> {
+    ) -> DalResult<Vec<H256>> {
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -155,7 +155,9 @@ impl FactoryDepsDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_factory_deps_for_revert")
+        .with_arg("block_number", &block_number)
+        .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(|row| H256::from_slice(&row.bytecode_hash))
@@ -163,10 +165,7 @@ impl FactoryDepsDal<'_, '_> {
     }
 
     /// Removes all factory deps with a miniblock number strictly greater than the specified `block_number`.
-    pub async fn rollback_factory_deps(
-        &mut self,
-        block_number: MiniblockNumber,
-    ) -> sqlx::Result<()> {
+    pub async fn rollback_factory_deps(&mut self, block_number: MiniblockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM factory_deps
@@ -175,7 +174,9 @@ impl FactoryDepsDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .execute(self.storage.conn())
+        .instrument("rollback_factory_deps")
+        .with_arg("block_number", &block_number)
+        .execute(self.storage)
         .await?;
         Ok(())
     }

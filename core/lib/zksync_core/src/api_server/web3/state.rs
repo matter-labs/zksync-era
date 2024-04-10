@@ -282,7 +282,7 @@ impl RpcState {
             .blocks_web3_dal()
             .resolve_block_id(block)
             .await
-            .context("resolve_block_id")?
+            .map_err(DalError::generalize)?
             .ok_or(Web3Error::NoBlock)
     }
 
@@ -308,7 +308,7 @@ impl RpcState {
                 .blocks_web3_dal()
                 .resolve_block_id(block)
                 .await
-                .context("resolve_block_id")?),
+                .map_err(DalError::generalize)?),
         }
     }
 
@@ -355,15 +355,10 @@ impl RpcState {
     pub async fn resolve_filter_block_hash(&self, filter: &mut Filter) -> Result<(), Web3Error> {
         match (filter.block_hash, filter.from_block, filter.to_block) {
             (Some(block_hash), None, None) => {
+                let mut storage = self.acquire_connection().await?;
                 let block_number = self
-                    .acquire_connection()
-                    .await?
-                    .blocks_web3_dal()
-                    .resolve_block_id(api::BlockId::Hash(block_hash))
-                    .await
-                    .context("resolve_block_id")?
-                    .ok_or(Web3Error::NoBlock)?;
-
+                    .resolve_block(&mut storage, api::BlockId::Hash(block_hash))
+                    .await?;
                 filter.from_block = Some(api::BlockNumber::Number(block_number.0.into()));
                 filter.to_block = Some(api::BlockNumber::Number(block_number.0.into()));
                 Ok(())
@@ -379,13 +374,13 @@ impl RpcState {
         &self,
         filter: &Filter,
     ) -> Result<MiniblockNumber, Web3Error> {
+        let mut connection = self.acquire_connection().await?;
         let pending_block = self
-            .acquire_connection()
+            .resolve_block_unchecked(
+                &mut connection,
+                api::BlockId::Number(api::BlockNumber::Pending),
+            )
             .await?
-            .blocks_web3_dal()
-            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
-            .await
-            .context("resolve_block_id")?
             .context("Pending block number shouldn't be None")?;
         let block_number = match filter.from_block {
             Some(api::BlockNumber::Number(number)) => {
