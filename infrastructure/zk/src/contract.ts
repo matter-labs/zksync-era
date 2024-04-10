@@ -290,6 +290,37 @@ export async function deployL1(args: [string]): Promise<void> {
     await _deployL1(false, mode);
 }
 
+async function upgradeSharedBridgeEra(): Promise<void> {
+    await utils.confirmAction();
+    if (process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID != process.env.CONTRACTS_ERA_CHAIN_ID) {
+        throw new Error('Era chain and l2 chain id do not match');
+    }
+    process.env.CONTRACTS_ERA_DIAMOND_PROXY_ADDR = process.env.CONTRACTS_DIAMOND_PROXY_ADDR;
+
+    const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
+    const args = [privateKey ? `--private-key ${privateKey}` : ''];
+
+    // In the localhost setup scenario we don't have the workspace,
+    // so we have to `--cwd` into the required directory.
+    const baseCommand = process.env.ZKSYNC_LOCAL_SETUP ? `yarn --cwd /contracts/l1-contracts` : `yarn l1-contracts`;
+
+    await utils.spawn(`${baseCommand} upgrade-shared-bridge-era ${args.join(' ')} | tee upgradeSharedBridgeEra.log`);
+
+    const deployLog = fs.readFileSync('upgradeSharedBridgeEra.log').toString();
+    const l1EnvVars = ['CONTRACTS_L1_SHARED_BRIDGE_IMPL_ADDR'];
+
+    console.log('Writing to', `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`);
+    const updatedContracts = updateContractsEnv(
+        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`,
+        deployLog,
+        l1EnvVars
+    );
+
+    // Write updated contract addresses and tx hashes to the separate file
+    // Currently it's used by loadtest github action to update deployment configmap.
+    fs.writeFileSync('upgraded_shared_bridge.log', updatedContracts);
+}
+
 export const command = new Command('contract').description('contract management');
 
 command
@@ -300,3 +331,7 @@ command
 command.command('deploy [deploy-opts...]').allowUnknownOption(true).description('deploy contracts').action(deployL1);
 command.command('build').description('build contracts').action(build);
 command.command('verify').description('verify L1 contracts').action(verifyL1Contracts);
+command
+    .command('upgrade-shared-bridge-era')
+    .description('upgrade shared bridge with deployed era diamond proxy address')
+    .action(upgradeSharedBridgeEra);

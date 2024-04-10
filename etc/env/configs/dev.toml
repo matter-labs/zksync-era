@@ -1,2 +1,3 @@
 __imports__ = [ "base", "l1-inits/.init.env", "l2-inits/dev.init.env" ]
-# ZKSYNC_DEBUG_LOGS=true
+ETH_SENDER_SENDER_PUBDATA_SENDING_MODE="Calldata"
+#ZKSYNC_DEBUG_LOGS=true
