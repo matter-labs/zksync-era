@@ -1,7 +1,6 @@
 use anyhow::Context as _;
 use clap::Args as ClapArgs;
-use sqlx::postgres::PgPoolOptions;
-use sqlx::Row;
+use sqlx::{postgres::PgPoolOptions, Row};
 use zksync_config::PostgresConfig;
 use zksync_env_config::FromEnv;
 
