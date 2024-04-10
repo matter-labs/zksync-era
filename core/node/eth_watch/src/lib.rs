@@ -17,9 +17,8 @@ pub use self::client::EthHttpQueryClient;
 use self::{
     client::{EthClient, RETRY_LIMIT},
     event_processors::{
-        governance_upgrades::GovernanceUpgradesEventProcessor,
-        priority_ops::PriorityOpsEventProcessor, upgrades::UpgradesEventProcessor, EventProcessor,
-        EventProcessorError,
+        EventProcessor, EventProcessorError, GovernanceUpgradesEventProcessor,
+        PriorityOpsEventProcessor,
     },
     metrics::{PollStage, METRICS},
 };
@@ -62,7 +61,6 @@ impl EthWatch {
 
         let priority_ops_processor =
             PriorityOpsEventProcessor::new(state.next_expected_priority_id)?;
-        let upgrades_processor = UpgradesEventProcessor::new(state.last_seen_version_id);
         let governance_upgrades_processor = GovernanceUpgradesEventProcessor::new(
             diamond_proxy_address,
             state.last_seen_version_id,
@@ -70,7 +68,6 @@ impl EthWatch {
         )?;
         let event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
-            Box::new(upgrades_processor),
             Box::new(governance_upgrades_processor),
         ];
 

@@ -14,7 +14,6 @@ use zksync_types::{
 
 use crate::{
     client::{EthClient, EthClientError},
-    event_processors::upgrades::UPGRADE_PROPOSAL_SIGNATURE,
     EthWatch,
 };
 
@@ -46,15 +45,6 @@ impl FakeEthClientData {
         }
     }
 
-    fn add_diamond_upgrades(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
-        for (upgrade, eth_block) in upgrades {
-            self.diamond_upgrades
-                .entry(*eth_block)
-                .or_default()
-                .push(upgrade_into_diamond_proxy_log(upgrade.clone(), *eth_block));
-        }
-    }
-
     fn add_governance_upgrades(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
         for (upgrade, eth_block) in upgrades {
             self.governance_upgrades
@@ -83,10 +73,6 @@ impl MockEthClient {
 
     async fn add_transactions(&mut self, transactions: &[L1Tx]) {
         self.inner.write().await.add_transactions(transactions);
-    }
-
-    async fn add_diamond_upgrades(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
-        self.inner.write().await.add_diamond_upgrades(upgrades);
     }
 
     async fn add_governance_upgrades(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
@@ -256,67 +242,14 @@ async fn test_normal_operation_l1_txs() {
 }
 
 #[tokio::test]
-async fn test_normal_operation_upgrades() {
+async fn test_gap_in_governance_upgrades() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
     let (mut watcher, mut client) = create_test_watcher(connection_pool.clone()).await;
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
-        .add_diamond_upgrades(&[
-            (
-                ProtocolUpgrade {
-                    id: ProtocolVersionId::latest(),
-                    tx: None,
-                    ..Default::default()
-                },
-                10,
-            ),
-            (
-                ProtocolUpgrade {
-                    id: ProtocolVersionId::next(),
-                    tx: Some(build_upgrade_tx(ProtocolVersionId::next(), 18)),
-                    ..Default::default()
-                },
-                18,
-            ),
-        ])
-        .await;
-    client.set_last_finalized_block_number(15).await;
-    // second upgrade will not be processed, as it has less than 5 confirmations
-    watcher.loop_iteration(&mut storage).await.unwrap();
-
-    let db_ids = storage.protocol_versions_dal().all_version_ids().await;
-    // there should be genesis version and just added version
-    assert_eq!(db_ids.len(), 2);
-    assert_eq!(db_ids[1], ProtocolVersionId::latest());
-
-    client.set_last_finalized_block_number(20).await;
-    // now the second upgrade will be processed
-    watcher.loop_iteration(&mut storage).await.unwrap();
-    let db_ids = storage.protocol_versions_dal().all_version_ids().await;
-    assert_eq!(db_ids.len(), 3);
-    assert_eq!(db_ids[2], ProtocolVersionId::next());
-
-    // check that tx was saved with the last upgrade
-    let tx = storage
-        .protocol_versions_dal()
-        .get_protocol_upgrade_tx(ProtocolVersionId::next())
-        .await
-        .unwrap()
-        .expect("no upgrade transaction");
-    assert_eq!(tx.common_data.upgrade_id, ProtocolVersionId::next());
-}
-
-#[tokio::test]
-async fn test_gap_in_upgrades() {
-    let connection_pool = ConnectionPool::<Core>::test_pool().await;
-    setup_db(&connection_pool).await;
-    let (mut watcher, mut client) = create_test_watcher(connection_pool.clone()).await;
-
-    let mut storage = connection_pool.connection().await.unwrap();
-    client
-        .add_diamond_upgrades(&[(
+        .add_governance_upgrades(&[(
             ProtocolUpgrade {
                 id: ProtocolVersionId::next(),
                 tx: None,
@@ -545,24 +478,6 @@ fn tx_into_log(tx: L1Tx) -> Log {
         data: data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
         block_number: Some(eth_block),
-        transaction_hash: Some(H256::random()),
-        transaction_index: Some(0u64.into()),
-        log_index: Some(0u64.into()),
-        transaction_log_index: Some(0u64.into()),
-        log_type: None,
-        removed: None,
-    }
-}
-
-fn upgrade_into_diamond_proxy_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
-    let diamond_cut = upgrade_into_diamond_cut(upgrade);
-    let data = encode(&[diamond_cut, Token::FixedBytes(vec![0u8; 32])]);
-    Log {
-        address: Address::repeat_byte(0x1),
-        topics: vec![UPGRADE_PROPOSAL_SIGNATURE],
-        data: data.into(),
-        block_hash: Some(H256::repeat_byte(0x11)),
-        block_number: Some(eth_block.into()),
         transaction_hash: Some(H256::random()),
         transaction_index: Some(0u64.into()),
         log_index: Some(0u64.into()),

@@ -10,7 +10,6 @@ pub(super) enum PollStage {
     Request,
     PersistL1Txs,
     PersistUpgrades,
-    PersistGovernanceUpgrades,
 }
 
 #[derive(Debug, Metrics)]

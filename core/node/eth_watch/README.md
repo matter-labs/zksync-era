@@ -11,7 +11,7 @@ the L1 client (to query more info) and to the node Postgres (to persist processi
 
 - [Priority operations processor](src/event_processors/priority_ops.rs): persists priority operations (aka L1
   transactions)
-- [Upgrades processor](src/event_processors/upgrades.rs): persists protocol upgrades.
+- [Upgrades processor](src/event_processors/governance_upgrades.rs): persists protocol upgrades.
 
 Eth Watcher combines topics from the processors into a single filter and periodically queries L1 for the corresponding
 events. The fetched events are partitioned per processor and fed to them in succession.

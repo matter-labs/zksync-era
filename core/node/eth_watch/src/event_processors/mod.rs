@@ -3,11 +3,13 @@ use std::fmt;
 use zksync_dal::{Connection, Core};
 use zksync_types::{web3::types::Log, H256};
 
+pub(crate) use self::{
+    governance_upgrades::GovernanceUpgradesEventProcessor, priority_ops::PriorityOpsEventProcessor,
+};
 use crate::client::{EthClient, EthClientError};
 
-pub mod governance_upgrades;
-pub mod priority_ops;
-pub mod upgrades;
+mod governance_upgrades;
+mod priority_ops;
 
 /// Errors issued by an [`EventProcessor`].
 #[derive(Debug, thiserror::Error)]
