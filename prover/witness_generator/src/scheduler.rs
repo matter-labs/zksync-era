@@ -98,7 +98,7 @@ impl SchedulerWitnessGenerator {
         );
         let config = SchedulerConfig {
             proof_config: recursion_layer_proof_config(),
-            vk_fixed_parameters: job.node_vk.into_inner().fixed_parameters,
+            vk_fixed_parameters: job.node_vk.clone().into_inner().fixed_parameters,
             capacity: SCHEDULER_CAPACITY,
             _marker: std::marker::PhantomData,
             recursion_tip_vk: job.recursion_tip_vk.into_inner(),
