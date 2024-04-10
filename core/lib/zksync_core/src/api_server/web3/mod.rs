@@ -506,6 +506,7 @@ impl ApiServer {
     ) -> anyhow::Result<Methods> {
         let rpc = Methods::from(rpc);
         let mut output_rpc = Methods::new();
+
         for method_name in rpc.method_names() {
             let method = rpc
                 .method(method_name)
