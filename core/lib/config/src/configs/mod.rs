@@ -1,6 +1,7 @@
 // Public re-exports
 pub use self::{
     api::ApiConfig,
+    base_token_fetcher::BaseTokenFetcherConfig,
     contract_verifier::ContractVerifierConfig,
     contracts::ContractsConfig,
     database::{DBConfig, PostgresConfig},
@@ -22,6 +23,7 @@ pub use self::{
 };
 
 pub mod api;
+pub mod base_token_fetcher;
 pub mod chain;
 pub mod contract_verifier;
 pub mod contracts;
