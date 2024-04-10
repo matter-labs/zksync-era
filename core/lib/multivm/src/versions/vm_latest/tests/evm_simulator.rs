@@ -1876,6 +1876,31 @@ fn test_basic_memory_vectors() {
         ),
         0.into()
     );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 255
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // push1 64
+                hex::decode("60").unwrap(),
+                hex::decode("40").unwrap(),
+                // mload
+                hex::decode("51").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
 }
 
 fn assert_deployed_hash<H: HistoryMode>(
