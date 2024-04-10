@@ -1,8 +1,9 @@
 #[cfg(feature = "gpu")]
 pub mod availability_checker {
-    use std::time::Duration;
+    use std::{sync::Arc, time::Duration};
 
     use prover_dal::{ConnectionPool, Prover, ProverDal};
+    use tokio::sync::Notify;
     use zksync_types::prover_dal::{GpuProverInstanceStatus, SocketAddress};
 
     use crate::metrics::{KillingReason, METRICS};
@@ -34,7 +35,10 @@ pub mod availability_checker {
         pub async fn run(
             self,
             stop_receiver: tokio::sync::watch::Receiver<bool>,
+            init_notifier: Arc<Notify>,
         ) -> anyhow::Result<()> {
+            init_notifier.notified().await;
+
             while !*stop_receiver.borrow() {
                 let status = self
                     .pool
