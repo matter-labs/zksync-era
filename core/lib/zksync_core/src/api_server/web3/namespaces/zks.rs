@@ -123,6 +123,11 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
+    pub fn get_base_token_l1_address(&self) -> Address {
+        self.state.api_config.base_token_address
+    }
+
+    #[tracing::instrument(skip(self))]
     pub fn l1_chain_id_impl(&self) -> U64 {
         U64::from(*self.state.api_config.l1_chain_id)
     }
