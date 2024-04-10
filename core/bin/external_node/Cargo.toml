@@ -1,6 +1,6 @@
 [package]
 name = "zksync_external_node"
-version = "0.1.0"
+version = "22.1.0" # x-release-please-version
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -44,3 +44,6 @@ clap = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 semver.workspace = true
 tracing.workspace = true
+
+[build-dependencies]
+rustc_version.workspace = true

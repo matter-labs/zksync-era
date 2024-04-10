@@ -8524,13 +8524,14 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "0.1.0"
+version = "22.1.0"
 dependencies = [
  "anyhow",
  "clap 4.4.6",
  "envy",
  "futures 0.3.28",
  "prometheus_exporter",
+ "rustc_version",
  "semver",
  "serde",
  "serde_json",
