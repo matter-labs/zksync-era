@@ -160,7 +160,7 @@ const lightweightInitCmdAction = async (): Promise<void> => {
 };
 
 export async function validiumSubmoduleCheckout() {
-    await utils.exec(`cd contracts && git checkout origin/feat-validium-1-5-0-integration`);
+    await utils.exec(`cd contracts && git checkout origin/kl/without-1.5.0-merge-dev`);
 }
 
 type InitSharedBridgeCmdActionOptions = InitSetupOptions;
