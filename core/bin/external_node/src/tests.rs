@@ -1,6 +1,7 @@
 //! High-level tests for EN.
 
 use assert_matches::assert_matches;
+use test_casing::test_casing;
 use zksync_basic_types::protocol_version::ProtocolVersionId;
 use zksync_core::genesis::{insert_genesis_batch, GenesisParams};
 use zksync_eth_client::clients::MockEthereum;
@@ -75,8 +76,28 @@ struct TestEnvironmentHandles {
     app_health_receiver: oneshot::Receiver<Arc<AppHealthCheck>>,
 }
 
+// The returned components have the fully implemented health check life cycle (i.e., signal their shutdown).
+fn expected_health_components(components: &ComponentsToRun) -> Vec<&'static str> {
+    let mut output = vec!["reorg_detector"];
+    if components.0.contains(&Component::Core) {
+        output.extend(["consistency_checker", "commitment_generator"]);
+    }
+    if components.0.contains(&Component::Tree) {
+        output.push("tree");
+    }
+    if components.0.contains(&Component::HttpApi) {
+        output.push("http_api");
+    }
+    if components.0.contains(&Component::WsApi) {
+        output.push("ws_api");
+    }
+    output
+}
+
+#[test_casing(5, ["all", "core", "api", "tree", "tree,tree_api"])]
 #[tokio::test]
-async fn external_node_basics() {
+#[tracing::instrument] // Add args to the test logs
+async fn external_node_basics(components_str: &'static str) {
     let _guard = vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
     let temp_dir = tempfile::TempDir::new().unwrap();
 
@@ -95,14 +116,19 @@ async fn external_node_basics() {
         .expect("No genesis miniblock");
     drop(storage);
 
+    let components: ComponentsToRun = components_str.parse().unwrap();
+    let expected_health_components = expected_health_components(&components);
     let opt = Cli {
         revert_pending_l1_batch: false,
         enable_consensus: false,
         enable_snapshots_recovery: false,
-        components: "all".parse().unwrap(),
+        components,
     };
-    let mut config = ExternalNodeConfig::mock(&temp_dir);
-    config.postgres.database_url = connection_pool.database_url().to_owned();
+    let mut config = ExternalNodeConfig::mock(&temp_dir, &connection_pool);
+    if opt.components.0.contains(&Component::TreeApi) {
+        config.tree_component.api_port = Some(0);
+    }
+
     let diamond_proxy_addr = config.remote.diamond_proxy_addr;
 
     let l2_client = MockL2Client::new(move |method, params| {
@@ -167,19 +193,11 @@ async fn external_node_basics() {
         Err(_) => unreachable!("Node tasks should have panicked or errored"),
     };
 
-    let known_components = [
-        "reorg_detector",
-        "consistency_checker",
-        "http_api",
-        "ws_api",
-        "tree",
-        "commitment_generator",
-    ];
     loop {
         let health_data = app_health.check_health().await;
         tracing::info!(?health_data, "received health data");
         if matches!(health_data.inner().status(), HealthStatus::Ready)
-            && known_components
+            && expected_health_components
                 .iter()
                 .all(|name| health_data.components().contains_key(name))
         {
@@ -201,7 +219,7 @@ async fn external_node_basics() {
     let health_data = app_health.check_health().await;
     tracing::info!(?health_data, "final health data");
     assert_matches!(health_data.inner().status(), HealthStatus::ShutDown);
-    for name in known_components {
+    for name in expected_health_components {
         let component_health = &health_data.components()[name];
         assert_matches!(component_health.status(), HealthStatus::ShutDown);
     }

@@ -18,6 +18,8 @@ use zksync_core::{
     consensus,
     temp_config_store::decode_yaml,
 };
+#[cfg(test)]
+use zksync_dal::{ConnectionPool, Core};
 use zksync_types::{api::BridgeAddresses, fee_model::FeeParams};
 use zksync_web3_decl::{
     client::L2Client,
@@ -609,10 +611,10 @@ impl PostgresConfig {
     }
 
     #[cfg(test)]
-    fn mock() -> Self {
+    fn mock(test_pool: &ConnectionPool<Core>) -> Self {
         Self {
-            database_url: "unused".to_owned(), // The connection pool is instantiated outside
-            max_connections: 50,
+            database_url: test_pool.database_url().to_owned(),
+            max_connections: test_pool.max_size(),
         }
     }
 }
@@ -739,10 +741,10 @@ impl ExternalNodeConfig {
     }
 
     #[cfg(test)]
-    pub(crate) fn mock(temp_dir: &tempfile::TempDir) -> Self {
+    pub(crate) fn mock(temp_dir: &tempfile::TempDir, test_pool: &ConnectionPool<Core>) -> Self {
         Self {
             required: RequiredENConfig::mock(temp_dir),
-            postgres: PostgresConfig::mock(),
+            postgres: PostgresConfig::mock(test_pool),
             optional: OptionalENConfig::mock(),
             remote: RemoteENConfig::mock(),
             consensus: None,

@@ -8538,6 +8538,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "test-casing",
  "tokio",
  "tracing",
  "url",
