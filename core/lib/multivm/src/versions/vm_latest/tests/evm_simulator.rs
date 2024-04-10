@@ -2012,8 +2012,8 @@ fn test_basic_gas_vectors() {
                 // push1 0xFF
                 hex::decode("60").unwrap(),
                 hex::decode("FF").unwrap(),
-                // gas
-                hex::decode("5A").unwrap(),
+                // address
+                hex::decode("30").unwrap(),
                 // push0
                 hex::decode("5F").unwrap(),
                 // sstore
