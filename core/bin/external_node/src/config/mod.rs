@@ -1,4 +1,8 @@
-use std::{env, num::NonZeroUsize, time::Duration};
+use std::{
+    env,
+    num::{NonZeroU32, NonZeroUsize},
+    time::Duration,
+};
 
 use anyhow::Context;
 use serde::Deserialize;
@@ -13,14 +17,13 @@ use zksync_core::{
     consensus,
     temp_config_store::decode_yaml,
 };
-use zksync_types::{api::BridgeAddresses, fee_model::FeeParams};
+use zksync_types::{api::BridgeAddresses, fee_model::FeeParams, ETHEREUM_ADDRESS};
 use zksync_web3_decl::{
     client::L2Client,
     error::ClientRpcContext,
-    jsonrpsee::http_client::HttpClientBuilder,
+    jsonrpsee::{core::ClientError, http_client::HttpClientBuilder, types::error::ErrorCode},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
-
 pub(crate) mod observability;
 #[cfg(test)]
 mod tests;
@@ -43,6 +46,7 @@ pub(crate) struct RemoteENConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l2_chain_id: L2ChainId,
     pub l1_chain_id: L1ChainId,
+    pub base_token_addr: Address,
     pub max_pubdata_per_batch: u64,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
     pub dummy_verifier: bool,
@@ -68,6 +72,22 @@ impl RemoteENConfig {
             .get_main_contract()
             .rpc_context("get_main_contract")
             .await?;
+        let base_token_addr = match client.get_base_token_l1_address().await {
+            Err(ClientError::Call(err))
+                if [
+                    ErrorCode::MethodNotFound.code(),
+                    // This what Web3Error::NotImplemented gets
+                    // casted into in the api server.
+                    ErrorCode::InternalError.code(),
+                ]
+                .contains(&(err.code())) =>
+            {
+                // This is the fallback case for when the EN tries to interact
+                // with a node that does not implement the zks_baseTokenL1Address endpoint.
+                ETHEREUM_ADDRESS
+            }
+            response => response.context("Failed to fetch base token address")?,
+        };
         let l2_chain_id = client.chain_id().rpc_context("chain_id").await?;
         let l2_chain_id = L2ChainId::try_from(l2_chain_id.as_u64())
             .map_err(|err| anyhow::anyhow!("invalid chain ID supplied by main node: {err}"))?;
@@ -105,6 +125,7 @@ impl RemoteENConfig {
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
             l2_chain_id,
             l1_chain_id,
+            base_token_addr,
             max_pubdata_per_batch,
             l1_batch_commit_data_generator_mode: genesis
                 .as_ref()
@@ -239,6 +260,9 @@ pub(crate) struct OptionalENConfig {
         default = "OptionalENConfig::default_max_l1_batches_per_tree_iter"
     )]
     pub max_l1_batches_per_tree_iter: usize,
+    /// Maximum number of files concurrently opened by Merkle tree RocksDB. Useful to fit into OS limits; can be used
+    /// as a rudimentary way to control RAM usage of the tree.
+    pub merkle_tree_max_open_files: Option<NonZeroU32>,
     /// Chunk size for multi-get operations. Can speed up loading data for the Merkle tree on some environments,
     /// but the effects vary wildly depending on the setup (e.g., the filesystem used).
     #[serde(default = "OptionalENConfig::default_merkle_tree_multi_get_chunk_size")]
@@ -247,6 +271,11 @@ pub(crate) struct OptionalENConfig {
     /// The default value is 128 MiB.
     #[serde(default = "OptionalENConfig::default_merkle_tree_block_cache_size_mb")]
     merkle_tree_block_cache_size_mb: usize,
+    /// If specified, RocksDB indices and Bloom filters will be managed by the block cache, rather than
+    /// being loaded entirely into RAM on the RocksDB initialization. The block cache capacity should be increased
+    /// correspondingly; otherwise, RocksDB performance can significantly degrade.
+    #[serde(default)]
+    pub merkle_tree_include_indices_and_filters_in_block_cache: bool,
     /// Byte capacity of memtables (recent, non-persisted changes to RocksDB). Setting this to a reasonably
     /// large value (order of 512 MiB) is helpful for large DBs that experience write stalls.
     #[serde(default = "OptionalENConfig::default_merkle_tree_memtable_capacity_mb")]
@@ -718,6 +747,7 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,
             fee_history_limit: config.optional.fee_history_limit,
+            base_token_address: Some(config.remote.base_token_addr),
             filters_disabled: config.optional.filters_disabled,
             mempool_cache_update_interval: config.optional.mempool_cache_update_interval(),
             mempool_cache_size: config.optional.mempool_cache_size,

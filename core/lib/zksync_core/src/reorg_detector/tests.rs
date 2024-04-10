@@ -172,8 +172,9 @@ async fn normal_reorg_function(snapshot_recovery: bool, with_transient_errors: b
     if snapshot_recovery {
         storage
             .protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
     } else {
         let genesis_batch = insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
@@ -387,8 +388,9 @@ async fn reorg_is_detected_on_historic_batch_hash_mismatch(
         let mut storage = pool.connection().await.unwrap();
         storage
             .protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         store_miniblock(&mut storage, earliest_l1_batch_number, H256::zero()).await;
         seal_l1_batch(&mut storage, earliest_l1_batch_number, H256::zero()).await;
     }
@@ -514,8 +516,9 @@ async fn detector_errors_on_earliest_batch_hash_mismatch_with_snapshot_recovery(
         let mut storage = pool.connection().await.unwrap();
         storage
             .protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         store_miniblock(&mut storage, 3, H256::from_low_u64_be(3)).await;
         seal_l1_batch(&mut storage, 3, H256::from_low_u64_be(3)).await;
     });

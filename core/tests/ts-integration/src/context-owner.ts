@@ -5,7 +5,7 @@ import { BigNumberish } from 'ethers';
 import { TestContext, TestEnvironment, TestWallets } from './types';
 import { lookupPrerequisites } from './prerequisites';
 import { Reporter } from './reporter';
-import { scaledGasPrice } from './helpers';
+import { additionalMultiplier, scaledGasPrice } from './helpers';
 import { RetryProvider } from './retry-provider';
 
 // These amounts of ETH would be provided to each test suite through its "main" account.
@@ -18,7 +18,10 @@ import { RetryProvider } from './retry-provider';
 export const L1_DEFAULT_ETH_PER_ACCOUNT = ethers.utils.parseEther('0.08');
 // Stress tests for L1->L2 transactions on localhost require a lot of upfront payment, but these are skipped during tests on normal environments
 export const L1_EXTENDED_TESTS_ETH_PER_ACCOUNT = ethers.utils.parseEther('0.5');
-export const L2_ETH_PER_ACCOUNT = ethers.utils.parseEther('0.5');
+export const L2_DEFAULT_ETH_PER_ACCOUNT = ethers.utils.parseEther('0.5');
+
+// Stress tests on local host may require a lot of additiomal funds, but these are skipped during tests on normal environments
+export const L2_EXTENDED_TESTS_ETH_PER_ACCOUNT = ethers.utils.parseEther('50');
 export const ERC20_PER_ACCOUNT = ethers.utils.parseEther('10000.0');
 
 /**
@@ -89,6 +92,11 @@ export class TestContextOwner {
         return this.env.network === 'localhost' ? L1_EXTENDED_TESTS_ETH_PER_ACCOUNT : L1_DEFAULT_ETH_PER_ACCOUNT;
     }
 
+    // Returns the required amount of L2 ETH
+    requiredL2ETHPerAccount() {
+        return this.env.network === 'localhost' ? L2_EXTENDED_TESTS_ETH_PER_ACCOUNT : L2_DEFAULT_ETH_PER_ACCOUNT;
+    }
+
     /**
      * Performs the test context initialization.
      *
@@ -127,18 +135,23 @@ export class TestContextOwner {
         const latestNonce = await ethWallet.getTransactionCount('latest');
         const pendingNonce = await ethWallet.getTransactionCount('pending');
         this.reporter.debug(`Latest nonce is ${latestNonce}, pending nonce is ${pendingNonce}`);
+        // For each transaction to override it, we need to provide greater fee.
+        // We would manually provide a value high enough (for a testnet) to be both valid
+        // and higher than the previous one. It's OK as we'll only be charged for the bass fee
+        // anyways. We will also set the miner's tip to 5 gwei, which is also much higher than the normal one.
+        // Scaled gas price to be used to prevent transactions from being stuck.
+        const maxPriorityFeePerGas = ethers.utils.parseEther('0.000000005').mul(additionalMultiplier); // 5 gwei
+        const maxFeePerGas = ethers.utils.parseEther('0.00000025').mul(additionalMultiplier); // 250 gwei
+        this.reporter.debug(`Max nonce is ${latestNonce}, pending nonce is ${pendingNonce}`);
+
         const cancellationTxs = [];
         for (let nonce = latestNonce; nonce < pendingNonce; nonce++) {
-            // For each transaction to override it, we need to provide greater fee.
-            // We would manually provide a value high enough (for a testnet) to be both valid
-            // and higher than the previous one. It's OK as we'll only be charged for the bass fee
-            // anyways. We will also set the miner's tip to 5 gwei, which is also much higher than the normal one.
-            const maxFeePerGas = ethers.utils.parseEther('0.00000025'); // 250 gwei
-            const maxPriorityFeePerGas = ethers.utils.parseEther('0.000000005'); // 5 gwei
             cancellationTxs.push(
                 ethWallet
                     .sendTransaction({ to: ethWallet.address, nonce, maxFeePerGas, maxPriorityFeePerGas })
-                    .then((tx) => tx.wait())
+                    .then((tx) => {
+                        return tx.wait();
+                    })
             );
         }
         if (cancellationTxs.length > 0) {
@@ -197,7 +210,7 @@ export class TestContextOwner {
         const l2ETHAmountToDeposit = await this.ensureBalances(accountsAmount);
         const l2ERC20AmountToDeposit = ERC20_PER_ACCOUNT.mul(accountsAmount);
         const wallets = this.createTestWallets(suites);
-        await this.distributeL1BaseToken(l2ERC20AmountToDeposit);
+        await this.distributeL1BaseToken(wallets, l2ERC20AmountToDeposit);
         await this.cancelAllowances();
         await this.distributeL1Tokens(wallets, l2ETHAmountToDeposit, l2ERC20AmountToDeposit);
         await this.distributeL2Tokens(wallets);
@@ -214,7 +227,7 @@ export class TestContextOwner {
 
         this.reporter.message(`Operator address is ${this.mainEthersWallet.address}`);
 
-        const requiredL2ETHAmount = L2_ETH_PER_ACCOUNT.mul(accountsAmount);
+        const requiredL2ETHAmount = this.requiredL2ETHPerAccount().mul(accountsAmount);
         // kl todo, for non eth based chains, we need to check different
         const actualL2ETHAmount = await this.mainSyncWallet.getBalance();
         this.reporter.message(`Operator balance on L2 is ${ethers.utils.formatEther(actualL2ETHAmount)} ETH`);
@@ -258,7 +271,7 @@ export class TestContextOwner {
      * Sends L1 tokens to the test wallet accounts.
      * Additionally, deposits L1 tokens to the main account for further distribution on L2 (if required).
      */
-    private async distributeL1BaseToken(l2erc20DepositAmount: ethers.BigNumber) {
+    private async distributeL1BaseToken(wallets: TestWallets, l2erc20DepositAmount: ethers.BigNumber) {
         this.reporter.startAction(`Distributing base tokens on L1`);
         const baseTokenAddress = process.env.CONTRACTS_BASE_TOKEN_ADDR!;
         if (baseTokenAddress != zksync.utils.ETH_ADDRESS_IN_CONTRACTS) {
@@ -316,9 +329,24 @@ export class TestContextOwner {
                 .then((tx) => {
                     // Note: there is an `approve` tx, not listed here.
                     this.reporter.debug(`Sent ERC20 deposit transaction. Hash: ${tx.hash}, tx nonce: ${tx.nonce}`);
-                    return tx.wait();
+                    tx.wait();
+
+                    nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1);
+
+                    if (!ethIsBaseToken) {
+                        // Send base token on L1.
+                        const baseTokenTransfers = sendTransfers(
+                            baseTokenAddress,
+                            this.mainEthersWallet,
+                            wallets,
+                            ERC20_PER_ACCOUNT,
+                            nonce,
+                            gasPrice,
+                            this.reporter
+                        );
+                        return baseTokenTransfers;
+                    }
                 });
-            nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1);
             l1TxPromises.push(baseDepositPromise);
 
             this.reporter.debug(`Sent ${l1TxPromises.length} base token initial transactions on L1`);
@@ -354,7 +382,7 @@ export class TestContextOwner {
         if (!l2ETHAmountToDeposit.isZero()) {
             // Given that we've already sent a number of transactions,
             // we have to correctly send nonce.
-            await this.mainSyncWallet
+            const depositHandle = this.mainSyncWallet
                 .deposit({
                     token: zksync.utils.ETH_ADDRESS,
                     approveBaseERC20: true,
@@ -369,11 +397,18 @@ export class TestContextOwner {
                         gasPrice
                     }
                 })
-                .then((op) => op.waitL1Commit());
+                .then((tx) => {
+                    const amount = ethers.utils.formatEther(l2ETHAmountToDeposit);
+                    this.reporter.debug(`Sent ETH deposit. Nonce ${tx.nonce}, amount: ${amount}, hash: ${tx.hash}`);
+                    tx.wait();
+                });
             nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1);
             this.reporter.debug(
                 `Nonce changed by ${1 + (ethIsBaseToken ? 0 : 1)} for ETH deposit, new nonce: ${nonce}`
             );
+            // Add this promise to the list of L1 tx promises.
+            // l1TxPromises.push(depositHandle);
+            await depositHandle;
         }
         // Define values for handling ERC20 transfers/deposits.
         const erc20Token = this.env.erc20Token.l1Address;
@@ -482,7 +517,7 @@ export class TestContextOwner {
             zksync.utils.ETH_ADDRESS,
             this.mainSyncWallet,
             wallets,
-            L2_ETH_PER_ACCOUNT,
+            this.requiredL2ETHPerAccount(),
             l2startNonce,
             undefined,
             this.reporter

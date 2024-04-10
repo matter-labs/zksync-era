@@ -26,6 +26,8 @@ impl FromEnv for ContractsConfig {
 mod tests {
     use zksync_config::configs::EcosystemContracts;
 
+    use zksync_system_constants::ETHEREUM_SHARED_BRIDGE_ADDRESS;
+
     use super::*;
     use crate::test_utils::{addr, EnvMutex};
 
@@ -51,6 +53,7 @@ mod tests {
                 state_transition_proxy_addr: addr("0xd90f1c081c6117241624e97cb6147257c3cb2097"),
                 transparent_proxy_admin_addr: addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"),
             }),
+            base_token_addr: Some(ETHEREUM_SHARED_BRIDGE_ADDRESS),
         }
     }
 
@@ -87,6 +90,7 @@ CONTRACTS_FRI_RECURSION_NODE_LEVEL_VK_HASH="0x5a3ef282b21e12fe1f4438e5bb158fc506
 CONTRACTS_FRI_RECURSION_LEAF_LEVEL_VK_HASH="0x72167c43a46cf38875b267d67716edc4563861364a3c03ab7aee73498421e828"
 CONTRACTS_PROVER_AT_GENESIS="fri"
 CONTRACTS_SNARK_WRAPPER_VK_HASH="0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bece83612563f2"
+CONTRACTS_BASE_TOKEN_ADDR=0x0000000000000000000000000000000000000001
 CONTRACTS_BRIDGEHUB_PROXY_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
 CONTRACTS_BRIDGEHUB_IMPL_ADDR="0x87d456da9ed212eb49d80d96afb44afddf36adf8"
 CONTRACTS_STATE_TRANSITION_PROXY_ADDR="0xd90f1c081c6117241624e97cb6147257c3cb2097"

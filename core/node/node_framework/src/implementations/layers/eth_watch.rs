@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use zksync_config::{ContractsConfig, ETHWatchConfig};
 use zksync_contracts::governance_contract;
-use zksync_core::eth_watch::{client::EthHttpQueryClient, EthWatch};
 use zksync_dal::{ConnectionPool, Core};
+use zksync_eth_watch::{client::EthHttpQueryClient, EthWatch};
 use zksync_types::{ethabi::Contract, Address};
 
 use crate::{

@@ -1,0 +1,5 @@
+[base_token_fetcher]
+host="http://127.0.0.1:5000"
+# Poll interval is in seconds
+poll_interval=10
+token_address="0xdF2Ff03eAAfae59fA7fd30D4f91ab045B3d5D95D"

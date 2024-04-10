@@ -7,8 +7,10 @@ use std::{
 use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use zksync_db_connection::{
-    connection::Connection, error::DalResult, instrument::InstrumentExt, interpolate_query,
-    match_query_as,
+    connection::Connection,
+    error::DalResult,
+    instrument::{InstrumentExt, Instrumented},
+    interpolate_query, match_query_as,
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
@@ -466,7 +468,15 @@ impl BlocksDal<'_, '_> {
         storage_refunds: &[u32],
         pubdata_costs: &[i32],
         predicted_circuits_by_type: CircuitStatistic, // predicted number of circuits for each circuit type
-    ) -> anyhow::Result<()> {
+    ) -> DalResult<()> {
+        let initial_bootloader_contents_len = initial_bootloader_contents.len();
+        let instrumentation = Instrumented::new("insert_l1_batch")
+            .with_arg("number", &header.number)
+            .with_arg(
+                "initial_bootloader_contents.len",
+                &initial_bootloader_contents_len,
+            );
+
         let priority_onchain_data: Vec<Vec<u8>> = header
             .priority_ops_onchain_data
             .iter()
@@ -483,18 +493,14 @@ impl BlocksDal<'_, '_> {
             .map(|log| log.0.to_bytes().to_vec())
             .collect::<Vec<Vec<u8>>>();
         let pubdata_input = header.pubdata_input.clone();
-
-        // Serialization should always succeed.
         let initial_bootloader_contents = serde_json::to_value(initial_bootloader_contents)
-            .expect("failed to serialize initial_bootloader_contents to JSON value");
-        // Serialization should always succeed.
+            .map_err(|err| instrumentation.arg_error("initial_bootloader_contents", err))?;
         let used_contract_hashes = serde_json::to_value(&header.used_contract_hashes)
-            .expect("failed to serialize used_contract_hashes to JSON value");
+            .map_err(|err| instrumentation.arg_error("header.used_contract_hashes", err))?;
         let storage_refunds: Vec<_> = storage_refunds.iter().copied().map(i64::from).collect();
         let pubdata_costs: Vec<_> = pubdata_costs.iter().copied().map(i64::from).collect();
 
-        let mut transaction = self.storage.start_transaction().await?;
-        sqlx::query!(
+        let query = sqlx::query!(
             r#"
             INSERT INTO
                 l1_batches (
@@ -570,23 +576,29 @@ impl BlocksDal<'_, '_> {
             &pubdata_costs,
             pubdata_input,
             serde_json::to_value(predicted_circuits_by_type).unwrap(),
-        )
-        .execute(transaction.conn())
-        .await?;
+        );
 
-        transaction.commit().await?;
-
-        Ok(())
+        let mut transaction = self.storage.start_transaction().await?;
+        instrumentation
+            .with(query)
+            .execute(&mut transaction)
+            .await?;
+        transaction.commit().await
     }
 
-    pub async fn insert_miniblock(
-        &mut self,
-        miniblock_header: &MiniblockHeader,
-    ) -> anyhow::Result<()> {
-        let base_fee_per_gas = BigDecimal::from_u64(miniblock_header.base_fee_per_gas)
-            .context("base_fee_per_gas should fit in u64")?;
+    pub async fn insert_miniblock(&mut self, miniblock_header: &MiniblockHeader) -> DalResult<()> {
+        let instrumentation =
+            Instrumented::new("insert_miniblock").with_arg("number", &miniblock_header.number);
 
-        sqlx::query!(
+        let base_fee_per_gas =
+            BigDecimal::from_u64(miniblock_header.base_fee_per_gas).ok_or_else(|| {
+                instrumentation.arg_error(
+                    "header.base_fee_per_gas",
+                    anyhow::anyhow!("doesn't fit in u64"),
+                )
+            })?;
+
+        let query = sqlx::query!(
             r#"
             INSERT INTO
                 miniblocks (
@@ -653,9 +665,9 @@ impl BlocksDal<'_, '_> {
             i64::from(miniblock_header.virtual_blocks),
             miniblock_header.batch_fee_input.fair_pubdata_price() as i64,
             miniblock_header.gas_limit as i64,
-        )
-        .execute(self.storage.conn())
-        .await?;
+        );
+
+        instrumentation.with(query).execute(self.storage).await?;
         Ok(())
     }
 
@@ -2297,7 +2309,7 @@ impl BlocksDal<'_, '_> {
                 )
             WHERE
                 l1_batch_number IS NULL
-                AND fee_account_address = '\x0000000000000000000000000000000000000000'::bytea
+                AND fee_account_address = 'x0000000000000000000000000000000000000000'::bytea
             "#
         )
         .execute(self.storage.conn())
@@ -2337,7 +2349,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 l1_batches.number = miniblocks.l1_batch_number
                 AND miniblocks.number BETWEEN $1 AND $2
-                AND miniblocks.fee_account_address = '\x0000000000000000000000000000000000000000'::bytea
+                AND miniblocks.fee_account_address = 'x0000000000000000000000000000000000000000'::bytea
             "#,
             i64::from(numbers.start().0),
             i64::from(numbers.end().0)
@@ -2395,7 +2407,7 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> anyhow::Result<()> {
+    pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> DalResult<()> {
         self.insert_l1_batch(
             header,
             &[],
@@ -2441,8 +2453,9 @@ mod tests {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
 
         let mut header = L1BatchHeader::new(
             L1BatchNumber(1),
@@ -2497,8 +2510,9 @@ mod tests {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         let mut header = L1BatchHeader::new(
             L1BatchNumber(1),
             100,
@@ -2570,8 +2584,9 @@ mod tests {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
 
         for number in [1, 2] {
             let l1_batch = L1BatchHeader::new(

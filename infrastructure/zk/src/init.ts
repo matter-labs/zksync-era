@@ -42,13 +42,13 @@ type InitSetupOptions = {
     skipEnvSetup: boolean;
     skipSubmodulesCheckout: boolean;
     runObservability: boolean;
-    deploymentMode: DeploymentMode;
+    validiumMode: boolean;
 };
 const initSetup = async ({
     skipSubmodulesCheckout,
     skipEnvSetup,
     runObservability,
-    deploymentMode
+    validiumMode
 }: InitSetupOptions): Promise<void> => {
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
@@ -60,7 +60,7 @@ const initSetup = async ({
     if (!skipSubmodulesCheckout) {
         await announced('Checkout submodules', submoduleUpdate());
     }
-    if (deploymentMode == contract.DeploymentMode.Validium) {
+    if (validiumMode) {
         await announced('Checkout era-contracts for Validium mode', validiumSubmoduleCheckout());
     }
 
@@ -122,9 +122,9 @@ export const initDevCmdAction = async ({
     testTokenOptions,
     baseTokenName,
     runObservability,
-    deploymentMode
+    validiumMode
 }: InitDevCmdActionOptions): Promise<void> => {
-    await initSetup({ skipEnvSetup, skipSubmodulesCheckout, runObservability, deploymentMode });
+    await initSetup({ skipEnvSetup, skipSubmodulesCheckout, runObservability, validiumMode });
     await initDatabase({ skipVerifierDeployment: false });
     if (!skipTestTokenDeployment) {
         await deployTestTokens(testTokenOptions);
@@ -148,7 +148,7 @@ const lightweightInitCmdAction = async (): Promise<void> => {
 };
 
 export async function validiumSubmoduleCheckout() {
-    await utils.exec(`cd contracts && git checkout origin/feat_validium_mode`);
+    await utils.exec(`cd contracts && git checkout origin/feat-validium-1-5-0-integration`);
 }
 
 type InitSharedBridgeCmdActionOptions = InitSetupOptions;
@@ -163,20 +163,20 @@ type InitHyperCmdActionOptions = {
     bumpChainId: boolean;
     baseTokenName?: string;
     runObservability: boolean;
-    deploymentMode: DeploymentMode;
+    validiumMode: boolean;
 };
 export const initHyperCmdAction = async ({
     skipSetupCompletely,
     bumpChainId,
     baseTokenName,
     runObservability,
-    deploymentMode
+    validiumMode
 }: InitHyperCmdActionOptions): Promise<void> => {
     if (bumpChainId) {
-        await config.bumpChainId();
+        config.bumpChainId();
     }
     if (!skipSetupCompletely) {
-        await initSetup({ skipEnvSetup: false, skipSubmodulesCheckout: false, runObservability, deploymentMode });
+        await initSetup({ skipEnvSetup: false, skipSubmodulesCheckout: false, runObservability, validiumMode });
     }
     await initDatabase({ skipVerifierDeployment: true });
     await initHyperchain({ includePaymaster: true, baseTokenName });
@@ -187,6 +187,8 @@ export const initCommand = new Command('init')
     .option('--skip-submodules-checkout')
     .option('--skip-env-setup')
     .option('--base-token-name <base-token-name>', 'base token name')
+    .option('--validium-mode', 'deploy contracts in Validium mode')
+    .option('--run-observability', 'run observability suite')
     .description('Deploys the shared bridge and registers a hyperchain locally, as quickly as possible.')
     .action(initDevCmdAction);
 
@@ -199,6 +201,8 @@ initCommand
     .command('shared-bridge')
     .description('Deploys only the shared bridge and initializes governance. It does not deploy L2 contracts.')
     .option('--skip-submodules-checkout')
+    .option('--validium-mode', 'deploy contracts in Validium mode')
+    .option('--run-observability', 'run observability suite')
     .action(initSharedBridgeCmdAction);
 
 initCommand
@@ -207,4 +211,6 @@ initCommand
     .option('--skip-setup-completely', 'skip the setup completely, use this if server was started already')
     .option('--bump-chain-id', 'bump chain id to not conflict with previously deployed hyperchain')
     .option('--base-token-name <base-token-name>', 'base token name')
+    .option('--validium-mode', 'deploy contracts in Validium mode')
+    .option('--run-observability', 'run observability suite')
     .action(initHyperCmdAction);
