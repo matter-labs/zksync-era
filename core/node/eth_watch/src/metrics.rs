@@ -21,8 +21,6 @@ pub(super) struct EthWatcherMetrics {
     /// Latency of polling and processing events split by stage.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub poll_eth_node: Family<PollStage, Histogram<Duration>>,
-    #[metrics(buckets = Buckets::LATENCIES)]
-    pub get_priority_op_events: Histogram<Duration>,
 }
 
 #[vise::register]

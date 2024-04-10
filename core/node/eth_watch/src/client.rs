@@ -13,8 +13,6 @@ use zksync_types::{
     Address, H256,
 };
 
-use super::metrics::METRICS;
-
 /// L1 client functionality used by [`EthWatch`](crate::EthWatch) and constituent event processors.
 #[async_trait::async_trait]
 pub trait EthClient: 'static + fmt::Debug + Send + Sync {
@@ -100,7 +98,6 @@ impl EthClient for EthHttpQueryClient {
         to: BlockNumber,
         retries_left: usize,
     ) -> Result<Vec<Log>, EthClientError> {
-        let latency = METRICS.get_priority_op_events.start();
         let mut result = self.get_filter_logs(from, to, self.topics.clone()).await;
 
         // This code is compatible with both Infura and Alchemy API providers.
@@ -165,7 +162,6 @@ impl EthClient for EthHttpQueryClient {
             }
         }
 
-        latency.observe();
         result
     }
 
