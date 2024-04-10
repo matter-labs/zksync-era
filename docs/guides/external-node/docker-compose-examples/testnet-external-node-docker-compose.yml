@@ -5,8 +5,8 @@ services:
     volumes:
       - testnet-prometheus-data:/prometheus
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-    ports:
-      - "9090:9090"
+    expose:
+      - 9090
   grafana:
     image: grafana/grafana:9.3.6
     volumes:
@@ -17,9 +17,7 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_DISABLE_LOGIN_FORM: "true"
     ports:
-      - "3000:3000"
-    expose:
-      - 3000
+      - "127.0.0.1:3000:3000"
   postgres:
     image: "postgres:14"
     command: > 
@@ -36,8 +34,8 @@ services:
       -c max_wal_size=16GB
       -c max_worker_processes=16
       -c checkpoint_timeout=1800
-    ports:
-      - "5430:5430"
+    expose:
+      - 5430
     volumes:
       - testnet-postgres:/var/lib/postgresql/data
     healthcheck:
@@ -53,13 +51,13 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "3322:3322"
+      - "127.0.0.1:3060:3060"
+      - "127.0.0.1:3061:3061"
+      - "127.0.0.1:3081:3081"
     volumes:
       - testnet-rocksdb:/db
     expose:
-      - 3060
-      - 3061
-      - 3081
+      - 3322
     environment:
       DATABASE_URL: "postgres://postgres:notsecurepassword@postgres:5430/zksync_local_ext_node"
       DATABASE_POOL_SIZE: 10
