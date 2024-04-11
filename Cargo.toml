@@ -20,7 +20,6 @@ members = [
     "core/lib/contracts",
     "core/lib/crypto",
     "core/lib/circuit_breaker",
-    "core/lib/commitment_utils",
     "core/lib/dal",
     "core/lib/env_config",
     "core/lib/eth_client",
@@ -189,7 +188,6 @@ vm-benchmark-harness = { path = "core/tests/vm-benchmark/harness" }
 zksync = { path = "sdk/zksync-rs" }
 zksync_basic_types = { path = "core/lib/basic_types" }
 zksync_circuit_breaker = { path = "core/lib/circuit_breaker" }
-zksync_commitment_utils = { path = "core/lib/commitment_utils" }
 zksync_config = { path = "core/lib/config" }
 zksync_contracts = { path = "core/lib/contracts" }
 zksync_core = { path = "core/lib/zksync_core" }

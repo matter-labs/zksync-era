@@ -2,10 +2,8 @@ use std::time::Duration;
 
 use anyhow::Context;
 use itertools::Itertools;
-use metrics::{CommitmentStage, METRICS};
 use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::{sync::watch, task::JoinHandle};
-use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::i_executor::commit::kzg::pubdata_to_blob_commitments;
@@ -18,7 +16,13 @@ use zksync_types::{
 };
 use zksync_utils::h256_to_u256;
 
+use crate::{
+    metrics::{CommitmentStage, METRICS},
+    utils::{bootloader_initial_content_commitment, events_queue_commitment},
+};
+
 mod metrics;
+mod utils;
 
 const SLEEP_INTERVAL: Duration = Duration::from_millis(100);
 

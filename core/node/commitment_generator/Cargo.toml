@@ -16,14 +16,19 @@ zksync_dal.workspace = true
 zksync_health_check.workspace = true
 zksync_l1_contract_interface.workspace = true
 zksync_utils.workspace = true
-zksync_commitment_utils.workspace = true
 multivm.workspace = true
+circuit_sequencer_api_1_4_0.workspace = true
+circuit_sequencer_api_1_4_1.workspace = true
+circuit_sequencer_api_1_5_0.workspace = true
+
+zk_evm_1_5_0.workspace = true
+zk_evm_1_4_1.workspace = true
+zk_evm_1_3_3.workspace = true
+
 
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
-thiserror.workspace = true
-async-trait.workspace = true
 tracing.workspace = true
-metrics.workspace = true
 itertools.workspace = true
 serde_json.workspace = true
+
