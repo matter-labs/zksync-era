@@ -199,12 +199,12 @@ impl JobProcessor for SchedulerWitnessGenerator {
             aggregation_round: AggregationRound::Scheduler,
         };
         let blob_save_started_at = Instant::now();
-        let scheduler_circuit_blob_url = "ok";
-        // let scheduler_circuit_blob_url = self
-        //     .object_store
-        //     .put(key, &CircuitWrapper::Recursive(artifacts.scheduler_circuit))
-        //     .await
-        //     .unwrap();
+        let scheduler_circuit_blob_url = self
+            .object_store
+            .put(key, &CircuitWrapper::Recursive(artifacts.scheduler_circuit))
+            .await
+            .unwrap();
+        println!("inserting scheduler : {:?}", scheduler_circuit_blob_url);
         WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::Scheduler.into()]
             .observe(blob_save_started_at.elapsed());
 
