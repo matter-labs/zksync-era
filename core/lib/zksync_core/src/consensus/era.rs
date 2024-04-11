@@ -5,14 +5,11 @@
 //! so in case any custom behavior is needed, these APIs should be used directly.
 
 use zksync_concurrency::ctx;
+use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_web3_decl::client::BoxedL2Client;
 
-use super::{
-    config::{Config, Secrets},
-    fetcher::Fetcher,
-    storage::Store,
-};
+use super::{config, fetcher::Fetcher, storage::Store};
 use crate::sync_layer::{sync_action::ActionQueueSender, SyncState};
 
 /// Runs the consensus task in the main node mode.
@@ -36,7 +33,7 @@ pub async fn run_main_node(
 /// The fetcher implementation may either be p2p or centralized.
 pub async fn run_fetcher(
     ctx: &ctx::Ctx,
-    cfg: Option<(Config, Secrets)>,
+    cfg: Option<(ConsensusConfig, ConsensusSecrets)>,
     pool: ConnectionPool<Core>,
     sync_state: SyncState,
     main_node_client: BoxedL2Client,
@@ -48,7 +45,11 @@ pub async fn run_fetcher(
         client: main_node_client,
     };
     let res = match cfg {
-        Some((cfg, secrets)) => fetcher.run_p2p(ctx, actions, cfg.p2p(&secrets)?).await,
+        Some((cfg, secrets)) => {
+            fetcher
+                .run_p2p(ctx, actions, config::p2p(&cfg, &secrets)?)
+                .await
+        }
         None => fetcher.run_centralized(ctx, actions).await,
     };
     tracing::info!("Consensus actor stopped");

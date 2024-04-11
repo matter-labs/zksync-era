@@ -673,3 +673,37 @@ impl Distribution<configs::SharedBridge> for EncodeDist {
         }
     }
 }
+
+impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::ConsensusConfig {
+        use configs::consensus::{ConsensusConfig, Host, NodePublicKey, ValidatorPublicKey};
+        ConsensusConfig {
+            server_addr: self.sample(rng),
+            public_addr: Host(self.sample(rng)),
+            validators: self
+                .sample_range(rng)
+                .map(|_| ValidatorPublicKey(self.sample(rng)))
+                .collect(),
+            max_payload_size: self.sample(rng),
+            gossip_dynamic_inbound_limit: self.sample(rng),
+            gossip_static_inbound: self
+                .sample_range(rng)
+                .map(|_| NodePublicKey(self.sample(rng)))
+                .collect(),
+            gossip_static_outbound: self
+                .sample_range(rng)
+                .map(|_| (NodePublicKey(self.sample(rng)), Host(self.sample(rng))))
+                .collect(),
+        }
+    }
+}
+
+impl Distribution<configs::consensus::ConsensusSecrets> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::ConsensusSecrets {
+        use configs::consensus::{ConsensusSecrets, NodeSecretKey, ValidatorSecretKey};
+        ConsensusSecrets {
+            validator_key: self.sample_opt(|| ValidatorSecretKey(self.sample(rng))),
+            node_key: self.sample_opt(|| NodeSecretKey(self.sample(rng))),
+        }
+    }
+}
