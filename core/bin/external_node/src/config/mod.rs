@@ -291,9 +291,6 @@ pub(crate) struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_l1_batch_commit_data_generator_mode")]
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 
-    #[serde(default = "OptionalENConfig::default_snapshots_recovery_enabled")]
-    pub snapshots_recovery_enabled: bool,
-
     #[serde(default = "OptionalENConfig::default_pruning_chunk_size")]
     pub pruning_chunk_size: u32,
 
@@ -432,10 +429,6 @@ impl OptionalENConfig {
 
     const fn default_l1_batch_commit_data_generator_mode() -> L1BatchCommitDataGeneratorMode {
         L1BatchCommitDataGeneratorMode::Rollup
-    }
-
-    const fn default_snapshots_recovery_enabled() -> bool {
-        false
     }
 
     const fn default_pruning_chunk_size() -> u32 {
@@ -646,6 +639,10 @@ impl ExternalNodeConfig {
         let client = L2Client::http(&required.main_node_url()?)
             .context("Unable to build HTTP client for main node")?
             .build();
+        tracing::info!(
+            "Fetching config from main node using {}",
+            required.main_node_url()?
+        );
         let remote = RemoteENConfig::fetch(&client)
             .await
             .context("Unable to fetch required config values from the main node")?;

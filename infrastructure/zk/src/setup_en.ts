@@ -122,7 +122,7 @@ async function runEnIfAskedTo() {
     if (!answer.runRequested) {
         return false;
     }
-    await utils.spawn('zk external-node');
+    await utils.spawn('zk external-node -- --enable-snapshots-recovery');
 }
 
 async function commentOutConfigKey(env: string, key: string) {
@@ -153,7 +153,6 @@ async function configExternalNode() {
     const retention = await selectDataRetentionDurationHours();
     await commentOutConfigKey('ext-node', 'template_database_url');
     await changeConfigKey('ext-node', 'mode', 'GCSAnonymousReadOnly', 'en.snapshots.object_store');
-    await changeConfigKey('ext-node', 'snapshots_recovery_enabled', true, 'en');
     if (retention !== null) {
         await changeConfigKey('ext-node', 'pruning_data_retention_hours', retention, 'en');
     } else {
@@ -191,7 +190,11 @@ async function configExternalNode() {
     console.log(`Setting up postgres (${cmd('zk db setup')})`);
     await setupDb({ prover: false, core: true });
 
-    console.log(`${success('Everything done!')} You can now run your external node using ${cmd('zk external-node')}`);
+    console.log(
+        `${success('Everything done!')} You can now run your external node using ${cmd(
+            'zk external-node -- --enable-snapshots-recovery'
+        )}`
+    );
     await runEnIfAskedTo();
 }
 

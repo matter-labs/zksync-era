@@ -707,6 +707,10 @@ struct Cli {
     /// Comma-separated list of components to launch.
     #[arg(long, default_value = "all")]
     components: ComponentsToRun,
+
+    /// Enables recovery from a snapshot
+    #[arg(long)]
+    enable_snapshots_recovery: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
@@ -874,7 +878,7 @@ async fn main() -> anyhow::Result<()> {
         main_node_client.clone(),
         &app_health,
         config.remote.l2_chain_id,
-        config.optional.snapshots_recovery_enabled,
+        opt.enable_snapshots_recovery,
     )
     .await?;
     let sigint_receiver = setup_sigint_handler();
