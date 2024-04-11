@@ -26,6 +26,10 @@ describe('base ERC20 contract checks', () => {
     });
 
     test('Can perform a deposit', async () => {
+        if (isETHBasedChain) {
+            return;
+        }
+
         const amount = 1; // 1 wei is enough.
         const gasPrice = scaledGasPrice(alice);
 
@@ -70,6 +74,10 @@ describe('base ERC20 contract checks', () => {
     });
 
     test('Not enough balance should revert', async () => {
+        if (isETHBasedChain) {
+            return;
+        }
+        
         const amount = BigNumber.from('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
         const gasPrice = scaledGasPrice(alice);
         let errorMessage;
@@ -94,6 +102,10 @@ describe('base ERC20 contract checks', () => {
     });
 
     test('Can perform a transfer to self', async () => {
+        if (isETHBasedChain) {
+            return;
+        }
+        
         const amount = BigNumber.from(200);
 
         const initialAliceBalance = await alice.getBalance();
@@ -116,6 +128,10 @@ describe('base ERC20 contract checks', () => {
     });
 
     test('Incorrect transfer should revert', async () => {
+        if (isETHBasedChain) {
+            return;
+        }
+
         const amount = etherUtils.parseEther('1000000.0');
 
         const initialAliceBalance = await alice.getBalance();
@@ -138,6 +154,10 @@ describe('base ERC20 contract checks', () => {
     });
 
     test('Can perform a withdrawal', async () => {
+        if (isETHBasedChain) {
+            return;
+        }
+        
         if (testMaster.isFastMode() || isETHBasedChain) {
             return;
         }
