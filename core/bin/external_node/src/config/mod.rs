@@ -218,15 +218,6 @@ pub(crate) struct OptionalENConfig {
     /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
     #[serde(default = "OptionalENConfig::default_estimate_gas_acceptable_overestimation")]
     pub estimate_gas_acceptable_overestimation: u32,
-    /// Whether to use the compatibility mode for gas estimation for L1->L2 transactions.
-    /// During the migration to the 1.4.1 fee model, there will be a period, when the server
-    /// will already have the 1.4.1 fee model, while the L1 contracts will still expect the transactions
-    /// to use the previous fee model with much higher overhead.
-    ///
-    /// When set to `true`, the API will ensure to return gasLimit is high enough overhead for both the old
-    /// and the new fee model when estimating L1->L2 transactions.  
-    #[serde(default = "OptionalENConfig::default_l1_to_l2_transactions_compatibility_mode")]
-    pub l1_to_l2_transactions_compatibility_mode: bool,
     /// The multiplier to use when suggesting gas price. Should be higher than one,
     /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block
     #[serde(default = "OptionalENConfig::default_gas_price_scale_factor")]
@@ -299,6 +290,15 @@ pub(crate) struct OptionalENConfig {
 
     #[serde(default = "OptionalENConfig::default_l1_batch_commit_data_generator_mode")]
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+
+    #[serde(default = "OptionalENConfig::default_snapshots_recovery_enabled")]
+    pub snapshots_recovery_enabled: bool,
+
+    #[serde(default = "OptionalENConfig::default_pruning_chunk_size")]
+    pub pruning_chunk_size: u32,
+
+    /// If set, l1 batches will be pruned after they are that long
+    pub pruning_data_retention_hours: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -341,10 +341,6 @@ impl OptionalENConfig {
 
     const fn default_estimate_gas_acceptable_overestimation() -> u32 {
         1_000
-    }
-
-    const fn default_l1_to_l2_transactions_compatibility_mode() -> bool {
-        true
     }
 
     const fn default_gas_price_scale_factor() -> f64 {
@@ -436,6 +432,14 @@ impl OptionalENConfig {
 
     const fn default_l1_batch_commit_data_generator_mode() -> L1BatchCommitDataGeneratorMode {
         L1BatchCommitDataGeneratorMode::Rollup
+    }
+
+    const fn default_snapshots_recovery_enabled() -> bool {
+        false
+    }
+
+    const fn default_pruning_chunk_size() -> u32 {
+        10
     }
 
     pub fn polling_interval(&self) -> Duration {
@@ -753,9 +757,6 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
             max_allowed_l2_tx_gas_limit: u64::MAX,
             validation_computational_gas_limit: u32::MAX,
             chain_id: config.remote.l2_chain_id,
-            l1_to_l2_transactions_compatibility_mode: config
-                .optional
-                .l1_to_l2_transactions_compatibility_mode,
             max_pubdata_per_batch: config.remote.max_pubdata_per_batch,
             // Does not matter for EN.
             whitelisted_tokens_for_aa: Default::default(),

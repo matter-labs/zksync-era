@@ -119,7 +119,6 @@ pub struct StorageL1Batch {
     pub priority_ops_onchain_data: Vec<Vec<u8>>,
 
     pub hash: Option<Vec<u8>>,
-    pub merkle_root_hash: Option<Vec<u8>>,
     pub commitment: Option<Vec<u8>>,
     pub meta_parameters_hash: Option<Vec<u8>>,
     pub pass_through_data_hash: Option<Vec<u8>>,
@@ -197,11 +196,6 @@ impl TryInto<L1BatchMetadata> for StorageL1Batch {
                 .rollup_last_leaf_index
                 .ok_or(StorageL1BatchConvertError::Incomplete)?
                 as u64,
-            merkle_root_hash: H256::from_slice(
-                &self
-                    .merkle_root_hash
-                    .ok_or(StorageL1BatchConvertError::Incomplete)?,
-            ),
             initial_writes_compressed: self.compressed_initial_writes,
             repeated_writes_compressed: self.compressed_repeated_writes,
             l2_l1_merkle_root: H256::from_slice(

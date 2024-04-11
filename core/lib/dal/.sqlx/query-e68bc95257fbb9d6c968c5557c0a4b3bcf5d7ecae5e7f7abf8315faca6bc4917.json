@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                WITH\n                    deleted AS (\n                        DELETE FROM l1_batches\n                        WHERE\n                            number <= $1\n                        RETURNING\n                            *\n                    )\n                SELECT\n                    COUNT(*) AS \"count!\"\n                FROM\n                    deleted\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "e68bc95257fbb9d6c968c5557c0a4b3bcf5d7ecae5e7f7abf8315faca6bc4917"
+}

@@ -58,7 +58,6 @@ pub(crate) fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
     L1BatchMetadata {
         root_hash: H256::from_low_u64_be(number.into()),
         rollup_last_leaf_index: u64::from(number) + 20,
-        merkle_root_hash: H256::from_low_u64_be(number.into()),
         initial_writes_compressed: Some(vec![]),
         repeated_writes_compressed: Some(vec![]),
         commitment: H256::from_low_u64_be(number.into()),
@@ -330,6 +329,19 @@ pub(crate) async fn recover(
         .insert_initial_recovery_status(&snapshot_recovery)
         .await
         .unwrap();
+
+    storage
+        .pruning_dal()
+        .soft_prune_batches_range(snapshot.l1_batch.number, snapshot.miniblock.number)
+        .await
+        .unwrap();
+
+    storage
+        .pruning_dal()
+        .hard_prune_batches_range(snapshot.l1_batch.number, snapshot.miniblock.number)
+        .await
+        .unwrap();
+
     storage.commit().await.unwrap();
     snapshot_recovery
 }
