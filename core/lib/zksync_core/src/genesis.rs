@@ -619,6 +619,10 @@ pub async fn save_set_chain_id_tx(
         .to_block(BlockNumber::Latest)
         .build();
     let mut logs = eth_client.logs(filter, "fetch_chain_id_tx").await?;
+    println!(
+        "{} -- {} -- {} -- {} ",
+        to, from, state_transition_manager_address, diamond_proxy_address
+    );
     anyhow::ensure!(
         logs.len() == 1,
         "Expected a single set_chain_id event, got these {}: {:?}",
