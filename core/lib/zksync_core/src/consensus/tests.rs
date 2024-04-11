@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use rand::{distributions::Distribution, Rng};
+use rand::Rng;
 use test_casing::test_casing;
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, scope};
@@ -9,8 +9,6 @@ use zksync_consensus_network::testonly::{new_configs, new_fullnode};
 use zksync_consensus_roles::validator::testonly::Setup;
 use zksync_consensus_storage as storage;
 use zksync_consensus_storage::PersistentBlockStore as _;
-use zksync_consensus_utils::EncodeDist;
-use zksync_protobuf::testonly::{test_encode_all_formats, FmtConv};
 use zksync_types::{L1BatchNumber, MiniblockNumber};
 
 use super::*;
@@ -437,37 +435,4 @@ async fn test_centralized_fetcher(from_snapshot: bool) {
     })
     .await
     .unwrap();
-}
-
-impl Distribution<Config> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Config {
-        Config {
-            server_addr: self.sample(rng),
-            public_addr: self.sample(rng),
-            validators: rng.gen(),
-            max_payload_size: self.sample(rng),
-            gossip_dynamic_inbound_limit: self.sample(rng),
-            gossip_static_inbound: self.sample_range(rng).map(|_| rng.gen()).collect(),
-            gossip_static_outbound: self
-                .sample_range(rng)
-                .map(|_| (rng.gen(), self.sample(rng)))
-                .collect(),
-        }
-    }
-}
-
-impl Distribution<Secrets> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Secrets {
-        Secrets {
-            validator_key: self.sample_opt(|| rng.gen()),
-            node_key: self.sample_opt(|| rng.gen()),
-        }
-    }
-}
-
-#[test]
-fn test_schema_encoding() {
-    let ctx = ctx::test_root(&ctx::RealClock);
-    let rng = &mut ctx.rng();
-    test_encode_all_formats::<FmtConv<config::Config>>(rng);
 }

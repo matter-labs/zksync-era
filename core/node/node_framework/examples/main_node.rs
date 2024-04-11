@@ -9,6 +9,7 @@ use zksync_config::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
             StateKeeperConfig,
         },
+        consensus::{ConsensusConfig, ConsensusSecrets},
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         wallets::Wallets,
@@ -23,9 +24,8 @@ use zksync_core::{
         tx_sender::{ApiContracts, TxSenderConfig},
         web3::{state::InternalApiConfig, Namespace},
     },
-    consensus,
     metadata_calculator::MetadataCalculatorConfig,
-    temp_config_store::decode_yaml,
+    temp_config_store::decode_yaml_repr,
 };
 use zksync_env_config::FromEnv;
 use zksync_node_framework::{
@@ -60,6 +60,7 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder, ZkStackServiceError},
 };
+use zksync_protobuf_config::proto;
 
 struct MainNodeBuilder {
     node: ZkStackServiceBuilder,
@@ -355,22 +356,28 @@ impl MainNodeBuilder {
     fn add_consensus_layer(mut self) -> anyhow::Result<Self> {
         // Copy-pasted from the zksync_server codebase.
 
-        fn read_consensus_secrets() -> anyhow::Result<Option<consensus::Secrets>> {
+        fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets>> {
             // Read public config.
             let Ok(path) = std::env::var("CONSENSUS_SECRETS_PATH") else {
                 return Ok(None);
             };
             let secrets = std::fs::read_to_string(&path).context(path)?;
-            Ok(Some(decode_yaml(&secrets).context("failed decoding YAML")?))
+            Ok(Some(
+                decode_yaml_repr::<proto::consensus::Secrets>(&secrets)
+                    .context("failed decoding YAML")?,
+            ))
         }
 
-        fn read_consensus_config() -> anyhow::Result<Option<consensus::Config>> {
+        fn read_consensus_config() -> anyhow::Result<Option<ConsensusConfig>> {
             // Read public config.
             let Ok(path) = std::env::var("CONSENSUS_CONFIG_PATH") else {
                 return Ok(None);
             };
             let cfg = std::fs::read_to_string(&path).context(path)?;
-            Ok(Some(decode_yaml(&cfg).context("failed decoding YAML")?))
+            Ok(Some(
+                decode_yaml_repr::<proto::consensus::Config>(&cfg)
+                    .context("failed decoding YAML")?,
+            ))
         }
 
         let config = read_consensus_config().context("read_consensus_config()")?;
