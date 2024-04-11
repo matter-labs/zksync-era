@@ -8,15 +8,21 @@ use anyhow::Context;
 use serde::Deserialize;
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
-use zksync_config::{configs::chain::L1BatchCommitDataGeneratorMode, ObjectStoreConfig};
+use zksync_config::{
+    configs::{
+        chain::L1BatchCommitDataGeneratorMode,
+        consensus::{ConsensusConfig, ConsensusSecrets},
+    },
+    ObjectStoreConfig,
+};
 use zksync_core::{
     api_server::{
         tx_sender::TxSenderConfig,
         web3::{state::InternalApiConfig, Namespace},
     },
-    consensus,
-    temp_config_store::decode_yaml,
+    temp_config_store::decode_yaml_repr,
 };
+use zksync_protobuf_config::proto;
 use zksync_types::{api::BridgeAddresses, fee_model::FeeParams};
 use zksync_web3_decl::{
     client::L2Client,
@@ -564,20 +570,24 @@ impl PostgresConfig {
     }
 }
 
-pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<consensus::Secrets>> {
+pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets>> {
     let Ok(path) = std::env::var("EN_CONSENSUS_SECRETS_PATH") else {
         return Ok(None);
     };
     let cfg = std::fs::read_to_string(&path).context(path)?;
-    Ok(Some(decode_yaml(&cfg).context("failed decoding YAML")?))
+    Ok(Some(
+        decode_yaml_repr::<proto::consensus::Secrets>(&cfg).context("failed decoding YAML")?,
+    ))
 }
 
-pub(crate) fn read_consensus_config() -> anyhow::Result<Option<consensus::Config>> {
+pub(crate) fn read_consensus_config() -> anyhow::Result<Option<ConsensusConfig>> {
     let Ok(path) = std::env::var("EN_CONSENSUS_CONFIG_PATH") else {
         return Ok(None);
     };
     let cfg = std::fs::read_to_string(&path).context(path)?;
-    Ok(Some(decode_yaml(&cfg).context("failed decoding YAML")?))
+    Ok(Some(
+        decode_yaml_repr::<proto::consensus::Config>(&cfg).context("failed decoding YAML")?,
+    ))
 }
 
 /// Configuration for snapshot recovery. Loaded optionally, only if the corresponding command-line argument
@@ -604,7 +614,7 @@ pub(crate) struct ExternalNodeConfig {
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
-    pub consensus: Option<consensus::Config>,
+    pub consensus: Option<ConsensusConfig>,
     pub api_component: ApiComponentConfig,
     pub tree_component: TreeComponentConfig,
 }
