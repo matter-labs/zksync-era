@@ -67,7 +67,6 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             account_pks: self.sample_opt(|| self.sample_range(rng).map(|_| rng.gen()).collect()),
             estimate_gas_scale_factor: self.sample(rng),
             estimate_gas_acceptable_overestimation: self.sample(rng),
-            l1_to_l2_transactions_compatibility_mode: self.sample(rng),
             max_tx_size: self.sample(rng),
             vm_execution_cache_misses_limit: self.sample(rng),
             vm_concurrency_limit: self.sample(rng),
