@@ -41,7 +41,9 @@ const LOADNEXT_SIMPLE_CONTRACT_FILE: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/Foo.json";
 
 fn read_file_to_json_value(path: impl AsRef<Path>) -> serde_json::Value {
-    let zksync_home = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
+    let zksync_home = std::env::var("CARGO_MANIFEST_DIR")
+        .map(|a| format!("{a}/../../../"))
+        .unwrap_or_else(|_| ".".into());
     let path = Path::new(&zksync_home).join(path);
     serde_json::from_reader(
         File::open(&path).unwrap_or_else(|e| panic!("Failed to open file {:?}: {}", path, e)),
@@ -50,7 +52,9 @@ fn read_file_to_json_value(path: impl AsRef<Path>) -> serde_json::Value {
 }
 
 fn load_contract_if_present<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Option<Contract> {
-    let zksync_home = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
+    let zksync_home = std::env::var("CARGO_MANIFEST_DIR")
+        .map(|a| format!("{a}/../../../"))
+        .unwrap_or_else(|_| ".".into());
     let path = Path::new(&zksync_home).join(path);
     path.exists().then(|| {
         serde_json::from_value(read_file_to_json_value(&path)["abi"].take())
@@ -128,7 +132,9 @@ pub fn l1_messenger_contract() -> Contract {
 
 /// Reads bytecode from the path RELATIVE to the CARGO_MANIFEST_DIR environment variable.
 pub fn read_bytecode(relative_path: impl AsRef<Path>) -> Vec<u8> {
-    let zksync_home = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
+    let zksync_home = std::env::var("CARGO_MANIFEST_DIR")
+        .map(|a| format!("{a}/../../../"))
+        .unwrap_or_else(|_| ".".into());
     let artifact_path = Path::new(&zksync_home).join(relative_path);
     read_bytecode_from_path(artifact_path)
 }
@@ -165,7 +171,9 @@ pub struct SystemContractsRepo {
 impl SystemContractsRepo {
     /// Returns the default system contracts repository with directory based on the CARGO_MANIFEST_DIR environment variable.
     pub fn from_env() -> Self {
-        let zksync_home = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
+        let zksync_home = std::env::var("CARGO_MANIFEST_DIR")
+            .map(|a| format!("{a}/../../../"))
+            .unwrap_or_else(|_| ".".into());
         let zksync_home = PathBuf::from(zksync_home);
         SystemContractsRepo {
             root: zksync_home.join("contracts/system-contracts"),
@@ -208,7 +216,9 @@ fn read_playground_batch_bootloader_bytecode() -> Vec<u8> {
 
 /// Reads zbin bytecode from a given path, relative to CARGO_MANIFEST_DIR.
 pub fn read_zbin_bytecode(relative_zbin_path: impl AsRef<Path>) -> Vec<u8> {
-    let zksync_home = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
+    let zksync_home = std::env::var("CARGO_MANIFEST_DIR")
+        .map(|a| format!("{a}/../../../"))
+        .unwrap_or_else(|_| ".".into());
     let bytecode_path = Path::new(&zksync_home).join(relative_zbin_path);
     read_zbin_bytecode_from_path(bytecode_path)
 }

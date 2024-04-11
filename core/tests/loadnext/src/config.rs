@@ -192,7 +192,7 @@ fn default_test_contracts_path() -> PathBuf {
     let test_contracts_path = {
         let home = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         let path = PathBuf::from(&home);
-        path.join("etc/contracts-test-data")
+        path.join("../../../etc/contracts-test-data")
     };
 
     tracing::info!("Test contracts path: {}", test_contracts_path.display());

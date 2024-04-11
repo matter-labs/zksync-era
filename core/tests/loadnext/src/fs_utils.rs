@@ -28,7 +28,7 @@ pub struct TestContract {
 pub fn read_tokens(network: Network) -> anyhow::Result<Vec<Token>> {
     let home = std::env::var("CARGO_MANIFEST_DIR")?;
     let path = Path::new(&home);
-    let path = path.join(format!("etc/tokens/{network}.json"));
+    let path = path.join(format!("../../../etc/tokens/{network}.json"));
 
     let file = File::open(path)?;
     let reader = BufReader::new(file);
@@ -98,7 +98,8 @@ mod tests {
         let test_contracts_path = {
             let home = std::env::var("CARGO_MANIFEST_DIR").unwrap();
             let path = PathBuf::from(&home);
-            path.join("etc/contracts-test-data")
+            let a = path.join("../../../etc/contracts-test-data");
+            dbg!(a)
         };
 
         loadnext_contract(&test_contracts_path).unwrap();
