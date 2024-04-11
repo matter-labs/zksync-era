@@ -26,8 +26,9 @@ use zksync_core::{
     consistency_checker::ConsistencyChecker,
     db_pruner::{
         prune_conditions::{
-            L1BatchExistsCondition, L1BatchOlderThanPruneCondition,
-            NextL1BatchHasMetadataCondition, NextL1BatchWasExecutedCondition,
+            ConsistencyCheckerProcessedBatch, L1BatchExistsCondition,
+            L1BatchOlderThanPruneCondition, NextL1BatchHasMetadataCondition,
+            NextL1BatchWasExecutedCondition,
         },
         DbPruner, DbPrunerConfig,
     },
@@ -286,6 +287,9 @@ async fn run_core(
                 }),
                 Arc::new(L1BatchOlderThanPruneCondition {
                     minimal_age: l1_batch_age_to_prune,
+                    conn: connection_pool.clone(),
+                }),
+                Arc::new(ConsistencyCheckerProcessedBatch {
                     conn: connection_pool.clone(),
                 }),
             ],
