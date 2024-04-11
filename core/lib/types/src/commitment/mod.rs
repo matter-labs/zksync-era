@@ -76,7 +76,6 @@ pub fn serialize_commitments<I: SerializeCommitment>(values: &[I]) -> Vec<u8> {
 pub struct L1BatchMetadata {
     pub root_hash: H256,
     pub rollup_last_leaf_index: u64,
-    pub merkle_root_hash: H256,
     pub initial_writes_compressed: Option<Vec<u8>>,
     pub repeated_writes_compressed: Option<Vec<u8>>,
     pub commitment: H256,
