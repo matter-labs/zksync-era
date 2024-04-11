@@ -96,9 +96,6 @@ pub fn get_recursive_layer_circuit_id_for_base_layer(base_layer_circuit_id: u8) 
 }
 
 pub fn get_base_layer_circuit_id_for_recursive_layer(recursive_layer_circuit_id: u8) -> u8 {
-    if recursive_layer_circuit_id == EIP_4844_CIRCUIT_ID {
-        return 16;
-    }
     recursive_layer_circuit_id - ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8
 }
 

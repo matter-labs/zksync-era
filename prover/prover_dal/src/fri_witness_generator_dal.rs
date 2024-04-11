@@ -311,11 +311,6 @@ impl FriWitnessGeneratorDal<'_, '_> {
             for (circuit_id, closed_form_inputs_url, number_of_basic_circuits) in
                 closed_form_inputs_and_urls
             {
-                let circuit_id = if *circuit_id == EIP_4844_CIRCUIT_ID {
-                    &16
-                } else {
-                    circuit_id
-                };
                 sqlx::query!(
                     r#"
                     INSERT INTO
@@ -346,7 +341,6 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 .await
                 .unwrap();
 
-                let circuit_id = if *circuit_id == 16 { &255 } else { circuit_id };
                 self.insert_node_aggregation_jobs(
                     block_number,
                     base_layer_to_recursive_layer_circuit_id(*circuit_id),
