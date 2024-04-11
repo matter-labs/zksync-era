@@ -7,7 +7,7 @@ use multivm::{
     zk_evm_latest::ethereum_types::H256,
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{Connection, Core, CoreDal};
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_types::{
     block::MiniblockHeader, fee_model::BatchFeeInput, snapshots::SnapshotRecoveryStatus, Address,
     L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, ZKPORTER_IS_AVAILABLE,
@@ -268,7 +268,7 @@ impl L1BatchParamsProvider {
                 .blocks_web3_dal()
                 .get_miniblock_hash(prev_miniblock_number)
                 .await
-                .context("failed getting hash for previous miniblock")?
+                .map_err(DalError::generalize)?
                 .context("previous miniblock disappeared from storage")?,
         };
         tracing::info!(

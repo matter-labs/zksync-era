@@ -5,7 +5,6 @@ use clap::Parser;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
-        base_token_fetcher::BaseTokenFetcherConfig,
         chain::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
             StateKeeperConfig,
@@ -14,7 +13,7 @@ use zksync_config::{
         house_keeper::HouseKeeperConfig,
         ContractsConfig, FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
-        PrometheusConfig, ProofDataHandlerConfig, WitnessGeneratorConfig,
+        PrometheusConfig, ProofDataHandlerConfig,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, ETHConfig, ETHWatchConfig, GasAdjusterConfig,
     GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
@@ -265,7 +264,6 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         fri_witness_generator_config: FriWitnessGeneratorConfig::from_env().ok(),
         prometheus_config: PrometheusConfig::from_env().ok(),
         proof_data_handler_config: ProofDataHandlerConfig::from_env().ok(),
-        witness_generator_config: WitnessGeneratorConfig::from_env().ok(),
         api_config: ApiConfig::from_env().ok(),
         db_config: DBConfig::from_env().ok(),
         eth_sender_config: ETHConfig::from_env().ok(),
@@ -274,6 +272,5 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         object_store_config: ObjectStoreConfig::from_env().ok(),
         observability: ObservabilityConfig::from_env().ok(),
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
-        base_token_fetcher: BaseTokenFetcherConfig::from_env().ok(),
     })
 }

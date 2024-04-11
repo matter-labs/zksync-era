@@ -89,10 +89,7 @@ fee_model_version = "V1"
 validation_computational_gas_limit = 300000
 save_call_traces = true
 
-virtual_blocks_interval = 1
-virtual_blocks_per_miniblock = 1
-
-bootloader_hash = "0x010008e91510c60e8c956e992be6f5732defd0a5ac1e9ee34012fcf18f8de096"
+bootloader_hash = "0x010008bb22aea1e22373cb8d807b15c67eedd65523e9cba4cc556adfa504f7b8"
 default_aa_hash = "0x01000563a7f32f1d97b4697f3bc996132433314b9b17351a7f7cd6073f618569"
 
 [chain.operations_manager]

@@ -29,6 +29,7 @@ use zksync_config::{
             CircuitBreakerConfig, L1BatchCommitDataGeneratorMode, MempoolConfig,
             OperationsManagerConfig, StateKeeperConfig,
         },
+        consensus::ConsensusConfig,
         database::{MerkleTreeConfig, MerkleTreeMode},
         wallets,
         wallets::Wallets,
@@ -58,9 +59,8 @@ use crate::{
         healthcheck::HealthCheckHandle,
         tree::TreeApiHttpClient,
         tx_sender::{ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
-        web3::{self, state::InternalApiConfig, Namespace},
+        web3::{self, mempool_cache::MempoolCache, state::InternalApiConfig, Namespace},
     },
-    base_token_fetcher::{BaseTokenFetcher, ConversionRateFetcher, NoOpConversionRateFetcher},
     basic_witness_input_producer::BasicWitnessInputProducer,
     commitment_generator::CommitmentGenerator,
     eth_sender::{
@@ -97,13 +97,12 @@ use crate::{
 };
 
 pub mod api_server;
-pub mod base_token_fetcher;
 pub mod basic_witness_input_producer;
 pub mod block_reverter;
 pub mod commitment_generator;
 pub mod consensus;
 pub mod consistency_checker;
-pub mod dev_api_conversion_rate;
+pub mod db_pruner;
 pub mod eth_sender;
 pub mod fee_model;
 pub mod gas_tracker;
@@ -191,10 +190,6 @@ pub enum Component {
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
-    /// Base Token fetcher
-    BaseTokenFetcher,
-    /// Conversion rate API, for local development.
-    DevConversionRateApi,
     /// Component generating BFT consensus certificates for miniblocks.
     Consensus,
     /// Component generating commitment for L1 batches.
@@ -233,8 +228,6 @@ impl FromStr for Components {
             "eth_tx_aggregator" => Ok(Components(vec![Component::EthTxAggregator])),
             "eth_tx_manager" => Ok(Components(vec![Component::EthTxManager])),
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
-            "base_token_fetcher" => Ok(Components(vec![Component::BaseTokenFetcher])),
-            "dev_conversion_rate_api" => Ok(Components(vec![Component::DevConversionRateApi])),
             "consensus" => Ok(Components(vec![Component::Consensus])),
             "commitment_generator" => Ok(Components(vec![Component::CommitmentGenerator])),
             other => Err(format!("{} is not a valid component name", other)),
@@ -249,7 +242,7 @@ pub async fn initialize_components(
     contracts_config: &ContractsConfig,
     components: &[Component],
     secrets: &Secrets,
-    consensus_config: Option<consensus::Config>,
+    consensus_config: Option<ConsensusConfig>,
 ) -> anyhow::Result<(
     Vec<JoinHandle<anyhow::Result<()>>>,
     watch::Sender<bool>,
@@ -316,6 +309,22 @@ pub async fn initialize_components(
         panic!("Circuit breaker triggered: {}", err);
     });
 
+    let query_client = QueryClient::new(&eth.web3_url).unwrap();
+    let gas_adjuster_config = eth.gas_adjuster.context("gas_adjuster")?;
+    let sender = eth.sender.as_ref().context("sender")?;
+    let pubdata_pricing: Arc<dyn PubdataPricing> =
+        match genesis_config.l1_batch_commit_data_generator_mode {
+            L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupPubdataPricing {}),
+            L1BatchCommitDataGeneratorMode::Validium => Arc::new(ValidiumPubdataPricing {}),
+        };
+
+    let mut gas_adjuster = GasAdjusterSingleton::new(
+        eth.web3_url.clone(),
+        gas_adjuster_config,
+        sender.pubdata_sending_mode,
+        pubdata_pricing,
+    );
+
     let (stop_sender, stop_receiver) = watch::channel(false);
 
     // Prometheus exporter and circuit breaker checker should run for every component configuration.
@@ -340,50 +349,6 @@ pub async fn initialize_components(
         prometheus_task,
         tokio::spawn(circuit_breaker_checker.run(stop_receiver.clone())),
     ];
-
-    let query_client = QueryClient::new(&eth.web3_url).unwrap();
-    let gas_adjuster_config = eth.gas_adjuster.context("gas_adjuster")?;
-    let sender = eth.sender.as_ref().context("sender")?;
-    let pubdata_pricing: Arc<dyn PubdataPricing> =
-        match genesis_config.l1_batch_commit_data_generator_mode {
-            L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupPubdataPricing {}),
-            L1BatchCommitDataGeneratorMode::Validium => Arc::new(ValidiumPubdataPricing {}),
-        };
-
-    if components.contains(&Component::DevConversionRateApi) {
-        let base_token_fetcher_config = configs
-            .base_token_fetcher
-            .clone()
-            .context("base_token_fetcher_config")?;
-
-        let stop_receiver = stop_receiver.clone();
-        let conversion_rate_task = tokio::spawn(async move {
-            dev_api_conversion_rate::run_server(stop_receiver, &base_token_fetcher_config).await
-        });
-        task_futures.push(conversion_rate_task);
-    };
-
-    let base_token_fetcher = if components.contains(&Component::BaseTokenFetcher) {
-        Arc::new(
-            BaseTokenFetcher::new(
-                configs
-                    .base_token_fetcher
-                    .clone()
-                    .context("base_token_fetcher_config")?,
-            )
-            .await?,
-        ) as Arc<dyn ConversionRateFetcher>
-    } else {
-        Arc::new(NoOpConversionRateFetcher::new())
-    };
-
-    let mut gas_adjuster = GasAdjusterSingleton::new(
-        eth.web3_url.clone(),
-        gas_adjuster_config,
-        sender.pubdata_sending_mode,
-        base_token_fetcher,
-        pubdata_pricing,
-    );
 
     if components.contains(&Component::WsApi)
         || components.contains(&Component::HttpApi)
@@ -414,10 +379,19 @@ pub async fn initialize_components(
         // program termination.
         let mut storage_caches = None;
 
+        let mempool_cache = MempoolCache::new(api_config.web3_json_rpc.mempool_cache_size());
+        let mempool_cache_update_task = mempool_cache.update_task(
+            connection_pool.clone(),
+            api_config.web3_json_rpc.mempool_cache_update_interval(),
+        );
+        task_futures.push(tokio::spawn(
+            mempool_cache_update_task.run(stop_receiver.clone()),
+        ));
+
         if components.contains(&Component::HttpApi) {
             storage_caches = Some(
                 build_storage_caches(
-                    &configs.api_config.clone().context("api")?.web3_json_rpc,
+                    &api_config.web3_json_rpc,
                     &replica_connection_pool,
                     &mut task_futures,
                     stop_receiver.clone(),
@@ -449,6 +423,7 @@ pub async fn initialize_components(
                 batch_fee_input_provider,
                 state_keeper_config.save_call_traces,
                 storage_caches.clone().unwrap(),
+                mempool_cache.clone(),
             )
             .await
             .context("run_http_api")?;
@@ -496,6 +471,7 @@ pub async fn initialize_components(
                 replica_connection_pool.clone(),
                 stop_receiver.clone(),
                 storage_caches,
+                mempool_cache,
             )
             .await
             .context("run_ws_api")?;
@@ -581,10 +557,12 @@ pub async fn initialize_components(
 
     if components.contains(&Component::Consensus) {
         let secrets = secrets.consensus.as_ref().context("Secrets are missing")?;
-        let cfg = consensus_config
-            .clone()
-            .context("consensus component's config is missing")?
-            .main_node(secrets)?;
+        let cfg = consensus::config::main_node(
+            consensus_config
+                .as_ref()
+                .context("consensus component's config is missing")?,
+            secrets,
+        )?;
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");
         let pool = connection_pool.clone();
@@ -891,7 +869,7 @@ async fn add_state_keeper_to_task_futures(
         db_config,
         l2chain_id,
         mempool_config,
-        state_keeper_pool.clone(),
+        state_keeper_pool,
         mempool.clone(),
         batch_fee_input_provider.clone(),
         OutputHandler::new(Box::new(persistence)),
@@ -905,9 +883,6 @@ async fn add_state_keeper_to_task_futures(
         stop_receiver_clone.changed().await?;
         result
     }));
-    task_futures.push(tokio::spawn(
-        state_keeper.run_fee_address_migration(state_keeper_pool),
-    ));
     task_futures.push(tokio::spawn(state_keeper.run()));
 
     let mempool_fetcher_pool = pool_builder
@@ -1274,6 +1249,7 @@ async fn run_http_api(
     batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     with_debug_namespace: bool,
     storage_caches: PostgresStorageCaches,
+    mempool_cache: MempoolCache,
 ) -> anyhow::Result<()> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
@@ -1306,6 +1282,7 @@ async fn run_http_api(
             .with_response_body_size_limit(api_config.web3_json_rpc.max_response_body_size())
             .with_tx_sender(tx_sender)
             .with_vm_barrier(vm_barrier)
+            .with_mempool_cache(mempool_cache)
             .enable_api_namespaces(namespaces);
     if let Some(tree_api_url) = api_config.web3_json_rpc.tree_api_url() {
         let tree_api = Arc::new(TreeApiHttpClient::new(tree_api_url));
@@ -1337,6 +1314,7 @@ async fn run_ws_api(
     replica_connection_pool: ConnectionPool<Core>,
     stop_receiver: watch::Receiver<bool>,
     storage_caches: PostgresStorageCaches,
+    mempool_cache: MempoolCache,
 ) -> anyhow::Result<()> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
@@ -1372,6 +1350,7 @@ async fn run_ws_api(
             .with_polling_interval(api_config.web3_json_rpc.pubsub_interval())
             .with_tx_sender(tx_sender)
             .with_vm_barrier(vm_barrier)
+            .with_mempool_cache(mempool_cache)
             .enable_api_namespaces(namespaces);
     if let Some(tree_api_url) = api_config.web3_json_rpc.tree_api_url() {
         let tree_api = Arc::new(TreeApiHttpClient::new(tree_api_url));
@@ -1421,7 +1400,7 @@ async fn circuit_breakers_for_components(
         circuit_breakers
             .insert(Box::new(ReplicationLagChecker {
                 pool,
-                replication_lag_limit_sec: circuit_breaker_config.replication_lag_limit_sec,
+                replication_lag_limit: circuit_breaker_config.replication_lag_limit(),
             }))
             .await;
     }

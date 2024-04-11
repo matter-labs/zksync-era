@@ -2,7 +2,7 @@
 fn main() {
     zksync_protobuf_build::Config {
         input_root: "src/proto".into(),
-        proto_root: "zksync/config".into(),
+        proto_root: "zksync".into(),
         dependencies: vec![],
         protobuf_crate: "::zksync_protobuf".parse().unwrap(),
         is_public: true,

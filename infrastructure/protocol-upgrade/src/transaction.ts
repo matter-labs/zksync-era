@@ -14,6 +14,7 @@ import {
     getCryptoFileName,
     getFacetCutsFileName,
     getL2TransactionsFileName,
+    getPostUpgradeCalldataFileName,
     getL2UpgradeFileName,
     VerifierParams
 } from './utils';
@@ -249,7 +250,8 @@ export function buildDefaultUpgradeTx(
     upgradeTimestamp,
     newAllowList,
     zksyncAddress,
-    useNewGovernance
+    useNewGovernance,
+    postUpgradeCalldataFlag
 ) {
     const commonData = JSON.parse(fs.readFileSync(getCommonDataFileName(), { encoding: 'utf-8' }));
     const protocolVersion = commonData.protocolVersion;
@@ -301,11 +303,22 @@ export function buildDefaultUpgradeTx(
         }
     }
 
+    let postUpgradeCalldata = '0x';
+    let postUpgradeCalldataFileName = getPostUpgradeCalldataFileName(environment);
+    if (postUpgradeCalldataFlag) {
+        if (fs.existsSync(postUpgradeCalldataFileName)) {
+            console.log(`Found facet cuts file ${postUpgradeCalldataFileName}`);
+            postUpgradeCalldata = JSON.parse(fs.readFileSync(postUpgradeCalldataFileName).toString());
+        } else {
+            throw new Error(`Post upgrade calldata file ${postUpgradeCalldataFileName} not found`);
+        }
+    }
+
     let proposeUpgradeTx = buildProposeUpgrade(
         ethers.BigNumber.from(upgradeTimestamp),
         protocolVersion,
         '0x',
-        '0x',
+        postUpgradeCalldata,
         cryptoVerifierParams,
         bootloaderHash,
         defaultAAHash,
@@ -522,6 +535,7 @@ command
     .option('--l1rpc <l1prc>')
     .option('--zksync-address <zksyncAddress>')
     .option('--use-new-governance')
+    .option('--post-upgrade-calldata')
     .action(async (options) => {
         if (!options.useNewGovernance) {
             // TODO(X): remove old governance functionality from the protocol upgrade tool
@@ -541,7 +555,8 @@ command
             options.upgradeTimestamp,
             options.newAllowList,
             options.zksyncAddress,
-            options.useNewGovernance
+            options.useNewGovernance,
+            options.postUpgradeCalldata
         );
     });
 

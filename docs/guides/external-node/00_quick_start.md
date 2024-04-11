@@ -34,6 +34,9 @@ cd docker-compose-examples
 docker compose --file testnet-external-node-docker-compose.yml down --volumes
 ```
 
+You can see the status of the node (after recovery) in
+[local grafana dashboard](http://localhost:3000/d/0/external-node).
+
 Those commands start external node locally inside docker.
 
 The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be accessed on port `3061`.
