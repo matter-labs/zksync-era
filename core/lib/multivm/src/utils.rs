@@ -433,13 +433,14 @@ pub fn get_max_batch_base_layer_circuits(version: VmVersion) -> usize {
         | VmVersion::VmVirtualBlocksRefundsEnhancement
         | VmVersion::VmBoojumIntegration
         | VmVersion::Vm1_4_1
-        | VmVersion::Vm1_4_2
-        | VmVersion::Local => {
+        | VmVersion::Vm1_4_2 => {
             // For pre-v1.4.2 the maximal number of circuits has not been calculated, but since
             // these are used only for replaying transactions, we'll reuse the same value as for v1.4.2.
             // We avoid providing `0` for the old versions to avoid potential errors when working with old versions.
             crate::vm_1_4_2::constants::MAX_BASE_LAYER_CIRCUITS
         }
-        VmVersion::Vm1_5_0 => crate::vm_latest::constants::MAX_BASE_LAYER_CIRCUITS,
+        VmVersion::Vm1_5_0 | VmVersion::Local => {
+            crate::vm_latest::constants::MAX_BASE_LAYER_CIRCUITS
+        }
     }
 }
