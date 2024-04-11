@@ -3,6 +3,9 @@ use zksync_types::{L1BatchNumber, MiniblockNumber};
 
 use crate::Core;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug)]
 pub struct PruningDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
