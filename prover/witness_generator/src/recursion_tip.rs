@@ -248,6 +248,8 @@ impl JobProcessor for RecursionTipWitnessGenerator {
             )
             .await
             .unwrap();
+
+        println!("Saving recursion tip: {:?}", recursion_tip_circuit_blob_url);
         WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::RecursionTip.into()]
             .observe(blob_save_started_at.elapsed());
 
@@ -273,7 +275,7 @@ impl JobProcessor for RecursionTipWitnessGenerator {
 
         transaction
             .fri_witness_generator_dal()
-            .mark_scheduler_job_as_successful(job_id, started_at.elapsed())
+            .mark_recursion_tip_job_as_successful(job_id, started_at.elapsed())
             .await;
 
         transaction.commit().await.unwrap();
