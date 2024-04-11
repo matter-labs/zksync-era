@@ -2,7 +2,7 @@ use std::{env, time::Duration};
 
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
-use prover_dal::{ConnectionPool, Prover};
+use prover_dal::{ConnectionPool, Prover, ProverDal};
 use structopt::StructOpt;
 use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{FriProofCompressorConfig, ObservabilityConfig, PostgresConfig};
@@ -10,6 +10,7 @@ use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::ManagedTasks;
+use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
 use crate::{
     compressor::ProofCompressor, initial_setup_keys::download_initial_setup_keys_if_not_present,
@@ -69,12 +70,22 @@ async fn main() -> anyhow::Result<()> {
     let blob_store = ObjectStoreFactory::new(object_store_config.0)
         .create_store()
         .await;
+
+    let vk_commitments = get_cached_commitments();
+    let protocol_versions = pool
+        .connection()
+        .await
+        .unwrap()
+        .fri_protocol_versions_dal()
+        .protocol_versions_for(&vk_commitments);
+
     let proof_compressor = ProofCompressor::new(
         blob_store,
         pool,
         config.compression_mode,
         config.verify_wrapper_proof,
         config.max_attempts,
+        protocol_versions,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);

@@ -157,6 +157,15 @@ impl JobProcessor for WitnessVectorGenerator {
         let now = Instant::now();
         let mut attempts = 0;
 
+        let protocol_version = self
+            .pool
+            .connection()
+            .await
+            .unwrap()
+            .fri_prover_jobs_dal()
+            .protocol_version_for_job(job_id)
+            .await;
+
         while now.elapsed() < self.config.prover_instance_wait_timeout() {
             let prover = self
                 .pool
@@ -168,6 +177,7 @@ impl JobProcessor for WitnessVectorGenerator {
                     self.config.max_prover_reservation_duration(),
                     self.config.specialized_group_id,
                     self.zone.clone(),
+                    protocol_version,
                 )
                 .await;
 

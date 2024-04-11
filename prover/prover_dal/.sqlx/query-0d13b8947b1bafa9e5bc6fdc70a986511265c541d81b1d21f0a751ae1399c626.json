@@ -47,6 +47,11 @@
         "ordinal": 8,
         "name": "processing_started_at",
         "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 9,
+        "name": "protocol_versions",
+        "type_info": "Int4Array"
       }
     ],
     "parameters": {
@@ -65,6 +70,7 @@
       true,
       false,
       false,
+      true,
       true
     ]
   },

@@ -32,7 +32,7 @@ pub async fn fetch_next_circuit(
 ) -> Option<ProverJob> {
     let protocol_versions = storage
         .fri_protocol_versions_dal()
-        .protocol_version_for(vk_commitments)
+        .protocol_versions_for(vk_commitments)
         .await;
     let pod_name = get_current_pod_name();
     let prover_job = match &circuit_ids_for_round_to_be_proven.is_empty() {

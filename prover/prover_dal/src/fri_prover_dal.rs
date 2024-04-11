@@ -594,4 +594,21 @@ impl FriProverDal<'_, '_> {
         .unwrap()
         .unwrap_or(0) as usize
     }
+
+    pub async fn protocol_version_for_job(&mut self, job_id: u32) -> ProtocolVersionId {
+        sqlx::query!(
+            r#"
+            SELECT protocol_version
+            FROM prover_jobs_fri
+            WHERE id = $1
+            "#,
+            job_id as i32
+        )
+        .fetch_one()
+        .await
+        .unwrap()
+        .protocol_version
+        .map(|id| ProtocolVersionId::try_from(id as u16).unwrap())
+        .unwrap()
+    }
 }

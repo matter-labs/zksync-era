@@ -53,7 +53,7 @@ impl FriProtocolVersionsDal<'_, '_> {
         .unwrap();
     }
 
-    pub async fn protocol_version_for(
+    pub async fn protocol_versions_for(
         &mut self,
         vk_commitments: &L1VerifierConfig,
     ) -> Vec<ProtocolVersionId> {

@@ -12,6 +12,7 @@ pub mod gpu_socket_listener {
     use zksync_object_store::bincode;
     use zksync_prover_fri_types::WitnessVectorArtifacts;
     use zksync_types::prover_dal::{GpuProverInstanceStatus, SocketAddress};
+    use zksync_types::ProtocolVersionId;
 
     use crate::{
         metrics::METRICS,
@@ -24,6 +25,7 @@ pub mod gpu_socket_listener {
         pool: ConnectionPool<Prover>,
         specialized_prover_group_id: u8,
         zone: String,
+        protocol_versions: Vec<ProtocolVersionId>,
     }
 
     impl SocketListener {
@@ -33,6 +35,7 @@ pub mod gpu_socket_listener {
             pool: ConnectionPool<Prover>,
             specialized_prover_group_id: u8,
             zone: String,
+            protocol_versions: Vec<ProtocolVersionId>,
         ) -> Self {
             Self {
                 address,
@@ -40,6 +43,7 @@ pub mod gpu_socket_listener {
                 pool,
                 specialized_prover_group_id,
                 zone,
+                protocol_versions,
             }
         }
         async fn init(&self, init_notifier: Arc<Notify>) -> anyhow::Result<TcpListener> {
@@ -63,6 +67,7 @@ pub mod gpu_socket_listener {
                     self.address.clone(),
                     self.specialized_prover_group_id,
                     self.zone.clone(),
+                    self.protocol_versions,
                 )
                 .await;
             init_notifier.notify_one();

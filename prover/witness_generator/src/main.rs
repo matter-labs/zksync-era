@@ -124,7 +124,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .unwrap()
         .fri_protocol_versions_dal()
-        .protocol_version_for(&vk_commitments)
+        .protocol_versions_for(&vk_commitments)
         .await;
 
     // If `batch_size` is none, it means that the job is 'looping forever' (this is the usual setup in local network).

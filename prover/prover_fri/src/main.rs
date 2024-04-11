@@ -25,6 +25,7 @@ use zksync_types::{
     prover_dal::{GpuProverInstanceStatus, SocketAddress},
 };
 use zksync_utils::wait_for_tasks::ManagedTasks;
+use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
 mod gpu_prover_availability_checker;
 mod gpu_prover_job_processor;
@@ -247,6 +248,16 @@ async fn get_prover_tasks(
         host: local_ip,
         port: prover_config.witness_vector_receiver_port,
     };
+
+    let vk_commitments = get_cached_commitments();
+    let protocol_version = pool
+        .connection()
+        .await
+        .unwrap()
+        .fri_protocol_versions_dal()
+        .protocol_versions_for(&vk_commitments)
+        .await;
+
     let prover = gpu_prover::Prover::new(
         store_factory.create_store().await,
         public_blob_store,
@@ -257,6 +268,7 @@ async fn get_prover_tasks(
         consumer,
         address.clone(),
         zone.clone(),
+        protocol_version,
     );
     let producer = shared_witness_vector_queue.clone();
 
@@ -271,6 +283,7 @@ async fn get_prover_tasks(
         pool.clone(),
         prover_config.specialized_group_id,
         zone.clone(),
+        protocol_version,
     );
 
     let mut tasks = vec![

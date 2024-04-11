@@ -1,4 +1,5 @@
 use std::{str::FromStr, time::Duration};
+use zksync_basic_types::protocol_version::ProtocolVersionId;
 
 use zksync_basic_types::prover_dal::{GpuProverInstanceStatus, SocketAddress};
 use zksync_db_connection::connection::Connection;
@@ -16,6 +17,7 @@ impl FriGpuProverQueueDal<'_, '_> {
         processing_timeout: Duration,
         specialized_prover_group_id: u8,
         zone: String,
+        protocol_version_id: ProtocolVersionId,
     ) -> Option<SocketAddress> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let result: Option<SocketAddress> = sqlx::query!(
@@ -34,6 +36,7 @@ impl FriGpuProverQueueDal<'_, '_> {
                     WHERE
                         specialized_prover_group_id = $2
                         AND zone = $3
+                        AND $4 = ANY(protocol_versions)
                         AND (
                             instance_status = 'available'
                             OR (
@@ -53,7 +56,8 @@ impl FriGpuProverQueueDal<'_, '_> {
             "#,
             &processing_timeout,
             i16::from(specialized_prover_group_id),
-            zone
+            zone,
+            protocol_version
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -71,6 +75,7 @@ impl FriGpuProverQueueDal<'_, '_> {
         address: SocketAddress,
         specialized_prover_group_id: u8,
         zone: String,
+        protocol_versions: Vec<ProtocolVersionId>,
     ) {
         sqlx::query!(
             r#"
@@ -82,22 +87,28 @@ impl FriGpuProverQueueDal<'_, '_> {
                     specialized_prover_group_id,
                     zone,
                     created_at,
-                    updated_at
+                    updated_at,
+                    protocol_versions
                 )
             VALUES
-                (CAST($1::TEXT AS inet), $2, 'available', $3, $4, NOW(), NOW())
+                (CAST($1::TEXT AS inet), $2, 'available', $3, $4, NOW(), NOW(), $5)
             ON CONFLICT (instance_host, instance_port, zone) DO
             UPDATE
             SET
                 instance_status = 'available',
                 specialized_prover_group_id = $3,
                 zone = $4,
-                updated_at = NOW()
+                updated_at = NOW(),
+                protocol_versions = $5
             "#,
             address.host.to_string(),
             i32::from(address.port),
             i16::from(specialized_prover_group_id),
-            zone
+            zone,
+            &protocol_versions
+                .into_iter()
+                .map(|x| x as i32)
+                .collect::<Vec<i32>>()[..]
         )
         .execute(self.storage.conn())
         .await
@@ -187,6 +198,7 @@ impl FriGpuProverQueueDal<'_, '_> {
         let prover_max_age =
             pg_interval_from_duration(Duration::from_secs(archive_prover_after_secs));
 
+        // TODO: probably there is a way to make this query better
         sqlx::query_scalar!(
             r#"
             WITH deleted AS (
@@ -194,7 +206,17 @@ impl FriGpuProverQueueDal<'_, '_> {
                 WHERE
                     instance_status = 'dead'
                         AND updated_at < NOW() - $1::INTERVAL
-                RETURNING *, NOW() AS archived_at
+                RETURNING id,
+                    instance_host,
+                    instance_port,
+                    instance_status,
+                    specialized_prover_group_id,
+                    zone,
+                    created_at,
+                    updated_at,
+                    processing_started_at,
+                    NOW() as archived_at,
+                    protocol_versions
             ),
             inserted_count AS (
                 INSERT INTO gpu_prover_queue_fri_archive
