@@ -5,7 +5,6 @@ use std::{
 
 use ethabi::{encode, ethereum_types::H264, Contract, Token};
 use itertools::Itertools;
-use tracing::{instrument::WithSubscriber, Instrument};
 // FIXME: 1.4.1 should not be imported from 1.5.0
 use zk_evm_1_4_1::sha2::{self};
 use zk_evm_1_5_0::zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32};
@@ -113,10 +112,8 @@ fn test_evm_vector(mut bytecode: Vec<u8>) -> U256 {
     );
 
     vm.vm.push_transaction(tx);
-
-    let debug_tracer = EvmDebugTracer::new();
-    let tracer_ptr = debug_tracer.into_tracer_pointer();
-    let tx_result = vm.vm.inspect(tracer_ptr.into(), VmExecutionMode::OneTx);
+    let tx_result: crate::vm_latest::VmExecutionResultAndLogs =
+        vm.vm.execute(VmExecutionMode::OneTx);
 
     assert!(
         !tx_result.result.is_failed(),
@@ -2753,6 +2750,46 @@ fn test_basic_call_with_create_vectors() {
     );
     println!("{:?}", evm_output);
     assert_eq!(evm_output, 7u32.into());
+}
+
+#[test]
+fn test_basic_keccak_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    println!(
+        "KECCAK {:?}",
+        H256(keccak256(
+            "FFFFFFFF".as_bytes()
+        ))
+    );
+    let evm_vector = test_evm_vector(
+        vec![
+            // push32 0xFFFF_FFFF
+            hex::decode("7F").unwrap(),
+            u256_to_h256(0xFFFF_FFFFu32.into()).0.to_vec(),
+            // push1 0
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // mstore
+            hex::decode("0A").unwrap(),
+            // push1 4
+            hex::decode("60").unwrap(),
+            hex::decode("04").unwrap(),
+            // push1 0
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // keccak256
+            hex::decode("20").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    println!("evm_vector: {:?}", H256(evm_vector.into()));
+    assert_eq!(evm_vector, keccak256("FFFFFFFF".as_bytes()).into());
 }
 
 fn assert_deployed_hash<H: HistoryMode>(
