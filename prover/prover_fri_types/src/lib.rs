@@ -123,6 +123,11 @@ fn get_round_for_recursive_circuit_type(circuit_type: u8) -> AggregationRound {
         circuit_type if circuit_type == ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8 => {
             AggregationRound::NodeAggregation
         }
+        circuit_type
+            if circuit_type == ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8 =>
+        {
+            AggregationRound::RecursionTip
+        }
         _ => AggregationRound::LeafAggregation,
     }
 }
