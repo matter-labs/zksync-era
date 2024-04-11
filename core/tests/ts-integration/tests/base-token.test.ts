@@ -7,7 +7,6 @@ import { Token } from '../src/types';
 
 import * as zksync from 'zksync-ethers';
 import { BigNumber, utils as etherUtils } from 'ethers';
-import * as ethers from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
 
 describe('base ERC20 contract checks', () => {
@@ -15,18 +14,14 @@ describe('base ERC20 contract checks', () => {
     let alice: zksync.Wallet;
     let bob: zksync.Wallet;
     let baseTokenDetails: Token;
-    let aliceBaseErc20: ethers.Contract;
-    let chainId: ethers.BigNumberish;
     let isETHBasedChain: boolean;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         bob = testMaster.newEmptyAccount();
-        chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
 
         baseTokenDetails = testMaster.environment().baseToken;
-        aliceBaseErc20 = new ethers.Contract(baseTokenDetails.l1Address, zksync.utils.IERC20, alice._providerL1());
         isETHBasedChain = process.env.CONTRACTS_BASE_TOKEN_ADDR! == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
     });
 

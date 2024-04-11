@@ -3,7 +3,7 @@ import { Command } from 'commander';
 import { up } from './up';
 import { announced } from './utils';
 import { initDevCmdAction, initHyperCmdAction } from './init';
-import { DeploymentMode } from './contract';
+// import { DeploymentMode } from './contract';
 
 const reinitDevCmdAction = async (): Promise<void> => {
     await announced('Setting up containers', up(false));

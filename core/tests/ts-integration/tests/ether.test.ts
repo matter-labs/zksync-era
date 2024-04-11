@@ -7,7 +7,7 @@ import { shouldChangeETHBalances, shouldOnlyTakeFee } from '../src/modifiers/bal
 import { checkReceipt } from '../src/modifiers/receipt-check';
 
 import * as zksync from 'zksync-ethers';
-import { BigNumber, BigNumberish, Overrides } from 'ethers';
+import { BigNumber, Overrides } from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
 import { sleep } from 'zk/build/utils';
 

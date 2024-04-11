@@ -123,7 +123,7 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_base_token_l1_address(&self) -> Address {
+    pub fn get_base_token_l1_address(&self) -> Option<Address> {
         self.state.api_config.base_token_address
     }
 
