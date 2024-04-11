@@ -238,7 +238,9 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         if query.rw_flag {
             // It is a write
 
-            if self.written_storage_keys.inner().contains_key(&key) {
+            if self.written_storage_keys.inner().contains_key(&key)
+                || self.is_storage_key_free(&key)
+            {
                 // It is a warm write
                 StorageAccessRefund::Warm {
                     ergs: WARM_WRITE_REFUND,
@@ -253,7 +255,9 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
                 // It is a cold write
                 StorageAccessRefund::Cold
             }
-        } else if self.read_storage_keys.inner().contains_key(&key) {
+        } else if self.read_storage_keys.inner().contains_key(&key)
+            || self.is_storage_key_free(&key)
+        {
             // It is a warm read
             StorageAccessRefund::Warm {
                 ergs: WARM_READ_REFUND,
@@ -362,9 +366,9 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
                     .insert(storage_key, (), query.timestamp);
             }
 
-            self.set_initial_value(&storage_key, query.read_value, query.timestamp);
-
-            self.storage.read_from_storage(&storage_key)
+            let read_value = self.storage.read_from_storage(&storage_key);
+            self.set_initial_value(&storage_key, read_value, query.timestamp);
+            read_value
         } else {
             // Just in case
             unreachable!();
