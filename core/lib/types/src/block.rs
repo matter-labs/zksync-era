@@ -85,7 +85,7 @@ pub struct MiniblockHeader {
 }
 
 /// Data needed to execute a miniblock in the VM.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct MiniblockExecutionData {
     pub number: MiniblockNumber,
     pub timestamp: u64,
