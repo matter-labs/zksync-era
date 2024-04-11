@@ -1202,6 +1202,29 @@ impl FriWitnessGeneratorDal<'_, '_> {
         Ok(attempts)
     }
 
+    pub async fn mark_recursion_tip_job_as_successful(
+        &mut self,
+        block_number: L1BatchNumber,
+        time_taken: Duration,
+    ) {
+        sqlx::query!(
+            r#"
+            UPDATE recursion_tip_witness_jobs_fri
+            SET
+                status = 'successful',
+                updated_at = NOW(),
+                time_taken = $1
+            WHERE
+                l1_batch_number = $2
+            "#,
+            duration_to_naive_time(time_taken),
+            i64::from(block_number.0)
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
+
     pub async fn mark_scheduler_job_as_successful(
         &mut self,
         block_number: L1BatchNumber,
