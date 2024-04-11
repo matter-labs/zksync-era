@@ -627,7 +627,6 @@ fn test_basic_signextend_vectors() {
 #[test]
 fn test_basic_keccak_vectors() {
     // Here we just try to test some small EVM contracts and ensure that they work.
-    println!("KECCAK {:?}", H256(keccak256("FFFFFFFF".as_bytes())));
     let evm_vector = test_evm_vector(
         vec![
             // push32 0xFFFF_FFFF
@@ -655,8 +654,34 @@ fn test_basic_keccak_vectors() {
         .into_iter()
         .concat(),
     );
-    println!("evm_vector: {:?}", H256(evm_vector.into()));
-    assert_eq!(evm_vector, keccak256("FFFFFFFF".as_bytes()).into());
+    assert_eq!(
+        H256(evm_vector.into()),
+        H256(keccak256(&(0xFFFF_FFFFu32.to_le_bytes())))
+    );
+
+    let evm_vector = test_evm_vector(
+        vec![
+            // push1 4
+            hex::decode("60").unwrap(),
+            hex::decode("04").unwrap(),
+            // push1 0
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // keccak256
+            hex::decode("20").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(
+        H256(evm_vector.into()),
+        H256(keccak256(&(0x00000_00000u32.to_le_bytes())))
+    );
 }
 
 fn assert_deployed_hash<H: HistoryMode>(
