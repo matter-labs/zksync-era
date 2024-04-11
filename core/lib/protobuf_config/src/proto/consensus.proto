@@ -27,7 +27,7 @@
 
 syntax = "proto3";
 
-package zksync.core.consensus;
+package zksync.config.consensus;
 
 // (public key, ip address) of a gossip network node.
 message NodeAddr {
