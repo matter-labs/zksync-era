@@ -190,7 +190,7 @@ jobs:
           ci_run zk
           if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
             ci_run zk config compile
-            ci_run zk init ${{ matrix.base_token == 'Custom' && '--base-token-name BAT' || ''}}
+            ci_run zk init
           elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
             ci_run zk env dev_validium_docker
             ci_run zk config compile dev_validium_docker
