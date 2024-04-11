@@ -2112,6 +2112,68 @@ fn test_basic_pc_vectors() {
     );
 }
 
+#[test]
+fn test_basic_gas_vectors() {
+    // This test will fail when push1 charge gas. Reduce expected value by 3 units.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 0xFF
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // gas
+                hex::decode("5A").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        U256::from_dec_str(
+            "115792089237316195423570985008687907853269984665640564039457584007913129639933"
+        )
+        .unwrap()
+        .into()
+    );
+
+    // This test will fail when push1 charge gas. Reduce expected value by 12 units.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 0xFF
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // push1 0xEE
+                hex::decode("60").unwrap(),
+                hex::decode("EE").unwrap(),
+                // push1 0xDD
+                hex::decode("60").unwrap(),
+                hex::decode("DD").unwrap(),
+                // push1 0xCC
+                hex::decode("60").unwrap(),
+                hex::decode("CC").unwrap(),
+                // address
+                hex::decode("30").unwrap(),
+                // gas
+                hex::decode("5A").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        U256::from_dec_str(
+            "115792089237316195423570985008687907853269984665640564039457584007913129639931"
+        )
+        .unwrap()
+        .into()
+    );
+}
+
 fn assert_deployed_hash<H: HistoryMode>(
     tester: &mut VmTester<H>,
     address: Address,
