@@ -216,7 +216,6 @@ impl BlockStartInfoInner {
 }
 
 /// Information about first L1 batch / miniblock in the node storage.
-// FIXME: move to `state` module
 #[derive(Debug, Clone)]
 pub(crate) struct BlockStartInfo {
     cached_pruning_info: Arc<RwLock<BlockStartInfoInner>>,
