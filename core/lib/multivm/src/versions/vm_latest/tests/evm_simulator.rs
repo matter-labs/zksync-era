@@ -2755,12 +2755,7 @@ fn test_basic_call_with_create_vectors() {
 #[test]
 fn test_basic_keccak_vectors() {
     // Here we just try to test some small EVM contracts and ensure that they work.
-    println!(
-        "KECCAK {:?}",
-        H256(keccak256(
-            "FFFFFFFF".as_bytes()
-        ))
-    );
+    println!("KECCAK {:?}", H256(keccak256("FFFFFFFF".as_bytes())));
     let evm_vector = test_evm_vector(
         vec![
             // push32 0xFFFF_FFFF
