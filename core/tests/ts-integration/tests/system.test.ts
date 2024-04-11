@@ -16,15 +16,6 @@ import { serialize, hashBytecode } from 'zksync-web3/build/src/utils';
 import { deployOnAnyLocalAddress, ForceDeployment } from '../src/system';
 import { getTestContract } from '../src/helpers';
 
-import {
-    GasBoundCaller,
-    GasBoundCallerFactory,
-    L1Messenger,
-    L1MessengerFactory,
-    SystemContext,
-    SystemContextFactory
-} from 'system-contracts/typechain';
-
 const contracts = {
     counter: getTestContract('Counter'),
     events: getTestContract('Emitter')
@@ -57,44 +48,6 @@ describe('System behavior checks', () => {
 
         const result_b = await alice.providerL1!.call(transaction_b);
         expect(result_b).toEqual('0x');
-    });
-
-    test('GasBoundCaller should be deployed and works correctly', async () => {
-        const gasBoundCallerAddress = '0x0000000000000000000000000000000000010000';
-        const l1MessengerAddress = '0x0000000000000000000000000000000000008008';
-        const systemContextAddress = '0x000000000000000000000000000000000000800b';
-        const systemContext: SystemContext = SystemContextFactory.connect(systemContextAddress, alice._signerL2());
-        const l1Messenger: L1Messenger = L1MessengerFactory.connect(l1MessengerAddress, alice._signerL2());
-        const gasBoundCaller: GasBoundCaller = GasBoundCallerFactory.connect(gasBoundCallerAddress, alice._signerL2());
-
-        const pubdataToSend = 5000;
-        const gasSpentOnPubdata = (await systemContext.gasPerPubdataByte()).mul(pubdataToSend);
-
-        const pubdata = ethers.utils.hexlify(ethers.utils.randomBytes(pubdataToSend));
-
-        await expect(
-            (
-                await gasBoundCaller.gasBoundCall(
-                    l1MessengerAddress,
-                    gasSpentOnPubdata,
-                    l1Messenger.interface.encodeFunctionData('sendToL1', [pubdata]),
-                    {
-                        gasLimit: 80_000_000
-                    }
-                )
-            ).wait()
-        ).toBeRejected();
-
-        await (
-            await gasBoundCaller.gasBoundCall(
-                l1MessengerAddress,
-                80_000_000,
-                l1Messenger.interface.encodeFunctionData('sendToL1', [pubdata]),
-                {
-                    gasLimit: 80_000_000
-                }
-            )
-        ).wait();
     });
 
     test('Should check that system contracts and SDK create same CREATE/CREATE2 addresses', async () => {

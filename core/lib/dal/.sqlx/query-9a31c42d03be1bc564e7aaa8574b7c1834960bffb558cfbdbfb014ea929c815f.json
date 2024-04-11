@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                soft.pruned_l1_batch AS last_soft_pruned_l1_batch,\n                soft.pruned_miniblock AS last_soft_pruned_miniblock,\n                hard.pruned_l1_batch AS last_hard_pruned_l1_batch,\n                hard.pruned_miniblock AS last_hard_pruned_miniblock\n            FROM\n                (\n                    SELECT\n                        1\n                ) AS dummy\n                LEFT JOIN (\n                    SELECT\n                        pruned_l1_batch,\n                        pruned_miniblock\n                    FROM\n                        pruning_log\n                    WHERE\n                    TYPE = 'Soft'\n                    ORDER BY\n                        pruned_l1_batch DESC\n                    LIMIT\n                        1\n                ) AS soft ON TRUE\n                LEFT JOIN (\n                    SELECT\n                        pruned_l1_batch,\n                        pruned_miniblock\n                    FROM\n                        pruning_log\n                    WHERE\n                    TYPE = 'Hard'\n                    ORDER BY\n                        pruned_l1_batch DESC\n                    LIMIT\n                        1\n                ) AS hard ON TRUE;\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "last_soft_pruned_l1_batch",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "last_soft_pruned_miniblock",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "last_hard_pruned_l1_batch",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "last_hard_pruned_miniblock",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "9a31c42d03be1bc564e7aaa8574b7c1834960bffb558cfbdbfb014ea929c815f"
+}

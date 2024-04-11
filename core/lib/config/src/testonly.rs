@@ -65,7 +65,6 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             account_pks: self.sample_opt(|| self.sample_range(rng).map(|_| rng.gen()).collect()),
             estimate_gas_scale_factor: self.sample(rng),
             estimate_gas_acceptable_overestimation: self.sample(rng),
-            l1_to_l2_transactions_compatibility_mode: self.sample(rng),
             max_tx_size: self.sample(rng),
             vm_execution_cache_misses_limit: self.sample(rng),
             vm_concurrency_limit: self.sample(rng),
@@ -670,6 +669,40 @@ impl Distribution<configs::SharedBridge> for EncodeDist {
             bridgehub_proxy_addr: rng.gen(),
             state_transition_proxy_addr: rng.gen(),
             transparent_proxy_admin_addr: rng.gen(),
+        }
+    }
+}
+
+impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::ConsensusConfig {
+        use configs::consensus::{ConsensusConfig, Host, NodePublicKey, ValidatorPublicKey};
+        ConsensusConfig {
+            server_addr: self.sample(rng),
+            public_addr: Host(self.sample(rng)),
+            validators: self
+                .sample_range(rng)
+                .map(|_| ValidatorPublicKey(self.sample(rng)))
+                .collect(),
+            max_payload_size: self.sample(rng),
+            gossip_dynamic_inbound_limit: self.sample(rng),
+            gossip_static_inbound: self
+                .sample_range(rng)
+                .map(|_| NodePublicKey(self.sample(rng)))
+                .collect(),
+            gossip_static_outbound: self
+                .sample_range(rng)
+                .map(|_| (NodePublicKey(self.sample(rng)), Host(self.sample(rng))))
+                .collect(),
+        }
+    }
+}
+
+impl Distribution<configs::consensus::ConsensusSecrets> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::ConsensusSecrets {
+        use configs::consensus::{ConsensusSecrets, NodeSecretKey, ValidatorSecretKey};
+        ConsensusSecrets {
+            validator_key: self.sample_opt(|| ValidatorSecretKey(self.sample(rng))),
+            node_key: self.sample_opt(|| NodeSecretKey(self.sample(rng))),
         }
     }
 }
