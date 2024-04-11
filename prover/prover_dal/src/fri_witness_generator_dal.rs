@@ -312,7 +312,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 closed_form_inputs_and_urls
             {
                 let circuit_id = if *circuit_id == EIP_4844_CIRCUIT_ID {
-                    &18
+                    &16
                 } else {
                     circuit_id
                 };
@@ -346,6 +346,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 .await
                 .unwrap();
 
+                let circuit_id = if *circuit_id == 16 { &255 } else { circuit_id };
                 self.insert_node_aggregation_jobs(
                     block_number,
                     base_layer_to_recursive_layer_circuit_id(*circuit_id),
