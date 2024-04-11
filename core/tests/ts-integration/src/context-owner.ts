@@ -402,8 +402,7 @@ export class TestContextOwner {
                     this.reporter.debug(`Sent ETH deposit. Nonce ${tx.nonce}, amount: ${amount}, hash: ${tx.hash}`);
                     if (ethIsBaseToken) {
                         tx.wait();
-                    }
-                    else {
+                    } else {
                         // ToDo: after server fix has to be removed
                         tx.waitL1Commit();
                     }
