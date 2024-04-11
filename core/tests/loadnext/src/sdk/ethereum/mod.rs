@@ -179,7 +179,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         l1_token_address: Address,
         bridge: Option<Address>,
     ) -> Result<Address, ClientError> {
-        // kl todo. This should be moved to the shared bridge, which does not have l2_token_address on L1. Use L2 contracts instead.
+        // kl to do. This should be moved to the shared bridge, which does not have `l2_token_address` on L1. Use L2 contracts instead.
         let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge.unwrap());
         let args = CallFunctionArgs::new("l2TokenAddress", l1_token_address)
             .for_contract(bridge, self.l1_bridge_abi.clone());
@@ -198,7 +198,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         erc20_approve_threshold: U256,
         bridge: Option<Address>,
     ) -> Result<bool, ClientError> {
-        // kl todo. This should be moved to the shared bridge,
+        // kl to do. This should be moved to the shared bridge,
         let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge.unwrap());
         let current_allowance = self
             .client()
@@ -226,7 +226,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         max_erc20_approve_amount: U256,
         bridge: Option<Address>,
     ) -> Result<H256, ClientError> {
-        // kl todo. This should be moved to the shared bridge,
+        // kl to do. This should be moved to the shared bridge,
         let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge.unwrap());
         let contract_function = self
             .erc20_abi
@@ -526,7 +526,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             )
             .await?
         } else {
-            // kl todo. This should be moved to the shared bridge, and the requestL2Transaction method
+            // kl to do. This should be moved to the shared bridge, and the `requestL2Transaction` method
             let bridge_address =
                 bridge_address.unwrap_or(self.default_bridges.l1_erc20_default_bridge.unwrap());
             let contract_function = self

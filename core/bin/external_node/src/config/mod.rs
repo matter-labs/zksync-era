@@ -78,14 +78,14 @@ impl RemoteENConfig {
             Err(ClientError::Call(err))
                 if [
                     ErrorCode::MethodNotFound.code(),
-                    // This what Web3Error::NotImplemented gets
-                    // casted into in the api server.
+                    // This what `Web3Error::NotImplemented` gets
+                    // `casted` into in the `api` server.
                     ErrorCode::InternalError.code(),
                 ]
                 .contains(&(err.code())) =>
             {
                 // This is the fallback case for when the EN tries to interact
-                // with a node that does not implement the zks_baseTokenL1Address endpoint.
+                // with a node that does not implement the `zks_baseTokenL1Address` endpoint.
                 ETHEREUM_ADDRESS
             }
             response => response.context("Failed to fetch base token address")?,

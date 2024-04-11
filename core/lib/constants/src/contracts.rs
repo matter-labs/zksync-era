@@ -135,6 +135,6 @@ pub const ETHEREUM_SHARED_BRIDGE_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x01,
 ]);
-// Default ERA_CHAIN_ID.  All hyeprchains starts with this chain id and later on
+// Default `ERA_CHAIN_ID`.  All hyperchains starts with this chain id and later on
 // it will be changed to proper one
 pub const DEFAULT_ERA_CHAIN_ID: u32 = 270;
