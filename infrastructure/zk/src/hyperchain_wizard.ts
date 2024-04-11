@@ -15,6 +15,7 @@ import * as Handlebars from 'handlebars';
 import { ProverType, setupProver } from './prover_setup';
 // import { DeploymentMode } from './contract';
 import { announced } from './utils';
+import { DeploymentMode } from './contract';
 
 const title = chalk.blueBright;
 const warning = chalk.yellowBright;
