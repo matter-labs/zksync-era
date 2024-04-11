@@ -75,30 +75,16 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
         circuit_id: u8,
         final_prover_job_id: u32,
         l1_batch_number: L1BatchNumber,
-        // As of 1.4.2, there exist only 2 blobs. Their order matter.
-        // `blob_ordering` is used to determine which blob is the first one and which is the second.
-        // This will be changed when 1.5.0 will land and there will be a single node proof for blobs.
-        blob_ordering: usize,
     ) {
-        let query = if circuit_id != EIP_4844_CIRCUIT_ID {
-            format!(
-                r#"
-                UPDATE scheduler_dependency_tracker_fri
-                SET circuit_{}_final_prover_job_id = $1
-                WHERE l1_batch_number = $2
+        let query = format!(
+            r#"
+            UPDATE scheduler_dependency_tracker_fri
+            SET circuit_{}_final_prover_job_id = $1
+            WHERE l1_batch_number = $2
             "#,
-                circuit_id
-            )
-        } else {
-            format!(
-                r#"
-                    UPDATE scheduler_dependency_tracker_fri
-                    SET eip_4844_final_prover_job_id_{} = $1
-                    WHERE l1_batch_number = $2
-                "#,
-                blob_ordering,
-            )
-        };
+            circuit_id
+        );
+
         sqlx::query(&query)
             .bind(i64::from(final_prover_job_id))
             .bind(i64::from(l1_batch_number.0))
