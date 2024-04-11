@@ -600,7 +600,7 @@ impl ApiServer {
             if let Some(limit) = &self.optional.response_body_size_limit {
                 (limit.global as u32, limit.overrides.clone())
             } else {
-                (u32::MAX, MaxResponseSizeOverrides::default())
+                (u32::MAX, MaxResponseSizeOverrides::empty())
             };
         let websocket_requests_per_minute_limit = self.optional.websocket_requests_per_minute_limit;
         let subscriptions_limit = self.optional.subscriptions_limit;

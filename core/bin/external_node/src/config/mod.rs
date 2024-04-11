@@ -159,7 +159,7 @@ pub(crate) struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_max_response_body_size_mb")]
     pub max_response_body_size_mb: usize,
     /// Method-specific overrides in MiBs for the maximum response body size.
-    #[serde(default)]
+    #[serde(default = "MaxResponseSizeOverrides::empty")]
     max_response_body_size_overrides_mb: MaxResponseSizeOverrides,
 
     // Other API config settings
@@ -496,9 +496,10 @@ impl OptionalENConfig {
     }
 
     pub fn max_response_body_size(&self) -> MaxResponseSize {
+        let scale = NonZeroUsize::new(BYTES_IN_MEGABYTE).unwrap();
         MaxResponseSize {
             global: self.max_response_body_size_mb * BYTES_IN_MEGABYTE,
-            overrides: self.max_response_body_size_overrides_mb.clone(),
+            overrides: self.max_response_body_size_overrides_mb.scale(scale),
         }
     }
 
