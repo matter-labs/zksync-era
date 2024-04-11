@@ -11,13 +11,13 @@ use zksync_types::L1BatchNumber;
 use crate::db_pruner::PruneCondition;
 
 pub struct L1BatchOlderThanPruneCondition {
-    pub minimal_age: Duration,
+    pub minimum_age: Duration,
     pub conn: ConnectionPool<Core>,
 }
 
 impl Debug for L1BatchOlderThanPruneCondition {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "l1 Batch is older than {:?}", self.minimal_age)
+        write!(f, "l1 Batch is older than {:?}", self.minimum_age)
     }
 }
 
@@ -31,7 +31,7 @@ impl PruneCondition for L1BatchOlderThanPruneCondition {
             .await?;
         let is_old_enough = l1_batch_header.is_some()
             && (Utc::now().timestamp() as u64 - l1_batch_header.unwrap().timestamp
-                > self.minimal_age.as_secs());
+                > self.minimum_age.as_secs());
         Ok(is_old_enough)
     }
 }
