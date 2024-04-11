@@ -310,7 +310,7 @@ export function buildDefaultUpgradeTx(
             console.log(`Found facet cuts file ${postUpgradeCalldataFileName}`);
             postUpgradeCalldata = JSON.parse(
                 fs.readFileSync(postUpgradeCalldataFileName).toString()
-            ).postUpgradeCalldata;
+            );
         } else {
             throw new Error(`Post upgrade calldata file ${postUpgradeCalldataFileName} not found`);
         }
