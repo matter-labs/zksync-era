@@ -17,7 +17,7 @@ use crate::{
     contract_verification_dal::ContractVerificationDal, eth_sender_dal::EthSenderDal,
     events_dal::EventsDal, events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
     proof_generation_dal::ProofGenerationDal, protocol_versions_dal::ProtocolVersionsDal,
-    protocol_versions_web3_dal::ProtocolVersionsWeb3Dal,
+    protocol_versions_web3_dal::ProtocolVersionsWeb3Dal, pruning_dal::PruningDal,
     snapshot_recovery_dal::SnapshotRecoveryDal, snapshots_creator_dal::SnapshotsCreatorDal,
     snapshots_dal::SnapshotsDal, storage_logs_dal::StorageLogsDal,
     storage_logs_dedup_dal::StorageLogsDedupDal, storage_web3_dal::StorageWeb3Dal,
@@ -39,6 +39,7 @@ mod models;
 pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
 pub mod protocol_versions_web3_dal;
+pub mod pruning_dal;
 pub mod snapshot_recovery_dal;
 pub mod snapshots_creator_dal;
 pub mod snapshots_dal;
@@ -57,6 +58,9 @@ pub mod metrics;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod pruning_dal_tests;
 
 // This module is private and serves as a way to seal the trait.
 mod private {
@@ -120,6 +124,8 @@ where
     fn snapshots_creator_dal(&mut self) -> SnapshotsCreatorDal<'_, 'a>;
 
     fn snapshot_recovery_dal(&mut self) -> SnapshotRecoveryDal<'_, 'a>;
+
+    fn pruning_dal(&mut self) -> PruningDal<'_, 'a>;
 }
 
 #[derive(Clone, Debug)]
@@ -229,5 +235,9 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn snapshot_recovery_dal(&mut self) -> SnapshotRecoveryDal<'_, 'a> {
         SnapshotRecoveryDal { storage: self }
+    }
+
+    fn pruning_dal(&mut self) -> PruningDal<'_, 'a> {
+        PruningDal { storage: self }
     }
 }

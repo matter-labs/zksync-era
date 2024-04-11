@@ -100,6 +100,7 @@ assert_matches.workspace = true
 jsonrpsee.workspace = true
 tempfile.workspace = true
 test-casing.workspace = true
+test-log.workspace = true
 
 [build-dependencies]
 zksync_protobuf_build.workspace = true
