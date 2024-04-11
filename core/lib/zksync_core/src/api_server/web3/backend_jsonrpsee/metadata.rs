@@ -11,6 +11,7 @@ use zksync_web3_decl::{
 
 #[cfg(test)]
 use super::testonly::RecordedMethodCalls;
+use super::RawParamsWithBorrow;
 use crate::api_server::web3::metrics::API_METRICS;
 
 /// Metadata assigned to a JSON-RPC method call.
@@ -88,9 +89,14 @@ impl MethodTracer {
         }
     }
 
-    pub(super) fn new_call(self: &Arc<Self>, name: &'static str) -> MethodCall {
+    pub(super) fn new_call<'a>(
+        self: &Arc<Self>,
+        name: &'static str,
+        raw_params: RawParamsWithBorrow<'a>,
+    ) -> MethodCall<'a> {
         MethodCall {
             tracer: self.clone(),
+            raw_params,
             meta: MethodMetadata::new(name),
             is_completed: false,
         }
@@ -118,21 +124,23 @@ impl MethodTracer {
 }
 
 #[derive(Debug)]
-pub(super) struct MethodCall {
+pub(super) struct MethodCall<'a> {
     tracer: Arc<MethodTracer>,
     meta: MethodMetadata,
+    raw_params: RawParamsWithBorrow<'a>,
     is_completed: bool,
 }
 
-impl Drop for MethodCall {
+impl Drop for MethodCall<'_> {
     fn drop(&mut self) {
+        dbg!(&self.meta, self.raw_params.get());
         if !self.is_completed {
             API_METRICS.observe_dropped_call(&self.meta);
         }
     }
 }
 
-impl MethodCall {
+impl MethodCall<'_> {
     pub(super) fn set_as_current(&mut self) -> CurrentMethodGuard<'_> {
         let meta = &mut self.meta;
         let cell = self.tracer.inner.get_or_default();

@@ -26,7 +26,10 @@ use zksync_web3_decl::jsonrpsee::{
     MethodResponse,
 };
 
-use super::metadata::{MethodCall, MethodTracer};
+use super::{
+    metadata::{MethodCall, MethodTracer},
+    RawParamsWithBorrow,
+};
 use crate::api_server::web3::metrics::API_METRICS;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
@@ -134,9 +137,9 @@ impl<'a, S> RpcServiceT<'a> for MetadataMiddleware<S>
 where
     S: Send + Sync + RpcServiceT<'a>,
 {
-    type Future = WithMethodCall<S::Future>;
+    type Future = WithMethodCall<'a, S::Future>;
 
-    fn call(&self, request: Request<'a>) -> Self::Future {
+    fn call(&self, mut request: Request<'a>) -> Self::Future {
         // "Normalize" the method name by searching it in the set of all registered methods. This extends the lifetime
         // of the name to `'static` and maps unknown methods to "", so that method name metric labels don't have unlimited cardinality.
         let method_name = self
@@ -145,23 +148,34 @@ where
             .copied()
             .unwrap_or("");
 
+        let original_params = unsafe {
+            // SAFETY: as per `BorrowedRawParams` contract, `original_params` outlive `request.params`:
+            //
+            // - `request` is sent to `self.inner.call(_)` and lives at most as long as the returned `Future`
+            //   (i.e., `WithMethodCall.inner`)
+            // - `original_params` is a part of `call` and is thus dropped after `WithMethodCall.inner`
+            //   (fields in structs are dropped in the declaration order)
+            RawParamsWithBorrow::new(&mut request.params)
+        };
+        let call = self.method_tracer.new_call(method_name, original_params);
+
         WithMethodCall {
-            call: self.method_tracer.new_call(method_name),
             inner: self.inner.call(request),
+            call,
         }
     }
 }
 
 pin_project! {
     #[derive(Debug)]
-    pub(crate) struct WithMethodCall<F> {
-        call: MethodCall,
+    pub(crate) struct WithMethodCall<'a, F> {
         #[pin]
         inner: F,
+        call: MethodCall<'a>,
     }
 }
 
-impl<F: Future<Output = MethodResponse>> Future for WithMethodCall<F> {
+impl<F: Future<Output = MethodResponse>> Future for WithMethodCall<'_, F> {
     type Output = MethodResponse;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -294,7 +308,7 @@ mod tests {
             };
 
             WithMethodCall {
-                call: method_tracer.new_call("test"),
+                call: method_tracer.new_call("test", RawParamsWithBorrow(None)),
                 inner,
             }
         });
