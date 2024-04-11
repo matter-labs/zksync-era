@@ -37,8 +37,6 @@ impl ProtoRepr for proto::GeneralConfig {
             snapshot_creator: read_optional_repr(&self.snapshot_creator)
                 .context("snapshot_creator")?,
             observability: read_optional_repr(&self.observability).context("observability")?,
-            base_token_fetcher: read_optional_repr(&self.base_token_fetcher)
-                .context("base_token_fetcher")?,
         })
     }
 
@@ -70,7 +68,6 @@ impl ProtoRepr for proto::GeneralConfig {
             eth: this.eth.as_ref().map(ProtoRepr::build),
             snapshot_creator: this.snapshot_creator.as_ref().map(ProtoRepr::build),
             observability: this.observability.as_ref().map(ProtoRepr::build),
-            base_token_fetcher: this.base_token_fetcher.as_ref().map(ProtoRepr::build),
         }
     }
 }

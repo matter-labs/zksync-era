@@ -1,4 +1,3 @@
-use super::BaseTokenFetcherConfig;
 use crate::{
     configs::{
         chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
@@ -33,5 +32,4 @@ pub struct GeneralConfig {
     pub eth: Option<ETHConfig>,
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
     pub observability: Option<ObservabilityConfig>,
-    pub base_token_fetcher: Option<BaseTokenFetcherConfig>,
 }
