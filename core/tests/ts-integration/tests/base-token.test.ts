@@ -77,7 +77,7 @@ describe('base ERC20 contract checks', () => {
         if (isETHBasedChain) {
             return;
         }
-        
+
         const amount = BigNumber.from('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
         const gasPrice = scaledGasPrice(alice);
         let errorMessage;
@@ -105,7 +105,7 @@ describe('base ERC20 contract checks', () => {
         if (isETHBasedChain) {
             return;
         }
-        
+
         const amount = BigNumber.from(200);
 
         const initialAliceBalance = await alice.getBalance();
@@ -157,7 +157,7 @@ describe('base ERC20 contract checks', () => {
         if (isETHBasedChain) {
             return;
         }
-        
+
         if (testMaster.isFastMode() || isETHBasedChain) {
             return;
         }
