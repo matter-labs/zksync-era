@@ -1114,7 +1114,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     SELECT
                         l1_batch_number
                     FROM
-                        scheduler_witness_jobs_fri
+                        recursion_tip_witness_jobs_fri
                     WHERE
                         status = 'queued'
                         AND protocol_version = ANY ($1)

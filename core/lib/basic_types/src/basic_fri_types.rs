@@ -74,8 +74,7 @@ impl From<Eip4844Blobs> for Vec<u8> {
 }
 
 pub struct FinalProofIds {
-    pub node_proof_ids: [u32; 13],
-    pub eip_4844_proof_ids: [u32; 2],
+    pub node_proof_ids: [i64; 16],
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Eq, Hash, PartialEq, PartialOrd, Ord)]

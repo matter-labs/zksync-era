@@ -217,7 +217,23 @@ pub async fn load_proofs_for_job_ids(
 ) -> Vec<FriProofWrapper> {
     let mut proofs = Vec::with_capacity(job_ids.len());
     for &job_id in job_ids {
-        proofs.push(object_store.get(job_id).await.unwrap());
+        proofs.push(object_store.get(job_id).await.unwrap())
+    }
+    proofs
+}
+
+pub async fn load_proofs_for_recursion_tip(
+    job_ids: &[i64],
+    object_store: &dyn ObjectStore,
+) -> Vec<FriProofWrapper> {
+    let mut proofs = Vec::with_capacity(job_ids.len());
+    for &job_id in job_ids {
+        if job_id == -1 {
+            // HACK -  reuse mainVM if there is no proof.
+            proofs.push(object_store.get(job_ids[0] as u32).await.unwrap())
+        } else {
+            proofs.push(object_store.get(job_id as u32).await.unwrap())
+        };
     }
     proofs
 }

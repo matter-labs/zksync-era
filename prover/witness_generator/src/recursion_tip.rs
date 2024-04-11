@@ -57,7 +57,7 @@ use zksync_vk_setup_data_server_fri::{keystore::Keystore, utils::get_leaf_vk_par
 
 use crate::{
     metrics::WITNESS_GENERATOR_METRICS,
-    utils::{load_proofs_for_job_ids, SchedulerPartialInputWrapper},
+    utils::{load_proofs_for_job_ids, load_proofs_for_recursion_tip, SchedulerPartialInputWrapper},
 };
 
 pub struct RecursionTipArtifacts {
@@ -302,7 +302,7 @@ pub async fn prepare_job(
     object_store: &dyn ObjectStore,
 ) -> anyhow::Result<RecursionTipWitnessGeneratorJob> {
     let started_at = Instant::now();
-    let proofs = load_proofs_for_job_ids(&proof_job_ids.node_proof_ids, object_store).await;
+    let proofs = load_proofs_for_recursion_tip(&proof_job_ids.node_proof_ids, object_store).await;
     WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::RecursionTip.into()]
         .observe(started_at.elapsed());
 

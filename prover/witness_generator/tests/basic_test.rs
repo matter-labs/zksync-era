@@ -136,9 +136,8 @@ async fn test_scheduler_witness_gen() {
     let proof_job_ids = FinalProofIds {
         node_proof_ids: [
             5639969, 5627082, 5627084, 5627083, 5627086, 5627085, 5631320, 5627090, 5627091,
-            5627092, 5627093, 5627094, 5629097,
+            5627092, 5627093, 5627094, 5629097, 5629098, 5629099, 5629100,
         ],
-        eip_4844_proof_ids: [0, 1],
     };
 
     let job = scheduler::prepare_job(block_number, proof_job_ids, &*object_store)
