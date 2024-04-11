@@ -3,10 +3,11 @@ use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
 use sqlx::Row;
 use zksync_basic_types::{
-    basic_fri_types::{AggregationRound, Eip4844Blobs},
+    basic_fri_types::{AggregationRound, Eip4844Blobs, EIP_4844_BLOB_SIZE},
     protocol_version::ProtocolVersionId,
     prover_dal::{
         JobCountStatistics, LeafAggregationJobMetadata, NodeAggregationJobMetadata, StuckJobs,
+        EIP_4844_CIRCUIT_ID,
     },
     L1BatchNumber,
 };
@@ -310,6 +311,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
             for (circuit_id, closed_form_inputs_url, number_of_basic_circuits) in
                 closed_form_inputs_and_urls
             {
+                let circuit_id = if *circuit_id == EIP_4844_CIRCUIT_ID {
+                    &18
+                } else {
+                    circuit_id
+                };
                 sqlx::query!(
                     r#"
                     INSERT INTO

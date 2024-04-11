@@ -116,12 +116,7 @@ pub async fn save_proof(
         let circuit_id = get_base_layer_circuit_id_for_recursive_layer(job_metadata.circuit_id);
         transaction
             .fri_scheduler_dependency_tracker_dal()
-            .set_final_prover_job_id_for_l1_batch(
-                circuit_id,
-                job_id,
-                job_metadata.block_number,
-                job_metadata.sequence_number,
-            )
+            .set_final_prover_job_id_for_l1_batch(circuit_id, job_id, job_metadata.block_number)
             .await;
     }
     if is_recursive_tip_proof {
