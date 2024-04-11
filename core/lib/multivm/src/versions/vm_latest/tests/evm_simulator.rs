@@ -638,6 +638,10 @@ fn test_basic_sload_vectors() {
                 H256::zero().0.to_vec(),
                 // sload
                 hex::decode("54").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
             ]
             .into_iter()
             .concat()
@@ -661,6 +665,10 @@ fn test_basic_sload_vectors() {
                 H256::zero().0.to_vec(),
                 // sload
                 hex::decode("54").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
             ]
             .into_iter()
             .concat()
