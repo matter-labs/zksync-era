@@ -266,9 +266,12 @@ impl<C: L2ClientBase> L2ClientBuilder<C> {
             self.client,
             self.rate_limit
         );
+        let rate_limit = SharedRateLimit::new(self.rate_limit.0, self.rate_limit.1);
+        METRICS.observe_config(&rate_limit);
+
         L2Client {
             inner: self.client,
-            rate_limit: SharedRateLimit::new(self.rate_limit.0, self.rate_limit.1),
+            rate_limit,
             component_name: "",
             metrics: &METRICS,
         }
