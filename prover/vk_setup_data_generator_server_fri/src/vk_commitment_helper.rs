@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, path::PathBuf};
 
 use anyhow::Context as _;
 use toml_edit::{Document, Item, Value};
@@ -18,11 +18,11 @@ pub fn write_contract_toml(contract_doc: Document) -> anyhow::Result<()> {
 pub fn read_contract_toml() -> anyhow::Result<Document> {
     let path = get_contract_toml_path();
     let toml_data = std::fs::read_to_string(path.clone())
-        .with_context(|| format!("contract.toml file does not exist on path {path}"))?;
+        .with_context(|| format!("contract.toml file does not exist on path {path:?}"))?;
     toml_data.parse::<Document>().context("invalid config file")
 }
 
-pub fn get_contract_toml_path() -> String {
+pub fn get_contract_toml_path() -> PathBuf {
     locate_workspace()
         .unwrap_or_else(|| ".".into())
         .join("etc/env/base/contracts.toml")

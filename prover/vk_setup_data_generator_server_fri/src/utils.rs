@@ -116,13 +116,13 @@ pub fn calculate_snark_vk_hash(keystore: &Keystore) -> anyhow::Result<H256> {
 
 #[cfg(test)]
 mod tests {
-    use std::{env, path::PathBuf, str::FromStr};
+    use std::str::FromStr;
 
     use super::*;
 
     #[test]
     fn test_keyhash_generation() {
-        let mut path_to_input = locate_workspace().unwrap_or_else(|_| ".".into());
+        let mut path_to_input = locate_workspace().unwrap_or_else(|| ".".into());
 
         path_to_input.push("historical_data");
 
