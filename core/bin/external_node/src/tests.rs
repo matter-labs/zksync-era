@@ -121,7 +121,6 @@ async fn external_node_basics(components_str: &'static str) {
     let opt = Cli {
         revert_pending_l1_batch: false,
         enable_consensus: false,
-        enable_snapshots_recovery: false,
         components,
     };
     let mut config = ExternalNodeConfig::mock(&temp_dir, &connection_pool);

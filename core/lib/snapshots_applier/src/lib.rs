@@ -321,6 +321,20 @@ impl<'a> SnapshotsApplier<'a> {
             .await?;
         let mut storage_transaction = storage.start_transaction().await?;
 
+        if storage_transaction
+            .snapshot_recovery_dal()
+            .get_applied_snapshot_status()
+            .await?
+            .is_some()
+            && storage_transaction
+                .blocks_dal()
+                .get_sealed_miniblock_number()
+                .await?
+                .is_some()
+        {
+            return Ok(());
+        }
+
         let (applied_snapshot_status, created_from_scratch) =
             Self::prepare_applied_snapshot_status(&mut storage_transaction, main_node_client)
                 .await?;
@@ -351,6 +365,21 @@ impl<'a> SnapshotsApplier<'a> {
             storage_transaction
                 .snapshot_recovery_dal()
                 .insert_initial_recovery_status(&this.applied_snapshot_status)
+                .await?;
+            storage_transaction
+                .pruning_dal()
+                .soft_prune_batches_range(
+                    this.applied_snapshot_status.l1_batch_number,
+                    this.applied_snapshot_status.miniblock_number,
+                )
+                .await?;
+
+            storage_transaction
+                .pruning_dal()
+                .hard_prune_batches_range(
+                    this.applied_snapshot_status.l1_batch_number,
+                    this.applied_snapshot_status.miniblock_number,
+                )
                 .await?;
         }
         storage_transaction.commit().await?;
