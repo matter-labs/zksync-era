@@ -2,6 +2,7 @@ use anyhow::Context as _;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
+        base_token_fetcher::BaseTokenFetcherConfig,
         chain::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
             StateKeeperConfig,
@@ -65,6 +66,7 @@ pub struct TempConfigStore {
     pub object_store_config: Option<ObjectStoreConfig>,
     pub observability: Option<ObservabilityConfig>,
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
+    pub base_token_fetcher: Option<BaseTokenFetcherConfig>,
 }
 
 #[derive(Debug)]
@@ -110,6 +112,7 @@ impl TempConfigStore {
             eth: self.eth_sender_config.clone(),
             snapshot_creator: self.snapshot_creator.clone(),
             observability: self.observability.clone(),
+            base_token_fetcher: self.base_token_fetcher.clone(),
         }
     }
 

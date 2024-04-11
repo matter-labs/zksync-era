@@ -13,7 +13,7 @@ use zksync_types::{U256, U64};
 
 use self::metrics::METRICS;
 use super::{L1TxParamsProvider, PubdataPricing};
-use crate::state_keeper::metrics::KEEPER_METRICS;
+use crate::{base_token_fetcher::ConversionRateFetcher, state_keeper::metrics::KEEPER_METRICS};
 
 mod metrics;
 #[cfg(test)]
@@ -32,6 +32,7 @@ pub struct GasAdjuster {
     pub(super) config: GasAdjusterConfig,
     pubdata_sending_mode: PubdataSendingMode,
     eth_client: Arc<dyn EthInterface>,
+    base_token_fetcher: Arc<dyn ConversionRateFetcher>,
     pubdata_pricing: Arc<dyn PubdataPricing>,
 }
 
@@ -40,6 +41,7 @@ impl GasAdjuster {
         eth_client: Arc<dyn EthInterface>,
         config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
+        base_token_fetcher: Arc<dyn ConversionRateFetcher>,
         pubdata_pricing: Arc<dyn PubdataPricing>,
     ) -> Result<Self, Error> {
         // Subtracting 1 from the "latest" block number to prevent errors in case
@@ -71,6 +73,7 @@ impl GasAdjuster {
                 &last_block_blob_base_fee,
             ),
             config,
+            base_token_fetcher,
             pubdata_sending_mode,
             eth_client,
             pubdata_pricing,
@@ -149,6 +152,13 @@ impl GasAdjuster {
                 tracing::warn!("Cannot add the base fee to gas statistics: {}", err);
             }
 
+            if let Err(err) = self.base_token_fetcher.update().await {
+                tracing::warn!(
+                    "Error when trying to fetch the native erc20 conversion rate: {}",
+                    err
+                );
+            }
+
             tokio::time::sleep(self.config.poll_period()).await;
         }
         Ok(())
@@ -166,8 +176,9 @@ impl GasAdjuster {
         let calculated_price =
             (self.config.internal_l1_pricing_multiplier * effective_gas_price as f64) as u64;
 
-        // Bound the price if it's too high.
-        self.bound_gas_price(calculated_price)
+        let conversion_rate = self.base_token_fetcher.conversion_rate().unwrap_or(1);
+
+        self.bound_gas_price(calculated_price) * conversion_rate
     }
 
     pub(crate) fn estimate_effective_pubdata_price(&self) -> u64 {
