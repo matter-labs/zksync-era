@@ -794,7 +794,7 @@ async fn generate_witness(
     let mut recursion_urls = vec![];
 
     let mut mapping: HashMap<String, i32> = HashMap::new();
-    let mut recursion_tip_circuits = [None; 16];
+    let mut recursion_tip_circuits = [Some(-1); 16];
     let mut recursion_queue = vec![];
     let save_circuits = async {
         loop {
@@ -805,7 +805,7 @@ async fn generate_witness(
                     } else {
                         (circuit.numeric_circuit_type() - 1) as usize
                     };
-                    recursion_tip_circuits[circuit_index] = Some(-1);
+                    recursion_tip_circuits[circuit_index] = None;
                     let count = mapping.entry(circuit.short_description().to_string() + " basic").or_default();
                     *count += 1;
                     circuit_urls.push(

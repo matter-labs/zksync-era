@@ -239,12 +239,15 @@ impl JobProcessor for RecursionTipWitnessGenerator {
             aggregation_round: AggregationRound::RecursionTip,
         };
         let blob_save_started_at = Instant::now();
-        let scheduler_circuit_blob_url = "ok";
-        // let scheduler_circuit_blob_url = self
-        //     .object_store
-        //     .put(key, &CircuitWrapper::Recursive(artifacts.scheduler_circuit))
-        //     .await
-        //     .unwrap();
+        // let scheduler_circuit_blob_url = "ok";
+        let recursion_tip_circuit_blob_url = self
+            .object_store
+            .put(
+                key,
+                &CircuitWrapper::Recursive(artifacts.recursion_tip_circuit),
+            )
+            .await
+            .unwrap();
         WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::RecursionTip.into()]
             .observe(blob_save_started_at.elapsed());
 
@@ -262,7 +265,7 @@ impl JobProcessor for RecursionTipWitnessGenerator {
                 0,
                 0,
                 AggregationRound::RecursionTip,
-                &scheduler_circuit_blob_url,
+                &recursion_tip_circuit_blob_url,
                 false,
                 protocol_version_id,
             )

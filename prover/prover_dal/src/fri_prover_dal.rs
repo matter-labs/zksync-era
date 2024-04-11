@@ -34,7 +34,7 @@ impl FriProverDal<'_, '_> {
             // EIP 4844 are special cased.
             // There exist only 2 blobs that are calculated at basic layer and injected straight into scheduler proof (as of 1.4.2).
             // As part of 1.5.0, these will be treated as regular circuits, having basic, leaf, node and finally being attached as regular node proofs to the scheduler.
-            let is_node_final_proof = *circuit_id == EIP_4844_CIRCUIT_ID;
+            // let is_node_final_proof = *circuit_id == EIP_4844_CIRCUIT_ID;
             self.insert_prover_job(
                 l1_batch_number,
                 *circuit_id,
@@ -42,7 +42,7 @@ impl FriProverDal<'_, '_> {
                 sequence_number,
                 aggregation_round,
                 circuit_blob_url,
-                is_node_final_proof,
+                false,
                 protocol_version_id,
             )
             .await;
