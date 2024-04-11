@@ -278,8 +278,8 @@ impl StorageLogsDal<'_, '_> {
 
     /// Loads (hashed_key, value, operation_number) tuples for given miniblock_number.
     /// Shouldn't be used in production.
-    #[cfg(test)]
-    pub async fn get_miniblock_storage_logs(
+    #[cfg_attr(not(test), allow(dead_code))] // FIXME: remove in favor of dump_?
+    pub(crate) async fn get_miniblock_storage_logs(
         &mut self,
         miniblock_number: MiniblockNumber,
     ) -> Vec<(H256, H256, u32)> {

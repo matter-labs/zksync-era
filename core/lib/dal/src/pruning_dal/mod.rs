@@ -248,7 +248,9 @@ impl PruningDal<'_, '_> {
         Ok(execution_result.rows_affected())
     }
 
-    // FIXME: ensure call traces are not returned via API
+    // Call traces are returned via `TransactionsDal::get_call_trace()`, which is used by the `debug_traceTransaction` RPC method.
+    // It should be acceptable to return `None` for transactions in pruned miniblocks; this would make them indistinguishable
+    // from traces for non-existing transactions.
     async fn delete_call_traces(
         &mut self,
         miniblocks_to_prune: ops::RangeInclusive<MiniblockNumber>,
@@ -277,7 +279,14 @@ impl PruningDal<'_, '_> {
         Ok(execution_result.rows_affected())
     }
 
-    // FIXME: ensure transactions are not returned via API
+    // The pruned fields are accessed as follows:
+    //
+    // - `input`: is a part of `StorageTransaction`, read via `TransactionsDal` (`get_miniblocks_to_reexecute`,
+    //   `get_miniblocks_to_execute_for_l1_batch`, and `get_tx_by_hash`) and `TransactionsWeb3Dal::get_raw_miniblock_transactions()`.
+    //   `get_tx_by_hash()` is only called on upgrade transactions, which are not pruned. The remaining methods tie transactions
+    //   to a certain L1 batch / miniblock, and thus do naturally check pruning.
+    // - `data`: used by `TransactionsWeb3Dal` queries, which explicitly check whether it was pruned.
+    // - `execution_info`: not used in queries.
     async fn clear_transaction_fields(
         &mut self,
         miniblocks_to_prune: ops::RangeInclusive<MiniblockNumber>,

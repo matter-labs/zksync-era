@@ -4,15 +4,19 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::connection::Connection;
 use zksync_types::{
     block::L1BatchHeader,
+    fee::TransactionExecutionMetrics,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::IncludedTxLocation,
-    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersion, ProtocolVersionId,
-    StorageKey, StorageLog, H256,
+    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersion,
+    ProtocolVersionId, StorageKey, StorageLog, H256,
 };
 
 use super::*;
 use crate::{
-    tests::{create_miniblock_header, mock_l2_to_l1_log, mock_vm_event},
+    tests::{
+        create_miniblock_header, mock_execution_result, mock_l2_to_l1_log, mock_l2_transaction,
+        mock_vm_event,
+    },
     ConnectionPool, Core, CoreDal,
 };
 
@@ -468,4 +472,63 @@ async fn l1_batches_can_be_hard_pruned() {
             .unwrap()
             .last_hard_pruned_l1_batch
     );
+}
+
+#[tokio::test]
+async fn transactions_are_handled_correctly_after_pruning() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut conn = pool.connection().await.unwrap();
+    conn.protocol_versions_dal()
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
+
+    // Add a miniblock with a transaction end emulate its pruning.
+    let miniblock_header = create_miniblock_header(1);
+    let tx = mock_l2_transaction();
+    let tx_hash = tx.hash();
+    conn.transactions_dal()
+        .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+        .await
+        .unwrap();
+    conn.blocks_dal()
+        .insert_miniblock(&miniblock_header)
+        .await
+        .unwrap();
+    conn.transactions_dal()
+        .mark_txs_as_executed_in_miniblock(
+            MiniblockNumber(1),
+            &[mock_execution_result(tx.clone())],
+            1.into(),
+        )
+        .await
+        .unwrap();
+
+    let affected_count = conn
+        .pruning_dal()
+        .clear_transaction_fields(MiniblockNumber(1)..=MiniblockNumber(1))
+        .await
+        .unwrap();
+    assert_eq!(affected_count, 1);
+
+    let api_transactions = conn
+        .transactions_web3_dal()
+        .get_transactions(&[tx_hash], L2ChainId::default())
+        .await
+        .unwrap();
+    assert!(api_transactions.is_empty(), "{api_transactions:?}");
+
+    let transaction_receipts = conn
+        .transactions_web3_dal()
+        .get_transaction_receipts(&[tx_hash])
+        .await
+        .unwrap();
+    assert!(transaction_receipts.is_empty(), "{transaction_receipts:?}");
+
+    let transaction_details = conn
+        .transactions_web3_dal()
+        .get_transaction_details(tx_hash)
+        .await
+        .unwrap();
+    assert!(transaction_details.is_none(), "{transaction_details:?}");
 }
