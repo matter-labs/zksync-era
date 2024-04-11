@@ -197,7 +197,7 @@ command
     .action((opts: DbGenerateMigrationOpts) => {
         if ((!opts.prover && !opts.core) || (opts.prover && opts.core)) {
             throw new Error(
-                '[aborted] please specify a single database to generate migration for (i.e. to generate a migration for server `zk db new-migration --server name_of_migration`'
+                '[aborted] please specify a single database to generate migration for (i.e. to generate a migration for server `zk db new-migration --core name_of_migration`'
             );
         }
         if (opts.prover) {

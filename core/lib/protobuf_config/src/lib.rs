@@ -7,6 +7,7 @@
 mod api;
 mod chain;
 mod circuit_breaker;
+mod consensus;
 mod contract_verifier;
 mod contracts;
 mod database;
@@ -39,6 +40,6 @@ fn parse_h160(bytes: &str) -> anyhow::Result<H160> {
     Ok(H160::from_str(bytes)?)
 }
 
-fn read_optional_repr<P: ProtoRepr>(field: &Option<P>) -> anyhow::Result<Option<P::Type>> {
+pub fn read_optional_repr<P: ProtoRepr>(field: &Option<P>) -> anyhow::Result<Option<P::Type>> {
     field.as_ref().map(|x| x.read()).transpose()
 }

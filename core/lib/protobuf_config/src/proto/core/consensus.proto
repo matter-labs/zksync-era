@@ -7,6 +7,8 @@
 //   (note that opening IPv6 ports may not work depending on the VM capabilities).
 //   examples: "203.0.113.7:3456", "[2001:DB8::1]:4567"
 //
+// Host - network address in the `<domain/ip>:port` format.
+// 
 // ValidatorPublicKey - public key of the validator (consensus participant) of the form "validator:public:<signature scheme>:<hex encoded key material>"
 //   Currently only bn254 signature scheme is supported for validators.
 //   example: "validator:public:bn254:4b0c4697f0a35eab30f63684ae4611f3c1d631eecfd97237e2345a9b3d0c472dbb16c49b793beceaab0cdd89cda6ff1099bd1aaf1ad6cabde9a15793cc09b407"
@@ -40,7 +42,7 @@ message Config {
 
   // Public IP:port to advertise, should forward to server_addr.
   // Can be `127.0.0.1:<port>` for local tests.
-  optional string public_addr = 2; // required; IpAddr
+  optional string public_addr = 2; // required; Host
 
   // Public keys of all validators.
   // Currently it has to be a singleton with a public key corresponding to secret key in CONSENSUS_VALIDATOR_KEY env var.
@@ -65,5 +67,3 @@ message Secrets {
   optional string validator_key = 1; // required for validator nodes; ValidatorSecretKey
   optional string node_key = 2; // required for any node; NodeSecretKey
 }
-
-

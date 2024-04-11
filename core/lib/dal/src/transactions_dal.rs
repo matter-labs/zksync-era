@@ -1,6 +1,5 @@
 use std::{collections::HashMap, fmt, time::Duration};
 
-use anyhow::Context as _;
 use bigdecimal::BigDecimal;
 use itertools::Itertools;
 use sqlx::types::chrono::NaiveDateTime;
@@ -55,8 +54,6 @@ impl fmt::Display for L2TxSubmissionResult {
 pub struct TransactionsDal<'c, 'a> {
     pub(crate) storage: &'c mut Connection<'a, Core>,
 }
-
-type TxLocations = Vec<(MiniblockNumber, Vec<(H256, u32, u16)>)>;
 
 impl TransactionsDal<'_, '_> {
     pub async fn insert_transaction_l1(
@@ -1149,7 +1146,7 @@ impl TransactionsDal<'_, '_> {
         Ok(transactions)
     }
 
-    pub async fn reset_mempool(&mut self) -> sqlx::Result<()> {
+    pub async fn reset_mempool(&mut self) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE transactions
@@ -1159,7 +1156,8 @@ impl TransactionsDal<'_, '_> {
                 in_mempool = TRUE
             "#
         )
-        .execute(self.storage.conn())
+        .instrument("reset_mempool")
+        .execute(self.storage)
         .await?;
         Ok(())
     }
@@ -1233,9 +1231,7 @@ impl TransactionsDal<'_, '_> {
     /// These are the transactions that are included to some miniblock,
     /// but not included to L1 batch. The order of the transactions is the same as it was
     /// during the previous execution.
-    pub async fn get_miniblocks_to_reexecute(
-        &mut self,
-    ) -> anyhow::Result<Vec<MiniblockExecutionData>> {
+    pub async fn get_miniblocks_to_reexecute(&mut self) -> DalResult<Vec<MiniblockExecutionData>> {
         let transactions = sqlx::query_as!(
             StorageTransaction,
             r#"
@@ -1251,7 +1247,8 @@ impl TransactionsDal<'_, '_> {
                 index_in_block
             "#,
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_miniblocks_to_reexecute#transactions")
+        .fetch_all(self.storage)
         .await?;
 
         self.map_transactions_to_execution_data(transactions).await
@@ -1263,7 +1260,7 @@ impl TransactionsDal<'_, '_> {
     pub async fn get_miniblocks_to_execute_for_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Vec<MiniblockExecutionData>> {
+    ) -> DalResult<Vec<MiniblockExecutionData>> {
         let transactions = sqlx::query_as!(
             StorageTransaction,
             r#"
@@ -1279,7 +1276,9 @@ impl TransactionsDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_miniblocks_to_execute_for_l1_batch")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_all(self.storage)
         .await?;
 
         self.map_transactions_to_execution_data(transactions).await
@@ -1288,7 +1287,7 @@ impl TransactionsDal<'_, '_> {
     async fn map_transactions_to_execution_data(
         &mut self,
         transactions: Vec<StorageTransaction>,
-    ) -> anyhow::Result<Vec<MiniblockExecutionData>> {
+    ) -> DalResult<Vec<MiniblockExecutionData>> {
         let transactions_by_miniblock: Vec<(MiniblockNumber, Vec<Transaction>)> = transactions
             .into_iter()
             .group_by(|tx| tx.miniblock_number.unwrap())
@@ -1322,13 +1321,19 @@ impl TransactionsDal<'_, '_> {
             i64::from(from_miniblock.0),
             i64::from(to_miniblock.0)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("map_transactions_to_execution_data#miniblocks")
+        .with_arg("from_miniblock", &from_miniblock)
+        .with_arg("to_miniblock", &to_miniblock)
+        .fetch_all(self.storage)
         .await?;
 
-        anyhow::ensure!(
-            miniblock_data.len() == transactions_by_miniblock.len(),
-            "Not enough miniblock data retrieved"
-        );
+        if miniblock_data.len() != transactions_by_miniblock.len() {
+            let err = Instrumented::new("map_transactions_to_execution_data")
+                .with_arg("transactions_by_miniblock", &transactions_by_miniblock)
+                .with_arg("miniblock_data", &miniblock_data)
+                .constraint_error(anyhow::anyhow!("not enough miniblock data retrieved"));
+            return Err(err);
+        }
 
         let prev_miniblock_hashes = sqlx::query!(
             r#"
@@ -1345,7 +1350,10 @@ impl TransactionsDal<'_, '_> {
             i64::from(from_miniblock.0) - 1,
             i64::from(to_miniblock.0) - 1,
         )
-        .fetch_all(self.storage.conn())
+        .instrument("map_transactions_to_execution_data#prev_miniblock_hashes")
+        .with_arg("from_miniblock", &(from_miniblock - 1))
+        .with_arg("to_miniblock", &(to_miniblock - 1))
+        .fetch_all(self.storage)
         .await?;
 
         let prev_miniblock_hashes: HashMap<_, _> = prev_miniblock_hashes
@@ -1378,14 +1386,10 @@ impl TransactionsDal<'_, '_> {
                         "#,
                         prev_miniblock_number.0 as i32
                     )
-                    .fetch_optional(self.storage.conn())
-                    .await?
-                    .with_context(|| {
-                        format!(
-                            "miniblock #{prev_miniblock_number} is not in storage, and its hash is not \
-                             in snapshot recovery data"
-                        )
-                    })?;
+                    .instrument("map_transactions_to_execution_data#snapshot_recovery")
+                    .with_arg("prev_miniblock_number", &prev_miniblock_number)
+                    .fetch_one(self.storage)
+                    .await?;
                     H256::from_slice(&row.miniblock_hash)
                 }
             };
@@ -1399,48 +1403,6 @@ impl TransactionsDal<'_, '_> {
             });
         }
         Ok(data)
-    }
-
-    pub async fn get_tx_locations(&mut self, l1_batch_number: L1BatchNumber) -> TxLocations {
-        {
-            sqlx::query!(
-                r#"
-                SELECT
-                    miniblock_number AS "miniblock_number!",
-                    hash,
-                    index_in_block AS "index_in_block!",
-                    l1_batch_tx_index AS "l1_batch_tx_index!"
-                FROM
-                    transactions
-                WHERE
-                    l1_batch_number = $1
-                ORDER BY
-                    miniblock_number,
-                    index_in_block
-                "#,
-                i64::from(l1_batch_number.0)
-            )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .group_by(|tx| tx.miniblock_number)
-            .into_iter()
-            .map(|(miniblock_number, rows)| {
-                (
-                    MiniblockNumber(miniblock_number as u32),
-                    rows.map(|row| {
-                        (
-                            H256::from_slice(&row.hash),
-                            row.index_in_block as u32,
-                            row.l1_batch_tx_index as u16,
-                        )
-                    })
-                    .collect::<Vec<(H256, u32, u16)>>(),
-                )
-            })
-            .collect()
-        }
     }
 
     pub async fn get_call_trace(&mut self, tx_hash: H256) -> DalResult<Option<Call>> {

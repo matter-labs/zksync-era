@@ -12,8 +12,8 @@ use futures::future;
 use serde::Serialize;
 use tokio::sync::watch;
 
-use self::metrics::METRICS;
-use crate::metrics::CheckResult;
+use self::metrics::{CheckResult, METRICS};
+use crate::metrics::AppHealthCheckConfig;
 
 mod metrics;
 #[cfg(test)]
@@ -112,6 +112,18 @@ impl AppHealthCheck {
         let slow_time_limit = slow_time_limit.unwrap_or(DEFAULT_SLOW_TIME_LIMIT);
         let hard_time_limit = hard_time_limit.unwrap_or(DEFAULT_HARD_TIME_LIMIT);
         tracing::debug!("Created app health with time limits: slow={slow_time_limit:?}, hard={hard_time_limit:?}");
+
+        let config = AppHealthCheckConfig {
+            slow_time_limit: slow_time_limit.into(),
+            hard_time_limit: hard_time_limit.into(),
+        };
+        if METRICS.info.set(config).is_err() {
+            tracing::warn!(
+                "App health redefined; previous config: {:?}",
+                METRICS.info.get()
+            );
+        }
+
         Self {
             components: Mutex::default(),
             slow_time_limit,

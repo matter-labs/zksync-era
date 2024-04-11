@@ -32,7 +32,7 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_api_block(
         &mut self,
         block_number: MiniblockNumber,
-    ) -> sqlx::Result<Option<api::Block<H256>>> {
+    ) -> DalResult<Option<api::Block<H256>>> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -59,7 +59,9 @@ impl BlocksWeb3Dal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_api_block")
+        .with_arg("block_number", &block_number)
+        .fetch_all(self.storage)
         .await?;
 
         let block = rows.into_iter().fold(None, |prev_block, row| {
@@ -106,7 +108,7 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_block_tx_count(
         &mut self,
         block_number: MiniblockNumber,
-    ) -> sqlx::Result<Option<u64>> {
+    ) -> DalResult<Option<u64>> {
         let tx_count = sqlx::query_scalar!(
             r#"
             SELECT l1_tx_count + l2_tx_count AS tx_count FROM miniblocks
@@ -114,7 +116,9 @@ impl BlocksWeb3Dal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_block_tx_count")
+        .with_arg("block_number", &block_number)
+        .fetch_optional(self.storage)
         .await?
         .flatten();
 
@@ -206,7 +210,7 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn resolve_block_id(
         &mut self,
         block_id: api::BlockId,
-    ) -> sqlx::Result<Option<MiniblockNumber>> {
+    ) -> DalResult<Option<MiniblockNumber>> {
         struct BlockNumberRow {
             number: Option<i64>,
         }
@@ -256,7 +260,11 @@ impl BlocksWeb3Dal<'_, '_> {
             }
         );
 
-        let row = query.fetch_optional(self.storage.conn()).await?;
+        let row = query
+            .instrument("resolve_block_id")
+            .with_arg("block_id", &block_id)
+            .fetch_optional(self.storage)
+            .await?;
         let block_number = row
             .and_then(|row| row.number)
             .map(|number| MiniblockNumber(number as u32));
@@ -270,7 +278,7 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_expected_l1_batch_timestamp(
         &mut self,
         l1_batch_number: &ResolvedL1BatchForMiniblock,
-    ) -> sqlx::Result<Option<u64>> {
+    ) -> DalResult<Option<u64>> {
         if let Some(miniblock_l1_batch) = l1_batch_number.miniblock_l1_batch {
             Ok(sqlx::query!(
                 r#"
@@ -287,7 +295,9 @@ impl BlocksWeb3Dal<'_, '_> {
                 "#,
                 i64::from(miniblock_l1_batch.0)
             )
-            .fetch_optional(self.storage.conn())
+            .instrument("get_expected_l1_batch_timestamp#sealed_miniblock")
+            .with_arg("l1_batch_number", &l1_batch_number)
+            .fetch_optional(self.storage)
             .await?
             .map(|row| row.timestamp as u64))
         } else {
@@ -300,6 +310,7 @@ impl BlocksWeb3Dal<'_, '_> {
             } else {
                 l1_batch_number.pending_l1_batch - 1
             };
+
             Ok(sqlx::query!(
                 r#"
                 SELECT
@@ -328,7 +339,9 @@ impl BlocksWeb3Dal<'_, '_> {
                 "#,
                 i64::from(prev_l1_batch_number.0)
             )
-            .fetch_optional(self.storage.conn())
+            .instrument("get_expected_l1_batch_timestamp#pending_miniblock")
+            .with_arg("l1_batch_number", &l1_batch_number)
+            .fetch_optional(self.storage)
             .await?
             .map(|row| row.timestamp as u64))
         }
@@ -337,7 +350,7 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_miniblock_hash(
         &mut self,
         block_number: MiniblockNumber,
-    ) -> sqlx::Result<Option<H256>> {
+    ) -> DalResult<Option<H256>> {
         let hash = sqlx::query!(
             r#"
             SELECT
@@ -349,7 +362,9 @@ impl BlocksWeb3Dal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_miniblock_hash")
+        .with_arg("block_number", &block_number)
+        .fetch_optional(self.storage)
         .await?
         .map(|row| H256::from_slice(&row.hash));
         Ok(hash)
@@ -599,18 +614,7 @@ impl BlocksWeb3Dal<'_, '_> {
         .fetch_optional(self.storage)
         .await?;
 
-        let Some(storage_block_details) = storage_block_details else {
-            return Ok(None);
-        };
-        let mut details = api::BlockDetails::from(storage_block_details);
-
-        // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
-        #[allow(deprecated)]
-        self.storage
-            .blocks_dal()
-            .maybe_load_fee_address(&mut details.operator_address, details.number)
-            .await?;
-        Ok(Some(details))
+        Ok(storage_block_details.map(Into::into))
     }
 
     pub async fn get_l1_batch_details(
