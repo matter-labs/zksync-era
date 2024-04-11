@@ -22,6 +22,7 @@ pub use self::{
 
 pub mod api;
 pub mod chain;
+pub mod consensus;
 pub mod contract_verifier;
 pub mod contracts;
 pub mod database;

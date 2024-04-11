@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, scope};
+use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_core::{
     consensus::{self, MainNodeConfig},
     sync_layer::{ActionQueueSender, MainNodeClient, SyncState},
@@ -27,8 +28,8 @@ pub enum Mode {
 #[derive(Debug)]
 pub struct ConsensusLayer {
     pub mode: Mode,
-    pub config: Option<consensus::Config>,
-    pub secrets: Option<consensus::Secrets>,
+    pub config: Option<ConsensusConfig>,
+    pub secrets: Option<ConsensusSecrets>,
 }
 
 #[async_trait::async_trait]
@@ -53,7 +54,7 @@ impl WiringLayer for ConsensusLayer {
                     WiringError::Configuration("Missing private consensus config".to_string())
                 })?;
 
-                let main_node_config = config.main_node(&secrets)?;
+                let main_node_config = consensus::config::main_node(&config, &secrets)?;
 
                 let task = MainNodeConsensusTask {
                     config: main_node_config,
@@ -134,7 +135,7 @@ impl Task for MainNodeConsensusTask {
 
 #[derive(Debug)]
 pub struct FetcherTask {
-    config: Option<(consensus::Config, consensus::Secrets)>,
+    config: Option<(ConsensusConfig, ConsensusSecrets)>,
     pool: ConnectionPool<Core>,
     main_node_client: Arc<dyn MainNodeClient>,
     sync_state: SyncState,
