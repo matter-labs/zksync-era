@@ -67,8 +67,9 @@ const initSetup = async ({
         await announced('Checkout era-contracts for Validium mode', validiumSubmoduleCheckout());
     }
 
+    await announced('Compiling JS packages', run.yarn());
+
     await Promise.all([
-        announced('Compiling JS packages', run.yarn()),
         announced('Building L1 L2 contracts', contract.build()),
         announced('Compile L2 system contracts', compiler.compileAll())
     ]);
