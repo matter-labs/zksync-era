@@ -182,18 +182,6 @@ impl EthTxAggregator {
         };
 
         // Third zksync contract call
-        let get_verifier_params_input = self
-            .functions
-            .get_verifier_params
-            .encode_input(&[])
-            .unwrap();
-        let get_verifier_params_call = Multicall3Call {
-            target: self.main_zksync_contract_address,
-            allow_failure: ALLOW_FAILURE,
-            calldata: get_verifier_params_input,
-        };
-
-        // Fourth zksync contract call
         let get_verifier_input = self.functions.get_verifier.encode_input(&[]).unwrap();
         let get_verifier_call = Multicall3Call {
             target: self.main_zksync_contract_address,
@@ -201,7 +189,7 @@ impl EthTxAggregator {
             calldata: get_verifier_input,
         };
 
-        // Fifth zksync contract call
+        // Fourth zksync contract call
         let get_protocol_version_input = self
             .functions
             .get_protocol_version
@@ -217,7 +205,6 @@ impl EthTxAggregator {
         vec![
             get_bootloader_hash_call.into_token(),
             get_default_aa_hash_call.into_token(),
-            get_verifier_params_call.into_token(),
             get_verifier_call.into_token(),
             get_protocol_version_call.into_token(),
         ]
