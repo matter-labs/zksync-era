@@ -5,7 +5,7 @@ use std::{fmt::Debug, sync::Arc, time::Duration};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::watch;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{pruning_dal::HardPruningStats, Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::L1BatchNumber;
 
 use self::{
@@ -177,10 +177,11 @@ impl DbPruner {
                 format!("bogus pruning info {current_pruning_info:?}: trying to hard-prune data, but there is no soft-pruned miniblock")
             })?;
 
-        transaction
+        let stats = transaction
             .pruning_dal()
             .hard_prune_batches_range(last_soft_pruned_l1_batch, last_soft_pruned_miniblock)
             .await?;
+        Self::report_hard_pruning_stats(stats);
         transaction.commit().await?;
 
         let latency = latency.observe();
@@ -191,7 +192,27 @@ impl DbPruner {
         Ok(())
     }
 
-    pub async fn run_single_iteration(&self) -> anyhow::Result<bool> {
+    fn report_hard_pruning_stats(stats: HardPruningStats) {
+        let HardPruningStats {
+            deleted_l1_batches,
+            deleted_miniblocks,
+            deleted_storage_logs_from_past_batches,
+            deleted_storage_logs_from_pruned_batches,
+            deleted_events,
+            deleted_call_traces,
+            deleted_l2_to_l1_logs,
+        } = stats;
+        let deleted_storage_logs =
+            deleted_storage_logs_from_past_batches + deleted_storage_logs_from_pruned_batches;
+        tracing::info!(
+            "Performed pruning of database, deleted {deleted_l1_batches} L1 batches, {deleted_miniblocks} miniblocks, \
+             {deleted_storage_logs} storage logs ({deleted_storage_logs_from_pruned_batches} from pruned batches + \
+             {deleted_storage_logs_from_past_batches} from past batches), \
+             {deleted_events} events, {deleted_call_traces} call traces, {deleted_l2_to_l1_logs} L2-to-L1 logs"
+        );
+    }
+
+    async fn run_single_iteration(&self) -> anyhow::Result<bool> {
         let mut storage = self.connection_pool.connection_tagged("db_pruner").await?;
         let current_pruning_info = storage.pruning_dal().get_pruning_info().await?;
 

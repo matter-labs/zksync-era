@@ -13,6 +13,7 @@ pub struct PruningDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
+/// Information about Postgres pruning.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct PruningInfo {
     pub last_soft_pruned_l1_batch: Option<L1BatchNumber>,
@@ -21,9 +22,21 @@ pub struct PruningInfo {
     pub last_hard_pruned_miniblock: Option<MiniblockNumber>,
 }
 
+/// Statistics about a single hard pruning iteration.
+#[derive(Debug, Default)]
+pub struct HardPruningStats {
+    pub deleted_l1_batches: u64,
+    pub deleted_miniblocks: u64,
+    pub deleted_storage_logs_from_past_batches: u64,
+    pub deleted_storage_logs_from_pruned_batches: u64,
+    pub deleted_events: u64,
+    pub deleted_call_traces: u64,
+    pub deleted_l2_to_l1_logs: u64,
+}
+
 #[derive(Debug, sqlx::Type)]
 #[sqlx(type_name = "prune_type")]
-pub enum PruneType {
+enum PruneType {
     Soft,
     Hard,
 }
@@ -127,7 +140,7 @@ impl PruningDal<'_, '_> {
         &mut self,
         last_l1_batch_to_prune: L1BatchNumber,
         last_miniblock_to_prune: MiniblockNumber,
-    ) -> DalResult<()> {
+    ) -> DalResult<HardPruningStats> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -146,7 +159,7 @@ impl PruningDal<'_, '_> {
         .await?;
 
         // we don't have any miniblocks available when recovering from a snapshot
-        if let Some(first_miniblock_to_prune) = row.first_miniblock_to_prune {
+        let stats = if let Some(first_miniblock_to_prune) = row.first_miniblock_to_prune {
             let first_miniblock_to_prune = MiniblockNumber(first_miniblock_to_prune as u32);
 
             let deleted_events = self
@@ -175,19 +188,22 @@ impl PruningDal<'_, '_> {
             let deleted_l1_batches = self.delete_l1_batches(last_l1_batch_to_prune).await?;
             let deleted_miniblocks = self.delete_miniblocks(last_miniblock_to_prune).await?;
 
-            // FIXME: return these stats
-            tracing::info!("Performed pruning of database, deleted {} l1_batches, {} miniblocks, {} storage_logs, {} events, {} call traces, {} l2_to_l1_logs",
+            HardPruningStats {
                 deleted_l1_batches,
                 deleted_miniblocks,
-                deleted_storage_logs_from_past_batches + deleted_storage_logs_from_pruned_batches,
                 deleted_events,
+                deleted_l2_to_l1_logs,
                 deleted_call_traces,
-                deleted_l2_to_l1_logs)
-        }
+                deleted_storage_logs_from_past_batches,
+                deleted_storage_logs_from_pruned_batches,
+            }
+        } else {
+            HardPruningStats::default()
+        };
 
         self.insert_hard_pruning_log(last_l1_batch_to_prune, last_miniblock_to_prune)
             .await?;
-        Ok(())
+        Ok(stats)
     }
 
     async fn delete_events(

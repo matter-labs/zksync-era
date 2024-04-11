@@ -366,6 +366,9 @@ impl<'a> SnapshotsApplier<'a> {
                 .snapshot_recovery_dal()
                 .insert_initial_recovery_status(&this.applied_snapshot_status)
                 .await?;
+
+            // Insert artificial entries into the pruning log so that it's guaranteed to match the snapshot recovery metadata.
+            // This allows to not deal with the corner cases when a node was recovered from a snapshot, but its pruning log is empty.
             storage_transaction
                 .pruning_dal()
                 .soft_prune_batches_range(
@@ -373,7 +376,6 @@ impl<'a> SnapshotsApplier<'a> {
                     this.applied_snapshot_status.miniblock_number,
                 )
                 .await?;
-
             storage_transaction
                 .pruning_dal()
                 .hard_prune_batches_range(

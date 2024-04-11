@@ -279,6 +279,7 @@ fn random_storage_log(hashed_key_seed: u8, value_seed: u8) -> StorageLog {
     );
     StorageLog::new_write_log(key, H256([value_seed; 32]))
 }
+
 async fn insert_miniblock_storage_logs(
     conn: &mut Connection<'_, Core>,
     miniblock_number: MiniblockNumber,
@@ -446,11 +447,15 @@ async fn l1_batches_can_be_hard_pruned() {
             .last_hard_pruned_l1_batch
     );
 
-    transaction
+    let stats = transaction
         .pruning_dal()
         .hard_prune_batches_range(L1BatchNumber(10), MiniblockNumber(21))
         .await
         .unwrap();
+    assert_eq!(stats.deleted_l1_batches, 4);
+    assert_eq!(stats.deleted_miniblocks, 8);
+    assert_eq!(stats.deleted_events, 40);
+    assert_eq!(stats.deleted_l2_to_l1_logs, 40);
 
     assert_l1_batch_objects_dont_exist(&mut transaction, L1BatchNumber(1)..=L1BatchNumber(10))
         .await;
