@@ -48,6 +48,13 @@ pub async fn sync_versions(
     // Uses binary search.
     let mut left_bound = L1BatchNumber(0);
     let mut right_bound = local_first_v22_l1_batch;
+    let snapshot_recovery = connection
+        .snapshot_recovery_dal()
+        .get_applied_snapshot_status()
+        .await?;
+    if let Some(snapshot_recovery) = snapshot_recovery {
+        left_bound = L1BatchNumber(snapshot_recovery.l1_batch_number.0 + 1)
+    }
 
     let right_bound_remote_version =
         get_l1_batch_remote_protocol_version(&main_node_client, right_bound).await?;
@@ -60,8 +67,7 @@ pub async fn sync_versions(
         let (mid_miniblock, _) = connection
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(mid_batch)
-            .await
-            .with_context(|| format!("Failed to get miniblock range for L1 batch #{mid_batch}"))?
+            .await?
             .with_context(|| {
                 format!("Postgres is inconsistent: missing miniblocks for L1 batch #{mid_batch}")
             })?;
@@ -88,8 +94,7 @@ pub async fn sync_versions(
     let (remote_first_v22_miniblock, _) = connection
         .blocks_dal()
         .get_miniblock_range_of_l1_batch(remote_first_v22_l1_batch)
-        .await
-        .with_context(|| format!("Failed to get miniblock range for L1 batch #{remote_first_v22_l1_batch}"))?
+        .await?
         .with_context(|| {
             format!("Postgres is inconsistent: missing miniblocks for L1 batch #{remote_first_v22_l1_batch}")
         })?;
@@ -110,8 +115,7 @@ pub async fn sync_versions(
     let (local_first_v22_miniblock, _) = transaction
         .blocks_dal()
         .get_miniblock_range_of_l1_batch(local_first_v22_l1_batch)
-        .await
-        .with_context(|| format!("Failed to get miniblock range for L1 batch #{local_first_v22_l1_batch}"))?
+        .await?
         .with_context(|| {
             format!("Postgres is inconsistent: missing miniblocks for L1 batch #{local_first_v22_l1_batch}")
         })?;

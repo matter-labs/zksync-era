@@ -29,6 +29,7 @@ use zksync_config::{
             CircuitBreakerConfig, L1BatchCommitDataGeneratorMode, MempoolConfig,
             OperationsManagerConfig, StateKeeperConfig,
         },
+        consensus::ConsensusConfig,
         database::{MerkleTreeConfig, MerkleTreeMode},
         wallets,
         wallets::Wallets,
@@ -43,9 +44,11 @@ use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},
     BoundEthInterface,
 };
+use zksync_eth_watch::start_eth_watch;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
+use zksync_shared_metrics::{InitStage, APP_METRICS};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{fee_model::FeeModelConfig, L2ChainId};
 
@@ -56,7 +59,7 @@ use crate::{
         healthcheck::HealthCheckHandle,
         tree::TreeApiHttpClient,
         tx_sender::{ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
-        web3::{self, state::InternalApiConfig, Namespace},
+        web3::{self, mempool_cache::MempoolCache, state::InternalApiConfig, Namespace},
     },
     basic_witness_input_producer::BasicWitnessInputProducer,
     commitment_generator::CommitmentGenerator,
@@ -67,10 +70,10 @@ use crate::{
         },
         Aggregator, EthTxAggregator, EthTxManager,
     },
-    eth_watch::start_eth_watch,
     genesis::GenesisParams,
     house_keeper::{
         blocks_state_reporter::L1BatchMetricsReporter,
+        fri_gpu_prover_archiver::FriGpuProverArchiver,
         fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
         fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter,
         fri_prover_job_retry_manager::FriProverJobRetryManager,
@@ -86,7 +89,6 @@ use crate::{
         GasAdjusterSingleton, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
     },
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
-    metrics::{InitStage, APP_METRICS},
     state_keeper::{
         create_state_keeper, MempoolFetcher, MempoolGuard, OutputHandler, SequencerSealer,
         StateKeeperPersistence,
@@ -100,15 +102,14 @@ pub mod block_reverter;
 pub mod commitment_generator;
 pub mod consensus;
 pub mod consistency_checker;
+pub mod db_pruner;
 pub mod eth_sender;
-pub mod eth_watch;
 pub mod fee_model;
 pub mod gas_tracker;
 pub mod genesis;
 pub mod house_keeper;
 pub mod l1_gas_price;
 pub mod metadata_calculator;
-mod metrics;
 pub mod proof_data_handler;
 pub mod proto;
 pub mod reorg_detector;
@@ -242,7 +243,7 @@ pub async fn initialize_components(
     contracts_config: &ContractsConfig,
     components: &[Component],
     secrets: &Secrets,
-    consensus_config: Option<consensus::Config>,
+    consensus_config: Option<ConsensusConfig>,
 ) -> anyhow::Result<(
     Vec<JoinHandle<anyhow::Result<()>>>,
     watch::Sender<bool>,
@@ -379,10 +380,19 @@ pub async fn initialize_components(
         // program termination.
         let mut storage_caches = None;
 
+        let mempool_cache = MempoolCache::new(api_config.web3_json_rpc.mempool_cache_size());
+        let mempool_cache_update_task = mempool_cache.update_task(
+            connection_pool.clone(),
+            api_config.web3_json_rpc.mempool_cache_update_interval(),
+        );
+        task_futures.push(tokio::spawn(
+            mempool_cache_update_task.run(stop_receiver.clone()),
+        ));
+
         if components.contains(&Component::HttpApi) {
             storage_caches = Some(
                 build_storage_caches(
-                    &configs.api_config.clone().context("api")?.web3_json_rpc,
+                    &api_config.web3_json_rpc,
                     &replica_connection_pool,
                     &mut task_futures,
                     stop_receiver.clone(),
@@ -414,6 +424,7 @@ pub async fn initialize_components(
                 batch_fee_input_provider,
                 state_keeper_config.save_call_traces,
                 storage_caches.clone().unwrap(),
+                mempool_cache.clone(),
             )
             .await
             .context("run_http_api")?;
@@ -461,6 +472,7 @@ pub async fn initialize_components(
                 replica_connection_pool.clone(),
                 stop_receiver.clone(),
                 storage_caches,
+                mempool_cache,
             )
             .await
             .context("run_ws_api")?;
@@ -540,10 +552,12 @@ pub async fn initialize_components(
 
     if components.contains(&Component::Consensus) {
         let secrets = secrets.consensus.as_ref().context("Secrets are missing")?;
-        let cfg = consensus_config
-            .clone()
-            .context("consensus component's config is missing")?
-            .main_node(secrets)?;
+        let cfg = consensus::config::main_node(
+            consensus_config
+                .as_ref()
+                .context("consensus component's config is missing")?,
+            secrets,
+        )?;
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");
         let pool = connection_pool.clone();
@@ -851,7 +865,7 @@ async fn add_state_keeper_to_task_futures(
         db_config,
         l2chain_id,
         mempool_config,
-        state_keeper_pool.clone(),
+        state_keeper_pool,
         mempool.clone(),
         batch_fee_input_provider.clone(),
         OutputHandler::new(Box::new(persistence)),
@@ -865,9 +879,6 @@ async fn add_state_keeper_to_task_futures(
         stop_receiver_clone.changed().await?;
         result
     }));
-    task_futures.push(tokio::spawn(
-        state_keeper.run_fee_address_migration(state_keeper_pool),
-    ));
     task_futures.push(tokio::spawn(state_keeper.run()));
 
     let mempool_fetcher_pool = pool_builder
@@ -1105,17 +1116,27 @@ async fn add_house_keeper_to_task_futures(
     task_futures.push(tokio::spawn(task));
 
     // TODO(PLA-862): remove after fields become required
-    if house_keeper_config.prover_job_archiver_enabled() {
+    if let Some((archiving_interval, archive_after)) =
+        house_keeper_config.prover_job_archiver_params()
+    {
         let fri_prover_jobs_archiver = FriProverJobArchiver::new(
             prover_connection_pool.clone(),
-            house_keeper_config
-                .prover_job_archiver_reporting_interval_ms
-                .unwrap(),
-            house_keeper_config
-                .prover_job_archiver_archiving_interval_secs
-                .unwrap(),
+            archiving_interval,
+            archive_after,
         );
         let task = fri_prover_jobs_archiver.run(stop_receiver.clone());
+        task_futures.push(tokio::spawn(task));
+    }
+
+    if let Some((archiving_interval, archive_after)) =
+        house_keeper_config.fri_gpu_prover_archiver_params()
+    {
+        let fri_gpu_prover_jobs_archiver = FriGpuProverArchiver::new(
+            prover_connection_pool.clone(),
+            archiving_interval,
+            archive_after,
+        );
+        let task = fri_gpu_prover_jobs_archiver.run(stop_receiver.clone());
         task_futures.push(tokio::spawn(task));
     }
 
@@ -1224,6 +1245,7 @@ async fn run_http_api(
     batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     with_debug_namespace: bool,
     storage_caches: PostgresStorageCaches,
+    mempool_cache: MempoolCache,
 ) -> anyhow::Result<()> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
@@ -1256,6 +1278,7 @@ async fn run_http_api(
             .with_response_body_size_limit(api_config.web3_json_rpc.max_response_body_size())
             .with_tx_sender(tx_sender)
             .with_vm_barrier(vm_barrier)
+            .with_mempool_cache(mempool_cache)
             .enable_api_namespaces(namespaces);
     if let Some(tree_api_url) = api_config.web3_json_rpc.tree_api_url() {
         let tree_api = Arc::new(TreeApiHttpClient::new(tree_api_url));
@@ -1287,6 +1310,7 @@ async fn run_ws_api(
     replica_connection_pool: ConnectionPool<Core>,
     stop_receiver: watch::Receiver<bool>,
     storage_caches: PostgresStorageCaches,
+    mempool_cache: MempoolCache,
 ) -> anyhow::Result<()> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
@@ -1322,6 +1346,7 @@ async fn run_ws_api(
             .with_polling_interval(api_config.web3_json_rpc.pubsub_interval())
             .with_tx_sender(tx_sender)
             .with_vm_barrier(vm_barrier)
+            .with_mempool_cache(mempool_cache)
             .enable_api_namespaces(namespaces);
     if let Some(tree_api_url) = api_config.web3_json_rpc.tree_api_url() {
         let tree_api = Arc::new(TreeApiHttpClient::new(tree_api_url));
@@ -1371,7 +1396,7 @@ async fn circuit_breakers_for_components(
         circuit_breakers
             .insert(Box::new(ReplicationLagChecker {
                 pool,
-                replication_lag_limit_sec: circuit_breaker_config.replication_lag_limit_sec,
+                replication_lag_limit: circuit_breaker_config.replication_lag_limit(),
             }))
             .await;
     }

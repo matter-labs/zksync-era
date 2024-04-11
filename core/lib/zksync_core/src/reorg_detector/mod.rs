@@ -3,8 +3,9 @@ use std::{fmt, time::Duration};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::watch;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
+use zksync_shared_metrics::{CheckerComponent, EN_METRICS};
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::{
     client::L2Client,
@@ -12,10 +13,7 @@ use zksync_web3_decl::{
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
-use crate::{
-    metrics::{CheckerComponent, EN_METRICS},
-    utils::binary_search_with,
-};
+use crate::utils::binary_search_with;
 
 #[cfg(test)]
 mod tests;
@@ -246,7 +244,7 @@ impl ReorgDetector {
             .blocks_dal()
             .get_last_l1_batch_number_with_metadata()
             .await
-            .context("get_last_l1_batch_number_with_metadata()")?
+            .map_err(DalError::generalize)?
         else {
             return Ok(());
         };
@@ -254,7 +252,7 @@ impl ReorgDetector {
             .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .context("get_sealed_miniblock_number()")?
+            .map_err(DalError::generalize)?
         else {
             return Ok(());
         };
@@ -290,8 +288,8 @@ impl ReorgDetector {
             .blocks_dal()
             .get_earliest_l1_batch_number_with_metadata()
             .await
-            .context("get_earliest_l1_batch_number_with_metadata")?
-            .context("all L1 batches dissapeared")?;
+            .map_err(DalError::generalize)?
+            .context("all L1 batches disappeared")?;
         drop(storage);
         match self.root_hashes_match(first_l1_batch).await {
             Ok(true) => {}
@@ -318,7 +316,7 @@ impl ReorgDetector {
             .blocks_dal()
             .get_miniblock_header(miniblock)
             .await
-            .context("get_miniblock_header()")?
+            .map_err(DalError::generalize)?
             .with_context(|| format!("Header does not exist for local miniblock #{miniblock}"))?
             .hash;
         drop(storage);
@@ -347,7 +345,7 @@ impl ReorgDetector {
             .blocks_dal()
             .get_l1_batch_state_root(l1_batch)
             .await
-            .context("get_l1_batch_state_root()")?
+            .map_err(DalError::generalize)?
             .with_context(|| format!("Root hash does not exist for local batch #{l1_batch}"))?;
         drop(storage);
 

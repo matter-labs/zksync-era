@@ -82,7 +82,7 @@ impl BatchExecutorHandle {
     }
 
     pub(super) async fn execute_tx(&self, tx: Transaction) -> TxExecutionResult {
-        let tx_gas_limit = tx.gas_limit().as_u32();
+        let tx_gas_limit = tx.gas_limit().as_u64();
 
         let (response_sender, response_receiver) = oneshot::channel();
         self.commands

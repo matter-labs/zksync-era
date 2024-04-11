@@ -31,16 +31,11 @@ pub struct IoCursor {
 impl IoCursor {
     /// Loads the cursor from Postgres.
     pub async fn new(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
-        let last_sealed_l1_batch_number = storage
-            .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await
-            .context("Failed getting sealed L1 batch number")?;
+        let last_sealed_l1_batch_number = storage.blocks_dal().get_sealed_l1_batch_number().await?;
         let last_miniblock_header = storage
             .blocks_dal()
             .get_last_sealed_miniblock_header()
-            .await
-            .context("Failed getting sealed miniblock header")?;
+            .await?;
 
         if let (Some(l1_batch_number), Some(miniblock_header)) =
             (last_sealed_l1_batch_number, &last_miniblock_header)
@@ -55,8 +50,7 @@ impl IoCursor {
             let snapshot_recovery = storage
                 .snapshot_recovery_dal()
                 .get_applied_snapshot_status()
-                .await
-                .context("Failed getting snapshot recovery info")?
+                .await?
                 .context("Postgres contains neither blocks nor snapshot recovery info")?;
             let l1_batch =
                 last_sealed_l1_batch_number.unwrap_or(snapshot_recovery.l1_batch_number) + 1;
@@ -95,8 +89,7 @@ pub(crate) async fn load_pending_batch(
     let pending_miniblocks = storage
         .transactions_dal()
         .get_miniblocks_to_reexecute()
-        .await
-        .context("failed loading miniblocks for re-execution")?;
+        .await?;
     let first_pending_miniblock = pending_miniblocks
         .first()
         .context("no pending miniblocks; was environment loaded for a correct L1 batch number?")?;

@@ -84,6 +84,14 @@ pub struct MiniblockHeader {
     pub gas_limit: u64,
 }
 
+/// Structure that represents the data is returned by the storage oracle during batch execution.
+pub struct StorageOracleInfo {
+    /// The refunds returned by the storage oracle.
+    pub storage_refunds: Vec<u32>,
+    // Pubdata costs are available only since v1.5.0, so we allow them to be optional.
+    pub pubdata_costs: Option<Vec<i32>>,
+}
+
 /// Data needed to execute a miniblock in the VM.
 #[derive(Debug, PartialEq)]
 pub struct MiniblockExecutionData {

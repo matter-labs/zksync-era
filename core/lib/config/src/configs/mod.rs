@@ -18,11 +18,11 @@ pub use self::{
     proof_data_handler::ProofDataHandlerConfig,
     snapshots_creator::SnapshotsCreatorConfig,
     utils::PrometheusConfig,
-    witness_generator::WitnessGeneratorConfig,
 };
 
 pub mod api;
 pub mod chain;
+pub mod consensus;
 pub mod contract_verifier;
 pub mod contracts;
 pub mod database;
@@ -43,6 +43,5 @@ pub mod proof_data_handler;
 pub mod snapshots_creator;
 pub mod utils;
 pub mod wallets;
-pub mod witness_generator;
 
 const BYTES_IN_MEGABYTE: usize = 1_024 * 1_024;

@@ -30,6 +30,7 @@ pub fn observability_config_from_env() -> anyhow::Result<ObservabilityConfig> {
     } else {
         "plain".to_string()
     };
+    let log_directives = std::env::var("RUST_LOG").ok();
 
     Ok(ObservabilityConfig {
         sentry_url,
@@ -37,5 +38,6 @@ pub fn observability_config_from_env() -> anyhow::Result<ObservabilityConfig> {
         log_format,
         opentelemetry: None,
         sporadic_crypto_errors_substrs: vec![],
+        log_directives,
     })
 }

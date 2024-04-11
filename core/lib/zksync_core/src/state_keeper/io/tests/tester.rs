@@ -66,6 +66,7 @@ impl Tester {
             pricing_formula_parameter_b: 1.0,
             internal_l1_pricing_multiplier: 1.0,
             internal_enforced_l1_gas_price: None,
+            internal_enforced_pubdata_price: None,
             poll_period: 10,
             max_l1_gas_price: None,
             num_samples_for_blob_base_fee_estimate: 10,
@@ -113,8 +114,6 @@ impl Tester {
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
         let config = StateKeeperConfig {
             minimal_l2_gas_price: self.minimal_l2_gas_price(),
-            virtual_blocks_interval: 1,
-            virtual_blocks_per_miniblock: 1,
             validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             ..StateKeeperConfig::for_tests()
         };
@@ -165,7 +164,7 @@ impl Tester {
         let tx = create_l2_transaction(10, 100);
         storage
             .transactions_dal()
-            .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         storage
@@ -187,7 +186,8 @@ impl Tester {
                 slice::from_ref(&tx_result),
                 1.into(),
             )
-            .await;
+            .await
+            .unwrap();
         tx_result
     }
 
@@ -212,7 +212,8 @@ impl Tester {
         storage
             .transactions_dal()
             .mark_txs_as_executed_in_l1_batch(batch_header.number, tx_results)
-            .await;
+            .await
+            .unwrap();
         storage
             .blocks_dal()
             .set_l1_batch_hash(batch_header.number, H256::default())

@@ -13,8 +13,7 @@ use multivm::{
 };
 use zksync_config::{configs::database::MerkleTreeMode, GenesisConfig, PostgresConfig};
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
-use zksync_dal::{ConnectionPool, Core, CoreDal, SqlxError};
-use zksync_db_connection::connection::Connection;
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_eth_client::{clients::QueryClient, EthInterface};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
@@ -68,7 +67,7 @@ pub enum GenesisError {
     #[error("Wrong protocol version")]
     ProtocolVersion(u16),
     #[error("DB Error: {0}")]
-    DBError(#[from] SqlxError),
+    DBError(#[from] DalError),
     #[error("Error: {0}")]
     Other(#[from] anyhow::Error),
     #[error("Field: {0} required for genesis")]
@@ -512,14 +511,15 @@ pub(crate) async fn create_genesis_l1_batch(
 
     transaction
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(version)
-        .await;
+        .save_protocol_version_with_tx(&version)
+        .await?;
     transaction
         .blocks_dal()
         .insert_l1_batch(
             &genesis_l1_batch_header,
             &[],
             BlockGasCount::default(),
+            &[],
             &[],
             Default::default(),
         )
@@ -628,8 +628,8 @@ pub async fn save_set_chain_id_tx(
         decode_set_chain_id_event(logs.remove(0)).context("Chain id event is incorrect")?;
     storage
         .protocol_versions_dal()
-        .save_genesis_upgrade_with_tx(version_id, upgrade_tx)
-        .await;
+        .save_genesis_upgrade_with_tx(version_id, &upgrade_tx)
+        .await?;
     Ok(())
 }
 

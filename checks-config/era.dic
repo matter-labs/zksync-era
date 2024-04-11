@@ -190,6 +190,7 @@ sorted_timestamps
 known_bytecodes
 returndata
 namespaces
+natively
 StateDiffRecord
 BYTES_PER_ENUMERATION_INDEX
 derived_key
@@ -424,6 +425,8 @@ SetChainId
 setChainId
 SetChainIdUpgrade
 state_transition_manager_contract
+prunable
+bytea
 
 // Names
 Vyper
@@ -927,3 +930,11 @@ StorageMarker
 SIGINT
 opentelemetry
 PubdataSendingMode
+FriGpuProverArchiver
+vm
+demuxer
+2k
+4k
+superset
+80M
+780kb

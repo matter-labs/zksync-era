@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH deleted AS (\n                DELETE FROM gpu_prover_queue_fri\n                WHERE\n                    instance_status = 'dead'\n                        AND updated_at < NOW() - $1::INTERVAL\n                RETURNING *, NOW() AS archived_at\n            ),\n            inserted_count AS (\n                INSERT INTO gpu_prover_queue_fri_archive\n                SELECT * FROM deleted\n            )\n            SELECT COUNT(*) FROM deleted\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Interval"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "02bbd0a1c01747fb24a68f0ecf447e0574419632a40119b661a31ec70f0f950b"
+}

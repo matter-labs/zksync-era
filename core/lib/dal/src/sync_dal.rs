@@ -1,5 +1,5 @@
 use zksync_db_connection::{
-    connection::Connection, instrument::InstrumentExt, metrics::MethodLatency,
+    connection::Connection, error::DalResult, instrument::InstrumentExt, metrics::MethodLatency,
 };
 use zksync_types::{api::en, MiniblockNumber};
 
@@ -18,8 +18,8 @@ impl SyncDal<'_, '_> {
     pub(super) async fn sync_block_inner(
         &mut self,
         block_number: MiniblockNumber,
-    ) -> anyhow::Result<Option<SyncBlock>> {
-        let Some(block) = sqlx::query_as!(
+    ) -> DalResult<Option<SyncBlock>> {
+        let block = sqlx::query_as!(
             StorageSyncBlock,
             r#"
             SELECT
@@ -64,29 +64,20 @@ impl SyncDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
+        .try_map(SyncBlock::try_from)
         .instrument("sync_dal_sync_block.block")
         .with_arg("block_number", &block_number)
         .fetch_optional(self.storage)
-        .await?
-        else {
-            return Ok(None);
-        };
+        .await?;
 
-        let mut block = SyncBlock::try_from(block)?;
-        // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
-        #[allow(deprecated)]
-        self.storage
-            .blocks_dal()
-            .maybe_load_fee_address(&mut block.fee_account_address, block.number)
-            .await?;
-        Ok(Some(block))
+        Ok(block)
     }
 
     pub async fn sync_block(
         &mut self,
         block_number: MiniblockNumber,
         include_transactions: bool,
-    ) -> anyhow::Result<Option<en::SyncBlock>> {
+    ) -> DalResult<Option<en::SyncBlock>> {
         let _latency = MethodLatency::new("sync_dal_sync_block");
         let Some(block) = self.sync_block_inner(block_number).await? else {
             return Ok(None);
@@ -129,8 +120,9 @@ mod tests {
 
         // Simulate genesis.
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
             .await
@@ -164,7 +156,7 @@ mod tests {
         };
         let tx = mock_l2_transaction();
         conn.transactions_dal()
-            .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         conn.blocks_dal()
@@ -177,7 +169,8 @@ mod tests {
                 &[mock_execution_result(tx.clone())],
                 1.into(),
             )
-            .await;
+            .await
+            .unwrap();
 
         let block = conn
             .sync_dal()
@@ -246,8 +239,9 @@ mod tests {
 
         // Simulate snapshot recovery.
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         let snapshot_recovery = create_snapshot_recovery();
         conn.snapshot_recovery_dal()
             .insert_initial_recovery_status(&snapshot_recovery)

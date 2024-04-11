@@ -38,7 +38,6 @@ api:
     pubsub_polling_interval: 200
     max_nonce_ahead: 50
     gas_price_scale_factor: 1.2
-    l1_to_l2_transactions_compatibility_mode: true
     request_timeout: 10
     account_pks:
       - 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
@@ -86,8 +85,7 @@ state_keeper:
   fee_model_version: V1
   validation_computational_gas_limit: 300000
   save_call_traces: true
-  virtual_blocks_interval: 1
-  virtual_blocks_per_miniblock: 1
+  max_circuits_per_batch: 24100
 mempool:
   delay_interval: 100
   sync_interval_ms: 10
@@ -163,13 +161,11 @@ prover:
   prometheus_port: 3315
   max_attempts: 10
   generation_timeout_in_secs: 600
-  base_layer_circuit_ids_to_be_verified: [ 1 ]
-  recursive_layer_circuit_ids_to_be_verified: [ 1 ]
   setup_load_mode: FROM_DISK
   specialized_group_id: 100
-  witness_vector_generator_thread_count: 5
   queue_capacity: 10
   witness_vector_receiver_port: 3316
+  availability_check_interval_in_secs: 10000
   zone_read_url: http://metadata.google.internal/computeMetadata/v1/instance/zone
   shall_save_to_public_bucket: true
 witness_generator:
@@ -286,8 +282,10 @@ house_keeper:
   prover_stats_reporting_interval_ms: 5000
   proof_compressor_job_retrying_interval_ms: 30000
   proof_compressor_stats_reporting_interval_ms: 10000
-  prover_job_archiver_reporting_interval_ms: 1800000
-  prover_job_archiver_archiving_interval_secs: 15
+  prover_job_archiver_archiving_interval_ms: 1800000
+  prover_job_archiver_archive_after_secs: 172800
+  fri_gpu_prover_archiver_archiving_interval_ms: 86400000
+  fri_gpu_prover_archiver_archive_after_secs: 172800
 
 prometheus:
   listener_port: 3312
@@ -296,6 +294,7 @@ prometheus:
 
 observability:
   log_format: plain
+  log_directives: "zksync_node_framework=info,zksync_consensus_bft=info,zksync_consensus_network=info,zksync_consensus_storage=info,zksync_core=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_dal=info,zksync_eth_client=info,zksync_storage=info,zksync_db_manager=info,zksync_merkle_tree=info,zksync_state=debug,zksync_utils=debug,zksync_queued_job_processor=info,zksync_types=info,zksync_mempool=debug,loadnext=info,vm=info,zksync_object_store=info,zksync_external_node=info,zksync_witness_generator=info,zksync_prover_fri=info,zksync_witness_vector_generator=info,zksync_health_check=debug,zksync_proof_fri_compressor=info,vise_exporter=debug,snapshots_creator=debug"
   sentry:
     url: unset
     panic_interval: 1800
@@ -309,7 +308,3 @@ observability:
     - "Can't free memory of DeviceBuf"
     - "value: PoisonError"
 
-# Probably we can initialize it without envs
-#RUST_LOG: zksync_node_framework=info,zksync_consensus_bft=info,zksync_consensus_network=info,zksync_consensus_storage=info,zksync_core=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_dal=info,zksync_eth_client=info,zksync_storage=info,zksync_db_manager=info,zksync_merkle_tree=info,zksync_state=debug,zksync_utils=debug,zksync_queued_job_processor=info,zksync_types=info,zksync_mempool=debug,loadnext=info,vm=info,zksync_object_store=info,zksync_external_node=info,zksync_witness_generator=info,zksync_prover_fri=info,zksync_witness_vector_generator=info,zksync_health_check=debug,zksync_proof_fri_compressor=info,vise_exporter=debug,snapshots_creator=debug,
-#RUST_BACKTRACE: full
-#RUST_LIB_BACKTRACE: 1

@@ -1,12 +1,13 @@
-use anyhow::Context as _;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use std::time::Duration;
+
+use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
 
 use crate::{metrics::METRICS, CircuitBreaker, CircuitBreakerError};
 
 #[derive(Debug)]
 pub struct ReplicationLagChecker {
     pub pool: ConnectionPool<Core>,
-    pub replication_lag_limit_sec: Option<u32>,
+    pub replication_lag_limit: Option<Duration>,
 }
 
 #[async_trait::async_trait]
@@ -21,15 +22,15 @@ impl CircuitBreaker for ReplicationLagChecker {
             .connection_tagged("circuit_breaker")
             .await?
             .system_dal()
-            .get_replication_lag_sec()
+            .get_replication_lag()
             .await
-            .context("failed getting replication lag")?;
-        METRICS.replication_lag.set(lag.into());
+            .map_err(DalError::generalize)?;
+        METRICS.replication_lag.set(lag);
 
-        match self.replication_lag_limit_sec {
-            Some(replication_lag_limit_sec) if lag > replication_lag_limit_sec => Err(
-                CircuitBreakerError::ReplicationLag(lag, replication_lag_limit_sec),
-            ),
+        match self.replication_lag_limit {
+            Some(threshold) if lag > threshold => {
+                Err(CircuitBreakerError::ReplicationLag { lag, threshold })
+            }
             _ => Ok(()),
         }
     }

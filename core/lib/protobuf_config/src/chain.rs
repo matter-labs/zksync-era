@@ -72,15 +72,14 @@ impl ProtoRepr for proto::StateKeeper {
             validation_computational_gas_limit: *required(&self.validation_computational_gas_limit)
                 .context("validation_computational_gas_limit")?,
             save_call_traces: *required(&self.save_call_traces).context("save_call_traces")?,
-            virtual_blocks_interval: *required(&self.virtual_blocks_interval)
-                .context("virtual_blocks_interval")?,
-            virtual_blocks_per_miniblock: *required(&self.virtual_blocks_per_miniblock)
-                .context("virtual_blocks_per_miniblock")?,
             enum_index_migration_chunk_size: self
                 .enum_index_migration_chunk_size
                 .map(|x| x.try_into())
                 .transpose()
                 .context("enum_index_migration_chunk_size")?,
+            max_circuits_per_batch: required(&self.max_circuits_per_batch)
+                .and_then(|x| Ok((*x).try_into()?))
+                .context("max_circuits_per_batch")?,
 
             // We need these values only for instantiating configs from environmental variables, so it's not
             // needed during the initialization from files
@@ -116,12 +115,11 @@ impl ProtoRepr for proto::StateKeeper {
             fee_model_version: Some(proto::FeeModelVersion::new(&this.fee_model_version).into()),
             validation_computational_gas_limit: Some(this.validation_computational_gas_limit),
             save_call_traces: Some(this.save_call_traces),
-            virtual_blocks_interval: Some(this.virtual_blocks_interval),
-            virtual_blocks_per_miniblock: Some(this.virtual_blocks_per_miniblock),
             enum_index_migration_chunk_size: this
                 .enum_index_migration_chunk_size
                 .as_ref()
                 .map(|x| (*x).try_into().unwrap()),
+            max_circuits_per_batch: Some(this.max_circuits_per_batch.try_into().unwrap()),
         }
     }
 }

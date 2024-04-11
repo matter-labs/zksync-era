@@ -11,6 +11,7 @@ use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
+use zksync_shared_metrics::EN_METRICS;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, api, L1BatchNumber, MiniblockNumber, H256,
 };
@@ -21,7 +22,7 @@ use zksync_web3_decl::{
 };
 
 use super::metrics::{FetchStage, FETCHER_METRICS};
-use crate::{metrics::EN_METRICS, utils::projected_first_l1_batch};
+use crate::utils::projected_first_l1_batch;
 
 #[cfg(test)]
 mod tests;
@@ -65,8 +66,8 @@ enum UpdaterError {
     Internal(#[from] anyhow::Error),
 }
 
-impl From<zksync_dal::SqlxError> for UpdaterError {
-    fn from(err: zksync_dal::SqlxError) -> Self {
+impl From<zksync_dal::DalError> for UpdaterError {
+    fn from(err: zksync_dal::DalError) -> Self {
         Self::Internal(err.into())
     }
 }

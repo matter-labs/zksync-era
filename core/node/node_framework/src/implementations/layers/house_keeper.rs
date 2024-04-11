@@ -5,7 +5,7 @@ use zksync_config::configs::{
     FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig,
 };
 use zksync_core::house_keeper::{
-    blocks_state_reporter::L1BatchMetricsReporter,
+    blocks_state_reporter::L1BatchMetricsReporter, fri_gpu_prover_archiver::FriGpuProverArchiver,
     fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
     fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter,
     fri_prover_job_retry_manager::FriProverJobRetryManager,
@@ -112,18 +112,23 @@ impl WiringLayer for HouseKeeperLayer {
             waiting_to_queued_fri_witness_job_mover,
         }));
 
-        if self.house_keeper_config.prover_job_archiver_enabled() {
-            let fri_prover_job_archiver = FriProverJobArchiver::new(
-                prover_pool.clone(),
-                self.house_keeper_config
-                    .prover_job_archiver_reporting_interval_ms
-                    .unwrap(),
-                self.house_keeper_config
-                    .prover_job_archiver_archiving_interval_secs
-                    .unwrap(),
-            );
+        if let Some((archiving_interval, archive_after)) =
+            self.house_keeper_config.prover_job_archiver_params()
+        {
+            let fri_prover_job_archiver =
+                FriProverJobArchiver::new(prover_pool.clone(), archiving_interval, archive_after);
             context.add_task(Box::new(FriProverJobArchiverTask {
                 fri_prover_job_archiver,
+            }));
+        }
+
+        if let Some((archiving_interval, archive_after)) =
+            self.house_keeper_config.fri_gpu_prover_archiver_params()
+        {
+            let fri_prover_gpu_archiver =
+                FriGpuProverArchiver::new(prover_pool.clone(), archiving_interval, archive_after);
+            context.add_task(Box::new(FriProverGpuArchiverTask {
+                fri_prover_gpu_archiver,
             }));
         }
 
@@ -362,5 +367,20 @@ impl Task for FriProverJobArchiverTask {
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         self.fri_prover_job_archiver.run(stop_receiver.0).await
+    }
+}
+
+struct FriProverGpuArchiverTask {
+    fri_prover_gpu_archiver: FriGpuProverArchiver,
+}
+
+#[async_trait::async_trait]
+impl Task for FriProverGpuArchiverTask {
+    fn name(&self) -> &'static str {
+        "fri_prover_gpu_archiver"
+    }
+
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.fri_prover_gpu_archiver.run(stop_receiver.0).await
     }
 }

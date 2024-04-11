@@ -5,7 +5,7 @@ use zksync_protobuf::{
     required,
 };
 
-use crate::{parse_h256, proto::api as proto};
+use crate::{parse_h160, parse_h256, proto::api as proto};
 
 impl ProtoRepr for proto::Api {
     type Type = ApiConfig;
@@ -69,10 +69,6 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 &self.estimate_gas_acceptable_overestimation,
             )
             .context("acceptable_overestimation")?,
-            l1_to_l2_transactions_compatibility_mode: *required(
-                &self.l1_to_l2_transactions_compatibility_mode,
-            )
-            .context("l1_to_l2_transactions_compatibility_mode")?,
             max_tx_size: required(&self.max_tx_size)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("max_tx_size")?,
@@ -124,6 +120,13 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .map(|x| x.try_into())
                 .transpose()
                 .context("mempool_cache_size")?,
+            whitelisted_tokens_for_aa: self
+                .whitelisted_tokens_for_aa
+                .iter()
+                .enumerate()
+                .map(|(i, k)| parse_h160(k).context(i))
+                .collect::<Result<Vec<_>, _>>()
+                .context("account_pks")?,
         })
     }
     fn build(this: &Self::Type) -> Self {
@@ -151,9 +154,6 @@ impl ProtoRepr for proto::Web3JsonRpc {
             estimate_gas_acceptable_overestimation: Some(
                 this.estimate_gas_acceptable_overestimation,
             ),
-            l1_to_l2_transactions_compatibility_mode: Some(
-                this.l1_to_l2_transactions_compatibility_mode,
-            ),
             max_tx_size: Some(this.max_tx_size.try_into().unwrap()),
             vm_execution_cache_misses_limit: this
                 .vm_execution_cache_misses_limit
@@ -177,6 +177,11 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .websocket_requests_per_minute_limit
                 .map(|x| x.into()),
             tree_api_url: this.tree_api_url.clone(),
+            whitelisted_tokens_for_aa: this
+                .whitelisted_tokens_for_aa
+                .iter()
+                .map(|k| format!("{:?}", k))
+                .collect(),
         }
     }
 }

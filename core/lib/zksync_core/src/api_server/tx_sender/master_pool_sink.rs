@@ -2,13 +2,11 @@ use std::collections::hash_map::{Entry, HashMap};
 
 use tokio::sync::Mutex;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Core, CoreDal};
+use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_types::{fee::TransactionExecutionMetrics, l2::L2Tx, Address, Nonce, H256};
 
 use super::{tx_sink::TxSink, SubmitTxError};
-use crate::{
-    api_server::web3::metrics::API_METRICS,
-    metrics::{TxStage, APP_METRICS},
-};
+use crate::api_server::web3::metrics::API_METRICS;
 
 /// Wrapper for the master DB pool that allows to submit transactions to the mempool.
 #[derive(Debug)]
@@ -30,7 +28,7 @@ impl MasterPoolSink {
 impl TxSink for MasterPoolSink {
     async fn submit_tx(
         &self,
-        tx: L2Tx,
+        tx: &L2Tx,
         execution_metrics: TransactionExecutionMetrics,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let address_and_nonce = (tx.initiator_account(), tx.nonce());
@@ -62,8 +60,8 @@ impl TxSink for MasterPoolSink {
                     APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
                     submission_res_handle
                 })
-                .map_err(|err| anyhow::format_err!(err).into()),
-            Err(err) => Err(err.into()),
+                .map_err(|err| err.generalize().into()),
+            Err(err) => Err(err.generalize().into()),
         };
 
         self.inflight_requests

@@ -1,6 +1,6 @@
 //! (Largely) backend-agnostic logic for dealing with Web3 subscriptions.
 
-use anyhow::{Context as _, Error};
+use anyhow::Context as _;
 use chrono::NaiveDateTime;
 use futures::FutureExt;
 use tokio::{
@@ -64,17 +64,14 @@ impl PubSubNotifier {
             .connection_tagged("api")
             .await
             .context("connection_tagged")?;
-        let sealed_miniblock_number = storage
-            .blocks_dal()
-            .get_sealed_miniblock_number()
-            .await
-            .context("get_sealed_miniblock_number()")?;
+        let sealed_miniblock_number = storage.blocks_dal().get_sealed_miniblock_number().await?;
         Ok(match sealed_miniblock_number {
             Some(number) => number,
             None => {
                 // We don't have miniblocks in the storage yet. Use the snapshot miniblock number instead.
                 let start_info = BlockStartInfo::new(&mut storage).await?;
-                MiniblockNumber(start_info.first_miniblock.saturating_sub(1))
+                let first_miniblock = start_info.first_miniblock(&mut storage).await?;
+                MiniblockNumber(first_miniblock.saturating_sub(1))
             }
         })
     }
@@ -134,7 +131,7 @@ impl PubSubNotifier {
             .blocks_web3_dal()
             .get_block_headers_after(last_block_number)
             .await
-            .with_context(|| format!("get_block_headers_after({last_block_number})"))
+            .map_err(Into::into)
     }
 
     async fn notify_txs(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
@@ -164,7 +161,10 @@ impl PubSubNotifier {
         Ok(())
     }
 
-    async fn new_txs(&self, last_time: NaiveDateTime) -> Result<Vec<(NaiveDateTime, H256)>, Error> {
+    async fn new_txs(
+        &self,
+        last_time: NaiveDateTime,
+    ) -> anyhow::Result<Vec<(NaiveDateTime, H256)>> {
         self.connection_pool
             .connection_tagged("api")
             .await
@@ -172,7 +172,7 @@ impl PubSubNotifier {
             .transactions_web3_dal()
             .get_pending_txs_hashes_after(last_time, None)
             .await
-            .context("get_pending_txs_hashes_after()")
+            .map_err(Into::into)
     }
 
     async fn notify_logs(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
@@ -212,7 +212,7 @@ impl PubSubNotifier {
             .events_web3_dal()
             .get_all_logs(last_block_number)
             .await
-            .context("events_web3_dal().get_all_logs()")
+            .map_err(Into::into)
     }
 }
 

@@ -5,5 +5,5 @@ package zksync.core;
 import "zksync/core/consensus.proto";
 
 message Secrets {
-  optional consensus.Secrets consensus = 1; // optional
+    optional consensus.Secrets consensus = 1; // optional
 }

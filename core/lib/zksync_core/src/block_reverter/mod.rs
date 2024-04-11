@@ -19,7 +19,7 @@ use zksync_types::{
         types::{BlockId, BlockNumber},
         Web3,
     },
-    L1BatchNumber, PackedEthSignature, H160, H256, U256,
+    Address, L1BatchNumber, H160, H256, U256,
 };
 
 bitflags! {
@@ -45,29 +45,27 @@ pub enum L1ExecutedBatchesRevert {
 #[derive(Debug)]
 pub struct BlockReverterEthConfig {
     eth_client_url: String,
-    reverter_private_key: H256,
-    reverter_address: H160,
+    reverter_private_key: Option<H256>,
+    reverter_address: Option<Address>,
     diamond_proxy_addr: H160,
     validator_timelock_addr: H160,
     default_priority_fee_per_gas: u64,
 }
 
 impl BlockReverterEthConfig {
-    pub fn new(eth_config: ETHConfig, contract: ContractsConfig) -> Self {
+    pub fn new(
+        eth_config: ETHConfig,
+        contract: ContractsConfig,
+        reverter_address: Option<Address>,
+    ) -> Self {
         #[allow(deprecated)]
         // `BlockReverter` doesn't support non env configs yet
-        let pk = eth_config
-            .sender
-            .expect("eth_sender_config")
-            .private_key()
-            .expect("Private key is required for block reversion");
-        let operator_address = PackedEthSignature::address_from_private_key(&pk)
-            .expect("Failed to get address from private key");
+        let pk = eth_config.sender.expect("eth_sender_config").private_key();
 
         Self {
             eth_client_url: eth_config.web3_url,
             reverter_private_key: pk,
-            reverter_address: operator_address,
+            reverter_address,
             diamond_proxy_addr: contract.diamond_proxy_addr,
             validator_timelock_addr: contract.validator_timelock_addr,
             default_priority_fee_per_gas: eth_config
@@ -259,17 +257,20 @@ impl BlockReverter {
         transaction
             .transactions_dal()
             .reset_transactions_state(last_miniblock_to_keep)
-            .await;
+            .await
+            .expect("failed resetting transaction state");
         tracing::info!("rolling back events...");
         transaction
             .events_dal()
             .rollback_events(last_miniblock_to_keep)
-            .await;
+            .await
+            .expect("failed rolling back events");
         tracing::info!("rolling back l2 to l1 logs...");
         transaction
             .events_dal()
             .rollback_l2_to_l1_logs(last_miniblock_to_keep)
-            .await;
+            .await
+            .expect("failed rolling back L2-to-L1 logs");
         tracing::info!("rolling back created tokens...");
         transaction
             .tokens_dal()
@@ -339,7 +340,11 @@ impl BlockReverter {
 
         let web3 = Web3::new(Http::new(&eth_config.eth_client_url).unwrap());
         let contract = zksync_contract();
-        let signer = PrivateKeySigner::new(eth_config.reverter_private_key);
+        let signer = PrivateKeySigner::new(
+            eth_config
+                .reverter_private_key
+                .expect("Private key is required to send revert transaction"),
+        );
         let chain_id = web3.eth().chain_id().await.unwrap().as_u64();
 
         let revert_function = contract
@@ -453,7 +458,12 @@ impl BlockReverter {
         let web3 = Web3::new(Http::new(&eth_config.eth_client_url).unwrap());
         let nonce = web3
             .eth()
-            .transaction_count(eth_config.reverter_address, Some(BlockNumber::Pending))
+            .transaction_count(
+                eth_config
+                    .reverter_address
+                    .expect("Need to provide operator address to suggest revertion values"),
+                Some(BlockNumber::Pending),
+            )
             .await
             .unwrap()
             .as_u64();

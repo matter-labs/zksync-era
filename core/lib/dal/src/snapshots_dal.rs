@@ -1,4 +1,8 @@
-use zksync_db_connection::{connection::Connection, instrument::InstrumentExt};
+use zksync_db_connection::{
+    connection::Connection,
+    error::{DalResult, SqlxContext},
+    instrument::InstrumentExt,
+};
 use zksync_types::{
     snapshots::{AllSnapshots, SnapshotMetadata, SnapshotVersion},
     L1BatchNumber,
@@ -18,15 +22,8 @@ impl TryFrom<StorageSnapshotMetadata> for SnapshotMetadata {
     type Error = sqlx::Error;
 
     fn try_from(row: StorageSnapshotMetadata) -> Result<Self, Self::Error> {
-        let int_version = u16::try_from(row.version).map_err(|err| sqlx::Error::ColumnDecode {
-            index: "version".to_owned(),
-            source: err.into(),
-        })?;
-        let version =
-            SnapshotVersion::try_from(int_version).map_err(|err| sqlx::Error::ColumnDecode {
-                index: "version".to_owned(),
-                source: err.into(),
-            })?;
+        let int_version = u16::try_from(row.version).decode_column("version")?;
+        let version = SnapshotVersion::try_from(int_version).decode_column("version")?;
 
         Ok(Self {
             version,
@@ -53,7 +50,7 @@ impl SnapshotsDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
         storage_logs_chunk_count: u64,
         factory_deps_filepaths: &str,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -74,6 +71,8 @@ impl SnapshotsDal<'_, '_> {
             factory_deps_filepaths,
         )
         .instrument("add_snapshot")
+        .with_arg("version", &version)
+        .with_arg("l1_batch_number", &l1_batch_number)
         .report_latency()
         .execute(self.storage)
         .await?;
@@ -85,7 +84,7 @@ impl SnapshotsDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
         chunk_id: u64,
         storage_logs_filepath: &str,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE snapshots
@@ -99,13 +98,16 @@ impl SnapshotsDal<'_, '_> {
             chunk_id as i32 + 1,
             storage_logs_filepath,
         )
-        .execute(self.storage.conn())
+        .instrument("add_storage_logs_filepath_for_snapshot")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .with_arg("chunk_id", &chunk_id)
+        .execute(self.storage)
         .await?;
 
         Ok(())
     }
 
-    pub async fn get_all_complete_snapshots(&mut self) -> sqlx::Result<AllSnapshots> {
+    pub async fn get_all_complete_snapshots(&mut self) -> DalResult<AllSnapshots> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -133,8 +135,8 @@ impl SnapshotsDal<'_, '_> {
         })
     }
 
-    pub async fn get_newest_snapshot_metadata(&mut self) -> sqlx::Result<Option<SnapshotMetadata>> {
-        let row = sqlx::query_as!(
+    pub async fn get_newest_snapshot_metadata(&mut self) -> DalResult<Option<SnapshotMetadata>> {
+        sqlx::query_as!(
             StorageSnapshotMetadata,
             r#"
             SELECT
@@ -150,19 +152,18 @@ impl SnapshotsDal<'_, '_> {
                 1
             "#
         )
+        .try_map(SnapshotMetadata::try_from)
         .instrument("get_newest_snapshot_metadata")
         .report_latency()
         .fetch_optional(self.storage)
-        .await?;
-
-        row.map(TryFrom::try_from).transpose()
+        .await
     }
 
     pub async fn get_snapshot_metadata(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<Option<SnapshotMetadata>> {
-        let row = sqlx::query_as!(
+    ) -> DalResult<Option<SnapshotMetadata>> {
+        sqlx::query_as!(
             StorageSnapshotMetadata,
             r#"
             SELECT
@@ -177,12 +178,12 @@ impl SnapshotsDal<'_, '_> {
             "#,
             l1_batch_number.0 as i32
         )
+        .try_map(SnapshotMetadata::try_from)
         .instrument("get_snapshot_metadata")
+        .with_arg("l1_batch_number", &l1_batch_number)
         .report_latency()
         .fetch_optional(self.storage)
-        .await?;
-
-        row.map(TryFrom::try_from).transpose()
+        .await
     }
 }
 
