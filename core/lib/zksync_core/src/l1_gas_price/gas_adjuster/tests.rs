@@ -8,6 +8,7 @@ use super::{GasAdjuster, GasStatisticsInner, PubdataPricing};
 use crate::{
     l1_gas_price::{RollupPubdataPricing, ValidiumPubdataPricing},
     utils::testonly::DeploymentMode,
+    NoOpConversionRateFetcher,
 };
 
 /// Check that we compute the median correctly
@@ -55,7 +56,7 @@ async fn kept_updated(deployment_mode: DeploymentMode) {
         DeploymentMode::Validium => Arc::new(ValidiumPubdataPricing {}),
         DeploymentMode::Rollup => Arc::new(RollupPubdataPricing {}),
     };
-
+    let base_token_fetcher = Arc::new(NoOpConversionRateFetcher {});
     let adjuster = GasAdjuster::new(
         eth_client.clone(),
         GasAdjusterConfig {
@@ -73,6 +74,7 @@ async fn kept_updated(deployment_mode: DeploymentMode) {
             max_blob_base_fee: None,
         },
         PubdataSendingMode::Calldata,
+        base_token_fetcher,
         pubdata_pricing,
     )
     .await

@@ -26,6 +26,7 @@ use super::l1_batch_commit_data_generator::{
     ValidiumModeL1BatchCommitDataGenerator,
 };
 use crate::{
+    base_token_fetcher::{ConversionRateFetcher, NoOpConversionRateFetcher},
     eth_sender::{
         aggregated_operations::AggregatedOperation, eth_tx_manager::L1BlockNumbers, Aggregator,
         ETHSenderError, EthTxAggregator, EthTxManager,
@@ -111,6 +112,8 @@ impl EthSenderTester {
             DeploymentMode::Rollup => Arc::new(RollupPubdataPricing {}),
         };
 
+        let base_token_fetcher: Arc<dyn ConversionRateFetcher> =
+            Arc::new(NoOpConversionRateFetcher {});
         let gas_adjuster = Arc::new(
             GasAdjuster::new(
                 gateway.clone(),
@@ -121,6 +124,7 @@ impl EthSenderTester {
                     ..eth_sender_config.gas_adjuster.unwrap()
                 },
                 PubdataSendingMode::Calldata,
+                base_token_fetcher,
                 pubdata_pricing,
             )
             .await

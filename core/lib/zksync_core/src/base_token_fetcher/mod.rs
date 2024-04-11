@@ -16,8 +16,12 @@ pub trait ConversionRateFetcher: 'static + std::fmt::Debug + Send + Sync {
 }
 
 #[derive(Debug)]
-pub(crate) struct NoOpConversionRateFetcher;
-
+pub struct NoOpConversionRateFetcher;
+impl Default for NoOpConversionRateFetcher {
+    fn default() -> Self {
+        Self
+    }
+}
 impl NoOpConversionRateFetcher {
     pub fn new() -> Self {
         Self
