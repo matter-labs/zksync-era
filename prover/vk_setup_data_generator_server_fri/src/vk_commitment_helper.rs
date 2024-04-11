@@ -22,6 +22,6 @@ pub fn read_contract_toml() -> anyhow::Result<Document> {
 }
 
 pub fn get_contract_toml_path() -> String {
-    let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| "/".into());
+    let zksync_home = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "/".into());
     format!("{}/etc/env/base/contracts.toml", zksync_home)
 }

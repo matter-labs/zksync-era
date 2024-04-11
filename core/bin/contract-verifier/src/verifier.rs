@@ -119,7 +119,7 @@ impl ContractVerifier {
             };
         let input = Self::build_zksolc_input(request.clone(), file_name.clone())?;
 
-        let zksync_home = env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
+        let zksync_home = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
         let zksolc_path = Path::new(&zksync_home)
             .join("etc")
             .join("zksolc-bin")
@@ -218,7 +218,7 @@ impl ContractVerifier {
             };
         let input = Self::build_zkvyper_input(request.clone())?;
 
-        let zksync_home = env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
+        let zksync_home = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
         let zkvyper_path = Path::new(&zksync_home)
             .join("etc")
             .join("zkvyper-bin")

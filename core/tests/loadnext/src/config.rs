@@ -190,7 +190,7 @@ fn default_main_token() -> H160 {
 
 fn default_test_contracts_path() -> PathBuf {
     let test_contracts_path = {
-        let home = std::env::var("ZKSYNC_HOME").unwrap();
+        let home = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         let path = PathBuf::from(&home);
         path.join("etc/contracts-test-data")
     };

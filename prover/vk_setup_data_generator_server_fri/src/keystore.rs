@@ -44,7 +44,7 @@ pub struct Keystore {
 }
 
 fn get_base_path_from_env() -> String {
-    let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| "/".into());
+    let zksync_home = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "/".into());
     format!(
         "{}/prover/vk_setup_data_generator_server_fri/data",
         zksync_home

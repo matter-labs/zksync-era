@@ -209,7 +209,7 @@ fn generate_rust_fee_constants(intrinsic_gas_constants: &IntrinsicSystemGasConst
 }
 
 fn save_file(path_in_repo: &str, content: String) {
-    let zksync_home = std::env::var("ZKSYNC_HOME").expect("No ZKSYNC_HOME env var");
+    let zksync_home = ".";
     let fee_constants_path = format!("{zksync_home}/{path_in_repo}");
 
     fs::write(fee_constants_path, content)

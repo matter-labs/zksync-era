@@ -26,7 +26,7 @@ pub struct TestContract {
 }
 
 pub fn read_tokens(network: Network) -> anyhow::Result<Vec<Token>> {
-    let home = std::env::var("ZKSYNC_HOME")?;
+    let home = std::env::var("CARGO_MANIFEST_DIR")?;
     let path = Path::new(&home);
     let path = path.join(format!("etc/tokens/{network}.json"));
 
@@ -96,7 +96,7 @@ mod tests {
     #[test]
     fn check_read_test_contract() {
         let test_contracts_path = {
-            let home = std::env::var("ZKSYNC_HOME").unwrap();
+            let home = std::env::var("CARGO_MANIFEST_DIR").unwrap();
             let path = PathBuf::from(&home);
             path.join("etc/contracts-test-data")
         };

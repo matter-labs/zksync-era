@@ -24,7 +24,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
     let mut storage = connection_pool.connection().await.unwrap();
     let mut transaction = storage.start_transaction().await.unwrap();
 
-    let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
+    let zksync_home = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
 
     let zksolc_path = format!("{}/etc/zksolc-bin/", zksync_home);
     let zksolc_versions: Vec<String> = std::fs::read_dir(zksolc_path)
