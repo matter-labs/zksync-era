@@ -29,15 +29,18 @@ describe('base ERC20 contract checks', () => {
         const amount = 1; // 1 wei is enough.
         const gasPrice = scaledGasPrice(alice);
 
+        let initialL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
+        await (await alice.approveERC20(baseTokenDetails.l1Address, initialL1Balance)).wait();
+        initialL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
+
         const initialEthBalance = await alice.getBalanceL1();
-        const initialL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
         const initialL2Balance = await alice.getBalance();
 
         const depositTx = await alice.deposit({
             token: baseTokenDetails.l1Address,
             amount: amount,
-            approveERC20: true,
-            approveBaseERC20: true,
+            approveERC20: false,
+            approveBaseERC20: false,
             approveBaseOverrides: {
                 gasPrice
             },
@@ -56,11 +59,11 @@ describe('base ERC20 contract checks', () => {
 
         // TODO: should all the following tests use strict equality?
 
-        const finalEthBalance = await alice.getBalanceL1();
-        expect(initialEthBalance).bnToBeGt(finalEthBalance.add(fee)); // Fee should be taken from the ETH balance on L1.
-
         const finalL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
         expect(initialL1Balance).bnToBeGte(finalL1Balance.add(amount));
+
+        const finalEthBalance = await alice.getBalanceL1();
+        expect(initialEthBalance).bnToBeEq(finalEthBalance.add(fee)); // Fee should be taken from the ETH balance on L1.
 
         const finalL2Balance = await alice.getBalance();
         expect(initialL2Balance).bnToBeLte(finalL2Balance.add(amount));

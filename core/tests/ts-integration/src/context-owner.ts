@@ -400,14 +400,19 @@ export class TestContextOwner {
                 .then((tx) => {
                     const amount = ethers.utils.formatEther(l2ETHAmountToDeposit);
                     this.reporter.debug(`Sent ETH deposit. Nonce ${tx.nonce}, amount: ${amount}, hash: ${tx.hash}`);
-                    tx.wait();
+                    if (ethIsBaseToken) {
+                        tx.wait();
+                    }
+                    else {
+                        // ToDo: after server fix has to be removed
+                        tx.waitL1Commit();
+                    }
                 });
             nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1);
             this.reporter.debug(
                 `Nonce changed by ${1 + (ethIsBaseToken ? 0 : 1)} for ETH deposit, new nonce: ${nonce}`
             );
             // Add this promise to the list of L1 tx promises.
-            // l1TxPromises.push(depositHandle);
             await depositHandle;
         }
         // Define values for handling ERC20 transfers/deposits.

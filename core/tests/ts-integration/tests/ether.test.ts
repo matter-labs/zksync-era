@@ -52,16 +52,6 @@ describe('ETH token checks', () => {
             gasPrice: await gasPrice
         });
 
-        // console.log('balances before deposit: ');
-        // console.log('alice.getBalance(): ', await alice.getBalance());
-        // console.log('alice.getBalanceL1(): ', await alice.getBalanceL1());
-        // console.log('base token address: ', process.env.CONTRACTS_BASE_TOKEN_ADDR);
-        // console.log('alice.getBalance(NATIVE TOKEN): ', await alice.getBalance(process.env.CONTRACTS_BASE_TOKEN_ADDR));
-        // console.log(
-        //     'alice.getBalanceL1(NATIVE TOKEN): ',
-        //     await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR)
-        // );
-
         const depositOp = alice.deposit({
             token: ETH_ADDRESS,
             amount,
@@ -82,16 +72,6 @@ describe('ETH token checks', () => {
         } else {
             await expect(depositOp).toBeReverted(); // ToDo: after server fix has to be removed
         }
-
-        await sleep(8);
-        // console.log('balances after deposit: ');
-        // console.log('alice.getBalance(): ', await alice.getBalance());
-        // console.log('alice.getBalanceL1(): ', await alice.getBalanceL1());
-        // console.log('alice.getBalance(NATIVE TOKEN): ', await alice.getBalance(process.env.CONTRACTS_BASE_TOKEN_ADDR));
-        // console.log(
-        //     'alice.getBalanceL1(NATIVE TOKEN): ',
-        //     await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR)
-        // );
 
         const depositFee = await depositOp
             .then((op) => op.waitL1Commit())
