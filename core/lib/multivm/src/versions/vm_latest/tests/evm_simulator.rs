@@ -1557,25 +1557,141 @@ fn test_basic_sload_vectors() {
     assert_eq!(
         test_evm_vector(
             vec![
-                // push32 0
-                hex::decode("7F").unwrap(),
-                H256::zero().0.to_vec(),
-                // sstore
-                hex::decode("54").unwrap(),
                 // push32 2
                 hex::decode("7F").unwrap(),
                 u256_to_h256(2.into()).0.to_vec(),
                 // push32 0
                 hex::decode("7F").unwrap(),
                 H256::zero().0.to_vec(),
-                // sload
+                // sstore
                 hex::decode("55").unwrap(),
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
+                // sload
+                hex::decode("54").unwrap(),
             ]
             .into_iter()
             .concat()
         ),
         2.into()
     );
+}
+
+#[test]
+fn test_sload_gas() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    let initial_gas = U256::MAX;
+    let gas_left = test_evm_vector( // sload cold
+            vec![
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
+                // sload
+                hex::decode("54").unwrap(),
+                // gas
+                hex::decode("5A").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        );
+    assert_eq!(initial_gas - gas_left,U256::from_dec_str("2105").unwrap());
+
+    let gas_left_2 = 
+        test_evm_vector( // sstore cold different value + sload warm
+            vec![
+                // push32 2
+                hex::decode("7F").unwrap(),
+                u256_to_h256(2.into()).0.to_vec(),
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
+                // sstore
+                hex::decode("55").unwrap(),
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
+                // sload
+                hex::decode("54").unwrap(),
+                // gas
+                hex::decode("5A").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        );
+    assert_eq!(initial_gas - gas_left_2,U256::from_dec_str("22211").unwrap());
+
+    let gas_left_3 = 
+        test_evm_vector( // sstore cold same value + sload warm
+            vec![
+                // push32 0
+                hex::decode("7F").unwrap(),
+                u256_to_h256(0.into()).0.to_vec(),
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
+                // sstore
+                hex::decode("55").unwrap(),
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
+                // sload
+                hex::decode("54").unwrap(),
+                // gas
+                hex::decode("5A").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        );
+    assert_eq!(initial_gas - gas_left_3,U256::from_dec_str("2311").unwrap());
+
+    let gas_left_4 = 
+        test_evm_vector( // sstore cold different value + sstore warm same value + sload warm
+            vec![
+                // push32 2
+                hex::decode("7F").unwrap(),
+                u256_to_h256(2.into()).0.to_vec(),
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
+                // sstore
+                hex::decode("55").unwrap(),
+                // push32 0
+                hex::decode("7F").unwrap(),
+                u256_to_h256(0.into()).0.to_vec(),
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
+                // sstore
+                hex::decode("55").unwrap(),
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
+                // sload
+                hex::decode("54").unwrap(),
+                // gas
+                hex::decode("5A").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        );
+    assert_eq!(initial_gas - gas_left_4,U256::from_dec_str("22317").unwrap());
 }
 
 fn assert_deployed_hash<H: HistoryMode>(
