@@ -731,8 +731,6 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
             req_entities_limit: config.optional.req_entities_limit,
             fee_history_limit: config.optional.fee_history_limit,
             filters_disabled: config.optional.filters_disabled,
-            mempool_cache_update_interval: config.optional.mempool_cache_update_interval(),
-            mempool_cache_size: config.optional.mempool_cache_size,
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
         }

@@ -129,7 +129,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
     pub async fn get_basic_witness_input_producer_job_attempts(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<Option<u32>> {
+    ) -> DalResult<Option<u32>> {
         let attempts = sqlx::query!(
             r#"
             SELECT
@@ -141,7 +141,9 @@ impl BasicWitnessInputProducerDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0),
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_basic_witness_input_producer_job_attempts")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_optional(self.storage)
         .await?
         .map(|job| job.attempts as u32);
 
@@ -218,13 +220,14 @@ impl BasicWitnessInputProducerDal<'_, '_> {
 
 /// These functions should only be used for tests.
 impl BasicWitnessInputProducerDal<'_, '_> {
-    pub async fn delete_all_jobs(&mut self) -> sqlx::Result<()> {
+    pub async fn delete_all_jobs(&mut self) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM basic_witness_input_producer_jobs
             "#
         )
-        .execute(self.storage.conn())
+        .instrument("delete_all_bwip_jobs")
+        .execute(self.storage)
         .await?;
         Ok(())
     }

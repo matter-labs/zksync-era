@@ -48,7 +48,7 @@ use crate::{
 };
 
 pub mod backend_jsonrpsee;
-mod mempool_cache;
+pub mod mempool_cache;
 pub(super) mod metrics;
 pub mod namespaces;
 mod pubsub;
@@ -128,6 +128,7 @@ struct OptionalApiParams {
     response_body_size_limit: Option<usize>,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
     tree_api: Option<Arc<dyn TreeApiClient>>,
+    mempool_cache: Option<MempoolCache>,
     pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
 
@@ -259,6 +260,11 @@ impl ApiBuilder {
         self
     }
 
+    pub fn with_mempool_cache(mut self, cache: MempoolCache) -> Self {
+        self.optional.mempool_cache = Some(cache);
+        self
+    }
+
     #[cfg(test)]
     fn with_pub_sub_events(mut self, sender: mpsc::UnboundedSender<PubSubEvent>) -> Self {
         self.optional.pub_sub_events_sender = Some(sender);
@@ -309,7 +315,6 @@ impl ApiServer {
     async fn build_rpc_state(
         self,
         last_sealed_miniblock: SealedMiniblockNumber,
-        mempool_cache: MempoolCache,
     ) -> anyhow::Result<RpcState> {
         let mut storage = self.updaters_pool.connection_tagged("api").await?;
         let start_info = BlockStartInfo::new(&mut storage).await?;
@@ -333,7 +338,7 @@ impl ApiServer {
             sync_state: self.optional.sync_state,
             api_config: self.config,
             start_info,
-            mempool_cache,
+            mempool_cache: self.optional.mempool_cache,
             last_sealed_miniblock,
             tree_api: self.optional.tree_api,
         })
@@ -343,13 +348,10 @@ impl ApiServer {
         self,
         pub_sub: Option<EthSubscribe>,
         last_sealed_miniblock: SealedMiniblockNumber,
-        mempool_cache: MempoolCache,
     ) -> anyhow::Result<RpcModule<()>> {
         let namespaces = self.namespaces.clone();
         let zksync_network_id = self.config.l2_chain_id;
-        let rpc_state = self
-            .build_rpc_state(last_sealed_miniblock, mempool_cache)
-            .await?;
+        let rpc_state = self.build_rpc_state(last_sealed_miniblock).await?;
 
         // Collect all the methods into a single RPC module.
         let mut rpc = RpcModule::new(());
@@ -458,16 +460,6 @@ impl ApiServer {
         );
 
         let mut tasks = vec![tokio::spawn(sealed_miniblock_update_task)];
-
-        let (mempool_cache, mempool_cache_update_task) = MempoolCache::new(
-            self.updaters_pool.clone(),
-            self.config.mempool_cache_update_interval,
-            self.config.mempool_cache_size,
-            stop_receiver.clone(),
-        );
-
-        tasks.push(tokio::spawn(mempool_cache_update_task));
-
         let pub_sub = if matches!(transport, ApiTransport::WebSocket(_))
             && self.namespaces.contains(&Namespace::Pubsub)
         {
@@ -493,7 +485,6 @@ impl ApiServer {
         let server_task = tokio::spawn(self.run_jsonrpsee_server(
             stop_receiver,
             pub_sub,
-            mempool_cache,
             last_sealed_miniblock,
             local_addr_sender,
         ));
@@ -510,7 +501,6 @@ impl ApiServer {
         self,
         mut stop_receiver: watch::Receiver<bool>,
         pub_sub: Option<EthSubscribe>,
-        mempool_cache: MempoolCache,
         last_sealed_miniblock: SealedMiniblockNumber,
         local_addr_sender: oneshot::Sender<SocketAddr>,
     ) -> anyhow::Result<()> {
@@ -520,6 +510,12 @@ impl ApiServer {
             ApiTransport::WebSocket(addr) => ("WS", false, addr),
         };
         let transport_label = (&transport).into();
+        API_METRICS.observe_config(
+            transport_label,
+            self.polling_interval,
+            &self.config,
+            &self.optional,
+        );
 
         tracing::info!(
             "Waiting for at least one L1 batch in Postgres to start {transport_str} API server"
@@ -555,7 +551,7 @@ impl ApiServer {
         let method_tracer = self.method_tracer.clone();
 
         let rpc = self
-            .build_rpc_module(pub_sub, last_sealed_miniblock, mempool_cache)
+            .build_rpc_module(pub_sub, last_sealed_miniblock)
             .await?;
         let registered_method_names = Arc::new(rpc.method_names().collect::<HashSet<_>>());
         tracing::debug!(

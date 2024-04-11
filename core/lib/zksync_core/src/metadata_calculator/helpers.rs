@@ -440,8 +440,7 @@ impl L1BatchWithLogs {
                 let protective_reads = storage
                     .storage_logs_dedup_dal()
                     .get_protective_reads_for_l1_batch(l1_batch_number)
-                    .await
-                    .context("cannot fetch protective reads")?;
+                    .await?;
                 if protective_reads.is_empty() {
                     tracing::warn!(
                         "Protective reads for L1 batch #{l1_batch_number} are empty. This is highly unlikely \
@@ -706,9 +705,6 @@ mod tests {
             actual.rollup_last_leaf_index,
             expected.rollup_last_leaf_index
         );
-        assert_eq!(actual.initial_writes, expected.initial_writes);
-        assert_eq!(actual.initial_writes, expected.initial_writes);
-        assert_eq!(actual.repeated_writes, expected.repeated_writes);
     }
 
     fn assert_equivalent_witnesses(lhs: PrepareBasicCircuitsJob, rhs: PrepareBasicCircuitsJob) {

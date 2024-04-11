@@ -283,7 +283,12 @@ describe('Block reverting test', function () {
         await mainNode.terminate();
 
         console.log('Ask block_reverter to suggest to which L1 batch we should revert');
-        const values_json = runBlockReverter(['print-suggested-values', '--json']);
+        const values_json = runBlockReverter([
+            'print-suggested-values',
+            '--json',
+            '--operator-address',
+            '0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7'
+        ]);
         console.log(`values = ${values_json}`);
         const values = parseSuggestedValues(values_json);
         assert(lastExecuted.eq(values.lastExecutedL1BatchNumber));
@@ -329,7 +334,14 @@ describe('Block reverting test', function () {
             amount: depositAmount,
             to: alice.address
         });
-        const l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
+
+        let l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
+        while (!l1TxResponse) {
+            console.log(`Deposit ${depositHandle.hash} is not visible to the L1 network; sleeping`);
+            await utils.sleep(1);
+            l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
+        }
+
         // TODO: it would be nice to know WHY it "doesn't work well with block reversions" and what it actually means.
         console.log(
             "ethers doesn't work well with block reversions, so wait for the receipt before calling `.waitFinalize()`."
