@@ -631,7 +631,7 @@ fn test_basic_signextend_vectors() {
 fn test_basic_sload_vectors() {
     // Here we just try to test some small EVM contracts and ensure that they work.
     assert_eq!(
-        test_evm_vector(
+        test_evm_vector( // TODO: fix this tests
             vec![
                 // push32 0
                 hex::decode("7F").unwrap(),
@@ -783,6 +783,77 @@ fn test_sload_gas() {
             .concat()
         );
     assert_eq!(initial_gas - gas_left_4,U256::from_dec_str("22317").unwrap());
+}
+
+#[test]
+fn test_basic_msize_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // msize
+                hex::decode("59").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+    // TODO: When mstore (with memory expansion) is implemented, uncomment this test
+    /* assert_eq!(
+        test_evm_vector(
+            vec![
+                // push32 2
+                hex::decode("7F").unwrap(),
+                u256_to_h256(2.into()).0.to_vec(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // msize
+                hex::decode("59").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        32.into()
+    );*/ 
+}
+
+#[test]
+fn test_basic_msize_with_mstore_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    // TODO: rigth now it should fail, when mstore (with memory expansion) is implemented, this should work
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push32 2
+                hex::decode("7F").unwrap(),
+                u256_to_h256(2.into()).0.to_vec(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // msize
+                hex::decode("59").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        32.into()
+    );
 }
 
 fn assert_deployed_hash<H: HistoryMode>(
