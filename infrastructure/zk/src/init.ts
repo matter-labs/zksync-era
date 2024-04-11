@@ -47,8 +47,7 @@ type InitSetupOptions = {
 const initSetup = async ({
     skipSubmodulesCheckout,
     skipEnvSetup,
-    runObservability,
-    validiumMode
+    runObservability
 }: InitSetupOptions): Promise<void> => {
     if (!skipSubmodulesCheckout) {
         await announced('Checkout submodules', submoduleUpdate());
