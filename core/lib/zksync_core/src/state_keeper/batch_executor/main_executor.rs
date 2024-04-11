@@ -21,11 +21,9 @@ use zksync_types::{vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
-use crate::
-    state_keeper::{
-        metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
-        types::ExecutionMetricsForCriteria,
-
+use crate::state_keeper::{
+    metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
+    types::ExecutionMetricsForCriteria,
 };
 
 /// The default implementation of [`BatchExecutor`].

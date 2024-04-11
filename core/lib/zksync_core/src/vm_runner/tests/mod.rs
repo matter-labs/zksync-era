@@ -1,25 +1,28 @@
-use std::ops;
-use std::sync::Arc;
+use std::{ops, sync::Arc};
 
-use crate::genesis::{insert_genesis_batch, GenesisParams};
 use async_trait::async_trait;
 use tempfile::TempDir;
-use tokio::runtime::Handle;
-use tokio::sync::RwLock;
-use tokio::{sync::watch, task::JoinHandle};
+use tokio::{
+    runtime::Handle,
+    sync::{watch, RwLock},
+    task::JoinHandle,
+};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_state::{PostgresStorage, ReadStorage, ReadStorageFactory};
-use zksync_types::block::{BlockGasCount, L1BatchHeader};
-use zksync_types::fee::TransactionExecutionMetrics;
 use zksync_types::{
+    block::{BlockGasCount, L1BatchHeader},
+    fee::TransactionExecutionMetrics,
     AccountTreeId, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, StorageKey,
 };
 
 use super::{VmRunnerStorage, VmRunnerStorageLoader};
-use crate::utils::testonly::{
-    create_l1_batch_metadata, create_l2_transaction, create_miniblock, execute_l2_transaction,
-    l1_batch_metadata_to_commitment_artifacts,
+use crate::{
+    genesis::{insert_genesis_batch, GenesisParams},
+    utils::testonly::{
+        create_l1_batch_metadata, create_l2_transaction, create_miniblock, execute_l2_transaction,
+        l1_batch_metadata_to_commitment_artifacts,
+    },
 };
 
 #[derive(Debug, Default)]

@@ -2,8 +2,7 @@ use std::{fmt::Debug, sync::Arc};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use multivm::interface::L1BatchEnv;
-use multivm::vm_1_4_2::SystemEnv;
+use multivm::{interface::L1BatchEnv, vm_1_4_2::SystemEnv};
 use once_cell::sync::OnceCell;
 use tokio::sync::watch;
 use vm_utils::storage::L1BatchParamsProvider;
@@ -12,8 +11,7 @@ use zksync_state::{
     AsyncCatchupTask, PgOrRocksdbStorage, ReadStorageFactory, StateKeeperColumnFamily,
 };
 use zksync_storage::RocksDB;
-use zksync_types::L2ChainId;
-use zksync_types::{block::MiniblockExecutionData, L1BatchNumber};
+use zksync_types::{block::MiniblockExecutionData, L1BatchNumber, L2ChainId};
 
 /// Data needed to re-execute an L1 batch.
 #[derive(Debug)]

@@ -1,6 +1,7 @@
+use std::fmt::Debug;
+
 use anyhow::Context as _;
 use async_trait::async_trait;
-use std::fmt::Debug;
 use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_storage::RocksDB;
@@ -42,11 +43,10 @@ impl<'a> PgOrRocksdbStorage<'a> {
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<PgOrRocksdbStorage<'a>> {
         let mut connection = pool.connection().await?;
-        let mut dal = connection.blocks_dal();
-        let miniblock_number = match dal
+        let miniblock_number = match connection
+            .blocks_dal()
             .get_miniblock_range_of_l1_batch(l1_batch_number)
-            .await
-            .context("Failed to load the miniblock range for the latest sealed L1 batch")?
+            .await?
         {
             Some((_, miniblock_number)) => miniblock_number,
             None => {
@@ -54,8 +54,7 @@ impl<'a> PgOrRocksdbStorage<'a> {
                 let snapshot_recovery = connection
                     .snapshot_recovery_dal()
                     .get_applied_snapshot_status()
-                    .await
-                    .context("Failed getting snapshot recovery info")?
+                    .await?
                     .context("Could not find snapshot, no state available")?;
                 if snapshot_recovery.l1_batch_number != l1_batch_number {
                     anyhow::bail!(
