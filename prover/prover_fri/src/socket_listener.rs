@@ -11,8 +11,10 @@ pub mod gpu_socket_listener {
     };
     use zksync_object_store::bincode;
     use zksync_prover_fri_types::WitnessVectorArtifacts;
-    use zksync_types::prover_dal::{GpuProverInstanceStatus, SocketAddress};
-    use zksync_types::ProtocolVersionId;
+    use zksync_types::{
+        prover_dal::{GpuProverInstanceStatus, SocketAddress},
+        ProtocolVersionId,
+    };
 
     use crate::{
         metrics::METRICS,

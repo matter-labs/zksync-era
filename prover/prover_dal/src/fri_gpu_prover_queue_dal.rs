@@ -1,7 +1,9 @@
 use std::{str::FromStr, time::Duration};
-use zksync_basic_types::protocol_version::ProtocolVersionId;
 
-use zksync_basic_types::prover_dal::{GpuProverInstanceStatus, SocketAddress};
+use zksync_basic_types::{
+    protocol_version::ProtocolVersionId,
+    prover_dal::{GpuProverInstanceStatus, SocketAddress},
+};
 use zksync_db_connection::connection::Connection;
 
 use crate::{pg_interval_from_duration, Prover};
