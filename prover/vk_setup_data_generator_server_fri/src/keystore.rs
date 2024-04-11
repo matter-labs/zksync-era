@@ -1,7 +1,7 @@
 use std::{
     fs::{self, File},
     io::Read,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use anyhow::Context as _;
@@ -20,6 +20,7 @@ use zksync_config::configs::FriProverConfig;
 use zksync_env_config::FromEnv;
 use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_types::basic_fri_types::AggregationRound;
+use zksync_utils::locate_workspace;
 
 #[cfg(feature = "gpu")]
 use crate::GoldilocksGpuProverSetupData;
@@ -43,12 +44,10 @@ pub struct Keystore {
     setup_data_path: Option<String>,
 }
 
-fn get_base_path_from_env() -> String {
-    let zksync_home = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "/".into());
-    format!(
-        "{}/prover/vk_setup_data_generator_server_fri/data",
-        zksync_home
-    )
+fn get_base_path_from_env() -> PathBuf {
+    locate_workspace()
+        .unwrap_or_else(|_| ".".into())
+        .join("/prover/vk_setup_data_generator_server_fri/data")
 }
 
 impl Default for Keystore {

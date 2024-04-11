@@ -5,6 +5,7 @@ use std::{fs::File, io::BufReader, path::Path};
 
 use serde::Deserialize;
 use zksync_types::{ethabi::Contract, network::Network, Address};
+use zksync_utils::locate_workspace;
 
 /// A token stored in `etc/tokens/{network}.json` files.
 #[derive(Debug, Deserialize)]
@@ -26,9 +27,9 @@ pub struct TestContract {
 }
 
 pub fn read_tokens(network: Network) -> anyhow::Result<Vec<Token>> {
-    let home = std::env::var("CARGO_MANIFEST_DIR")?;
+    let home = locate_workspace().unwrap_or(".".into());
     let path = Path::new(&home);
-    let path = path.join(format!("../../../etc/tokens/{network}.json"));
+    let path = path.join(format!("etc/tokens/{network}.json"));
 
     let file = File::open(path)?;
     let reader = BufReader::new(file);
@@ -89,16 +90,14 @@ pub fn loadnext_contract(path: &Path) -> anyhow::Result<TestContract> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
 
     use super::*;
 
     #[test]
     fn check_read_test_contract() {
         let test_contracts_path = {
-            let home = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-            let path = PathBuf::from(&home);
-            let a = path.join("../../../etc/contracts-test-data");
+            let path = locate_workspace().unwrap_or(".".into());
+            let a = path.join("etc/contracts-test-data");
             dbg!(a)
         };
 

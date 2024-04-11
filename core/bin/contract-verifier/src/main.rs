@@ -24,11 +24,9 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
     let mut storage = connection_pool.connection().await.unwrap();
     let mut transaction = storage.start_transaction().await.unwrap();
 
-    let zksync_home = std::env::var("CARGO_MANIFEST_DIR")
-        .map(|a| format!("{}/../../", a))
-        .unwrap_or_else(|_| ".".into());
+    let zksync_home = locate_workspace().unwrap_or_else(|| ".".into());
 
-    let zksolc_path = format!("{}/etc/zksolc-bin/", zksync_home);
+    let zksolc_path = zksync_home.join("etc/zksolc-bin/");
     let zksolc_versions: Vec<String> = std::fs::read_dir(zksolc_path)
         .unwrap()
         .filter_map(|file| {
@@ -49,7 +47,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
         .await
         .unwrap();
 
-    let solc_path = format!("{}/etc/solc-bin/", zksync_home);
+    let solc_path = zksync_home.join("etc/solc-bin/");
     let solc_versions: Vec<String> = std::fs::read_dir(solc_path)
         .unwrap()
         .filter_map(|file| {
@@ -70,7 +68,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
         .await
         .unwrap();
 
-    let zkvyper_path = format!("{}/etc/zkvyper-bin/", zksync_home);
+    let zkvyper_path = zksync_home.join("etc/zkvyper-bin/");
     let zkvyper_versions: Vec<String> = std::fs::read_dir(zkvyper_path)
         .unwrap()
         .filter_map(|file| {
@@ -91,7 +89,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
         .await
         .unwrap();
 
-    let vyper_path = format!("{}/etc/vyper-bin/", zksync_home);
+    let vyper_path = zksync_home.join("etc/vyper-bin/");
     let vyper_versions: Vec<String> = std::fs::read_dir(vyper_path)
         .unwrap()
         .filter_map(|file| {
@@ -117,6 +115,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
 }
 
 use structopt::StructOpt;
+use zksync_utils::locate_workspace;
 
 #[derive(StructOpt)]
 #[structopt(name = "zkSync contract code verifier", author = "Matter Labs")]

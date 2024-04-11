@@ -2,6 +2,7 @@ use std::fs;
 
 use anyhow::Context as _;
 use toml_edit::{Document, Item, Value};
+use zksync_utils::locate_workspace;
 
 pub fn get_toml_formatted_value(string_value: String) -> Item {
     let mut value = Value::from(string_value);
@@ -22,6 +23,7 @@ pub fn read_contract_toml() -> anyhow::Result<Document> {
 }
 
 pub fn get_contract_toml_path() -> String {
-    let zksync_home = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "/".into());
-    format!("{}/etc/env/base/contracts.toml", zksync_home)
+    locate_workspace()
+        .unwrap_or_else(|| ".".into())
+        .join("etc/env/base/contracts.toml")
 }

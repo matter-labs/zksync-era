@@ -122,7 +122,8 @@ mod tests {
 
     #[test]
     fn test_keyhash_generation() {
-        let mut path_to_input = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+        let mut path_to_input = locate_workspace().unwrap_or_else(|_| ".".into());
+
         path_to_input.push("historical_data");
 
         for version in 18..=22 {
