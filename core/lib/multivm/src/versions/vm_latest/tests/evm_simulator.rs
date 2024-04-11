@@ -1538,7 +1538,6 @@ fn test_basic_block_environment_vectors() {
         .into_iter()
         .concat(),
     );
-    // why 270?
     assert_eq!(evm_output, 270.into());
 }
 
