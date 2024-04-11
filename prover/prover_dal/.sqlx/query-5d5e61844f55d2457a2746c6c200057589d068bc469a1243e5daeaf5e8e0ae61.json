@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            UPDATE recursion_tip_witness_jobs_fri\n            SET\n                status = 'in_progress',\n                attempts = attempts + 1,\n                updated_at = NOW(),\n                processing_started_at = NOW(),\n                picked_by = $2\n            WHERE\n                l1_batch_number = (\n                    SELECT\n                        l1_batch_number\n                    FROM\n                        scheduler_witness_jobs_fri\n                    WHERE\n                        status = 'queued'\n                        AND protocol_version = ANY ($1)\n                    ORDER BY\n                        l1_batch_number ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                        SKIP LOCKED\n                )\n            RETURNING\n                recursion_tip_witness_jobs_fri.*\n            ",
+  "query": "\n            UPDATE recursion_tip_witness_jobs_fri\n            SET\n                status = 'in_progress',\n                attempts = attempts + 1,\n                updated_at = NOW(),\n                processing_started_at = NOW(),\n                picked_by = $2\n            WHERE\n                l1_batch_number = (\n                    SELECT\n                        l1_batch_number\n                    FROM\n                        recursion_tip_witness_jobs_fri\n                    WHERE\n                        status = 'queued'\n                        AND protocol_version = ANY ($1)\n                    ORDER BY\n                        l1_batch_number ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                        SKIP LOCKED\n                )\n            RETURNING\n                recursion_tip_witness_jobs_fri.*\n            ",
   "describe": {
     "columns": [
       {
@@ -79,5 +79,5 @@
       true
     ]
   },
-  "hash": "7b2efd3fa56851a9480e15084dabe4034b4eda19e8c71c088dc299d931060255"
+  "hash": "5d5e61844f55d2457a2746c6c200057589d068bc469a1243e5daeaf5e8e0ae61"
 }
