@@ -1503,6 +1503,39 @@ fn test_basic_calldatasize_vectors() {
     );
 }
 
+#[test]
+fn test_basic_calldatacopy_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 9
+                hex::decode("60").unwrap(),
+                hex::decode("09").unwrap(),
+                // push1 31
+                hex::decode("60").unwrap(),
+                hex::decode("1F").unwrap(),
+                // push1 2
+                hex::decode("60").unwrap(),
+                hex::decode("02").unwrap(),
+                // calldatacopy
+                hex::decode("37").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mload
+                hex::decode("51").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+}
+
 fn assert_deployed_hash<H: HistoryMode>(
     tester: &mut VmTester<H>,
     address: Address,
