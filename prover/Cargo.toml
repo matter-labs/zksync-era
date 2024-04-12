@@ -12,7 +12,7 @@ members = [
     "witness_vector_generator",
     "prover_fri_gateway",
     "proof_fri_compressor",
-    "tools",
+    "prover_cli",
 ]
 
 resolver = "2"

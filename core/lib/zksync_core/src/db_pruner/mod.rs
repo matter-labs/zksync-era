@@ -11,8 +11,8 @@ use zksync_types::L1BatchNumber;
 use self::{
     metrics::{MetricPruneType, METRICS},
     prune_conditions::{
-        L1BatchExistsCondition, L1BatchOlderThanPruneCondition, NextL1BatchHasMetadataCondition,
-        NextL1BatchWasExecutedCondition,
+        ConsistencyCheckerProcessedBatch, L1BatchExistsCondition, L1BatchOlderThanPruneCondition,
+        NextL1BatchHasMetadataCondition, NextL1BatchWasExecutedCondition,
     },
 };
 
@@ -62,6 +62,9 @@ impl DbPruner {
             }),
             Arc::new(L1BatchOlderThanPruneCondition {
                 minimum_age: config.minimum_l1_batch_age,
+                conn: connection_pool.clone(),
+            }),
+            Arc::new(ConsistencyCheckerProcessedBatch {
                 conn: connection_pool.clone(),
             }),
         ];
