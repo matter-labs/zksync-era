@@ -17,6 +17,7 @@ use once_cell::sync::Lazy;
 use tokio::sync::watch;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContracts;
+use zksync_gas_tracker::l1_batch_base_cost;
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
@@ -36,7 +37,6 @@ use self::tester::{
 };
 pub(crate) use self::tester::{MockBatchExecutor, TestBatchExecutorBuilder};
 use crate::{
-    gas_tracker::l1_batch_base_cost,
     state_keeper::{
         batch_executor::TxExecutionResult,
         keeper::POLL_WAIT_DURATION,

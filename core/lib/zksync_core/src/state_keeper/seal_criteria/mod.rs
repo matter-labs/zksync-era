@@ -14,6 +14,7 @@ use std::fmt;
 
 use multivm::vm_latest::TransactionVmExt;
 use zksync_config::configs::chain::StateKeeperConfig;
+use zksync_gas_tracker::{gas_count_from_tx_and_metrics, gas_count_from_writes};
 use zksync_types::{
     block::BlockGasCount,
     fee::TransactionExecutionMetrics,
@@ -27,7 +28,6 @@ pub(super) mod criteria;
 
 pub use self::conditional_sealer::{ConditionalSealer, NoopSealer, SequencerSealer};
 use super::{extractors, metrics::AGGREGATION_METRICS, updates::UpdatesManager};
-use crate::gas_tracker::{gas_count_from_tx_and_metrics, gas_count_from_writes};
 
 /// Reported decision regarding block sealing.
 #[derive(Debug, Clone, PartialEq)]

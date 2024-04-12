@@ -1,4 +1,5 @@
 use multivm::interface::FinishedL1Batch;
+use zksync_gas_tracker::new_block_gas_count;
 use zksync_types::{
     block::BlockGasCount,
     priority_op_onchain_data::PriorityOpOnchainData,
@@ -7,7 +8,6 @@ use zksync_types::{
 };
 
 use super::miniblock_updates::MiniblockUpdates;
-use crate::gas_tracker::new_block_gas_count;
 
 #[derive(Debug)]
 pub struct L1BatchUpdates {
@@ -53,13 +53,11 @@ impl L1BatchUpdates {
 #[cfg(test)]
 mod tests {
     use multivm::vm_latest::TransactionVmExt;
+    use zksync_gas_tracker::new_block_gas_count;
     use zksync_types::{MiniblockNumber, ProtocolVersionId, H256};
 
     use super::*;
-    use crate::{
-        gas_tracker::new_block_gas_count,
-        state_keeper::tests::{create_execution_result, create_transaction},
-    };
+    use crate::state_keeper::tests::{create_execution_result, create_transaction};
 
     #[test]
     fn apply_miniblock_with_empty_tx() {

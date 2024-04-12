@@ -103,7 +103,6 @@ pub mod consensus;
 pub mod consistency_checker;
 pub mod eth_sender;
 pub mod fee_model;
-pub mod gas_tracker;
 pub mod genesis;
 pub mod house_keeper;
 pub mod l1_gas_price;
