@@ -3,7 +3,7 @@ use std::{
     str::FromStr,
 };
 
-use ethabi::{encode, Contract, Token};
+use ethabi::{encode, ethereum_types::H264, Contract, Token};
 use itertools::Itertools;
 use tracing::{instrument::WithSubscriber, Instrument};
 // FIXME: 1.4.1 should not be imported from 1.5.0
@@ -1539,6 +1539,776 @@ fn test_basic_block_environment_vectors() {
         .concat(),
     );
     assert_eq!(evm_output, 270.into());
+}
+
+#[test]
+fn test_basic_pop_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 160
+                hex::decode("60").unwrap(),
+                hex::decode("A0").unwrap(),
+                // push1 31
+                hex::decode("60").unwrap(),
+                hex::decode("1F").unwrap(),
+                // pop
+                hex::decode("50").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        160.into()
+    );
+}
+
+#[test]
+fn test_basic_memory_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 255
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mload
+                hex::decode("51").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        255.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 255
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // push1 2
+                hex::decode("60").unwrap(),
+                hex::decode("02").unwrap(),
+                // mload
+                hex::decode("51").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        16_711_680.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 255
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // push1 32
+                hex::decode("60").unwrap(),
+                hex::decode("20").unwrap(),
+                // mload
+                hex::decode("51").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 255
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // push1 64
+                hex::decode("60").unwrap(),
+                hex::decode("40").unwrap(),
+                // mload
+                hex::decode("51").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+}
+
+#[test]
+fn test_basic_mstore8_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push2 0xFFFF
+                hex::decode("61").unwrap(),
+                hex::decode("FFFF").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mstore8
+                hex::decode("53").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mload
+                hex::decode("51").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        h256_to_u256(
+            H256::from_str("FF00000000000000000000000000000000000000000000000000000000000000")
+                .unwrap()
+        )
+        .into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push2 0xAAFF
+                hex::decode("61").unwrap(),
+                hex::decode("AAFF").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mstore8
+                hex::decode("53").unwrap(),
+                // push1 0xBB
+                hex::decode("60").unwrap(),
+                hex::decode("BB").unwrap(),
+                // push1 1
+                hex::decode("60").unwrap(),
+                hex::decode("01").unwrap(),
+                // mstore8
+                hex::decode("53").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mload
+                hex::decode("51").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        h256_to_u256(
+            H256::from_str("FFBB000000000000000000000000000000000000000000000000000000000000")
+                .unwrap()
+        )
+        .into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push0
+                hex::decode("5F").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // push2 0xAABB
+                hex::decode("61").unwrap(),
+                hex::decode("AABB").unwrap(),
+                // push1 32
+                hex::decode("60").unwrap(),
+                hex::decode("20").unwrap(),
+                // mstore8
+                hex::decode("53").unwrap(),
+                // push1 1
+                hex::decode("60").unwrap(),
+                hex::decode("01").unwrap(),
+                // mload
+                hex::decode("51").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        187.into() // 0xBB
+    );
+}
+
+#[test]
+fn test_basic_sload_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
+                // sload
+                hex::decode("54").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push32 2
+                hex::decode("7F").unwrap(),
+                u256_to_h256(2.into()).0.to_vec(),
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
+                // sstore
+                hex::decode("55").unwrap(),
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
+                // sload
+                hex::decode("54").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        2.into()
+    );
+}
+
+#[test]
+fn test_sload_gas() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    let initial_gas = U256::MAX;
+    let gas_left = test_evm_vector(
+        // sload cold
+        vec![
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sload
+            hex::decode("54").unwrap(),
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(initial_gas - gas_left, U256::from_dec_str("2105").unwrap());
+
+    let gas_left_2 = test_evm_vector(
+        // sstore cold different value + sload warm
+        vec![
+            // push32 2
+            hex::decode("7F").unwrap(),
+            u256_to_h256(2.into()).0.to_vec(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sload
+            hex::decode("54").unwrap(),
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(
+        initial_gas - gas_left_2,
+        U256::from_dec_str("22211").unwrap()
+    );
+
+    let gas_left_3 = test_evm_vector(
+        // sstore cold same value + sload warm
+        vec![
+            // push32 0
+            hex::decode("7F").unwrap(),
+            u256_to_h256(0.into()).0.to_vec(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sload
+            hex::decode("54").unwrap(),
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(
+        initial_gas - gas_left_3,
+        U256::from_dec_str("2311").unwrap()
+    );
+
+    let gas_left_4 = test_evm_vector(
+        // sstore cold different value + sstore warm same value + sload warm
+        vec![
+            // push32 2
+            hex::decode("7F").unwrap(),
+            u256_to_h256(2.into()).0.to_vec(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            u256_to_h256(0.into()).0.to_vec(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sload
+            hex::decode("54").unwrap(),
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(
+        initial_gas - gas_left_4,
+        U256::from_dec_str("22317").unwrap()
+    );
+}
+
+#[test]
+fn test_basic_msize_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // msize
+                hex::decode("59").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push32 2
+                hex::decode("7F").unwrap(),
+                u256_to_h256(2.into()).0.to_vec(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // msize
+                hex::decode("59").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        32.into()
+    );
+}
+
+#[test]
+fn test_basic_msize_with_mstore_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push32 2
+                hex::decode("7F").unwrap(),
+                u256_to_h256(2.into()).0.to_vec(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // msize
+                hex::decode("59").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        32.into()
+    );
+}
+
+#[test]
+fn test_basic_caller_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_ne!(
+        test_evm_vector(
+            vec![
+                // push0
+                hex::decode("5F").unwrap(),
+                // caller
+                hex::decode("33").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+}
+
+#[test]
+fn test_basic_callvalue_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 0xFF
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // callvalue
+                hex::decode("34").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+}
+
+#[test]
+fn test_basic_calldataload_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push0
+                hex::decode("5F").unwrap(),
+                // calldataload
+                hex::decode("35").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+}
+
+#[test]
+fn test_basic_calldatasize_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 0xDD
+                hex::decode("60").unwrap(),
+                hex::decode("DD").unwrap(),
+                // calldatasize
+                hex::decode("36").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+}
+
+#[test]
+fn test_basic_calldatacopy_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 9
+                hex::decode("60").unwrap(),
+                hex::decode("09").unwrap(),
+                // push1 31
+                hex::decode("60").unwrap(),
+                hex::decode("1F").unwrap(),
+                // push1 2
+                hex::decode("60").unwrap(),
+                hex::decode("02").unwrap(),
+                // calldatacopy
+                hex::decode("37").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mload
+                hex::decode("51").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+}
+
+#[test]
+fn test_basic_address_vectors() {
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 0xFF
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // address
+                hex::decode("30").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        h256_to_u256(H256::from(
+            Address::from_str("0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7").unwrap()
+        ))
+        .into()
+    );
+}
+
+#[test]
+fn test_basic_balance_vectors() {
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push20 0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7
+                hex::decode("73").unwrap(),
+                hex::decode("de03a0B5963f75f1C8485B355fF6D30f3093BDE7").unwrap(),
+                // balance
+                hex::decode("31").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    )
+}
+
+#[test]
+fn test_basic_origin_vectors() {
+    assert_ne!(
+        test_evm_vector(
+            vec![
+                // push0
+                hex::decode("5F").unwrap(),
+                // origin
+                hex::decode("32").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    )
+}
+
+#[test]
+fn test_basic_pc_vectors() {
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 0xFF
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // pc
+                hex::decode("58").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        2.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push3 0xFFEEDD
+                hex::decode("62").unwrap(),
+                hex::decode("FFEEDD").unwrap(),
+                // pc
+                hex::decode("58").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        4.into()
+    );
+}
+
+#[test]
+fn test_basic_gas_vectors() {
+    // This test will fail when push1 charge gas. Reduce expected value by 3 units.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 0xFF
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // gas
+                hex::decode("5A").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        U256::from_dec_str(
+            "115792089237316195423570985008687907853269984665640564039457584007913129639933"
+        )
+        .unwrap()
+        .into()
+    );
+
+    // This test will fail when push1 charge gas. Reduce expected value by 12 units.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 0xFF
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // push1 0xEE
+                hex::decode("60").unwrap(),
+                hex::decode("EE").unwrap(),
+                // push1 0xDD
+                hex::decode("60").unwrap(),
+                hex::decode("DD").unwrap(),
+                // push1 0xCC
+                hex::decode("60").unwrap(),
+                hex::decode("CC").unwrap(),
+                // address
+                hex::decode("30").unwrap(),
+                // gas
+                hex::decode("5A").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        U256::from_dec_str(
+            "115792089237316195423570985008687907853269984665640564039457584007913129639931"
+        )
+        .unwrap()
+        .into()
+    );
 }
 
 fn assert_deployed_hash<H: HistoryMode>(
