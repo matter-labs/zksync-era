@@ -636,7 +636,7 @@ fn test_basic_keccak_vectors() {
             hex::decode("60").unwrap(),
             hex::decode("00").unwrap(),
             // mstore
-            hex::decode("0A").unwrap(),
+            hex::decode("52").unwrap(),
             // push1 4
             hex::decode("60").unwrap(),
             hex::decode("04").unwrap(),
