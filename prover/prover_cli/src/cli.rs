@@ -1,6 +1,6 @@
 use clap::{command, Parser, Subcommand};
 
-use crate::commands::{get_file_info, get_proof_progress};
+use crate::commands::{get_file_info, progress};
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
@@ -14,14 +14,14 @@ struct ProverCLI {
 #[derive(Subcommand)]
 enum ProverCommand {
     FileInfo(get_file_info::Args),
-    ProofProgress(get_proof_progress::Args),
+    Progress(progress::Args),
 }
 
 pub async fn start() -> anyhow::Result<()> {
     let ProverCLI { command } = ProverCLI::parse();
     match command {
         ProverCommand::FileInfo(args) => get_file_info::run(args).await?,
-        ProverCommand::ProofProgress(args) => get_proof_progress::run(args).await?,
+        ProverCommand::Progress(args) => progress::run(args).await?,
     };
 
     Ok(())
