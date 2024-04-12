@@ -1926,7 +1926,6 @@ fn test_basic_msize_vectors() {
 #[test]
 fn test_basic_msize_with_mstore_vectors() {
     // Here we just try to test some small EVM contracts and ensure that they work.
-    // TODO: rigth now it should fail, when mstore (with memory expansion) is implemented, this should work
     assert_eq!(
         test_evm_vector(
             vec![
