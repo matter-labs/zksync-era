@@ -100,7 +100,8 @@ installation as a pre-requisite, alongside these machine specs:
    Note that you may run multiple of them (as 1 prover roughly can be fed by 10 vector generators). Make sure to use a
    different port!
 
-7. Run prover to perform actual proving: `zk f cargo run --features "gpu" --release --bin zksync_prover_fri`
+7. Run prover to perform actual proving:
+   `zk f cargo run --features "gpu" --release --bin zksync_prover_fri --target-dir=target/gpu`
 
 8. Finally, run proof compressor to compress the proof to be sent on L1:
    `zk f cargo run --release --bin zksync_proof_fri_compressor`
