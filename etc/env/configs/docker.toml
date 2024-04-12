@@ -16,3 +16,6 @@ web3_url = "http://reth:8545"
 
 [chain.state_keeper]
 miniblock_iteration_interval = 50
+
+[_metadata]
+base = ["dev.toml"]
