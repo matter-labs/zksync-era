@@ -24,6 +24,14 @@ use zksync_core::{
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole},
     consensus,
     consistency_checker::ConsistencyChecker,
+    db_pruner::{
+        prune_conditions::{
+            ConsistencyCheckerProcessedBatch, L1BatchExistsCondition,
+            L1BatchOlderThanPruneCondition, NextL1BatchHasMetadataCondition,
+            NextL1BatchWasExecutedCondition,
+        },
+        DbPruner, DbPrunerConfig,
+    },
     eth_sender::l1_batch_commit_data_generator::{
         L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
         ValidiumModeL1BatchCommitDataGenerator,
@@ -254,6 +262,42 @@ async fn run_core(
             .context("consensus actor")
         }
     }));
+
+    if let Some(data_retention_hours) = config.optional.pruning_data_retention_hours {
+        let l1_batch_age_to_prune = Duration::from_secs(3600 * data_retention_hours);
+        tracing::info!(
+            "Configured pruning of batches after they become {l1_batch_age_to_prune:?} old"
+        );
+        let db_pruner = DbPruner::new(
+            DbPrunerConfig {
+                // don't change this value without adjusting API server pruning info cache max age
+                soft_and_hard_pruning_time_delta: Duration::from_secs(60),
+                pruned_batch_chunk_size: config.optional.pruning_chunk_size,
+                next_iterations_delay: Duration::from_secs(30),
+            },
+            vec![
+                Arc::new(L1BatchExistsCondition {
+                    conn: connection_pool.clone(),
+                }),
+                Arc::new(NextL1BatchHasMetadataCondition {
+                    conn: connection_pool.clone(),
+                }),
+                Arc::new(NextL1BatchWasExecutedCondition {
+                    conn: connection_pool.clone(),
+                }),
+                Arc::new(L1BatchOlderThanPruneCondition {
+                    minimal_age: l1_batch_age_to_prune,
+                    conn: connection_pool.clone(),
+                }),
+                Arc::new(ConsistencyCheckerProcessedBatch {
+                    conn: connection_pool.clone(),
+                }),
+            ],
+        )?;
+        task_handles.push(tokio::spawn(
+            db_pruner.run(connection_pool.clone(), stop_receiver.clone()),
+        ));
+    }
 
     let reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
     app_health.insert_component(reorg_detector.health_check().clone());
@@ -663,13 +707,7 @@ struct Cli {
     /// do not use unless you know what you're doing.
     #[arg(long)]
     enable_consensus: bool,
-    /// Enables application-level snapshot recovery. Required to start a node that was recovered from a snapshot,
-    /// or to initialize a node from a snapshot. Has no effect if a node that was initialized from a Postgres dump
-    /// or was synced from genesis.
-    ///
-    /// This is an experimental and incomplete feature; do not use unless you know what you're doing.
-    #[arg(long)]
-    enable_snapshots_recovery: bool,
+
     /// Comma-separated list of components to launch.
     #[arg(long, default_value = "all")]
     components: ComponentsToRun,
@@ -840,7 +878,7 @@ async fn main() -> anyhow::Result<()> {
         main_node_client.clone(),
         &app_health,
         config.remote.l2_chain_id,
-        opt.enable_snapshots_recovery,
+        config.optional.snapshots_recovery_enabled,
     )
     .await?;
     let sigint_receiver = setup_sigint_handler();
