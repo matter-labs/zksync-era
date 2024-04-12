@@ -23,7 +23,7 @@ pub struct AsyncCatchupTask {
 }
 
 impl AsyncCatchupTask {
-    /// Create a new catchup task with the provided Postgres and RocksDB instances. Optionally
+    /// Create a new catch-up task with the provided Postgres and RocksDB instances. Optionally
     /// accepts the last L1 batch number to catch up to (defaults to latest if not specified).
     pub fn new(
         pool: ConnectionPool<Core>,
@@ -42,6 +42,10 @@ impl AsyncCatchupTask {
     }
 
     /// Block until RocksDB cache instance is caught up with Postgres.
+    ///
+    /// # Errors
+    ///
+    /// Propagates RocksDB and Postgres errors.
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         tracing::debug!("Catching up RocksDB asynchronously");
         let mut rocksdb_builder: RocksdbStorageBuilder =

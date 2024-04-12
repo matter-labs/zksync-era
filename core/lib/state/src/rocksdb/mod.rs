@@ -258,20 +258,19 @@ impl RocksdbStorage {
             .await?;
 
         let latency = METRICS.update.start();
-        let to_l1_batch_number = match to_l1_batch_number {
-            Some(to_l1_batch_number) => to_l1_batch_number,
-            None => {
-                let Some(latest_l1_batch_number) = storage
-                    .blocks_dal()
-                    .get_sealed_l1_batch_number()
-                    .await
-                    .map_err(DalError::generalize)?
-                else {
-                    // No L1 batches are persisted in Postgres; update is not necessary.
-                    return Ok(());
-                };
-                latest_l1_batch_number
-            }
+        let to_l1_batch_number = if let Some(to_l1_batch_number) = to_l1_batch_number {
+            to_l1_batch_number
+        } else {
+            let Some(latest_l1_batch_number) = storage
+                .blocks_dal()
+                .get_sealed_l1_batch_number()
+                .await
+                .map_err(DalError::generalize)?
+            else {
+                // No L1 batches are persisted in Postgres; update is not necessary.
+                return Ok(());
+            };
+            latest_l1_batch_number
         };
         tracing::debug!("Loading storage for l1 batch number {to_l1_batch_number}");
 

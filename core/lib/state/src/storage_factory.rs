@@ -38,33 +38,36 @@ pub enum PgOrRocksdbStorage<'a> {
 
 impl<'a> PgOrRocksdbStorage<'a> {
     /// Returns a [`ReadStorage`] implementation backed by Postgres
+    ///
+    /// # Errors
+    ///
+    /// Propagates Postgres errors.
     pub async fn access_storage_pg(
         pool: &'a ConnectionPool<Core>,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<PgOrRocksdbStorage<'a>> {
         let mut connection = pool.connection().await?;
-        let miniblock_number = match connection
+        let miniblock_number = if let Some((_, miniblock_number)) = connection
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(l1_batch_number)
             .await?
         {
-            Some((_, miniblock_number)) => miniblock_number,
-            None => {
-                tracing::info!("Could not find latest sealed miniblock, loading from snapshot");
-                let snapshot_recovery = connection
-                    .snapshot_recovery_dal()
-                    .get_applied_snapshot_status()
-                    .await?
-                    .context("Could not find snapshot, no state available")?;
-                if snapshot_recovery.l1_batch_number != l1_batch_number {
-                    anyhow::bail!(
-                        "Snapshot contains L1 batch #{} while #{} was expected",
-                        snapshot_recovery.l1_batch_number,
-                        l1_batch_number
-                    );
-                }
-                snapshot_recovery.miniblock_number
+            miniblock_number
+        } else {
+            tracing::info!("Could not find latest sealed miniblock, loading from snapshot");
+            let snapshot_recovery = connection
+                .snapshot_recovery_dal()
+                .get_applied_snapshot_status()
+                .await?
+                .context("Could not find snapshot, no state available")?;
+            if snapshot_recovery.l1_batch_number != l1_batch_number {
+                anyhow::bail!(
+                    "Snapshot contains L1 batch #{} while #{} was expected",
+                    snapshot_recovery.l1_batch_number,
+                    l1_batch_number
+                );
             }
+            snapshot_recovery.miniblock_number
         };
         tracing::debug!(%l1_batch_number, %miniblock_number, "Using Postgres-based storage");
         Ok(
@@ -76,6 +79,10 @@ impl<'a> PgOrRocksdbStorage<'a> {
 
     /// Catches up RocksDB synchronously (i.e. assumes the gap is small) and
     /// returns a [`ReadStorage`] implementation backed by caught-up RocksDB.
+    ///
+    /// # Errors
+    ///
+    /// Propagates RocksDB and Postgres errors.
     pub async fn access_storage_rocksdb(
         connection: &mut Connection<'_, Core>,
         rocksdb: RocksDB<StateKeeperColumnFamily>,

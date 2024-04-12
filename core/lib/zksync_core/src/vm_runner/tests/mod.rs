@@ -109,7 +109,7 @@ async fn store_miniblocks(
         let l1_batch_number = L1BatchNumber(l1_batch_number);
         let tx = create_l2_transaction(10, 100);
         conn.transactions_dal()
-            .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         let mut new_miniblock = create_miniblock(miniblock_number);
@@ -121,7 +121,8 @@ async fn store_miniblocks(
         let tx_result = execute_l2_transaction(tx);
         conn.transactions_dal()
             .mark_txs_as_executed_in_miniblock(new_miniblock.number, &[tx_result], 1.into())
-            .await;
+            .await
+            .unwrap();
 
         let header = L1BatchHeader::new(
             l1_batch_number,
@@ -135,7 +136,7 @@ async fn store_miniblocks(
             execute: 10,
         };
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], Default::default())
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], Default::default())
             .await
             .unwrap();
         conn.blocks_dal()
