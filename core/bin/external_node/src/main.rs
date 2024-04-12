@@ -8,6 +8,7 @@ use tokio::{
     sync::{watch, RwLock},
     task::{self, JoinHandle},
 };
+use zksync_commitment_generator::CommitmentGenerator;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{
     api::MerkleTreeApiConfig, chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode,
@@ -21,7 +22,6 @@ use zksync_core::{
         web3::{mempool_cache::MempoolCache, ApiBuilder, Namespace},
     },
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole},
-    commitment_generator::CommitmentGenerator,
     consensus,
     consistency_checker::ConsistencyChecker,
     db_pruner::{

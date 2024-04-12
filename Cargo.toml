@@ -12,6 +12,7 @@ members = [
     "core/bin/genesis_generator",
     # Node services
     "core/node/node_framework",
+    "core/node/commitment_generator",
     # Libraries
     "core/lib/db_connection",
     "core/lib/zksync_core",
@@ -21,7 +22,6 @@ members = [
     "core/lib/contracts",
     "core/lib/crypto",
     "core/lib/circuit_breaker",
-    "core/lib/commitment_utils",
     "core/lib/dal",
     "core/lib/env_config",
     "core/lib/eth_client",
@@ -191,7 +191,6 @@ vm-benchmark-harness = { path = "core/tests/vm-benchmark/harness" }
 zksync = { path = "sdk/zksync-rs" }
 zksync_basic_types = { path = "core/lib/basic_types" }
 zksync_circuit_breaker = { path = "core/lib/circuit_breaker" }
-zksync_commitment_utils = { path = "core/lib/commitment_utils" }
 zksync_config = { path = "core/lib/config" }
 zksync_contracts = { path = "core/lib/contracts" }
 zksync_core = { path = "core/lib/zksync_core" }
@@ -224,3 +223,4 @@ zksync_crypto_primitives = { path = "core/lib/crypto_primitives" }
 zksync_node_framework = { path = "core/node/node_framework" }
 zksync_eth_watch = { path = "core/node/eth_watch" }
 zksync_shared_metrics = { path = "core/node/shared_metrics" }
+zksync_commitment_generator = { path = "core/node/commitment_generator" }
