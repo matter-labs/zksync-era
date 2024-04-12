@@ -2193,7 +2193,6 @@ fn test_basic_pc_vectors() {
 
 #[test]
 fn test_basic_gas_vectors() {
-    // This test will fail when push1 charge gas. Reduce expected value by 3 units.
     assert_eq!(
         test_evm_vector(
             vec![
@@ -2211,13 +2210,12 @@ fn test_basic_gas_vectors() {
             .concat()
         ),
         U256::from_dec_str(
-            "115792089237316195423570985008687907853269984665640564039457584007913129639933"
+            "115792089237316195423570985008687907853269984665640564039457584007913129639930"
         )
         .unwrap()
         .into()
     );
 
-    // This test will fail when push1 charge gas. Reduce expected value by 12 units.
     assert_eq!(
         test_evm_vector(
             vec![
@@ -2246,7 +2244,7 @@ fn test_basic_gas_vectors() {
             .concat()
         ),
         U256::from_dec_str(
-            "115792089237316195423570985008687907853269984665640564039457584007913129639931"
+            "115792089237316195423570985008687907853269984665640564039457584007913129639919"
         )
         .unwrap()
         .into()
