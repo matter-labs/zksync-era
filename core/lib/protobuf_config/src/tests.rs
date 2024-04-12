@@ -20,6 +20,8 @@ fn test_encoding() {
     test_encode_all_formats::<ReprConv<proto::chain::StateKeeper>>(rng);
     test_encode_all_formats::<ReprConv<proto::chain::OperationsManager>>(rng);
     test_encode_all_formats::<ReprConv<proto::chain::Mempool>>(rng);
+    test_encode_all_formats::<ReprConv<proto::consensus::Config>>(rng);
+    test_encode_all_formats::<ReprConv<proto::consensus::Secrets>>(rng);
     test_encode_all_formats::<ReprConv<proto::contract_verifier::ContractVerifier>>(rng);
     test_encode_all_formats::<ReprConv<proto::contracts::Contracts>>(rng);
     test_encode_all_formats::<ReprConv<proto::database::MerkleTree>>(rng);

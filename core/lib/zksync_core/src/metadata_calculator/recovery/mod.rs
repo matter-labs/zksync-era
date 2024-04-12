@@ -28,6 +28,7 @@
 use std::{
     fmt, ops,
     sync::atomic::{AtomicU64, Ordering},
+    time::Instant,
 };
 
 use anyhow::Context as _;
@@ -213,6 +214,7 @@ impl AsyncTreeRecovery {
         pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<AsyncTree>> {
+        let start_time = Instant::now();
         let chunk_count = options.chunk_count;
         let chunks: Vec<_> = (0..chunk_count)
             .map(|chunk_id| uniform_hashed_keys_chunk(chunk_id, chunk_count))
@@ -261,9 +263,10 @@ impl AsyncTreeRecovery {
             snapshot.expected_root_hash
         );
         let tree = tree.finalize().await;
-        let finalize_latency = finalize_latency.observe();
+        finalize_latency.observe();
         tracing::info!(
-            "Finished tree recovery in {finalize_latency:?}; resuming normal tree operation"
+            "Tree recovery has finished, the recovery took {:?}! resuming normal tree operation",
+            start_time.elapsed()
         );
         Ok(Some(tree))
     }

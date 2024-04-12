@@ -1,6 +1,6 @@
 //! Helper module to submit transactions into the zkSync Network.
 
-use std::{cmp, sync::Arc, time::Instant};
+use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use multivm::{
@@ -22,7 +22,6 @@ use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
     fee_model::BatchFeeInput,
     get_code_key, get_intrinsic_constants,
-    l1::is_l1_tx_type,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     utils::storage_key_for_eth_balance,
     AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, MiniblockNumber, Nonce,
@@ -230,7 +229,6 @@ pub struct TxSenderConfig {
     pub max_allowed_l2_tx_gas_limit: u64,
     pub vm_execution_cache_misses_limit: Option<usize>,
     pub validation_computational_gas_limit: u32,
-    pub l1_to_l2_transactions_compatibility_mode: bool,
     pub chain_id: L2ChainId,
     pub max_pubdata_per_batch: u64,
     pub whitelisted_tokens_for_aa: Vec<Address>,
@@ -251,8 +249,6 @@ impl TxSenderConfig {
             vm_execution_cache_misses_limit: web3_json_config.vm_execution_cache_misses_limit,
             validation_computational_gas_limit: state_keeper_config
                 .validation_computational_gas_limit,
-            l1_to_l2_transactions_compatibility_mode: web3_json_config
-                .l1_to_l2_transactions_compatibility_mode,
             chain_id,
             max_pubdata_per_batch: state_keeper_config.max_pubdata_per_batch,
             whitelisted_tokens_for_aa: web3_json_config.whitelisted_tokens_for_aa.clone(),
@@ -536,7 +532,7 @@ impl TxSender {
             None => {
                 // We don't have miniblocks in the storage yet. Use the snapshot miniblock number instead.
                 let start = BlockStartInfo::new(&mut storage).await?;
-                MiniblockNumber(start.first_miniblock.saturating_sub(1))
+                MiniblockNumber(start.first_miniblock(&mut storage).await?.saturating_sub(1))
             }
         };
 
@@ -850,12 +846,8 @@ impl TxSender {
             .estimate_gas_binary_search_iterations
             .observe(number_of_iterations);
 
-        let tx_body_gas_limit = cmp::min(
-            MAX_L2_TX_GAS_LIMIT,
-            ((upper_bound as f64) * estimated_fee_scale_factor) as u64,
-        );
-
-        let suggested_gas_limit = tx_body_gas_limit + additional_gas_for_pubdata;
+        let suggested_gas_limit =
+            ((upper_bound + additional_gas_for_pubdata) as f64 * estimated_fee_scale_factor) as u64;
         let (result, tx_metrics) = self
             .estimate_gas_step(
                 vm_permit,
@@ -873,49 +865,46 @@ impl TxSender {
         result.into_api_call_result()?;
         self.ensure_tx_executable(&tx, &tx_metrics, false)?;
 
-        // Now, we need to calculate the final overhead for the transaction. We need to take into account the fact
-        // that the migration of 1.4.1 may be still going on.
-        let overhead = if self
-            .0
-            .sender_config
-            .l1_to_l2_transactions_compatibility_mode
-        {
-            derive_pessimistic_overhead(
-                suggested_gas_limit,
-                gas_per_pubdata_byte as u32,
-                tx.encoding_len(),
-                tx.tx_format() as u8,
-                protocol_version.into(),
-            )
-        } else {
-            derive_overhead(
-                suggested_gas_limit,
-                gas_per_pubdata_byte as u32,
-                tx.encoding_len(),
-                tx.tx_format() as u8,
-                protocol_version.into(),
-            )
-        } as u64;
+        // Now, we need to calculate the final overhead for the transaction.
+        let overhead = derive_overhead(
+            suggested_gas_limit,
+            gas_per_pubdata_byte as u32,
+            tx.encoding_len(),
+            tx.tx_format() as u8,
+            protocol_version.into(),
+        ) as u64;
 
-        let full_gas_limit =
-            match tx_body_gas_limit.overflowing_add(additional_gas_for_pubdata + overhead) {
-                (value, false) => {
-                    if value > max_gas_limit {
-                        return Err(SubmitTxError::ExecutionReverted(
-                            "exceeds block gas limit".to_string(),
-                            vec![],
-                        ));
-                    }
-
-                    value
-                }
-                (_, true) => {
+        let full_gas_limit = match suggested_gas_limit.overflowing_add(overhead) {
+            (value, false) => {
+                if value > max_gas_limit {
                     return Err(SubmitTxError::ExecutionReverted(
                         "exceeds block gas limit".to_string(),
                         vec![],
                     ));
                 }
-            };
+
+                value
+            }
+            (_, true) => {
+                return Err(SubmitTxError::ExecutionReverted(
+                    "exceeds block gas limit".to_string(),
+                    vec![],
+                ));
+            }
+        };
+
+        let gas_for_pubdata = (tx_metrics.pubdata_published as u64) * gas_per_pubdata_byte;
+        let estimated_gas_for_pubdata =
+            (gas_for_pubdata as f64 * estimated_fee_scale_factor) as u64;
+
+        tracing::info!(
+            initiator = ?tx.initiator_account(),
+            nonce = %tx.nonce().unwrap_or(Nonce(0)),
+            "fee estimation: gas for pubdata: {estimated_gas_for_pubdata}, computational gas: {}, overhead gas: {overhead} \
+            (with params base_fee: {base_fee}, gas_per_pubdata_byte: {gas_per_pubdata_byte}) \
+            estimated_fee_scale_factor: {estimated_fee_scale_factor}",
+            suggested_gas_limit - estimated_gas_for_pubdata,
+        );
 
         Ok(Fee {
             max_fee_per_gas: base_fee.into(),
@@ -1003,42 +992,5 @@ impl TxSender {
             return Err(SubmitTxError::Unexecutable(message));
         }
         Ok(())
-    }
-}
-
-/// During switch to the 1.4.1 protocol version, there will be a moment of discrepancy, when while
-/// the L2 has already upgraded to 1.4.1 (and thus suggests smaller overhead), the L1 is still on the previous version.
-///
-/// This might lead to situations when L1->L2 transactions estimated with the new versions would work on the state keeper side,
-/// but they won't even make it there, but the protection mechanisms for L1->L2 transactions will reject them on L1.
-/// TODO(X): remove this function after the upgrade is complete
-fn derive_pessimistic_overhead(
-    gas_limit: u64,
-    gas_price_per_pubdata: u32,
-    encoded_len: usize,
-    tx_type: u8,
-    vm_version: VmVersion,
-) -> u32 {
-    let current_overhead = derive_overhead(
-        gas_limit,
-        gas_price_per_pubdata,
-        encoded_len,
-        tx_type,
-        vm_version,
-    );
-
-    if is_l1_tx_type(tx_type) {
-        // We are in the L1->L2 transaction, so we need to account for the fact that the L1 is still on the previous version.
-        // We assume that the overhead will be the same as for the previous version.
-        let previous_overhead = derive_overhead(
-            gas_limit,
-            gas_price_per_pubdata,
-            encoded_len,
-            tx_type,
-            VmVersion::VmBoojumIntegration,
-        );
-        current_overhead.max(previous_overhead)
-    } else {
-        current_overhead
     }
 }

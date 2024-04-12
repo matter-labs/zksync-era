@@ -523,10 +523,7 @@ impl RocksdbStorage {
         let factory_deps = connection
             .factory_deps_dal()
             .get_factory_deps_for_revert(last_miniblock_to_keep)
-            .await
-            .with_context(|| {
-                format!("failed fetching factory deps for miniblock #{last_miniblock_to_keep}")
-            })?;
+            .await?;
         tracing::info!(
             "Got {} factory deps, took {:?}",
             factory_deps.len(),

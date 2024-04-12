@@ -266,8 +266,6 @@ pub struct PostgresStorageCaches {
 }
 
 impl PostgresStorageCaches {
-    const NEG_INITIAL_WRITES_NAME: &'static str = "negative_initial_writes_cache";
-
     /// Creates caches with the specified capacities measured in bytes.
     pub fn new(factory_deps_capacity: u64, initial_writes_capacity: u64) -> Self {
         tracing::debug!(
@@ -282,7 +280,7 @@ impl PostgresStorageCaches {
                 initial_writes_capacity / 2,
             ),
             negative_initial_writes: InitialWritesCache::new(
-                Self::NEG_INITIAL_WRITES_NAME,
+                "negative_initial_writes_cache",
                 initial_writes_capacity / 2,
             ),
             values: None,

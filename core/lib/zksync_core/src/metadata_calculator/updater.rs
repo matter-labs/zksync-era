@@ -11,8 +11,7 @@ use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
 use zksync_types::{
     block::{L1BatchHeader, L1BatchTreeData},
-    writes::InitialStorageWrite,
-    L1BatchNumber, U256,
+    L1BatchNumber,
 };
 
 use super::{
@@ -127,15 +126,6 @@ impl TreeUpdater {
             };
             let ((header, metadata, object_key), next_l1_batch_data) =
                 future::try_join(process_l1_batch_task, load_next_l1_batch_task).await?;
-
-            let check_consistency_latency = METRICS.start_stage(TreeUpdateStage::CheckConsistency);
-            Self::check_initial_writes_consistency(
-                storage,
-                header.number,
-                &metadata.initial_writes,
-            )
-            .await?;
-            check_consistency_latency.observe();
 
             let save_postgres_latency = METRICS.start_stage(TreeUpdateStage::SavePostgres);
             let tree_data = L1BatchTreeData {
@@ -324,38 +314,6 @@ impl TreeUpdater {
             }
         }
         drop(health_updater); // Explicitly mark where the updater should be dropped
-        Ok(())
-    }
-
-    async fn check_initial_writes_consistency(
-        connection: &mut Connection<'_, Core>,
-        l1_batch_number: L1BatchNumber,
-        tree_initial_writes: &[InitialStorageWrite],
-    ) -> anyhow::Result<()> {
-        let pg_initial_writes = connection
-            .storage_logs_dedup_dal()
-            .initial_writes_for_batch(l1_batch_number)
-            .await
-            .context("cannot get initial writes for L1 batch")?;
-
-        let pg_initial_writes: Vec<_> = pg_initial_writes
-            .into_iter()
-            .map(|(key, index)| {
-                let key = U256::from_little_endian(key.as_bytes());
-                (key, index)
-            })
-            .collect();
-
-        let tree_initial_writes: Vec<_> = tree_initial_writes
-            .iter()
-            .map(|write| (write.key, write.index))
-            .collect();
-        anyhow::ensure!(
-            pg_initial_writes == tree_initial_writes,
-            "Leaf indices are not consistent for L1 batch {l1_batch_number}.\n\
-             Postgres writes are: {pg_initial_writes:?}\n\
-             Tree writes are: {tree_initial_writes:?}"
-        );
         Ok(())
     }
 }

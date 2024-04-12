@@ -47,7 +47,7 @@ impl<'a> CommitBatchInfoRollup<'a> {
                 Token::FixedBytes(
                     self.l1_batch_with_metadata
                         .metadata
-                        .merkle_root_hash
+                        .root_hash
                         .as_bytes()
                         .to_vec(),
                 ),
@@ -113,7 +113,7 @@ impl<'a> CommitBatchInfoRollup<'a> {
                 Token::FixedBytes(
                     self.l1_batch_with_metadata
                         .metadata
-                        .merkle_root_hash
+                        .root_hash
                         .as_bytes()
                         .to_vec(),
                 ),
@@ -259,7 +259,7 @@ impl<'a> CommitBatchInfoValidium<'a> {
                 Token::FixedBytes(
                     self.l1_batch_with_metadata
                         .metadata
-                        .merkle_root_hash
+                        .root_hash
                         .as_bytes()
                         .to_vec(),
                 ),
@@ -325,7 +325,7 @@ impl<'a> CommitBatchInfoValidium<'a> {
                 Token::FixedBytes(
                     self.l1_batch_with_metadata
                         .metadata
-                        .merkle_root_hash
+                        .root_hash
                         .as_bytes()
                         .to_vec(),
                 ),
