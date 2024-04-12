@@ -29,16 +29,24 @@ pub fn locate_workspace() -> Option<PathBuf> {
     })
     .ok()?;
 
-    let root = serde_json::from_slice::<serde_json::Value>(&output.stdout)
+    let Some(root) = serde_json::from_slice::<serde_json::Value>(&output.stdout)
+        .map_err(|err| {
+            tracing::warn!("Parsing `cargo locate-project` error: {}", err);
+            err
+        })
         .ok()?
         .get("root")
-        .cloned()?;
+        .cloned()
+    else {
+        tracing::warn!("root doesn't exist in output from `cargo locate-project`");
+        return None;
+    };
 
     let serde_json::Value::String(root) = root else {
+        tracing::warn!("root is not a string");
         return None;
     };
 
     let val = PathBuf::from(root).parent()?.to_path_buf();
-    WORKSPACE.set(val.clone()).unwrap();
-    Some(val)
+    Some(WORKSPACE.get_or_init(|| val).clone())
 }

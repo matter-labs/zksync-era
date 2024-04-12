@@ -130,10 +130,7 @@ mod tests {
 
         for version in 18..=22 {
             let basepath = path_to_input.join(format!("{}", version));
-            let keystore = Keystore::new_with_optional_setup_path(
-                basepath.as_os_str().to_str().unwrap().to_string(),
-                None,
-            );
+            let keystore = Keystore::new_with_optional_setup_path(basepath, None);
 
             let expected =
                 H256::from_str(&keystore.load_commitments().unwrap().snark_wrapper).unwrap();
