@@ -118,6 +118,8 @@ pub fn calculate_snark_vk_hash(keystore: &Keystore) -> anyhow::Result<H256> {
 mod tests {
     use std::str::FromStr;
 
+    use zksync_utils::locate_workspace;
+
     use super::*;
 
     #[test]
