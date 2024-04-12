@@ -122,6 +122,7 @@ export function compileConfig(environment?: string) {
     });
 
     const outputFileName = `etc/env/target/${environment}.env`;
+    console.log(`Config contents:`, outputFileContents);
     fs.writeFileSync(outputFileName, outputFileContents);
     console.log(`Configs compiled for ${environment}`);
 }
