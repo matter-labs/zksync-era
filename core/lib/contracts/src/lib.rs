@@ -282,7 +282,7 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
-    /// BaseSystemContracts with estimate_gas bootloader. Used for gas estimation with latest vm.
+    /// BaseSystemContracts with `estimate_gas` bootloader. Used for gas estimation with latest vm.
     fn estimate_gas() -> Self {
         let bootloader_bytecode = fee_estimate_batch_bootloader_bytecode();
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
