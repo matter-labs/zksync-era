@@ -45,13 +45,12 @@ pub enum ProtocolVersionId {
     Version21,
     Version22,
     Version23,
-    Local,
     Version24,
 }
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
-        Self::Local
+        Self::Version24
     }
 
     pub fn next() -> Self {
@@ -87,7 +86,6 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
             ProtocolVersionId::Version23 => VmVersion::Vm1_5_0,
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0,
-            ProtocolVersionId::Local => VmVersion::Local,
         }
     }
 
@@ -227,7 +225,6 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
             ProtocolVersionId::Version23 => VmVersion::Vm1_5_0,
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0,
-            ProtocolVersionId::Local => VmVersion::Local,
         }
     }
 }
