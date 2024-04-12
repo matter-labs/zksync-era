@@ -13,6 +13,7 @@ use zksync_types::{
 
 use super::*;
 use crate::{
+    storage_logs_dal::DbStorageLog,
     tests::{
         create_miniblock_header, mock_execution_result, mock_l2_to_l1_log, mock_l2_transaction,
         mock_vm_event,
@@ -175,35 +176,38 @@ async fn assert_l1_batch_objects_dont_exist(
     conn: &mut Connection<'_, Core>,
     l1_batches_range: ops::RangeInclusive<L1BatchNumber>,
 ) {
+    let all_logs = conn
+        .storage_logs_dal()
+        .dump_all_storage_logs_for_tests()
+        .await;
+
     for l1_batch_number in l1_batches_range.start().0..l1_batches_range.end().0 {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
+        let mut miniblock_number = MiniblockNumber(l1_batch_number.0 * 2);
         assert!(conn
             .blocks_dal()
-            .get_miniblock_header(MiniblockNumber(l1_batch_number.0 * 2))
+            .get_miniblock_header(miniblock_number)
             .await
             .unwrap()
             .is_none());
-        assert_eq!(
-            0,
-            conn.storage_logs_dal()
-                .get_miniblock_storage_logs(MiniblockNumber(l1_batch_number.0 * 2))
-                .await
-                .len()
-        );
+        let miniblock_logs: Vec<_> = all_logs
+            .iter()
+            .filter(|log| log.miniblock_number == miniblock_number)
+            .collect();
+        assert!(miniblock_logs.is_empty(), "{miniblock_logs:?}");
 
+        miniblock_number += 1;
         assert!(conn
             .blocks_dal()
-            .get_miniblock_header(MiniblockNumber(l1_batch_number.0 * 2 + 1))
+            .get_miniblock_header(miniblock_number)
             .await
             .unwrap()
             .is_none());
-        assert_eq!(
-            0,
-            conn.storage_logs_dal()
-                .get_miniblock_storage_logs(MiniblockNumber(l1_batch_number.0 * 2 + 1))
-                .await
-                .len()
-        );
+        let miniblock_logs: Vec<_> = all_logs
+            .iter()
+            .filter(|log| log.miniblock_number == miniblock_number)
+            .collect();
+        assert!(miniblock_logs.is_empty(), "{miniblock_logs:?}");
 
         assert!(conn
             .blocks_dal()
@@ -295,25 +299,23 @@ async fn insert_miniblock_storage_logs(
         .unwrap();
 }
 
-async fn assert_miniblock_storage_logs_equal(
-    conn: &mut Connection<'_, Core>,
+fn assert_miniblock_storage_logs_equal(
     miniblock_number: MiniblockNumber,
-    expected_logs: Vec<StorageLog>,
+    actual_logs: &[DbStorageLog],
+    expected_logs: &[StorageLog],
 ) {
-    let actual_logs: Vec<(H256, H256)> = conn
-        .storage_logs_dal()
-        .get_miniblock_storage_logs(miniblock_number)
-        .await
+    let actual_logs_for_miniblock: Vec<(H256, H256)> = actual_logs
         .iter()
-        .map(|log| (log.0, log.1))
+        .filter_map(|log| {
+            (log.miniblock_number == miniblock_number).then_some((log.hashed_key, log.value))
+        })
         .collect();
     let expected_logs: Vec<(H256, H256)> = expected_logs
         .iter()
-        .enumerate()
-        .map(|(_enumeration_number, log)| (log.key.hashed_key(), log.value))
+        .map(|log| (log.key.hashed_key(), log.value))
         .collect();
     assert_eq!(
-        expected_logs, actual_logs,
+        expected_logs, actual_logs_for_miniblock,
         "logs don't match at miniblock {miniblock_number}"
     )
 }
@@ -367,53 +369,52 @@ async fn storage_logs_pruning_works_correctly() {
         .hard_prune_batches_range(L1BatchNumber(4), MiniblockNumber(9))
         .await
         .unwrap();
+    let actual_logs = transaction
+        .storage_logs_dal()
+        .dump_all_storage_logs_for_tests()
+        .await;
 
     assert_miniblock_storage_logs_equal(
-        &mut transaction,
         MiniblockNumber(0),
-        vec![random_storage_log(2, 3), random_storage_log(3, 4)],
-    )
-    .await;
+        &actual_logs,
+        &[random_storage_log(2, 3), random_storage_log(3, 4)],
+    );
     assert_miniblock_storage_logs_equal(
-        &mut transaction,
         MiniblockNumber(1),
-        vec![random_storage_log(1, 1)],
-    )
-    .await;
+        &actual_logs,
+        &[random_storage_log(1, 1)],
+    );
 
     transaction
         .pruning_dal()
         .hard_prune_batches_range(L1BatchNumber(10), MiniblockNumber(21))
         .await
         .unwrap();
+    let actual_logs = transaction
+        .storage_logs_dal()
+        .dump_all_storage_logs_for_tests()
+        .await;
 
     assert_miniblock_storage_logs_equal(
-        &mut transaction,
         MiniblockNumber(0),
-        vec![random_storage_log(2, 3)],
-    )
-    .await;
-
+        &actual_logs,
+        &[random_storage_log(2, 3)],
+    );
     assert_miniblock_storage_logs_equal(
-        &mut transaction,
         MiniblockNumber(1),
-        vec![random_storage_log(1, 1)],
-    )
-    .await;
-
+        &actual_logs,
+        &[random_storage_log(1, 1)],
+    );
     assert_miniblock_storage_logs_equal(
-        &mut transaction,
         MiniblockNumber(15),
-        vec![random_storage_log(3, 5)],
-    )
-    .await;
-
+        &actual_logs,
+        &[random_storage_log(3, 5)],
+    );
     assert_miniblock_storage_logs_equal(
-        &mut transaction,
         MiniblockNumber(17),
-        vec![random_storage_log(5, 7)],
-    )
-    .await;
+        &actual_logs,
+        &[random_storage_log(5, 7)],
+    );
 }
 
 #[tokio::test]
