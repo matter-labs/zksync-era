@@ -1,14 +1,14 @@
-use std::{convert::TryFrom, time::Instant};
-
-use zksync_dal::{Connection, Core, CoreDal};
+use anyhow::Context as _;
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_types::{
     ethabi::Contract, protocol_upgrade::GovernanceOperation, web3::types::Log, Address,
     ProtocolUpgrade, ProtocolVersionId, H256,
 };
 
 use crate::{
-    client::{Error, EthClient},
-    event_processors::EventProcessor,
+    client::EthClient,
+    event_processors::{EventProcessor, EventProcessorError},
+    metrics::{PollStage, METRICS},
 };
 
 /// Listens to operation events coming from the governance contract and saves new protocol upgrade proposals to the database.
@@ -25,15 +25,15 @@ impl GovernanceUpgradesEventProcessor {
         diamond_proxy_address: Address,
         last_seen_version_id: ProtocolVersionId,
         governance_contract: &Contract,
-    ) -> Self {
-        Self {
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
             diamond_proxy_address,
             last_seen_version_id,
             upgrade_proposal_signature: governance_contract
                 .event("TransparentOperationScheduled")
-                .expect("TransparentOperationScheduled event is missing in abi")
+                .context("TransparentOperationScheduled event is missing in ABI")?
                 .signature(),
-        }
+        })
     }
 }
 
@@ -44,14 +44,13 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
         storage: &mut Connection<'_, Core>,
         client: &dyn EthClient,
         events: Vec<Log>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), EventProcessorError> {
         let mut upgrades = Vec::new();
-        for event in events
-            .into_iter()
-            .filter(|event| event.topics[0] == self.upgrade_proposal_signature)
-        {
+        for event in events {
+            assert_eq!(event.topics[0], self.upgrade_proposal_signature); // guaranteed by the watcher
+
             let governance_operation = GovernanceOperation::try_from(event)
-                .map_err(|err| Error::LogParse(format!("{:?}", err)))?;
+                .map_err(|err| EventProcessorError::log_parse(err, "governance operation"))?;
             // Some calls can target other contracts than Diamond proxy, skip them.
             for call in governance_operation
                 .calls
@@ -81,37 +80,36 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
             .skip_while(|(v, _)| v.id as u16 <= self.last_seen_version_id as u16)
             .collect();
 
-        if new_upgrades.is_empty() {
+        let Some((last_upgrade, _)) = new_upgrades.last() else {
             return Ok(());
-        }
-
+        };
         let ids: Vec<_> = new_upgrades.iter().map(|(u, _)| u.id as u16).collect();
-        tracing::debug!("Received upgrades with ids: {:?}", ids);
+        tracing::debug!("Received upgrades with ids: {ids:?}");
 
-        let last_id = new_upgrades.last().unwrap().0.id;
-        let stage_start = Instant::now();
+        let last_id = last_upgrade.id;
+        let stage_latency = METRICS.poll_eth_node[&PollStage::PersistUpgrades].start();
         for (upgrade, scheduler_vk_hash) in new_upgrades {
             let previous_version = storage
                 .protocol_versions_dal()
                 .load_previous_version(upgrade.id)
                 .await
-                .unwrap_or_else(|| {
-                    panic!(
-                        "Expected some version preceding {:?} be present in DB",
+                .map_err(DalError::generalize)?
+                .with_context(|| {
+                    format!(
+                        "expected some version preceding {:?} to be present in DB",
                         upgrade.id
                     )
-                });
+                })?;
             let new_version = previous_version.apply_upgrade(upgrade, scheduler_vk_hash);
             storage
                 .protocol_versions_dal()
                 .save_protocol_version_with_tx(&new_version)
                 .await
-                .unwrap();
+                .map_err(DalError::generalize)?;
         }
-        metrics::histogram!("eth_watcher.poll_eth_node", stage_start.elapsed(), "stage" => "persist_upgrades");
+        stage_latency.observe();
 
         self.last_seen_version_id = last_id;
-
         Ok(())
     }
 
