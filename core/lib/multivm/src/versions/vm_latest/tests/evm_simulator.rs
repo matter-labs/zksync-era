@@ -1484,6 +1484,64 @@ fn test_basic_jumpi_vectors() {
 }
 
 #[test]
+fn test_basic_block_environment_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+
+    // blockhash
+    let evm_output = test_evm_vector(
+        vec![
+            // push32 100
+            hex::decode("7F").unwrap(),
+            u256_to_h256(100.into()).0.to_vec(),
+            // blockhash
+            hex::decode("40").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    // Should be 0, since the item in the stack is the blockNumber used
+    // The block number 100 was not created, so blockhash(100) == 0.
+    assert_eq!(evm_output, 0.into());
+
+    // current block number
+    let evm_output = test_evm_vector(
+        vec![
+            // number
+            hex::decode("43").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(evm_output, 1.into());
+
+    // chain-id
+    let evm_output = test_evm_vector(
+        vec![
+            // chain-id
+            hex::decode("46").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(evm_output, 270.into());
+}
+
+#[test]
 fn test_basic_pop_vectors() {
     // Here we just try to test some small EVM contracts and ensure that they work.
     assert_eq!(
