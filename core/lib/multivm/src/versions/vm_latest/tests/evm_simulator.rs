@@ -2838,14 +2838,43 @@ fn test_basic_environment3_vectors() {
     );
     assert_eq!(evm_output, 250000000.into());
 
-    // TODO test OP_CODECOPY
+    // test OP_CODECOPY
+    let evm_output = test_evm_vector(
+        vec![
+            // push1 7
+            hex::decode("60").unwrap(),
+            hex::decode("07").unwrap(),
+            // push1 0
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // push1 0
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // codecopy
+            hex::decode("39").unwrap(),
+            // push1 0
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // mload
+            hex::decode("51").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(evm_output, 0x60076000600039.into());
 
     // codesize
     let evm_output = test_evm_vector(
         vec![
-            // push1 32
-            hex::decode("60").unwrap(), // 1 byte
-            hex::decode("20").unwrap(), // 1 byte
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("B2FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
+                .unwrap(),
             // push1 16
             hex::decode("60").unwrap(), // 1 byte
             hex::decode("10").unwrap(), // 1 byte
