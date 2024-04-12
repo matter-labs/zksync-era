@@ -2325,6 +2325,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "genesis_generator"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap 4.4.6",
+ "futures 0.3.28",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tokio",
+ "tracing",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_core",
+ "zksync_dal",
+ "zksync_env_config",
+ "zksync_protobuf",
+ "zksync_protobuf_config",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "getrandom"
 version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"

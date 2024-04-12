@@ -9,6 +9,7 @@ members = [
     "core/bin/system-constants-generator",
     "core/bin/verified_sources_fetcher",
     "core/bin/zksync_server",
+    "core/bin/genesis_generator",
     # Node services
     "core/node/node_framework",
     # Libraries
