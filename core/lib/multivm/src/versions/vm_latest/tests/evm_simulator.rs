@@ -1558,7 +1558,7 @@ fn test_basic_environment3_vectors() {
         .into_iter()
         .concat(),
     );
-    // codesize = 39 + memory_expansion = 64 (chunks of 32bytes)
+    // codesize = 37 + memory_expansion = 64 (chunks of 32bytes)
     assert_eq!(evm_output, 64.into());
 }
 
