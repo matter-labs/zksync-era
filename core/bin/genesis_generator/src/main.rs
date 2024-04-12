@@ -22,7 +22,7 @@ use zksync_protobuf::{
 use zksync_protobuf_config::proto::genesis::Genesis;
 use zksync_types::ProtocolVersionId;
 
-const DEFAULT_GENESIS_FILE_PATH: &'static str = "./etc/env/file_based//genesis.yaml";
+const DEFAULT_GENESIS_FILE_PATH: &str = "./etc/env/file_based//genesis.yaml";
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "zkSync operator node", long_about = None)]
@@ -51,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let yaml = std::fs::read_to_string(&DEFAULT_GENESIS_FILE_PATH)
+    let yaml = std::fs::read_to_string(DEFAULT_GENESIS_FILE_PATH)
         .with_context(|| DEFAULT_GENESIS_FILE_PATH.to_string())?;
     let original_genesis = decode_yaml_repr::<Genesis>(&yaml)?;
     let db_url = postgres_config.master_url()?;
@@ -101,7 +101,7 @@ async fn generate_new_config(
     Ok(updated_genesis)
 }
 
-/// Encodes a generated proto message to json for arbitrary ProtoFmt.
+/// Encodes a generated proto message to json for arbitrary Proto.
 pub(crate) fn encode_yaml<T: ReflectMessage>(x: &T) -> anyhow::Result<String> {
     let mut serializer = Serializer::new(vec![]);
     let opts = prost_reflect::SerializeOptions::new()
