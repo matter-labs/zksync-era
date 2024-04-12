@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use zksync_config::configs::ProofDataHandlerConfig;
-use zksync_core::proof_data_handler;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
+use zksync_proof_data_handler::run_server;
 
 use crate::{
     implementations::resources::{object_store::ObjectStoreResource, pools::MasterPoolResource},
@@ -68,7 +68,7 @@ impl Task for ProofDataHandlerTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        proof_data_handler::run_server(
+        run_server(
             self.proof_data_handler_config,
             self.blob_store,
             self.main_pool,

@@ -8399,6 +8399,7 @@ dependencies = [
  "zksync_merkle_tree",
  "zksync_mini_merkle_tree",
  "zksync_object_store",
+ "zksync_proof_data_handler",
  "zksync_protobuf",
  "zksync_protobuf_build",
  "zksync_protobuf_config",
@@ -8710,6 +8711,7 @@ dependencies = [
  "zksync_eth_watch",
  "zksync_health_check",
  "zksync_object_store",
+ "zksync_proof_data_handler",
  "zksync_protobuf_config",
  "zksync_state",
  "zksync_storage",
@@ -8738,6 +8740,22 @@ dependencies = [
  "zksync_config",
  "zksync_protobuf",
  "zksync_types",
+]
+
+[[package]]
+name = "zksync_proof_data_handler"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "tokio",
+ "tracing",
+ "zksync_config",
+ "zksync_dal",
+ "zksync_object_store",
+ "zksync_prover_interface",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]

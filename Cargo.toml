@@ -11,6 +11,7 @@ members = [
     "core/bin/zksync_server",
     # Node services
     "core/node/node_framework",
+    "core/node/proof_data_handler",
     # Libraries
     "core/lib/db_connection",
     "core/lib/zksync_core",
@@ -223,3 +224,4 @@ zksync_crypto_primitives = { path = "core/lib/crypto_primitives" }
 zksync_node_framework = { path = "core/node/node_framework" }
 zksync_eth_watch = { path = "core/node/eth_watch" }
 zksync_shared_metrics = { path = "core/node/shared_metrics" }
+zksync_proof_data_handler = { path = "core/node/proof_data_handler" }
