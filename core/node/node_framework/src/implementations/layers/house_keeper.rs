@@ -70,8 +70,8 @@ impl WiringLayer for HouseKeeperLayer {
         let prover_pool = prover_pool_resource.get().await?;
 
         // initialize and add tasks
-        let pool_for_metrics = replica_pool.clone();
-        context.add_task(Box::new(PoolForMetricsTask { pool_for_metrics }));
+        let pool_for_metrics = replica_pool_resource.get_singleton().await?;
+        context.add_task(Box::new(PostgresMetricsScrapingTask { pool_for_metrics }));
 
         let l1_batch_metrics_reporter = L1BatchMetricsReporter::new(
             self.house_keeper_config
@@ -184,18 +184,25 @@ impl WiringLayer for HouseKeeperLayer {
 }
 
 #[derive(Debug)]
-struct PoolForMetricsTask {
+struct PostgresMetricsScrapingTask {
     pool_for_metrics: ConnectionPool<Core>,
 }
 
 #[async_trait::async_trait]
-impl Task for PoolForMetricsTask {
+impl Task for PostgresMetricsScrapingTask {
     fn name(&self) -> &'static str {
-        "pool_for_metrics"
+        "postgres_metrics_scraping"
     }
 
-    async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        PostgresMetrics::run_scraping(self.pool_for_metrics, SCRAPE_INTERVAL).await;
+    async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        tokio::select! {
+            () = PostgresMetrics::run_scraping(self.pool_for_metrics, SCRAPE_INTERVAL) => {
+                tracing::warn!("Postgres metrics scraping unexpectedly stopped");
+            }
+            _ = stop_receiver.0.changed() => {
+                tracing::info!("Stop signal received, Postgres metrics scraping is shutting down");
+            }
+        }
         Ok(())
     }
 }
