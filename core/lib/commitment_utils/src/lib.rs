@@ -36,7 +36,7 @@ pub fn events_queue_commitment(
                     .collect(),
             ),
         )),
-        VmVersion::Vm1_5_0 => Some(H256(
+        VmVersion::Vm1_5_0 | VmVersion::Local => Some(H256(
             circuit_sequencer_api_1_5_0::commitments::events_queue_commitment_fixed(
                 &events_queue
                     .iter()
@@ -72,7 +72,7 @@ pub fn bootloader_initial_content_commitment(
                 &full_bootloader_memory,
             ),
         )),
-        VmVersion::Vm1_5_0 => Some(H256(
+        VmVersion::Vm1_5_0 | VmVersion::Local => Some(H256(
             circuit_sequencer_api_1_5_0::commitments::initial_heap_content_commitment_fixed(
                 &full_bootloader_memory,
             ),
