@@ -34,6 +34,11 @@ Cargo.lock
 /etc/env/target/*
 /etc/env/.current
 /etc/env/configs
+!/etc/env/configs/dev.toml
+!/etc/env/configs/dev_validium.toml
+!/etc/env/configs/dev_validium_docker.toml
+!/etc/env/configs/ext-node.toml
+!/etc/env/configs/ext-node-docker.toml
 /etc/env/l1-inits
 !/etc/env/l1-inits/.init.env
 /etc/env/l2-inits
