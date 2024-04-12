@@ -162,6 +162,7 @@ impl AsyncTree {
         }
     }
 
+    #[allow(dead_code)]
     pub fn pruner(&self) -> (MerkleTreePruner<RocksDBWrapper>, MerkleTreePrunerHandle) {
         self.inner.as_ref().expect(Self::INCONSISTENT_MSG).pruner()
     }

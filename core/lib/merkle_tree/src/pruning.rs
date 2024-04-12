@@ -3,7 +3,10 @@
 use std::{
     cmp::min,
     fmt,
-    sync::{mpsc, Arc, RwLock},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        mpsc, Arc, RwLock,
+    },
     time::Duration,
 };
 
@@ -18,7 +21,7 @@ use crate::{
 #[derive(Debug)]
 pub struct MerkleTreePrunerHandle {
     aborted_sender: mpsc::Sender<()>,
-    target_retained_version: Arc<RwLock<Option<u64>>>,
+    target_retained_version: Arc<AtomicU64>,
 }
 
 impl MerkleTreePrunerHandle {
@@ -31,11 +34,8 @@ impl MerkleTreePrunerHandle {
     /// Sets the version of the tree the pruner should attempt to prune to
     #[allow(clippy::missing_panics_doc)]
     pub fn set_target_retained_version(&self, new_version: u64) {
-        let mut version = self
-            .target_retained_version
-            .write()
-            .expect("target_retained_version is poisoned");
-        *version = Some(new_version);
+        self.target_retained_version
+            .store(new_version, Ordering::Relaxed);
     }
 }
 
@@ -82,7 +82,7 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
         let target_retained_version = Arc::new(RwLock::new(None));
         let handle = MerkleTreePrunerHandle {
             aborted_sender,
-            target_retained_version: target_retained_version.clone(),
+            target_retained_version: Arc::new(AtomicU64::new(0)),
         };
         let this = Self {
             db,
@@ -128,7 +128,7 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
             tracing::info!("Nothing to prune; skipping");
             return None;
         }
-        let target_retained_version = min(target_retained_version, last_prunable_version.unwrap());
+        let target_retained_version = min(target_retained_version, last_prunable_version?);
         let stale_key_new_versions = min_stale_key_version..=target_retained_version;
         tracing::info!("Collecting stale keys with new versions in {stale_key_new_versions:?}");
 

@@ -12,11 +12,9 @@ use zksync_config::configs::{
     chain::OperationsManagerConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
-use zksync_merkle_tree::{MerkleTreePruner, MerkleTreePrunerHandle, RocksDBWrapper};
 use zksync_object_store::ObjectStore;
-use zksync_types::L1BatchNumber;
 
 pub use self::helpers::LazyAsyncTreeReader;
 pub(crate) use self::helpers::{AsyncTreeReader, L1BatchWithLogs, MerkleTreeInfo};
@@ -53,8 +51,6 @@ pub struct MetadataCalculatorConfig {
     pub memtable_capacity: usize,
     /// Timeout to wait for the Merkle tree database to run compaction on stalled writes.
     pub stalled_writes_timeout: Duration,
-    /// Time between consecutive tree pruner loop iterations
-    pub tree_pruner_polling_interval: Duration,
 }
 
 impl MetadataCalculatorConfig {
@@ -71,7 +67,6 @@ impl MetadataCalculatorConfig {
             block_cache_capacity: merkle_tree_config.block_cache_size(),
             memtable_capacity: merkle_tree_config.memtable_capacity(),
             stalled_writes_timeout: merkle_tree_config.stalled_writes_timeout(),
-            tree_pruner_polling_interval: Duration::from_secs(5),
         }
     }
 }
@@ -151,34 +146,6 @@ impl MetadataCalculator {
         Ok(GenericAsyncTree::new(db, self.config.mode).await)
     }
 
-    async fn loop_pruning_tree(
-        &self,
-        pool: ConnectionPool<Core>,
-        tree_pruner: MerkleTreePruner<RocksDBWrapper>,
-        pruner_handle: MerkleTreePrunerHandle,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
-        let pruner_thread = tokio::task::spawn_blocking(|| tree_pruner.run());
-        loop {
-            let mut storage = pool.connection_tagged("tree_pruner").await?;
-            // TODO update this code once db pruning is merged
-            let _ = storage
-                .blocks_dal()
-                .get_earliest_l1_batch_number()
-                .await?
-                .unwrap_or(L1BatchNumber(0));
-
-            pruner_handle.set_target_retained_version(0);
-
-            if *stop_receiver.borrow() {
-                pruner_handle.abort();
-                pruner_thread.await?;
-                return Ok(());
-            }
-            tokio::time::sleep(self.config.tree_pruner_polling_interval).await;
-        }
-    }
-
     pub async fn run(
         self,
         pool: ConnectionPool<Core>,
@@ -197,22 +164,12 @@ impl MetadataCalculator {
             tree_reader.clone().info().await
         );
 
-        let (mut tree_pruner, pruner_handle) = tree.pruner();
-        tree_pruner.set_poll_interval(self.config.tree_pruner_polling_interval);
-        let pruner = self.loop_pruning_tree(
-            pool.clone(),
-            tree_pruner,
-            pruner_handle,
-            stop_receiver.clone(),
-        );
         self.tree_reader.send_replace(Some(tree_reader));
 
         let updater = TreeUpdater::new(tree, self.max_l1_batches_per_iter, self.object_store);
         updater
             .loop_updating_tree(self.delayer, &pool, stop_receiver, self.health_updater)
             .await?;
-
-        pruner.await?;
 
         Ok(())
     }
