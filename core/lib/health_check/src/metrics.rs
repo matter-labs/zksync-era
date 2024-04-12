@@ -2,7 +2,10 @@
 
 use std::time::Duration;
 
-use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics, Unit};
+use vise::{
+    Buckets, DurationAsSecs, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Info, Metrics,
+    Unit,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
 #[metrics(rename_all = "snake_case")]
@@ -18,9 +21,19 @@ struct AbnormalCheckLabels {
     result: CheckResult,
 }
 
+#[derive(Debug, EncodeLabelSet)]
+pub(crate) struct AppHealthCheckConfig {
+    #[metrics(unit = Unit::Seconds)]
+    pub slow_time_limit: DurationAsSecs,
+    #[metrics(unit = Unit::Seconds)]
+    pub hard_time_limit: DurationAsSecs,
+}
+
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "healthcheck")]
 pub(crate) struct HealthMetrics {
+    /// Immutable configuration for application health checks.
+    pub info: Info<AppHealthCheckConfig>,
     /// Latency for abnormal checks. Includes slow, dropped and timed out checks (distinguished by the "result" label);
     /// skips normal checks.
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]

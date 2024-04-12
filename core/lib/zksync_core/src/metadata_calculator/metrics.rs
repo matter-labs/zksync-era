@@ -3,21 +3,66 @@
 use std::time::{Duration, Instant};
 
 use vise::{
-    Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver, Metrics,
-    Unit,
+    Buckets, DurationAsSecs, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Info,
+    LatencyObserver, Metrics, Unit,
 };
+use zksync_config::configs::database::MerkleTreeMode;
 use zksync_shared_metrics::{BlockStage, APP_METRICS};
 use zksync_types::block::L1BatchHeader;
 use zksync_utils::time::seconds_since_epoch;
 
-use super::MetadataCalculator;
+use super::{MetadataCalculator, MetadataCalculatorConfig};
+
+#[derive(Debug, EncodeLabelValue)]
+#[metrics(rename_all = "snake_case")]
+enum ModeLabel {
+    Full,
+    Lightweight,
+}
+
+impl From<MerkleTreeMode> for ModeLabel {
+    fn from(mode: MerkleTreeMode) -> Self {
+        match mode {
+            MerkleTreeMode::Full => Self::Full,
+            MerkleTreeMode::Lightweight => Self::Lightweight,
+        }
+    }
+}
+
+#[derive(Debug, EncodeLabelSet)]
+pub(super) struct ConfigLabels {
+    mode: ModeLabel,
+    #[metrics(unit = Unit::Seconds)]
+    delay_interval: DurationAsSecs,
+    max_l1_batches_per_iter: usize,
+    multi_get_chunk_size: usize,
+    #[metrics(unit = Unit::Bytes)]
+    block_cache_capacity: usize,
+    #[metrics(unit = Unit::Bytes)]
+    memtable_capacity: usize,
+    #[metrics(unit = Unit::Seconds)]
+    stalled_writes_timeout: DurationAsSecs,
+}
+
+impl ConfigLabels {
+    pub fn new(config: &MetadataCalculatorConfig) -> Self {
+        Self {
+            mode: config.mode.into(),
+            delay_interval: config.delay_interval.into(),
+            max_l1_batches_per_iter: config.max_l1_batches_per_iter,
+            multi_get_chunk_size: config.multi_get_chunk_size,
+            block_cache_capacity: config.block_cache_capacity,
+            memtable_capacity: config.memtable_capacity,
+            stalled_writes_timeout: config.stalled_writes_timeout.into(),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
 pub(super) enum TreeUpdateStage {
     LoadChanges,
     Compute,
-    CheckConsistency,
     SavePostgres,
     SaveRocksdb,
     SaveGcs,
@@ -81,6 +126,8 @@ const LATENCIES_PER_LOG: Buckets = Buckets::values(&[
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server_metadata_calculator")]
 pub(super) struct MetadataCalculatorMetrics {
+    /// Merkle tree configuration.
+    pub info: Info<ConfigLabels>,
     /// Lag between the number of L1 batches processed in the Merkle tree and stored in Postgres.
     /// The lag can only be positive if Postgres was restored from a backup truncating some
     /// of the batches already processed by the tree.

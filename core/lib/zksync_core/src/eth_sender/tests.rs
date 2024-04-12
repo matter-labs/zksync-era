@@ -203,7 +203,6 @@ fn default_l1_batch_metadata() -> L1BatchMetadata {
     L1BatchMetadata {
         root_hash: Default::default(),
         rollup_last_leaf_index: 0,
-        merkle_root_hash: Default::default(),
         initial_writes_compressed: Some(vec![]),
         repeated_writes_compressed: Some(vec![]),
         commitment: Default::default(),

@@ -9,7 +9,7 @@ use zksync_types::{
 };
 use zksync_utils::h256_to_u256;
 
-use crate::{models::storage_block::ResolvedL1BatchForMiniblock, Core, CoreDal, SqlxError};
+use crate::{models::storage_block::ResolvedL1BatchForMiniblock, Core, CoreDal};
 
 #[derive(Debug)]
 pub struct StorageWeb3Dal<'a, 'c> {
@@ -133,7 +133,7 @@ impl StorageWeb3Dal<'_, '_> {
     pub async fn resolve_l1_batch_number_of_miniblock(
         &mut self,
         miniblock_number: MiniblockNumber,
-    ) -> Result<ResolvedL1BatchForMiniblock, SqlxError> {
+    ) -> DalResult<ResolvedL1BatchForMiniblock> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -163,7 +163,9 @@ impl StorageWeb3Dal<'_, '_> {
             "#,
             i64::from(miniblock_number.0)
         )
-        .fetch_one(self.storage.conn())
+        .instrument("resolve_l1_batch_number_of_miniblock")
+        .with_arg("miniblock_number", &miniblock_number)
+        .fetch_one(self.storage)
         .await?;
 
         Ok(ResolvedL1BatchForMiniblock {
@@ -245,7 +247,7 @@ impl StorageWeb3Dal<'_, '_> {
     pub async fn get_factory_dep(
         &mut self,
         hash: H256,
-    ) -> sqlx::Result<Option<(Vec<u8>, MiniblockNumber)>> {
+    ) -> DalResult<Option<(Vec<u8>, MiniblockNumber)>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -258,7 +260,9 @@ impl StorageWeb3Dal<'_, '_> {
             "#,
             hash.as_bytes(),
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_factory_dep")
+        .with_arg("hash", &hash)
+        .fetch_optional(self.storage)
         .await?;
 
         Ok(row.map(|row| (row.bytecode, MiniblockNumber(row.miniblock_number as u32))))
