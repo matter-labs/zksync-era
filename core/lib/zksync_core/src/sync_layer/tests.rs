@@ -289,6 +289,7 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
         .protocol_versions_dal()
         .get_protocol_version(ProtocolVersionId::next())
         .await
+        .unwrap()
         .expect("next protocol version not persisted");
     assert_eq!(
         persisted_protocol_version.timestamp,

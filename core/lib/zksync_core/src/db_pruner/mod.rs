@@ -185,6 +185,12 @@ impl DbPruner {
         Self::report_hard_pruning_stats(stats);
         transaction.commit().await?;
 
+        let mut storage = self.connection_pool.connection_tagged("db_pruner").await?;
+        storage
+            .pruning_dal()
+            .run_vacuum_after_hard_pruning()
+            .await?;
+
         let latency = latency.observe();
         tracing::info!(
             "Hard pruned db l1_batches up to {last_soft_pruned_l1_batch} and miniblocks up to {last_soft_pruned_miniblock}, \

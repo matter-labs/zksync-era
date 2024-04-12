@@ -2325,6 +2325,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "genesis_generator"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap 4.4.6",
+ "futures 0.3.28",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tokio",
+ "tracing",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_core",
+ "zksync_dal",
+ "zksync_env_config",
+ "zksync_protobuf",
+ "zksync_protobuf_config",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "getrandom"
 version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8100,16 +8123,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_commitment_utils"
+name = "zksync_commitment_generator"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "circuit_sequencer_api 0.1.40",
  "circuit_sequencer_api 0.1.41",
  "circuit_sequencer_api 0.1.50",
+ "itertools 0.10.5",
  "multivm",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "vise",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zk_evm 1.4.1",
  "zk_evm 1.5.0",
+ "zksync_dal",
+ "zksync_health_check",
+ "zksync_l1_contract_interface",
  "zksync_types",
  "zksync_utils",
 ]
@@ -8377,7 +8409,7 @@ dependencies = [
  "vlog",
  "vm_utils",
  "zksync_circuit_breaker",
- "zksync_commitment_utils",
+ "zksync_commitment_generator",
  "zksync_concurrency",
  "zksync_config",
  "zksync_consensus_bft",
@@ -8552,12 +8584,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "metrics",
  "thiserror",
  "tokio",
  "tracing",
  "vise",
- "zksync_config",
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
@@ -8585,6 +8615,7 @@ dependencies = [
  "vise",
  "vlog",
  "zksync_basic_types",
+ "zksync_commitment_generator",
  "zksync_concurrency",
  "zksync_config",
  "zksync_consensus_roles",
@@ -8699,6 +8730,7 @@ dependencies = [
  "tracing",
  "vlog",
  "zksync_circuit_breaker",
+ "zksync_commitment_generator",
  "zksync_concurrency",
  "zksync_config",
  "zksync_contracts",
