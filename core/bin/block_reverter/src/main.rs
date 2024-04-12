@@ -5,7 +5,7 @@ use zksync_block_reverter::{
     BlockReverter, BlockReverterEthConfig, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole,
 };
 use zksync_config::{
-    configs::ObservabilityConfig, ContractsConfig, DBConfig, ETHConfig, PostgresConfig,
+    configs::ObservabilityConfig, ContractsConfig, DBConfig, EthConfig, PostgresConfig,
 };
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::FromEnv;
@@ -90,7 +90,7 @@ async fn main() -> anyhow::Result<()> {
     }
     let _guard = builder.build();
 
-    let eth_sender = ETHConfig::from_env().context("ETHSenderConfig::from_env()")?;
+    let eth_sender = EthConfig::from_env().context("EthConfig::from_env()")?;
     let db_config = DBConfig::from_env().context("DBConfig::from_env()")?;
     let default_priority_fee_per_gas = U256::from(
         eth_sender

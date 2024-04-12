@@ -271,7 +271,6 @@ impl BlocksDal<'_, '_> {
                 eth_prove_tx_id,
                 eth_commit_tx_id,
                 eth_execute_tx_id,
-                merkle_root_hash,
                 l2_to_l1_logs,
                 l2_to_l1_messages,
                 used_contract_hashes,
@@ -713,16 +712,7 @@ impl BlocksDal<'_, '_> {
         .fetch_optional(self.storage)
         .await?;
 
-        let Some(header) = header else {
-            return Ok(None);
-        };
-        let mut header = MiniblockHeader::from(header);
-        // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
-        #[allow(deprecated)]
-        self.maybe_load_fee_address(&mut header.fee_account_address, header.number)
-            .await?;
-
-        Ok(Some(header))
+        Ok(header.map(Into::into))
     }
 
     pub async fn get_miniblock_header(
@@ -761,16 +751,7 @@ impl BlocksDal<'_, '_> {
         .fetch_optional(self.storage)
         .await?;
 
-        let Some(header) = header else {
-            return Ok(None);
-        };
-        let mut header = MiniblockHeader::from(header);
-        // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
-        #[allow(deprecated)]
-        self.maybe_load_fee_address(&mut header.fee_account_address, header.number)
-            .await?;
-
-        Ok(Some(header))
+        Ok(header.map(Into::into))
     }
 
     pub async fn mark_miniblocks_as_executed_in_l1_batch(
@@ -804,7 +785,6 @@ impl BlocksDal<'_, '_> {
             UPDATE l1_batches
             SET
                 hash = $1,
-                merkle_root_hash = $1,
                 rollup_last_leaf_index = $2,
                 updated_at = NOW()
             WHERE
@@ -980,7 +960,6 @@ impl BlocksDal<'_, '_> {
                 eth_prove_tx_id,
                 eth_commit_tx_id,
                 eth_execute_tx_id,
-                merkle_root_hash,
                 l2_to_l1_logs,
                 l2_to_l1_messages,
                 used_contract_hashes,
@@ -1165,7 +1144,6 @@ impl BlocksDal<'_, '_> {
                 eth_prove_tx_id,
                 eth_commit_tx_id,
                 eth_execute_tx_id,
-                merkle_root_hash,
                 l2_to_l1_logs,
                 l2_to_l1_messages,
                 used_contract_hashes,
@@ -1250,7 +1228,6 @@ impl BlocksDal<'_, '_> {
                 eth_prove_tx_id,
                 eth_commit_tx_id,
                 eth_execute_tx_id,
-                merkle_root_hash,
                 l2_to_l1_logs,
                 l2_to_l1_messages,
                 used_contract_hashes,
@@ -1328,7 +1305,6 @@ impl BlocksDal<'_, '_> {
                         eth_prove_tx_id,
                         eth_commit_tx_id,
                         eth_execute_tx_id,
-                        merkle_root_hash,
                         l2_to_l1_logs,
                         l2_to_l1_messages,
                         used_contract_hashes,
@@ -1458,7 +1434,6 @@ impl BlocksDal<'_, '_> {
                     eth_prove_tx_id,
                     eth_commit_tx_id,
                     eth_execute_tx_id,
-                    merkle_root_hash,
                     l2_to_l1_logs,
                     l2_to_l1_messages,
                     used_contract_hashes,
@@ -1527,7 +1502,6 @@ impl BlocksDal<'_, '_> {
                 eth_prove_tx_id,
                 eth_commit_tx_id,
                 eth_execute_tx_id,
-                merkle_root_hash,
                 l2_to_l1_logs,
                 l2_to_l1_messages,
                 used_contract_hashes,
@@ -1606,7 +1580,6 @@ impl BlocksDal<'_, '_> {
                 eth_prove_tx_id,
                 eth_commit_tx_id,
                 eth_execute_tx_id,
-                merkle_root_hash,
                 l2_to_l1_logs,
                 l2_to_l1_messages,
                 used_contract_hashes,
@@ -2117,22 +2090,6 @@ impl BlocksDal<'_, '_> {
         &mut self,
         number: MiniblockNumber,
     ) -> DalResult<Option<Address>> {
-        let Some(mut fee_account_address) = self.raw_fee_address_for_miniblock(number).await?
-        else {
-            return Ok(None);
-        };
-
-        // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
-        #[allow(deprecated)]
-        self.maybe_load_fee_address(&mut fee_account_address, number)
-            .await?;
-        Ok(Some(fee_account_address))
-    }
-
-    async fn raw_fee_address_for_miniblock(
-        &mut self,
-        number: MiniblockNumber,
-    ) -> DalResult<Option<Address>> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
@@ -2144,7 +2101,7 @@ impl BlocksDal<'_, '_> {
             "#,
             number.0 as i32
         )
-        .instrument("raw_fee_address_for_miniblock")
+        .instrument("get_fee_address_for_miniblock")
         .with_arg("number", &number)
         .fetch_optional(self.storage)
         .await?
@@ -2229,157 +2186,6 @@ impl BlocksDal<'_, '_> {
     }
 }
 
-/// Temporary methods for migrating `fee_account_address`.
-#[deprecated(note = "will be removed after the fee address migration is complete")]
-impl BlocksDal<'_, '_> {
-    pub(crate) async fn maybe_load_fee_address(
-        &mut self,
-        fee_address: &mut Address,
-        miniblock_number: MiniblockNumber,
-    ) -> DalResult<()> {
-        if *fee_address != Address::default() {
-            return Ok(());
-        }
-
-        // This clause should be triggered only for non-migrated miniblock rows. After `fee_account_address`
-        // is filled for all miniblocks, it won't be called; thus, `fee_account_address` column could be removed
-        // from `l1_batches` even with this code present.
-        let Some(row) = sqlx::query!(
-            r#"
-            SELECT
-                l1_batches.fee_account_address
-            FROM
-                l1_batches
-                INNER JOIN miniblocks ON miniblocks.l1_batch_number = l1_batches.number
-            WHERE
-                miniblocks.number = $1
-            "#,
-            miniblock_number.0 as i32
-        )
-        .instrument("maybe_load_fee_address")
-        .with_arg("miniblock_number", &miniblock_number)
-        .fetch_optional(self.storage)
-        .await?
-        else {
-            return Ok(());
-        };
-
-        *fee_address = Address::from_slice(&row.fee_account_address);
-        Ok(())
-    }
-
-    /// Checks whether `fee_account_address` is migrated for the specified miniblock. Returns
-    /// `Ok(None)` if the miniblock doesn't exist.
-    pub async fn is_fee_address_migrated(
-        &mut self,
-        number: MiniblockNumber,
-    ) -> DalResult<Option<bool>> {
-        Ok(self
-            .raw_fee_address_for_miniblock(number)
-            .await?
-            .map(|address| address != Address::default()))
-    }
-
-    /// Copies `fee_account_address` for pending miniblocks (ones without an associated L1 batch)
-    /// from the last L1 batch. Returns the number of affected rows.
-    pub async fn copy_fee_account_address_for_pending_miniblocks(&mut self) -> DalResult<u64> {
-        let execution_result = sqlx::query!(
-            r#"
-            UPDATE miniblocks
-            SET
-                fee_account_address = (
-                    SELECT
-                        l1_batches.fee_account_address
-                    FROM
-                        l1_batches
-                    ORDER BY
-                        l1_batches.number DESC
-                    LIMIT
-                        1
-                )
-            WHERE
-                l1_batch_number IS NULL
-                AND fee_account_address = '\x0000000000000000000000000000000000000000'::bytea
-            "#
-        )
-        .instrument("copy_fee_account_address_for_pending_miniblocks")
-        .execute(self.storage)
-        .await?;
-
-        Ok(execution_result.rows_affected())
-    }
-
-    pub async fn check_l1_batches_have_fee_account_address(&mut self) -> DalResult<bool> {
-        let count = sqlx::query_scalar!(
-            r#"
-            SELECT COUNT(*)
-            FROM information_schema.columns
-            WHERE table_name = 'l1_batches' AND column_name = 'fee_account_address'
-            "#
-        )
-        .instrument("check_l1_batches_have_fee_account_address")
-        .fetch_one(self.storage)
-        .await?
-        .unwrap_or(0);
-
-        Ok(count > 0)
-    }
-
-    /// Copies `fee_account_address` for miniblocks in the given range from the L1 batch they belong to.
-    /// Returns the number of affected rows.
-    pub async fn copy_fee_account_address_for_miniblocks(
-        &mut self,
-        numbers: ops::RangeInclusive<MiniblockNumber>,
-    ) -> DalResult<u64> {
-        let execution_result = sqlx::query!(
-            r#"
-            UPDATE miniblocks
-            SET
-                fee_account_address = l1_batches.fee_account_address
-            FROM
-                l1_batches
-            WHERE
-                l1_batches.number = miniblocks.l1_batch_number
-                AND miniblocks.number BETWEEN $1 AND $2
-                AND miniblocks.fee_account_address = '\x0000000000000000000000000000000000000000'::bytea
-            "#,
-            i64::from(numbers.start().0),
-            i64::from(numbers.end().0)
-        )
-        .instrument("copy_fee_account_address_for_miniblocks")
-        .with_arg("numbers", &numbers)
-        .execute(self.storage)
-        .await?;
-
-        Ok(execution_result.rows_affected())
-    }
-
-    /// Sets `fee_account_address` for an L1 batch. Should only be used in tests.
-    pub async fn set_l1_batch_fee_address(
-        &mut self,
-        l1_batch: L1BatchNumber,
-        fee_account_address: Address,
-    ) -> DalResult<()> {
-        sqlx::query!(
-            r#"
-            UPDATE l1_batches
-            SET
-                fee_account_address = $1::bytea
-            WHERE
-                number = $2
-            "#,
-            fee_account_address.as_bytes(),
-            i64::from(l1_batch.0)
-        )
-        .instrument("set_l1_batch_fee_address")
-        .with_arg("l1_batch", &l1_batch)
-        .with_arg("fee_account_address", &fee_account_address)
-        .execute(self.storage)
-        .await?;
-        Ok(())
-    }
-}
-
 /// These methods should only be used for tests.
 impl BlocksDal<'_, '_> {
     // The actual l1 batch hash is only set by the metadata calculator.
@@ -2438,7 +2244,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool, Core, CoreDal};
+    use crate::{ConnectionPool, Core, CoreDal};
 
     #[tokio::test]
     async fn loading_l1_batch_header() {
@@ -2555,147 +2361,6 @@ mod tests {
                 .await
                 .unwrap();
             assert_eq!(gas, 3 * expected_gas);
-        }
-    }
-
-    #[allow(deprecated)] // that's the whole point
-    #[tokio::test]
-    async fn checking_fee_account_address_in_l1_batches() {
-        let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.connection().await.unwrap();
-        assert!(conn
-            .blocks_dal()
-            .check_l1_batches_have_fee_account_address()
-            .await
-            .unwrap());
-    }
-
-    #[allow(deprecated)] // that's the whole point
-    #[tokio::test]
-    async fn ensuring_fee_account_address_for_miniblocks() {
-        let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.connection().await.unwrap();
-        conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(&ProtocolVersion::default())
-            .await
-            .unwrap();
-
-        for number in [1, 2] {
-            let l1_batch = L1BatchHeader::new(
-                L1BatchNumber(number),
-                100,
-                BaseSystemContractsHashes {
-                    bootloader: H256::repeat_byte(1),
-                    default_aa: H256::repeat_byte(42),
-                },
-                ProtocolVersionId::latest(),
-            );
-            let miniblock = MiniblockHeader {
-                fee_account_address: Address::default(),
-                ..create_miniblock_header(number)
-            };
-            conn.blocks_dal()
-                .insert_miniblock(&miniblock)
-                .await
-                .unwrap();
-            conn.blocks_dal()
-                .insert_mock_l1_batch(&l1_batch)
-                .await
-                .unwrap();
-            conn.blocks_dal()
-                .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(number))
-                .await
-                .unwrap();
-
-            assert_eq!(
-                conn.blocks_dal()
-                    .is_fee_address_migrated(miniblock.number)
-                    .await
-                    .unwrap(),
-                Some(false)
-            );
-        }
-
-        // Manually set `fee_account_address` for the inserted L1 batches.
-        conn.blocks_dal()
-            .set_l1_batch_fee_address(L1BatchNumber(1), Address::repeat_byte(0x23))
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .set_l1_batch_fee_address(L1BatchNumber(2), Address::repeat_byte(0x42))
-            .await
-            .unwrap();
-
-        // Add a pending miniblock.
-        let miniblock = MiniblockHeader {
-            fee_account_address: Address::default(),
-            ..create_miniblock_header(3)
-        };
-        conn.blocks_dal()
-            .insert_miniblock(&miniblock)
-            .await
-            .unwrap();
-
-        let rows_affected = conn
-            .blocks_dal()
-            .copy_fee_account_address_for_miniblocks(MiniblockNumber(0)..=MiniblockNumber(100))
-            .await
-            .unwrap();
-
-        assert_eq!(rows_affected, 2);
-        let first_miniblock_addr = conn
-            .blocks_dal()
-            .raw_fee_address_for_miniblock(MiniblockNumber(1))
-            .await
-            .unwrap()
-            .expect("No fee address for block #1");
-        assert_eq!(first_miniblock_addr, Address::repeat_byte(0x23));
-        let second_miniblock_addr = conn
-            .blocks_dal()
-            .raw_fee_address_for_miniblock(MiniblockNumber(2))
-            .await
-            .unwrap()
-            .expect("No fee address for block #1");
-        assert_eq!(second_miniblock_addr, Address::repeat_byte(0x42));
-        // The pending miniblock should not be affected.
-        let pending_miniblock_addr = conn
-            .blocks_dal()
-            .raw_fee_address_for_miniblock(MiniblockNumber(3))
-            .await
-            .unwrap()
-            .expect("No fee address for block #3");
-        assert_eq!(pending_miniblock_addr, Address::default());
-        assert_eq!(
-            conn.blocks_dal()
-                .is_fee_address_migrated(MiniblockNumber(3))
-                .await
-                .unwrap(),
-            Some(false)
-        );
-
-        let rows_affected = conn
-            .blocks_dal()
-            .copy_fee_account_address_for_pending_miniblocks()
-            .await
-            .unwrap();
-        assert_eq!(rows_affected, 1);
-
-        let pending_miniblock_addr = conn
-            .blocks_dal()
-            .raw_fee_address_for_miniblock(MiniblockNumber(3))
-            .await
-            .unwrap()
-            .expect("No fee address for block #3");
-        assert_eq!(pending_miniblock_addr, Address::repeat_byte(0x42));
-
-        for number in 1..=3 {
-            assert_eq!(
-                conn.blocks_dal()
-                    .is_fee_address_migrated(MiniblockNumber(number))
-                    .await
-                    .unwrap(),
-                Some(true)
-            );
         }
     }
 }

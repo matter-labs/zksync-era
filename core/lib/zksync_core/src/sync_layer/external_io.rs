@@ -18,7 +18,7 @@ use super::{
 use crate::state_keeper::{
     io::{
         common::{load_pending_batch, poll_iters, IoCursor},
-        fee_address_migration, L1BatchParams, MiniblockParams, PendingBatchData, StateKeeperIO,
+        L1BatchParams, MiniblockParams, PendingBatchData, StateKeeperIO,
     },
     metrics::KEEPER_METRICS,
     seal_criteria::IoSealCriteria,
@@ -54,9 +54,6 @@ impl ExternalIO {
         let l1_batch_params_provider = L1BatchParamsProvider::new(&mut storage)
             .await
             .context("failed initializing L1 batch params provider")?;
-        // We must run the migration for pending miniblocks synchronously, since we use `fee_account_address`
-        // from a pending miniblock in `load_pending_batch()` implementation.
-        fee_address_migration::migrate_pending_miniblocks(&mut storage).await?;
         drop(storage);
 
         Ok(Self {
