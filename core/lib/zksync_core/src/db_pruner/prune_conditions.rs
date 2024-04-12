@@ -108,8 +108,8 @@ impl PruneCondition for L1BatchExistsCondition {
 }
 
 #[derive(Debug)]
-pub struct ConsistencyCheckerProcessedBatch {
-    pub(super) conn: ConnectionPool<Core>,
+pub(super) struct ConsistencyCheckerProcessedBatch {
+    pub conn: ConnectionPool<Core>,
 }
 
 impl fmt::Display for ConsistencyCheckerProcessedBatch {

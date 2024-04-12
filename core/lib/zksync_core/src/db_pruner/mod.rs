@@ -48,23 +48,6 @@ trait PruneCondition: fmt::Debug + fmt::Display + Send + Sync + 'static {
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool>;
 }
 
-/// Wrapper for [`PruneCondition`] implementing `Display`.
-#[derive(Debug)]
-struct ConditionsWrapper<'a>(&'a [&'a dyn PruneCondition]);
-
-impl fmt::Display for ConditionsWrapper<'_> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("{")?;
-        for (i, &condition) in self.0.iter().enumerate() {
-            write!(formatter, "'{condition}'")?;
-            if i + 1 < self.0.len() {
-                formatter.write_str(", ")?;
-            }
-        }
-        formatter.write_str("}")
-    }
-}
-
 impl DbPruner {
     pub fn new(config: DbPrunerConfig, connection_pool: ConnectionPool<Core>) -> Self {
         let conditions: Vec<Arc<dyn PruneCondition>> = vec![
@@ -107,10 +90,10 @@ impl DbPruner {
 
         for condition in &self.prune_conditions {
             match condition.is_batch_prunable(l1_batch_number).await {
-                Ok(true) => successful_conditions.push(condition.as_ref()),
-                Ok(false) => failed_conditions.push(condition.as_ref()),
+                Ok(true) => successful_conditions.push(condition.to_string()),
+                Ok(false) => failed_conditions.push(condition.to_string()),
                 Err(error) => {
-                    errored_conditions.push(condition.as_ref());
+                    errored_conditions.push(condition.to_string());
                     tracing::warn!("Pruning condition '{condition}' resulted in an error: {error}");
                 }
             }
@@ -119,12 +102,9 @@ impl DbPruner {
         if !result {
             tracing::info!(
                 "Pruning l1 batch {l1_batch_number} is not possible, \
-                successful conditions: {successful}, \
-                failed conditions: {failed}, \
-                errored_conditions: {errored}",
-                successful = ConditionsWrapper(&successful_conditions),
-                failed = ConditionsWrapper(&failed_conditions),
-                errored = ConditionsWrapper(&errored_conditions)
+                successful conditions: {successful_conditions:?}, \
+                failed conditions: {failed_conditions:?}, \
+                errored_conditions: {errored_conditions:?}"
             );
         }
         result
