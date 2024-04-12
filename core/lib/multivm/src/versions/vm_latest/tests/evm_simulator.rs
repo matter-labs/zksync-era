@@ -1768,116 +1768,126 @@ fn test_basic_sload_vectors() {
 fn test_sload_gas() {
     // Here we just try to test some small EVM contracts and ensure that they work.
     let initial_gas = U256::MAX;
-    let gas_left = test_evm_vector( // sload cold
-            vec![
-                // push32 0
-                hex::decode("7F").unwrap(),
-                H256::zero().0.to_vec(),
-                // sload
-                hex::decode("54").unwrap(),
-                // gas
-                hex::decode("5A").unwrap(),
-                // push0
-                hex::decode("5F").unwrap(),
-                // sstore
-                hex::decode("55").unwrap(),
-            ]
-            .into_iter()
-            .concat()
-        );
-    assert_eq!(initial_gas - gas_left,U256::from_dec_str("2105").unwrap());
+    let gas_left = test_evm_vector(
+        // sload cold
+        vec![
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sload
+            hex::decode("54").unwrap(),
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(initial_gas - gas_left, U256::from_dec_str("2105").unwrap());
 
-    let gas_left_2 = 
-        test_evm_vector( // sstore cold different value + sload warm
-            vec![
-                // push32 2
-                hex::decode("7F").unwrap(),
-                u256_to_h256(2.into()).0.to_vec(),
-                // push32 0
-                hex::decode("7F").unwrap(),
-                H256::zero().0.to_vec(),
-                // sstore
-                hex::decode("55").unwrap(),
-                // push32 0
-                hex::decode("7F").unwrap(),
-                H256::zero().0.to_vec(),
-                // sload
-                hex::decode("54").unwrap(),
-                // gas
-                hex::decode("5A").unwrap(),
-                // push0
-                hex::decode("5F").unwrap(),
-                // sstore
-                hex::decode("55").unwrap(),
-            ]
-            .into_iter()
-            .concat()
-        );
-    assert_eq!(initial_gas - gas_left_2,U256::from_dec_str("22211").unwrap());
+    let gas_left_2 = test_evm_vector(
+        // sstore cold different value + sload warm
+        vec![
+            // push32 2
+            hex::decode("7F").unwrap(),
+            u256_to_h256(2.into()).0.to_vec(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sload
+            hex::decode("54").unwrap(),
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(
+        initial_gas - gas_left_2,
+        U256::from_dec_str("22211").unwrap()
+    );
 
-    let gas_left_3 = 
-        test_evm_vector( // sstore cold same value + sload warm
-            vec![
-                // push32 0
-                hex::decode("7F").unwrap(),
-                u256_to_h256(0.into()).0.to_vec(),
-                // push32 0
-                hex::decode("7F").unwrap(),
-                H256::zero().0.to_vec(),
-                // sstore
-                hex::decode("55").unwrap(),
-                // push32 0
-                hex::decode("7F").unwrap(),
-                H256::zero().0.to_vec(),
-                // sload
-                hex::decode("54").unwrap(),
-                // gas
-                hex::decode("5A").unwrap(),
-                // push0
-                hex::decode("5F").unwrap(),
-                // sstore
-                hex::decode("55").unwrap(),
-            ]
-            .into_iter()
-            .concat()
-        );
-    assert_eq!(initial_gas - gas_left_3,U256::from_dec_str("2311").unwrap());
+    let gas_left_3 = test_evm_vector(
+        // sstore cold same value + sload warm
+        vec![
+            // push32 0
+            hex::decode("7F").unwrap(),
+            u256_to_h256(0.into()).0.to_vec(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sload
+            hex::decode("54").unwrap(),
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(
+        initial_gas - gas_left_3,
+        U256::from_dec_str("2311").unwrap()
+    );
 
-    let gas_left_4 = 
-        test_evm_vector( // sstore cold different value + sstore warm same value + sload warm
-            vec![
-                // push32 2
-                hex::decode("7F").unwrap(),
-                u256_to_h256(2.into()).0.to_vec(),
-                // push32 0
-                hex::decode("7F").unwrap(),
-                H256::zero().0.to_vec(),
-                // sstore
-                hex::decode("55").unwrap(),
-                // push32 0
-                hex::decode("7F").unwrap(),
-                u256_to_h256(0.into()).0.to_vec(),
-                // push32 0
-                hex::decode("7F").unwrap(),
-                H256::zero().0.to_vec(),
-                // sstore
-                hex::decode("55").unwrap(),
-                // push32 0
-                hex::decode("7F").unwrap(),
-                H256::zero().0.to_vec(),
-                // sload
-                hex::decode("54").unwrap(),
-                // gas
-                hex::decode("5A").unwrap(),
-                // push0
-                hex::decode("5F").unwrap(),
-                // sstore
-                hex::decode("55").unwrap(),
-            ]
-            .into_iter()
-            .concat()
-        );
-    assert_eq!(initial_gas - gas_left_4,U256::from_dec_str("22317").unwrap());
+    let gas_left_4 = test_evm_vector(
+        // sstore cold different value + sstore warm same value + sload warm
+        vec![
+            // push32 2
+            hex::decode("7F").unwrap(),
+            u256_to_h256(2.into()).0.to_vec(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            u256_to_h256(0.into()).0.to_vec(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sload
+            hex::decode("54").unwrap(),
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(
+        initial_gas - gas_left_4,
+        U256::from_dec_str("22317").unwrap()
+    );
 }
 
 #[test]
@@ -2070,6 +2080,176 @@ fn test_basic_calldatacopy_vectors() {
             .concat()
         ),
         0.into()
+    );
+}
+
+#[test]
+fn test_basic_address_vectors() {
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 0xFF
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // address
+                hex::decode("30").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        h256_to_u256(H256::from(
+            Address::from_str("0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7").unwrap()
+        ))
+        .into()
+    );
+}
+
+#[test]
+fn test_basic_balance_vectors() {
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push20 0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7
+                hex::decode("73").unwrap(),
+                hex::decode("de03a0B5963f75f1C8485B355fF6D30f3093BDE7").unwrap(),
+                // balance
+                hex::decode("31").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    )
+}
+
+#[test]
+fn test_basic_origin_vectors() {
+    assert_ne!(
+        test_evm_vector(
+            vec![
+                // push0
+                hex::decode("5F").unwrap(),
+                // origin
+                hex::decode("32").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    )
+}
+
+#[test]
+fn test_basic_pc_vectors() {
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 0xFF
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // pc
+                hex::decode("58").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        2.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push3 0xFFEEDD
+                hex::decode("62").unwrap(),
+                hex::decode("FFEEDD").unwrap(),
+                // pc
+                hex::decode("58").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        4.into()
+    );
+}
+
+#[test]
+fn test_basic_gas_vectors() {
+    // This test will fail when push1 charge gas. Reduce expected value by 3 units.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 0xFF
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // gas
+                hex::decode("5A").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        U256::from_dec_str(
+            "115792089237316195423570985008687907853269984665640564039457584007913129639933"
+        )
+        .unwrap()
+        .into()
+    );
+
+    // This test will fail when push1 charge gas. Reduce expected value by 12 units.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 0xFF
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // push1 0xEE
+                hex::decode("60").unwrap(),
+                hex::decode("EE").unwrap(),
+                // push1 0xDD
+                hex::decode("60").unwrap(),
+                hex::decode("DD").unwrap(),
+                // push1 0xCC
+                hex::decode("60").unwrap(),
+                hex::decode("CC").unwrap(),
+                // address
+                hex::decode("30").unwrap(),
+                // gas
+                hex::decode("5A").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        U256::from_dec_str(
+            "115792089237316195423570985008687907853269984665640564039457584007913129639931"
+        )
+        .unwrap()
+        .into()
     );
 }
 
