@@ -6,7 +6,7 @@ import "zksync/config/utils.proto";
 
 message MaxResponseSizeOverride {
   optional string method = 1; // required
-  optional uint64 size_mb = 2; // required; MB
+  optional uint64 size_mb = 2; // optional; MB
 }
 
 message Web3JsonRpc {

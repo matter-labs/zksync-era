@@ -49,14 +49,20 @@ impl FromStr for MaxResponseSizeOverrides {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut overrides = HashMap::new();
         for part in s.split(',') {
-            let (method_name, size) = part
-                .split_once('=')
-                .with_context(|| format!("Part `{part}` doesn't have form <method_name>=<size>"))?;
-            let method_name = method_name.trim();
-            let size = size.trim();
-            let size = size.parse().with_context(|| {
-                format!("`{size}` specified for method `{method_name}` is not a valid size")
+            let (method_name, size) = part.split_once('=').with_context(|| {
+                format!("Part `{part}` doesn't have form <method_name>=<int>|None")
             })?;
+            let method_name = method_name.trim();
+
+            let size = size.trim();
+            let size = if size == "None" {
+                NonZeroUsize::MAX // No limit
+            } else {
+                size.parse().with_context(|| {
+                    format!("`{size}` specified for method `{method_name}` is not a valid size")
+                })?
+            };
+
             if let Some(prev_size) = overrides.insert(method_name.to_owned(), size) {
                 anyhow::bail!(
                     "Size override for `{method_name}` is redefined from {prev_size} to {size}"
@@ -399,19 +405,19 @@ mod tests {
     #[test]
     fn working_with_max_response_size_overrides() {
         let overrides: MaxResponseSizeOverrides =
-            "eth_call=1, eth_getTransactionReceipt=100,zks_getProof = 32 "
+            "eth_call=1, eth_getTransactionReceipt=None,zks_getProof = 32 "
                 .parse()
                 .unwrap();
         assert_eq!(overrides.iter().len(), 3);
         assert_eq!(overrides.get("eth_call"), Some(1));
-        assert_eq!(overrides.get("eth_getTransactionReceipt"), Some(100));
+        assert_eq!(overrides.get("eth_getTransactionReceipt"), Some(usize::MAX));
         assert_eq!(overrides.get("zks_getProof"), Some(32));
         assert_eq!(overrides.get("eth_blockNumber"), None);
 
         let scaled = overrides.scale(NonZeroUsize::new(1_000).unwrap());
         assert_eq!(scaled.iter().len(), 3);
         assert_eq!(scaled.get("eth_call"), Some(1_000));
-        assert_eq!(scaled.get("eth_getTransactionReceipt"), Some(100_000));
+        assert_eq!(scaled.get("eth_getTransactionReceipt"), Some(usize::MAX));
         assert_eq!(scaled.get("zks_getProof"), Some(32_000));
         assert_eq!(scaled.get("eth_blockNumber"), None);
     }

@@ -32,6 +32,7 @@ impl ProtoRepr for proto::Api {
 
 impl ProtoRepr for proto::Web3JsonRpc {
     type Type = api::Web3JsonRpcConfig;
+
     fn read(&self) -> anyhow::Result<Self::Type> {
         let account_pks = self
             .account_pks
@@ -51,10 +52,13 @@ impl ProtoRepr for proto::Web3JsonRpc {
             .iter()
             .enumerate()
             .map(|(i, entry)| {
-                let size_mb = entry.size_mb.with_context(|| format!("[{i}].size_mb"))?;
-                let size_mb = usize::try_from(size_mb).with_context(|| format!("[{i}].size_mb"))?;
-                let size_mb =
-                    NonZeroUsize::new(size_mb).with_context(|| format!("[{i}].size_mb is zero"))?;
+                let size_mb = if let Some(size_mb) = entry.size_mb {
+                    let size_mb =
+                        usize::try_from(size_mb).with_context(|| format!("[{i}].size_mb"))?;
+                    NonZeroUsize::new(size_mb).with_context(|| format!("[{i}].size_mb is zero"))?
+                } else {
+                    NonZeroUsize::MAX
+                };
                 Ok((
                     entry
                         .method
@@ -152,6 +156,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .context("account_pks")?,
         })
     }
+
     fn build(this: &Self::Type) -> Self {
         Self {
             http_port: Some(this.http_port.into()),
@@ -201,7 +206,11 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .iter()
                 .map(|(method, size_mb)| proto::MaxResponseSizeOverride {
                     method: Some(method.to_owned()),
-                    size_mb: Some(size_mb.try_into().unwrap()),
+                    size_mb: if size_mb == usize::MAX {
+                        None
+                    } else {
+                        Some(size_mb.try_into().expect("failed converting usize to u64"))
+                    },
                 })
                 .collect(),
             websocket_requests_per_minute_limit: this

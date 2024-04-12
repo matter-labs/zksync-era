@@ -85,7 +85,7 @@ mod tests {
                 max_response_body_size_mb: Some(10),
                 max_response_body_size_overrides_mb: [
                     ("eth_call", NonZeroUsize::new(1).unwrap()),
-                    ("eth_getTransactionReceipt", NonZeroUsize::new(100).unwrap()),
+                    ("eth_getTransactionReceipt", NonZeroUsize::MAX),
                     ("zks_getProof", NonZeroUsize::new(32).unwrap()),
                 ]
                 .into_iter()
@@ -146,7 +146,7 @@ mod tests {
             API_CONTRACT_VERIFICATION_PORT="3070"
             API_CONTRACT_VERIFICATION_URL="http://127.0.0.1:3070"
             API_WEB3_JSON_RPC_MAX_RESPONSE_BODY_SIZE_MB=10
-            API_WEB3_JSON_RPC_MAX_RESPONSE_BODY_SIZE_OVERRIDES_MB="eth_call=1, eth_getTransactionReceipt=100, zks_getProof=32"
+            API_WEB3_JSON_RPC_MAX_RESPONSE_BODY_SIZE_OVERRIDES_MB="eth_call=1, eth_getTransactionReceipt=None, zks_getProof=32"
             API_PROMETHEUS_LISTENER_PORT="3312"
             API_PROMETHEUS_PUSHGATEWAY_URL="http://127.0.0.1:9091"
             API_PROMETHEUS_PUSH_INTERVAL_MS=100
