@@ -1,6 +1,6 @@
 //! Postgres pruning component.
 
-use std::{fmt::Debug, sync::Arc, time::Duration};
+use std::{fmt, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -44,8 +44,25 @@ pub struct DbPruner {
 
 /// Interface to be used for health checks.
 #[async_trait]
-trait PruneCondition: Debug + Send + Sync + 'static {
+trait PruneCondition: fmt::Debug + fmt::Display + Send + Sync + 'static {
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool>;
+}
+
+/// Wrapper for [`PruneCondition`] implementing `Display`.
+#[derive(Debug)]
+struct ConditionsWrapper<'a>(&'a [&'a dyn PruneCondition]);
+
+impl fmt::Display for ConditionsWrapper<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("{")?;
+        for (i, &condition) in self.0.iter().enumerate() {
+            write!(formatter, "'{condition}'")?;
+            if i + 1 < self.0.len() {
+                formatter.write_str(", ")?;
+            }
+        }
+        formatter.write_str("}")
+    }
 }
 
 impl DbPruner {
@@ -84,19 +101,17 @@ impl DbPruner {
     }
 
     async fn is_l1_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> bool {
-        let mut successful_conditions: Vec<String> = vec![];
-        let mut failed_conditions: Vec<String> = vec![];
-        let mut errored_conditions: Vec<String> = vec![];
+        let mut successful_conditions = vec![];
+        let mut failed_conditions = vec![];
+        let mut errored_conditions = vec![];
 
         for condition in &self.prune_conditions {
             match condition.is_batch_prunable(l1_batch_number).await {
-                Ok(true) => successful_conditions.push(format!("{condition:?}")),
-                Ok(false) => failed_conditions.push(format!("{condition:?}")),
+                Ok(true) => successful_conditions.push(condition.as_ref()),
+                Ok(false) => failed_conditions.push(condition.as_ref()),
                 Err(error) => {
-                    errored_conditions.push(format!("{condition:?}"));
-                    tracing::warn!(
-                        "Pruning condition for component {condition:?} resulted in an error: {error}"
-                    )
+                    errored_conditions.push(condition.as_ref());
+                    tracing::warn!("Pruning condition '{condition}' resulted in an error: {error}");
                 }
             }
         }
@@ -104,9 +119,12 @@ impl DbPruner {
         if !result {
             tracing::info!(
                 "Pruning l1 batch {l1_batch_number} is not possible, \
-                successful conditions: {successful_conditions:?}, \
-                failed conditions: {failed_conditions:?}, \
-                errored_conditions: {errored_conditions:?}"
+                successful conditions: {successful}, \
+                failed conditions: {failed}, \
+                errored_conditions: {errored}",
+                successful = ConditionsWrapper(&successful_conditions),
+                failed = ConditionsWrapper(&failed_conditions),
+                errored = ConditionsWrapper(&errored_conditions)
             );
         }
         result
@@ -270,7 +288,7 @@ impl DbPruner {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, fmt, fmt::Formatter};
+    use std::collections::HashMap;
 
     use anyhow::anyhow;
     use multivm::zk_evm_latest::ethereum_types::H256;
@@ -281,6 +299,7 @@ mod tests {
 
     use super::*;
 
+    #[derive(Debug)]
     struct ConditionMock {
         pub name: &'static str,
         pub is_batch_prunable_responses: HashMap<L1BatchNumber, bool>,
@@ -301,9 +320,9 @@ mod tests {
         }
     }
 
-    impl Debug for ConditionMock {
-        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-            write!(f, "{}", self.name)
+    impl fmt::Display for ConditionMock {
+        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(formatter, "{}", self.name)
         }
     }
 
