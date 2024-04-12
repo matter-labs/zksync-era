@@ -631,7 +631,8 @@ fn test_basic_keccak_vectors() {
         vec![
             // push32 0xFFFF_FFFF
             hex::decode("7F").unwrap(),
-            u256_to_h256(0xFFFF_FFFFu32.into()).0.to_vec(),
+            hex::decode("FFFFFFFF00000000000000000000000000000000000000000000000000000000")
+                .unwrap(),
             // push1 0
             hex::decode("60").unwrap(),
             hex::decode("00").unwrap(),
