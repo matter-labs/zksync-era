@@ -1,4 +1,6 @@
-__imports__ = [ "configs/dev.toml" ]
+__imports__ = [ "base", "l1-inits/.init.env", "l2-inits/docker.init.env" ]
+
+ETH_SENDER_SENDER_PUBDATA_SENDING_MODE = "Calldata"
 
 sqlx_offline = true
 database_url = "postgres://postgres:notsecurepassword@postgres/zksync_local"
@@ -14,6 +16,3 @@ web3_url = "http://reth:8545"
 
 [chain.state_keeper]
 miniblock_iteration_interval = 50
-
-[_metadata]
-base = ["dev.toml"]

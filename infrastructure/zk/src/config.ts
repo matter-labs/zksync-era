@@ -111,7 +111,9 @@ export function printAllConfigs(environment?: string) {
 
 export function compileConfig(environment?: string) {
     environment ??= process.env.ZKSYNC_ENV!;
+    console.log('process.env.ZKSYNC_ENV', process.env.ZKSYNC_ENV);
     const config = loadConfig(environment);
+    console.log('config');
     const variables = collectVariables(config);
 
     let outputFileContents = '';

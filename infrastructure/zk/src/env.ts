@@ -67,10 +67,17 @@ export function set(environment: string, print: boolean = false) {
 // we have to manually override the environment
 // because dotenv won't override variables that are already set
 export function reload(environment?: string) {
+    console.log('My env: ', environment);
     environment = environment ?? get();
+    console.log('Used env: ', environment);
     config.compileConfig();
     const envFile = (process.env.ENV_FILE = `etc/env/target/${environment}.env`);
     const env = dotenv.parse(fs.readFileSync(envFile));
+    console.log(
+        'process.env.STM',
+        process.env['CONTRACTS_STATE_TRANSITION_PROXY_ADDR'],
+        process.env['CONTRACTS_DIAMOND_PROXY_ADDR']
+    );
     for (const envVar in env) {
         process.env[envVar] = env[envVar];
     }
