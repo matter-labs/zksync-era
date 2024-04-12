@@ -2866,15 +2866,14 @@ fn test_basic_environment3_vectors() {
         .into_iter()
         .concat(),
     );
-    assert_eq!(evm_output, 0x60076000600039.into());
+    assert_eq!(
+        H256(evm_output.into()),
+        H256(U256::from("6007600060003900000000000000000000000000000000000000000000000000").into())
+    );
 
     // codesize
     let evm_output = test_evm_vector(
         vec![
-            // push32
-            hex::decode("7F").unwrap(),
-            hex::decode("B2FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
-                .unwrap(),
             // push1 16
             hex::decode("60").unwrap(), // 1 byte
             hex::decode("10").unwrap(), // 1 byte
