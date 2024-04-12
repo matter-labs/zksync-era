@@ -207,7 +207,7 @@ impl BlockStartInfoInner {
             if expired_for > Self::MAX_RANDOM_DELAY {
                 return true; // The cache is definitely expired, regardless of the randomness below
             }
-            // Mimimize access to RNG, which could be mildly costly
+            // Minimize access to RNG, which could be mildly costly
             expired_for > thread_rng().gen_range(Duration::ZERO..=Self::MAX_RANDOM_DELAY)
         } else {
             false // `now` is close to `self.cached_at`; the cache isn't expired

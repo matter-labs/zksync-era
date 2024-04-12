@@ -24,7 +24,7 @@ mod prune_conditions;
 pub struct DbPrunerConfig {
     /// Delta between soft- and hard-removing data from Postgres.
     pub soft_and_hard_pruning_time_delta: Duration,
-    /// Sleep intreval between pruning iterations.
+    /// Sleep interval between pruning iterations.
     pub next_iterations_delay: Duration,
     /// Number of L1 batches pruned at a time. The pruner will do nothing if there is less than this number
     /// of batches to prune.
