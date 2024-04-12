@@ -2131,6 +2131,29 @@ fn test_basic_balance_vectors() {
 }
 
 #[test]
+fn test_basic_balance_gas_vectors() {
+    let initial_gas = U256::MAX;
+    let gas_left = test_evm_vector(
+            vec![
+                // push20 0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7
+                hex::decode("73").unwrap(),
+                hex::decode("de03a0B5963f75f1C8485B355fF6D30f3093BDE7").unwrap(),
+                // balance
+                hex::decode("31").unwrap(),
+                // gas
+                hex::decode("5A").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        );
+    assert_eq!(initial_gas - gas_left,U256::from_dec_str("2602").unwrap());
+}
+
+#[test]
 fn test_basic_origin_vectors() {
     assert_ne!(
         test_evm_vector(
