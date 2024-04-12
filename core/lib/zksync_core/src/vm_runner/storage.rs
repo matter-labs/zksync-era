@@ -63,7 +63,6 @@ pub trait VmRunnerStorageLoader: Debug + Send + Sync + 'static {
 pub struct VmRunnerStorage<L: VmRunnerStorageLoader> {
     pool: ConnectionPool<Core>,
     l1_batch_params_provider: L1BatchParamsProvider,
-    validation_computational_gas_limit: u32,
     chain_id: L2ChainId,
     rocksdb_cell: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
     loader: L,
@@ -76,7 +75,6 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
         rocksdb_path: String,
         loader: L,
         enum_index_migration_chunk_size: usize, // TODO: Remove
-        validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
     ) -> anyhow::Result<(Self, AsyncCatchupTask)> {
         let mut conn = pool.connection_tagged(L::name()).await?;
@@ -96,7 +94,6 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
             Self {
                 pool,
                 l1_batch_params_provider,
-                validation_computational_gas_limit,
                 chain_id,
                 rocksdb_cell,
                 loader,
@@ -166,7 +163,9 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
             .load_l1_batch_params(
                 &mut conn,
                 &first_miniblock_in_batch,
-                self.validation_computational_gas_limit,
+                // validation_computational_gas_limit is only relevant when rejecting txs, but we
+                // are re-executing so none of them should be rejected
+                u32::MAX,
                 self.chain_id,
             )
             .await

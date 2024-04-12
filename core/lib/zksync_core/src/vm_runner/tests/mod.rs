@@ -84,7 +84,6 @@ impl VmRunnerTester {
             self.db_dir.path().to_str().unwrap().to_owned(),
             loader_mock,
             100,
-            300000,
             L2ChainId::from(270),
         )
         .await?;
