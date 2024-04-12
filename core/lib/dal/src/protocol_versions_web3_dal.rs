@@ -1,4 +1,4 @@
-use zksync_db_connection::connection::Connection;
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::api::ProtocolVersion;
 
 use crate::{models::storage_protocol_version::StorageProtocolVersion, Core};
@@ -9,8 +9,11 @@ pub struct ProtocolVersionsWeb3Dal<'a, 'c> {
 }
 
 impl ProtocolVersionsWeb3Dal<'_, '_> {
-    pub async fn get_protocol_version_by_id(&mut self, version_id: u16) -> Option<ProtocolVersion> {
-        let storage_protocol_version: Option<StorageProtocolVersion> = sqlx::query_as!(
+    pub async fn get_protocol_version_by_id(
+        &mut self,
+        version_id: u16,
+    ) -> DalResult<Option<ProtocolVersion>> {
+        let storage_protocol_version = sqlx::query_as!(
             StorageProtocolVersion,
             r#"
             SELECT
@@ -22,15 +25,16 @@ impl ProtocolVersionsWeb3Dal<'_, '_> {
             "#,
             i32::from(version_id)
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("get_protocol_version_by_id")
+        .with_arg("version_id", &version_id)
+        .fetch_optional(self.storage)
+        .await?;
 
-        storage_protocol_version.map(ProtocolVersion::from)
+        Ok(storage_protocol_version.map(ProtocolVersion::from))
     }
 
-    pub async fn get_latest_protocol_version(&mut self) -> ProtocolVersion {
-        let storage_protocol_version: StorageProtocolVersion = sqlx::query_as!(
+    pub async fn get_latest_protocol_version(&mut self) -> DalResult<ProtocolVersion> {
+        let storage_protocol_version = sqlx::query_as!(
             StorageProtocolVersion,
             r#"
             SELECT
@@ -43,10 +47,10 @@ impl ProtocolVersionsWeb3Dal<'_, '_> {
                 1
             "#,
         )
-        .fetch_one(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("get_latest_protocol_version")
+        .fetch_one(self.storage)
+        .await?;
 
-        ProtocolVersion::from(storage_protocol_version)
+        Ok(ProtocolVersion::from(storage_protocol_version))
     }
 }

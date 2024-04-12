@@ -9,7 +9,7 @@ use zksync_core::block_reverter::{
 };
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::FromEnv;
-use zksync_types::{L1BatchNumber, U256};
+use zksync_types::{Address, L1BatchNumber, U256};
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None)]
@@ -26,6 +26,9 @@ enum Command {
         /// Displays the values as a JSON object, so that they are machine-readable.
         #[arg(long)]
         json: bool,
+        /// Operator address.
+        #[arg(long = "operator-address")]
+        operator_address: Address,
     },
     /// Sends revert transaction to L1.
     #[command(name = "send-eth-transaction")]
@@ -70,6 +73,7 @@ enum Command {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let command = Cli::parse().command;
     let observability_config =
         ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
     let log_format: vlog::LogFormat = observability_config
@@ -96,7 +100,15 @@ async fn main() -> anyhow::Result<()> {
     );
     let contracts = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let config = BlockReverterEthConfig::new(eth_sender, contracts);
+    let operator_address = if let Command::Display {
+        operator_address, ..
+    } = &command
+    {
+        Some(operator_address)
+    } else {
+        None
+    };
+    let config = BlockReverterEthConfig::new(eth_sender, contracts, operator_address.copied());
 
     let connection_pool = ConnectionPool::<Core>::builder(
         postgres_config.master_url()?,
@@ -114,8 +126,8 @@ async fn main() -> anyhow::Result<()> {
         L1ExecutedBatchesRevert::Disallowed,
     );
 
-    match Cli::parse().command {
-        Command::Display { json } => {
+    match command {
+        Command::Display { json, .. } => {
             let suggested_values = block_reverter.suggested_values().await;
             if json {
                 println!("{}", serde_json::to_string(&suggested_values).unwrap());

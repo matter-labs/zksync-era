@@ -104,7 +104,7 @@ async fn generate_new_config(
     Ok(updated_genesis)
 }
 
-/// Encodes a generated proto message to json for arbitrary ProtoFmt.
+/// Encodes a generated proto message to json for arbitrary `ProtoFmt`.
 pub(crate) fn encode_yaml<T: ReflectMessage>(x: &T) -> anyhow::Result<String> {
     let mut serializer = Serializer::new(vec![]);
     let opts = prost_reflect::SerializeOptions::new()

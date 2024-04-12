@@ -2,7 +2,6 @@ use anyhow::Context as _;
 use serde::de::DeserializeOwned;
 
 mod api;
-pub mod base_token_fetcher;
 mod chain;
 mod contract_verifier;
 mod contracts;
@@ -21,7 +20,6 @@ mod observability;
 mod proof_data_handler;
 mod snapshots_creator;
 mod utils;
-mod witness_generator;
 
 mod genesis;
 #[cfg(test)]

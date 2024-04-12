@@ -8,15 +8,21 @@ use anyhow::Context;
 use serde::Deserialize;
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
-use zksync_config::{configs::chain::L1BatchCommitDataGeneratorMode, ObjectStoreConfig};
+use zksync_config::{
+    configs::{
+        chain::L1BatchCommitDataGeneratorMode,
+        consensus::{ConsensusConfig, ConsensusSecrets},
+    },
+    ObjectStoreConfig,
+};
 use zksync_core::{
     api_server::{
         tx_sender::TxSenderConfig,
         web3::{state::InternalApiConfig, Namespace},
     },
-    consensus,
-    temp_config_store::decode_yaml,
+    temp_config_store::decode_yaml_repr,
 };
+use zksync_protobuf_config::proto;
 use zksync_types::{api::BridgeAddresses, fee_model::FeeParams, ETHEREUM_ADDRESS};
 use zksync_web3_decl::{
     client::L2Client,
@@ -76,14 +82,14 @@ impl RemoteENConfig {
             Err(ClientError::Call(err))
                 if [
                     ErrorCode::MethodNotFound.code(),
-                    // This what Web3Error::NotImplemented gets
-                    // casted into in the api server.
+                    // This what `Web3Error::NotImplemented` gets
+                    // `casted` into in the `api` server.
                     ErrorCode::InternalError.code(),
                 ]
                 .contains(&(err.code())) =>
             {
                 // This is the fallback case for when the EN tries to interact
-                // with a node that does not implement the zks_baseTokenL1Address endpoint.
+                // with a node that does not implement the `zks_baseTokenL1Address` endpoint.
                 ETHEREUM_ADDRESS
             }
             response => response.context("Failed to fetch base token address")?,
@@ -237,15 +243,6 @@ pub(crate) struct OptionalENConfig {
     /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
     #[serde(default = "OptionalENConfig::default_estimate_gas_acceptable_overestimation")]
     pub estimate_gas_acceptable_overestimation: u32,
-    /// Whether to use the compatibility mode for gas estimation for L1->L2 transactions.
-    /// During the migration to the 1.4.1 fee model, there will be a period, when the server
-    /// will already have the 1.4.1 fee model, while the L1 contracts will still expect the transactions
-    /// to use the previous fee model with much higher overhead.
-    ///
-    /// When set to `true`, the API will ensure to return gasLimit is high enough overhead for both the old
-    /// and the new fee model when estimating L1->L2 transactions.  
-    #[serde(default = "OptionalENConfig::default_l1_to_l2_transactions_compatibility_mode")]
-    pub l1_to_l2_transactions_compatibility_mode: bool,
     /// The multiplier to use when suggesting gas price. Should be higher than one,
     /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block
     #[serde(default = "OptionalENConfig::default_gas_price_scale_factor")]
@@ -318,6 +315,15 @@ pub(crate) struct OptionalENConfig {
 
     #[serde(default = "OptionalENConfig::default_l1_batch_commit_data_generator_mode")]
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+
+    #[serde(default = "OptionalENConfig::default_snapshots_recovery_enabled")]
+    pub snapshots_recovery_enabled: bool,
+
+    #[serde(default = "OptionalENConfig::default_pruning_chunk_size")]
+    pub pruning_chunk_size: u32,
+
+    /// If set, l1 batches will be pruned after they are that long
+    pub pruning_data_retention_hours: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -360,10 +366,6 @@ impl OptionalENConfig {
 
     const fn default_estimate_gas_acceptable_overestimation() -> u32 {
         1_000
-    }
-
-    const fn default_l1_to_l2_transactions_compatibility_mode() -> bool {
-        true
     }
 
     const fn default_gas_price_scale_factor() -> f64 {
@@ -455,6 +457,14 @@ impl OptionalENConfig {
 
     const fn default_l1_batch_commit_data_generator_mode() -> L1BatchCommitDataGeneratorMode {
         L1BatchCommitDataGeneratorMode::Rollup
+    }
+
+    const fn default_snapshots_recovery_enabled() -> bool {
+        false
+    }
+
+    const fn default_pruning_chunk_size() -> u32 {
+        10
     }
 
     pub fn polling_interval(&self) -> Duration {
@@ -589,20 +599,24 @@ impl PostgresConfig {
     }
 }
 
-pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<consensus::Secrets>> {
+pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets>> {
     let Ok(path) = std::env::var("EN_CONSENSUS_SECRETS_PATH") else {
         return Ok(None);
     };
     let cfg = std::fs::read_to_string(&path).context(path)?;
-    Ok(Some(decode_yaml(&cfg).context("failed decoding YAML")?))
+    Ok(Some(
+        decode_yaml_repr::<proto::consensus::Secrets>(&cfg).context("failed decoding YAML")?,
+    ))
 }
 
-pub(crate) fn read_consensus_config() -> anyhow::Result<Option<consensus::Config>> {
+pub(crate) fn read_consensus_config() -> anyhow::Result<Option<ConsensusConfig>> {
     let Ok(path) = std::env::var("EN_CONSENSUS_CONFIG_PATH") else {
         return Ok(None);
     };
     let cfg = std::fs::read_to_string(&path).context(path)?;
-    Ok(Some(decode_yaml(&cfg).context("failed decoding YAML")?))
+    Ok(Some(
+        decode_yaml_repr::<proto::consensus::Config>(&cfg).context("failed decoding YAML")?,
+    ))
 }
 
 /// Configuration for snapshot recovery. Loaded optionally, only if the corresponding command-line argument
@@ -629,7 +643,7 @@ pub(crate) struct ExternalNodeConfig {
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
-    pub consensus: Option<consensus::Config>,
+    pub consensus: Option<ConsensusConfig>,
     pub api_component: ApiComponentConfig,
     pub tree_component: TreeComponentConfig,
 }
@@ -749,8 +763,6 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
             fee_history_limit: config.optional.fee_history_limit,
             base_token_address: Some(config.remote.base_token_addr),
             filters_disabled: config.optional.filters_disabled,
-            mempool_cache_update_interval: config.optional.mempool_cache_update_interval(),
-            mempool_cache_size: config.optional.mempool_cache_size,
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
         }
@@ -773,9 +785,6 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
             max_allowed_l2_tx_gas_limit: u64::MAX,
             validation_computational_gas_limit: u32::MAX,
             chain_id: config.remote.l2_chain_id,
-            l1_to_l2_transactions_compatibility_mode: config
-                .optional
-                .l1_to_l2_transactions_compatibility_mode,
             max_pubdata_per_batch: config.remote.max_pubdata_per_batch,
             // Does not matter for EN.
             whitelisted_tokens_for_aa: Default::default(),

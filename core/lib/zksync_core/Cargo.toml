@@ -20,6 +20,7 @@ zksync_dal.workspace = true
 prover_dal.workspace = true
 zksync_db_connection.workspace = true
 zksync_config.workspace = true
+zksync_protobuf_config.workspace = true
 zksync_utils.workspace = true
 zksync_contracts.workspace = true
 zksync_system_constants.workspace = true
@@ -99,6 +100,7 @@ assert_matches.workspace = true
 jsonrpsee.workspace = true
 tempfile.workspace = true
 test-casing.workspace = true
+test-log.workspace = true
 
 [build-dependencies]
 zksync_protobuf_build.workspace = true

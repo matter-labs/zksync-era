@@ -9,7 +9,7 @@ use multivm::utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_shared_metrics::{BlockStage, MiniblockStage, APP_METRICS};
 use zksync_types::{
-    block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
+    block::{L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
     helpers::unix_timestamp_ms,
     l1::L1Tx,
@@ -23,10 +23,9 @@ use zksync_types::{
     },
     zk_evm_types::LogQuery,
     AccountTreeId, Address, ExecuteTransactionCommon, L1BlockNumber, ProtocolVersionId, StorageKey,
-    StorageLog, StorageLogQuery, Transaction, VmEvent, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256,
-    SYSTEM_CONTEXT_ADDRESS,
+    StorageLog, StorageLogQuery, Transaction, VmEvent, H256,
 };
-use zksync_utils::{h256_to_u256, u256_to_h256};
+use zksync_utils::u256_to_h256;
 
 use crate::state_keeper::{
     metrics::{
@@ -460,16 +459,6 @@ impl MiniblockSealCommand {
         progress.observe(user_l2_to_l1_log_count);
 
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::CommitMiniblock, is_fictive);
-        let current_l2_virtual_block_info = transaction
-            .storage_web3_dal()
-            .get_value(&StorageKey::new(
-                AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
-                CURRENT_VIRTUAL_BLOCK_INFO_POSITION,
-            ))
-            .await
-            .context("failed getting virtual block info from VM state")?;
-        let (current_l2_virtual_block_number, _) =
-            unpack_block_info(h256_to_u256(current_l2_virtual_block_info));
 
         transaction.commit().await?;
         progress.observe(None);
@@ -478,7 +467,7 @@ impl MiniblockSealCommand {
         self.report_transaction_metrics();
         progress.observe(Some(self.miniblock.executed_transactions.len()));
 
-        self.report_miniblock_metrics(started_at, current_l2_virtual_block_number);
+        self.report_miniblock_metrics(started_at);
         Ok(())
     }
 
@@ -647,7 +636,7 @@ impl MiniblockSealCommand {
         }
     }
 
-    fn report_miniblock_metrics(&self, started_at: Instant, latest_virtual_block_number: u64) {
+    fn report_miniblock_metrics(&self, started_at: Instant) {
         let miniblock_number = self.miniblock.number;
 
         MINIBLOCK_METRICS
@@ -660,7 +649,6 @@ impl MiniblockSealCommand {
         let stage = &MiniblockStage::Sealed;
         APP_METRICS.miniblock_latency[stage].observe(Duration::from_secs_f64(miniblock_latency));
         APP_METRICS.miniblock_number[stage].set(miniblock_number.0.into());
-        APP_METRICS.miniblock_virtual_block_number[stage].set(latest_virtual_block_number);
 
         tracing::debug!(
             "Sealed miniblock {miniblock_number} in {:?}",

@@ -173,15 +173,15 @@ async function _deployL1(onlyVerifier: boolean, deploymentMode: DeploymentMode):
         'CONTRACTS_STATE_TRANSITION_PROXY_ADDR',
         'CONTRACTS_STATE_TRANSITION_IMPL_ADDR',
 
-        'CONTRACTS_ADMIN_FACET_ADDR',
         'CONTRACTS_DIAMOND_UPGRADE_INIT_ADDR',
         'CONTRACTS_DIAMOND_INIT_ADDR',
         'CONTRACTS_DEFAULT_UPGRADE_ADDR',
         'CONTRACTS_GENESIS_UPGRADE_ADDR',
         'CONTRACTS_GOVERNANCE_ADDR',
-        'CONTRACTS_MAILBOX_FACET_ADDR',
+        'CONTRACTS_ADMIN_FACET_ADDR',
         'CONTRACTS_EXECUTOR_FACET_ADDR',
         'CONTRACTS_GETTERS_FACET_ADDR',
+        'CONTRACTS_MAILBOX_FACET_ADDR',
 
         'CONTRACTS_VERIFIER_ADDR',
         'CONTRACTS_VALIDATOR_TIMELOCK_ADDR',
@@ -196,7 +196,10 @@ async function _deployL1(onlyVerifier: boolean, deploymentMode: DeploymentMode):
         'CONTRACTS_L1_WETH_BRIDGE_PROXY_ADDR',
         'CONTRACTS_L1_ALLOW_LIST_ADDR',
         'CONTRACTS_L1_MULTICALL3_ADDR',
-        'CONTRACTS_BLOB_VERSIONED_HASH_RETRIEVER_ADDR'
+        'CONTRACTS_BLOB_VERSIONED_HASH_RETRIEVER_ADDR',
+
+        /// temporary:
+        'CONTRACTS_HYPERCHAIN_UPGRADE_ADDR'
     ];
 
     console.log('Writing to', `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`);

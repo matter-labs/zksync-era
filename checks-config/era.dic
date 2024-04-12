@@ -83,6 +83,7 @@ L2s
 L1
 json
 l1
+l2
 G1
 G2
 SystemConfig
@@ -425,6 +426,8 @@ SetChainId
 setChainId
 SetChainIdUpgrade
 state_transition_manager_contract
+prunable
+bytea
 
 // Names
 Vyper
@@ -676,6 +679,7 @@ StateKeeper
 enum_index
 virtual_block_start_batch
 virtual_block_finish_l2_block
+base_token_address
 maxFeePerGas
 maxPriorityFeePerGas
 structs
@@ -799,6 +803,7 @@ threadpool
 IntrinsicGas
 InsufficientFundsForTransfer
 ChainId
+hyperchains
 eth_getLogs
 façade
 virtual_blocks_per_miniblock

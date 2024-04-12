@@ -18,12 +18,20 @@ use zksync_core::{
         healthcheck::HealthCheckHandle,
         tree::{TreeApiClient, TreeApiHttpClient},
         tx_sender::{proxy::TxProxy, ApiContracts, TxSenderBuilder},
-        web3::{ApiBuilder, Namespace},
+        web3::{mempool_cache::MempoolCache, ApiBuilder, Namespace},
     },
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole},
     commitment_generator::CommitmentGenerator,
     consensus,
     consistency_checker::ConsistencyChecker,
+    db_pruner::{
+        prune_conditions::{
+            ConsistencyCheckerProcessedBatch, L1BatchExistsCondition,
+            L1BatchOlderThanPruneCondition, NextL1BatchHasMetadataCondition,
+            NextL1BatchWasExecutedCondition,
+        },
+        DbPruner, DbPrunerConfig,
+    },
     eth_sender::l1_batch_commit_data_generator::{
         L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
         ValidiumModeL1BatchCommitDataGenerator,
@@ -57,15 +65,15 @@ use crate::{
     config::{observability::observability_config_from_env, ExternalNodeConfig},
     helpers::MainNodeHealthCheck,
     init::ensure_storage_initialized,
+    metrics::RUST_METRICS,
 };
 
 mod config;
 mod helpers;
 mod init;
+mod metadata;
 mod metrics;
 mod version_sync_task;
-
-const RELEASE_MANIFEST: &str = include_str!("../../../../.github/release-please/manifest.json");
 
 /// Creates the state keeper configured to work in the external node mode.
 #[allow(clippy::too_many_arguments)]
@@ -255,6 +263,42 @@ async fn run_core(
         }
     }));
 
+    if let Some(data_retention_hours) = config.optional.pruning_data_retention_hours {
+        let l1_batch_age_to_prune = Duration::from_secs(3600 * data_retention_hours);
+        tracing::info!(
+            "Configured pruning of batches after they become {l1_batch_age_to_prune:?} old"
+        );
+        let db_pruner = DbPruner::new(
+            DbPrunerConfig {
+                // don't change this value without adjusting API server pruning info cache max age
+                soft_and_hard_pruning_time_delta: Duration::from_secs(60),
+                pruned_batch_chunk_size: config.optional.pruning_chunk_size,
+                next_iterations_delay: Duration::from_secs(30),
+            },
+            vec![
+                Arc::new(L1BatchExistsCondition {
+                    conn: connection_pool.clone(),
+                }),
+                Arc::new(NextL1BatchHasMetadataCondition {
+                    conn: connection_pool.clone(),
+                }),
+                Arc::new(NextL1BatchWasExecutedCondition {
+                    conn: connection_pool.clone(),
+                }),
+                Arc::new(L1BatchOlderThanPruneCondition {
+                    minimal_age: l1_batch_age_to_prune,
+                    conn: connection_pool.clone(),
+                }),
+                Arc::new(ConsistencyCheckerProcessedBatch {
+                    conn: connection_pool.clone(),
+                }),
+            ],
+        )?;
+        task_handles.push(tokio::spawn(
+            db_pruner.run(connection_pool.clone(), stop_receiver.clone()),
+        ));
+    }
+
     let reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
     app_health.insert_component(reorg_detector.health_check().clone());
     task_handles.push(tokio::spawn({
@@ -267,8 +311,6 @@ async fn run_core(
         }
     }));
 
-    let fee_address_migration_handle =
-        task::spawn(state_keeper.run_fee_address_migration(connection_pool.clone()));
     let sk_handle = task::spawn(state_keeper.run());
     let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
@@ -347,7 +389,6 @@ async fn run_core(
 
     task_handles.extend([
         sk_handle,
-        fee_address_migration_handle,
         fee_params_fetcher_handle,
         consistency_checker_handle,
         commitment_generator_handle,
@@ -359,13 +400,13 @@ async fn run_core(
 
 #[allow(clippy::too_many_arguments)]
 async fn run_api(
+    task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     config: &ExternalNodeConfig,
     app_health: &AppHealthCheck,
     connection_pool: ConnectionPool<Core>,
     stop_receiver: watch::Receiver<bool>,
     sync_state: SyncState,
     tree_reader: Option<Arc<dyn TreeApiClient>>,
-    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     main_node_client: L2Client,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
     fee_params_fetcher: Arc<MainNodeFeeParamsFetcher>,
@@ -391,96 +432,87 @@ async fn run_api(
         }
     };
 
-    let (
-        tx_sender,
-        vm_barrier,
-        cache_update_handle,
-        proxy_cache_updater_handle,
-        whitelisted_tokens_update_handle,
-    ) = {
-        let tx_proxy = TxProxy::new(main_node_client.clone());
-        let proxy_cache_updater_pool = singleton_pool_builder
-            .build()
-            .await
-            .context("failed to build a tree_pool")?;
-        let proxy_cache_updater_handle = tokio::spawn(
-            tx_proxy
-                .run_account_nonce_sweeper(proxy_cache_updater_pool.clone(), stop_receiver.clone()),
-        );
+    let tx_proxy = TxProxy::new(main_node_client.clone());
+    let proxy_cache_updater_pool = singleton_pool_builder
+        .build()
+        .await
+        .context("failed to build a tree_pool")?;
+    task_handles.push(tokio::spawn(tx_proxy.run_account_nonce_sweeper(
+        proxy_cache_updater_pool.clone(),
+        stop_receiver.clone(),
+    )));
 
-        let tx_sender_builder = TxSenderBuilder::new(
-            config.clone().into(),
-            connection_pool.clone(),
-            Arc::new(tx_proxy),
-        );
+    let tx_sender_builder = TxSenderBuilder::new(
+        config.clone().into(),
+        connection_pool.clone(),
+        Arc::new(tx_proxy),
+    );
 
-        if config.optional.transactions_per_sec_limit.is_some() {
-            tracing::warn!("`transactions_per_sec_limit` option is deprecated and ignored");
-        };
-
-        let max_concurrency = config.optional.vm_concurrency_limit;
-        let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
-        let mut storage_caches = PostgresStorageCaches::new(
-            config.optional.factory_deps_cache_size() as u64,
-            config.optional.initial_writes_cache_size() as u64,
-        );
-        let latest_values_cache_size = config.optional.latest_values_cache_size() as u64;
-        let cache_update_handle = (latest_values_cache_size > 0).then(|| {
-            task::spawn(
-                storage_caches
-                    .configure_storage_values_cache(
-                        latest_values_cache_size,
-                        connection_pool.clone(),
-                    )
-                    .run(stop_receiver.clone()),
-            )
-        });
-
-        let whitelisted_tokens_for_aa_cache = Arc::new(RwLock::new(Vec::new()));
-        let whitelisted_tokens_for_aa_cache_clone = whitelisted_tokens_for_aa_cache.clone();
-        let mut stop_receiver_for_task = stop_receiver.clone();
-        let whitelisted_tokens_update_task = task::spawn(async move {
-            loop {
-                match main_node_client.whitelisted_tokens_for_aa().await {
-                    Ok(tokens) => {
-                        *whitelisted_tokens_for_aa_cache_clone.write().await = tokens;
-                    }
-                    Err(jsonrpsee::core::client::Error::Call(error))
-                        if error.code() == jsonrpsee::types::error::METHOD_NOT_FOUND_CODE =>
-                    {
-                        // Method is not supported by the main node, do nothing.
-                    }
-                    Err(err) => {
-                        tracing::error!(
-                            "Failed to query `whitelisted_tokens_for_aa`, error: {err:?}"
-                        );
-                    }
-                }
-
-                // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
-                tokio::time::timeout(Duration::from_secs(60), stop_receiver_for_task.changed())
-                    .await
-                    .ok();
-            }
-        });
-
-        let tx_sender = tx_sender_builder
-            .with_whitelisted_tokens_for_aa(whitelisted_tokens_for_aa_cache)
-            .build(
-                fee_params_fetcher,
-                Arc::new(vm_concurrency_limiter),
-                ApiContracts::load_from_disk(), // TODO (BFT-138): Allow to dynamically reload API contracts
-                storage_caches,
-            )
-            .await;
-        (
-            tx_sender,
-            vm_barrier,
-            cache_update_handle,
-            proxy_cache_updater_handle,
-            whitelisted_tokens_update_task,
-        )
+    if config.optional.transactions_per_sec_limit.is_some() {
+        tracing::warn!("`transactions_per_sec_limit` option is deprecated and ignored");
     };
+
+    let max_concurrency = config.optional.vm_concurrency_limit;
+    let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
+    let mut storage_caches = PostgresStorageCaches::new(
+        config.optional.factory_deps_cache_size() as u64,
+        config.optional.initial_writes_cache_size() as u64,
+    );
+    let latest_values_cache_size = config.optional.latest_values_cache_size() as u64;
+    let cache_update_handle = (latest_values_cache_size > 0).then(|| {
+        task::spawn(
+            storage_caches
+                .configure_storage_values_cache(latest_values_cache_size, connection_pool.clone())
+                .run(stop_receiver.clone()),
+        )
+    });
+    task_handles.extend(cache_update_handle);
+
+    let whitelisted_tokens_for_aa_cache = Arc::new(RwLock::new(Vec::new()));
+    let whitelisted_tokens_for_aa_cache_clone = whitelisted_tokens_for_aa_cache.clone();
+    let mut stop_receiver_for_task = stop_receiver.clone();
+    task_handles.push(task::spawn(async move {
+        while !*stop_receiver_for_task.borrow_and_update() {
+            match main_node_client.whitelisted_tokens_for_aa().await {
+                Ok(tokens) => {
+                    *whitelisted_tokens_for_aa_cache_clone.write().await = tokens;
+                }
+                Err(jsonrpsee::core::client::Error::Call(error))
+                    if error.code() == jsonrpsee::types::error::METHOD_NOT_FOUND_CODE =>
+                {
+                    // Method is not supported by the main node, do nothing.
+                }
+                Err(err) => {
+                    tracing::error!("Failed to query `whitelisted_tokens_for_aa`, error: {err:?}");
+                }
+            }
+
+            // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
+            tokio::time::timeout(Duration::from_secs(60), stop_receiver_for_task.changed())
+                .await
+                .ok();
+        }
+        Ok(())
+    }));
+
+    let tx_sender = tx_sender_builder
+        .with_whitelisted_tokens_for_aa(whitelisted_tokens_for_aa_cache)
+        .build(
+            fee_params_fetcher,
+            Arc::new(vm_concurrency_limiter),
+            ApiContracts::load_from_disk(), // TODO (BFT-138): Allow to dynamically reload API contracts
+            storage_caches,
+        )
+        .await;
+
+    let mempool_cache = MempoolCache::new(config.optional.mempool_cache_size);
+    let mempool_cache_update_task = mempool_cache.update_task(
+        connection_pool.clone(),
+        config.optional.mempool_cache_update_interval(),
+    );
+    task_handles.push(tokio::spawn(
+        mempool_cache_update_task.run(stop_receiver.clone()),
+    ));
 
     if components.contains(&Component::HttpApi) {
         let builder = ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
@@ -492,6 +524,7 @@ async fn run_api(
             .with_vm_barrier(vm_barrier.clone())
             .with_tree_api(tree_reader.clone())
             .with_sync_state(sync_state.clone())
+            .with_mempool_cache(mempool_cache.clone())
             .enable_api_namespaces(config.optional.api_namespaces());
 
         let http_server_handles = builder
@@ -501,7 +534,7 @@ async fn run_api(
             .await
             .context("Failed initializing HTTP JSON-RPC server")?;
         app_health.insert_component(http_server_handles.health_check);
-        task_futures.extend(http_server_handles.tasks);
+        task_handles.extend(http_server_handles.tasks);
     }
 
     if components.contains(&Component::WsApi) {
@@ -516,6 +549,7 @@ async fn run_api(
             .with_vm_barrier(vm_barrier)
             .with_tree_api(tree_reader)
             .with_sync_state(sync_state)
+            .with_mempool_cache(mempool_cache)
             .enable_api_namespaces(config.optional.api_namespaces());
 
         let ws_server_handles = builder
@@ -525,12 +559,8 @@ async fn run_api(
             .await
             .context("Failed initializing WS JSON-RPC server")?;
         app_health.insert_component(ws_server_handles.health_check);
-        task_futures.extend(ws_server_handles.tasks);
+        task_handles.extend(ws_server_handles.tasks);
     }
-
-    task_futures.extend(cache_update_handle);
-    task_futures.push(proxy_cache_updater_handle);
-    task_futures.push(whitelisted_tokens_update_handle);
 
     Ok(())
 }
@@ -544,36 +574,9 @@ async fn init_tasks(
     stop_receiver: watch::Receiver<bool>,
     components: &HashSet<Component>,
 ) -> anyhow::Result<()> {
-    let release_manifest: serde_json::Value = serde_json::from_str(RELEASE_MANIFEST)
-        .context("releuse manifest is a valid json document")?;
-    let release_manifest_version = release_manifest["core"].as_str().context(
-        "a release-please manifest with \"core\" version field was specified at build time",
-    )?;
-
-    let version = semver::Version::parse(release_manifest_version)
-        .context("version in manifest is a correct semver format")?;
-    let pool = connection_pool.clone();
-    let mut stop_receiver_for_task = stop_receiver.clone();
-    task_handles.push(tokio::spawn(async move {
-        while !*stop_receiver_for_task.borrow_and_update() {
-            let protocol_version = pool
-                .connection()
-                .await?
-                .protocol_versions_dal()
-                .last_used_version_id()
-                .await
-                .map(|version| version as u16);
-
-            EN_METRICS.version[&(version.to_string(), protocol_version)].set(1);
-
-            // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
-            tokio::time::timeout(Duration::from_secs(10), stop_receiver_for_task.changed())
-                .await
-                .ok();
-        }
-        Ok(())
-    }));
-
+    let protocol_version_update_task =
+        EN_METRICS.run_protocol_version_updates(connection_pool.clone(), stop_receiver.clone());
+    task_handles.push(tokio::spawn(protocol_version_update_task));
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
 
     // Run the components.
@@ -646,13 +649,13 @@ async fn init_tasks(
 
     if components.contains(&Component::HttpApi) || components.contains(&Component::WsApi) {
         run_api(
+            task_handles,
             config,
             app_health,
             connection_pool,
             stop_receiver.clone(),
             sync_state,
             tree_reader,
-            task_handles,
             main_node_client,
             singleton_pool_builder,
             fee_params_fetcher.clone(),
@@ -704,13 +707,7 @@ struct Cli {
     /// do not use unless you know what you're doing.
     #[arg(long)]
     enable_consensus: bool,
-    /// Enables application-level snapshot recovery. Required to start a node that was recovered from a snapshot,
-    /// or to initialize a node from a snapshot. Has no effect if a node that was initialized from a Postgres dump
-    /// or was synced from genesis.
-    ///
-    /// This is an experimental and incomplete feature; do not use unless you know what you're doing.
-    #[arg(long)]
-    enable_snapshots_recovery: bool,
+
     /// Comma-separated list of components to launch.
     #[arg(long, default_value = "all")]
     components: ComponentsToRun,
@@ -804,6 +801,9 @@ async fn main() -> anyhow::Result<()> {
         ConnectionPool::<Core>::global_config().set_long_connection_threshold(threshold)?;
     }
 
+    RUST_METRICS.initialize();
+    EN_METRICS.observe_config(&config);
+
     let connection_pool = ConnectionPool::<Core>::builder(
         &config.postgres.database_url,
         config.postgres.max_connections,
@@ -878,7 +878,7 @@ async fn main() -> anyhow::Result<()> {
         main_node_client.clone(),
         &app_health,
         config.remote.l2_chain_id,
-        opt.enable_snapshots_recovery,
+        config.optional.snapshots_recovery_enabled,
     )
     .await?;
     let sigint_receiver = setup_sigint_handler();

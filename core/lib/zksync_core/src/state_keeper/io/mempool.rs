@@ -26,7 +26,7 @@ use crate::{
         extractors,
         io::{
             common::{load_pending_batch, poll_iters, IoCursor},
-            fee_address_migration, L1BatchParams, MiniblockParams, PendingBatchData, StateKeeperIO,
+            L1BatchParams, MiniblockParams, PendingBatchData, StateKeeperIO,
         },
         mempool_actor::l2_tx_filter,
         metrics::KEEPER_METRICS,
@@ -54,9 +54,6 @@ pub struct MempoolIO {
     // Used to keep track of gas prices to set accepted price per pubdata byte in blocks.
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     chain_id: L2ChainId,
-
-    virtual_blocks_interval: u32,
-    virtual_blocks_per_miniblock: u32,
 }
 
 impl IoSealCriteria for MempoolIO {
@@ -191,7 +188,8 @@ impl StateKeeperIO for MempoolIO {
                 fee_input: self.filter.fee_input,
                 first_miniblock: MiniblockParams {
                     timestamp,
-                    virtual_blocks: self.get_virtual_blocks_count(true, cursor.next_miniblock),
+                    // This value is effectively ignored by the protocol.
+                    virtual_blocks: 1,
                 },
             }));
         }
@@ -214,10 +212,10 @@ impl StateKeeperIO for MempoolIO {
             return Ok(None);
         };
 
-        let virtual_blocks = self.get_virtual_blocks_count(false, cursor.next_miniblock);
         Ok(Some(MiniblockParams {
             timestamp,
-            virtual_blocks,
+            // This value is effectively ignored by the protocol.
+            virtual_blocks: 1,
         }))
     }
 
@@ -404,20 +402,10 @@ impl MempoolIO {
         delay_interval: Duration,
         chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
-        anyhow::ensure!(
-            config.virtual_blocks_interval > 0,
-            "Virtual blocks interval must be positive"
-        );
-        anyhow::ensure!(
-            config.virtual_blocks_per_miniblock > 0,
-            "Virtual blocks per miniblock must be positive"
-        );
-
         let mut storage = pool.connection_tagged("state_keeper").await?;
         let l1_batch_params_provider = L1BatchParamsProvider::new(&mut storage)
             .await
             .context("failed initializing L1 batch params provider")?;
-        fee_address_migration::migrate_pending_miniblocks(&mut storage).await?;
         drop(storage);
 
         Ok(Self {
@@ -433,26 +421,7 @@ impl MempoolIO {
             delay_interval,
             batch_fee_input_provider,
             chain_id,
-            virtual_blocks_interval: config.virtual_blocks_interval,
-            virtual_blocks_per_miniblock: config.virtual_blocks_per_miniblock,
         })
-    }
-
-    /// "virtual_blocks_per_miniblock" will be created either if the miniblock_number % virtual_blocks_interval == 0 or
-    /// the miniblock is the first one in the batch.
-    /// For instance:
-    /// 1) If we want to have virtual block speed the same as the batch speed, virtual_block_interval = 10^9 and virtual_blocks_per_miniblock = 1
-    /// 2) If we want to have roughly 1 virtual block per 2 miniblocks, we need to have virtual_block_interval = 2, and virtual_blocks_per_miniblock = 1
-    /// 3) If we want to have 4 virtual blocks per miniblock, we need to have virtual_block_interval = 1, and virtual_blocks_per_miniblock = 4.
-    fn get_virtual_blocks_count(
-        &self,
-        first_in_batch: bool,
-        miniblock_number: MiniblockNumber,
-    ) -> u32 {
-        if first_in_batch || miniblock_number.0 % self.virtual_blocks_interval == 0 {
-            return self.virtual_blocks_per_miniblock;
-        }
-        0
     }
 }
 
