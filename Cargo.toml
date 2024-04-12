@@ -11,6 +11,7 @@ members = [
     "core/bin/zksync_server",
     # Node services
     "core/node/node_framework",
+    "core/node/commitment_generator",
     # Libraries
     "core/lib/db_connection",
     "core/lib/zksync_core",
