@@ -111,7 +111,7 @@ impl<'de> Deserialize<'de> for MaxResponseSizeOverrides {
             type Value = MaxResponseSizeOverrides;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("comma-separated list of <method_name>=<size> tuples, such as: eth_call=2,zks_getProof=100")
+                formatter.write_str("comma-separated list of <method_name>=<size>|None tuples, such as: eth_call=2,zks_getProof=None")
             }
 
             fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
