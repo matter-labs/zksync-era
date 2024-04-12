@@ -1,15 +1,17 @@
-use std::{path::PathBuf, sync::Mutex};
+use std::path::PathBuf;
 
-static WORKSPACE: Mutex<Option<PathBuf>> = Mutex::new(None);
+use once_cell::sync::OnceCell;
+
+static WORKSPACE: OnceCell<PathBuf> = OnceCell::new();
 
 /// Find the location of the current workspace, if this code works in workspace
-/// then it will return the correct folder if, it's prebuild binary e.g. in docker container
+/// then it will return the correct folder if, it's binary e.g. in docker container
 /// you have to use fallback to another directory
-/// The code has been inspired by insta
-/// https://github.com/mitsuhiko/insta/blob/74f3806b53bea6a4a6c16034e16f317a6dd4eea7/insta/src/env.rs#L369
+/// The code has been inspired by `insta`
+/// https://github.com/mitsuhiko/insta/blob/74f3806b53bea6a4a6c16034e16f317a6dd4eea7/insta/src/env.rs
 pub fn locate_workspace() -> Option<PathBuf> {
-    let mut workspace = WORKSPACE.lock().unwrap_or_else(|x| x.into_inner());
-    if let Some(workspace) = workspace.clone() {
+    let workspace = WORKSPACE.get().cloned();
+    if let Some(workspace) = workspace {
         return Some(workspace);
     };
 
@@ -30,7 +32,8 @@ pub fn locate_workspace() -> Option<PathBuf> {
     let serde_json::Value::String(root) = root else {
         return None;
     };
-    let val = Some(PathBuf::from(root).parent()?.to_path_buf());
-    *workspace = val;
-    workspace.clone()
+
+    let val = PathBuf::from(root).parent()?.to_path_buf();
+    WORKSPACE.set(val.clone()).unwrap();
+    Some(val)
 }
