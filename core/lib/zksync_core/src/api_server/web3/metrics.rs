@@ -1,6 +1,10 @@
 //! Metrics for the JSON-RPC server.
 
-use std::{fmt, time::Duration};
+use std::{
+    fmt,
+    sync::{Mutex, PoisonError},
+    time::{Duration, Instant},
+};
 
 use vise::{
     Buckets, Counter, DurationAsSecs, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram,
@@ -13,6 +17,37 @@ use super::{
     backend_jsonrpsee::MethodMetadata, ApiTransport, InternalApiConfig, OptionalApiParams,
     TypedFilter,
 };
+
+/// Allows filtering events (e.g., for logging) so that they are reported no more frequently than with a configurable interval.
+#[derive(Debug)]
+struct ReportFilter {
+    interval: Duration,
+    last_timestamp: Mutex<Option<Instant>>,
+}
+
+impl ReportFilter {
+    const fn new(interval: Duration) -> Self {
+        Self {
+            interval,
+            last_timestamp: Mutex::new(None),
+        }
+    }
+
+    /// Should be called sparingly, since it involves moderately heavy operations (locking a mutex and getting current time).
+    fn should_report(&self) -> bool {
+        let now = Instant::now();
+        let mut timestamp = self
+            .last_timestamp
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if timestamp.map_or(true, |ts| now - ts > self.interval) {
+            *timestamp = Some(now);
+            true
+        } else {
+            false
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "scheme", rename_all = "UPPERCASE")]
@@ -125,6 +160,30 @@ impl Web3ErrorKind {
     }
 }
 
+/// Information about a [`Web3Error`] observed via metrics / logs.
+// Necessary to persist `Web3Error` information before the end of the method, in order to be able
+// to have call params available.
+#[derive(Debug, Clone)]
+pub(crate) struct ObservedWeb3Error {
+    kind: Web3ErrorKind,
+    // Error message produced using `ToString`. Only set for error kinds that we log (for now: internal errors
+    // and main node proxy errors).
+    message: Option<String>,
+}
+
+impl ObservedWeb3Error {
+    pub fn new(err: &Web3Error) -> Self {
+        Self {
+            kind: Web3ErrorKind::new(err),
+            message: match err {
+                Web3Error::InternalError(err) => Some(err.to_string()),
+                Web3Error::ProxyError(err) => Some(err.to_string()),
+                _ => None,
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
 #[metrics(rename_all = "snake_case")]
 enum ProtocolErrorOrigin {
@@ -231,30 +290,61 @@ impl ApiMetrics {
     }
 
     /// Observes latency of a finished RPC call.
-    pub fn observe_latency(&self, meta: &MethodMetadata) {
+    pub fn observe_latency(&self, meta: &MethodMetadata, raw_params: &str) {
+        static FILTER: ReportFilter = ReportFilter::new(Duration::from_secs(10));
+        const MIN_REPORTED_LATENCY: Duration = Duration::from_secs(5);
+
         let latency = meta.started_at.elapsed();
         self.web3_call[&MethodLabels::from(meta)].observe(latency);
         if let Some(block_diff) = meta.block_diff {
             self.web3_call_block_diff[&meta.name].observe(block_diff.into());
         }
+        if latency >= MIN_REPORTED_LATENCY && FILTER.should_report() {
+            tracing::info!(
+                "Long call to `{}` with params {raw_params}: {latency:?}",
+                meta.name
+            );
+        }
     }
 
     /// Observes latency of a dropped RPC call.
-    pub fn observe_dropped_call(&self, meta: &MethodMetadata) {
+    pub fn observe_dropped_call(&self, meta: &MethodMetadata, raw_params: &str) {
+        static FILTER: ReportFilter = ReportFilter::new(Duration::from_secs(10));
+
         let latency = meta.started_at.elapsed();
         self.web3_dropped_call_latency[&MethodLabels::from(meta)].observe(latency);
+        if FILTER.should_report() {
+            tracing::info!(
+                "Call to `{}` with params {raw_params} was dropped by client after {latency:?}",
+                meta.name
+            );
+        }
     }
 
     /// Observes serialized size of a response.
-    pub fn observe_response_size(&self, method: &'static str, size: usize) {
+    pub fn observe_response_size(&self, method: &'static str, raw_params: &str, size: usize) {
+        static FILTER: ReportFilter = ReportFilter::new(Duration::from_secs(10));
+        const MIN_REPORTED_SIZE: usize = 10 * 1_024 * 1_024; // 10 MiB
+
         self.web3_call_response_size[&method].observe(size);
+        if size >= MIN_REPORTED_SIZE && FILTER.should_report() {
+            tracing::info!(
+                "Call to `{method}` with params {raw_params} has resulted in large response: {size}B"
+            );
+        }
     }
 
-    pub fn observe_protocol_error(&self, method: &'static str, error_code: i32, app_error: bool) {
+    pub fn observe_protocol_error(
+        &self,
+        method: &'static str,
+        raw_params: &str,
+        error_code: i32,
+        app_error: Option<&ObservedWeb3Error>,
+    ) {
         let labels = ProtocolErrorLabels {
             method,
             error_code,
-            origin: if app_error {
+            origin: if app_error.is_some() {
                 ProtocolErrorOrigin::App
             } else {
                 ProtocolErrorOrigin::Framework
@@ -267,31 +357,39 @@ impl ApiMetrics {
                 origin,
             } = &labels;
             tracing::info!(
-                "Observed new error code for method `{method}`: {error_code}, origin: {origin:?}"
+                "Observed new error code for method `{method}`, with params {raw_params}: {error_code}, origin: {origin:?}"
             );
+        }
+
+        if let Some(err) = app_error {
+            self.observe_web3_error(method, raw_params, err);
         }
     }
 
-    pub fn observe_web3_error(&self, method: &'static str, err: &Web3Error) {
+    fn observe_web3_error(&self, method: &'static str, raw_params: &str, err: &ObservedWeb3Error) {
         // Log internal error details.
-        match err {
-            Web3Error::InternalError(err) => {
-                tracing::error!("Internal error in method `{method}`: {err}");
+        match err.kind {
+            Web3ErrorKind::Internal => {
+                let message = err.message.as_deref().unwrap_or("");
+                tracing::error!(
+                    "Internal error in method `{method}` with params {raw_params}: {message}"
+                );
             }
-            Web3Error::ProxyError(err) => {
-                tracing::warn!("Error proxying call to main node in method `{method}`: {err}");
+            Web3ErrorKind::Proxy => {
+                let message = err.message.as_deref().unwrap_or("");
+                tracing::warn!("Error proxying call to main node in method `{method}` with params {raw_params}: {message}");
             }
             _ => { /* do nothing */ }
         }
 
         let labels = Web3ErrorLabels {
             method,
-            kind: Web3ErrorKind::new(err),
+            kind: err.kind,
         };
         if self.web3_errors[&labels].inc() == 0 {
             // Only log the first error with the label to not spam logs.
             tracing::info!(
-                "Observed new error type for method `{}`: {:?}",
+                "Observed new error type for method `{}` with params {raw_params}: {:?}",
                 labels.method,
                 labels.kind
             );
