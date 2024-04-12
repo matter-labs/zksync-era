@@ -143,7 +143,7 @@ async function setHyperchainMetadata(runObservability: boolean) {
     ];
 
     const results: any = await enquirer.prompt(questions);
-    // kl todo add random chainId generation here if user does not want to pick chainId.
+    // kl to do add random chainId generation here if user does not want to pick chainId.
 
     let deployer, governor, ethOperator, feeReceiver: ethers.Wallet | undefined;
     let feeReceiverAddress, l1Rpc, l1Id, databaseUrl, databaseProverUrl;

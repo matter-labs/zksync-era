@@ -203,7 +203,6 @@ fn default_l1_batch_metadata() -> L1BatchMetadata {
     L1BatchMetadata {
         root_hash: Default::default(),
         rollup_last_leaf_index: 0,
-        merkle_root_hash: Default::default(),
         initial_writes_compressed: Some(vec![]),
         repeated_writes_compressed: Some(vec![]),
         commitment: Default::default(),
@@ -248,7 +247,7 @@ async fn confirm_many(
             .save_eth_tx(
                 &mut tester.conn.connection().await.unwrap(),
                 &DUMMY_OPERATION,
-                true,
+                false,
             )
             .await?;
         let hash = tester
@@ -333,7 +332,7 @@ async fn resend_each_block(deployment_mode: DeploymentMode) -> anyhow::Result<()
         .save_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
             &DUMMY_OPERATION,
-            true,
+            false,
         )
         .await?;
 
@@ -438,7 +437,7 @@ async fn dont_resend_already_mined(deployment_mode: DeploymentMode) -> anyhow::R
         .save_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
             &DUMMY_OPERATION,
-            true,
+            false,
         )
         .await
         .unwrap();
@@ -520,7 +519,7 @@ async fn three_scenarios(deployment_mode: DeploymentMode) -> anyhow::Result<()> 
             .save_eth_tx(
                 &mut tester.conn.connection().await.unwrap(),
                 &DUMMY_OPERATION,
-                true,
+                false,
             )
             .await
             .unwrap();
@@ -597,7 +596,7 @@ async fn failed_eth_tx(deployment_mode: DeploymentMode) {
         .save_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
             &DUMMY_OPERATION,
-            true,
+            false,
         )
         .await
         .unwrap();
@@ -1071,7 +1070,7 @@ async fn send_operation(
         .save_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
             &aggregated_operation,
-            true,
+            false,
         )
         .await
         .unwrap();

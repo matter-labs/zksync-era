@@ -8,6 +8,7 @@ on:
       - staging
       - trying
       - kl-factory # adding this branch here to run CI on it regardless of the conflicts
+      - kl-factory-ci
       - '!release-please--branches--**'
 
 concurrency:

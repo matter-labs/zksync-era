@@ -11,14 +11,14 @@ pub enum VmVersion {
     Vm1_4_1,
     Vm1_4_2,
     Vm1_5_0,
-    // kl todo delete local vm verion
+    // kl to do delete local vm version
     Local,
 }
 
 impl VmVersion {
     /// Returns the latest supported VM version.
     pub const fn latest() -> VmVersion {
-        // kl todo delete local vm verion
+        // kl to do delete local vm version
         Self::Local
     }
 }
