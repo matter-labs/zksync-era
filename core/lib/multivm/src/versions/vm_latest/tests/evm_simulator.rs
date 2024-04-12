@@ -1547,7 +1547,7 @@ fn test_basic_environment3_vectors() {
             // push1 16
             hex::decode("60").unwrap(), // 1 byte
             hex::decode("10").unwrap(), // 1 byte
-            // gasprice
+            // codesize
             hex::decode("38").unwrap(), // 1 byte
             // push32 0
             hex::decode("7F").unwrap(), // 1 byte
