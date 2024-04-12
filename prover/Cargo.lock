@@ -630,7 +630,7 @@ dependencies = [
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "const_format",
  "convert_case",
- "crossbeam 0.8.4",
+ "crossbeam 0.7.3",
  "crypto-bigint 0.5.5",
  "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "derivative",
@@ -7356,7 +7356,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#5cb26b043d727928e58c71dba0584c57f83e62c1"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.5.0#707fbc90c35bf3f5368cb6e64cb7d28fb966758d"
 dependencies = [
  "arrayvec 0.7.4",
  "boojum",
