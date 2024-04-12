@@ -8,7 +8,7 @@ static WORKSPACE: OnceCell<PathBuf> = OnceCell::new();
 /// then it will return the correct folder if, it's binary e.g. in docker container
 /// you have to use fallback to another directory
 /// The code has been inspired by `insta`
-/// https://github.com/mitsuhiko/insta/blob/master/insta/src/env.rs
+/// `https://github.com/mitsuhiko/insta/blob/master/insta/src/env.rs`
 pub fn locate_workspace() -> Option<PathBuf> {
     let workspace = WORKSPACE.get().cloned();
     if let Some(workspace) = workspace {
@@ -23,7 +23,12 @@ pub fn locate_workspace() -> Option<PathBuf> {
     .arg("locate-project")
     .arg("--workspace")
     .output()
+    .map_err(|err| {
+        tracing::trace!("Can't find workspace location: {}", err);
+        err
+    })
     .ok()?;
+
     let root = serde_json::from_slice::<serde_json::Value>(&output.stdout)
         .ok()?
         .get("root")
