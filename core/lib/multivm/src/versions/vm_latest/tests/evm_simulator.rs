@@ -1950,6 +1950,177 @@ fn test_basic_msize_with_mstore_vectors() {
     );
 }
 
+#[test]
+fn test_basic_address_vectors() {
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 0xFF
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // address
+                hex::decode("30").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        h256_to_u256(H256::from(
+            Address::from_str("0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7").unwrap()
+        ))
+        .into()
+    );
+}
+
+#[test]
+fn test_basic_balance_vectors() {
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push20 0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7
+                hex::decode("73").unwrap(),
+                hex::decode("de03a0B5963f75f1C8485B355fF6D30f3093BDE7").unwrap(),
+                // balance
+                hex::decode("31").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    )
+}
+
+#[test]
+fn test_basic_origin_vectors() {
+    assert_ne!(
+        test_evm_vector(
+            vec![
+                // push0
+                hex::decode("5F").unwrap(),
+                // origin
+                hex::decode("32").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    )
+}
+
+#[test]
+fn test_basic_pc_vectors() {
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 0xFF
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // pc
+                hex::decode("58").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        2.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push3 0xFFEEDD
+                hex::decode("62").unwrap(),
+                hex::decode("FFEEDD").unwrap(),
+                // pc
+                hex::decode("58").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        4.into()
+    );
+}
+
+#[test]
+fn test_basic_gas_vectors() {
+    // This test will fail when push1 charge gas. Reduce expected value by 3 units.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 0xFF
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // gas
+                hex::decode("5A").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        U256::from_dec_str(
+            "115792089237316195423570985008687907853269984665640564039457584007913129639933"
+        )
+        .unwrap()
+        .into()
+    );
+
+    // This test will fail when push1 charge gas. Reduce expected value by 12 units.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 0xFF
+                hex::decode("60").unwrap(),
+                hex::decode("FF").unwrap(),
+                // push1 0xEE
+                hex::decode("60").unwrap(),
+                hex::decode("EE").unwrap(),
+                // push1 0xDD
+                hex::decode("60").unwrap(),
+                hex::decode("DD").unwrap(),
+                // push1 0xCC
+                hex::decode("60").unwrap(),
+                hex::decode("CC").unwrap(),
+                // address
+                hex::decode("30").unwrap(),
+                // gas
+                hex::decode("5A").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        U256::from_dec_str(
+            "115792089237316195423570985008687907853269984665640564039457584007913129639931"
+        )
+        .unwrap()
+        .into()
+    );
+}
+
+
 fn assert_deployed_hash<H: HistoryMode>(
     tester: &mut VmTester<H>,
     address: Address,
