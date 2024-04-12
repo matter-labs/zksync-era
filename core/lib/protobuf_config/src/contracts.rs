@@ -14,7 +14,6 @@ impl ProtoRepr for proto::Contracts {
         let shared = required(&bridges.shared).context("shared")?;
         let erc20 = required(&bridges.erc20).context("erc20")?;
         let weth_bridge = required(&bridges.weth).context("weth_bridge")?;
-        // let base_token_address = &self.l2.
         Ok(Self::Type {
             governance_addr: required(&l1.governance_addr)
                 .and_then(|x| parse_h160(x))
