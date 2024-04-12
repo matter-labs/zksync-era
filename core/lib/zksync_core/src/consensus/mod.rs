@@ -10,7 +10,7 @@ use zksync_consensus_storage::BlockStore;
 
 pub use self::{fetcher::*, storage::Store};
 
-mod config;
+pub mod config;
 pub mod era;
 mod fetcher;
 mod storage;
@@ -18,8 +18,6 @@ mod storage;
 pub(crate) mod testonly;
 #[cfg(test)]
 mod tests;
-
-pub use config::{Config, Secrets};
 
 /// Main node consensus config.
 #[derive(Debug, Clone)]

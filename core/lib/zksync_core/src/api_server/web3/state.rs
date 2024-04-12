@@ -62,15 +62,28 @@ impl From<L1BatchNumber> for PruneQuery {
     }
 }
 
+impl From<BlockArgsError> for Web3Error {
+    fn from(value: BlockArgsError) -> Self {
+        match value {
+            BlockArgsError::Pruned(miniblock) => Web3Error::PrunedBlock(miniblock),
+            BlockArgsError::Missing => Web3Error::NoBlock,
+            BlockArgsError::Database(error) => Web3Error::InternalError(error),
+        }
+    }
+}
+
 impl BlockStartInfo {
-    pub(super) fn ensure_not_pruned(&self, query: impl Into<PruneQuery>) -> Result<(), Web3Error> {
+    pub(super) async fn ensure_not_pruned(
+        &self,
+        query: impl Into<PruneQuery>,
+        storage: &mut Connection<'_, Core>,
+    ) -> Result<(), Web3Error> {
         match query.into() {
-            PruneQuery::BlockId(id) => self
-                .ensure_not_pruned_block(id)
-                .map_err(Web3Error::PrunedBlock),
+            PruneQuery::BlockId(id) => Ok(self.ensure_not_pruned_block(id, storage).await?),
             PruneQuery::L1Batch(number) => {
-                if number < self.first_l1_batch {
-                    return Err(Web3Error::PrunedL1Batch(self.first_l1_batch));
+                let first_l1_batch = self.first_l1_batch(storage).await?;
+                if number < first_l1_batch {
+                    return Err(Web3Error::PrunedL1Batch(first_l1_batch));
                 }
                 Ok(())
             }
@@ -277,7 +290,7 @@ impl RpcState {
         connection: &mut Connection<'_, Core>,
         block: api::BlockId,
     ) -> Result<MiniblockNumber, Web3Error> {
-        self.start_info.ensure_not_pruned(block)?;
+        self.start_info.ensure_not_pruned(block, connection).await?;
         connection
             .blocks_web3_dal()
             .resolve_block_id(block)
@@ -298,7 +311,7 @@ impl RpcState {
         connection: &mut Connection<'_, Core>,
         block: api::BlockId,
     ) -> Result<Option<MiniblockNumber>, Web3Error> {
-        self.start_info.ensure_not_pruned(block)?;
+        self.start_info.ensure_not_pruned(block, connection).await?;
         match block {
             api::BlockId::Number(api::BlockNumber::Number(number)) => {
                 Ok(u32::try_from(number).ok().map(MiniblockNumber))
@@ -317,7 +330,7 @@ impl RpcState {
         connection: &mut Connection<'_, Core>,
         block: api::BlockId,
     ) -> Result<BlockArgs, Web3Error> {
-        BlockArgs::new(connection, block, self.start_info)
+        BlockArgs::new(connection, block, &self.start_info)
             .await
             .map_err(|err| match err {
                 BlockArgsError::Pruned(number) => Web3Error::PrunedBlock(number),

@@ -29,6 +29,7 @@ use zksync_config::{
             CircuitBreakerConfig, L1BatchCommitDataGeneratorMode, MempoolConfig,
             OperationsManagerConfig, StateKeeperConfig,
         },
+        consensus::ConsensusConfig,
         database::{MerkleTreeConfig, MerkleTreeMode},
         wallets,
         wallets::Wallets,
@@ -101,6 +102,7 @@ pub mod block_reverter;
 pub mod commitment_generator;
 pub mod consensus;
 pub mod consistency_checker;
+pub mod db_pruner;
 pub mod eth_sender;
 pub mod fee_model;
 pub mod genesis;
@@ -239,7 +241,7 @@ pub async fn initialize_components(
     contracts_config: &ContractsConfig,
     components: &[Component],
     secrets: &Secrets,
-    consensus_config: Option<consensus::Config>,
+    consensus_config: Option<ConsensusConfig>,
 ) -> anyhow::Result<(
     Vec<JoinHandle<anyhow::Result<()>>>,
     watch::Sender<bool>,
@@ -548,10 +550,12 @@ pub async fn initialize_components(
 
     if components.contains(&Component::Consensus) {
         let secrets = secrets.consensus.as_ref().context("Secrets are missing")?;
-        let cfg = consensus_config
-            .clone()
-            .context("consensus component's config is missing")?
-            .main_node(secrets)?;
+        let cfg = consensus::config::main_node(
+            consensus_config
+                .as_ref()
+                .context("consensus component's config is missing")?,
+            secrets,
+        )?;
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");
         let pool = connection_pool.clone();

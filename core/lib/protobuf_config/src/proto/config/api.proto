@@ -19,7 +19,6 @@ message Web3JsonRpc {
   repeated string account_pks = 12; // optional
   optional double estimate_gas_scale_factor = 13; // required
   optional uint32 estimate_gas_acceptable_overestimation = 14; // required
-  optional bool l1_to_l2_transactions_compatibility_mode = 15; // required
   optional uint64 max_tx_size = 16; // required; B
   optional uint64 vm_execution_cache_misses_limit = 17; // optional
   optional uint64 vm_concurrency_limit = 18; // optional
@@ -35,6 +34,7 @@ message Web3JsonRpc {
   optional uint64 mempool_cache_update_interval = 28; // optional
   optional uint64 mempool_cache_size = 29; // optional
   repeated string whitelisted_tokens_for_aa = 30; // optional
+  reserved 15; reserved "l1_to_l2_transactions_compatibility_mode";
 }
 
 
