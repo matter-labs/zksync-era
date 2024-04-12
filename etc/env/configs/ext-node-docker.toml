@@ -1,8 +1,8 @@
+__imports__ = [ "configs/ext-node.toml" ]
+
 database_url = "postgres://postgres:notsecurepassword@postgres/_ext_node"
 template_database_url = "postgres://postgres:notsecurepassword@postgres/zksync_local"
 test_database_url = "postgres://postgres:notsecurepassword@host:5433/zksync_local_test_ext_node"
-
-__imports__ = [ "configs/ext-node.toml" ]
 
 [en]
 eth_client_url = "http://reth:8545"
