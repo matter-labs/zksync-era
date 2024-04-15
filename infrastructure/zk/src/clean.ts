@@ -28,6 +28,8 @@ export const command = new Command('clean')
             clean(`etc/env/${env}.env`);
             clean('etc/env/.init.env');
             clean('etc/env/.current');
+            clean('artifacts');
+            clean('prover/artifacts');
         }
 
         if (cmd.all || cmd.artifacts) {
