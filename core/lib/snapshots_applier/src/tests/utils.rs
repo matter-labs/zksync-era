@@ -49,7 +49,7 @@ impl SnapshotsApplierMainNodeClient for MockMainNodeClient {
 
     async fn fetch_tokens(
         &self,
-        _at_miniblock: L2BlockNumber,
+        _at_l2_block: L2BlockNumber,
     ) -> EnrichedClientResult<Vec<TokenInfo>> {
         Ok(self.tokens_response.clone())
     }
@@ -124,7 +124,7 @@ fn block_details_base(hash: H256) -> api::BlockDetailsBase {
     }
 }
 
-fn miniblock_details(
+fn l2_block_details(
     number: L2BlockNumber,
     l1_batch_number: L1BatchNumber,
     hash: H256,
@@ -167,9 +167,9 @@ pub(super) fn mock_recovery_status() -> SnapshotRecoveryStatus {
         l1_batch_number: L1BatchNumber(123),
         l1_batch_root_hash: H256::random(),
         l1_batch_timestamp: 0,
-        miniblock_number: L2BlockNumber(321),
-        miniblock_hash: H256::random(),
-        miniblock_timestamp: 0,
+        l2_block_number: L2BlockNumber(321),
+        l2_block_hash: H256::random(),
+        l2_block_timestamp: 0,
         protocol_version: ProtocolVersionId::default(),
         storage_logs_chunks_processed: vec![true, true],
     }
@@ -202,7 +202,7 @@ pub(super) fn mock_snapshot_header(status: &SnapshotRecoveryStatus) -> SnapshotH
     SnapshotHeader {
         version: SnapshotVersion::Version0.into(),
         l1_batch_number: status.l1_batch_number,
-        miniblock_number: status.miniblock_number,
+        l2_block_number: status.l2_block_number,
         storage_logs_chunks: vec![
             SnapshotStorageLogsChunkMetadata {
                 chunk_id: 0,
@@ -260,11 +260,11 @@ pub(super) async fn prepare_clients(
         l1_batch_details(status.l1_batch_number, status.l1_batch_root_hash),
     );
     client.fetch_l2_block_responses.insert(
-        status.miniblock_number,
-        miniblock_details(
-            status.miniblock_number,
+        status.l2_block_number,
+        l2_block_details(
+            status.l2_block_number,
             status.l1_batch_number,
-            status.miniblock_hash,
+            status.l2_block_hash,
         ),
     );
     (object_store, client)

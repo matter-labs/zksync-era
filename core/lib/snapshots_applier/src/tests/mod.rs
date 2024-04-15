@@ -86,7 +86,7 @@ async fn snapshots_creator_can_successfully_recover_db(
         assert_eq!(db_log.address, *expected_log.key.address());
         assert_eq!(db_log.key, *expected_log.key.key());
         assert_eq!(db_log.value, expected_log.value);
-        assert_eq!(db_log.l2_block_number, expected_status.miniblock_number);
+        assert_eq!(db_log.l2_block_number, expected_status.l2_block_number);
     }
 
     // Try recovering again.
@@ -107,7 +107,7 @@ async fn applier_errors_after_genesis() {
         .save_protocol_version_with_tx(&ProtocolVersion::default())
         .await
         .unwrap();
-    let genesis_miniblock = L2BlockHeader {
+    let genesis_l2_block = L2BlockHeader {
         number: L2BlockNumber(0),
         timestamp: 0,
         hash: H256::zero(),
@@ -124,7 +124,7 @@ async fn applier_errors_after_genesis() {
     };
     storage
         .blocks_dal()
-        .insert_l2_block(&genesis_miniblock)
+        .insert_l2_block(&genesis_l2_block)
         .await
         .unwrap();
     let genesis_l1_batch = L1BatchHeader::new(
