@@ -24,7 +24,9 @@ const IGNORED_DIRS = [
     'system-contracts',
     'artifacts-zk',
     'cache-zk',
-    'contracts/l1-contracts/lib'
+    // Ignore directories with OZ and forge submodules.
+    'contracts/l1-contracts/lib',
+    'contracts/l1-contracts-foundry/lib'
 ];
 const IGNORED_FILES = ['KeysWithPlonkVerifier.sol', 'TokenInit.sol', '.tslintrc.js', '.prettierrc.js'];
 
