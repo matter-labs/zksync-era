@@ -213,9 +213,8 @@ jobs:
           ls
         # ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=Rollup PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run yarn snapshot-recovery-test snapshot-recovery-test
 
-      - name: Fee projection tests - DISABLED (EVM-557)
-        run: ls
-        # ci_run zk test i fees
+      - name: Fee projection tests
+        run: ci_run zk test i fees
 
       - name: Run revert test - DISABLED (EVM-539)
         run: |
