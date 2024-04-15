@@ -492,7 +492,7 @@ export class TestContextOwner {
         nonce += erc20Transfers.length;
         // Send ERC20 base token on L1.
         const baseErc20Transfers = await sendTransfers(
-            baseTokenAddress!,
+            baseTokenAddress,
             this.mainEthersWallet,
             wallets,
             ERC20_PER_ACCOUNT,
