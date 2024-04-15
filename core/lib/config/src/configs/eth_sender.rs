@@ -141,6 +141,12 @@ impl SenderConfig {
             .map(|pk| pk.parse().unwrap())
     }
 
+    pub fn reverter_private_key(&self) -> Option<H256> {
+        std::env::var("ETH_SENDER_SENDER_REVERTER_PRIVATE_KEY")
+            .ok()
+            .map(|pk| pk.parse().unwrap())
+    }
+
     // Don't load blobs private key, if it's not required
     #[deprecated]
     pub fn private_key_blobs(&self) -> Option<H256> {

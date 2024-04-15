@@ -60,7 +60,10 @@ impl BlockReverterEthConfig {
     ) -> Self {
         #[allow(deprecated)]
         // `BlockReverter` doesn't support non env configs yet
-        let pk = eth_config.sender.expect("eth_sender_config").private_key();
+        let pk = eth_config
+            .sender
+            .expect("eth_sender_config")
+            .reverter_private_key();
 
         Self {
             eth_client_url: eth_config.web3_url,
@@ -333,6 +336,7 @@ impl BlockReverter {
         priority_fee_per_gas: U256,
         nonce: u64,
     ) {
+        const DEFAULT_ZKSYNC_CHAIN_ID: u128 = 270; // Default value if the environment variable is not set or cannot be parsed
         let eth_config = self
             .eth_config
             .as_ref()
@@ -340,25 +344,22 @@ impl BlockReverter {
 
         let web3 = Web3::new(Http::new(&eth_config.eth_client_url).unwrap());
         let contract = state_transition_chain_contract();
-        // Your hexadecimal string
-        let hex_string = "e131bc3f481277a8f73d680d9ba404cc6f959e64296e0914dded403030d4f705";
-
-        // Parse the hexadecimal string into bytes
-        let bytes = hex::decode(hex_string).expect("Invalid hexadecimal string");
-
-        println!("Reverter private key: ");
-        println!("{:?}", eth_config.reverter_private_key);
-        // Create an H256 type from the bytes
-        let h256 = H256::from_slice(&bytes);
-        let signer = PrivateKeySigner::new(h256);
+        let signer = PrivateKeySigner::new(
+            eth_config
+                .reverter_private_key
+                .expect("Private key is required to send revert transaction"),
+        );
         let chain_id = web3.eth().chain_id().await.unwrap().as_u64();
-
+        let zksync_chain_id = std::env::var("CHAIN_ETH_ZKSYNC_NETWORK_ID")
+            .ok()
+            .and_then(|val| val.parse::<u128>().ok())
+            .unwrap_or(DEFAULT_ZKSYNC_CHAIN_ID);
         let revert_function = contract.function("revertBatchesSharedBridge").expect(
             "Either `revertBlocks` or `revertBatches` function must be present in contract",
         );
         let data = revert_function
             .encode_input(&[
-                Token::Uint(270.into()),
+                Token::Uint(zksync_chain_id.into()),
                 Token::Uint(last_l1_batch_to_keep.0.into()),
             ])
             .unwrap();

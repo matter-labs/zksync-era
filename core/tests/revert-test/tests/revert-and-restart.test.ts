@@ -4,7 +4,7 @@ import * as zkweb3 from 'zksync-ethers';
 import { BigNumber, Contract, ethers } from 'ethers';
 import { expect } from 'chai';
 import fs from 'fs';
-import { ValidatorTimelockFactory } from "../../../../contracts/l1-contracts/typechain/ValidatorTimelockFactory";
+import { ValidatorTimelockFactory } from '../../../../contracts/l1-contracts/typechain/ValidatorTimelockFactory';
 
 // Parses output of "print-suggested-values" command of the revert block tool.
 function parseSuggestedValues(suggestedValuesString: string) {
@@ -108,14 +108,11 @@ describe('Block reverting test', function () {
         const factory = new ValidatorTimelockFactory(tester.hyperchainAdmin);
         const deployedContract = factory.attach(process.env.CONTRACTS_VALIDATOR_TIMELOCK_ADDR!);
 
-        // If hyperchain admin is not a validator -> add 
-        if (!await deployedContract['validators(uint256,address)'](chainId, tester.hyperchainAdmin.address)) {
+        // If hyperchain admin is not a validator -> add
+        if (!(await deployedContract['validators(uint256,address)'](chainId, tester.hyperchainAdmin.address))) {
             const addValidatorTx = await deployedContract.addValidator(chainId, tester.hyperchainAdmin.address);
             await addValidatorTx.wait();
         }
-        
-        console.log('Finished adding validator');
-        console.log(await deployedContract['validators(uint256,address)'](chainId, tester.hyperchainAdmin.address));
 
         // Seal 2 L1 batches.
         // One is not enough to test the reversion of sk cache because
