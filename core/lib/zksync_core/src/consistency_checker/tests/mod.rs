@@ -2,6 +2,7 @@
 use std::{collections::HashMap, slice};
 
 use assert_matches::assert_matches;
+use multivm::circuit_sequencer_api_latest::boojum::gadgets::u256::UInt256;
 use once_cell::sync::Lazy;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
@@ -37,6 +38,7 @@ pub(crate) fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata 
 const PRE_BOOJUM_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version10;
 const DIAMOND_PROXY_ADDR: Address = Address::repeat_byte(1);
 const VALIDATOR_TIMELOCK_ADDR: Address = Address::repeat_byte(23);
+const CHAIN_ID: u32 = 270;
 
 pub(crate) fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
     let mut l1_batch = L1BatchWithMetadata {
@@ -56,24 +58,35 @@ pub(crate) fn build_commit_tx_input_data(
 ) -> Vec<u8> {
     let pubdata_da = PubdataDA::Calldata;
 
-    let is_pre_boojum = batches[0].header.protocol_version.unwrap().is_pre_boojum();
-    let contract;
-    let commit_function = if is_pre_boojum {
-        &*PRE_BOOJUM_COMMIT_FUNCTION
-    } else {
-        contract = zksync_contracts::state_transition_chain_contract();
-        contract.function("commitBatches").unwrap()
-    };
+    let protocol_version = batches[0].header.protocol_version.unwrap();
+    let contract = zksync_contracts::state_transition_chain_contract();
 
-    let mut encoded = vec![];
-    encoded.extend_from_slice(&commit_function.short_signature());
     // Mock an additional argument used in real `commitBlocks` / `commitBatches`. In real transactions,
     // it's taken from the L1 batch previous to `batches[0]`, but since this argument is not checked,
     // it's OK to use `batches[0]`.
-    encoded.extend_from_slice(&ethabi::encode(
-        &l1_batch_commit_data_generator.l1_commit_batches(&batches[0], batches, &pubdata_da),
-    ));
-    encoded
+    let tokens =
+        l1_batch_commit_data_generator.l1_commit_batches(&batches[0], batches, &pubdata_da);
+
+    if protocol_version.is_pre_boojum() {
+        PRE_BOOJUM_COMMIT_FUNCTION.encode_input(&tokens).unwrap()
+    } else if protocol_version.is_pre_shared_bridge() {
+        contract
+            .function("commitBatches")
+            .unwrap()
+            .encode_input(&tokens)
+            .unwrap()
+    } else {
+        // Post shared bridge transactions also require chain id
+        let tokens: Vec<_> = vec![Token::Uint(CHAIN_ID.into())]
+            .into_iter()
+            .chain(tokens.into_iter())
+            .collect();
+        contract
+            .function("commitBatchesSharedBridge")
+            .unwrap()
+            .encode_input(&tokens)
+            .unwrap()
+    }
 }
 
 pub(crate) fn create_mock_checker(
