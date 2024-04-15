@@ -43,6 +43,8 @@ use crate::{
     HistoryMode,
 };
 
+const CONTRACT_ADDRESS: &str = "0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7";
+
 fn insert_evm_contract(storage: &mut InMemoryStorage, mut bytecode: Vec<u8>) -> Address {
     // To avoid problems with correct encoding for these tests, we just pad the bytecode to be divisible by 32.
     while bytecode.len() % 32 != 0 {
@@ -70,7 +72,7 @@ fn insert_evm_contract(storage: &mut InMemoryStorage, mut bytecode: Vec<u8>) -> 
     assert!(BlobSha256Format::is_valid(&blob_hash.0));
 
     // Just some address in user space
-    let test_address = Address::from_str("0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7").unwrap();
+    let test_address = Address::from_str(CONTRACT_ADDRESS).unwrap();
 
     let evm_code_hash_key = get_evm_code_hash_key(&test_address);
 
@@ -2217,10 +2219,7 @@ fn test_basic_address_vectors() {
             .into_iter()
             .concat()
         ),
-        h256_to_u256(H256::from(
-            Address::from_str("0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7").unwrap()
-        ))
-        .into()
+        h256_to_u256(H256::from(Address::from_str(CONTRACT_ADDRESS).unwrap())).into()
     );
 }
 
@@ -2229,9 +2228,9 @@ fn test_basic_balance_vectors() {
     assert_eq!(
         test_evm_vector(
             vec![
-                // push20 0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7
+                // push20 CONTRACT_ADDRESS
                 hex::decode("73").unwrap(),
-                hex::decode("de03a0B5963f75f1C8485B355fF6D30f3093BDE7").unwrap(),
+                hex::decode(&CONTRACT_ADDRESS[2..]).unwrap(), // Remove 0x
                 // balance
                 hex::decode("31").unwrap(),
                 // push0
@@ -2244,6 +2243,75 @@ fn test_basic_balance_vectors() {
         ),
         0.into()
     )
+}
+
+#[test]
+fn test_basic_balance_gas_vectors() {
+    let initial_gas = U256::MAX;
+    let gas_left = test_evm_vector(
+        // Contract address should be warm by default
+        vec![
+            // push20 CONTRACT_ADDRESS
+            hex::decode("73").unwrap(),
+            hex::decode(&CONTRACT_ADDRESS[2..]).unwrap(), // Remove 0x
+            // balance
+            hex::decode("31").unwrap(),
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(initial_gas - gas_left, U256::from_dec_str("105").unwrap());
+
+    let gas_left = test_evm_vector(
+        // Random Address
+        vec![
+            // push20 0xab03a0B5963f75f1C8485B355fF6D30f3093BDE8
+            hex::decode("73").unwrap(),
+            hex::decode("ab03a0B5963f75f1C8485B355fF6D30f3093BDE8").unwrap(),
+            // balance
+            hex::decode("31").unwrap(),
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(initial_gas - gas_left, U256::from_dec_str("2605").unwrap());
+
+    let gas_left = test_evm_vector(
+        // Random Address accesed twice
+        vec![
+            // push20 0xab03a0B5963f75f1C8485B355fF6D30f3093BDE8
+            hex::decode("73").unwrap(),
+            hex::decode("ab03a0B5963f75f1C8485B355fF6D30f3093BDE8").unwrap(),
+            // balance
+            hex::decode("31").unwrap(),
+            // push20 0xgb03a0B5963f75f1C8485B355fF6D30f3093BDE8
+            hex::decode("73").unwrap(),
+            hex::decode("ab03a0B5963f75f1C8485B355fF6D30f3093BDE8").unwrap(),
+            // balance
+            hex::decode("31").unwrap(),
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(initial_gas - gas_left, U256::from_dec_str("2708").unwrap());
 }
 
 #[test]
