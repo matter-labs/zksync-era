@@ -10,36 +10,69 @@ use crate::{interface::VmInterface, vm_latest::constants::VM_HOOK_POSITION, Hist
 struct Vm {
     inner: VirtualMachine,
     suspended_at: u16,
+
+    gas_for_account_validation: u32,
 }
 
 impl Vm {
     fn run(&mut self) {
-        let end = self.inner.resume_from(self.suspended_at);
-        let ExecutionEnd::SuspendedOnHook {
-            hook,
-            pc_to_resume_from,
-        } = end
-        else {
-            panic!("expected hook")
-        };
+        loop {
+            let end = self.inner.resume_from(self.suspended_at);
+            let ExecutionEnd::SuspendedOnHook {
+                hook,
+                pc_to_resume_from,
+            } = end
+            else {
+                panic!("expected hook")
+            };
 
-        self.suspended_at = pc_to_resume_from;
+            self.suspended_at = pc_to_resume_from;
 
-        match hook {
-            0 => {}  // AccountValidationEntered,
-            1 => {}  // PaymasterValidationEntered,
-            2 => {}  // NoValidationEntered,
-            3 => {}  // ValidationStepEnded,
-            4 => {}  // TxHasEnded,
-            5 => {}  // DebugLog,
-            6 => {}  // DebugReturnData,
-            7 => {}  // NearCallCatch,
-            8 => {}  // AskOperatorForRefund,
-            9 => {}  // NotifyAboutRefund,
-            10 => {} // ExecutionResult,
-            11 => {} // FinalBatchInfo,
-            12 => {} // PubdataRequested,
-            _ => panic!("Unknown hook: {}", hook),
+            match hook {
+                0 => {
+                    // Account validation entered
+                    match self.inner.resume_with_additional_gas_limit(
+                        pc_to_resume_from,
+                        self.gas_for_account_validation,
+                    ) {
+                        None => {
+                            // Used too much gas
+                            todo!()
+                        }
+                        Some((
+                            validation_gas_left,
+                            ExecutionEnd::SuspendedOnHook {
+                                hook,
+                                pc_to_resume_from,
+                            },
+                        )) => {
+                            assert_eq!(hook, 2, "Should not hook while in account validation");
+                            self.gas_for_account_validation = validation_gas_left;
+                            self.suspended_at = pc_to_resume_from;
+                        }
+                        _ => {
+                            // Exited normally without ending account validation, panicked or reverted.
+                            panic!("unexpected exit from account validation")
+                        }
+                    }
+                }
+                1 => {} // PaymasterValidationEntered,
+                2 => {
+                    // Account validation exited
+                    panic!("must enter account validation before exiting");
+                }
+                3 => {}  // ValidationStepEnded,
+                4 => {}  // TxHasEnded,
+                5 => {}  // DebugLog,
+                6 => {}  // DebugReturnData,
+                7 => {}  // NearCallCatch,
+                8 => {}  // AskOperatorForRefund,
+                9 => {}  // NotifyAboutRefund,
+                10 => {} // ExecutionResult,
+                11 => {} // FinalBatchInfo,
+                12 => {} // PubdataRequested,
+                _ => panic!("Unknown hook: {}", hook),
+            }
         }
     }
 }
@@ -79,6 +112,7 @@ impl<S: WriteStorage + 'static, H: HistoryMode> VmInterface<S, H> for Vm {
         Self {
             inner,
             suspended_at: 0,
+            gas_for_account_validation: system_env.default_validation_computational_gas_limit,
         }
     }
 
