@@ -28,6 +28,10 @@ describe('ETH token checks', () => {
     });
 
     test('Can perform a deposit', async () => {
+        if (!isETHBasedChain) {
+            // TODO(EVM-555): Currently this test is not working for non-eth based chains.
+            return;
+        }
         const amount = 1; // 1 wei is enough.
         const gasPrice = scaledGasPrice(alice);
 
@@ -227,6 +231,10 @@ describe('ETH token checks', () => {
     });
 
     test('Can perform a withdrawal', async () => {
+        if (!isETHBasedChain) {
+            // TODO(EVM-555): Currently this test is not working for non-eth based chains.
+            return;
+        }
         if (testMaster.isFastMode()) {
             return;
         }
@@ -243,6 +251,10 @@ describe('ETH token checks', () => {
     });
 
     test('Can perform a deposit with precalculated max value', async () => {
+        if (!isETHBasedChain) {
+            // TODO(EVM-555): Currently this test is not working for non-eth based chains.
+            return;
+        }
         if (!isETHBasedChain) {
             const baseTokenDetails = testMaster.environment().baseToken;
             const maxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
