@@ -8108,6 +8108,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_basic_witness_input_producer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "multivm",
+ "tokio",
+ "tracing",
+ "vise",
+ "vm_utils",
+ "zksync_dal",
+ "zksync_object_store",
+ "zksync_queued_job_processor",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_circuit_breaker"
 version = "0.1.0"
 dependencies = [
@@ -8408,6 +8425,7 @@ dependencies = [
  "vise",
  "vlog",
  "vm_utils",
+ "zksync_basic_witness_input_producer",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",
  "zksync_concurrency",

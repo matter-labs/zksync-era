@@ -1,0 +1,24 @@
+[package]
+name = "zksync_basic_witness_input_producer"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+vise.workspace = true
+multivm.workspace = true
+vm_utils.workspace = true
+zksync_dal.workspace = true
+zksync_object_store.workspace = true
+zksync_queued_job_processor.workspace = true
+zksync_types.workspace = true
+
+anyhow.workspace = true
+async-trait.workspace = true
+tokio.workspace = true
+tracing.workspace = true

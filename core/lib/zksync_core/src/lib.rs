@@ -17,6 +17,7 @@ use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
 };
+use zksync_basic_witness_input_producer::BasicWitnessInputProducer;
 use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker,
     CircuitBreakerChecker, CircuitBreakers,
@@ -62,7 +63,6 @@ use crate::{
         tx_sender::{ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
         web3::{self, mempool_cache::MempoolCache, state::InternalApiConfig, Namespace},
     },
-    basic_witness_input_producer::BasicWitnessInputProducer,
     eth_sender::{
         l1_batch_commit_data_generator::{
             L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
