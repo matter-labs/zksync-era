@@ -22,10 +22,11 @@ use zksync_types::{
 use zksync_utils::{
     address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256,
 };
+use super::super::super::super::interface::ExecutionResult; //Check if there is a better way
 
 use super::tester::VmTester;
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmRevertReason},
     vm_boojum_integration::tracers::dispatcher,
     vm_latest::{
         tests::{
@@ -38,7 +39,7 @@ use crate::{
         },
         tracers::evm_debug_tracer::EvmDebugTracer,
         utils::{fee::get_batch_base_fee, hash_evm_bytecode},
-        HistoryEnabled, ToTracerPointer, TracerDispatcher, TracerPointer,
+        HistoryEnabled, ToTracerPointer, TracerDispatcher, TracerPointer, VmExecutionResultAndLogs,
     },
     vm_m5::storage::Storage,
     HistoryMode,
@@ -116,6 +117,23 @@ fn test_evm_vector(mut bytecode: Vec<u8>) -> U256 {
     let tracer_ptr = debug_tracer.into_tracer_pointer();
     let tx_result = vm.vm.inspect(tracer_ptr.into(), VmExecutionMode::OneTx);
 
+    let result: Vec<u8> = match &tx_result.result {
+        ExecutionResult::Success{output} => output.clone(),
+        ExecutionResult::Revert{output} => vec![],
+        ExecutionResult::Halt{reason} => vec![]
+    };
+
+    println!("Result: {:#?}",result);
+
+    let revert: VmRevertReason = match &tx_result.result {
+        ExecutionResult::Success{output} => return U256::MAX,
+        ExecutionResult::Revert{output} => output.clone(),
+        ExecutionResult::Halt{reason} => return U256::MAX
+    };
+
+    println!("Result: {:#?}",result);
+    println!("Revert: {:#?}", revert);
+
     assert!(
         !tx_result.result.is_failed(),
         "Transaction wasn't successful"
@@ -128,6 +146,7 @@ fn test_evm_vector(mut bytecode: Vec<u8>) -> U256 {
         AccountTreeId::new(test_address),
         H256::zero(),
     ));
+
 
     h256_to_u256(saved_value)
 }
@@ -2310,6 +2329,57 @@ fn test_basic_gas_vectors() {
         .into()
     );
 }
+
+#[test]
+fn test_basic_return_vectors() {
+        test_evm_vector(
+            vec![
+                // push32 0xFF01000000000000000000000000000000000000000000000000000000000000
+                hex::decode("7F").unwrap(),
+                hex::decode("FF01000000000000000000000000000000000000000000000000000000000000").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // push1 2
+                hex::decode("60").unwrap(),
+                hex::decode("02").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // return
+                hex::decode("F3").unwrap()
+            ]
+            .into_iter()
+            .concat()
+        )
+    ;
+}
+
+#[test]
+fn test_basic_revert_vectors() {
+        test_evm_vector(
+            vec![
+                // push32 0xFF01000000000000000000000000000000000000000000000000000000000000
+                hex::decode("7F").unwrap(),
+                hex::decode("FF01000000000000000000000000000000000000000000000000000000000000").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // push1 2
+                hex::decode("60").unwrap(),
+                hex::decode("02").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // revert
+                hex::decode("FD").unwrap()
+            ]
+            .into_iter()
+            .concat()
+        )
+    ;
+}
+
 
 fn assert_deployed_hash<H: HistoryMode>(
     tester: &mut VmTester<H>,
