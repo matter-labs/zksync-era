@@ -2,7 +2,6 @@
 use std::{collections::HashMap, slice};
 
 use assert_matches::assert_matches;
-use multivm::circuit_sequencer_api_latest::boojum::gadgets::u256::UInt256;
 use once_cell::sync::Lazy;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
@@ -79,7 +78,7 @@ pub(crate) fn build_commit_tx_input_data(
         // Post shared bridge transactions also require chain id
         let tokens: Vec<_> = vec![Token::Uint(CHAIN_ID.into())]
             .into_iter()
-            .chain(tokens.into_iter())
+            .chain(tokens)
             .collect();
         contract
             .function("commitBatchesSharedBridge")
