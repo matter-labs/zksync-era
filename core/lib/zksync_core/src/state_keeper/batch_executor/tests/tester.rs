@@ -535,7 +535,7 @@ impl StorageSnapshot {
             l2_block_env.number += 1;
             l2_block_env.timestamp += 1;
             l2_block_env.prev_block_hash = hasher.finalize(ProtocolVersionId::latest());
-            executor.start_next_miniblock(l2_block_env).await;
+            executor.start_next_l2_block(l2_block_env).await;
         }
 
         let finished_batch = executor.finish_batch().await;

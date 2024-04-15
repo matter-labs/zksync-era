@@ -1,7 +1,7 @@
 //! Tests for the common I/O utils.
 //!
 //! `L1BatchParamsProvider` tests are (temporarily?) here because of `testonly` utils in this crate to create L1 batches,
-//! miniblocks, transactions etc.
+//! L2 blocks, transactions etc.
 
 use std::{collections::HashMap, ops};
 
@@ -44,10 +44,10 @@ async fn creating_io_cursor_with_genesis() {
 
     let cursor = IoCursor::new(&mut storage).await.unwrap();
     assert_eq!(cursor.l1_batch, L1BatchNumber(1));
-    assert_eq!(cursor.next_miniblock, MiniblockNumber(1));
-    assert_eq!(cursor.prev_miniblock_timestamp, 0);
+    assert_eq!(cursor.next_l2_block, MiniblockNumber(1));
+    assert_eq!(cursor.prev_l2_block_timestamp, 0);
     assert_eq!(
-        cursor.prev_miniblock_hash,
+        cursor.prev_l2_block_hash,
         MiniblockHasher::legacy_hash(MiniblockNumber(0))
     );
 
@@ -60,9 +60,9 @@ async fn creating_io_cursor_with_genesis() {
 
     let cursor = IoCursor::new(&mut storage).await.unwrap();
     assert_eq!(cursor.l1_batch, L1BatchNumber(1));
-    assert_eq!(cursor.next_miniblock, MiniblockNumber(2));
-    assert_eq!(cursor.prev_miniblock_timestamp, miniblock.timestamp);
-    assert_eq!(cursor.prev_miniblock_hash, miniblock.hash);
+    assert_eq!(cursor.next_l2_block, MiniblockNumber(2));
+    assert_eq!(cursor.prev_l2_block_timestamp, miniblock.timestamp);
+    assert_eq!(cursor.prev_l2_block_hash, miniblock.hash);
 }
 
 #[tokio::test]
@@ -74,15 +74,12 @@ async fn creating_io_cursor_with_snapshot_recovery() {
 
     let cursor = IoCursor::new(&mut storage).await.unwrap();
     assert_eq!(cursor.l1_batch, L1BatchNumber(24));
+    assert_eq!(cursor.next_l2_block, snapshot_recovery.miniblock_number + 1);
     assert_eq!(
-        cursor.next_miniblock,
-        snapshot_recovery.miniblock_number + 1
-    );
-    assert_eq!(
-        cursor.prev_miniblock_timestamp,
+        cursor.prev_l2_block_timestamp,
         snapshot_recovery.miniblock_timestamp
     );
-    assert_eq!(cursor.prev_miniblock_hash, snapshot_recovery.miniblock_hash);
+    assert_eq!(cursor.prev_l2_block_hash, snapshot_recovery.miniblock_hash);
 
     // Add a miniblock so that we have miniblocks (but not an L1 batch) in the storage.
     let miniblock = create_miniblock(snapshot_recovery.miniblock_number.0 + 1);
@@ -94,9 +91,9 @@ async fn creating_io_cursor_with_snapshot_recovery() {
 
     let cursor = IoCursor::new(&mut storage).await.unwrap();
     assert_eq!(cursor.l1_batch, L1BatchNumber(24));
-    assert_eq!(cursor.next_miniblock, miniblock.number + 1);
-    assert_eq!(cursor.prev_miniblock_timestamp, miniblock.timestamp);
-    assert_eq!(cursor.prev_miniblock_hash, miniblock.hash);
+    assert_eq!(cursor.next_l2_block, miniblock.number + 1);
+    assert_eq!(cursor.prev_l2_block_timestamp, miniblock.timestamp);
+    assert_eq!(cursor.prev_l2_block_hash, miniblock.hash);
 }
 
 #[tokio::test]
@@ -241,7 +238,7 @@ async fn assert_first_miniblock_numbers(
 ) {
     for (&batch, &expected_miniblock) in batches_and_miniblocks {
         let number = provider
-            .load_number_of_first_miniblock_in_batch(storage, batch)
+            .load_number_of_first_l2_block_in_batch(storage, batch)
             .await;
         match expected_miniblock {
             Ok(expected) => {
@@ -323,7 +320,7 @@ async fn loading_pending_batch_with_genesis() {
 
     let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
     let first_miniblock_in_batch = provider
-        .load_first_miniblock_in_batch(&mut storage, L1BatchNumber(1))
+        .load_first_l2_block_in_batch(&mut storage, L1BatchNumber(1))
         .await
         .unwrap()
         .expect("no first miniblock");
@@ -342,7 +339,7 @@ async fn loading_pending_batch_with_genesis() {
         .await
         .unwrap();
 
-    assert_eq!(pending_batch.pending_miniblocks.len(), 2);
+    assert_eq!(pending_batch.pending_l2_blocks.len(), 2);
     assert_eq!(pending_batch.l1_batch_env.number, L1BatchNumber(1));
     assert_eq!(pending_batch.l1_batch_env.timestamp, 1);
     assert_eq!(pending_batch.l1_batch_env.first_l2_block.number, 1);
@@ -398,7 +395,7 @@ async fn loading_pending_batch_after_snapshot_recovery() {
 
     let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
     let first_miniblock_in_batch = provider
-        .load_first_miniblock_in_batch(&mut storage, snapshot_recovery.l1_batch_number + 1)
+        .load_first_l2_block_in_batch(&mut storage, snapshot_recovery.l1_batch_number + 1)
         .await
         .unwrap()
         .expect("no first miniblock");
@@ -421,7 +418,7 @@ async fn loading_pending_batch_after_snapshot_recovery() {
         .unwrap();
 
     let expected_timestamp = u64::from(snapshot_recovery.miniblock_number.0) + 1;
-    assert_eq!(pending_batch.pending_miniblocks.len(), 2);
+    assert_eq!(pending_batch.pending_l2_blocks.len(), 2);
     assert_eq!(
         pending_batch.l1_batch_env.number,
         snapshot_recovery.l1_batch_number + 1

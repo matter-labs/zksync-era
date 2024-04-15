@@ -207,7 +207,7 @@ pub struct SnapshotRecoveryStatus {
     pub l1_batch_number: L1BatchNumber,
     pub l1_batch_root_hash: H256,
     pub l1_batch_timestamp: u64,
-    pub miniblock_number: MiniblockNumber,
+    pub miniblock_number: MiniblockNumber, // FIXME: rename
     pub miniblock_hash: H256,
     pub miniblock_timestamp: u64,
     pub protocol_version: ProtocolVersionId,

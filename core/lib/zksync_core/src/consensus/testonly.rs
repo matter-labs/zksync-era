@@ -23,7 +23,7 @@ use crate::{
     consensus::{fetcher::P2PConfig, Fetcher, Store},
     genesis::{mock_genesis_config, GenesisParams},
     state_keeper::{
-        io::{IoCursor, L1BatchParams, MiniblockParams},
+        io::{IoCursor, L1BatchParams, L2BlockParams},
         seal_criteria::NoopSealer,
         tests::MockBatchExecutor,
         OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
@@ -187,8 +187,8 @@ impl StateKeeper {
         Ok((
             Self {
                 last_batch: cursor.l1_batch,
-                last_block: cursor.next_miniblock - 1,
-                last_timestamp: cursor.prev_miniblock_timestamp,
+                last_block: cursor.next_l2_block - 1,
+                last_timestamp: cursor.prev_l2_block_timestamp,
                 batch_sealed: !pending_batch,
                 fee_per_gas: 10,
                 gas_per_pubdata: 100,
@@ -216,7 +216,7 @@ impl StateKeeper {
                     validation_computational_gas_limit: u32::MAX,
                     operator_address: GenesisParams::mock().config().fee_account,
                     fee_input: Default::default(),
-                    first_miniblock: MiniblockParams {
+                    first_l2_block: L2BlockParams {
                         timestamp: self.last_timestamp,
                         virtual_blocks: 1,
                     },
@@ -228,7 +228,7 @@ impl StateKeeper {
             self.last_block += 1;
             self.last_timestamp += 2;
             SyncAction::Miniblock {
-                params: MiniblockParams {
+                params: L2BlockParams {
                     timestamp: self.last_timestamp,
                     virtual_blocks: 0,
                 },

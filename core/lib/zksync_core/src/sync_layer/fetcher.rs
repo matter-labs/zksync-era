@@ -9,7 +9,7 @@ use super::{
     metrics::{L1BatchStage, FETCHER_METRICS},
     sync_action::SyncAction,
 };
-use crate::state_keeper::io::{common::IoCursor, L1BatchParams, MiniblockParams};
+use crate::state_keeper::io::{common::IoCursor, L1BatchParams, L2BlockParams};
 
 /// Same as [`zksync_types::Transaction`], just with additional guarantees that the "received at" timestamp was set locally.
 /// We cannot transfer `Transaction`s without these timestamps, because this would break backward compatibility.
@@ -111,8 +111,8 @@ impl IoCursor {
     }
 
     pub(crate) fn advance(&mut self, block: FetchedBlock) -> Vec<SyncAction> {
-        assert_eq!(block.number, self.next_miniblock);
-        let local_block_hash = block.compute_hash(self.prev_miniblock_hash);
+        assert_eq!(block.number, self.next_l2_block);
+        let local_block_hash = block.compute_hash(self.prev_l2_block_hash);
         if let Some(reference_hash) = block.reference_hash {
             if local_block_hash != reference_hash {
                 // This is a warning, not an assertion because hash mismatch may occur after a reorg.
@@ -120,7 +120,7 @@ impl IoCursor {
                 tracing::warn!(
                     "Mismatch between the locally computed and received miniblock hash for {block:?}; \
                      local_block_hash = {local_block_hash:?}, prev_miniblock_hash = {:?}",
-                    self.prev_miniblock_hash
+                    self.prev_l2_block_hash
                 );
             }
         }
@@ -150,7 +150,7 @@ impl IoCursor {
                         block.fair_pubdata_price,
                         block.l1_gas_price,
                     ),
-                    first_miniblock: MiniblockParams {
+                    first_l2_block: L2BlockParams {
                         timestamp: block.timestamp,
                         virtual_blocks: block.virtual_blocks,
                     },
@@ -164,7 +164,7 @@ impl IoCursor {
             // New batch implicitly means a new miniblock, so we only need to push the miniblock action
             // if it's not a new batch.
             new_actions.push(SyncAction::Miniblock {
-                params: MiniblockParams {
+                params: L2BlockParams {
                     timestamp: block.timestamp,
                     virtual_blocks: block.virtual_blocks,
                 },
@@ -184,8 +184,8 @@ impl IoCursor {
         } else {
             new_actions.push(SyncAction::SealMiniblock);
         }
-        self.next_miniblock += 1;
-        self.prev_miniblock_hash = local_block_hash;
+        self.next_l2_block += 1;
+        self.prev_l2_block_hash = local_block_hash;
 
         new_actions
     }

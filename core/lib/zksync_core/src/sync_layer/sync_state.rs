@@ -115,19 +115,19 @@ impl SyncState {
 #[async_trait]
 impl StateKeeperOutputHandler for SyncState {
     async fn initialize(&mut self, cursor: &IoCursor) -> anyhow::Result<()> {
-        let sealed_block_number = cursor.next_miniblock.saturating_sub(1);
+        let sealed_block_number = cursor.next_l2_block.saturating_sub(1);
         self.set_local_block(MiniblockNumber(sealed_block_number));
         Ok(())
     }
 
-    async fn handle_miniblock(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
-        let sealed_block_number = updates_manager.miniblock.number;
+    async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+        let sealed_block_number = updates_manager.l2_block.number;
         self.set_local_block(sealed_block_number);
         Ok(())
     }
 
     async fn handle_l1_batch(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
-        let sealed_block_number = updates_manager.miniblock.number;
+        let sealed_block_number = updates_manager.l2_block.number;
         self.set_local_block(sealed_block_number);
         Ok(())
     }

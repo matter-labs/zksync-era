@@ -14,7 +14,7 @@ use zksync_types::L2ChainId;
 pub use self::{
     batch_executor::{main_executor::MainBatchExecutor, BatchExecutor},
     io::{
-        mempool::MempoolIO, MiniblockSealerTask, OutputHandler, StateKeeperIO,
+        mempool::MempoolIO, L2BlockSealerTask, OutputHandler, StateKeeperIO,
         StateKeeperOutputHandler, StateKeeperPersistence,
     },
     keeper::ZkSyncStateKeeper,

@@ -2,7 +2,7 @@ use tokio::sync::mpsc;
 use zksync_types::{L1BatchNumber, MiniblockNumber};
 
 use super::{fetcher::FetchedTransaction, metrics::QUEUE_METRICS};
-use crate::state_keeper::io::{L1BatchParams, MiniblockParams};
+use crate::state_keeper::io::{L1BatchParams, L2BlockParams};
 
 #[derive(Debug)]
 pub struct ActionQueueSender(mpsc::Sender<SyncAction>);
@@ -117,7 +117,7 @@ pub(crate) enum SyncAction {
         first_miniblock_number: MiniblockNumber,
     },
     Miniblock {
-        params: MiniblockParams,
+        params: L2BlockParams,
         // Additional parameters used only for sanity checks
         number: MiniblockNumber,
     },
@@ -150,7 +150,7 @@ mod tests {
                 validation_computational_gas_limit: u32::MAX,
                 operator_address: Address::default(),
                 fee_input: BatchFeeInput::default(),
-                first_miniblock: MiniblockParams {
+                first_l2_block: L2BlockParams {
                     timestamp: 1,
                     virtual_blocks: 1,
                 },
@@ -162,7 +162,7 @@ mod tests {
 
     fn miniblock() -> SyncAction {
         SyncAction::Miniblock {
-            params: MiniblockParams {
+            params: L2BlockParams {
                 timestamp: 1,
                 virtual_blocks: 1,
             },

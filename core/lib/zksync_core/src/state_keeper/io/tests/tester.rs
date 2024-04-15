@@ -153,7 +153,7 @@ impl Tester {
         }
     }
 
-    pub(super) async fn insert_miniblock(
+    pub(super) async fn insert_l2_block(
         &self,
         pool: &ConnectionPool<Core>,
         number: u32,

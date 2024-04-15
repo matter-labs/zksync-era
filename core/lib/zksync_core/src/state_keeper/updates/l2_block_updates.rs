@@ -15,7 +15,7 @@ use zksync_types::{
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct MiniblockUpdates {
+pub struct L2BlockUpdates {
     pub executed_transactions: Vec<TransactionExecutionResult>,
     pub events: Vec<VmEvent>,
     pub storage_logs: Vec<StorageLogQuery>,
@@ -33,7 +33,7 @@ pub struct MiniblockUpdates {
     pub protocol_version: ProtocolVersionId,
 }
 
-impl MiniblockUpdates {
+impl L2BlockUpdates {
     pub(crate) fn new(
         timestamp: u64,
         number: MiniblockNumber,
@@ -146,8 +146,8 @@ impl MiniblockUpdates {
         });
     }
 
-    /// Calculates miniblock hash based on the protocol version.
-    pub(crate) fn get_miniblock_hash(&self) -> H256 {
+    /// Calculates L2 block hash based on the protocol version.
+    pub(crate) fn get_l2_block_hash(&self) -> H256 {
         let mut digest = MiniblockHasher::new(self.number, self.timestamp, self.prev_block_hash);
         for tx in &self.executed_transactions {
             digest.push_tx_hash(tx.hash);
@@ -155,7 +155,7 @@ impl MiniblockUpdates {
         digest.finalize(self.protocol_version)
     }
 
-    pub(crate) fn get_miniblock_env(&self) -> L2BlockEnv {
+    pub(crate) fn get_env(&self) -> L2BlockEnv {
         L2BlockEnv {
             number: self.number.0,
             timestamp: self.timestamp,
@@ -174,7 +174,7 @@ mod tests {
 
     #[test]
     fn apply_empty_l2_tx() {
-        let mut accumulator = MiniblockUpdates::new(
+        let mut accumulator = L2BlockUpdates::new(
             0,
             MiniblockNumber(0),
             H256::random(),

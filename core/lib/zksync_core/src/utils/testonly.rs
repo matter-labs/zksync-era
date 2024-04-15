@@ -24,6 +24,7 @@ use zksync_types::{
 
 use crate::{fee_model::BatchFeeModelInputProvider, genesis::GenesisParams};
 
+// FIXME: rename
 /// Creates a miniblock header with the specified number and deterministic contents.
 pub(crate) fn create_miniblock(number: u32) -> MiniblockHeader {
     MiniblockHeader {

@@ -106,7 +106,7 @@ impl CommandReceiver {
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
     ) {
-        tracing::info!("Starting executing batch #{:?}", &l1_batch_params.number);
+        tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
 
         let storage_view = StorageView::new(secondary_storage).to_rc_ptr();
 
@@ -122,7 +122,7 @@ impl CommandReceiver {
                     self.rollback_last_tx(&mut vm);
                     resp.send(()).unwrap();
                 }
-                Command::StartNextMiniblock(l2_block_env, resp) => {
+                Command::StartNextL2Block(l2_block_env, resp) => {
                     self.start_next_miniblock(l2_block_env, &mut vm);
                     resp.send(()).unwrap();
                 }
@@ -142,7 +142,7 @@ impl CommandReceiver {
             }
         }
         // State keeper can exit because of stop signal, so it's OK to exit mid-batch.
-        tracing::info!("State keeper exited with an unfinished batch");
+        tracing::info!("State keeper exited with an unfinished L1 batch");
     }
 
     fn execute_tx<S: WriteStorage>(

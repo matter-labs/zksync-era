@@ -18,7 +18,7 @@ use super::{
 use crate::state_keeper::{
     io::{
         common::{load_pending_batch, poll_iters, IoCursor},
-        L1BatchParams, MiniblockParams, PendingBatchData, StateKeeperIO,
+        L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
     },
     metrics::KEEPER_METRICS,
     seal_criteria::IoSealCriteria,
@@ -122,7 +122,7 @@ impl IoSealCriteria for ExternalIO {
         true
     }
 
-    fn should_seal_miniblock(&mut self, _manager: &UpdatesManager) -> bool {
+    fn should_seal_l2_block(&mut self, _manager: &UpdatesManager) -> bool {
         if !matches!(self.actions.peek_action(), Some(SyncAction::SealMiniblock)) {
             return false;
         }
@@ -143,12 +143,12 @@ impl StateKeeperIO for ExternalIO {
         tracing::info!(
             "Initialized the ExternalIO: current L1 batch number {}, current miniblock number {}",
             cursor.l1_batch,
-            cursor.next_miniblock,
+            cursor.next_l2_block,
         );
 
         let pending_miniblock_header = self
             .l1_batch_params_provider
-            .load_first_miniblock_in_batch(&mut storage, cursor.l1_batch)
+            .load_first_l2_block_in_batch(&mut storage, cursor.l1_batch)
             .await
             .with_context(|| {
                 format!(
@@ -233,9 +233,9 @@ impl StateKeeperIO for ExternalIO {
                         cursor.l1_batch
                     );
                     anyhow::ensure!(
-                        first_miniblock_number == cursor.next_miniblock,
+                        first_miniblock_number == cursor.next_l2_block,
                         "Miniblock number mismatch: expected {}, got {first_miniblock_number}",
-                        cursor.next_miniblock
+                        cursor.next_l2_block
                     );
                     return Ok(Some(params));
                 }
@@ -250,20 +250,20 @@ impl StateKeeperIO for ExternalIO {
         Ok(None)
     }
 
-    async fn wait_for_new_miniblock_params(
+    async fn wait_for_new_l2_block_params(
         &mut self,
         cursor: &IoCursor,
         max_wait: Duration,
-    ) -> anyhow::Result<Option<MiniblockParams>> {
+    ) -> anyhow::Result<Option<L2BlockParams>> {
         // Wait for the next miniblock to appear in the queue.
         let actions = &mut self.actions;
         for _ in 0..poll_iters(POLL_INTERVAL, max_wait) {
             match actions.pop_action() {
                 Some(SyncAction::Miniblock { params, number }) => {
                     anyhow::ensure!(
-                        number == cursor.next_miniblock,
+                        number == cursor.next_l2_block,
                         "Miniblock number mismatch: expected {}, got {number}",
-                        cursor.next_miniblock
+                        cursor.next_l2_block
                     );
                     return Ok(Some(params));
                 }
@@ -374,11 +374,11 @@ impl StateKeeperIO for ExternalIO {
             default_aa,
         } = protocol_version.base_system_contracts;
         let bootloader = self
-            .get_base_system_contract(bootloader, cursor.next_miniblock)
+            .get_base_system_contract(bootloader, cursor.next_l2_block)
             .await
             .with_context(|| format!("cannot fetch bootloader code for {protocol_version:?}"))?;
         let default_aa = self
-            .get_base_system_contract(default_aa, cursor.next_miniblock)
+            .get_base_system_contract(default_aa, cursor.next_l2_block)
             .await
             .with_context(|| format!("cannot fetch default AA code for {protocol_version:?}"))?;
         Ok(BaseSystemContracts {

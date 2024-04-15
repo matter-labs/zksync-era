@@ -19,7 +19,7 @@ use crate::{
     consensus::testonly::MockMainNodeClient,
     genesis::{insert_genesis_batch, GenesisParams},
     state_keeper::{
-        io::{L1BatchParams, MiniblockParams},
+        io::{L1BatchParams, L2BlockParams},
         seal_criteria::NoopSealer,
         tests::TestBatchExecutorBuilder,
         OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
@@ -38,7 +38,7 @@ fn open_l1_batch(number: u32, timestamp: u64, first_miniblock_number: u32) -> Sy
             validation_computational_gas_limit: u32::MAX,
             operator_address: OPERATOR_ADDRESS,
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
-            first_miniblock: MiniblockParams {
+            first_l2_block: L2BlockParams {
                 timestamp,
                 virtual_blocks: 1,
             },
@@ -338,7 +338,7 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(
         .collect();
 
     let open_miniblock = SyncAction::Miniblock {
-        params: MiniblockParams {
+        params: L2BlockParams {
             timestamp: snapshot.miniblock_timestamp + 2,
             virtual_blocks: 1,
         },
@@ -437,7 +437,7 @@ async fn test_external_io_recovery(
 
     // Send new actions and wait until the new miniblock is sealed.
     let open_miniblock = SyncAction::Miniblock {
-        params: MiniblockParams {
+        params: L2BlockParams {
             timestamp: snapshot.miniblock_timestamp + 3,
             virtual_blocks: 1,
         },
@@ -508,7 +508,7 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
     let first_l1_batch_actions = vec![l1_batch, first_tx.into(), SyncAction::SealMiniblock];
 
     let fictive_miniblock = SyncAction::Miniblock {
-        params: MiniblockParams {
+        params: L2BlockParams {
             timestamp: snapshot.miniblock_timestamp + 2,
             virtual_blocks: 0,
         },

@@ -166,7 +166,7 @@ pub(super) struct Cursor {
 
 impl Cursor {
     pub(super) fn next(&self) -> validator::BlockNumber {
-        validator::BlockNumber(self.inner.next_miniblock.0.into())
+        validator::BlockNumber(self.inner.next_l2_block.0.into())
     }
 
     /// Advances the cursor by converting the block into actions and pushing them
@@ -174,7 +174,7 @@ impl Cursor {
     /// Does nothing and returns Ok() if the block has been already processed.
     /// Returns an error if a block with an earlier block number was expected.
     pub(super) async fn advance(&mut self, block: FetchedBlock) -> anyhow::Result<()> {
-        let want = self.inner.next_miniblock;
+        let want = self.inner.next_l2_block;
         // Some blocks are missing.
         if block.number > want {
             anyhow::bail!("expected {want:?}, got {:?}", block.number);
