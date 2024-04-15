@@ -2309,6 +2309,85 @@ fn test_basic_gas_vectors() {
     );
 }
 
+#[test]
+fn test_basic_environment3_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    // gasprice
+    let evm_output = test_evm_vector(
+        vec![
+            // push1 32
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 16
+            hex::decode("60").unwrap(),
+            hex::decode("10").unwrap(),
+            // gasprice
+            hex::decode("3A").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(evm_output, 250000000.into());
+
+    // test OP_CODECOPY
+    let evm_output = test_evm_vector(
+        vec![
+            // push1 7
+            hex::decode("60").unwrap(),
+            hex::decode("07").unwrap(),
+            // push1 0
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // push1 0
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // codecopy
+            hex::decode("39").unwrap(),
+            // push1 0
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // mload
+            hex::decode("51").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(
+        H256(evm_output.into()),
+        H256(U256::from("6007600060003900000000000000000000000000000000000000000000000000").into())
+    );
+
+    // codesize
+    let evm_output = test_evm_vector(
+        vec![
+            // push1 16
+            hex::decode("60").unwrap(), // 1 byte
+            hex::decode("10").unwrap(), // 1 byte
+            // codesize
+            hex::decode("38").unwrap(), // 1 byte
+            // push32 0
+            hex::decode("7F").unwrap(), // 1 byte
+            H256::zero().0.to_vec(),    // 32 bytes
+            // sstore
+            hex::decode("55").unwrap(), // 1byte
+        ]
+        .into_iter()
+        .concat(),
+    );
+    // codesize = 37 + memory_expansion = 64 (chunks of 32bytes)
+    assert_eq!(evm_output, 64.into());
+}
+
 fn assert_deployed_hash<H: HistoryMode>(
     tester: &mut VmTester<H>,
     address: Address,
