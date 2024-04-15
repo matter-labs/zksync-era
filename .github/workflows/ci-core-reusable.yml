@@ -61,10 +61,8 @@ jobs:
       - name: Contracts unit tests
         run: ci_run yarn l1-contracts test
 
-      - name: Rust unit tests - DISABLED (EVM-556)
-        run: ls
-        # Broken - EVM-556
-        # ci_run zk test rust
+      - name: Rust unit tests
+        run: ci_run zk test rust
 
   loadtest:
     runs-on: [matterlabs-ci-runner]

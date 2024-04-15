@@ -487,7 +487,6 @@ async fn getting_batch_version_with_genesis() {
     assert_eq!(version, new_l1_batch.protocol_version);
 }
 
-#[ignore = "Temporarily broken - EVM-556 "]
 #[tokio::test]
 async fn getting_batch_version_after_snapshot_recovery() {
     let pool = ConnectionPool::<Core>::test_pool().await;
