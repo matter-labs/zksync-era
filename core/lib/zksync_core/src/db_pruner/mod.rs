@@ -141,6 +141,12 @@ impl DbPruner {
 
         transaction.commit().await?;
 
+        let mut storage = pool.connection_tagged("db_pruner").await?;
+        storage
+            .pruning_dal()
+            .run_vacuum_after_hard_pruning()
+            .await?;
+
         let latency = latency.observe();
         tracing::info!(
             "Hard pruned db l1_batches up to {} and miniblocks up to {}, operation took {:?}",

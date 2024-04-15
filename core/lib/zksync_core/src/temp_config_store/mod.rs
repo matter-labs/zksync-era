@@ -14,7 +14,7 @@ use zksync_config::{
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
         ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
     },
-    ApiConfig, ContractVerifierConfig, DBConfig, ETHConfig, ETHWatchConfig, GasAdjusterConfig,
+    ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_protobuf::{repr::ProtoRepr, ProtoFmt};
@@ -60,8 +60,8 @@ pub struct TempConfigStore {
     pub proof_data_handler_config: Option<ProofDataHandlerConfig>,
     pub api_config: Option<ApiConfig>,
     pub db_config: Option<DBConfig>,
-    pub eth_sender_config: Option<ETHConfig>,
-    pub eth_watch_config: Option<ETHWatchConfig>,
+    pub eth_sender_config: Option<EthConfig>,
+    pub eth_watch_config: Option<EthWatchConfig>,
     pub gas_adjuster_config: Option<GasAdjusterConfig>,
     pub object_store_config: Option<ObjectStoreConfig>,
     pub observability: Option<ObservabilityConfig>,
