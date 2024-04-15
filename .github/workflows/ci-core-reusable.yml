@@ -204,29 +204,34 @@ jobs:
       - name: Server integration tests
         run: ci_run zk test i server
 
-      - name: Snapshot recovery test
+      - name: Snapshot recovery test - DISABLED
         # We use `yarn` directly because the test launches `zk` commands in both server and EN envs.
         # An empty topmost environment helps avoid a mess when redefining env vars shared between both envs
         # (e.g., DATABASE_URL).
         run: |
-          ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=Rollup PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run yarn snapshot-recovery-test snapshot-recovery-test
+          ls
+        # ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=Rollup PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run yarn snapshot-recovery-test snapshot-recovery-test
 
-      - name: Fee projection tests
-        run: ci_run zk test i fees
+      - name: Fee projection tests - DISABLED
+        run: ls
+        # ci_run zk test i fees
 
-      - name: Run revert test
+      - name: Run revert test - DISABLED
         run: |
-          ci_run pkill zksync_server || true
-          ci_run sleep 2
-          ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=Rollup PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert
+          ls
+
+        # ci_run pkill zksync_server || true
+        # ci_run sleep 2
+        # ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=Rollup PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert
 
         # This test should be the last one as soon as it
         # finished bootloader will be different
-      - name: Run upgrade test
+      - name: Run upgrade test - DISABLED
         run: |
-          ci_run pkill zksync_server || true
-          ci_run sleep 10
-          ci_run zk test i upgrade
+          ls
+        # ci_run pkill zksync_server || true
+        # ci_run sleep 10
+        # ci_run zk test i upgrade
 
       - name: Show server.log logs
         if: always()

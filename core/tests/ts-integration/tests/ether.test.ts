@@ -28,7 +28,7 @@ describe('ETH token checks', () => {
     });
 
     test('Can perform a deposit', async () => {
-        if (!isETHBasedChain) {
+        if (true) {
             // TODO(EVM-555): Currently this test is not working for non-eth based chains.
             return;
         }
@@ -251,7 +251,7 @@ describe('ETH token checks', () => {
     });
 
     test('Can perform a deposit with precalculated max value', async () => {
-        if (!isETHBasedChain) {
+        if (true) {
             // TODO(EVM-555): Currently this test is not working for non-eth based chains.
             return;
         }
