@@ -1,4 +1,5 @@
 use std::{
+    cell::RefCell,
     collections::HashSet,
     future::Future,
     num::NonZeroU32,
@@ -16,6 +17,7 @@ use governor::{
 };
 use once_cell::sync::OnceCell;
 use pin_project_lite::pin_project;
+use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use tokio::sync::watch;
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, GaugeGuard, Histogram, Metrics,
@@ -158,11 +160,7 @@ where
             RawParamsWithBorrow::new(&mut request.params)
         };
         let call = self.method_tracer.new_call(method_name, original_params);
-
-        WithMethodCall {
-            inner: self.inner.call(request),
-            call,
-        }
+        WithMethodCall::new(self.inner.call(request), call)
     }
 }
 
@@ -172,6 +170,18 @@ pin_project! {
         #[pin]
         inner: F,
         call: MethodCall<'a>,
+        call_span: tracing::Span,
+    }
+}
+
+impl<'a, F> WithMethodCall<'a, F> {
+    fn new(inner: F, call: MethodCall<'a>) -> Self {
+        let call_span = tracing::debug_span!("rpc_call", trace_id = generate_trace_id());
+        Self {
+            inner,
+            call,
+            call_span,
+        }
     }
 }
 
@@ -180,6 +190,7 @@ impl<F: Future<Output = MethodResponse>> Future for WithMethodCall<'_, F> {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let projection = self.project();
+        let _span_guard = projection.call_span.enter();
         let guard = projection.call.set_as_current();
         match projection.inner.poll(cx) {
             Poll::Pending => Poll::Pending,
@@ -264,6 +275,13 @@ where
     }
 }
 
+fn generate_trace_id() -> u64 {
+    thread_local! {
+        static TRACE_ID_RNG: RefCell<SmallRng> = RefCell::new(SmallRng::from_entropy());
+    }
+    TRACE_ID_RNG.with(|rng| rng.borrow_mut().next_u64())
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -307,10 +325,10 @@ mod tests {
                 }
             };
 
-            WithMethodCall {
-                call: method_tracer.new_call("test", RawParamsWithBorrow(None)),
+            WithMethodCall::new(
                 inner,
-            }
+                method_tracer.new_call("test", RawParamsWithBorrow(None)),
+            )
         });
 
         if spawn_tasks {

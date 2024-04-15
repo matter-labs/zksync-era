@@ -12,7 +12,7 @@ use zksync_web3_decl::{
 #[cfg(test)]
 use super::testonly::RecordedMethodCalls;
 use super::RawParamsWithBorrow;
-use crate::api_server::web3::metrics::{ObservedWeb3Error, API_METRICS};
+use crate::api_server::web3::metrics::API_METRICS;
 
 /// Metadata assigned to a JSON-RPC method call.
 #[derive(Debug, Clone)]
@@ -23,8 +23,8 @@ pub(crate) struct MethodMetadata {
     pub block_id: Option<api::BlockId>,
     /// Difference between the latest block number and the requested block ID.
     pub block_diff: Option<u32>,
-    /// Information about an app-level error, if any.
-    pub app_error: Option<ObservedWeb3Error>,
+    /// Did this call return an app-level error?
+    pub has_app_error: bool,
 }
 
 impl MethodMetadata {
@@ -34,7 +34,7 @@ impl MethodMetadata {
             started_at: Instant::now(),
             block_id: None,
             block_diff: None,
-            app_error: None,
+            has_app_error: false,
         }
     }
 }
@@ -105,7 +105,8 @@ impl MethodTracer {
     pub(super) fn observe_error(&self, err: &Web3Error) {
         let cell = self.inner.get_or_default();
         if let Some(metadata) = &mut *cell.borrow_mut() {
-            metadata.app_error = Some(ObservedWeb3Error::new(err));
+            API_METRICS.observe_web3_error(metadata.name, err);
+            metadata.has_app_error = true;
         }
     }
 }
@@ -164,7 +165,7 @@ impl MethodCall<'_> {
                     meta.name,
                     raw_params,
                     error_code,
-                    meta.app_error.as_ref(),
+                    meta.has_app_error,
                 );
             }
         }

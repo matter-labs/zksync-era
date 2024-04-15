@@ -1,8 +1,8 @@
 //! Metrics for the JSON-RPC server.
 
 use std::{
-    fmt,
-    sync::{Mutex, PoisonError},
+    cell::Cell,
+    fmt, thread,
     time::{Duration, Instant},
 };
 
@@ -19,34 +19,41 @@ use super::{
 };
 
 /// Allows filtering events (e.g., for logging) so that they are reported no more frequently than with a configurable interval.
+///
+/// Current implementation uses thread-local vars in order to not rely on mutexes or other cross-thread primitives.
+/// I.e., it only really works if the number of threads accessing it is limited (which is the case for the API server;
+/// the number of worker threads is congruent to the number of CPUs).
 #[derive(Debug)]
 struct ReportFilter {
     interval: Duration,
-    last_timestamp: Mutex<Option<Instant>>,
+    last_timestamp: &'static thread::LocalKey<Cell<Option<Instant>>>,
 }
 
 impl ReportFilter {
-    const fn new(interval: Duration) -> Self {
-        Self {
-            interval,
-            last_timestamp: Mutex::new(None),
-        }
-    }
-
-    /// Should be called sparingly, since it involves moderately heavy operations (locking a mutex and getting current time).
+    /// Should be called sparingly, since it involves moderately heavy operations (getting current time).
     fn should_report(&self) -> bool {
+        let timestamp = self.last_timestamp.get();
         let now = Instant::now();
-        let mut timestamp = self
-            .last_timestamp
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
         if timestamp.map_or(true, |ts| now - ts > self.interval) {
-            *timestamp = Some(now);
+            self.last_timestamp.set(Some(now));
             true
         } else {
             false
         }
     }
+}
+
+/// Creates a new filter with the specified reporting interval *per thread*.
+macro_rules! report_filter {
+    ($interval:expr) => {{
+        thread_local! {
+            static LAST_TIMESTAMP: Cell<Option<Instant>> = Cell::new(None);
+        }
+        ReportFilter {
+            interval: $interval,
+            last_timestamp: &LAST_TIMESTAMP,
+        }
+    }};
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
@@ -160,30 +167,6 @@ impl Web3ErrorKind {
     }
 }
 
-/// Information about a [`Web3Error`] observed via metrics / logs.
-// Necessary to persist `Web3Error` information before the end of the method, in order to be able
-// to have call params available.
-#[derive(Debug, Clone)]
-pub(crate) struct ObservedWeb3Error {
-    kind: Web3ErrorKind,
-    // Error message produced using `ToString`. Only set for error kinds that we log (for now: internal errors
-    // and main node proxy errors).
-    message: Option<String>,
-}
-
-impl ObservedWeb3Error {
-    pub fn new(err: &Web3Error) -> Self {
-        Self {
-            kind: Web3ErrorKind::new(err),
-            message: match err {
-                Web3Error::InternalError(err) => Some(err.to_string()),
-                Web3Error::ProxyError(err) => Some(err.to_string()),
-                _ => None,
-            },
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
 #[metrics(rename_all = "snake_case")]
 enum ProtocolErrorOrigin {
@@ -291,7 +274,7 @@ impl ApiMetrics {
 
     /// Observes latency of a finished RPC call.
     pub fn observe_latency(&self, meta: &MethodMetadata, raw_params: &str) {
-        static FILTER: ReportFilter = ReportFilter::new(Duration::from_secs(10));
+        static FILTER: ReportFilter = report_filter!(Duration::from_secs(1));
         const MIN_REPORTED_LATENCY: Duration = Duration::from_secs(5);
 
         let latency = meta.started_at.elapsed();
@@ -309,7 +292,7 @@ impl ApiMetrics {
 
     /// Observes latency of a dropped RPC call.
     pub fn observe_dropped_call(&self, meta: &MethodMetadata, raw_params: &str) {
-        static FILTER: ReportFilter = ReportFilter::new(Duration::from_secs(10));
+        static FILTER: ReportFilter = report_filter!(Duration::from_secs(1));
 
         let latency = meta.started_at.elapsed();
         self.web3_dropped_call_latency[&MethodLabels::from(meta)].observe(latency);
@@ -323,7 +306,7 @@ impl ApiMetrics {
 
     /// Observes serialized size of a response.
     pub fn observe_response_size(&self, method: &'static str, raw_params: &str, size: usize) {
-        static FILTER: ReportFilter = ReportFilter::new(Duration::from_secs(10));
+        static FILTER: ReportFilter = report_filter!(Duration::from_secs(1));
         const MIN_REPORTED_SIZE: usize = 10 * 1_024 * 1_024; // 10 MiB
 
         self.web3_call_response_size[&method].observe(size);
@@ -339,57 +322,51 @@ impl ApiMetrics {
         method: &'static str,
         raw_params: &str,
         error_code: i32,
-        app_error: Option<&ObservedWeb3Error>,
+        has_app_error: bool,
     ) {
+        static FILTER: ReportFilter = report_filter!(Duration::from_millis(100));
+
         let labels = ProtocolErrorLabels {
             method,
             error_code,
-            origin: if app_error.is_some() {
+            origin: if has_app_error {
                 ProtocolErrorOrigin::App
             } else {
                 ProtocolErrorOrigin::Framework
             },
         };
-        if self.web3_rpc_errors[&labels].inc() == 0 {
+        if self.web3_rpc_errors[&labels].inc() == 0 || FILTER.should_report() {
             let ProtocolErrorLabels {
                 method,
                 error_code,
                 origin,
             } = &labels;
             tracing::info!(
-                "Observed new error code for method `{method}`, with params {raw_params}: {error_code}, origin: {origin:?}"
+                "Observed error code {error_code} (origin: {origin:?}) for method `{method}`, with params {raw_params}"
             );
-        }
-
-        if let Some(err) = app_error {
-            self.observe_web3_error(method, raw_params, err);
         }
     }
 
-    fn observe_web3_error(&self, method: &'static str, raw_params: &str, err: &ObservedWeb3Error) {
+    pub fn observe_web3_error(&self, method: &'static str, err: &Web3Error) {
         // Log internal error details.
-        match err.kind {
-            Web3ErrorKind::Internal => {
-                let message = err.message.as_deref().unwrap_or("");
-                tracing::error!(
-                    "Internal error in method `{method}` with params {raw_params}: {message}"
-                );
+        match err {
+            Web3Error::InternalError(err) => {
+                tracing::error!("Internal error in method `{method}`: {err}");
             }
-            Web3ErrorKind::Proxy => {
-                let message = err.message.as_deref().unwrap_or("");
-                tracing::warn!("Error proxying call to main node in method `{method}` with params {raw_params}: {message}");
+            Web3Error::ProxyError(err) => {
+                tracing::warn!("Error proxying call to main node in method `{method}`: {err}");
             }
             _ => { /* do nothing */ }
         }
 
         let labels = Web3ErrorLabels {
             method,
-            kind: err.kind,
+            kind: Web3ErrorKind::new(err),
         };
         if self.web3_errors[&labels].inc() == 0 {
             // Only log the first error with the label to not spam logs.
             tracing::info!(
-                "Observed new error type for method `{}` with params {raw_params}: {:?}",
+                "Observed new error type for method `{}`: {:?}",
                 labels.method,
                 labels.kind
             );
