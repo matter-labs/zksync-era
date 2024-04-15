@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import * as ethers from 'ethers';
-import * as zkweb3 from 'zksync-web3';
+import * as zkweb3 from 'zksync-ethers';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -10,7 +10,8 @@ export class Tester {
         public ethProvider: ethers.providers.Provider,
         public ethWallet: ethers.Wallet,
         public syncWallet: zkweb3.Wallet,
-        public web3Provider: zkweb3.Provider
+        public web3Provider: zkweb3.Provider,
+        public hyperchainAdmin: ethers.Wallet
     ) {
         this.runningFee = new Map();
     }
@@ -25,6 +26,10 @@ export class Tester {
         let ethWallet = ethers.Wallet.fromMnemonic(
             ethTestConfig.test_mnemonic as string,
             "m/44'/60'/0'/0/0"
+        ).connect(ethProvider);
+        let hyperchainAdmin = ethers.Wallet.fromMnemonic(
+            ethTestConfig.mnemonic as string,
+            "m/44'/60'/0'/0/1"
         ).connect(ethProvider);
         const web3Provider = new zkweb3.Provider(l2_rpc_addr);
         web3Provider.pollingInterval = 100; // It's OK to keep it low even on stage.
@@ -50,7 +55,7 @@ export class Tester {
             console.log(`Canceled ${cancellationTxs.length} pending transactions`);
         }
 
-        return new Tester(ethProvider, ethWallet, syncWallet, web3Provider);
+        return new Tester(ethProvider, ethWallet, syncWallet, web3Provider, hyperchainAdmin);
     }
 
     async fundedWallet(

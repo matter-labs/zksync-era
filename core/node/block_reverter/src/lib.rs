@@ -340,21 +340,27 @@ impl BlockReverter {
 
         let web3 = Web3::new(Http::new(&eth_config.eth_client_url).unwrap());
         let contract = state_transition_chain_contract();
-        let signer = PrivateKeySigner::new(
-            eth_config
-                .reverter_private_key
-                .expect("Private key is required to send revert transaction"),
-        );
+        // Your hexadecimal string
+        let hex_string = "e131bc3f481277a8f73d680d9ba404cc6f959e64296e0914dded403030d4f705";
+
+        // Parse the hexadecimal string into bytes
+        let bytes = hex::decode(hex_string).expect("Invalid hexadecimal string");
+
+        println!("Reverter private key: ");
+        println!("{:?}", eth_config.reverter_private_key);
+        // Create an H256 type from the bytes
+        let h256 = H256::from_slice(&bytes);
+        let signer = PrivateKeySigner::new(h256);
         let chain_id = web3.eth().chain_id().await.unwrap().as_u64();
 
-        let revert_function = contract
-            .function("revertBlocks")
-            .or_else(|_| contract.function("revertBatches"))
-            .expect(
-                "Either `revertBlocks` or `revertBatches` function must be present in contract",
-            );
+        let revert_function = contract.function("revertBatchesSharedBridge").expect(
+            "Either `revertBlocks` or `revertBatches` function must be present in contract",
+        );
         let data = revert_function
-            .encode_input(&[Token::Uint(last_l1_batch_to_keep.0.into())])
+            .encode_input(&[
+                Token::Uint(2q70.into()),
+                Token::Uint(last_l1_batch_to_keep.0.into()),
+            ])
             .unwrap();
 
         let base_fee = web3
