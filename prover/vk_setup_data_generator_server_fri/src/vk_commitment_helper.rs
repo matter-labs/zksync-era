@@ -2,7 +2,7 @@ use std::{fs, path::PathBuf};
 
 use anyhow::Context as _;
 use toml_edit::{Document, Item, Value};
-use zksync_utils::locate_workspace;
+use zksync_utils::workspace_dir_or_current_dir;
 
 pub fn get_toml_formatted_value(string_value: String) -> Item {
     let mut value = Value::from(string_value);
@@ -23,7 +23,5 @@ pub fn read_contract_toml() -> anyhow::Result<Document> {
 }
 
 pub fn get_contract_toml_path() -> PathBuf {
-    locate_workspace()
-        .unwrap_or_else(|| ".".into())
-        .join("etc/env/base/contracts.toml")
+    workspace_dir_or_current_dir().join("etc/env/base/contracts.toml")
 }

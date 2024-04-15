@@ -3,6 +3,7 @@ use std::{cell::RefCell, time::Duration};
 use anyhow::Context as _;
 use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
 use prometheus_exporter::PrometheusExporterConfig;
+use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_config::{
     configs::{ObservabilityConfig, PrometheusConfig},
@@ -11,7 +12,7 @@ use zksync_config::{
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_utils::wait_for_tasks::ManagedTasks;
+use zksync_utils::{wait_for_tasks::ManagedTasks, workspace_dir_or_current_dir};
 
 use crate::verifier::ContractVerifier;
 
@@ -24,7 +25,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
     let mut storage = connection_pool.connection().await.unwrap();
     let mut transaction = storage.start_transaction().await.unwrap();
 
-    let zksync_home = locate_workspace().unwrap_or_else(|| ".".into());
+    let zksync_home = workspace_dir_or_current_dir();
 
     let zksolc_path = zksync_home.join("etc/zksolc-bin/");
     let zksolc_versions: Vec<String> = std::fs::read_dir(zksolc_path)
@@ -113,9 +114,6 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
 
     transaction.commit().await.unwrap();
 }
-
-use structopt::StructOpt;
-use zksync_utils::locate_workspace;
 
 #[derive(StructOpt)]
 #[structopt(name = "zkSync contract code verifier", author = "Matter Labs")]

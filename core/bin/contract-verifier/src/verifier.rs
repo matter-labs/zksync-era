@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::Path,
     time::{Duration, Instant},
 };
 
@@ -21,7 +21,7 @@ use zksync_types::{
     },
     Address,
 };
-use zksync_utils::locate_workspace;
+use zksync_utils::workspace_dir_or_current_dir;
 
 use crate::{
     error::ContractVerifierError,
@@ -33,8 +33,8 @@ lazy_static! {
     static ref DEPLOYER_CONTRACT: Contract = zksync_contracts::deployer_contract();
 }
 
-fn home_path() -> PathBuf {
-    locate_workspace().unwrap_or_else(|| ".".into())
+fn home_path() -> &'static Path {
+    workspace_dir_or_current_dir()
 }
 
 #[derive(Debug)]

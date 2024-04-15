@@ -20,7 +20,7 @@ use zksync_config::configs::FriProverConfig;
 use zksync_env_config::FromEnv;
 use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_types::basic_fri_types::AggregationRound;
-use zksync_utils::locate_workspace;
+use zksync_utils::workspace_dir_or_current_dir;
 
 #[cfg(feature = "gpu")]
 use crate::GoldilocksGpuProverSetupData;
@@ -45,9 +45,7 @@ pub struct Keystore {
 }
 
 fn get_base_path_from_env() -> PathBuf {
-    locate_workspace()
-        .unwrap_or_else(|| ".".into())
-        .join("/prover/vk_setup_data_generator_server_fri/data")
+    workspace_dir_or_current_dir().join("/prover/vk_setup_data_generator_server_fri/data")
 }
 
 impl Default for Keystore {
