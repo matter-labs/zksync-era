@@ -5,7 +5,6 @@ use std::{
 
 use ethabi::{encode, ethereum_types::H264, Contract, Token};
 use itertools::Itertools;
-use tracing::{instrument::WithSubscriber, Instrument};
 // FIXME: 1.4.1 should not be imported from 1.5.0
 use zk_evm_1_4_1::sha2::{self};
 use zk_evm_1_5_0::zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32};
@@ -111,10 +110,8 @@ fn test_evm_vector(mut bytecode: Vec<u8>) -> U256 {
     );
 
     vm.vm.push_transaction(tx);
-
-    let debug_tracer = EvmDebugTracer::new();
-    let tracer_ptr = debug_tracer.into_tracer_pointer();
-    let tx_result = vm.vm.inspect(tracer_ptr.into(), VmExecutionMode::OneTx);
+    let tx_result: crate::vm_latest::VmExecutionResultAndLogs =
+        vm.vm.execute(VmExecutionMode::OneTx);
 
     assert!(
         !tx_result.result.is_failed(),
@@ -624,6 +621,67 @@ fn test_basic_signextend_vectors() {
             .concat()
         ),
         179_624_556.into()
+    );
+}
+
+#[test]
+fn test_basic_keccak_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    let evm_vector = test_evm_vector(
+        vec![
+            // push32 0xFFFF_FFFF
+            hex::decode("7F").unwrap(),
+            hex::decode("FFFFFFFF00000000000000000000000000000000000000000000000000000000")
+                .unwrap(),
+            // push1 0
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 4
+            hex::decode("60").unwrap(),
+            hex::decode("04").unwrap(),
+            // push1 0
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // keccak256
+            hex::decode("20").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(
+        H256(evm_vector.into()),
+        H256(keccak256(&(0xFFFF_FFFFu32.to_le_bytes())))
+    );
+
+    let evm_vector = test_evm_vector(
+        vec![
+            // push1 4
+            hex::decode("60").unwrap(),
+            hex::decode("04").unwrap(),
+            // push1 0
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // keccak256
+            hex::decode("20").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(
+        H256(evm_vector.into()),
+        H256(keccak256(&(0x00000_00000u32.to_le_bytes())))
     );
 }
 
