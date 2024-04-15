@@ -5,11 +5,22 @@ use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCA
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, U256};
 
-use crate::{interface::VmInterface, vm_latest::constants::VM_HOOK_POSITION, HistoryMode};
+use crate::{
+    interface::VmInterface,
+    vm_latest::{
+        constants::VM_HOOK_POSITION, BootloaderMemory, BootloaderState, CurrentExecutionState,
+        L2BlockEnv, VmExecutionMode, VmExecutionResultAndLogs,
+    },
+    HistoryMode,
+};
+
+use super::initial_bootloader_memory::bootloader_initial_memory;
 
 struct Vm {
     inner: VirtualMachine,
     suspended_at: u16,
+
+    bootloader_state: BootloaderState,
 
     gas_for_account_validation: u32,
 }
@@ -113,6 +124,11 @@ impl<S: WriteStorage + 'static, H: HistoryMode> VmInterface<S, H> for Vm {
             inner,
             suspended_at: 0,
             gas_for_account_validation: system_env.default_validation_computational_gas_limit,
+            bootloader_state: BootloaderState::new(
+                system_env.execution_mode,
+                bootloader_initial_memory(&batch_env),
+                batch_env.first_l2_block,
+            ),
         }
     }
 
@@ -123,26 +139,26 @@ impl<S: WriteStorage + 'static, H: HistoryMode> VmInterface<S, H> for Vm {
     fn inspect(
         &mut self,
         dispatcher: Self::TracerDispatcher,
-        execution_mode: crate::vm_latest::VmExecutionMode,
-    ) -> crate::vm_latest::VmExecutionResultAndLogs {
+        execution_mode: VmExecutionMode,
+    ) -> VmExecutionResultAndLogs {
         todo!()
     }
 
-    fn get_bootloader_memory(&self) -> crate::vm_latest::BootloaderMemory {
-        todo!()
+    fn get_bootloader_memory(&self) -> BootloaderMemory {
+        self.bootloader_state.bootloader_memory()
     }
 
     fn get_last_tx_compressed_bytecodes(
         &self,
     ) -> Vec<zksync_utils::bytecode::CompressedBytecodeInfo> {
-        todo!()
+        self.bootloader_state.get_last_tx_compressed_bytecodes()
     }
 
-    fn start_new_l2_block(&mut self, l2_block_env: crate::vm_latest::L2BlockEnv) {
-        todo!()
+    fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
+        self.bootloader_state.start_new_l2_block(l2_block_env)
     }
 
-    fn get_current_execution_state(&self) -> crate::vm_latest::CurrentExecutionState {
+    fn get_current_execution_state(&self) -> CurrentExecutionState {
         todo!()
     }
 
@@ -153,7 +169,7 @@ impl<S: WriteStorage + 'static, H: HistoryMode> VmInterface<S, H> for Vm {
         with_compression: bool,
     ) -> (
         Result<(), crate::interface::BytecodeCompressionError>,
-        crate::vm_latest::VmExecutionResultAndLogs,
+        VmExecutionResultAndLogs,
     ) {
         todo!()
     }
@@ -163,7 +179,7 @@ impl<S: WriteStorage + 'static, H: HistoryMode> VmInterface<S, H> for Vm {
     }
 
     fn gas_remaining(&self) -> u32 {
-        todo!()
+        self.inner.state.current_frame.gas
     }
 }
 
