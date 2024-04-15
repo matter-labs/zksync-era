@@ -457,7 +457,8 @@ export class TestContextOwner {
             });
         nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1);
         this.reporter.debug(
-            `Nonce changed by ${1 + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1)
+            `Nonce changed by ${
+                1 + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1)
             } for ERC20 deposit, new nonce: ${nonce}`
         );
         // Send ETH on L1.
