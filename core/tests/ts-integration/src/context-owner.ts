@@ -210,9 +210,10 @@ export class TestContextOwner {
         const l2ETHAmountToDeposit = await this.ensureBalances(accountsAmount);
         const l2ERC20AmountToDeposit = ERC20_PER_ACCOUNT.mul(accountsAmount);
         const wallets = this.createTestWallets(suites);
-        await this.distributeL1BaseToken(wallets, l2ERC20AmountToDeposit);
+        const baseTokenAddress = await this.mainSyncWallet.provider.getBaseTokenContractAddress();
+        await this.distributeL1BaseToken(wallets, l2ERC20AmountToDeposit, baseTokenAddress);
         await this.cancelAllowances();
-        await this.distributeL1Tokens(wallets, l2ETHAmountToDeposit, l2ERC20AmountToDeposit);
+        await this.distributeL1Tokens(wallets, l2ETHAmountToDeposit, l2ERC20AmountToDeposit, baseTokenAddress);
         await this.distributeL2Tokens(wallets);
 
         this.reporter.finishAction();
@@ -271,9 +272,12 @@ export class TestContextOwner {
      * Sends L1 tokens to the test wallet accounts.
      * Additionally, deposits L1 tokens to the main account for further distribution on L2 (if required).
      */
-    private async distributeL1BaseToken(wallets: TestWallets, l2erc20DepositAmount: ethers.BigNumber) {
+    private async distributeL1BaseToken(
+        wallets: TestWallets,
+        l2erc20DepositAmount: ethers.BigNumber,
+        baseTokenAddress: zksync.types.Address
+    ) {
         this.reporter.startAction(`Distributing base tokens on L1`);
-        const baseTokenAddress = process.env.CONTRACTS_BASE_TOKEN_ADDR!;
         if (baseTokenAddress != zksync.utils.ETH_ADDRESS_IN_CONTRACTS) {
             const chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
             const l1startNonce = await this.mainEthersWallet.getTransactionCount();
@@ -362,7 +366,8 @@ export class TestContextOwner {
     private async distributeL1Tokens(
         wallets: TestWallets,
         l2ETHAmountToDeposit: ethers.BigNumber,
-        l2erc20DepositAmount: ethers.BigNumber
+        l2erc20DepositAmount: ethers.BigNumber,
+        baseTokenAddress: zksync.types.Address
     ) {
         const chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
         this.reporter.startAction(`Distributing tokens on L1`);
@@ -486,8 +491,8 @@ export class TestContextOwner {
 
         nonce += erc20Transfers.length;
         // Send ERC20 base token on L1.
-        const BaseErc20Transfers = await sendTransfers(
-            process.env.CONTRACTS_BASE_TOKEN_ADDR!,
+        const baseErc20Transfers = await sendTransfers(
+            baseTokenAddress!,
             this.mainEthersWallet,
             wallets,
             ERC20_PER_ACCOUNT,
@@ -499,7 +504,7 @@ export class TestContextOwner {
         l1TxPromises.push(erc20DepositPromise);
         l1TxPromises.push(...ethTransfers);
         l1TxPromises.push(...erc20Transfers);
-        l1TxPromises.push(...BaseErc20Transfers);
+        l1TxPromises.push(...baseErc20Transfers);
 
         this.reporter.debug(`Sent ${l1TxPromises.length} initial transactions on L1`);
         await Promise.all(l1TxPromises);

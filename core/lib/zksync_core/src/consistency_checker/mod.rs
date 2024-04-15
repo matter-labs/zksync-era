@@ -417,7 +417,7 @@ impl ConsistencyChecker {
             &*PRE_BOOJUM_COMMIT_FUNCTION
         } else {
             self.contract
-                .function("commitBatches")
+                .function("commitBatchesSharedBridge")
                 .context("L1 contract does not have `commitBatches` function")
                 .map_err(CheckError::Internal)?
         };
