@@ -13,6 +13,7 @@ members = [
     # Node services
     "core/node/node_framework",
     "core/node/commitment_generator",
+    "core/node/house_keeper",
     # Libraries
     "core/lib/db_connection",
     "core/lib/zksync_core",
@@ -224,3 +225,4 @@ zksync_node_framework = { path = "core/node/node_framework" }
 zksync_eth_watch = { path = "core/node/eth_watch" }
 zksync_shared_metrics = { path = "core/node/shared_metrics" }
 zksync_commitment_generator = { path = "core/node/commitment_generator" }
+zksync_house_keeper =  { path = "core/node/house_keeper" }

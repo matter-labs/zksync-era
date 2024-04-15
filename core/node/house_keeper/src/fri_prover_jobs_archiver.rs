@@ -1,7 +1,7 @@
 use prover_dal::{Prover, ProverDal};
 use zksync_db_connection::connection_pool::ConnectionPool;
 
-use crate::house_keeper::{metrics::HOUSE_KEEPER_METRICS, periodic_job::PeriodicJob};
+use crate::{metrics::HOUSE_KEEPER_METRICS, periodic_job::PeriodicJob};
 
 #[derive(Debug)]
 pub struct FriProverJobArchiver {

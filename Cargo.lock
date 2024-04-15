@@ -8427,6 +8427,7 @@ dependencies = [
  "zksync_eth_signer",
  "zksync_eth_watch",
  "zksync_health_check",
+ "zksync_house_keeper",
  "zksync_l1_contract_interface",
  "zksync_mempool",
  "zksync_merkle_tree",
@@ -8652,6 +8653,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_house_keeper"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "metrics",
+ "prover_dal",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_dal",
+ "zksync_db_connection",
+ "zksync_shared_metrics",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "zksync_l1_contract_interface"
 version = "0.1.0"
 dependencies = [
@@ -8742,6 +8762,7 @@ dependencies = [
  "zksync_eth_client",
  "zksync_eth_watch",
  "zksync_health_check",
+ "zksync_house_keeper",
  "zksync_object_store",
  "zksync_protobuf_config",
  "zksync_state",
