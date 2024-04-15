@@ -4,7 +4,7 @@ import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
 import { TestEnvironment } from './types';
 import { Reporter } from './reporter';
-import { L2_ETH_TOKEN_ADDRESS } from 'zksync-ethers/build/src/utils';
+import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/src/utils';
 
 /**
  * Attempts to connect to server.
@@ -98,7 +98,7 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(weth.address);
 
-    const baseTokenAddressL2 = L2_ETH_TOKEN_ADDRESS;
+    const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
 
     return {
         network,

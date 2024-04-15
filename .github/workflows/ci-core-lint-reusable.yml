@@ -37,3 +37,5 @@ jobs:
           ci_run zk lint ts --check
           ci_run zk lint md --check
           ci_run zk db check-sqlx-data
+        
+        
