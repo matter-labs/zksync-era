@@ -9,13 +9,14 @@ use zksync_config::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
             StateKeeperConfig,
         },
+        consensus::{ConsensusConfig, ConsensusSecrets},
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         wallets::Wallets,
         FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, ObservabilityConfig,
         ProofDataHandlerConfig,
     },
-    ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, ETHConfig, ETHWatchConfig,
+    ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, EthConfig, EthWatchConfig,
     GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_core::{
@@ -23,9 +24,8 @@ use zksync_core::{
         tx_sender::{ApiContracts, TxSenderConfig},
         web3::{state::InternalApiConfig, Namespace},
     },
-    consensus,
     metadata_calculator::MetadataCalculatorConfig,
-    temp_config_store::decode_yaml,
+    temp_config_store::decode_yaml_repr,
 };
 use zksync_env_config::FromEnv;
 use zksync_node_framework::{
@@ -60,6 +60,7 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder, ZkStackServiceError},
 };
+use zksync_protobuf_config::proto;
 
 struct MainNodeBuilder {
     node: ZkStackServiceBuilder,
@@ -90,7 +91,7 @@ impl MainNodeBuilder {
 
     fn add_pk_signing_client_layer(mut self) -> anyhow::Result<Self> {
         let genesis = GenesisConfig::from_env()?;
-        let eth_config = ETHConfig::from_env()?;
+        let eth_config = EthConfig::from_env()?;
         let wallets = Wallets::from_env()?;
         self.node.add_layer(PKSigningEthClientLayer::new(
             eth_config,
@@ -102,7 +103,7 @@ impl MainNodeBuilder {
     }
 
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
-        let eth_client_config = ETHConfig::from_env()?;
+        let eth_client_config = EthConfig::from_env()?;
         let query_eth_client_layer = QueryEthClientLayer::new(eth_client_config.web3_url);
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
@@ -112,7 +113,7 @@ impl MainNodeBuilder {
         let gas_adjuster_config = GasAdjusterConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
         let genesis_config = GenesisConfig::from_env()?;
-        let eth_sender_config = ETHConfig::from_env()?;
+        let eth_sender_config = EthConfig::from_env()?;
         let sequencer_l1_gas_layer = SequencerL1GasLayer::new(
             gas_adjuster_config,
             genesis_config,
@@ -166,7 +167,7 @@ impl MainNodeBuilder {
 
     fn add_eth_watch_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(EthWatchLayer::new(
-            ETHWatchConfig::from_env()?,
+            EthWatchConfig::from_env()?,
             ContractsConfig::from_env()?,
         ));
         Ok(self)
@@ -296,7 +297,7 @@ impl MainNodeBuilder {
         Ok(self)
     }
     fn add_eth_sender_layer(mut self) -> anyhow::Result<Self> {
-        let eth_sender_config = ETHConfig::from_env()?;
+        let eth_sender_config = EthConfig::from_env()?;
         let contracts_config = ContractsConfig::from_env()?;
         let network_config = NetworkConfig::from_env()?;
         let genesis_config = GenesisConfig::from_env()?;
@@ -355,22 +356,28 @@ impl MainNodeBuilder {
     fn add_consensus_layer(mut self) -> anyhow::Result<Self> {
         // Copy-pasted from the zksync_server codebase.
 
-        fn read_consensus_secrets() -> anyhow::Result<Option<consensus::Secrets>> {
+        fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets>> {
             // Read public config.
             let Ok(path) = std::env::var("CONSENSUS_SECRETS_PATH") else {
                 return Ok(None);
             };
             let secrets = std::fs::read_to_string(&path).context(path)?;
-            Ok(Some(decode_yaml(&secrets).context("failed decoding YAML")?))
+            Ok(Some(
+                decode_yaml_repr::<proto::consensus::Secrets>(&secrets)
+                    .context("failed decoding YAML")?,
+            ))
         }
 
-        fn read_consensus_config() -> anyhow::Result<Option<consensus::Config>> {
+        fn read_consensus_config() -> anyhow::Result<Option<ConsensusConfig>> {
             // Read public config.
             let Ok(path) = std::env::var("CONSENSUS_CONFIG_PATH") else {
                 return Ok(None);
             };
             let cfg = std::fs::read_to_string(&path).context(path)?;
-            Ok(Some(decode_yaml(&cfg).context("failed decoding YAML")?))
+            Ok(Some(
+                decode_yaml_repr::<proto::consensus::Config>(&cfg)
+                    .context("failed decoding YAML")?,
+            ))
         }
 
         let config = read_consensus_config().context("read_consensus_config()")?;

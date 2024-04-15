@@ -5,8 +5,8 @@ services:
     volumes:
       - mainnet-prometheus-data:/prometheus
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-    ports:
-      - "9090:9090"
+    expose:
+      - 9090
   grafana:
     image: grafana/grafana:9.3.6
     volumes:
@@ -17,14 +17,25 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_DISABLE_LOGIN_FORM: "true"
     ports:
-      - "3000:3000"
-    expose:
-      - 3000
+      - "127.0.0.1:3000:3000"
   postgres:
     image: "postgres:14"
-    command: postgres -c 'max_connections=200'
-    ports:
-      - "5432:5432"
+    command: >
+      postgres 
+      -c max_connections=200 
+      -c log_error_verbosity=terse 
+      -c shared_buffers=2GB 
+      -c effective_cache_size=4GB
+      -c maintenance_work_mem=1GB
+      -c checkpoint_completion_target=0.9
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c min_wal_size=4GB
+      -c max_wal_size=16GB
+      -c max_worker_processes=16
+      -c checkpoint_timeout=1800
+    expose:
+      - 5430
     volumes:
       - mainnet-postgres:/var/lib/postgresql/data
     healthcheck:
@@ -32,23 +43,23 @@ services:
       timeout: 3s
       test: psql -U postgres -c "select exists (select * from pg_stat_activity where datname = '{{ database_name }}' and application_name = 'pg_restore')" | grep -e ".f$"
     environment:
-      # We bind only to localhost, so setting insecure password is acceptable here
       - POSTGRES_PASSWORD=notsecurepassword
+      - PGPORT=5430
   external-node:
     image: "matterlabs/external-node:e03e201-1712331604214-linux-amd64"
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "3322:3322"
+      - "127.0.0.1:3060:3060"
+      - "127.0.0.1:3061:3061"
+      - "127.0.0.1:3081:3081"
     volumes:
       - mainnet-rocksdb:/db
     expose:
-      - 3060
-      - 3061
-      - 3081
+      - 3322
     environment:
-      DATABASE_URL: "postgres://postgres:notsecurepassword@postgres/zksync_local_ext_node"
+      DATABASE_URL: "postgres://postgres:notsecurepassword@postgres:5430/zksync_local_ext_node"
       DATABASE_POOL_SIZE: 10
 
       EN_HTTP_PORT: 3060

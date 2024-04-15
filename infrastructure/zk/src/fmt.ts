@@ -52,6 +52,7 @@ export async function rustfmt(check: boolean = false) {
 
 export async function runAllRustFormatters(check: boolean = false) {
     // we need to run those two steps one by one as they operate on the same set of files
+    await rustfmt(check);
     await formatSqlxQueries(check);
     await rustfmt(check);
 }
