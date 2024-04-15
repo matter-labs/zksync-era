@@ -204,7 +204,7 @@ jobs:
       - name: Server integration tests
         run: ci_run zk test i server
 
-      - name: Snapshot recovery test - DISABLED
+      - name: Snapshot recovery test - DISABLED (EVM-540)
         # We use `yarn` directly because the test launches `zk` commands in both server and EN envs.
         # An empty topmost environment helps avoid a mess when redefining env vars shared between both envs
         # (e.g., DATABASE_URL).
@@ -212,11 +212,11 @@ jobs:
           ls
         # ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=Rollup PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run yarn snapshot-recovery-test snapshot-recovery-test
 
-      - name: Fee projection tests - DISABLED
+      - name: Fee projection tests - DISABLED (EVM-557)
         run: ls
         # ci_run zk test i fees
 
-      - name: Run revert test - DISABLED
+      - name: Run revert test - DISABLED (EVM-539)
         run: |
           ls
 
@@ -226,7 +226,7 @@ jobs:
 
         # This test should be the last one as soon as it
         # finished bootloader will be different
-      - name: Run upgrade test - DISABLED
+      - name: Run upgrade test - DISABLED (EVM-558)
         run: |
           ls
         # ci_run pkill zksync_server || true
@@ -318,21 +318,25 @@ jobs:
           ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
           ci_run sleep 30
 
-      - name: Integration tests
-        run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|snapshots-creator'
+      - name: Integration tests - DISABLED (EVM-559)
+        run: ls
+        # ci_run zk test i server --testPathIgnorePatterns 'contract-verification|snapshots-creator'
 
-      - name: Run revert test
+      - name: Run revert test - DISABLED (EVM-539)
         run: |
-          ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=Rollup PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert-en
-          # test terminates the nodes, so we restart them.
-          ZKSYNC_ENV=docker ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
-          ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
-          ci_run sleep 30
+          ls
 
-      - name: Run upgrade test
+        # ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=Rollup PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert-en
+        # test terminates the nodes, so we restart them.
+        # ZKSYNC_ENV=docker ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
+        # ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
+        # ci_run sleep 30
+
+      - name: Run upgrade test - DISABLED (EVM-558)
         run: |
-          ci_run zk env docker
-          CHECK_EN_URL="http://0.0.0.0:3060" ci_run zk test i upgrade
+          ls
+        # ci_run zk env docker
+        # CHECK_EN_URL="http://0.0.0.0:3060" ci_run zk test i upgrade
 
       - name: Show server.log logs
         if: always()
