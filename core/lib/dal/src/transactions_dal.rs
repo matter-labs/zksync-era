@@ -1251,7 +1251,8 @@ impl TransactionsDal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        self.map_transactions_to_execution_data(transactions).await
+        self.map_transactions_to_execution_data(transactions, Vec::new())
+            .await
     }
 
     /// Returns miniblocks with their transactions to be used in VM execution.
@@ -1281,14 +1282,39 @@ impl TransactionsDal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        self.map_transactions_to_execution_data(transactions).await
+        let fictive_miniblocks = sqlx::query!(
+            r#"
+            SELECT
+                number
+            FROM
+                miniblocks
+            WHERE
+                miniblocks.l1_batch_number = $1
+                AND l1_tx_count = 0
+                AND l2_tx_count = 0
+            ORDER BY
+                number
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .instrument("get_miniblocks_to_execute_for_l1_batch#fictive_miniblocks")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_all(self.storage)
+        .await?
+        .into_iter()
+        .map(|row| MiniblockNumber(row.number as u32))
+        .collect();
+
+        self.map_transactions_to_execution_data(transactions, fictive_miniblocks)
+            .await
     }
 
     async fn map_transactions_to_execution_data(
         &mut self,
         transactions: Vec<StorageTransaction>,
+        fictive_miniblocks: Vec<MiniblockNumber>,
     ) -> DalResult<Vec<MiniblockExecutionData>> {
-        let transactions_by_miniblock: Vec<(MiniblockNumber, Vec<Transaction>)> = transactions
+        let mut transactions_by_miniblock: Vec<(MiniblockNumber, Vec<Transaction>)> = transactions
             .into_iter()
             .group_by(|tx| tx.miniblock_number.unwrap())
             .into_iter()
@@ -1299,6 +1325,10 @@ impl TransactionsDal<'_, '_> {
                 )
             })
             .collect();
+        // Fictive miniblocks are always at the end of a batch so it is safe to append them
+        for fictive_miniblock in fictive_miniblocks {
+            transactions_by_miniblock.push((fictive_miniblock, Vec::new()));
+        }
         if transactions_by_miniblock.is_empty() {
             return Ok(Vec::new());
         }
