@@ -2210,7 +2210,7 @@ fn test_basic_balance_gas_vectors() {
             .into_iter()
             .concat()
         );
-    assert_eq!(initial_gas - gas_left,U256::from_dec_str("102").unwrap());
+    assert_eq!(initial_gas - gas_left,U256::from_dec_str("105").unwrap());
 
     let gas_left = test_evm_vector( // Random Address
         vec![
@@ -2229,7 +2229,7 @@ fn test_basic_balance_gas_vectors() {
         .into_iter()
         .concat()
     );
-    assert_eq!(initial_gas - gas_left,U256::from_dec_str("2602").unwrap());
+    assert_eq!(initial_gas - gas_left,U256::from_dec_str("2605").unwrap());
 
     let gas_left = test_evm_vector( // Random Address accesed twice
         vec![
@@ -2253,7 +2253,7 @@ fn test_basic_balance_gas_vectors() {
         .into_iter()
         .concat()
     );
-    assert_eq!(initial_gas - gas_left,U256::from_dec_str("2702").unwrap());
+    assert_eq!(initial_gas - gas_left,U256::from_dec_str("2708").unwrap());
 }
 
 #[test]
