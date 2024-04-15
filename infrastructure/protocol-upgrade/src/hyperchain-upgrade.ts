@@ -23,16 +23,16 @@ async function hyperchainUpgrade1() {
         'CONTRACTS_STATE_TRANSITION_PROXY_ADDR',
         'CONTRACTS_STATE_TRANSITION_IMPL_ADDR',
 
-        'CONTRACTS_ADMIN_FACET_ADDR',
         'CONTRACTS_DIAMOND_UPGRADE_INIT_ADDR',
         'CONTRACTS_DIAMOND_INIT_ADDR',
         'CONTRACTS_DEFAULT_UPGRADE_ADDR',
         'CONTRACTS_HYPERCHAIN_UPGRADE_ADDR',
         'CONTRACTS_GENESIS_UPGRADE_ADDR',
         'CONTRACTS_GOVERNANCE_ADDR',
-        'CONTRACTS_MAILBOX_FACET_ADDR',
+        'CONTRACTS_ADMIN_FACET_ADDR',
         'CONTRACTS_EXECUTOR_FACET_ADDR',
         'CONTRACTS_GETTERS_FACET_ADDR',
+        'CONTRACTS_MAILBOX_FACET_ADDR',
 
         'CONTRACTS_VERIFIER_ADDR',
         'CONTRACTS_VALIDATOR_TIMELOCK_ADDR',
@@ -66,6 +66,14 @@ async function hyperchainUpgrade2() {
     process.chdir(cwd);
 }
 
+async function hyperchainUpgrade3() {
+    const cwd = process.cwd();
+    process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
+
+    await spawn(`yarn hyperchain-upgrade-3 | tee deployL1.log`);
+    process.chdir(cwd);
+}
+
 async function preparePostUpgradeCalldata() {
     let calldata = new ethers.utils.AbiCoder().encode(
         ['uint256', 'address', 'address', 'address'],
@@ -81,14 +89,30 @@ async function preparePostUpgradeCalldata() {
     fs.writeFileSync(postUpgradeCalldataFileName, JSON.stringify(calldata, null, 2));
 }
 
+async function deploySharedBridgeL2Implementation() {
+    const cwd = process.cwd();
+    process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/`);
+
+    await spawn(`yarn deploy-shared-bridge-l2-implementation  | tee deployL1.log`);
+    process.chdir(cwd);
+
+    const deployLog = fs.readFileSync(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/deployL1.log`).toString();
+    const l2EnvVars = ['CONTRACTS_L2_SHARED_BRIDGE_IMPL_ADDR'];
+
+    console.log('Writing to', `etc/env/l2-inits/${process.env.ZKSYNC_ENV}.init.env`);
+    updateContractsEnv(`etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`, deployLog, l2EnvVars);
+}
+
 export const command = new Command('hyperchain-upgrade').description('create and publish custom l2 upgrade');
 
 command
     .command('start')
     .description('start')
     .option('--phase1')
+    .option('--shared-bridge-l2-implementation')
     .option('--post-upgrade-calldata')
     .option('--phase2')
+    .option('--phase3')
     .action(async (options) => {
         if (options.phase1) {
             await hyperchainUpgrade1();
@@ -96,5 +120,9 @@ command
             await hyperchainUpgrade2();
         } else if (options.postUpgradeCalldata) {
             await preparePostUpgradeCalldata();
+        } else if (options.sharedBridgeL2Implementation) {
+            await deploySharedBridgeL2Implementation();
+        } else if (options.phase3) {
+            await hyperchainUpgrade3();
         }
     });
