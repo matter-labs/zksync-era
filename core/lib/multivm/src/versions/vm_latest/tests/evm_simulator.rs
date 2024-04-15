@@ -1351,6 +1351,73 @@ fn test_basic_byte_vectors() {
         ),
         0.into()
     );
+    // SHL
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 32
+                hex::decode("60").unwrap(),
+                hex::decode("20").unwrap(),
+                // push1 2
+                hex::decode("60").unwrap(),
+                hex::decode("01").unwrap(),
+                // shl
+                hex::decode("1B").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        64.into()
+    );
+    // SHR
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 32
+                hex::decode("60").unwrap(),
+                hex::decode("20").unwrap(),
+                // push1 2
+                hex::decode("60").unwrap(),
+                hex::decode("01").unwrap(),
+                // shr
+                hex::decode("1C").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        16.into()
+    );
+    // SAR
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push32
+                hex::decode("7F").unwrap(),
+                hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE")
+                    .unwrap(),
+                // push1 2
+                hex::decode("60").unwrap(),
+                hex::decode("01").unwrap(),
+                // sar
+                hex::decode("1D").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        U256::from("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
+    );
 }
 
 #[test]
