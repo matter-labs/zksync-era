@@ -358,7 +358,7 @@ impl BlockReverter {
         );
         let data = revert_function
             .encode_input(&[
-                Token::Uint(2q70.into()),
+                Token::Uint(270.into()),
                 Token::Uint(last_l1_batch_to_keep.0.into()),
             ])
             .unwrap();
