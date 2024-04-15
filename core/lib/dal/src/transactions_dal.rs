@@ -505,16 +505,16 @@ impl TransactionsDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn mark_txs_as_executed_in_miniblock(
+    pub async fn mark_txs_as_executed_in_l2_block(
         &mut self,
-        miniblock_number: L2BlockNumber,
+        l2_block_number: L2BlockNumber,
         transactions: &[TransactionExecutionResult],
         block_base_fee_per_gas: U256,
     ) -> DalResult<()> {
         let mut transaction = self.storage.start_transaction().await?;
         let protocol_version = transaction
             .blocks_dal()
-            .get_miniblock_protocol_version_id(miniblock_number)
+            .get_l2_block_protocol_version_id(l2_block_number)
             .await?
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
@@ -530,15 +530,15 @@ impl TransactionsDal<'_, '_> {
 
         transaction
             .transactions_dal()
-            .handle_executed_l2_transactions(miniblock_number, block_base_fee_per_gas, transactions)
+            .handle_executed_l2_transactions(l2_block_number, block_base_fee_per_gas, transactions)
             .await?;
         transaction
             .transactions_dal()
-            .handle_executed_l1_transactions(miniblock_number, transactions)
+            .handle_executed_l1_transactions(l2_block_number, transactions)
             .await?;
         transaction
             .transactions_dal()
-            .handle_executed_upgrade_transactions(miniblock_number, transactions)
+            .handle_executed_upgrade_transactions(l2_block_number, transactions)
             .await?;
 
         if !bytea_call_traces.is_empty() {
@@ -577,7 +577,7 @@ impl TransactionsDal<'_, '_> {
 
     async fn handle_executed_l2_transactions(
         &mut self,
-        miniblock_number: L2BlockNumber,
+        l2_block_number: L2BlockNumber,
         block_base_fee_per_gas: U256,
         transactions: &[TransactionExecutionResult],
     ) -> DalResult<()> {
@@ -594,8 +594,8 @@ impl TransactionsDal<'_, '_> {
             return Ok(());
         }
 
-        let instrumentation = Instrumented::new("mark_txs_as_executed_in_miniblock#update_l2_txs")
-            .with_arg("miniblock_number", &miniblock_number)
+        let instrumentation = Instrumented::new("mark_txs_as_executed_in_l2_block#update_l2_txs")
+            .with_arg("l2_block_number", &l2_block_number)
             .with_arg("l2_txs.len", &l2_txs_len);
 
         let mut l2_hashes = Vec::with_capacity(l2_txs_len);
@@ -757,7 +757,7 @@ impl TransactionsDal<'_, '_> {
             &l2_contract_addresses as &[&[u8]],
             &l2_paymaster as &[&[u8]],
             &l2_paymaster_input as &[&[u8]],
-            miniblock_number.0 as i32,
+            l2_block_number.0 as i32,
         );
 
         instrumentation.with(query).execute(self.storage).await?;
@@ -766,7 +766,7 @@ impl TransactionsDal<'_, '_> {
 
     async fn handle_executed_l1_transactions(
         &mut self,
-        miniblock_number: L2BlockNumber,
+        l2_block_number: L2BlockNumber,
         transactions: &[TransactionExecutionResult],
     ) -> DalResult<()> {
         let l1_txs_len = transactions
@@ -782,8 +782,8 @@ impl TransactionsDal<'_, '_> {
             return Ok(());
         }
 
-        let instrumentation = Instrumented::new("mark_txs_as_executed_in_miniblock#update_l1_txs")
-            .with_arg("miniblock_number", &miniblock_number)
+        let instrumentation = Instrumented::new("mark_txs_as_executed_in_l2_block#update_l1_txs")
+            .with_arg("l2_block_number", &l2_block_number)
             .with_arg("l1_txs.len", &l1_txs_len);
 
         let mut l1_hashes = Vec::with_capacity(l1_txs_len);
@@ -843,7 +843,7 @@ impl TransactionsDal<'_, '_> {
             WHERE
                 transactions.hash = data_table.hash
             "#,
-            miniblock_number.0 as i32,
+            l2_block_number.0 as i32,
             &l1_hashes as &[&[u8]],
             &l1_indices_in_block,
             &l1_errors as &[&str],
@@ -858,7 +858,7 @@ impl TransactionsDal<'_, '_> {
 
     async fn handle_executed_upgrade_transactions(
         &mut self,
-        miniblock_number: L2BlockNumber,
+        l2_block_number: L2BlockNumber,
         transactions: &[TransactionExecutionResult],
     ) -> DalResult<()> {
         let upgrade_txs_len = transactions
@@ -875,8 +875,8 @@ impl TransactionsDal<'_, '_> {
         }
 
         let instrumentation =
-            Instrumented::new("mark_txs_as_executed_in_miniblock#update_upgrade_txs")
-                .with_arg("miniblock_number", &miniblock_number)
+            Instrumented::new("mark_txs_as_executed_in_l2_block#update_upgrade_txs")
+                .with_arg("l2_block_number", &l2_block_number)
                 .with_arg("upgrade_txs.len", &upgrade_txs_len);
 
         let mut upgrade_hashes = Vec::new();
@@ -937,7 +937,7 @@ impl TransactionsDal<'_, '_> {
             WHERE
                 transactions.hash = data_table.hash
             "#,
-            miniblock_number.0 as i32,
+            l2_block_number.0 as i32,
             &upgrade_hashes as &[&[u8]],
             &upgrade_indices_in_block,
             &upgrade_errors as &[&str],
@@ -979,7 +979,7 @@ impl TransactionsDal<'_, '_> {
 
     pub async fn reset_transactions_state(
         &mut self,
-        miniblock_number: L2BlockNumber,
+        l2_block_number: L2BlockNumber,
     ) -> DalResult<()> {
         let hash_rows = sqlx::query!(
             r#"
@@ -995,10 +995,10 @@ impl TransactionsDal<'_, '_> {
             RETURNING
                 hash
             "#,
-            i64::from(miniblock_number.0)
+            i64::from(l2_block_number.0)
         )
         .instrument("reset_transactions_state#get_tx_hashes")
-        .with_arg("miniblock_number", &miniblock_number)
+        .with_arg("l2_block_number", &l2_block_number)
         .fetch_all(self.storage)
         .await?;
 
@@ -1012,7 +1012,7 @@ impl TransactionsDal<'_, '_> {
             &tx_hashes as &[&[u8]]
         )
         .instrument("reset_transactions_state")
-        .with_arg("miniblock_number", &miniblock_number)
+        .with_arg("l2_block_number", &l2_block_number)
         .with_arg("tx_hashes.len", &tx_hashes.len())
         .execute(self.storage)
         .await?;
@@ -1228,11 +1228,11 @@ impl TransactionsDal<'_, '_> {
         }
     }
 
-    /// Returns miniblocks with their transactions that state_keeper needs to re-execute on restart.
-    /// These are the transactions that are included to some miniblock,
+    /// Returns L2 blocks with their transactions that state_keeper needs to re-execute on restart.
+    /// These are the transactions that are included to some L2 block,
     /// but not included to L1 batch. The order of the transactions is the same as it was
     /// during the previous execution.
-    pub async fn get_miniblocks_to_reexecute(&mut self) -> DalResult<Vec<L2BlockExecutionData>> {
+    pub async fn get_l2_blocks_to_reexecute(&mut self) -> DalResult<Vec<L2BlockExecutionData>> {
         let transactions = sqlx::query_as!(
             StorageTransaction,
             r#"
@@ -1248,17 +1248,17 @@ impl TransactionsDal<'_, '_> {
                 index_in_block
             "#,
         )
-        .instrument("get_miniblocks_to_reexecute#transactions")
+        .instrument("get_l2_blocks_to_reexecute#transactions")
         .fetch_all(self.storage)
         .await?;
 
         self.map_transactions_to_execution_data(transactions).await
     }
 
-    /// Returns miniblocks with their transactions to be used in VM execution.
+    /// Returns L2 blocks with their transactions to be used in VM execution.
     /// The order of the transactions is the same as it was during previous execution.
-    /// All miniblocks are retrieved for the given l1_batch.
-    pub async fn get_miniblocks_to_execute_for_l1_batch(
+    /// All L2 blocks are retrieved for the given l1_batch.
+    pub async fn get_l2_blocks_to_execute_for_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> DalResult<Vec<L2BlockExecutionData>> {
@@ -1277,7 +1277,7 @@ impl TransactionsDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-        .instrument("get_miniblocks_to_execute_for_l1_batch")
+        .instrument("get_l2_blocks_to_execute_for_l1_batch")
         .with_arg("l1_batch_number", &l1_batch_number)
         .fetch_all(self.storage)
         .await?;
@@ -1289,25 +1289,25 @@ impl TransactionsDal<'_, '_> {
         &mut self,
         transactions: Vec<StorageTransaction>,
     ) -> DalResult<Vec<L2BlockExecutionData>> {
-        let transactions_by_miniblock: Vec<(L2BlockNumber, Vec<Transaction>)> = transactions
+        let transactions_by_l2_block: Vec<(L2BlockNumber, Vec<Transaction>)> = transactions
             .into_iter()
             .group_by(|tx| tx.miniblock_number.unwrap())
             .into_iter()
-            .map(|(miniblock_number, txs)| {
+            .map(|(l2_block_number, txs)| {
                 (
-                    L2BlockNumber(miniblock_number as u32),
+                    L2BlockNumber(l2_block_number as u32),
                     txs.map(Transaction::from).collect::<Vec<_>>(),
                 )
             })
             .collect();
-        if transactions_by_miniblock.is_empty() {
+        if transactions_by_l2_block.is_empty() {
             return Ok(Vec::new());
         }
-        let from_miniblock = transactions_by_miniblock.first().unwrap().0;
-        let to_miniblock = transactions_by_miniblock.last().unwrap().0;
-        // `unwrap()`s are safe; `transactions_by_miniblock` is not empty as checked above
+        let from_l2_block = transactions_by_l2_block.first().unwrap().0;
+        let to_l2_block = transactions_by_l2_block.last().unwrap().0;
+        // `unwrap()`s are safe; `transactions_by_l2_block` is not empty as checked above
 
-        let miniblock_data = sqlx::query!(
+        let l2_block_data = sqlx::query!(
             r#"
             SELECT
                 timestamp,
@@ -1319,24 +1319,24 @@ impl TransactionsDal<'_, '_> {
             ORDER BY
                 number
             "#,
-            i64::from(from_miniblock.0),
-            i64::from(to_miniblock.0)
+            i64::from(from_l2_block.0),
+            i64::from(to_l2_block.0)
         )
         .instrument("map_transactions_to_execution_data#miniblocks")
-        .with_arg("from_miniblock", &from_miniblock)
-        .with_arg("to_miniblock", &to_miniblock)
+        .with_arg("from_l2_block", &from_l2_block)
+        .with_arg("to_l2_block", &to_l2_block)
         .fetch_all(self.storage)
         .await?;
 
-        if miniblock_data.len() != transactions_by_miniblock.len() {
+        if l2_block_data.len() != transactions_by_l2_block.len() {
             let err = Instrumented::new("map_transactions_to_execution_data")
-                .with_arg("transactions_by_miniblock", &transactions_by_miniblock)
-                .with_arg("miniblock_data", &miniblock_data)
+                .with_arg("transactions_by_l2_block", &transactions_by_l2_block)
+                .with_arg("l2_block_data", &l2_block_data)
                 .constraint_error(anyhow::anyhow!("not enough miniblock data retrieved"));
             return Err(err);
         }
 
-        let prev_miniblock_hashes = sqlx::query!(
+        let prev_l2_block_hashes = sqlx::query!(
             r#"
             SELECT
                 number,
@@ -1348,16 +1348,16 @@ impl TransactionsDal<'_, '_> {
             ORDER BY
                 number
             "#,
-            i64::from(from_miniblock.0) - 1,
-            i64::from(to_miniblock.0) - 1,
+            i64::from(from_l2_block.0) - 1,
+            i64::from(to_l2_block.0) - 1,
         )
-        .instrument("map_transactions_to_execution_data#prev_miniblock_hashes")
-        .with_arg("from_miniblock", &(from_miniblock - 1))
-        .with_arg("to_miniblock", &(to_miniblock - 1))
+        .instrument("map_transactions_to_execution_data#prev_l2_block_hashes")
+        .with_arg("from_l2_block", &(from_l2_block - 1))
+        .with_arg("to_l2_block", &(to_l2_block - 1))
         .fetch_all(self.storage)
         .await?;
 
-        let prev_miniblock_hashes: HashMap<_, _> = prev_miniblock_hashes
+        let prev_l2_block_hashes: HashMap<_, _> = prev_l2_block_hashes
             .into_iter()
             .map(|row| {
                 (
@@ -1367,14 +1367,14 @@ impl TransactionsDal<'_, '_> {
             })
             .collect();
 
-        let mut data = Vec::with_capacity(transactions_by_miniblock.len());
-        let it = transactions_by_miniblock.into_iter().zip(miniblock_data);
-        for ((number, txs), miniblock_row) in it {
-            let prev_miniblock_number = number - 1;
-            let prev_block_hash = match prev_miniblock_hashes.get(&prev_miniblock_number) {
+        let mut data = Vec::with_capacity(transactions_by_l2_block.len());
+        let it = transactions_by_l2_block.into_iter().zip(l2_block_data);
+        for ((number, txs), l2_block_row) in it {
+            let prev_l2_block_number = number - 1;
+            let prev_block_hash = match prev_l2_block_hashes.get(&prev_l2_block_number) {
                 Some(hash) => *hash,
                 None => {
-                    // Can occur after snapshot recovery; the first previous miniblock may not be present
+                    // Can occur after snapshot recovery; the first previous L2 block may not be present
                     // in the storage.
                     let row = sqlx::query!(
                         r#"
@@ -1385,10 +1385,10 @@ impl TransactionsDal<'_, '_> {
                         WHERE
                             miniblock_number = $1
                         "#,
-                        prev_miniblock_number.0 as i32
+                        prev_l2_block_number.0 as i32
                     )
                     .instrument("map_transactions_to_execution_data#snapshot_recovery")
-                    .with_arg("prev_miniblock_number", &prev_miniblock_number)
+                    .with_arg("prev_l2_block_number", &prev_l2_block_number)
                     .fetch_one(self.storage)
                     .await?;
                     H256::from_slice(&row.miniblock_hash)
@@ -1397,9 +1397,9 @@ impl TransactionsDal<'_, '_> {
 
             data.push(L2BlockExecutionData {
                 number,
-                timestamp: miniblock_row.timestamp as u64,
+                timestamp: l2_block_row.timestamp as u64,
                 prev_block_hash,
-                virtual_blocks: miniblock_row.virtual_blocks as u32,
+                virtual_blocks: l2_block_row.virtual_blocks as u32,
                 txs,
             });
         }
@@ -1472,7 +1472,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
+        tests::{create_l2_block_header, mock_execution_result, mock_l2_transaction},
         ConnectionPool, Core, CoreDal,
     };
 
@@ -1485,7 +1485,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_miniblock(&create_miniblock_header(1))
+            .insert_l2_block(&create_l2_block_header(1))
             .await
             .unwrap();
 
@@ -1504,7 +1504,7 @@ mod tests {
         });
         let expected_call_trace = tx_result.call_trace().unwrap();
         conn.transactions_dal()
-            .mark_txs_as_executed_in_miniblock(L2BlockNumber(1), &[tx_result], 1.into())
+            .mark_txs_as_executed_in_l2_block(L2BlockNumber(1), &[tx_result], 1.into())
             .await
             .unwrap();
 

@@ -250,7 +250,7 @@ impl ReorgDetector {
         };
         let Some(local_miniblock) = storage
             .blocks_dal()
-            .get_sealed_miniblock_number()
+            .get_sealed_l2_block_number()
             .await
             .map_err(DalError::generalize)?
         else {
@@ -314,7 +314,7 @@ impl ReorgDetector {
         let mut storage = self.pool.connection().await.context("connection()")?;
         let local_hash = storage
             .blocks_dal()
-            .get_miniblock_header(miniblock)
+            .get_l2_block_header(miniblock)
             .await
             .map_err(DalError::generalize)?
             .with_context(|| format!("Header does not exist for local miniblock #{miniblock}"))?

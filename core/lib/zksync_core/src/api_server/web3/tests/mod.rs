@@ -359,13 +359,10 @@ async fn store_miniblock(
     }
 
     let new_miniblock = create_miniblock(number.0);
-    storage
-        .blocks_dal()
-        .insert_miniblock(&new_miniblock)
-        .await?;
+    storage.blocks_dal().insert_l2_block(&new_miniblock).await?;
     storage
         .transactions_dal()
-        .mark_txs_as_executed_in_miniblock(new_miniblock.number, transaction_results, 1.into())
+        .mark_txs_as_executed_in_l2_block(new_miniblock.number, transaction_results, 1.into())
         .await?;
     Ok(new_miniblock)
 }
@@ -378,7 +375,7 @@ async fn seal_l1_batch(
     storage.blocks_dal().insert_mock_l1_batch(&header).await?;
     storage
         .blocks_dal()
-        .mark_miniblocks_as_executed_in_l1_batch(number)
+        .mark_l2_blocks_as_executed_in_l1_batch(number)
         .await?;
     let metadata = create_l1_batch_metadata(number.0);
     storage
@@ -402,10 +399,7 @@ async fn store_events(
 ) -> anyhow::Result<(IncludedTxLocation, Vec<VmEvent>)> {
     let new_miniblock = create_miniblock(miniblock_number);
     let l1_batch_number = L1BatchNumber(miniblock_number);
-    storage
-        .blocks_dal()
-        .insert_miniblock(&new_miniblock)
-        .await?;
+    storage.blocks_dal().insert_l2_block(&new_miniblock).await?;
     let tx_location = IncludedTxLocation {
         tx_hash: H256::repeat_byte(1),
         tx_index_in_miniblock: 0,

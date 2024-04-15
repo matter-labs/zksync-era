@@ -20,7 +20,7 @@ async fn creating_block_args() {
     let miniblock = create_miniblock(1);
     storage
         .blocks_dal()
-        .insert_miniblock(&miniblock)
+        .insert_l2_block(&miniblock)
         .await
         .unwrap();
 
@@ -130,7 +130,7 @@ async fn creating_block_args_after_snapshot_recovery() {
     let miniblock = create_miniblock(snapshot_recovery.miniblock_number.0 + 1);
     storage
         .blocks_dal()
-        .insert_miniblock(&miniblock)
+        .insert_l2_block(&miniblock)
         .await
         .unwrap();
 

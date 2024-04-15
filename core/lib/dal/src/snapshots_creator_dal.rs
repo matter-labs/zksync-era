@@ -42,10 +42,10 @@ impl SnapshotsCreatorDal<'_, '_> {
     }
 
     /// Constructs a `storate_logs` chunk of the state AFTER processing `[0..l1_batch_number]`
-    /// batches. `miniblock_number` MUST be the last miniblock of the `l1_batch_number` batch.
+    /// batches. `l2_block_number` MUST be the last L2 block of the `l1_batch_number` batch.
     pub async fn get_storage_logs_chunk(
         &mut self,
-        miniblock_number: L2BlockNumber,
+        l2_block_number: L2BlockNumber,
         l1_batch_number: L1BatchNumber,
         hashed_keys_range: std::ops::RangeInclusive<H256>,
     ) -> DalResult<Vec<SnapshotStorageLog>> {
@@ -84,13 +84,13 @@ impl SnapshotsCreatorDal<'_, '_> {
             WHERE
                 initial_writes.l1_batch_number <= $2
             "#,
-            i64::from(miniblock_number.0),
+            i64::from(l2_block_number.0),
             i64::from(l1_batch_number.0),
             hashed_keys_range.start().as_bytes(),
             hashed_keys_range.end().as_bytes()
         )
         .instrument("get_storage_logs_chunk")
-        .with_arg("miniblock_number", &miniblock_number)
+        .with_arg("l2_block_number", &l2_block_number)
         .with_arg("min_hashed_key", &hashed_keys_range.start())
         .with_arg("max_hashed_key", &hashed_keys_range.end())
         .report_latency()
@@ -111,10 +111,10 @@ impl SnapshotsCreatorDal<'_, '_> {
         Ok(storage_logs)
     }
 
-    /// Returns all factory dependencies up to and including the specified `miniblock_number`.
+    /// Returns all factory dependencies up to and including the specified `l2_block_number`.
     pub async fn get_all_factory_deps(
         &mut self,
-        miniblock_number: L2BlockNumber,
+        l2_block_number: L2BlockNumber,
     ) -> DalResult<Vec<(H256, Vec<u8>)>> {
         let rows = sqlx::query!(
             r#"
@@ -126,7 +126,7 @@ impl SnapshotsCreatorDal<'_, '_> {
             WHERE
                 miniblock_number <= $1
             "#,
-            i64::from(miniblock_number.0),
+            i64::from(l2_block_number.0),
         )
         .instrument("get_all_factory_deps")
         .report_latency()
@@ -182,7 +182,7 @@ mod tests {
         assert_eq!(log_row_count, logs.len() as u64);
         assert_logs_for_snapshot(&mut conn, L2BlockNumber(1), L1BatchNumber(1), &logs).await;
 
-        // Add some inserts / updates in the next miniblock. They should be ignored.
+        // Add some inserts / updates in the next L2 block. They should be ignored.
         let new_logs = (100..150).map(|i| {
             let key = StorageKey::new(
                 AccountTreeId::new(Address::random()),
@@ -223,14 +223,14 @@ mod tests {
 
     async fn assert_logs_for_snapshot(
         conn: &mut Connection<'_, Core>,
-        miniblock_number: L2BlockNumber,
+        l2_block_number: L2BlockNumber,
         l1_batch_number: L1BatchNumber,
         expected_logs: &[StorageLog],
     ) {
         let all_logs = conn
             .snapshots_creator_dal()
             .get_storage_logs_chunk(
-                miniblock_number,
+                l2_block_number,
                 l1_batch_number,
                 H256::zero()..=H256::repeat_byte(0xff),
             )
@@ -248,7 +248,7 @@ mod tests {
                 let range = chunk[0].key.hashed_key()..=chunk.last().unwrap().key.hashed_key();
                 let logs = conn
                     .snapshots_creator_dal()
-                    .get_storage_logs_chunk(miniblock_number, l1_batch_number, range)
+                    .get_storage_logs_chunk(l2_block_number, l1_batch_number, range)
                     .await
                     .unwrap();
                 assert_eq!(logs.len(), chunk.len());

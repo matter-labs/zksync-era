@@ -16,7 +16,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        tests::{create_miniblock_header, mock_l2_to_l1_log, mock_vm_event},
+        tests::{create_l2_block_header, mock_l2_to_l1_log, mock_vm_event},
         ConnectionPool, Core, CoreDal,
     };
 
@@ -25,14 +25,14 @@ mod tests {
         miniblock_number: L2BlockNumber,
         l1_batch_number: L1BatchNumber,
     ) {
-        let miniblock1 = create_miniblock_header(miniblock_number.0);
+        let miniblock1 = create_l2_block_header(miniblock_number.0);
         conn.blocks_dal()
-            .insert_miniblock(&miniblock1)
+            .insert_l2_block(&miniblock1)
             .await
             .unwrap();
 
         conn.blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(l1_batch_number)
+            .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
             .await
             .unwrap();
 
@@ -153,14 +153,14 @@ mod tests {
             let l1_batch_number = L1BatchNumber(l1_batch_number);
             assert!(conn
                 .blocks_dal()
-                .get_miniblock_header(L2BlockNumber(l1_batch_number.0 * 2))
+                .get_l2_block_header(L2BlockNumber(l1_batch_number.0 * 2))
                 .await
                 .unwrap()
                 .is_some());
 
             assert!(conn
                 .blocks_dal()
-                .get_miniblock_header(L2BlockNumber(l1_batch_number.0 * 2 + 1))
+                .get_l2_block_header(L2BlockNumber(l1_batch_number.0 * 2 + 1))
                 .await
                 .unwrap()
                 .is_some());
@@ -182,7 +182,7 @@ mod tests {
             let l1_batch_number = L1BatchNumber(l1_batch_number);
             assert!(conn
                 .blocks_dal()
-                .get_miniblock_header(L2BlockNumber(l1_batch_number.0 * 2))
+                .get_l2_block_header(L2BlockNumber(l1_batch_number.0 * 2))
                 .await
                 .unwrap()
                 .is_none());
@@ -196,7 +196,7 @@ mod tests {
 
             assert!(conn
                 .blocks_dal()
-                .get_miniblock_header(L2BlockNumber(l1_batch_number.0 * 2 + 1))
+                .get_l2_block_header(L2BlockNumber(l1_batch_number.0 * 2 + 1))
                 .await
                 .unwrap()
                 .is_none());

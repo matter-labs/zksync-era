@@ -44,7 +44,7 @@ impl SnapshotRecoveryDal<'_, '_> {
         )
         .instrument("insert_initial_recovery_status")
         .with_arg("status.l1_batch_number", &status.l1_batch_number)
-        .with_arg("status.miniblock_number", &status.miniblock_number)
+        .with_arg("status.l2_block_number", &status.miniblock_number)
         .execute(self.storage)
         .await?;
         Ok(())

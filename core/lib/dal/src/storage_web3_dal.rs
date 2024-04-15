@@ -9,7 +9,7 @@ use zksync_types::{
 };
 use zksync_utils::h256_to_u256;
 
-use crate::{models::storage_block::ResolvedL1BatchForMiniblock, Core, CoreDal};
+use crate::{models::storage_block::ResolvedL1BatchForL2Block, Core, CoreDal};
 
 #[derive(Debug)]
 pub struct StorageWeb3Dal<'a, 'c> {
@@ -133,7 +133,7 @@ impl StorageWeb3Dal<'_, '_> {
     pub async fn resolve_l1_batch_number_of_miniblock(
         &mut self,
         miniblock_number: L2BlockNumber,
-    ) -> DalResult<ResolvedL1BatchForMiniblock> {
+    ) -> DalResult<ResolvedL1BatchForL2Block> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -168,7 +168,7 @@ impl StorageWeb3Dal<'_, '_> {
         .fetch_one(self.storage)
         .await?;
 
-        Ok(ResolvedL1BatchForMiniblock {
+        Ok(ResolvedL1BatchForL2Block {
             miniblock_l1_batch: row.block_batch.map(|n| L1BatchNumber(n as u32)),
             pending_l1_batch: L1BatchNumber(row.pending_batch as u32),
         })
@@ -275,7 +275,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        tests::{create_miniblock_header, create_snapshot_recovery},
+        tests::{create_l2_block_header, create_snapshot_recovery},
         ConnectionPool, Core, CoreDal,
     };
 
@@ -288,7 +288,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_miniblock(&create_miniblock_header(0))
+            .insert_l2_block(&create_l2_block_header(0))
             .await
             .unwrap();
         let l1_batch_header = L1BatchHeader::new(
@@ -302,13 +302,13 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(0))
+            .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
             .await
             .unwrap();
 
-        let first_miniblock = create_miniblock_header(1);
+        let first_miniblock = create_l2_block_header(1);
         conn.blocks_dal()
-            .insert_miniblock(&first_miniblock)
+            .insert_l2_block(&first_miniblock)
             .await
             .unwrap();
 
@@ -361,9 +361,9 @@ mod tests {
             .await
             .unwrap();
 
-        let first_miniblock = create_miniblock_header(snapshot_recovery.miniblock_number.0 + 1);
+        let first_miniblock = create_l2_block_header(snapshot_recovery.miniblock_number.0 + 1);
         conn.blocks_dal()
-            .insert_miniblock(&first_miniblock)
+            .insert_l2_block(&first_miniblock)
             .await
             .unwrap();
 
@@ -400,7 +400,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(l1_batch_header.number)
+            .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_header.number)
             .await
             .unwrap();
 

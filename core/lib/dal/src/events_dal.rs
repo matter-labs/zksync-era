@@ -41,7 +41,7 @@ pub struct EventsDal<'a, 'c> {
 }
 
 impl EventsDal<'_, '_> {
-    /// Saves events for the specified miniblock.
+    /// Saves events for the specified L2 block.
     pub async fn save_events(
         &mut self,
         block_number: L2BlockNumber,
@@ -118,7 +118,7 @@ impl EventsDal<'_, '_> {
         Ok(())
     }
 
-    /// Saves user L2-to-L1 logs from a miniblock. Logs must be ordered by transaction location
+    /// Saves user L2-to-L1 logs from an L2 block. Logs must be ordered by transaction location
     /// and within each transaction.
     pub async fn save_user_l2_to_l1_logs(
         &mut self,
@@ -181,7 +181,7 @@ impl EventsDal<'_, '_> {
         copy.send(buffer.as_bytes()).await
     }
 
-    /// Removes all L2-to-L1 logs with a miniblock number strictly greater than the specified `block_number`.
+    /// Removes all L2-to-L1 logs with a L2 block number strictly greater than the specified `block_number`.
     pub async fn rollback_l2_to_l1_logs(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
@@ -254,7 +254,7 @@ impl EventsDal<'_, '_> {
         let Some((from_miniblock, to_miniblock)) = self
             .storage
             .blocks_dal()
-            .get_miniblock_range_of_l1_batch(l1_batch_number)
+            .get_l2_block_range_of_l1_batch(l1_batch_number)
             .await?
         else {
             return Ok(Vec::new());
@@ -349,7 +349,7 @@ impl EventsDal<'_, '_> {
         let Some((from_miniblock, to_miniblock)) = self
             .storage
             .blocks_dal()
-            .get_miniblock_range_of_l1_batch(l1_batch_number)
+            .get_l2_block_range_of_l1_batch(l1_batch_number)
             .await?
         else {
             return Ok(None);
@@ -416,7 +416,7 @@ mod tests {
     use zksync_types::{Address, L1BatchNumber, ProtocolVersion};
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool, Core};
+    use crate::{tests::create_l2_block_header, ConnectionPool, Core};
 
     fn create_vm_event(index: u8, topic_count: u8) -> VmEvent {
         assert!(topic_count <= 4);
@@ -437,7 +437,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .delete_miniblocks(L2BlockNumber(0))
+            .delete_l2_blocks(L2BlockNumber(0))
             .await
             .unwrap();
         conn.protocol_versions_dal()
@@ -445,7 +445,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_miniblock(&create_miniblock_header(1))
+            .insert_l2_block(&create_l2_block_header(1))
             .await
             .unwrap();
 
@@ -518,7 +518,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .delete_miniblocks(L2BlockNumber(0))
+            .delete_l2_blocks(L2BlockNumber(0))
             .await
             .unwrap();
         conn.protocol_versions_dal()
@@ -526,7 +526,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_miniblock(&create_miniblock_header(1))
+            .insert_l2_block(&create_l2_block_header(1))
             .await
             .unwrap();
 

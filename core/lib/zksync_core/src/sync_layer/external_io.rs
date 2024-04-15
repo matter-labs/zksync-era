@@ -182,7 +182,7 @@ impl StateKeeperIO for ExternalIO {
             storage = self.pool.connection_tagged("sync_layer").await?;
             storage
                 .blocks_dal()
-                .set_protocol_version_for_pending_miniblocks(protocol_version)
+                .set_protocol_version_for_pending_l2_blocks(protocol_version)
                 .await
                 .context("failed setting protocol version for pending miniblocks")?;
             pending_miniblock_header.set_protocol_version(protocol_version);

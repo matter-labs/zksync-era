@@ -526,11 +526,11 @@ pub(crate) async fn create_genesis_l1_batch(
         .await?;
     transaction
         .blocks_dal()
-        .insert_miniblock(&genesis_miniblock_header)
+        .insert_l2_block(&genesis_miniblock_header)
         .await?;
     transaction
         .blocks_dal()
-        .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(0))
+        .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
         .await?;
 
     insert_base_system_contracts_to_factory_deps(&mut transaction, base_system_contracts).await?;

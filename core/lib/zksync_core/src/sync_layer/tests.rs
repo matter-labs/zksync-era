@@ -199,7 +199,7 @@ async fn external_io_basics(snapshot_recovery: bool) {
     // Check that the miniblock is persisted.
     let miniblock = storage
         .blocks_dal()
-        .get_miniblock_header(snapshot.miniblock_number + 1)
+        .get_l2_block_header(snapshot.miniblock_number + 1)
         .await
         .unwrap()
         .expect("New miniblock is not persisted");
@@ -302,7 +302,7 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
 
     let miniblock = storage
         .blocks_dal()
-        .get_miniblock_header(snapshot.miniblock_number + 1)
+        .get_l2_block_header(snapshot.miniblock_number + 1)
         .await
         .unwrap()
         .expect("New miniblock is not persisted");
@@ -387,7 +387,7 @@ async fn external_io_with_multiple_miniblocks(snapshot_recovery: bool) {
     for (number, expected_tx_hashes) in tx_hashes_by_miniblock {
         let miniblock = storage
             .blocks_dal()
-            .get_miniblock_header(number)
+            .get_l2_block_header(number)
             .await
             .unwrap()
             .unwrap_or_else(|| panic!("Miniblock #{number} is not persisted"));
@@ -452,7 +452,7 @@ async fn test_external_io_recovery(
     let mut storage = pool.connection().await.unwrap();
     let miniblock = storage
         .blocks_dal()
-        .get_miniblock_header(snapshot.miniblock_number + 3)
+        .get_l2_block_header(snapshot.miniblock_number + 3)
         .await
         .unwrap()
         .expect("New miniblock is not persisted");
@@ -568,7 +568,7 @@ async fn external_io_with_multiple_l1_batches() {
 
     let (first_miniblock, last_miniblock) = storage
         .blocks_dal()
-        .get_miniblock_range_of_l1_batch(L1BatchNumber(1))
+        .get_l2_block_range_of_l1_batch(L1BatchNumber(1))
         .await
         .unwrap()
         .expect("Miniblock range for L1 batch #1 is not persisted");
@@ -577,7 +577,7 @@ async fn external_io_with_multiple_l1_batches() {
 
     let fictive_miniblock = storage
         .blocks_dal()
-        .get_miniblock_header(L2BlockNumber(2))
+        .get_l2_block_header(L2BlockNumber(2))
         .await
         .unwrap()
         .expect("Fictive miniblock #2 is not persisted");

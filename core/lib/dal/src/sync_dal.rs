@@ -86,7 +86,7 @@ impl SyncDal<'_, '_> {
             let transactions = self
                 .storage
                 .transactions_web3_dal()
-                .get_raw_miniblock_transactions(block_number)
+                .get_raw_l2_block_transactions(block_number)
                 .await?;
             Some(transactions)
         } else {
@@ -107,7 +107,7 @@ mod tests {
     use super::*;
     use crate::{
         tests::{
-            create_miniblock_header, create_snapshot_recovery, mock_execution_result,
+            create_l2_block_header, create_snapshot_recovery, mock_execution_result,
             mock_l2_transaction,
         },
         ConnectionPool, Core,
@@ -124,7 +124,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_miniblock(&create_miniblock_header(0))
+            .insert_l2_block(&create_l2_block_header(0))
             .await
             .unwrap();
         let mut l1_batch_header = L1BatchHeader::new(
@@ -138,7 +138,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(0))
+            .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
             .await
             .unwrap();
 
@@ -152,7 +152,7 @@ mod tests {
         // Insert another block in the store.
         let miniblock_header = L2BlockHeader {
             fee_account_address: Address::repeat_byte(0x42),
-            ..create_miniblock_header(1)
+            ..create_l2_block_header(1)
         };
         let tx = mock_l2_transaction();
         conn.transactions_dal()
@@ -160,11 +160,11 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_miniblock(&miniblock_header)
+            .insert_l2_block(&miniblock_header)
             .await
             .unwrap();
         conn.transactions_dal()
-            .mark_txs_as_executed_in_miniblock(
+            .mark_txs_as_executed_in_l2_block(
                 L2BlockNumber(1),
                 &[mock_execution_result(tx.clone())],
                 1.into(),
@@ -217,7 +217,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(1))
+            .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(1))
             .await
             .unwrap();
 
@@ -255,9 +255,9 @@ mod tests {
             .unwrap()
             .is_none());
 
-        let miniblock_header = create_miniblock_header(snapshot_recovery.miniblock_number.0 + 1);
+        let miniblock_header = create_l2_block_header(snapshot_recovery.miniblock_number.0 + 1);
         conn.blocks_dal()
-            .insert_miniblock(&miniblock_header)
+            .insert_l2_block(&miniblock_header)
             .await
             .unwrap();
 

@@ -155,7 +155,7 @@ async fn create_miniblock(
     };
 
     conn.blocks_dal()
-        .insert_miniblock(&miniblock_header)
+        .insert_l2_block(&miniblock_header)
         .await
         .unwrap();
     conn.storage_logs_dal()
@@ -175,7 +175,7 @@ async fn create_l1_batch(
         .await
         .unwrap();
     conn.blocks_dal()
-        .mark_miniblocks_as_executed_in_l1_batch(l1_batch_number)
+        .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
         .await
         .unwrap();
 

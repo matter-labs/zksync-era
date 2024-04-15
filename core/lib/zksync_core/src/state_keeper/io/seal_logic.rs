@@ -144,7 +144,7 @@ impl UpdatesManager {
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::SetL1BatchNumberForMiniblocks);
         transaction
             .blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(self.l1_batch.number)
+            .mark_l2_blocks_as_executed_in_l1_batch(self.l1_batch.number)
             .await?;
         progress.observe(None);
 
@@ -363,7 +363,7 @@ impl L2BlockSealCommand {
 
         transaction
             .blocks_dal()
-            .insert_miniblock(&l2_block_header)
+            .insert_l2_block(&l2_block_header)
             .await?;
         progress.observe(None);
 
@@ -371,7 +371,7 @@ impl L2BlockSealCommand {
             L2_BLOCK_METRICS.start(L2BlockSealStage::MarkTransactionsInMiniblock, is_fictive);
         transaction
             .transactions_dal()
-            .mark_txs_as_executed_in_miniblock(
+            .mark_txs_as_executed_in_l2_block(
                 l2_block_number,
                 &self.l2_block.executed_transactions,
                 self.base_fee_per_gas.into(),

@@ -287,7 +287,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
 
     // Manually mark the L2 block as executed so that getting touched slots from it works
     conn.blocks_dal()
-        .mark_miniblocks_as_executed_in_l1_batch(l1_batch_number)
+        .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
         .await
         .unwrap();
     let touched_slots = conn
@@ -451,7 +451,7 @@ async fn l2_block_processing_after_snapshot_recovery(deployment_mode: Deployment
     // Check that the L2 block is persisted and has correct data.
     let persisted_l2_block = storage
         .blocks_dal()
-        .get_miniblock_header(snapshot_recovery.miniblock_number + 1)
+        .get_l2_block_header(snapshot_recovery.miniblock_number + 1)
         .await
         .unwrap()
         .expect("no miniblock persisted");
@@ -474,7 +474,7 @@ async fn l2_block_processing_after_snapshot_recovery(deployment_mode: Deployment
 
     let l2_block_transactions = storage
         .transactions_web3_dal()
-        .get_raw_miniblock_transactions(persisted_l2_block.number)
+        .get_raw_l2_block_transactions(persisted_l2_block.number)
         .await
         .unwrap();
     assert_eq!(l2_block_transactions.len(), 1);

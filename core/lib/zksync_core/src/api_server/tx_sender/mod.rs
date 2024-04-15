@@ -526,7 +526,7 @@ impl TxSender {
 
     async fn get_expected_nonce(&self, initiator_account: Address) -> anyhow::Result<Nonce> {
         let mut storage = self.acquire_replica_connection().await?;
-        let latest_block_number = storage.blocks_dal().get_sealed_miniblock_number().await?;
+        let latest_block_number = storage.blocks_dal().get_sealed_l2_block_number().await?;
         let latest_block_number = match latest_block_number {
             Some(number) => number,
             None => {

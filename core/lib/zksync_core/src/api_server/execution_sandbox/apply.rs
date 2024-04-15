@@ -384,7 +384,7 @@ impl StoredL2BlockInfo {
         } else {
             connection
                 .blocks_web3_dal()
-                .get_miniblock_hash(miniblock_number)
+                .get_l2_block_hash(miniblock_number)
                 .await
                 .map_err(DalError::generalize)?
                 .with_context(|| format!("miniblock #{miniblock_number} not present in storage"))?
@@ -440,7 +440,7 @@ impl BlockArgs {
                 .context("no L1 batches in storage")?;
             let sealed_miniblock_header = connection
                 .blocks_dal()
-                .get_last_sealed_miniblock_header()
+                .get_last_sealed_l2_block_header()
                 .await?
                 .context("no miniblocks in storage")?;
 
@@ -462,7 +462,7 @@ impl BlockArgs {
 
             connection
                 .blocks_dal()
-                .get_miniblock_header(self.resolved_block_number)
+                .get_l2_block_header(self.resolved_block_number)
                 .await?
                 .context("resolved miniblock disappeared from storage")?
         };
@@ -470,7 +470,7 @@ impl BlockArgs {
         let historical_fee_input = if !self.is_estimate_like() {
             let miniblock_header = connection
                 .blocks_dal()
-                .get_miniblock_header(self.resolved_block_number)
+                .get_l2_block_header(self.resolved_block_number)
                 .await?
                 .context("resolved miniblock is not in storage")?;
             Some(miniblock_header.batch_fee_input)

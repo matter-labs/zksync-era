@@ -144,7 +144,7 @@ pub(crate) async fn pending_protocol_version(
 
     let last_miniblock = storage
         .blocks_dal()
-        .get_last_sealed_miniblock_header()
+        .get_last_sealed_l2_block_header()
         .await?;
     if let Some(last_miniblock) = last_miniblock {
         return Ok(last_miniblock.protocol_version.unwrap_or_else(|| {

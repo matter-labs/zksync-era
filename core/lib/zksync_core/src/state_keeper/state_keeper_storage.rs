@@ -92,7 +92,7 @@ impl AsyncRocksdbCache {
             return Ok(None);
         };
         let (_, miniblock_number) = dal
-            .get_miniblock_range_of_l1_batch(l1_batch_number)
+            .get_l2_block_range_of_l1_batch(l1_batch_number)
             .await?
             .context("The latest sealed L1 batch does not have a miniblock range")?;
         Ok(Some((miniblock_number, l1_batch_number)))

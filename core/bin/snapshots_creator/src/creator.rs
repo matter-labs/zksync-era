@@ -295,7 +295,7 @@ impl SnapshotCreator {
         let mut conn = self.connect_to_replica().await?;
         let (_, last_miniblock_number_in_batch) = conn
             .blocks_dal()
-            .get_miniblock_range_of_l1_batch(progress.l1_batch_number)
+            .get_l2_block_range_of_l1_batch(progress.l1_batch_number)
             .await?
             .context("Error fetching last miniblock number")?;
         drop(conn);

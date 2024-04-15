@@ -17,7 +17,7 @@ pub struct EventsWeb3Dal<'a, 'c> {
 }
 
 impl EventsWeb3Dal<'_, '_> {
-    /// Returns miniblock number of log for given filter and offset.
+    /// Returns L2 block number of log for given filter and offset.
     /// Used to determine if there is more than `offset` logs that satisfies filter.
     pub async fn get_log_block_number(
         &mut self,

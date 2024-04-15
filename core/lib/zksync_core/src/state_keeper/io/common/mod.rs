@@ -34,7 +34,7 @@ impl IoCursor {
         let last_sealed_l1_batch_number = storage.blocks_dal().get_sealed_l1_batch_number().await?;
         let last_l2_block_header = storage
             .blocks_dal()
-            .get_last_sealed_miniblock_header()
+            .get_last_sealed_l2_block_header()
             .await?;
 
         if let (Some(l1_batch_number), Some(l2_block_header)) =
@@ -88,7 +88,7 @@ pub(crate) async fn load_pending_batch(
 ) -> anyhow::Result<PendingBatchData> {
     let pending_l2_blocks = storage
         .transactions_dal()
-        .get_miniblocks_to_reexecute()
+        .get_l2_blocks_to_reexecute()
         .await?;
     let first_pending_l2_block = pending_l2_blocks
         .first()

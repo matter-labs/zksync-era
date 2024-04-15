@@ -182,7 +182,7 @@ impl L1BatchParamsProvider {
         Ok(match l2_block_number {
             Some(number) => storage
                 .blocks_dal()
-                .get_miniblock_header(number)
+                .get_l2_block_header(number)
                 .await?
                 .map(|header| FirstL2BlockInBatch {
                     header,
@@ -217,7 +217,7 @@ impl L1BatchParamsProvider {
         // At this point, we have ensured that `prev_l1_batch` is not pruned.
         let Some((_, last_l2_block_in_prev_l1_batch)) = storage
             .blocks_dal()
-            .get_miniblock_range_of_l1_batch(prev_l1_batch)
+            .get_l2_block_range_of_l1_batch(prev_l1_batch)
             .await?
         else {
             return Ok(None);
@@ -266,7 +266,7 @@ impl L1BatchParamsProvider {
             Some(hash) => hash,
             None => storage
                 .blocks_web3_dal()
-                .get_miniblock_hash(prev_l2_block_number)
+                .get_l2_block_hash(prev_l2_block_number)
                 .await
                 .map_err(DalError::generalize)?
                 .context("previous L2 block disappeared from storage")?,

@@ -90,7 +90,7 @@ impl SyncState {
                 .await
                 .context("Failed to get a connection from the pool in sync state updater")?
                 .blocks_dal()
-                .get_sealed_miniblock_number()
+                .get_sealed_l2_block_number()
                 .await
                 .context("Failed to get the miniblock number from DB")?;
 

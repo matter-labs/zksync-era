@@ -466,7 +466,7 @@ pub(crate) async fn reset_db_state(pool: &ConnectionPool<Core>, num_batches: usi
         .unwrap();
     storage
         .blocks_dal()
-        .delete_miniblocks(L2BlockNumber(0))
+        .delete_l2_blocks(L2BlockNumber(0))
         .await
         .unwrap();
     storage
@@ -525,7 +525,7 @@ pub(super) async fn extend_db_state_from_l1_batch(
             .unwrap();
         storage
             .blocks_dal()
-            .insert_miniblock(&miniblock_header)
+            .insert_l2_block(&miniblock_header)
             .await
             .unwrap();
         storage
@@ -535,7 +535,7 @@ pub(super) async fn extend_db_state_from_l1_batch(
             .unwrap();
         storage
             .blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(batch_number)
+            .mark_l2_blocks_as_executed_in_l1_batch(batch_number)
             .await
             .unwrap();
         insert_initial_writes_for_batch(storage, batch_number).await;

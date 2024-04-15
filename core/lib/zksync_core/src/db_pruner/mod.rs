@@ -105,7 +105,7 @@ impl DbPruner {
 
         let next_miniblock_to_prune = transaction
             .blocks_dal()
-            .get_miniblock_range_of_l1_batch(next_l1_batch_to_prune)
+            .get_l2_block_range_of_l1_batch(next_l1_batch_to_prune)
             .await?
             .unwrap()
             .1;
@@ -324,11 +324,11 @@ mod tests {
                 };
 
                 conn.blocks_dal()
-                    .insert_miniblock(&miniblock_header)
+                    .insert_l2_block(&miniblock_header)
                     .await
                     .unwrap();
                 conn.blocks_dal()
-                    .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(l1_batch_number as u32))
+                    .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(l1_batch_number as u32))
                     .await
                     .unwrap();
             }

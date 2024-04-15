@@ -291,7 +291,7 @@ mod tests {
         assert_eq!(
             storage
                 .blocks_dal()
-                .get_sealed_miniblock_number()
+                .get_sealed_l2_block_number()
                 .await
                 .unwrap(),
             Some(L2BlockNumber(2)) // + fictive L2 block

@@ -184,10 +184,8 @@ impl SealedMiniblockNumber {
                 }
 
                 let mut connection = connection_pool.connection_tagged("api").await.unwrap();
-                let Some(last_sealed_miniblock) = connection
-                    .blocks_dal()
-                    .get_sealed_miniblock_number()
-                    .await?
+                let Some(last_sealed_miniblock) =
+                    connection.blocks_dal().get_sealed_l2_block_number().await?
                 else {
                     tokio::time::sleep(update_interval).await;
                     continue;

@@ -21,7 +21,7 @@ async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber
     let miniblock = create_miniblock(number.0);
     storage
         .blocks_dal()
-        .insert_miniblock(&miniblock)
+        .insert_l2_block(&miniblock)
         .await
         .unwrap();
 
@@ -33,7 +33,7 @@ async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber
         .unwrap();
     storage
         .blocks_dal()
-        .mark_miniblocks_as_executed_in_l1_batch(number)
+        .mark_l2_blocks_as_executed_in_l1_batch(number)
         .await
         .unwrap();
     storage.commit().await.unwrap();

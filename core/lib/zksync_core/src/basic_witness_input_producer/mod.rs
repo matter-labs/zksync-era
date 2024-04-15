@@ -54,7 +54,7 @@ impl BasicWitnessInputProducer {
         let miniblocks_execution_data = rt_handle.block_on(
             connection
                 .transactions_dal()
-                .get_miniblocks_to_execute_for_l1_batch(l1_batch_number),
+                .get_l2_blocks_to_execute_for_l1_batch(l1_batch_number),
         )?;
 
         let (mut vm, storage_view) =

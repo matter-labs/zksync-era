@@ -397,7 +397,7 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
     }
 }
 
-pub struct StorageMiniblockHeader {
+pub struct StorageL2BlockHeader {
     pub number: i64,
     pub timestamp: i64,
     pub hash: Vec<u8>,
@@ -428,8 +428,8 @@ pub struct StorageMiniblockHeader {
     pub gas_limit: Option<i64>,
 }
 
-impl From<StorageMiniblockHeader> for L2BlockHeader {
-    fn from(row: StorageMiniblockHeader) -> Self {
+impl From<StorageL2BlockHeader> for L2BlockHeader {
+    fn from(row: StorageL2BlockHeader) -> Self {
         let protocol_version = row.protocol_version.map(|v| (v as u16).try_into().unwrap());
 
         let fee_input = protocol_version
@@ -474,7 +474,7 @@ impl From<StorageMiniblockHeader> for L2BlockHeader {
 
 /// Information about L1 batch which a certain miniblock belongs to.
 #[derive(Debug)]
-pub struct ResolvedL1BatchForMiniblock {
+pub struct ResolvedL1BatchForL2Block {
     /// L1 batch which the miniblock belongs to. `None` if the miniblock is not explicitly attached
     /// (i.e., its L1 batch is not sealed).
     pub miniblock_l1_batch: Option<L1BatchNumber>,
@@ -482,7 +482,7 @@ pub struct ResolvedL1BatchForMiniblock {
     pub pending_l1_batch: L1BatchNumber,
 }
 
-impl ResolvedL1BatchForMiniblock {
+impl ResolvedL1BatchForL2Block {
     /// Returns the L1 batch number that the miniblock has now or will have in the future (provided
     /// that the node will operate correctly).
     pub fn expected_l1_batch(&self) -> L1BatchNumber {

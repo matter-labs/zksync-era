@@ -69,7 +69,7 @@ async fn getting_nonce_for_account() {
     // Insert another miniblock with a new nonce log.
     storage
         .blocks_dal()
-        .insert_miniblock(&create_miniblock(1))
+        .insert_l2_block(&create_miniblock(1))
         .await
         .unwrap();
     let nonce_log = StorageLog {
@@ -123,7 +123,7 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
 
     storage
         .blocks_dal()
-        .insert_miniblock(&create_miniblock(SNAPSHOT_MINIBLOCK_NUMBER.0 + 1))
+        .insert_l2_block(&create_miniblock(SNAPSHOT_MINIBLOCK_NUMBER.0 + 1))
         .await
         .unwrap();
     let new_nonce_logs = vec![StorageLog::new_write_log(

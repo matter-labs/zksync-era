@@ -214,7 +214,7 @@ impl ZksNamespace {
 
         let Some(l1_batch_number) = storage
             .blocks_web3_dal()
-            .get_l1_batch_number_of_miniblock(block_number)
+            .get_l1_batch_number_of_l2_block(block_number)
             .await
             .map_err(DalError::generalize)?
         else {
@@ -222,7 +222,7 @@ impl ZksNamespace {
         };
         let (first_miniblock_of_l1_batch, _) = storage
             .blocks_web3_dal()
-            .get_miniblock_range_of_l1_batch(l1_batch_number)
+            .get_l2_block_range_of_l1_batch(l1_batch_number)
             .await
             .map_err(DalError::generalize)?
             .context("L1 batch should contain at least one miniblock")?;
@@ -367,7 +367,7 @@ impl ZksNamespace {
             .await?;
         let range = storage
             .blocks_web3_dal()
-            .get_miniblock_range_of_l1_batch(batch)
+            .get_l2_block_range_of_l1_batch(batch)
             .await
             .map_err(DalError::generalize)?;
         Ok(range.map(|(min, max)| (U64::from(min.0), U64::from(max.0))))
@@ -404,7 +404,7 @@ impl ZksNamespace {
 
         Ok(storage
             .transactions_web3_dal()
-            .get_raw_miniblock_transactions(block_number)
+            .get_raw_l2_block_transactions(block_number)
             .await
             .map_err(DalError::generalize)?)
     }

@@ -47,7 +47,7 @@ impl EthNamespace {
         let mut storage = self.state.acquire_connection().await?;
         let block_number = storage
             .blocks_dal()
-            .get_sealed_miniblock_number()
+            .get_sealed_l2_block_number()
             .await
             .map_err(DalError::generalize)?
             .ok_or(Web3Error::NoBlock)?;
@@ -506,7 +506,7 @@ impl EthNamespace {
         let mut storage = self.state.acquire_connection().await?;
         let last_block_number = storage
             .blocks_dal()
-            .get_sealed_miniblock_number()
+            .get_sealed_l2_block_number()
             .await
             .map_err(DalError::generalize)?
             .context("no miniblocks in storage")?;

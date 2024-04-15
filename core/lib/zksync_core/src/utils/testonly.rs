@@ -228,7 +228,7 @@ pub(crate) async fn snapshot(storage: &mut Connection<'_, Core>) -> Snapshot {
         .unwrap();
     let (_, miniblock) = storage
         .blocks_dal()
-        .get_miniblock_range_of_l1_batch(l1_batch.number)
+        .get_l2_block_range_of_l1_batch(l1_batch.number)
         .await
         .unwrap()
         .unwrap();
@@ -236,7 +236,7 @@ pub(crate) async fn snapshot(storage: &mut Connection<'_, Core>) -> Snapshot {
     Snapshot {
         miniblock: storage
             .blocks_dal()
-            .get_miniblock_header(miniblock)
+            .get_l2_block_header(miniblock)
             .await
             .unwrap()
             .unwrap(),

@@ -26,11 +26,7 @@ async fn store_miniblock(storage: &mut Connection<'_, Core>, number: u32, hash: 
         hash,
         ..create_miniblock(number)
     };
-    storage
-        .blocks_dal()
-        .insert_miniblock(&header)
-        .await
-        .unwrap();
+    storage.blocks_dal().insert_l2_block(&header).await.unwrap();
 }
 
 async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: u32, hash: H256) {
@@ -42,7 +38,7 @@ async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: u32, hash: H2
         .unwrap();
     storage
         .blocks_dal()
-        .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(number))
+        .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(number))
         .await
         .unwrap();
     storage

@@ -124,7 +124,7 @@ async fn applier_errors_after_genesis() {
     };
     storage
         .blocks_dal()
-        .insert_miniblock(&genesis_miniblock)
+        .insert_l2_block(&genesis_miniblock)
         .await
         .unwrap();
     let genesis_l1_batch = L1BatchHeader::new(
@@ -140,7 +140,7 @@ async fn applier_errors_after_genesis() {
         .unwrap();
     storage
         .blocks_dal()
-        .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(0))
+        .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
         .await
         .unwrap();
 

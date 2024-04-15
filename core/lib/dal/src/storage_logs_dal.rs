@@ -457,7 +457,7 @@ impl StorageLogsDal<'_, '_> {
         let miniblock_range = self
             .storage
             .blocks_dal()
-            .get_miniblock_range_of_l1_batch(l1_batch_number)
+            .get_l2_block_range_of_l1_batch(l1_batch_number)
             .await?;
         let Some((_, last_miniblock)) = miniblock_range else {
             return Ok(HashMap::new());
@@ -591,7 +591,7 @@ impl StorageLogsDal<'_, '_> {
         let (miniblock_number, _) = self
             .storage
             .blocks_dal()
-            .get_miniblock_range_of_l1_batch(next_l1_batch)
+            .get_l2_block_range_of_l1_batch(next_l1_batch)
             .await?
             .unwrap();
 
@@ -820,7 +820,7 @@ mod tests {
     use zksync_types::{block::L1BatchHeader, ProtocolVersion, ProtocolVersionId};
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool, Core};
+    use crate::{tests::create_l2_block_header, ConnectionPool, Core};
 
     async fn insert_miniblock(conn: &mut Connection<'_, Core>, number: u32, logs: Vec<StorageLog>) {
         let header = L1BatchHeader::new(
@@ -834,7 +834,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_miniblock(&create_miniblock_header(number))
+            .insert_l2_block(&create_l2_block_header(number))
             .await
             .unwrap();
 
@@ -846,7 +846,7 @@ mod tests {
         #[allow(deprecated)]
         conn.storage_dal().apply_storage_logs(&logs).await;
         conn.blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(number))
+            .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(number))
             .await
             .unwrap();
     }

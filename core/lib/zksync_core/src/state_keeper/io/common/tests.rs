@@ -54,7 +54,7 @@ async fn creating_io_cursor_with_genesis() {
     let miniblock = create_miniblock(1);
     storage
         .blocks_dal()
-        .insert_miniblock(&miniblock)
+        .insert_l2_block(&miniblock)
         .await
         .unwrap();
 
@@ -85,7 +85,7 @@ async fn creating_io_cursor_with_snapshot_recovery() {
     let miniblock = create_miniblock(snapshot_recovery.miniblock_number.0 + 1);
     storage
         .blocks_dal()
-        .insert_miniblock(&miniblock)
+        .insert_l2_block(&miniblock)
         .await
         .unwrap();
 
@@ -203,13 +203,13 @@ async fn getting_first_miniblock_in_batch_with_genesis() {
     let new_miniblock = create_miniblock(1);
     storage
         .blocks_dal()
-        .insert_miniblock(&new_miniblock)
+        .insert_l2_block(&new_miniblock)
         .await
         .unwrap();
     let new_miniblock = create_miniblock(2);
     storage
         .blocks_dal()
-        .insert_miniblock(&new_miniblock)
+        .insert_l2_block(&new_miniblock)
         .await
         .unwrap();
 
@@ -223,7 +223,7 @@ async fn getting_first_miniblock_in_batch_with_genesis() {
         .unwrap();
     storage
         .blocks_dal()
-        .mark_miniblocks_as_executed_in_l1_batch(new_l1_batch.number)
+        .mark_l2_blocks_as_executed_in_l1_batch(new_l1_batch.number)
         .await
         .unwrap();
 
@@ -278,7 +278,7 @@ async fn getting_first_miniblock_in_batch_after_snapshot_recovery() {
     let new_miniblock = create_miniblock(snapshot_recovery.miniblock_number.0 + 1);
     storage
         .blocks_dal()
-        .insert_miniblock(&new_miniblock)
+        .insert_l2_block(&new_miniblock)
         .await
         .unwrap();
 
@@ -292,7 +292,7 @@ async fn getting_first_miniblock_in_batch_after_snapshot_recovery() {
         .unwrap();
     storage
         .blocks_dal()
-        .mark_miniblocks_as_executed_in_l1_batch(new_l1_batch.number)
+        .mark_l2_blocks_as_executed_in_l1_batch(new_l1_batch.number)
         .await
         .unwrap();
 
@@ -366,13 +366,13 @@ async fn store_pending_miniblocks(
         new_miniblock.base_system_contracts_hashes = contract_hashes;
         storage
             .blocks_dal()
-            .insert_miniblock(&new_miniblock)
+            .insert_l2_block(&new_miniblock)
             .await
             .unwrap();
         let tx_result = execute_l2_transaction(tx);
         storage
             .transactions_dal()
-            .mark_txs_as_executed_in_miniblock(new_miniblock.number, &[tx_result], 1.into())
+            .mark_txs_as_executed_in_l2_block(new_miniblock.number, &[tx_result], 1.into())
             .await
             .unwrap();
     }

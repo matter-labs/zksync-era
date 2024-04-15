@@ -31,7 +31,7 @@ fn mock_tx_execution_metrics() -> TransactionExecutionMetrics {
     TransactionExecutionMetrics::default()
 }
 
-pub(crate) fn create_miniblock_header(number: u32) -> L2BlockHeader {
+pub(crate) fn create_l2_block_header(number: u32) -> L2BlockHeader {
     let number = L2BlockNumber(number);
     let protocol_version = ProtocolVersionId::default();
     L2BlockHeader {
@@ -290,13 +290,13 @@ async fn remove_stuck_txs() {
 
     let storage = transactions_dal.storage;
     BlocksDal { storage }
-        .insert_miniblock(&create_miniblock_header(1))
+        .insert_l2_block(&create_l2_block_header(1))
         .await
         .unwrap();
 
     let mut transactions_dal = TransactionsDal { storage };
     transactions_dal
-        .mark_txs_as_executed_in_miniblock(
+        .mark_txs_as_executed_in_l2_block(
             L2BlockNumber(1),
             &[mock_execution_result(executed_tx.clone())],
             U256::from(1),

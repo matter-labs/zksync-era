@@ -28,7 +28,7 @@ pub(crate) async fn prepare_postgres(conn: &mut Connection<'_, Core>) {
         .await
         .unwrap();
     conn.blocks_dal()
-        .delete_miniblocks(L2BlockNumber(0))
+        .delete_l2_blocks(L2BlockNumber(0))
         .await
         .unwrap();
     conn.blocks_dal()
@@ -90,7 +90,7 @@ pub(crate) async fn create_miniblock(
     };
 
     conn.blocks_dal()
-        .insert_miniblock(&miniblock_header)
+        .insert_l2_block(&miniblock_header)
         .await
         .unwrap();
     conn.storage_logs_dal()
@@ -112,7 +112,7 @@ pub(crate) async fn create_l1_batch(
         .await
         .unwrap();
     conn.blocks_dal()
-        .mark_miniblocks_as_executed_in_l1_batch(l1_batch_number)
+        .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
         .await
         .unwrap();
 

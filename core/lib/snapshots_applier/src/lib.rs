@@ -328,7 +328,7 @@ impl<'a> SnapshotsApplier<'a> {
             .is_some()
             && storage_transaction
                 .blocks_dal()
-                .get_sealed_miniblock_number()
+                .get_sealed_l2_block_number()
                 .await?
                 .is_some()
         {

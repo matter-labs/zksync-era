@@ -85,7 +85,7 @@ impl EnNamespace {
             .context("Genesis is not finished")?;
         let fee_account = storage
             .blocks_dal()
-            .get_fee_address_for_miniblock(L2BlockNumber(0))
+            .get_fee_address_for_l2_block(L2BlockNumber(0))
             .await
             .map_err(DalError::generalize)?
             .context("Genesis not finished")?;

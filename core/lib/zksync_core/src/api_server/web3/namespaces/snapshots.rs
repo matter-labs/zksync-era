@@ -65,7 +65,7 @@ impl SnapshotsNamespace {
             .collect();
         let (_, miniblock_number) = storage_processor
             .blocks_dal()
-            .get_miniblock_range_of_l1_batch(l1_batch_number)
+            .get_l2_block_range_of_l1_batch(l1_batch_number)
             .await
             .map_err(DalError::generalize)?
             .with_context(|| format!("missing miniblocks for L1 batch #{l1_batch_number}"))?;

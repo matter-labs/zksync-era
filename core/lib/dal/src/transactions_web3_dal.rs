@@ -373,11 +373,11 @@ impl TransactionsWeb3Dal<'_, '_> {
         Ok(U256::from(pending_nonce))
     }
 
-    /// Returns the server transactions (not API ones) from a certain miniblock.
-    /// Returns an empty list if the miniblock doesn't exist.
-    pub async fn get_raw_miniblock_transactions(
+    /// Returns the server transactions (not API ones) from a certain L2 block.
+    /// Returns an empty list if the L2 block doesn't exist.
+    pub async fn get_raw_l2_block_transactions(
         &mut self,
-        miniblock: L2BlockNumber,
+        l2_block: L2BlockNumber,
     ) -> DalResult<Vec<Transaction>> {
         let rows = sqlx::query_as!(
             StorageTransaction,
@@ -391,10 +391,10 @@ impl TransactionsWeb3Dal<'_, '_> {
             ORDER BY
                 index_in_block
             "#,
-            i64::from(miniblock.0)
+            i64::from(l2_block.0)
         )
-        .instrument("get_raw_miniblock_transactions")
-        .with_arg("miniblock", &miniblock)
+        .instrument("get_raw_l2_block_transactions")
+        .with_arg("l2_block", &l2_block)
         .fetch_all(self.storage)
         .await?;
 
@@ -410,13 +410,13 @@ mod tests {
 
     use super::*;
     use crate::{
-        tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
+        tests::{create_l2_block_header, mock_execution_result, mock_l2_transaction},
         ConnectionPool, Core, CoreDal,
     };
 
     async fn prepare_transactions(conn: &mut Connection<'_, Core>, txs: Vec<L2Tx>) {
         conn.blocks_dal()
-            .delete_miniblocks(L2BlockNumber(0))
+            .delete_l2_blocks(L2BlockNumber(0))
             .await
             .unwrap();
 
@@ -427,13 +427,13 @@ mod tests {
                 .unwrap();
         }
         conn.blocks_dal()
-            .insert_miniblock(&create_miniblock_header(0))
+            .insert_l2_block(&create_l2_block_header(0))
             .await
             .unwrap();
-        let mut miniblock_header = create_miniblock_header(1);
-        miniblock_header.l2_tx_count = txs.len() as u16;
+        let mut l2_block_header = create_l2_block_header(1);
+        l2_block_header.l2_tx_count = txs.len() as u16;
         conn.blocks_dal()
-            .insert_miniblock(&miniblock_header)
+            .insert_l2_block(&l2_block_header)
             .await
             .unwrap();
 
@@ -443,7 +443,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         conn.transactions_dal()
-            .mark_txs_as_executed_in_miniblock(L2BlockNumber(1), &tx_results, U256::from(1))
+            .mark_txs_as_executed_in_l2_block(L2BlockNumber(1), &tx_results, U256::from(1))
             .await
             .unwrap();
     }
@@ -529,7 +529,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn getting_miniblock_transactions() {
+    async fn getting_l2_block_transactions() {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
@@ -542,14 +542,14 @@ mod tests {
 
         let raw_txs = conn
             .transactions_web3_dal()
-            .get_raw_miniblock_transactions(L2BlockNumber(0))
+            .get_raw_l2_block_transactions(L2BlockNumber(0))
             .await
             .unwrap();
         assert!(raw_txs.is_empty());
 
         let raw_txs = conn
             .transactions_web3_dal()
-            .get_raw_miniblock_transactions(L2BlockNumber(1))
+            .get_raw_l2_block_transactions(L2BlockNumber(1))
             .await
             .unwrap();
         assert_eq!(raw_txs.len(), 1);
@@ -605,19 +605,16 @@ mod tests {
             .unwrap();
         assert_eq!(next_nonce, 1.into());
 
-        // Include transactions in a miniblock (including the rejected one), so that they are taken into account again.
-        let mut miniblock = create_miniblock_header(1);
-        miniblock.l2_tx_count = 2;
-        conn.blocks_dal()
-            .insert_miniblock(&miniblock)
-            .await
-            .unwrap();
+        // Include transactions in a L2 block (including the rejected one), so that they are taken into account again.
+        let mut l2_block = create_l2_block_header(1);
+        l2_block.l2_tx_count = 2;
+        conn.blocks_dal().insert_l2_block(&l2_block).await.unwrap();
         let executed_txs = [
             mock_execution_result(tx_by_nonce[&0].clone()),
             mock_execution_result(tx_by_nonce[&1].clone()),
         ];
         conn.transactions_dal()
-            .mark_txs_as_executed_in_miniblock(miniblock.number, &executed_txs, 1.into())
+            .mark_txs_as_executed_in_l2_block(l2_block.number, &executed_txs, 1.into())
             .await
             .unwrap();
 
