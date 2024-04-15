@@ -206,14 +206,14 @@ impl Tester {
         storage_factory: Arc<dyn ReadStorageFactory>,
         snapshot: &SnapshotRecoveryStatus,
     ) -> BatchExecutorHandle {
-        let current_timestamp = snapshot.miniblock_timestamp + 1;
+        let current_timestamp = snapshot.l2_block_timestamp + 1;
         let (mut l1_batch_env, system_env) =
             self.batch_params(snapshot.l1_batch_number + 1, current_timestamp);
         l1_batch_env.previous_batch_hash = Some(snapshot.l1_batch_root_hash);
         l1_batch_env.first_l2_block = L2BlockEnv {
-            number: snapshot.miniblock_number.0 + 1,
+            number: snapshot.l2_block_number.0 + 1,
             timestamp: current_timestamp,
-            prev_block_hash: snapshot.miniblock_hash,
+            prev_block_hash: snapshot.l2_block_hash,
             max_virtual_blocks_to_create: 1,
         };
 
@@ -583,12 +583,12 @@ impl StorageSnapshot {
         )
         .await;
 
-        snapshot.miniblock_hash = self.miniblock_hash;
-        snapshot.miniblock_timestamp = self.miniblock_timestamp;
+        snapshot.l2_block_hash = self.miniblock_hash;
+        snapshot.l2_block_timestamp = self.miniblock_timestamp;
 
         storage
             .factory_deps_dal()
-            .insert_factory_deps(snapshot.miniblock_number, &self.factory_deps)
+            .insert_factory_deps(snapshot.l2_block_number, &self.factory_deps)
             .await
             .unwrap();
         snapshot

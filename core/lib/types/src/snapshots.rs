@@ -56,7 +56,8 @@ pub struct SnapshotHeader {
     #[serde(default)]
     pub version: u16,
     pub l1_batch_number: L1BatchNumber,
-    pub miniblock_number: L2BlockNumber,
+    #[serde(rename = "miniblock_number")] // legacy naming
+    pub l2_block_number: L2BlockNumber,
     /// Ordered by chunk IDs.
     pub storage_logs_chunks: Vec<SnapshotStorageLogsChunkMetadata>,
     pub factory_deps_filepath: String,
@@ -207,9 +208,9 @@ pub struct SnapshotRecoveryStatus {
     pub l1_batch_number: L1BatchNumber,
     pub l1_batch_root_hash: H256,
     pub l1_batch_timestamp: u64,
-    pub miniblock_number: L2BlockNumber, // FIXME: rename
-    pub miniblock_hash: H256,
-    pub miniblock_timestamp: u64,
+    pub l2_block_number: L2BlockNumber,
+    pub l2_block_hash: H256,
+    pub l2_block_timestamp: u64,
     pub protocol_version: ProtocolVersionId,
     pub storage_logs_chunks_processed: Vec<bool>,
 }

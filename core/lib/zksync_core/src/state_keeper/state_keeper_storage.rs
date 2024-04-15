@@ -115,7 +115,7 @@ impl AsyncRocksdbCache {
                         .await?
                         .context("Could not find snapshot, no state available")?;
                     (
-                        snapshot_recovery.miniblock_number,
+                        snapshot_recovery.l2_block_number,
                         snapshot_recovery.l1_batch_number,
                     )
                 }

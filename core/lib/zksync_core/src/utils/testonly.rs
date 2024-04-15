@@ -320,9 +320,9 @@ pub(crate) async fn recover(
         l1_batch_number: snapshot.l1_batch.number,
         l1_batch_timestamp: snapshot.l1_batch.timestamp,
         l1_batch_root_hash,
-        miniblock_number: snapshot.miniblock.number,
-        miniblock_timestamp: snapshot.miniblock.timestamp,
-        miniblock_hash: snapshot.miniblock.hash,
+        l2_block_number: snapshot.miniblock.number,
+        l2_block_timestamp: snapshot.miniblock.timestamp,
+        l2_block_hash: snapshot.miniblock.hash,
         protocol_version: snapshot.l1_batch.protocol_version.unwrap(),
         storage_logs_chunks_processed: vec![true; 100],
     };

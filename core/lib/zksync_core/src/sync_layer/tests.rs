@@ -151,9 +151,9 @@ fn genesis_snapshot_recovery_status() -> SnapshotRecoveryStatus {
         l1_batch_number: L1BatchNumber(0),
         l1_batch_root_hash: H256::zero(), // unused
         l1_batch_timestamp: 0,
-        miniblock_number: L2BlockNumber(0),
-        miniblock_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
-        miniblock_timestamp: 0,
+        l2_block_number: L2BlockNumber(0),
+        l2_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
+        l2_block_timestamp: 0,
         protocol_version: ProtocolVersionId::default(),
         storage_logs_chunks_processed: vec![],
     }
@@ -173,8 +173,8 @@ async fn external_io_basics(snapshot_recovery: bool) {
 
     let open_l1_batch = open_l1_batch(
         snapshot.l1_batch_number.0 + 1,
-        snapshot.miniblock_timestamp + 1,
-        snapshot.miniblock_number.0 + 1,
+        snapshot.l2_block_timestamp + 1,
+        snapshot.l2_block_number.0 + 1,
     );
     let tx = create_l2_transaction(10, 100);
     let tx_hash = tx.hash();
@@ -193,17 +193,17 @@ async fn external_io_basics(snapshot_recovery: bool) {
     actions_sender.push_actions(actions).await;
     // Wait until the miniblock is sealed.
     state_keeper
-        .wait_for_local_block(snapshot.miniblock_number + 1)
+        .wait_for_local_block(snapshot.l2_block_number + 1)
         .await;
 
     // Check that the miniblock is persisted.
     let miniblock = storage
         .blocks_dal()
-        .get_l2_block_header(snapshot.miniblock_number + 1)
+        .get_l2_block_header(snapshot.l2_block_number + 1)
         .await
         .unwrap()
         .expect("New miniblock is not persisted");
-    assert_eq!(miniblock.timestamp, snapshot.miniblock_timestamp + 1);
+    assert_eq!(miniblock.timestamp, snapshot.l2_block_timestamp + 1);
 
     let expected_fee_input =
         BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
@@ -226,7 +226,7 @@ async fn external_io_basics(snapshot_recovery: bool) {
         .expect("Transaction not persisted");
     assert_eq!(
         tx_receipt.block_number,
-        (snapshot.miniblock_number.0 + 1).into()
+        (snapshot.l2_block_number.0 + 1).into()
     );
     assert_eq!(tx_receipt.transaction_index, 0.into());
 }
@@ -245,8 +245,8 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
 
     let mut open_l1_batch = open_l1_batch(
         snapshot.l1_batch_number.0 + 1,
-        snapshot.miniblock_timestamp + 1,
-        snapshot.miniblock_number.0 + 1,
+        snapshot.l2_block_timestamp + 1,
+        snapshot.l2_block_number.0 + 1,
     );
     if let SyncAction::OpenBatch { params, .. } = &mut open_l1_batch {
         params.protocol_version = ProtocolVersionId::next();
@@ -262,7 +262,7 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
     let mut client = MockMainNodeClient::default();
     let next_protocol_version = api::ProtocolVersion {
         version_id: ProtocolVersionId::next() as u16,
-        timestamp: snapshot.miniblock_timestamp + 1,
+        timestamp: snapshot.l2_block_timestamp + 1,
         base_system_contracts: BaseSystemContractsHashes {
             bootloader: H256::repeat_byte(1),
             default_aa: H256::repeat_byte(2),
@@ -281,7 +281,7 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
     actions_sender.push_actions(actions).await;
     // Wait until the miniblock is sealed.
     state_keeper
-        .wait_for_local_block(snapshot.miniblock_number + 1)
+        .wait_for_local_block(snapshot.l2_block_number + 1)
         .await;
 
     // Check that the miniblock and the protocol version for it are persisted.
@@ -302,11 +302,11 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
 
     let miniblock = storage
         .blocks_dal()
-        .get_l2_block_header(snapshot.miniblock_number + 1)
+        .get_l2_block_header(snapshot.l2_block_number + 1)
         .await
         .unwrap()
         .expect("New miniblock is not persisted");
-    assert_eq!(miniblock.timestamp, snapshot.miniblock_timestamp + 1);
+    assert_eq!(miniblock.timestamp, snapshot.l2_block_timestamp + 1);
     assert_eq!(miniblock.protocol_version, Some(ProtocolVersionId::next()));
 }
 
@@ -325,8 +325,8 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(
 
     let open_l1_batch = open_l1_batch(
         snapshot.l1_batch_number.0 + 1,
-        snapshot.miniblock_timestamp + 1,
-        snapshot.miniblock_number.0 + 1,
+        snapshot.l2_block_timestamp + 1,
+        snapshot.l2_block_number.0 + 1,
     );
     let txs = (0..5).map(|_| {
         let tx = create_l2_transaction(10, 100);
@@ -339,10 +339,10 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(
 
     let open_miniblock = SyncAction::Miniblock {
         params: L2BlockParams {
-            timestamp: snapshot.miniblock_timestamp + 2,
+            timestamp: snapshot.l2_block_timestamp + 2,
             virtual_blocks: 1,
         },
-        number: snapshot.miniblock_number + 2,
+        number: snapshot.l2_block_number + 2,
     };
     let more_txs = (0..3).map(|_| {
         let tx = create_l2_transaction(10, 100);
@@ -365,7 +365,7 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(
     actions_sender.push_actions(second_miniblock_actions).await;
     // Wait until both miniblocks are sealed.
     state_keeper
-        .wait_for_local_block(snapshot.miniblock_number + 2)
+        .wait_for_local_block(snapshot.l2_block_number + 2)
         .await;
     (snapshot, tx_hashes)
 }
@@ -380,8 +380,8 @@ async fn external_io_with_multiple_miniblocks(snapshot_recovery: bool) {
 
     // Check that both miniblocks are persisted.
     let tx_hashes_by_miniblock = [
-        (snapshot.miniblock_number + 1, &tx_hashes[..5]),
-        (snapshot.miniblock_number + 2, &tx_hashes[5..]),
+        (snapshot.l2_block_number + 1, &tx_hashes[..5]),
+        (snapshot.l2_block_number + 2, &tx_hashes[5..]),
     ];
     let mut storage = pool.connection().await.unwrap();
     for (number, expected_tx_hashes) in tx_hashes_by_miniblock {
@@ -432,32 +432,32 @@ async fn test_external_io_recovery(
     // Check that the state keeper state is restored.
     state_keeper
         .sync_state
-        .wait_for_local_block(snapshot.miniblock_number + 2)
+        .wait_for_local_block(snapshot.l2_block_number + 2)
         .await;
 
     // Send new actions and wait until the new miniblock is sealed.
     let open_miniblock = SyncAction::Miniblock {
         params: L2BlockParams {
-            timestamp: snapshot.miniblock_timestamp + 3,
+            timestamp: snapshot.l2_block_timestamp + 3,
             virtual_blocks: 1,
         },
-        number: snapshot.miniblock_number + 3,
+        number: snapshot.l2_block_number + 3,
     };
     let actions = vec![open_miniblock, new_tx.into(), SyncAction::SealMiniblock];
     actions_sender.push_actions(actions).await;
     state_keeper
-        .wait_for_local_block(snapshot.miniblock_number + 3)
+        .wait_for_local_block(snapshot.l2_block_number + 3)
         .await;
 
     let mut storage = pool.connection().await.unwrap();
     let miniblock = storage
         .blocks_dal()
-        .get_l2_block_header(snapshot.miniblock_number + 3)
+        .get_l2_block_header(snapshot.l2_block_number + 3)
         .await
         .unwrap()
         .expect("New miniblock is not persisted");
     assert_eq!(miniblock.l2_tx_count, 1);
-    assert_eq!(miniblock.timestamp, snapshot.miniblock_timestamp + 3);
+    assert_eq!(miniblock.timestamp, snapshot.l2_block_timestamp + 3);
 }
 
 pub(super) async fn mock_l1_batch_hash_computation(pool: ConnectionPool<Core>, number: u32) {
@@ -499,8 +499,8 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
 
     let l1_batch = open_l1_batch(
         snapshot.l1_batch_number.0 + 1,
-        snapshot.miniblock_timestamp + 1,
-        snapshot.miniblock_number.0 + 1,
+        snapshot.l2_block_timestamp + 1,
+        snapshot.l2_block_number.0 + 1,
     );
     let first_tx = create_l2_transaction(10, 100);
     let first_tx_hash = first_tx.hash();
@@ -509,17 +509,17 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
 
     let fictive_miniblock = SyncAction::Miniblock {
         params: L2BlockParams {
-            timestamp: snapshot.miniblock_timestamp + 2,
+            timestamp: snapshot.l2_block_timestamp + 2,
             virtual_blocks: 0,
         },
-        number: snapshot.miniblock_number + 2,
+        number: snapshot.l2_block_number + 2,
     };
     let fictive_miniblock_actions = vec![fictive_miniblock, SyncAction::SealBatch];
 
     let l1_batch = open_l1_batch(
         snapshot.l1_batch_number.0 + 2,
-        snapshot.miniblock_timestamp + 3,
-        snapshot.miniblock_number.0 + 3,
+        snapshot.l2_block_timestamp + 3,
+        snapshot.l2_block_number.0 + 3,
     );
     let second_tx = create_l2_transaction(10, 100);
     let second_tx_hash = second_tx.hash();
@@ -544,7 +544,7 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
     ));
     // Wait until the miniblocks are sealed.
     state_keeper
-        .wait_for_local_block(snapshot.miniblock_number + 3)
+        .wait_for_local_block(snapshot.l2_block_number + 3)
         .await;
     hash_task.await.unwrap();
 

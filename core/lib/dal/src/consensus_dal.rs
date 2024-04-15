@@ -111,7 +111,7 @@ impl ConsensusDal<'_, '_> {
         // `snapshot.miniblock_number` indicates the last block processed.
         // This block is NOT present in storage. Therefore, the first block
         // that will appear in storage is `snapshot.miniblock_number+1`.
-        let start = validator::BlockNumber(snapshot.map_or(0, |s| s.miniblock_number.0 + 1).into());
+        let start = validator::BlockNumber(snapshot.map_or(0, |s| s.l2_block_number.0 + 1).into());
         let end = txn
             .blocks_dal()
             .get_sealed_l2_block_number()

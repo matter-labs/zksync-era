@@ -74,15 +74,15 @@ async fn creating_io_cursor_with_snapshot_recovery() {
 
     let cursor = IoCursor::new(&mut storage).await.unwrap();
     assert_eq!(cursor.l1_batch, L1BatchNumber(24));
-    assert_eq!(cursor.next_l2_block, snapshot_recovery.miniblock_number + 1);
+    assert_eq!(cursor.next_l2_block, snapshot_recovery.l2_block_number + 1);
     assert_eq!(
         cursor.prev_l2_block_timestamp,
-        snapshot_recovery.miniblock_timestamp
+        snapshot_recovery.l2_block_timestamp
     );
-    assert_eq!(cursor.prev_l2_block_hash, snapshot_recovery.miniblock_hash);
+    assert_eq!(cursor.prev_l2_block_hash, snapshot_recovery.l2_block_hash);
 
     // Add a miniblock so that we have miniblocks (but not an L1 batch) in the storage.
-    let miniblock = create_miniblock(snapshot_recovery.miniblock_number.0 + 1);
+    let miniblock = create_miniblock(snapshot_recovery.l2_block_number.0 + 1);
     storage
         .blocks_dal()
         .insert_l2_block(&miniblock)
@@ -268,14 +268,14 @@ async fn getting_first_miniblock_in_batch_after_snapshot_recovery() {
         (snapshot_recovery.l1_batch_number, Err(())),
         (
             snapshot_recovery.l1_batch_number + 1,
-            Ok(Some(snapshot_recovery.miniblock_number + 1)),
+            Ok(Some(snapshot_recovery.l2_block_number + 1)),
         ),
         (snapshot_recovery.l1_batch_number + 2, Ok(None)),
         (L1BatchNumber(100), Ok(None)),
     ]);
     assert_first_miniblock_numbers(&provider, &mut storage, &batches_and_miniblocks).await;
 
-    let new_miniblock = create_miniblock(snapshot_recovery.miniblock_number.0 + 1);
+    let new_miniblock = create_miniblock(snapshot_recovery.l2_block_number.0 + 1);
     storage
         .blocks_dal()
         .insert_l2_block(&new_miniblock)
@@ -385,7 +385,7 @@ async fn loading_pending_batch_after_snapshot_recovery() {
     let snapshot_recovery =
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
 
-    let starting_miniblock_number = snapshot_recovery.miniblock_number.0 + 1;
+    let starting_miniblock_number = snapshot_recovery.l2_block_number.0 + 1;
     store_pending_miniblocks(
         &mut storage,
         starting_miniblock_number..=starting_miniblock_number + 1,
@@ -401,7 +401,7 @@ async fn loading_pending_batch_after_snapshot_recovery() {
         .expect("no first miniblock");
     assert_eq!(
         first_miniblock_in_batch.number(),
-        snapshot_recovery.miniblock_number + 1
+        snapshot_recovery.l2_block_number + 1
     );
 
     let (system_env, l1_batch_env) = provider
@@ -417,7 +417,7 @@ async fn loading_pending_batch_after_snapshot_recovery() {
         .await
         .unwrap();
 
-    let expected_timestamp = u64::from(snapshot_recovery.miniblock_number.0) + 1;
+    let expected_timestamp = u64::from(snapshot_recovery.l2_block_number.0) + 1;
     assert_eq!(pending_batch.pending_l2_blocks.len(), 2);
     assert_eq!(
         pending_batch.l1_batch_env.number,
@@ -426,7 +426,7 @@ async fn loading_pending_batch_after_snapshot_recovery() {
     assert_eq!(pending_batch.l1_batch_env.timestamp, expected_timestamp);
     assert_eq!(
         pending_batch.l1_batch_env.first_l2_block.number,
-        snapshot_recovery.miniblock_number.0 + 1
+        snapshot_recovery.l2_block_number.0 + 1
     );
     assert_eq!(
         pending_batch.l1_batch_env.first_l2_block.timestamp,
@@ -434,7 +434,7 @@ async fn loading_pending_batch_after_snapshot_recovery() {
     );
     assert_eq!(
         pending_batch.l1_batch_env.first_l2_block.prev_block_hash,
-        snapshot_recovery.miniblock_hash
+        snapshot_recovery.l2_block_hash
     );
 }
 

@@ -73,7 +73,7 @@ impl SnapshotsNamespace {
         Ok(Some(SnapshotHeader {
             version: snapshot_metadata.version.into(),
             l1_batch_number: snapshot_metadata.l1_batch_number,
-            miniblock_number,
+            l2_block_number: miniblock_number,
             storage_logs_chunks: chunks,
             factory_deps_filepath: snapshot_metadata.factory_deps_filepath,
         }))

@@ -365,7 +365,7 @@ async fn recovering_factory_deps_from_snapshot() {
     let (snapshot_recovery, _) = prepare_postgres_for_snapshot_recovery(&mut conn).await;
 
     let mut all_factory_deps = HashMap::new();
-    for number in 0..snapshot_recovery.miniblock_number.0 {
+    for number in 0..snapshot_recovery.l2_block_number.0 {
         let bytecode_hash = H256::from_low_u64_be(number.into());
         let bytecode = vec![u8::try_from(number).unwrap(); 1_024];
         all_factory_deps.insert(bytecode_hash, bytecode.clone());
@@ -396,7 +396,7 @@ async fn recovering_from_snapshot_and_following_logs() {
     let new_storage_logs = gen_storage_logs(500..600);
     create_miniblock(
         &mut conn,
-        snapshot_recovery.miniblock_number + 1,
+        snapshot_recovery.l2_block_number + 1,
         new_storage_logs.clone(),
     )
     .await;
@@ -418,7 +418,7 @@ async fn recovering_from_snapshot_and_following_logs() {
         .collect();
     create_miniblock(
         &mut conn,
-        snapshot_recovery.miniblock_number + 2,
+        snapshot_recovery.l2_block_number + 2,
         updated_storage_logs.clone(),
     )
     .await;

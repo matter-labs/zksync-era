@@ -61,9 +61,9 @@ impl IoCursor {
                 prev_l2_block_hash = l2_block_header.hash;
                 prev_l2_block_timestamp = l2_block_header.timestamp;
             } else {
-                next_l2_block = snapshot_recovery.miniblock_number + 1;
-                prev_l2_block_hash = snapshot_recovery.miniblock_hash;
-                prev_l2_block_timestamp = snapshot_recovery.miniblock_timestamp;
+                next_l2_block = snapshot_recovery.l2_block_number + 1;
+                prev_l2_block_hash = snapshot_recovery.l2_block_hash;
+                prev_l2_block_timestamp = snapshot_recovery.l2_block_timestamp;
             }
 
             Ok(Self {

@@ -125,7 +125,7 @@ impl SnapshotParameters {
         pool: &ConnectionPool<Core>,
         recovery: &SnapshotRecoveryStatus,
     ) -> anyhow::Result<Self> {
-        let miniblock = recovery.miniblock_number;
+        let miniblock = recovery.l2_block_number;
         let expected_root_hash = recovery.l1_batch_root_hash;
 
         let mut storage = pool.connection().await?;

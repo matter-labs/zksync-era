@@ -73,7 +73,7 @@ impl HttpTest for SnapshotBasicsTest {
         };
 
         assert_eq!(snapshot_header.l1_batch_number, L1BatchNumber(1));
-        assert_eq!(snapshot_header.miniblock_number, L2BlockNumber(1));
+        assert_eq!(snapshot_header.l2_block_number, L2BlockNumber(1));
         assert_eq!(
             snapshot_header.factory_deps_filepath,
             "file:///factory_deps"

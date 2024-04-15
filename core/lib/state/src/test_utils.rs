@@ -136,9 +136,9 @@ pub(crate) async fn prepare_postgres_for_snapshot_recovery(
         l1_batch_number: L1BatchNumber(23),
         l1_batch_timestamp: 23,
         l1_batch_root_hash: H256::zero(), // not used
-        miniblock_number: L2BlockNumber(42),
-        miniblock_timestamp: 42,
-        miniblock_hash: H256::zero(), // not used
+        l2_block_number: L2BlockNumber(42),
+        l2_block_timestamp: 42,
+        l2_block_hash: H256::zero(), // not used
         protocol_version: ProtocolVersionId::latest(),
         storage_logs_chunks_processed: vec![true; 100],
     };
@@ -150,7 +150,7 @@ pub(crate) async fn prepare_postgres_for_snapshot_recovery(
     let snapshot_storage_logs = gen_storage_logs(100..200);
     conn.storage_logs_dal()
         .insert_storage_logs(
-            snapshot_recovery.miniblock_number,
+            snapshot_recovery.l2_block_number,
             &[(H256::zero(), snapshot_storage_logs.clone())],
         )
         .await

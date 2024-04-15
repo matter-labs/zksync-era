@@ -157,9 +157,9 @@ pub(crate) fn create_snapshot_recovery() -> SnapshotRecoveryStatus {
         l1_batch_number: L1BatchNumber(23),
         l1_batch_timestamp: 23,
         l1_batch_root_hash: H256::zero(),
-        miniblock_number: L2BlockNumber(42),
-        miniblock_timestamp: 42,
-        miniblock_hash: H256::zero(),
+        l2_block_number: L2BlockNumber(42),
+        l2_block_timestamp: 42,
+        l2_block_hash: H256::zero(),
         protocol_version: ProtocolVersionId::latest(),
         storage_logs_chunks_processed: vec![true; 100],
     }

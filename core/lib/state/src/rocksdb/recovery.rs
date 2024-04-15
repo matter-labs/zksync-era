@@ -107,7 +107,7 @@ impl RocksdbStorage {
                         "Mismatch between entry for key {:?} in Postgres snapshot for miniblock #{} \
                          ({chunk_start:?}) and RocksDB cache ({state_value:?}); the recovery procedure may be corrupted",
                         chunk_start.key,
-                        snapshot_recovery.miniblock_number
+                        snapshot_recovery.l2_block_number
                     );
                     return Err(err.into());
                 }
@@ -115,7 +115,7 @@ impl RocksdbStorage {
             } else {
                 self.recover_logs_chunk(
                     storage,
-                    snapshot_recovery.miniblock_number,
+                    snapshot_recovery.l2_block_number,
                     key_chunk.key_range.clone(),
                 )
                 .await
@@ -147,7 +147,7 @@ impl RocksdbStorage {
         let latency = RECOVERY_METRICS.latency[&RecoveryStage::LoadFactoryDeps].start();
         let factory_deps = storage
             .snapshots_creator_dal()
-            .get_all_factory_deps(snapshot_recovery.miniblock_number)
+            .get_all_factory_deps(snapshot_recovery.l2_block_number)
             .await?;
         let latency = latency.observe();
         tracing::info!(
@@ -172,7 +172,7 @@ impl RocksdbStorage {
         snapshot_recovery: &SnapshotRecoveryStatus,
         desired_log_chunk_size: u64,
     ) -> anyhow::Result<Vec<KeyChunk>> {
-        let snapshot_miniblock = snapshot_recovery.miniblock_number;
+        let snapshot_miniblock = snapshot_recovery.l2_block_number;
         let log_count = storage
             .storage_logs_dal()
             .get_storage_logs_row_count(snapshot_miniblock)

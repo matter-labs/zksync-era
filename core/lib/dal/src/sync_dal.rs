@@ -250,12 +250,12 @@ mod tests {
 
         assert!(conn
             .sync_dal()
-            .sync_block(snapshot_recovery.miniblock_number, false)
+            .sync_block(snapshot_recovery.l2_block_number, false)
             .await
             .unwrap()
             .is_none());
 
-        let miniblock_header = create_l2_block_header(snapshot_recovery.miniblock_number.0 + 1);
+        let miniblock_header = create_l2_block_header(snapshot_recovery.l2_block_number.0 + 1);
         conn.blocks_dal()
             .insert_l2_block(&miniblock_header)
             .await

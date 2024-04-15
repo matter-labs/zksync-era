@@ -209,7 +209,7 @@ impl L1BatchParamsProvider {
                 snapshot.l1_batch_number + 1
             );
             if l1_batch_number == snapshot.l1_batch_number + 1 {
-                return Ok(Some(snapshot.miniblock_number + 1));
+                return Ok(Some(snapshot.l2_block_number + 1));
             }
         }
 
@@ -260,7 +260,7 @@ impl L1BatchParamsProvider {
         tracing::info!("Getting previous L2 block hash for L2 block #{prev_l2_block_number}");
 
         let prev_l2_block_hash = self.snapshot.as_ref().and_then(|snapshot| {
-            (snapshot.miniblock_number == prev_l2_block_number).then_some(snapshot.miniblock_hash)
+            (snapshot.l2_block_number == prev_l2_block_number).then_some(snapshot.l2_block_hash)
         });
         let prev_l2_block_hash = match prev_l2_block_hash {
             Some(hash) => hash,

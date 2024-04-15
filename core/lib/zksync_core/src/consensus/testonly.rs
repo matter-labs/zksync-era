@@ -48,10 +48,10 @@ impl MockMainNodeClient {
     pub fn for_snapshot_recovery(snapshot: &SnapshotRecoveryStatus) -> Self {
         // This block may be requested during node initialization
         let last_miniblock_in_snapshot_batch = api::en::SyncBlock {
-            number: snapshot.miniblock_number,
+            number: snapshot.l2_block_number,
             l1_batch_number: snapshot.l1_batch_number,
             last_in_batch: true,
-            timestamp: snapshot.miniblock_timestamp,
+            timestamp: snapshot.l2_block_timestamp,
             l1_gas_price: 2,
             l2_fair_gas_price: 3,
             fair_pubdata_price: Some(24),
@@ -59,13 +59,13 @@ impl MockMainNodeClient {
             operator_address: Address::repeat_byte(2),
             transactions: Some(vec![]),
             virtual_blocks: Some(0),
-            hash: Some(snapshot.miniblock_hash),
+            hash: Some(snapshot.l2_block_hash),
             protocol_version: ProtocolVersionId::latest(),
         };
 
         Self {
             l2_blocks: vec![last_miniblock_in_snapshot_batch],
-            block_number_offset: snapshot.miniblock_number.0,
+            block_number_offset: snapshot.l2_block_number.0,
             ..Self::default()
         }
     }

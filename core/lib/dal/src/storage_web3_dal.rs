@@ -361,7 +361,7 @@ mod tests {
             .await
             .unwrap();
 
-        let first_l2_block = create_l2_block_header(snapshot_recovery.miniblock_number.0 + 1);
+        let first_l2_block = create_l2_block_header(snapshot_recovery.l2_block_number.0 + 1);
         conn.blocks_dal()
             .insert_l2_block(&first_l2_block)
             .await
@@ -369,7 +369,7 @@ mod tests {
 
         let resolved = conn
             .storage_web3_dal()
-            .resolve_l1_batch_number_of_l2_block(snapshot_recovery.miniblock_number + 1)
+            .resolve_l1_batch_number_of_l2_block(snapshot_recovery.l2_block_number + 1)
             .await
             .unwrap();
         assert_eq!(resolved.block_l1_batch, None);
@@ -406,7 +406,7 @@ mod tests {
 
         let resolved = conn
             .storage_web3_dal()
-            .resolve_l1_batch_number_of_l2_block(snapshot_recovery.miniblock_number + 1)
+            .resolve_l1_batch_number_of_l2_block(snapshot_recovery.l2_block_number + 1)
             .await
             .unwrap();
         assert_eq!(resolved.block_l1_batch, Some(l1_batch_header.number));

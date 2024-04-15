@@ -393,7 +393,7 @@ async fn l2_block_processing_after_snapshot_recovery(deployment_mode: Deployment
     let (mut mempool, mut mempool_guard) =
         tester.create_test_mempool_io(connection_pool.clone()).await;
     let (cursor, maybe_pending_batch) = mempool.initialize().await.unwrap();
-    assert_eq!(cursor.next_l2_block, snapshot_recovery.miniblock_number + 1);
+    assert_eq!(cursor.next_l2_block, snapshot_recovery.l2_block_number + 1);
     assert_eq!(cursor.l1_batch, snapshot_recovery.l1_batch_number + 1);
     assert!(maybe_pending_batch.is_none());
 
@@ -451,20 +451,20 @@ async fn l2_block_processing_after_snapshot_recovery(deployment_mode: Deployment
     // Check that the L2 block is persisted and has correct data.
     let persisted_l2_block = storage
         .blocks_dal()
-        .get_l2_block_header(snapshot_recovery.miniblock_number + 1)
+        .get_l2_block_header(snapshot_recovery.l2_block_number + 1)
         .await
         .unwrap()
         .expect("no miniblock persisted");
     assert_eq!(
         persisted_l2_block.number,
-        snapshot_recovery.miniblock_number + 1
+        snapshot_recovery.l2_block_number + 1
     );
     assert_eq!(persisted_l2_block.l2_tx_count, 1);
 
     let mut l2_block_hasher = L2BlockHasher::new(
         persisted_l2_block.number,
         persisted_l2_block.timestamp,
-        snapshot_recovery.miniblock_hash,
+        snapshot_recovery.l2_block_hash,
     );
     l2_block_hasher.push_tx_hash(tx_hash);
     assert_eq!(
@@ -483,7 +483,7 @@ async fn l2_block_processing_after_snapshot_recovery(deployment_mode: Deployment
     // Emulate node restart.
     let (mut mempool, _) = tester.create_test_mempool_io(connection_pool.clone()).await;
     let (cursor, maybe_pending_batch) = mempool.initialize().await.unwrap();
-    assert_eq!(cursor.next_l2_block, snapshot_recovery.miniblock_number + 2);
+    assert_eq!(cursor.next_l2_block, snapshot_recovery.l2_block_number + 2);
     assert_eq!(cursor.l1_batch, snapshot_recovery.l1_batch_number + 1);
 
     let pending_batch = maybe_pending_batch.expect("no pending batch");
@@ -497,16 +497,16 @@ async fn l2_block_processing_after_snapshot_recovery(deployment_mode: Deployment
     );
     assert_eq!(
         pending_batch.l1_batch_env.first_l2_block.prev_block_hash,
-        snapshot_recovery.miniblock_hash
+        snapshot_recovery.l2_block_hash
     );
     assert_eq!(pending_batch.pending_l2_blocks.len(), 1);
     assert_eq!(
         pending_batch.pending_l2_blocks[0].number,
-        snapshot_recovery.miniblock_number + 1
+        snapshot_recovery.l2_block_number + 1
     );
     assert_eq!(
         pending_batch.pending_l2_blocks[0].prev_block_hash,
-        snapshot_recovery.miniblock_hash
+        snapshot_recovery.l2_block_hash
     );
     assert_eq!(pending_batch.pending_l2_blocks[0].txs.len(), 1);
     assert_eq!(pending_batch.pending_l2_blocks[0].txs[0].hash(), tx_hash);

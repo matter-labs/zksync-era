@@ -116,9 +116,9 @@ async fn prepare_recovery_snapshot_with_genesis(
         l1_batch_number: L1BatchNumber(1),
         l1_batch_timestamp: 1,
         l1_batch_root_hash,
-        miniblock_number: L2BlockNumber(1),
-        miniblock_timestamp: 1,
-        miniblock_hash: H256::zero(), // not used
+        l2_block_number: L2BlockNumber(1),
+        l2_block_timestamp: 1,
+        l2_block_hash: H256::zero(), // not used
         protocol_version: ProtocolVersionId::latest(),
         storage_logs_chunks_processed: vec![],
     }
