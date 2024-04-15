@@ -14,10 +14,10 @@ use zksync_db_connection::{
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::{BlockGasCount, L1BatchHeader, L1BatchTreeData, MiniblockHeader, StorageOracleInfo},
+    block::{BlockGasCount, L1BatchHeader, L1BatchTreeData, L2BlockHeader, StorageOracleInfo},
     circuit::CircuitStatistic,
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
-    Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, U256,
+    Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256, U256,
 };
 
 use crate::{
@@ -107,7 +107,7 @@ impl BlocksDal<'_, '_> {
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
-    pub async fn get_sealed_miniblock_number(&mut self) -> DalResult<Option<MiniblockNumber>> {
+    pub async fn get_sealed_miniblock_number(&mut self) -> DalResult<Option<L2BlockNumber>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -121,7 +121,7 @@ impl BlocksDal<'_, '_> {
         .fetch_one(self.storage)
         .await?;
 
-        Ok(row.number.map(|number| MiniblockNumber(number as u32)))
+        Ok(row.number.map(|number| L2BlockNumber(number as u32)))
     }
 
     /// Returns the number of the earliest L1 batch present in the DB, or `None` if there are no L1 batches.
@@ -594,7 +594,7 @@ impl BlocksDal<'_, '_> {
         transaction.commit().await
     }
 
-    pub async fn insert_miniblock(&mut self, miniblock_header: &MiniblockHeader) -> DalResult<()> {
+    pub async fn insert_miniblock(&mut self, miniblock_header: &L2BlockHeader) -> DalResult<()> {
         let instrumentation =
             Instrumented::new("insert_miniblock").with_arg("number", &miniblock_header.number);
 
@@ -679,7 +679,7 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_last_sealed_miniblock_header(&mut self) -> DalResult<Option<MiniblockHeader>> {
+    pub async fn get_last_sealed_miniblock_header(&mut self) -> DalResult<Option<L2BlockHeader>> {
         let header = sqlx::query_as!(
             StorageMiniblockHeader,
             r#"
@@ -717,8 +717,8 @@ impl BlocksDal<'_, '_> {
 
     pub async fn get_miniblock_header(
         &mut self,
-        miniblock_number: MiniblockNumber,
-    ) -> DalResult<Option<MiniblockHeader>> {
+        miniblock_number: L2BlockNumber,
+    ) -> DalResult<Option<L2BlockHeader>> {
         let header = sqlx::query_as!(
             StorageMiniblockHeader,
             r#"
@@ -1836,7 +1836,7 @@ impl BlocksDal<'_, '_> {
     /// Deletes all miniblocks from the storage so that the specified miniblock number is the last one left.
     pub async fn delete_miniblocks(
         &mut self,
-        last_miniblock_to_keep: MiniblockNumber,
+        last_miniblock_to_keep: L2BlockNumber,
     ) -> DalResult<()> {
         self.delete_miniblocks_inner(Some(last_miniblock_to_keep))
             .await
@@ -1844,7 +1844,7 @@ impl BlocksDal<'_, '_> {
 
     async fn delete_miniblocks_inner(
         &mut self,
-        last_miniblock_to_keep: Option<MiniblockNumber>,
+        last_miniblock_to_keep: Option<L2BlockNumber>,
     ) -> DalResult<()> {
         let block_number = last_miniblock_to_keep.map_or(-1, |number| i64::from(number.0));
         sqlx::query!(
@@ -1911,7 +1911,7 @@ impl BlocksDal<'_, '_> {
     pub async fn get_miniblock_range_of_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> DalResult<Option<(MiniblockNumber, MiniblockNumber)>> {
+    ) -> DalResult<Option<(L2BlockNumber, L2BlockNumber)>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -1931,10 +1931,7 @@ impl BlocksDal<'_, '_> {
 
         let Some(min) = row.min else { return Ok(None) };
         let Some(max) = row.max else { return Ok(None) };
-        Ok(Some((
-            MiniblockNumber(min as u32),
-            MiniblockNumber(max as u32),
-        )))
+        Ok(Some((L2BlockNumber(min as u32), L2BlockNumber(max as u32))))
     }
 
     /// Returns `true` if there exists a non-sealed batch (i.e. there is one+ stored miniblock that isn't assigned
@@ -2065,7 +2062,7 @@ impl BlocksDal<'_, '_> {
 
     pub async fn get_miniblock_protocol_version_id(
         &mut self,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
     ) -> DalResult<Option<ProtocolVersionId>> {
         Ok(sqlx::query!(
             r#"
@@ -2088,7 +2085,7 @@ impl BlocksDal<'_, '_> {
 
     pub async fn get_fee_address_for_miniblock(
         &mut self,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
     ) -> DalResult<Option<Address>> {
         let Some(row) = sqlx::query!(
             r#"
@@ -2162,7 +2159,7 @@ impl BlocksDal<'_, '_> {
 
     pub async fn reset_protocol_version_for_miniblocks(
         &mut self,
-        miniblock_range: ops::RangeInclusive<MiniblockNumber>,
+        miniblock_range: ops::RangeInclusive<L2BlockNumber>,
         protocol_version: ProtocolVersionId,
     ) -> DalResult<()> {
         sqlx::query!(

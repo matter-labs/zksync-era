@@ -4,9 +4,9 @@ use std::ops;
 
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
-    block::{L1BatchHeader, MiniblockHeader},
+    block::{L1BatchHeader, L2BlockHeader},
     snapshots::SnapshotRecoveryStatus,
-    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersion, ProtocolVersionId,
+    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersion, ProtocolVersionId,
     StorageKey, StorageLog, H256,
 };
 
@@ -19,16 +19,16 @@ pub(crate) async fn prepare_postgres(conn: &mut Connection<'_, Core>) {
         // The created genesis block is likely to be invalid, but since it's not committed,
         // we don't really care.
         let genesis_storage_logs = gen_storage_logs(0..20);
-        create_miniblock(conn, MiniblockNumber(0), genesis_storage_logs.clone()).await;
+        create_miniblock(conn, L2BlockNumber(0), genesis_storage_logs.clone()).await;
         create_l1_batch(conn, L1BatchNumber(0), &genesis_storage_logs).await;
     }
 
     conn.storage_logs_dal()
-        .rollback_storage_logs(MiniblockNumber(0))
+        .rollback_storage_logs(L2BlockNumber(0))
         .await
         .unwrap();
     conn.blocks_dal()
-        .delete_miniblocks(MiniblockNumber(0))
+        .delete_miniblocks(L2BlockNumber(0))
         .await
         .unwrap();
     conn.blocks_dal()
@@ -70,10 +70,10 @@ pub(crate) fn gen_storage_logs(indices: ops::Range<u64>) -> Vec<StorageLog> {
 // ^ `BaseSystemContractsHashes::default()` would require a new direct dependency
 pub(crate) async fn create_miniblock(
     conn: &mut Connection<'_, Core>,
-    miniblock_number: MiniblockNumber,
+    miniblock_number: L2BlockNumber,
     block_logs: Vec<StorageLog>,
 ) {
-    let miniblock_header = MiniblockHeader {
+    let miniblock_header = L2BlockHeader {
         number: miniblock_number,
         timestamp: 0,
         hash: H256::from_low_u64_be(u64::from(miniblock_number.0)),
@@ -136,7 +136,7 @@ pub(crate) async fn prepare_postgres_for_snapshot_recovery(
         l1_batch_number: L1BatchNumber(23),
         l1_batch_timestamp: 23,
         l1_batch_root_hash: H256::zero(), // not used
-        miniblock_number: MiniblockNumber(42),
+        miniblock_number: L2BlockNumber(42),
         miniblock_timestamp: 42,
         miniblock_hash: H256::zero(), // not used
         protocol_version: ProtocolVersionId::latest(),

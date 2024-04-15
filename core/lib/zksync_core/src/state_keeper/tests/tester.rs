@@ -16,8 +16,8 @@ use multivm::{
 use tokio::sync::{mpsc, watch};
 use zksync_contracts::BaseSystemContracts;
 use zksync_types::{
-    block::MiniblockExecutionData, fee_model::BatchFeeInput, protocol_upgrade::ProtocolUpgradeTx,
-    Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
+    block::L2BlockExecutionData, fee_model::BatchFeeInput, protocol_upgrade::ProtocolUpgradeTx,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 
 use crate::{
@@ -291,9 +291,7 @@ pub(crate) fn rejected_exec() -> TxExecutionResult {
 }
 
 /// Creates a mock `PendingBatchData` object containing the provided sequence of L2 blocks.
-pub(crate) fn pending_batch_data(
-    pending_l2_blocks: Vec<MiniblockExecutionData>,
-) -> PendingBatchData {
+pub(crate) fn pending_batch_data(pending_l2_blocks: Vec<L2BlockExecutionData>) -> PendingBatchData {
     PendingBatchData {
         l1_batch_env: default_l1_batch_env(1, 1, FEE_ACCOUNT),
         system_env: SystemEnv {
@@ -585,7 +583,7 @@ pub(super) struct TestIO {
     batch_number: L1BatchNumber,
     timestamp: u64,
     fee_input: BatchFeeInput,
-    l2_block_number: MiniblockNumber,
+    l2_block_number: L2BlockNumber,
     fee_account: Address,
     pending_batch: Option<PendingBatchData>,
     l1_batch_seal_fn: Box<SealFn>,
@@ -627,7 +625,7 @@ impl TestIO {
                 last_pending_l2_block.timestamp + 1,
             )
         } else {
-            (MiniblockNumber(1), 1)
+            (L2BlockNumber(1), 1)
         };
         let this = Self {
             stop_sender,

@@ -9,19 +9,19 @@ use multivm::{
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_types::{
-    block::MiniblockHeader, fee_model::BatchFeeInput, snapshots::SnapshotRecoveryStatus, Address,
-    L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, ZKPORTER_IS_AVAILABLE,
+    block::L2BlockHeader, fee_model::BatchFeeInput, snapshots::SnapshotRecoveryStatus, Address,
+    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, ZKPORTER_IS_AVAILABLE,
 };
 
-/// Typesafe wrapper around [`MiniblockHeader`] returned by [`L1BatchParamsProvider`].
+/// Typesafe wrapper around [`L2BlockHeader`] returned by [`L1BatchParamsProvider`].
 #[derive(Debug)]
 pub struct FirstL2BlockInBatch {
-    header: MiniblockHeader,
+    header: L2BlockHeader,
     l1_batch_number: L1BatchNumber,
 }
 
 impl FirstL2BlockInBatch {
-    pub fn number(&self) -> MiniblockNumber {
+    pub fn number(&self) -> L2BlockNumber {
         self.header.number
     }
 
@@ -46,7 +46,7 @@ pub fn l1_batch_params(
     l1_batch_timestamp: u64,
     previous_batch_hash: H256,
     fee_input: BatchFeeInput,
-    first_l2_block_number: MiniblockNumber,
+    first_l2_block_number: L2BlockNumber,
     prev_l2_block_hash: H256,
     base_system_contracts: BaseSystemContracts,
     validation_computational_gas_limit: u32,
@@ -197,9 +197,9 @@ impl L1BatchParamsProvider {
         &self,
         storage: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<MiniblockNumber>> {
+    ) -> anyhow::Result<Option<L2BlockNumber>> {
         if l1_batch_number == L1BatchNumber(0) {
-            return Ok(Some(MiniblockNumber(0)));
+            return Ok(Some(L2BlockNumber(0)));
         }
 
         if let Some(snapshot) = &self.snapshot {

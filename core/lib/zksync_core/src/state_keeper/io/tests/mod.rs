@@ -6,11 +6,11 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_types::{
-    block::{BlockGasCount, MiniblockHasher},
+    block::{BlockGasCount, L2BlockHasher},
     fee::TransactionExecutionMetrics,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     tx::ExecutionMetrics,
-    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersion,
+    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
     ProtocolVersionId, StorageKey, VmEvent, H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
@@ -214,7 +214,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut l2_block = L2BlockUpdates::new(
         0,
-        MiniblockNumber(3),
+        L2BlockNumber(3),
         H256::zero(),
         1,
         ProtocolVersionId::latest(),
@@ -318,7 +318,7 @@ async fn processing_events_when_sealing_l2_block() {
     let l1_batch_number = L1BatchNumber(2);
     let mut l2_block = L2BlockUpdates::new(
         0,
-        MiniblockNumber(3),
+        L2BlockNumber(3),
         H256::zero(),
         1,
         ProtocolVersionId::latest(),
@@ -388,7 +388,7 @@ async fn l2_block_processing_after_snapshot_recovery(deployment_mode: Deployment
     let tester = Tester::new(&deployment_mode);
     let mut storage = connection_pool.connection().await.unwrap();
     let snapshot_recovery =
-        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
 
     let (mut mempool, mut mempool_guard) =
         tester.create_test_mempool_io(connection_pool.clone()).await;
@@ -461,7 +461,7 @@ async fn l2_block_processing_after_snapshot_recovery(deployment_mode: Deployment
     );
     assert_eq!(persisted_l2_block.l2_tx_count, 1);
 
-    let mut l2_block_hasher = MiniblockHasher::new(
+    let mut l2_block_hasher = L2BlockHasher::new(
         persisted_l2_block.number,
         persisted_l2_block.timestamp,
         snapshot_recovery.miniblock_hash,

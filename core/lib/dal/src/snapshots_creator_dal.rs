@@ -1,6 +1,6 @@
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{
-    snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber, MiniblockNumber,
+    snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber, L2BlockNumber,
     StorageKey, H256,
 };
 
@@ -45,7 +45,7 @@ impl SnapshotsCreatorDal<'_, '_> {
     /// batches. `miniblock_number` MUST be the last miniblock of the `l1_batch_number` batch.
     pub async fn get_storage_logs_chunk(
         &mut self,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
         l1_batch_number: L1BatchNumber,
         hashed_keys_range: std::ops::RangeInclusive<H256>,
     ) -> DalResult<Vec<SnapshotStorageLog>> {
@@ -114,7 +114,7 @@ impl SnapshotsCreatorDal<'_, '_> {
     /// Returns all factory dependencies up to and including the specified `miniblock_number`.
     pub async fn get_all_factory_deps(
         &mut self,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
     ) -> DalResult<Vec<(H256, Vec<u8>)>> {
         let rows = sqlx::query!(
             r#"
@@ -164,7 +164,7 @@ mod tests {
         logs.sort_unstable_by_key(|log| log.key.hashed_key());
 
         conn.storage_logs_dal()
-            .insert_storage_logs(MiniblockNumber(1), &[(H256::zero(), logs.clone())])
+            .insert_storage_logs(L2BlockNumber(1), &[(H256::zero(), logs.clone())])
             .await
             .unwrap();
         let mut written_keys: Vec<_> = logs.iter().map(|log| log.key).collect();
@@ -176,11 +176,11 @@ mod tests {
 
         let log_row_count = conn
             .storage_logs_dal()
-            .get_storage_logs_row_count(MiniblockNumber(1))
+            .get_storage_logs_row_count(L2BlockNumber(1))
             .await
             .unwrap();
         assert_eq!(log_row_count, logs.len() as u64);
-        assert_logs_for_snapshot(&mut conn, MiniblockNumber(1), L1BatchNumber(1), &logs).await;
+        assert_logs_for_snapshot(&mut conn, L2BlockNumber(1), L1BatchNumber(1), &logs).await;
 
         // Add some inserts / updates in the next miniblock. They should be ignored.
         let new_logs = (100..150).map(|i| {
@@ -198,7 +198,7 @@ mod tests {
         let all_new_logs: Vec<_> = new_logs.chain(updated_logs).collect();
         let all_new_logs_len = all_new_logs.len();
         conn.storage_logs_dal()
-            .insert_storage_logs(MiniblockNumber(2), &[(H256::zero(), all_new_logs)])
+            .insert_storage_logs(L2BlockNumber(2), &[(H256::zero(), all_new_logs)])
             .await
             .unwrap();
         conn.storage_logs_dedup_dal()
@@ -208,22 +208,22 @@ mod tests {
 
         let log_row_count = conn
             .storage_logs_dal()
-            .get_storage_logs_row_count(MiniblockNumber(1))
+            .get_storage_logs_row_count(L2BlockNumber(1))
             .await
             .unwrap();
         assert_eq!(log_row_count, logs.len() as u64);
         let log_row_count = conn
             .storage_logs_dal()
-            .get_storage_logs_row_count(MiniblockNumber(2))
+            .get_storage_logs_row_count(L2BlockNumber(2))
             .await
             .unwrap();
         assert_eq!(log_row_count, (logs.len() + all_new_logs_len) as u64);
-        assert_logs_for_snapshot(&mut conn, MiniblockNumber(1), L1BatchNumber(1), &logs).await;
+        assert_logs_for_snapshot(&mut conn, L2BlockNumber(1), L1BatchNumber(1), &logs).await;
     }
 
     async fn assert_logs_for_snapshot(
         conn: &mut Connection<'_, Core>,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
         l1_batch_number: L1BatchNumber,
         expected_logs: &[StorageLog],
     ) {
@@ -271,14 +271,14 @@ mod tests {
             StorageLog::new_write_log(key, H256::zero()),
         ];
         conn.storage_logs_dal()
-            .insert_storage_logs(MiniblockNumber(1), &[(H256::zero(), phantom_writes)])
+            .insert_storage_logs(L2BlockNumber(1), &[(H256::zero(), phantom_writes)])
             .await
             .unwrap();
         // initial writes are intentionally not inserted.
 
         let real_write = StorageLog::new_write_log(key, H256::repeat_byte(2));
         conn.storage_logs_dal()
-            .insert_storage_logs(MiniblockNumber(2), &[(H256::zero(), vec![real_write])])
+            .insert_storage_logs(L2BlockNumber(2), &[(H256::zero(), vec![real_write])])
             .await
             .unwrap();
         conn.storage_logs_dedup_dal()
@@ -289,7 +289,7 @@ mod tests {
         let logs = conn
             .snapshots_creator_dal()
             .get_storage_logs_chunk(
-                MiniblockNumber(1),
+                L2BlockNumber(1),
                 L1BatchNumber(1),
                 H256::zero()..=H256::repeat_byte(0xff),
             )
@@ -300,7 +300,7 @@ mod tests {
         let logs = conn
             .snapshots_creator_dal()
             .get_storage_logs_chunk(
-                MiniblockNumber(2),
+                L2BlockNumber(2),
                 L1BatchNumber(2),
                 H256::zero()..=H256::repeat_byte(0xff),
             )

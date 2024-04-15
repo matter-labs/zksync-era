@@ -250,7 +250,7 @@ mod tests {
     use zksync_dal::CoreDal;
     use zksync_types::{
         api::TransactionStatus, block::BlockGasCount, tx::ExecutionMetrics, L1BatchNumber,
-        MiniblockNumber,
+        L2BlockNumber,
     };
 
     use super::*;
@@ -294,7 +294,7 @@ mod tests {
                 .get_sealed_miniblock_number()
                 .await
                 .unwrap(),
-            Some(MiniblockNumber(2)) // + fictive L2 block
+            Some(L2BlockNumber(2)) // + fictive L2 block
         );
         let l1_batch_header = storage
             .blocks_dal()
@@ -494,7 +494,7 @@ mod tests {
 
         for i in 1..=5 {
             let command = sealer.commands_receiver.recv().await.unwrap();
-            assert_eq!(command.command.l2_block.number, MiniblockNumber(i));
+            assert_eq!(command.command.l2_block.number, L2BlockNumber(i));
             command.completion_sender.send(()).ok();
         }
 

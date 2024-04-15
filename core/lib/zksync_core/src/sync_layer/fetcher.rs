@@ -1,8 +1,8 @@
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_types::{
-    api::en::SyncBlock, block::MiniblockHasher, fee_model::BatchFeeInput,
-    helpers::unix_timestamp_ms, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
+    api::en::SyncBlock, block::L2BlockHasher, fee_model::BatchFeeInput, helpers::unix_timestamp_ms,
+    Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
 };
 
 use super::{
@@ -39,7 +39,7 @@ impl From<FetchedTransaction> for zksync_types::Transaction {
 /// Common denominator for blocks fetched by an external node.
 #[derive(Debug)]
 pub(crate) struct FetchedBlock {
-    pub number: MiniblockNumber,
+    pub number: L2BlockNumber,
     pub l1_batch_number: L1BatchNumber,
     pub last_in_batch: bool,
     pub protocol_version: ProtocolVersionId,
@@ -55,7 +55,7 @@ pub(crate) struct FetchedBlock {
 
 impl FetchedBlock {
     fn compute_hash(&self, prev_miniblock_hash: H256) -> H256 {
-        let mut hasher = MiniblockHasher::new(self.number, self.timestamp, prev_miniblock_hash);
+        let mut hasher = L2BlockHasher::new(self.number, self.timestamp, prev_miniblock_hash);
         for tx in &self.transactions {
             hasher.push_tx_hash(tx.hash());
         }

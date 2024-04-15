@@ -14,7 +14,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_types::{
-    protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
+    protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersionId, Transaction, H256, U256,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
@@ -349,7 +349,7 @@ impl StateKeeperIO for MempoolIO {
 /// Sleeps until the current timestamp is larger than the provided `timestamp`.
 ///
 /// Returns the current timestamp after the sleep. It is guaranteed to be larger than `timestamp`.
-async fn sleep_past(timestamp: u64, l2_block: MiniblockNumber) -> u64 {
+async fn sleep_past(timestamp: u64, l2_block: L2BlockNumber) -> u64 {
     let mut current_timestamp_millis = millis_since_epoch();
     let mut current_timestamp = (current_timestamp_millis / 1_000) as u64;
     match timestamp.cmp(&current_timestamp) {
@@ -447,7 +447,7 @@ mod tests {
         let past_timestamps = [0, 1_000, 1_000_000_000, seconds_since_epoch() - 10];
         for timestamp in past_timestamps {
             let deadline = Instant::now() + Duration::from_secs(1);
-            timeout_at(deadline.into(), sleep_past(timestamp, MiniblockNumber(1)))
+            timeout_at(deadline.into(), sleep_past(timestamp, L2BlockNumber(1)))
                 .await
                 .unwrap();
         }
@@ -456,7 +456,7 @@ mod tests {
         let deadline = Instant::now() + Duration::from_secs(2);
         let ts = timeout_at(
             deadline.into(),
-            sleep_past(current_timestamp, MiniblockNumber(1)),
+            sleep_past(current_timestamp, L2BlockNumber(1)),
         )
         .await
         .unwrap();
@@ -466,7 +466,7 @@ mod tests {
         let deadline = Instant::now() + Duration::from_secs(3);
         let ts = timeout_at(
             deadline.into(),
-            sleep_past(future_timestamp, MiniblockNumber(1)),
+            sleep_past(future_timestamp, L2BlockNumber(1)),
         )
         .await
         .unwrap();
@@ -477,7 +477,7 @@ mod tests {
         // ^ This deadline is too small (we need at least 1_000ms)
         let result = timeout_at(
             deadline.into(),
-            sleep_past(future_timestamp, MiniblockNumber(1)),
+            sleep_past(future_timestamp, L2BlockNumber(1)),
         )
         .await;
         assert!(result.is_err());

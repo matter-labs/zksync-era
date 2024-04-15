@@ -53,7 +53,7 @@ impl L1BatchUpdates {
 #[cfg(test)]
 mod tests {
     use multivm::vm_latest::TransactionVmExt;
-    use zksync_types::{MiniblockNumber, ProtocolVersionId, H256};
+    use zksync_types::{L2BlockNumber, ProtocolVersionId, H256};
 
     use super::*;
     use crate::{
@@ -65,7 +65,7 @@ mod tests {
     fn apply_l2_block_with_empty_tx() {
         let mut l2_block_accumulator = L2BlockUpdates::new(
             0,
-            MiniblockNumber(0),
+            L2BlockNumber(0),
             H256::zero(),
             1,
             ProtocolVersionId::latest(),

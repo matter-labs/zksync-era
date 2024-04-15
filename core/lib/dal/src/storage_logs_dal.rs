@@ -9,7 +9,7 @@ use zksync_db_connection::{
 };
 use zksync_types::{
     get_code_key, snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber,
-    MiniblockNumber, StorageKey, StorageLog, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256,
+    L2BlockNumber, StorageKey, StorageLog, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256,
 };
 
 pub use crate::models::storage_log::{DbStorageLog, StorageRecoveryLogEntry};
@@ -25,7 +25,7 @@ impl StorageLogsDal<'_, '_> {
     /// must be the same as their ordering in the miniblock.
     pub async fn insert_storage_logs(
         &mut self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
         logs: &[(H256, Vec<StorageLog>)],
     ) -> DalResult<()> {
         self.insert_storage_logs_inner(block_number, logs, 0).await
@@ -33,7 +33,7 @@ impl StorageLogsDal<'_, '_> {
 
     async fn insert_storage_logs_inner(
         &mut self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
         logs: &[(H256, Vec<StorageLog>)],
         mut operation_number: u32,
     ) -> DalResult<()> {
@@ -76,7 +76,7 @@ impl StorageLogsDal<'_, '_> {
 
     pub async fn insert_storage_logs_from_snapshot(
         &mut self,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
         snapshot_storage_logs: &[SnapshotStorageLog],
     ) -> DalResult<()> {
         let storage_logs_len = snapshot_storage_logs.len();
@@ -116,7 +116,7 @@ impl StorageLogsDal<'_, '_> {
 
     pub async fn append_storage_logs(
         &mut self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
         logs: &[(H256, Vec<StorageLog>)],
     ) -> DalResult<()> {
         let operation_number = sqlx::query!(
@@ -146,11 +146,11 @@ impl StorageLogsDal<'_, '_> {
     #[deprecated(note = "`storage` table is soft-removed")]
     pub async fn rollback_storage(
         &mut self,
-        last_miniblock_to_keep: MiniblockNumber,
+        last_miniblock_to_keep: L2BlockNumber,
     ) -> DalResult<()> {
         let stage_start = Instant::now();
         let modified_keys = self
-            .modified_keys_in_miniblocks(last_miniblock_to_keep.next()..=MiniblockNumber(u32::MAX))
+            .modified_keys_in_miniblocks(last_miniblock_to_keep.next()..=L2BlockNumber(u32::MAX))
             .await?;
         tracing::info!(
             "Loaded {} keys changed after miniblock #{last_miniblock_to_keep} in {:?}",
@@ -234,7 +234,7 @@ impl StorageLogsDal<'_, '_> {
     /// Returns distinct hashed storage keys that were modified in the specified miniblock range.
     pub async fn modified_keys_in_miniblocks(
         &mut self,
-        miniblock_numbers: ops::RangeInclusive<MiniblockNumber>,
+        miniblock_numbers: ops::RangeInclusive<L2BlockNumber>,
     ) -> DalResult<Vec<H256>> {
         let rows = sqlx::query!(
             r#"
@@ -260,7 +260,7 @@ impl StorageLogsDal<'_, '_> {
     }
 
     /// Removes all storage logs with a miniblock number strictly greater than the specified `block_number`.
-    pub async fn rollback_storage_logs(&mut self, block_number: MiniblockNumber) -> DalResult<()> {
+    pub async fn rollback_storage_logs(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM storage_logs
@@ -281,7 +281,7 @@ impl StorageLogsDal<'_, '_> {
     #[cfg(test)]
     pub async fn get_miniblock_storage_logs(
         &mut self,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
     ) -> Vec<(H256, H256, u32)> {
         sqlx::query!(
             r#"
@@ -349,8 +349,8 @@ impl StorageLogsDal<'_, '_> {
     pub async fn filter_deployed_contracts(
         &mut self,
         addresses: impl Iterator<Item = Address>,
-        at_miniblock: Option<MiniblockNumber>,
-    ) -> DalResult<HashMap<Address, MiniblockNumber>> {
+        at_miniblock: Option<L2BlockNumber>,
+    ) -> DalResult<HashMap<Address, L2BlockNumber>> {
         let (bytecode_hashed_keys, address_by_hashed_key): (Vec<_>, HashMap<_, _>) = addresses
             .map(|address| {
                 let hashed_key = get_code_key(&address).hashed_key().0;
@@ -390,7 +390,7 @@ impl StorageLogsDal<'_, '_> {
             if row.value == FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes() {
                 return None;
             }
-            let miniblock_number = MiniblockNumber(row.miniblock_number as u32);
+            let miniblock_number = L2BlockNumber(row.miniblock_number as u32);
             let address = address_by_hashed_key[row.hashed_key.as_slice()];
             Some((address, miniblock_number))
         });
@@ -465,7 +465,7 @@ impl StorageLogsDal<'_, '_> {
 
         let stage_start = Instant::now();
         let mut modified_keys = self
-            .modified_keys_in_miniblocks(last_miniblock.next()..=MiniblockNumber(u32::MAX))
+            .modified_keys_in_miniblocks(last_miniblock.next()..=L2BlockNumber(u32::MAX))
             .await?;
         let modified_keys_count = modified_keys.len();
         tracing::info!(
@@ -595,7 +595,7 @@ impl StorageLogsDal<'_, '_> {
             .await?
             .unwrap();
 
-        if miniblock_number == MiniblockNumber(0) {
+        if miniblock_number == L2BlockNumber(0) {
             Ok(hashed_keys.iter().copied().map(|key| (key, None)).collect())
         } else {
             self.get_storage_values(hashed_keys, miniblock_number - 1)
@@ -607,7 +607,7 @@ impl StorageLogsDal<'_, '_> {
     pub async fn get_storage_values(
         &mut self,
         hashed_keys: &[H256],
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
     ) -> DalResult<HashMap<H256, Option<H256>>> {
         let hashed_keys: Vec<_> = hashed_keys.iter().map(H256::as_bytes).collect();
 
@@ -679,7 +679,7 @@ impl StorageLogsDal<'_, '_> {
                 value: H256::from_slice(&row.value),
                 operation_number: row.operation_number as u64,
                 tx_hash: H256::from_slice(&row.tx_hash),
-                miniblock_number: MiniblockNumber(row.miniblock_number as u32),
+                miniblock_number: L2BlockNumber(row.miniblock_number as u32),
             })
             .collect()
     }
@@ -689,7 +689,7 @@ impl StorageLogsDal<'_, '_> {
     /// **Warning.** This method is slow (requires a full table scan).
     pub async fn get_storage_logs_row_count(
         &mut self,
-        at_miniblock: MiniblockNumber,
+        at_miniblock: L2BlockNumber,
     ) -> DalResult<u64> {
         let row = sqlx::query!(
             r#"
@@ -715,7 +715,7 @@ impl StorageLogsDal<'_, '_> {
     /// `miniblock_number`. This method is used during Merkle tree recovery.
     pub async fn get_chunk_starts_for_miniblock(
         &mut self,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
         key_ranges: &[ops::RangeInclusive<H256>],
     ) -> DalResult<Vec<Option<StorageRecoveryLogEntry>>> {
         let (start_keys, end_keys): (Vec<_>, Vec<_>) = key_ranges
@@ -776,7 +776,7 @@ impl StorageLogsDal<'_, '_> {
     /// Merkle tree recovery.
     pub async fn get_tree_entries_for_miniblock(
         &mut self,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
         key_range: ops::RangeInclusive<H256>,
     ) -> DalResult<Vec<StorageRecoveryLogEntry>> {
         let rows = sqlx::query!(
@@ -840,7 +840,7 @@ mod tests {
 
         let logs = [(H256::zero(), logs)];
         conn.storage_logs_dal()
-            .insert_storage_logs(MiniblockNumber(number), &logs)
+            .insert_storage_logs(L2BlockNumber(number), &logs)
             .await
             .unwrap();
         #[allow(deprecated)]
@@ -880,7 +880,7 @@ mod tests {
         let third_log = StorageLog::new_write_log(first_key, H256::repeat_byte(3));
         let more_logs = [(H256::repeat_byte(1), vec![third_log])];
         conn.storage_logs_dal()
-            .append_storage_logs(MiniblockNumber(1), &more_logs)
+            .append_storage_logs(L2BlockNumber(1), &more_logs)
             .await
             .unwrap();
         #[allow(deprecated)]
@@ -947,7 +947,7 @@ mod tests {
         #[allow(deprecated)]
         {
             conn.storage_logs_dal()
-                .rollback_storage(MiniblockNumber(1))
+                .rollback_storage(L2BlockNumber(1))
                 .await
                 .unwrap();
             let value = conn.storage_dal().get_by_key(&key).await.unwrap();
@@ -959,7 +959,7 @@ mod tests {
         }
 
         conn.storage_logs_dal()
-            .rollback_storage_logs(MiniblockNumber(1))
+            .rollback_storage_logs(L2BlockNumber(1))
             .await
             .unwrap();
 
@@ -1112,7 +1112,7 @@ mod tests {
 
         let chunk_starts = conn
             .storage_logs_dal()
-            .get_chunk_starts_for_miniblock(MiniblockNumber(1), &key_ranges)
+            .get_chunk_starts_for_miniblock(L2BlockNumber(1), &key_ranges)
             .await
             .unwrap();
 
@@ -1166,7 +1166,7 @@ mod tests {
         let key_range = H256::zero()..=H256::repeat_byte(0xff);
         let tree_entries = conn
             .storage_logs_dal()
-            .get_tree_entries_for_miniblock(MiniblockNumber(1), key_range)
+            .get_tree_entries_for_miniblock(L2BlockNumber(1), key_range)
             .await
             .unwrap();
         assert_eq!(tree_entries.len(), 10);
@@ -1181,7 +1181,7 @@ mod tests {
         let key_range = H256::repeat_byte(0x80)..=H256::repeat_byte(0xbf);
         let tree_entries = conn
             .storage_logs_dal()
-            .get_tree_entries_for_miniblock(MiniblockNumber(1), key_range.clone())
+            .get_tree_entries_for_miniblock(L2BlockNumber(1), key_range.clone())
             .await
             .unwrap();
         assert!(!tree_entries.is_empty() && tree_entries.len() < 10);
@@ -1207,7 +1207,7 @@ mod tests {
         // and the next write reverts its value back to `FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH`.
         conn.storage_logs_dal()
             .insert_storage_logs(
-                MiniblockNumber(1),
+                L2BlockNumber(1),
                 &[(H256::zero(), vec![successful_deployment, failed_deployment])],
             )
             .await
@@ -1215,9 +1215,9 @@ mod tests {
 
         let tested_miniblocks = [
             None,
-            Some(MiniblockNumber(0)),
-            Some(MiniblockNumber(1)),
-            Some(MiniblockNumber(1)),
+            Some(L2BlockNumber(0)),
+            Some(L2BlockNumber(1)),
+            Some(L2BlockNumber(1)),
         ];
         for at_miniblock in tested_miniblocks {
             let deployed_map = conn
@@ -1236,13 +1236,13 @@ mod tests {
 
         conn.storage_logs_dal()
             .insert_storage_logs(
-                MiniblockNumber(2),
+                L2BlockNumber(2),
                 &[(H256::zero(), vec![successful_deployment])],
             )
             .await
             .unwrap();
 
-        for old_miniblock in [MiniblockNumber(0), MiniblockNumber(1)] {
+        for old_miniblock in [L2BlockNumber(0), L2BlockNumber(1)] {
             let deployed_map = conn
                 .storage_logs_dal()
                 .filter_deployed_contracts(
@@ -1256,7 +1256,7 @@ mod tests {
                 "{deployed_map:?} at {old_miniblock}"
             );
         }
-        for new_miniblock in [None, Some(MiniblockNumber(2))] {
+        for new_miniblock in [None, Some(L2BlockNumber(2))] {
             let deployed_map = conn
                 .storage_logs_dal()
                 .filter_deployed_contracts(
@@ -1267,7 +1267,7 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 deployed_map,
-                HashMap::from([(contract_address, MiniblockNumber(2))])
+                HashMap::from([(contract_address, L2BlockNumber(2))])
             );
         }
 
@@ -1277,13 +1277,13 @@ mod tests {
         );
         conn.storage_logs_dal()
             .insert_storage_logs(
-                MiniblockNumber(3),
+                L2BlockNumber(3),
                 &[(H256::zero(), vec![other_successful_deployment])],
             )
             .await
             .unwrap();
 
-        for old_miniblock in [MiniblockNumber(0), MiniblockNumber(1)] {
+        for old_miniblock in [L2BlockNumber(0), L2BlockNumber(1)] {
             let deployed_map = conn
                 .storage_logs_dal()
                 .filter_deployed_contracts(
@@ -1302,16 +1302,16 @@ mod tests {
             .storage_logs_dal()
             .filter_deployed_contracts(
                 [contract_address, other_contract_address].into_iter(),
-                Some(MiniblockNumber(2)),
+                Some(L2BlockNumber(2)),
             )
             .await
             .unwrap();
         assert_eq!(
             deployed_map,
-            HashMap::from([(contract_address, MiniblockNumber(2))])
+            HashMap::from([(contract_address, L2BlockNumber(2))])
         );
 
-        for new_miniblock in [None, Some(MiniblockNumber(3))] {
+        for new_miniblock in [None, Some(L2BlockNumber(3))] {
             let deployed_map = conn
                 .storage_logs_dal()
                 .filter_deployed_contracts(
@@ -1323,8 +1323,8 @@ mod tests {
             assert_eq!(
                 deployed_map,
                 HashMap::from([
-                    (contract_address, MiniblockNumber(2)),
-                    (other_contract_address, MiniblockNumber(3)),
+                    (contract_address, L2BlockNumber(2)),
+                    (other_contract_address, L2BlockNumber(3)),
                 ])
             );
         }

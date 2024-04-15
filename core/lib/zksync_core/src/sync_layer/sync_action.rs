@@ -1,5 +1,5 @@
 use tokio::sync::mpsc;
-use zksync_types::{L1BatchNumber, MiniblockNumber};
+use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 use super::{fetcher::FetchedTransaction, metrics::QUEUE_METRICS};
 use crate::state_keeper::io::{L1BatchParams, L2BlockParams};
@@ -114,12 +114,12 @@ pub(crate) enum SyncAction {
         params: L1BatchParams,
         // Additional parameters used only for sanity checks
         number: L1BatchNumber,
-        first_miniblock_number: MiniblockNumber,
+        first_miniblock_number: L2BlockNumber,
     },
     Miniblock {
         params: L2BlockParams,
         // Additional parameters used only for sanity checks
-        number: MiniblockNumber,
+        number: L2BlockNumber,
     },
     Tx(Box<FetchedTransaction>),
     /// We need an explicit action for the miniblock sealing, since we fetch the whole miniblocks and already know
@@ -156,7 +156,7 @@ mod tests {
                 },
             },
             number: L1BatchNumber(1),
-            first_miniblock_number: MiniblockNumber(1),
+            first_miniblock_number: L2BlockNumber(1),
         }
     }
 

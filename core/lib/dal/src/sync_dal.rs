@@ -1,7 +1,7 @@
 use zksync_db_connection::{
     connection::Connection, error::DalResult, instrument::InstrumentExt, metrics::MethodLatency,
 };
-use zksync_types::{api::en, MiniblockNumber};
+use zksync_types::{api::en, L2BlockNumber};
 
 use crate::{
     models::storage_sync::{StorageSyncBlock, SyncBlock},
@@ -17,7 +17,7 @@ pub struct SyncDal<'a, 'c> {
 impl SyncDal<'_, '_> {
     pub(super) async fn sync_block_inner(
         &mut self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> DalResult<Option<SyncBlock>> {
         let block = sqlx::query_as!(
             StorageSyncBlock,
@@ -75,7 +75,7 @@ impl SyncDal<'_, '_> {
 
     pub async fn sync_block(
         &mut self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
         include_transactions: bool,
     ) -> DalResult<Option<en::SyncBlock>> {
         let _latency = MethodLatency::new("sync_dal_sync_block");
@@ -99,7 +99,7 @@ impl SyncDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        block::{L1BatchHeader, MiniblockHeader},
+        block::{L1BatchHeader, L2BlockHeader},
         fee::TransactionExecutionMetrics,
         Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction,
     };
@@ -144,13 +144,13 @@ mod tests {
 
         assert!(conn
             .sync_dal()
-            .sync_block(MiniblockNumber(1), false)
+            .sync_block(L2BlockNumber(1), false)
             .await
             .unwrap()
             .is_none());
 
         // Insert another block in the store.
-        let miniblock_header = MiniblockHeader {
+        let miniblock_header = L2BlockHeader {
             fee_account_address: Address::repeat_byte(0x42),
             ..create_miniblock_header(1)
         };
@@ -165,7 +165,7 @@ mod tests {
             .unwrap();
         conn.transactions_dal()
             .mark_txs_as_executed_in_miniblock(
-                MiniblockNumber(1),
+                L2BlockNumber(1),
                 &[mock_execution_result(tx.clone())],
                 1.into(),
             )
@@ -174,11 +174,11 @@ mod tests {
 
         let block = conn
             .sync_dal()
-            .sync_block(MiniblockNumber(1), false)
+            .sync_block(L2BlockNumber(1), false)
             .await
             .unwrap()
             .expect("no sync block");
-        assert_eq!(block.number, MiniblockNumber(1));
+        assert_eq!(block.number, L2BlockNumber(1));
         assert_eq!(block.l1_batch_number, L1BatchNumber(1));
         assert!(!block.last_in_batch);
         assert_eq!(block.timestamp, miniblock_header.timestamp);
@@ -203,7 +203,7 @@ mod tests {
 
         let block = conn
             .sync_dal()
-            .sync_block(MiniblockNumber(1), true)
+            .sync_block(L2BlockNumber(1), true)
             .await
             .unwrap()
             .expect("no sync block");
@@ -223,7 +223,7 @@ mod tests {
 
         let block = conn
             .sync_dal()
-            .sync_block(MiniblockNumber(1), true)
+            .sync_block(L2BlockNumber(1), true)
             .await
             .unwrap()
             .expect("no sync block");

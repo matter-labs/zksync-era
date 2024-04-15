@@ -8,10 +8,10 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{
     api,
-    block::MiniblockHasher,
+    block::L2BlockHasher,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     snapshots::SnapshotRecoveryStatus,
-    Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 
 use super::{fetcher::FetchedTransaction, sync_action::SyncAction, *};
@@ -44,7 +44,7 @@ fn open_l1_batch(number: u32, timestamp: u64, first_miniblock_number: u32) -> Sy
             },
         },
         number: L1BatchNumber(number),
-        first_miniblock_number: MiniblockNumber(first_miniblock_number),
+        first_miniblock_number: L2BlockNumber(first_miniblock_number),
     }
 }
 
@@ -104,7 +104,7 @@ impl StateKeeperHandles {
     }
 
     /// Waits for the given condition.
-    pub async fn wait_for_local_block(mut self, want: MiniblockNumber) {
+    pub async fn wait_for_local_block(mut self, want: L2BlockNumber) {
         tokio::select! {
             task_result = &mut self.task => {
                 match task_result {
@@ -151,8 +151,8 @@ fn genesis_snapshot_recovery_status() -> SnapshotRecoveryStatus {
         l1_batch_number: L1BatchNumber(0),
         l1_batch_root_hash: H256::zero(), // unused
         l1_batch_timestamp: 0,
-        miniblock_number: MiniblockNumber(0),
-        miniblock_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+        miniblock_number: L2BlockNumber(0),
+        miniblock_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
         miniblock_timestamp: 0,
         protocol_version: ProtocolVersionId::default(),
         storage_logs_chunks_processed: vec![],
@@ -165,7 +165,7 @@ async fn external_io_basics(snapshot_recovery: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
     let snapshot = if snapshot_recovery {
-        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await
     } else {
         ensure_genesis(&mut storage).await;
         genesis_snapshot_recovery_status()
@@ -237,7 +237,7 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
     let snapshot = if snapshot_recovery {
-        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await
     } else {
         ensure_genesis(&mut storage).await;
         genesis_snapshot_recovery_status()
@@ -316,7 +316,7 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(
 ) -> (SnapshotRecoveryStatus, Vec<H256>) {
     let mut storage = pool.connection().await.unwrap();
     let snapshot = if snapshot_recovery {
-        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await
     } else {
         ensure_genesis(&mut storage).await;
         genesis_snapshot_recovery_status()
@@ -490,7 +490,7 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
 ) -> (SnapshotRecoveryStatus, Vec<Vec<H256>>) {
     let mut storage = pool.connection().await.unwrap();
     let snapshot = if snapshot_recovery {
-        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await
     } else {
         ensure_genesis(&mut storage).await;
         genesis_snapshot_recovery_status()
@@ -572,12 +572,12 @@ async fn external_io_with_multiple_l1_batches() {
         .await
         .unwrap()
         .expect("Miniblock range for L1 batch #1 is not persisted");
-    assert_eq!(first_miniblock, MiniblockNumber(1));
-    assert_eq!(last_miniblock, MiniblockNumber(2));
+    assert_eq!(first_miniblock, L2BlockNumber(1));
+    assert_eq!(last_miniblock, L2BlockNumber(2));
 
     let fictive_miniblock = storage
         .blocks_dal()
-        .get_miniblock_header(MiniblockNumber(2))
+        .get_miniblock_header(L2BlockNumber(2))
         .await
         .unwrap()
         .expect("Fictive miniblock #2 is not persisted");

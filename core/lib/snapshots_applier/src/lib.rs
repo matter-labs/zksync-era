@@ -17,7 +17,7 @@ use zksync_types::{
     },
     tokens::TokenInfo,
     web3::futures,
-    L1BatchNumber, MiniblockNumber, H256,
+    L1BatchNumber, L2BlockNumber, H256,
 };
 use zksync_utils::bytecode::hash_bytecode;
 use zksync_web3_decl::{
@@ -35,7 +35,7 @@ mod tests;
 
 #[derive(Debug, Serialize)]
 struct SnapshotsApplierHealthDetails {
-    snapshot_miniblock: MiniblockNumber,
+    snapshot_miniblock: L2BlockNumber,
     snapshot_l1_batch: L1BatchNumber,
     factory_deps_recovered: bool,
     storage_logs_chunk_count: usize,
@@ -98,14 +98,14 @@ pub trait SnapshotsApplierMainNodeClient: fmt::Debug + Send + Sync {
 
     async fn fetch_l2_block_details(
         &self,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
     ) -> EnrichedClientResult<Option<api::BlockDetails>>;
 
     async fn fetch_newest_snapshot(&self) -> EnrichedClientResult<Option<SnapshotHeader>>;
 
     async fn fetch_tokens(
         &self,
-        at_miniblock: MiniblockNumber,
+        at_miniblock: L2BlockNumber,
     ) -> EnrichedClientResult<Vec<TokenInfo>>;
 }
 
@@ -123,7 +123,7 @@ impl SnapshotsApplierMainNodeClient for L2Client {
 
     async fn fetch_l2_block_details(
         &self,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
     ) -> EnrichedClientResult<Option<api::BlockDetails>> {
         self.get_block_details(number)
             .rpc_context("get_block_details")
@@ -147,7 +147,7 @@ impl SnapshotsApplierMainNodeClient for L2Client {
 
     async fn fetch_tokens(
         &self,
-        at_miniblock: MiniblockNumber,
+        at_miniblock: L2BlockNumber,
     ) -> EnrichedClientResult<Vec<TokenInfo>> {
         self.sync_tokens(Some(at_miniblock))
             .rpc_context("sync_tokens")

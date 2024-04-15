@@ -8,7 +8,7 @@ use zksync_db_connection::{
     error::{DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
-use zksync_types::MiniblockNumber;
+use zksync_types::L2BlockNumber;
 
 pub use crate::models::consensus::Payload;
 use crate::{Core, CoreDal};
@@ -277,7 +277,7 @@ impl ConsensusDal<'_, '_> {
             Instrumented::new("block_payload").with_arg("block_number", &block_number);
         let block_number = u32::try_from(block_number.0)
             .map_err(|err| instrumentation.arg_error("block_number", err))?;
-        let block_number = MiniblockNumber(block_number);
+        let block_number = L2BlockNumber(block_number);
 
         let Some(block) = self
             .storage

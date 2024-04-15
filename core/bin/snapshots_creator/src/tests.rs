@@ -13,13 +13,13 @@ use rand::{thread_rng, Rng};
 use zksync_dal::{Connection, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_types::{
-    block::{L1BatchHeader, L1BatchTreeData, MiniblockHeader},
+    block::{L1BatchHeader, L1BatchTreeData, L2BlockHeader},
     snapshots::{
         SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotStorageLog,
         SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
     },
-    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersion, StorageKey,
-    StorageLog, H256,
+    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersion, StorageKey, StorageLog,
+    H256,
 };
 
 use super::*;
@@ -135,10 +135,10 @@ struct ExpectedOutputs {
 
 async fn create_miniblock(
     conn: &mut Connection<'_, Core>,
-    miniblock_number: MiniblockNumber,
+    miniblock_number: L2BlockNumber,
     block_logs: Vec<StorageLog>,
 ) {
-    let miniblock_header = MiniblockHeader {
+    let miniblock_header = L2BlockHeader {
         number: miniblock_number,
         timestamp: 0,
         hash: H256::from_low_u64_be(u64::from(miniblock_number.0)),
@@ -210,11 +210,11 @@ async fn prepare_postgres(
     let mut outputs = ExpectedOutputs::default();
     for block_number in 0..block_count {
         let logs = gen_storage_logs(rng, 100);
-        create_miniblock(conn, MiniblockNumber(block_number), logs.clone()).await;
+        create_miniblock(conn, L2BlockNumber(block_number), logs.clone()).await;
 
         let factory_deps = gen_factory_deps(rng, 10);
         conn.factory_deps_dal()
-            .insert_factory_deps(MiniblockNumber(block_number), &factory_deps)
+            .insert_factory_deps(L2BlockNumber(block_number), &factory_deps)
             .await
             .unwrap();
 

@@ -6,11 +6,11 @@ use thiserror::Error;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,
-    block::{L1BatchHeader, MiniblockHeader},
+    block::{L1BatchHeader, L2BlockHeader},
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
-    Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H2048, H256,
+    Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H2048, H256,
 };
 
 /// This is the gas limit that was used inside blocks before we started saving block gas limit into the database.
@@ -319,7 +319,7 @@ impl From<StorageBlockDetails> for api::BlockDetails {
         };
         api::BlockDetails {
             base,
-            number: MiniblockNumber(details.number as u32),
+            number: L2BlockNumber(details.number as u32),
             l1_batch_number: L1BatchNumber(details.l1_batch_number as u32),
             operator_address: Address::from_slice(&details.fee_account_address),
             protocol_version: details
@@ -428,7 +428,7 @@ pub struct StorageMiniblockHeader {
     pub gas_limit: Option<i64>,
 }
 
-impl From<StorageMiniblockHeader> for MiniblockHeader {
+impl From<StorageMiniblockHeader> for L2BlockHeader {
     fn from(row: StorageMiniblockHeader) -> Self {
         let protocol_version = row.protocol_version.map(|v| (v as u16).try_into().unwrap());
 
@@ -451,8 +451,8 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
                 })
             });
 
-        MiniblockHeader {
-            number: MiniblockNumber(row.number as u32),
+        L2BlockHeader {
+            number: L2BlockNumber(row.number as u32),
             timestamp: row.timestamp as u64,
             hash: H256::from_slice(&row.hash),
             l1_tx_count: row.l1_tx_count as u16,

@@ -11,14 +11,14 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::clients::MockEthereum;
 use zksync_types::{
-    block::MiniblockHeader,
+    block::L2BlockHeader,
     fee::TransactionExecutionMetrics,
     fee_model::{BatchFeeInput, FeeModelConfig, FeeModelConfigV1},
     l2::L2Tx,
     protocol_version::L1VerifierConfig,
     system_contracts::get_system_smart_contracts,
     tx::TransactionExecutionResult,
-    L2ChainId, MiniblockNumber, PriorityOpId, ProtocolVersionId, H256,
+    L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, H256,
 };
 
 use crate::{
@@ -169,7 +169,7 @@ impl Tester {
             .unwrap();
         storage
             .blocks_dal()
-            .insert_miniblock(&MiniblockHeader {
+            .insert_miniblock(&L2BlockHeader {
                 timestamp: self.current_timestamp,
                 base_fee_per_gas,
                 batch_fee_input: fee_input,
@@ -182,7 +182,7 @@ impl Tester {
         storage
             .transactions_dal()
             .mark_txs_as_executed_in_miniblock(
-                MiniblockNumber(number),
+                L2BlockNumber(number),
                 slice::from_ref(&tx_result),
                 1.into(),
             )

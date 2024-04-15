@@ -1,4 +1,4 @@
-use zksync_types::{L1BatchNumber, MiniblockNumber, H160, H256, U256};
+use zksync_types::{L1BatchNumber, L2BlockNumber, H160, H256, U256};
 
 /// Model of the initial write record from the `initial_writes` table. Should only be used in tests.
 #[derive(Debug, PartialEq)]
@@ -17,7 +17,7 @@ pub struct DbStorageLog {
     pub value: H256,
     pub operation_number: u64,
     pub tx_hash: H256,
-    pub miniblock_number: MiniblockNumber,
+    pub miniblock_number: L2BlockNumber,
 }
 
 // We don't want to rely on the Merkle tree crate to import a single type, so we duplicate `TreeEntry` here.

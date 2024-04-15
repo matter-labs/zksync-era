@@ -8,7 +8,7 @@ use anyhow::Context as _;
 use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use tokio::sync::watch;
 use zksync_types::{
-    block::MiniblockExecutionData, l2::TransactionType, protocol_upgrade::ProtocolUpgradeTx,
+    block::L2BlockExecutionData, l2::TransactionType, protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::ProtocolVersionId, storage_writes_deduplicator::StorageWritesDeduplicator,
     L1BatchNumber, Transaction,
 };
@@ -218,7 +218,7 @@ impl ZkSyncStateKeeper {
     /// perform some checks and return it.
     pub(super) async fn load_protocol_upgrade_tx(
         &mut self,
-        pending_l2_blocks: &[MiniblockExecutionData],
+        pending_l2_blocks: &[L2BlockExecutionData],
         protocol_version: ProtocolVersionId,
         l1_batch_number: L1BatchNumber,
     ) -> Result<Option<ProtocolUpgradeTx>, Error> {
@@ -343,7 +343,7 @@ impl ZkSyncStateKeeper {
         &mut self,
         batch_executor: &BatchExecutorHandle,
         updates_manager: &mut UpdatesManager,
-        l2_blocks_to_reexecute: Vec<MiniblockExecutionData>,
+        l2_blocks_to_reexecute: Vec<L2BlockExecutionData>,
     ) -> Result<(), Error> {
         if l2_blocks_to_reexecute.is_empty() {
             return Ok(());

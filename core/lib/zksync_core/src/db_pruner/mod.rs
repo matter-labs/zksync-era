@@ -211,7 +211,7 @@ mod tests {
     use test_log::test;
     use zksync_dal::pruning_dal::PruningInfo;
     use zksync_db_connection::connection::Connection;
-    use zksync_types::{block::MiniblockHeader, Address, MiniblockNumber, ProtocolVersion};
+    use zksync_types::{block::L2BlockHeader, Address, L2BlockNumber, ProtocolVersion};
 
     use super::*;
 
@@ -304,10 +304,10 @@ mod tests {
 
         for l1_batch_number in 0..l1_batches_count {
             for miniblock_index in 0..miniblocks_per_batch {
-                let miniblock_number = MiniblockNumber(
+                let miniblock_number = L2BlockNumber(
                     (l1_batch_number * miniblocks_per_batch + miniblock_index) as u32,
                 );
-                let miniblock_header = MiniblockHeader {
+                let miniblock_header = L2BlockHeader {
                     number: miniblock_number,
                     timestamp: 0,
                     hash: H256::from_low_u64_be(u64::from(miniblock_number.0)),
@@ -342,7 +342,7 @@ mod tests {
 
         insert_miniblocks(&mut conn, 10, 2).await;
         conn.pruning_dal()
-            .soft_prune_batches_range(L1BatchNumber(2), MiniblockNumber(5))
+            .soft_prune_batches_range(L1BatchNumber(2), L2BlockNumber(5))
             .await
             .unwrap();
 
@@ -362,9 +362,9 @@ mod tests {
         assert_eq!(
             PruningInfo {
                 last_soft_pruned_l1_batch: Some(L1BatchNumber(2)),
-                last_soft_pruned_miniblock: Some(MiniblockNumber(5)),
+                last_soft_pruned_miniblock: Some(L2BlockNumber(5)),
                 last_hard_pruned_l1_batch: Some(L1BatchNumber(2)),
-                last_hard_pruned_miniblock: Some(MiniblockNumber(5)),
+                last_hard_pruned_miniblock: Some(L2BlockNumber(5)),
             },
             conn.pruning_dal().get_pruning_info().await.unwrap()
         );
@@ -377,7 +377,7 @@ mod tests {
 
         insert_miniblocks(&mut conn, 10, 2).await;
         conn.pruning_dal()
-            .soft_prune_batches_range(L1BatchNumber(2), MiniblockNumber(5))
+            .soft_prune_batches_range(L1BatchNumber(2), L2BlockNumber(5))
             .await
             .unwrap();
         let pruner = DbPruner::new(
@@ -395,9 +395,9 @@ mod tests {
         assert_eq!(
             PruningInfo {
                 last_soft_pruned_l1_batch: Some(L1BatchNumber(2)),
-                last_soft_pruned_miniblock: Some(MiniblockNumber(5)),
+                last_soft_pruned_miniblock: Some(L2BlockNumber(5)),
                 last_hard_pruned_l1_batch: Some(L1BatchNumber(2)),
-                last_hard_pruned_miniblock: Some(MiniblockNumber(5)),
+                last_hard_pruned_miniblock: Some(L2BlockNumber(5)),
             },
             conn.pruning_dal().get_pruning_info().await.unwrap()
         );
@@ -406,9 +406,9 @@ mod tests {
         assert_eq!(
             PruningInfo {
                 last_soft_pruned_l1_batch: Some(L1BatchNumber(7)),
-                last_soft_pruned_miniblock: Some(MiniblockNumber(15)),
+                last_soft_pruned_miniblock: Some(L2BlockNumber(15)),
                 last_hard_pruned_l1_batch: Some(L1BatchNumber(7)),
-                last_hard_pruned_miniblock: Some(MiniblockNumber(15)),
+                last_hard_pruned_miniblock: Some(L2BlockNumber(15)),
             },
             conn.pruning_dal().get_pruning_info().await.unwrap()
         );
@@ -436,9 +436,9 @@ mod tests {
         assert_eq!(
             PruningInfo {
                 last_soft_pruned_l1_batch: Some(L1BatchNumber(3)),
-                last_soft_pruned_miniblock: Some(MiniblockNumber(7)),
+                last_soft_pruned_miniblock: Some(L2BlockNumber(7)),
                 last_hard_pruned_l1_batch: Some(L1BatchNumber(3)),
-                last_hard_pruned_miniblock: Some(MiniblockNumber(7)),
+                last_hard_pruned_miniblock: Some(L2BlockNumber(7)),
             },
             conn.pruning_dal().get_pruning_info().await.unwrap()
         );
@@ -447,9 +447,9 @@ mod tests {
         assert_eq!(
             PruningInfo {
                 last_soft_pruned_l1_batch: Some(L1BatchNumber(6)),
-                last_soft_pruned_miniblock: Some(MiniblockNumber(13)),
+                last_soft_pruned_miniblock: Some(L2BlockNumber(13)),
                 last_hard_pruned_l1_batch: Some(L1BatchNumber(6)),
-                last_hard_pruned_miniblock: Some(MiniblockNumber(13)),
+                last_hard_pruned_miniblock: Some(L2BlockNumber(13)),
             },
             conn.pruning_dal().get_pruning_info().await.unwrap()
         );
@@ -481,9 +481,9 @@ mod tests {
         assert_eq!(
             PruningInfo {
                 last_soft_pruned_l1_batch: Some(L1BatchNumber(3)),
-                last_soft_pruned_miniblock: Some(MiniblockNumber(7)),
+                last_soft_pruned_miniblock: Some(L2BlockNumber(7)),
                 last_hard_pruned_l1_batch: Some(L1BatchNumber(3)),
-                last_hard_pruned_miniblock: Some(MiniblockNumber(7)),
+                last_hard_pruned_miniblock: Some(L2BlockNumber(7)),
             },
             conn.pruning_dal().get_pruning_info().await.unwrap()
         );
@@ -493,9 +493,9 @@ mod tests {
         assert_eq!(
             PruningInfo {
                 last_soft_pruned_l1_batch: Some(L1BatchNumber(3)),
-                last_soft_pruned_miniblock: Some(MiniblockNumber(7)),
+                last_soft_pruned_miniblock: Some(L2BlockNumber(7)),
                 last_hard_pruned_l1_batch: Some(L1BatchNumber(3)),
-                last_hard_pruned_miniblock: Some(MiniblockNumber(7)),
+                last_hard_pruned_miniblock: Some(L2BlockNumber(7)),
             },
             conn.pruning_dal().get_pruning_info().await.unwrap()
         );

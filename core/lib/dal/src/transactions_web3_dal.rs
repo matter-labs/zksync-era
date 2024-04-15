@@ -4,7 +4,7 @@ use zksync_db_connection::{
     match_query_as,
 };
 use zksync_types::{
-    api, api::TransactionReceipt, Address, L2ChainId, MiniblockNumber, Transaction,
+    api, api::TransactionReceipt, Address, L2BlockNumber, L2ChainId, Transaction,
     ACCOUNT_CODE_STORAGE_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
 };
 
@@ -19,7 +19,7 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 enum TransactionSelector<'a> {
     Hashes(&'a [H256]),
-    Position(MiniblockNumber, u32),
+    Position(L2BlockNumber, u32),
 }
 
 #[derive(Debug)]
@@ -216,7 +216,7 @@ impl TransactionsWeb3Dal<'_, '_> {
 
     pub async fn get_transaction_by_position(
         &mut self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
         index_in_block: u32,
         chain_id: L2ChainId,
     ) -> DalResult<Option<api::Transaction>> {
@@ -377,7 +377,7 @@ impl TransactionsWeb3Dal<'_, '_> {
     /// Returns an empty list if the miniblock doesn't exist.
     pub async fn get_raw_miniblock_transactions(
         &mut self,
-        miniblock: MiniblockNumber,
+        miniblock: L2BlockNumber,
     ) -> DalResult<Vec<Transaction>> {
         let rows = sqlx::query_as!(
             StorageTransaction,
@@ -416,7 +416,7 @@ mod tests {
 
     async fn prepare_transactions(conn: &mut Connection<'_, Core>, txs: Vec<L2Tx>) {
         conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
+            .delete_miniblocks(L2BlockNumber(0))
             .await
             .unwrap();
 
@@ -443,7 +443,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         conn.transactions_dal()
-            .mark_txs_as_executed_in_miniblock(MiniblockNumber(1), &tx_results, U256::from(1))
+            .mark_txs_as_executed_in_miniblock(L2BlockNumber(1), &tx_results, U256::from(1))
             .await
             .unwrap();
     }
@@ -462,7 +462,7 @@ mod tests {
 
         let web3_tx = conn
             .transactions_web3_dal()
-            .get_transaction_by_position(MiniblockNumber(1), 0, L2ChainId::from(270))
+            .get_transaction_by_position(L2BlockNumber(1), 0, L2ChainId::from(270))
             .await;
         let web3_tx = web3_tx.unwrap().unwrap();
         assert_eq!(web3_tx.hash, tx_hash);
@@ -481,14 +481,14 @@ mod tests {
         for block_number in [0, 2, 100] {
             let web3_tx = conn
                 .transactions_web3_dal()
-                .get_transaction_by_position(MiniblockNumber(block_number), 0, L2ChainId::from(270))
+                .get_transaction_by_position(L2BlockNumber(block_number), 0, L2ChainId::from(270))
                 .await;
             assert!(web3_tx.unwrap().is_none());
         }
         for index in [1, 2, 100] {
             let web3_tx = conn
                 .transactions_web3_dal()
-                .get_transaction_by_position(MiniblockNumber(1), index, L2ChainId::from(270))
+                .get_transaction_by_position(L2BlockNumber(1), index, L2ChainId::from(270))
                 .await;
             assert!(web3_tx.unwrap().is_none());
         }
@@ -542,14 +542,14 @@ mod tests {
 
         let raw_txs = conn
             .transactions_web3_dal()
-            .get_raw_miniblock_transactions(MiniblockNumber(0))
+            .get_raw_miniblock_transactions(L2BlockNumber(0))
             .await
             .unwrap();
         assert!(raw_txs.is_empty());
 
         let raw_txs = conn
             .transactions_web3_dal()
-            .get_raw_miniblock_transactions(MiniblockNumber(1))
+            .get_raw_miniblock_transactions(L2BlockNumber(1))
             .await
             .unwrap();
         assert_eq!(raw_txs.len(), 1);

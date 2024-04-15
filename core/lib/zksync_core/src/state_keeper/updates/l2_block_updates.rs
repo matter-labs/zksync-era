@@ -5,12 +5,12 @@ use multivm::{
     vm_latest::TransactionVmExt,
 };
 use zksync_types::{
-    block::{BlockGasCount, MiniblockHasher},
+    block::{BlockGasCount, L2BlockHasher},
     event::extract_bytecodes_marked_as_known,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     vm_trace::Call,
-    MiniblockNumber, ProtocolVersionId, StorageLogQuery, Transaction, VmEvent, H256,
+    L2BlockNumber, ProtocolVersionId, StorageLogQuery, Transaction, VmEvent, H256,
 };
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
 
@@ -27,7 +27,7 @@ pub struct L2BlockUpdates {
     pub block_execution_metrics: ExecutionMetrics,
     pub txs_encoding_size: usize,
     pub timestamp: u64,
-    pub number: MiniblockNumber,
+    pub number: L2BlockNumber,
     pub prev_block_hash: H256,
     pub virtual_blocks: u32,
     pub protocol_version: ProtocolVersionId,
@@ -36,7 +36,7 @@ pub struct L2BlockUpdates {
 impl L2BlockUpdates {
     pub(crate) fn new(
         timestamp: u64,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
         prev_block_hash: H256,
         virtual_blocks: u32,
         protocol_version: ProtocolVersionId,
@@ -148,7 +148,7 @@ impl L2BlockUpdates {
 
     /// Calculates L2 block hash based on the protocol version.
     pub(crate) fn get_l2_block_hash(&self) -> H256 {
-        let mut digest = MiniblockHasher::new(self.number, self.timestamp, self.prev_block_hash);
+        let mut digest = L2BlockHasher::new(self.number, self.timestamp, self.prev_block_hash);
         for tx in &self.executed_transactions {
             digest.push_tx_hash(tx.hash);
         }
@@ -176,7 +176,7 @@ mod tests {
     fn apply_empty_l2_tx() {
         let mut accumulator = L2BlockUpdates::new(
             0,
-            MiniblockNumber(0),
+            L2BlockNumber(0),
             H256::random(),
             0,
             ProtocolVersionId::latest(),

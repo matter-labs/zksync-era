@@ -10,14 +10,14 @@ use zksync_db_connection::{
     utils::pg_interval_from_duration,
 };
 use zksync_types::{
-    block::MiniblockExecutionData,
+    block::L2BlockExecutionData,
     fee::TransactionExecutionMetrics,
     l1::L1Tx,
     l2::L2Tx,
     protocol_upgrade::ProtocolUpgradeTx,
     tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
     vm_trace::Call,
-    Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, MiniblockNumber, PriorityOpId,
+    Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, L2BlockNumber, PriorityOpId,
     ProtocolVersionId, Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_utils::u256_to_big_decimal;
@@ -507,7 +507,7 @@ impl TransactionsDal<'_, '_> {
 
     pub async fn mark_txs_as_executed_in_miniblock(
         &mut self,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
         transactions: &[TransactionExecutionResult],
         block_base_fee_per_gas: U256,
     ) -> DalResult<()> {
@@ -577,7 +577,7 @@ impl TransactionsDal<'_, '_> {
 
     async fn handle_executed_l2_transactions(
         &mut self,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
         block_base_fee_per_gas: U256,
         transactions: &[TransactionExecutionResult],
     ) -> DalResult<()> {
@@ -766,7 +766,7 @@ impl TransactionsDal<'_, '_> {
 
     async fn handle_executed_l1_transactions(
         &mut self,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
         transactions: &[TransactionExecutionResult],
     ) -> DalResult<()> {
         let l1_txs_len = transactions
@@ -858,7 +858,7 @@ impl TransactionsDal<'_, '_> {
 
     async fn handle_executed_upgrade_transactions(
         &mut self,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
         transactions: &[TransactionExecutionResult],
     ) -> DalResult<()> {
         let upgrade_txs_len = transactions
@@ -979,7 +979,7 @@ impl TransactionsDal<'_, '_> {
 
     pub async fn reset_transactions_state(
         &mut self,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
     ) -> DalResult<()> {
         let hash_rows = sqlx::query!(
             r#"
@@ -1232,7 +1232,7 @@ impl TransactionsDal<'_, '_> {
     /// These are the transactions that are included to some miniblock,
     /// but not included to L1 batch. The order of the transactions is the same as it was
     /// during the previous execution.
-    pub async fn get_miniblocks_to_reexecute(&mut self) -> DalResult<Vec<MiniblockExecutionData>> {
+    pub async fn get_miniblocks_to_reexecute(&mut self) -> DalResult<Vec<L2BlockExecutionData>> {
         let transactions = sqlx::query_as!(
             StorageTransaction,
             r#"
@@ -1261,7 +1261,7 @@ impl TransactionsDal<'_, '_> {
     pub async fn get_miniblocks_to_execute_for_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> DalResult<Vec<MiniblockExecutionData>> {
+    ) -> DalResult<Vec<L2BlockExecutionData>> {
         let transactions = sqlx::query_as!(
             StorageTransaction,
             r#"
@@ -1288,14 +1288,14 @@ impl TransactionsDal<'_, '_> {
     async fn map_transactions_to_execution_data(
         &mut self,
         transactions: Vec<StorageTransaction>,
-    ) -> DalResult<Vec<MiniblockExecutionData>> {
-        let transactions_by_miniblock: Vec<(MiniblockNumber, Vec<Transaction>)> = transactions
+    ) -> DalResult<Vec<L2BlockExecutionData>> {
+        let transactions_by_miniblock: Vec<(L2BlockNumber, Vec<Transaction>)> = transactions
             .into_iter()
             .group_by(|tx| tx.miniblock_number.unwrap())
             .into_iter()
             .map(|(miniblock_number, txs)| {
                 (
-                    MiniblockNumber(miniblock_number as u32),
+                    L2BlockNumber(miniblock_number as u32),
                     txs.map(Transaction::from).collect::<Vec<_>>(),
                 )
             })
@@ -1361,7 +1361,7 @@ impl TransactionsDal<'_, '_> {
             .into_iter()
             .map(|row| {
                 (
-                    MiniblockNumber(row.number as u32),
+                    L2BlockNumber(row.number as u32),
                     H256::from_slice(&row.hash),
                 )
             })
@@ -1395,7 +1395,7 @@ impl TransactionsDal<'_, '_> {
                 }
             };
 
-            data.push(MiniblockExecutionData {
+            data.push(L2BlockExecutionData {
                 number,
                 timestamp: miniblock_row.timestamp as u64,
                 prev_block_hash,
@@ -1504,7 +1504,7 @@ mod tests {
         });
         let expected_call_trace = tx_result.call_trace().unwrap();
         conn.transactions_dal()
-            .mark_txs_as_executed_in_miniblock(MiniblockNumber(1), &[tx_result], 1.into())
+            .mark_txs_as_executed_in_miniblock(L2BlockNumber(1), &[tx_result], 1.into())
             .await
             .unwrap();
 

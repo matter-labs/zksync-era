@@ -1,7 +1,7 @@
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{
     tokens::{TokenInfo, TokenMetadata},
-    Address, MiniblockNumber,
+    Address, L2BlockNumber,
 };
 
 use crate::{Core, CoreDal};
@@ -64,7 +64,7 @@ impl TokensWeb3Dal<'_, '_> {
     /// Returns information about all tokens.
     pub async fn get_all_tokens(
         &mut self,
-        at_miniblock: Option<MiniblockNumber>,
+        at_miniblock: Option<L2BlockNumber>,
     ) -> DalResult<Vec<TokenInfo>> {
         let records = sqlx::query_as!(
             StorageTokenInfo,

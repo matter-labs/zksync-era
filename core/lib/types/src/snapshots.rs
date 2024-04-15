@@ -3,7 +3,7 @@ use std::{convert::TryFrom, ops};
 use anyhow::Context;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{AccountTreeId, L1BatchNumber, MiniblockNumber, H256};
+use zksync_basic_types::{AccountTreeId, L1BatchNumber, L2BlockNumber, H256};
 use zksync_protobuf::{required, ProtoFmt};
 use zksync_utils::u256_to_h256;
 
@@ -56,7 +56,7 @@ pub struct SnapshotHeader {
     #[serde(default)]
     pub version: u16,
     pub l1_batch_number: L1BatchNumber,
-    pub miniblock_number: MiniblockNumber,
+    pub miniblock_number: L2BlockNumber,
     /// Ordered by chunk IDs.
     pub storage_logs_chunks: Vec<SnapshotStorageLogsChunkMetadata>,
     pub factory_deps_filepath: String,
@@ -207,7 +207,7 @@ pub struct SnapshotRecoveryStatus {
     pub l1_batch_number: L1BatchNumber,
     pub l1_batch_root_hash: H256,
     pub l1_batch_timestamp: u64,
-    pub miniblock_number: MiniblockNumber, // FIXME: rename
+    pub miniblock_number: L2BlockNumber, // FIXME: rename
     pub miniblock_hash: H256,
     pub miniblock_timestamp: u64,
     pub protocol_version: ProtocolVersionId,

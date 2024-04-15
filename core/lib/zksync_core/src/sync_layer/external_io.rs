@@ -6,7 +6,7 @@ use vm_utils::storage::L1BatchParamsProvider;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
-    protocol_upgrade::ProtocolUpgradeTx, L1BatchNumber, L2ChainId, MiniblockNumber,
+    protocol_upgrade::ProtocolUpgradeTx, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersionId, Transaction, H256,
 };
 use zksync_utils::bytes_to_be_words;
@@ -68,7 +68,7 @@ impl ExternalIO {
     async fn get_base_system_contract(
         &self,
         hash: H256,
-        current_miniblock_number: MiniblockNumber,
+        current_miniblock_number: L2BlockNumber,
     ) -> anyhow::Result<SystemContractCode> {
         let bytecode = self
             .pool

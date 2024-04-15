@@ -10,7 +10,7 @@ use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
-    api, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
+    api, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersionId, H256,
 };
 use zksync_web3_decl::{
@@ -106,9 +106,9 @@ impl MainNodeClient for MockMainNodeClient {
         Ok(self.protocol_versions.get(&protocol_version).cloned())
     }
 
-    async fn fetch_l2_block_number(&self) -> EnrichedClientResult<MiniblockNumber> {
+    async fn fetch_l2_block_number(&self) -> EnrichedClientResult<L2BlockNumber> {
         if let Some(number) = self.l2_blocks.len().checked_sub(1) {
-            Ok(MiniblockNumber(number as u32))
+            Ok(L2BlockNumber(number as u32))
         } else {
             Err(EnrichedClientError::custom(
                 "not implemented",
@@ -119,7 +119,7 @@ impl MainNodeClient for MockMainNodeClient {
 
     async fn fetch_l2_block(
         &self,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
         with_transactions: bool,
     ) -> EnrichedClientResult<Option<api::en::SyncBlock>> {
         let Some(block_index) = number.0.checked_sub(self.block_number_offset) else {
@@ -149,7 +149,7 @@ impl MainNodeClient for MockMainNodeClient {
 pub(super) struct StateKeeper {
     // Batch of the `last_block`.
     last_batch: L1BatchNumber,
-    last_block: MiniblockNumber,
+    last_block: L2BlockNumber,
     // timestamp of the last block.
     last_timestamp: u64,
     batch_sealed: bool,

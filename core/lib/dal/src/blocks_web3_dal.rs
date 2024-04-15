@@ -8,7 +8,7 @@ use zksync_types::{
     l2_to_l1_log::L2ToL1Log,
     vm_trace::Call,
     web3::types::{BlockHeader, U64},
-    Bytes, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H160, H2048, H256, U256,
+    Bytes, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H160, H2048, H256, U256,
 };
 use zksync_utils::bigdecimal_to_u256;
 
@@ -31,7 +31,7 @@ pub struct BlocksWeb3Dal<'a, 'c> {
 impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_api_block(
         &mut self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> DalResult<Option<api::Block<H256>>> {
         let rows = sqlx::query!(
             r#"
@@ -107,7 +107,7 @@ impl BlocksWeb3Dal<'_, '_> {
 
     pub async fn get_block_tx_count(
         &mut self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> DalResult<Option<u64>> {
         let tx_count = sqlx::query_scalar!(
             r#"
@@ -128,9 +128,9 @@ impl BlocksWeb3Dal<'_, '_> {
     /// Returns hashes of blocks with numbers starting from `from_block` and the number of the last block.
     pub async fn get_block_hashes_since(
         &mut self,
-        from_block: MiniblockNumber,
+        from_block: L2BlockNumber,
         limit: usize,
-    ) -> DalResult<(Vec<H256>, Option<MiniblockNumber>)> {
+    ) -> DalResult<(Vec<H256>, Option<L2BlockNumber>)> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -154,7 +154,7 @@ impl BlocksWeb3Dal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        let last_block_number = rows.last().map(|row| MiniblockNumber(row.number as u32));
+        let last_block_number = rows.last().map(|row| L2BlockNumber(row.number as u32));
         let hashes = rows.iter().map(|row| H256::from_slice(&row.hash)).collect();
         Ok((hashes, last_block_number))
     }
@@ -162,7 +162,7 @@ impl BlocksWeb3Dal<'_, '_> {
     /// Returns hashes of blocks with numbers greater than `from_block` and the number of the last block.
     pub async fn get_block_headers_after(
         &mut self,
-        from_block: MiniblockNumber,
+        from_block: L2BlockNumber,
     ) -> DalResult<Vec<BlockHeader>> {
         let rows = sqlx::query!(
             r#"
@@ -210,7 +210,7 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn resolve_block_id(
         &mut self,
         block_id: api::BlockId,
-    ) -> DalResult<Option<MiniblockNumber>> {
+    ) -> DalResult<Option<L2BlockNumber>> {
         struct BlockNumberRow {
             number: Option<i64>,
         }
@@ -267,7 +267,7 @@ impl BlocksWeb3Dal<'_, '_> {
             .await?;
         let block_number = row
             .and_then(|row| row.number)
-            .map(|number| MiniblockNumber(number as u32));
+            .map(|number| L2BlockNumber(number as u32));
         Ok(block_number)
     }
 
@@ -349,7 +349,7 @@ impl BlocksWeb3Dal<'_, '_> {
 
     pub async fn get_miniblock_hash(
         &mut self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> DalResult<Option<H256>> {
         let hash = sqlx::query!(
             r#"
@@ -400,7 +400,7 @@ impl BlocksWeb3Dal<'_, '_> {
 
     pub async fn get_l1_batch_number_of_miniblock(
         &mut self,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
     ) -> DalResult<Option<L1BatchNumber>> {
         let number: Option<i64> = sqlx::query!(
             r#"
@@ -425,7 +425,7 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_miniblock_range_of_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> DalResult<Option<(MiniblockNumber, MiniblockNumber)>> {
+    ) -> DalResult<Option<(L2BlockNumber, L2BlockNumber)>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -444,9 +444,7 @@ impl BlocksWeb3Dal<'_, '_> {
         .await?;
 
         Ok(match (row.min, row.max) {
-            (Some(min), Some(max)) => {
-                Some((MiniblockNumber(min as u32), MiniblockNumber(max as u32)))
-            }
+            (Some(min), Some(max)) => Some((L2BlockNumber(min as u32), L2BlockNumber(max as u32))),
             (None, None) => None,
             _ => unreachable!(),
         })
@@ -486,7 +484,7 @@ impl BlocksWeb3Dal<'_, '_> {
     /// Returns call traces for all transactions in the specified miniblock in the order of their execution.
     pub async fn get_traces_for_miniblock(
         &mut self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> DalResult<Vec<Call>> {
         let protocol_version = self
             .storage
@@ -523,7 +521,7 @@ impl BlocksWeb3Dal<'_, '_> {
     /// in descending order of miniblock numbers.
     pub async fn get_fee_history(
         &mut self,
-        newest_block: MiniblockNumber,
+        newest_block: L2BlockNumber,
         block_count: u64,
     ) -> DalResult<Vec<U256>> {
         let result: Vec<_> = sqlx::query!(
@@ -556,7 +554,7 @@ impl BlocksWeb3Dal<'_, '_> {
 
     pub async fn get_block_details(
         &mut self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> DalResult<Option<api::BlockDetails>> {
         let storage_block_details = sqlx::query_as!(
             StorageBlockDetails,
@@ -685,9 +683,9 @@ impl BlocksWeb3Dal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        block::{MiniblockHasher, MiniblockHeader},
+        block::{L2BlockHasher, L2BlockHeader},
         fee::TransactionExecutionMetrics,
-        Address, MiniblockNumber, ProtocolVersion, ProtocolVersionId,
+        Address, L2BlockNumber, ProtocolVersion, ProtocolVersionId,
     };
 
     use super::*;
@@ -704,26 +702,23 @@ mod tests {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
         conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
+            .delete_miniblocks(L2BlockNumber(0))
             .await
             .unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
-        let header = MiniblockHeader {
+        let header = L2BlockHeader {
             l1_tx_count: 3,
             l2_tx_count: 5,
             ..create_miniblock_header(0)
         };
         conn.blocks_dal().insert_miniblock(&header).await.unwrap();
 
-        let block_hash = MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
+        let block_hash = L2BlockHasher::new(L2BlockNumber(0), 0, H256::zero())
             .finalize(ProtocolVersionId::latest());
-        let block = conn
-            .blocks_web3_dal()
-            .get_api_block(MiniblockNumber(0))
-            .await;
+        let block = conn.blocks_web3_dal().get_api_block(L2BlockNumber(0)).await;
         let block = block.unwrap().unwrap();
         assert!(block.transactions.is_empty());
         assert_eq!(block.number, U64::zero());
@@ -731,19 +726,16 @@ mod tests {
 
         let tx_count = conn
             .blocks_web3_dal()
-            .get_block_tx_count(MiniblockNumber(0))
+            .get_block_tx_count(L2BlockNumber(0))
             .await;
         assert_eq!(tx_count.unwrap(), Some(8));
 
-        let block = conn
-            .blocks_web3_dal()
-            .get_api_block(MiniblockNumber(1))
-            .await;
+        let block = conn.blocks_web3_dal().get_api_block(L2BlockNumber(1)).await;
         assert!(block.unwrap().is_none());
 
         let tx_count = conn
             .blocks_web3_dal()
-            .get_block_tx_count(MiniblockNumber(1))
+            .get_block_tx_count(L2BlockNumber(1))
             .await;
         assert_eq!(tx_count.unwrap(), None);
     }
@@ -772,7 +764,7 @@ mod tests {
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Earliest))
             .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(0)));
+        assert_eq!(miniblock_number.unwrap(), Some(L2BlockNumber(0)));
     }
 
     #[tokio::test]
@@ -795,7 +787,7 @@ mod tests {
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
             .await
             .unwrap();
-        assert_eq!(miniblock_number, Some(MiniblockNumber(0)));
+        assert_eq!(miniblock_number, Some(L2BlockNumber(0)));
 
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
@@ -806,13 +798,13 @@ mod tests {
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Latest))
             .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(0)));
+        assert_eq!(miniblock_number.unwrap(), Some(L2BlockNumber(0)));
 
         let miniblock_number = conn
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Number(0.into())))
             .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(0)));
+        assert_eq!(miniblock_number.unwrap(), Some(L2BlockNumber(0)));
         let miniblock_number = conn
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Number(1.into())))
@@ -827,19 +819,19 @@ mod tests {
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Latest))
             .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(1)));
+        assert_eq!(miniblock_number.unwrap(), Some(L2BlockNumber(1)));
 
         let miniblock_number = conn
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
             .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(2)));
+        assert_eq!(miniblock_number.unwrap(), Some(L2BlockNumber(2)));
 
         let miniblock_number = conn
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Number(1.into())))
             .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(1)));
+        assert_eq!(miniblock_number.unwrap(), Some(L2BlockNumber(1)));
     }
 
     #[tokio::test]
@@ -857,7 +849,7 @@ mod tests {
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
             .await
             .unwrap();
-        assert_eq!(miniblock_number, Some(MiniblockNumber(43)));
+        assert_eq!(miniblock_number, Some(L2BlockNumber(43)));
     }
 
     #[tokio::test]
@@ -873,15 +865,15 @@ mod tests {
             .await
             .unwrap();
 
-        let hash = MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
+        let hash = L2BlockHasher::new(L2BlockNumber(0), 0, H256::zero())
             .finalize(ProtocolVersionId::latest());
         let miniblock_number = conn
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Hash(hash))
             .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(0)));
+        assert_eq!(miniblock_number.unwrap(), Some(L2BlockNumber(0)));
 
-        let hash = MiniblockHasher::new(MiniblockNumber(1), 1, H256::zero())
+        let hash = L2BlockHasher::new(L2BlockNumber(1), 1, H256::zero())
             .finalize(ProtocolVersionId::latest());
         let miniblock_number = conn
             .blocks_web3_dal()
@@ -920,13 +912,13 @@ mod tests {
             tx_results.push(tx_result);
         }
         conn.transactions_dal()
-            .mark_txs_as_executed_in_miniblock(MiniblockNumber(1), &tx_results, 1.into())
+            .mark_txs_as_executed_in_miniblock(L2BlockNumber(1), &tx_results, 1.into())
             .await
             .unwrap();
 
         let traces = conn
             .blocks_web3_dal()
-            .get_traces_for_miniblock(MiniblockNumber(1))
+            .get_traces_for_miniblock(L2BlockNumber(1))
             .await
             .unwrap();
         assert_eq!(traces.len(), 2);

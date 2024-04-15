@@ -12,7 +12,7 @@ use zksync_types::{
         uniform_hashed_keys_chunk, SnapshotFactoryDependencies, SnapshotFactoryDependency,
         SnapshotMetadata, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey, SnapshotVersion,
     },
-    L1BatchNumber, MiniblockNumber,
+    L1BatchNumber, L2BlockNumber,
 };
 
 use crate::metrics::{FactoryDepsStage, StorageChunkStage, METRICS};
@@ -76,7 +76,7 @@ impl SnapshotCreator {
     async fn process_storage_logs_single_chunk(
         &self,
         semaphore: &Semaphore,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
         l1_batch_number: L1BatchNumber,
         chunk_id: u64,
         chunk_count: u64,
@@ -143,7 +143,7 @@ impl SnapshotCreator {
 
     async fn process_factory_deps(
         &self,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<String> {
         let mut conn = self.connect_to_replica().await?;

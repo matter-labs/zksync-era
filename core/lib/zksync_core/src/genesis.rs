@@ -19,8 +19,8 @@ use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     block::{
-        BlockGasCount, DeployedContract, L1BatchHeader, L1BatchTreeData, MiniblockHasher,
-        MiniblockHeader,
+        BlockGasCount, DeployedContract, L1BatchHeader, L1BatchTreeData, L2BlockHasher,
+        L2BlockHeader,
     },
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
@@ -31,7 +31,7 @@ use zksync_types::{
     tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS},
     web3::types::{BlockNumber, FilterBuilder},
     zk_evm_types::{LogQuery, Timestamp},
-    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersion,
+    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
     ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, H256,
 };
 use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
@@ -335,7 +335,7 @@ async fn insert_base_system_contracts_to_factory_deps(
 
     Ok(storage
         .factory_deps_dal()
-        .insert_factory_deps(MiniblockNumber(0), &factory_deps)
+        .insert_factory_deps(L2BlockNumber(0), &factory_deps)
         .await?)
 }
 
@@ -380,7 +380,7 @@ async fn insert_system_contracts(
     let mut transaction = storage.start_transaction().await?;
     transaction
         .storage_logs_dal()
-        .insert_storage_logs(MiniblockNumber(0), &storage_logs)
+        .insert_storage_logs(L2BlockNumber(0), &storage_logs)
         .await?;
 
     // we don't produce proof for the genesis block,
@@ -460,7 +460,7 @@ async fn insert_system_contracts(
         .collect();
     transaction
         .factory_deps_dal()
-        .insert_factory_deps(MiniblockNumber(0), &factory_deps)
+        .insert_factory_deps(L2BlockNumber(0), &factory_deps)
         .await?;
 
     transaction.commit().await?;
@@ -491,10 +491,10 @@ pub(crate) async fn create_genesis_l1_batch(
         protocol_version,
     );
 
-    let genesis_miniblock_header = MiniblockHeader {
-        number: MiniblockNumber(0),
+    let genesis_miniblock_header = L2BlockHeader {
+        number: L2BlockNumber(0),
         timestamp: 0,
-        hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+        hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
         l1_tx_count: 0,
         l2_tx_count: 0,
         fee_account_address: Default::default(),

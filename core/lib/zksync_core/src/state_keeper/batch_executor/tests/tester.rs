@@ -14,10 +14,10 @@ use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractEx
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
-    block::MiniblockHasher, ethabi::Token, fee::Fee, snapshots::SnapshotRecoveryStatus,
+    block::L2BlockHasher, ethabi::Token, fee::Fee, snapshots::SnapshotRecoveryStatus,
     storage_writes_deduplicator::StorageWritesDeduplicator,
     system_contracts::get_system_smart_contracts, utils::storage_key_for_standard_token_balance,
-    AccountTreeId, Address, Execute, L1BatchNumber, L2ChainId, MiniblockNumber, PriorityOpId,
+    AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId,
     ProtocolVersionId, StorageKey, StorageLog, Transaction, H256, L2_ETH_TOKEN_ADDRESS,
     SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
 };
@@ -277,7 +277,7 @@ impl Tester {
 
             storage
                 .storage_logs_dal()
-                .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![storage_log])])
+                .append_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![storage_log])])
                 .await
                 .unwrap();
             if storage
@@ -463,7 +463,7 @@ pub fn mock_loadnext_gas_burn_calldata(gas: u32) -> Vec<u8> {
 /// Concise representation of a storage snapshot for testing recovery.
 #[derive(Debug)]
 pub(super) struct StorageSnapshot {
-    pub miniblock_number: MiniblockNumber,
+    pub miniblock_number: L2BlockNumber,
     pub miniblock_hash: H256,
     pub miniblock_timestamp: u64,
     pub storage_logs: HashMap<StorageKey, H256>,
@@ -485,7 +485,7 @@ impl StorageSnapshot {
         let all_logs = storage
             .snapshots_creator_dal()
             .get_storage_logs_chunk(
-                MiniblockNumber(0),
+                L2BlockNumber(0),
                 L1BatchNumber(0),
                 H256::zero()..=H256::repeat_byte(0xff),
             )
@@ -493,7 +493,7 @@ impl StorageSnapshot {
             .unwrap();
         let factory_deps = storage
             .snapshots_creator_dal()
-            .get_all_factory_deps(MiniblockNumber(0))
+            .get_all_factory_deps(L2BlockNumber(0))
             .await
             .unwrap();
         let mut all_logs: HashMap<_, _> = all_logs
@@ -507,7 +507,7 @@ impl StorageSnapshot {
             .await;
         let mut l2_block_env = L2BlockEnv {
             number: 1,
-            prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+            prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
             timestamp: 100,
             max_virtual_blocks_to_create: 1,
         };
@@ -525,8 +525,8 @@ impl StorageSnapshot {
                 panic!("Unexpected tx execution result: {res:?}");
             };
 
-            let mut hasher = MiniblockHasher::new(
-                MiniblockNumber(l2_block_env.number),
+            let mut hasher = L2BlockHasher::new(
+                L2BlockNumber(l2_block_env.number),
                 l2_block_env.timestamp,
                 l2_block_env.prev_block_hash,
             );
@@ -549,8 +549,8 @@ impl StorageSnapshot {
         );
 
         // Compute the hash of the last (fictive) miniblock in the batch.
-        let miniblock_hash = MiniblockHasher::new(
-            MiniblockNumber(l2_block_env.number),
+        let miniblock_hash = L2BlockHasher::new(
+            L2BlockNumber(l2_block_env.number),
             l2_block_env.timestamp,
             l2_block_env.prev_block_hash,
         )
@@ -559,7 +559,7 @@ impl StorageSnapshot {
         let mut storage = connection_pool.connection().await.unwrap();
         storage.blocks_dal().delete_genesis().await.unwrap();
         Self {
-            miniblock_number: MiniblockNumber(l2_block_env.number),
+            miniblock_number: L2BlockNumber(l2_block_env.number),
             miniblock_timestamp: l2_block_env.timestamp,
             miniblock_hash,
             storage_logs: all_logs,

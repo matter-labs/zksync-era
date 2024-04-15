@@ -6,8 +6,8 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     block::BlockGasCount, fee_model::BatchFeeInput,
     storage_writes_deduplicator::StorageWritesDeduplicator,
-    tx::tx_execution_info::ExecutionMetrics, vm_trace::Call, Address, L1BatchNumber,
-    MiniblockNumber, ProtocolVersionId, Transaction,
+    tx::tx_execution_info::ExecutionMetrics, vm_trace::Call, Address, L1BatchNumber, L2BlockNumber,
+    ProtocolVersionId, Transaction,
 };
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -53,7 +53,7 @@ impl UpdatesManager {
             l1_batch: L1BatchUpdates::new(l1_batch_env.number),
             l2_block: L2BlockUpdates::new(
                 l1_batch_env.first_l2_block.timestamp,
-                MiniblockNumber(l1_batch_env.first_l2_block.number),
+                L2BlockNumber(l1_batch_env.first_l2_block.number),
                 l1_batch_env.first_l2_block.prev_block_hash,
                 l1_batch_env.first_l2_block.max_virtual_blocks_to_create,
                 protocol_version,

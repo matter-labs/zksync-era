@@ -13,7 +13,7 @@ use zksync_types::{
     event::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::IncludedTxLocation,
-    Address, L1BatchNumber, MiniblockNumber, VmEvent, H256,
+    Address, L1BatchNumber, L2BlockNumber, VmEvent, H256,
 };
 
 use crate::{
@@ -44,7 +44,7 @@ impl EventsDal<'_, '_> {
     /// Saves events for the specified miniblock.
     pub async fn save_events(
         &mut self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
         all_block_events: &[(IncludedTxLocation, Vec<&VmEvent>)],
     ) -> DalResult<()> {
         let events_len = all_block_events.len();
@@ -102,7 +102,7 @@ impl EventsDal<'_, '_> {
     }
 
     /// Removes events with a block number strictly greater than the specified `block_number`.
-    pub async fn rollback_events(&mut self, block_number: MiniblockNumber) -> DalResult<()> {
+    pub async fn rollback_events(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM events
@@ -122,7 +122,7 @@ impl EventsDal<'_, '_> {
     /// and within each transaction.
     pub async fn save_user_l2_to_l1_logs(
         &mut self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
         all_block_l2_to_l1_logs: &[(IncludedTxLocation, Vec<&UserL2ToL1Log>)],
     ) -> DalResult<()> {
         let logs_len = all_block_l2_to_l1_logs.len();
@@ -182,7 +182,7 @@ impl EventsDal<'_, '_> {
     }
 
     /// Removes all L2-to-L1 logs with a miniblock number strictly greater than the specified `block_number`.
-    pub async fn rollback_l2_to_l1_logs(&mut self, block_number: MiniblockNumber) -> DalResult<()> {
+    pub async fn rollback_l2_to_l1_logs(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM l2_to_l1_logs
@@ -433,11 +433,11 @@ mod tests {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
         conn.events_dal()
-            .rollback_events(MiniblockNumber(0))
+            .rollback_events(L2BlockNumber(0))
             .await
             .unwrap();
         conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
+            .delete_miniblocks(L2BlockNumber(0))
             .await
             .unwrap();
         conn.protocol_versions_dal()
@@ -470,13 +470,13 @@ mod tests {
             (second_location, second_events.iter().collect()),
         ];
         conn.events_dal()
-            .save_events(MiniblockNumber(1), &all_events)
+            .save_events(L2BlockNumber(1), &all_events)
             .await
             .unwrap();
 
         let logs = conn
             .events_web3_dal()
-            .get_all_logs(MiniblockNumber(0))
+            .get_all_logs(L2BlockNumber(0))
             .await
             .unwrap();
         assert_eq!(logs.len(), 5);
@@ -514,11 +514,11 @@ mod tests {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
         conn.events_dal()
-            .rollback_l2_to_l1_logs(MiniblockNumber(0))
+            .rollback_l2_to_l1_logs(L2BlockNumber(0))
             .await
             .unwrap();
         conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
+            .delete_miniblocks(L2BlockNumber(0))
             .await
             .unwrap();
         conn.protocol_versions_dal()
@@ -551,7 +551,7 @@ mod tests {
             (second_location, second_logs.iter().collect()),
         ];
         conn.events_dal()
-            .save_user_l2_to_l1_logs(MiniblockNumber(1), &all_logs)
+            .save_user_l2_to_l1_logs(L2BlockNumber(1), &all_logs)
             .await
             .unwrap();
 

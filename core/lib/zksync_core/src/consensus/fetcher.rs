@@ -5,7 +5,7 @@ use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
-use zksync_types::MiniblockNumber;
+use zksync_types::L2BlockNumber;
 
 use crate::{
     consensus::{storage, Store},
@@ -148,7 +148,7 @@ impl Fetcher {
     }
 
     /// Fetches (with retries) the given block from the main node.
-    async fn fetch_block(&self, ctx: &ctx::Ctx, n: MiniblockNumber) -> ctx::Result<FetchedBlock> {
+    async fn fetch_block(&self, ctx: &ctx::Ctx, n: L2BlockNumber) -> ctx::Result<FetchedBlock> {
         const RETRY_INTERVAL: time::Duration = time::Duration::seconds(5);
 
         loop {
@@ -180,7 +180,7 @@ impl Fetcher {
             s.spawn(async {
                 let send = send;
                 while end.map_or(true, |end| next < end) {
-                    let n = MiniblockNumber(next.0.try_into().unwrap());
+                    let n = L2BlockNumber(next.0.try_into().unwrap());
                     self.sync_state.wait_for_main_node_block(ctx, n).await?;
                     send.send(ctx, s.spawn(self.fetch_block(ctx, n))).await?;
                     next = next.next();

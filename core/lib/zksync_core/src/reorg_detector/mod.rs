@@ -6,7 +6,7 @@ use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_shared_metrics::{CheckerComponent, EN_METRICS};
-use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
+use zksync_types::{L1BatchNumber, L2BlockNumber, H256};
 use zksync_web3_decl::{
     client::L2Client,
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
@@ -80,11 +80,11 @@ impl From<EnrichedClientError> for Error {
 
 #[async_trait]
 trait MainNodeClient: fmt::Debug + Send + Sync {
-    async fn sealed_miniblock_number(&self) -> EnrichedClientResult<MiniblockNumber>;
+    async fn sealed_miniblock_number(&self) -> EnrichedClientResult<L2BlockNumber>;
 
     async fn sealed_l1_batch_number(&self) -> EnrichedClientResult<L1BatchNumber>;
 
-    async fn miniblock_hash(&self, number: MiniblockNumber) -> EnrichedClientResult<Option<H256>>;
+    async fn miniblock_hash(&self, number: L2BlockNumber) -> EnrichedClientResult<Option<H256>>;
 
     async fn l1_batch_root_hash(&self, number: L1BatchNumber)
         -> EnrichedClientResult<Option<H256>>;
@@ -92,7 +92,7 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
 
 #[async_trait]
 impl MainNodeClient for L2Client {
-    async fn sealed_miniblock_number(&self) -> EnrichedClientResult<MiniblockNumber> {
+    async fn sealed_miniblock_number(&self) -> EnrichedClientResult<L2BlockNumber> {
         let number = self
             .get_block_number()
             .rpc_context("sealed_miniblock_number")
@@ -100,7 +100,7 @@ impl MainNodeClient for L2Client {
         let number = u32::try_from(number).map_err(|err| {
             EnrichedClientError::custom(err, "u32::try_from").with_arg("number", &number)
         })?;
-        Ok(MiniblockNumber(number))
+        Ok(L2BlockNumber(number))
     }
 
     async fn sealed_l1_batch_number(&self) -> EnrichedClientResult<L1BatchNumber> {
@@ -114,7 +114,7 @@ impl MainNodeClient for L2Client {
         Ok(L1BatchNumber(number))
     }
 
-    async fn miniblock_hash(&self, number: MiniblockNumber) -> EnrichedClientResult<Option<H256>> {
+    async fn miniblock_hash(&self, number: L2BlockNumber) -> EnrichedClientResult<Option<H256>> {
         Ok(self
             .get_block_by_number(number.0.into(), false)
             .rpc_context("miniblock_hash")
@@ -141,7 +141,7 @@ trait HandleReorgDetectorEvent: fmt::Debug + Send + Sync {
 
     fn update_correct_block(
         &mut self,
-        last_correct_miniblock: MiniblockNumber,
+        last_correct_miniblock: L2BlockNumber,
         last_correct_l1_batch: L1BatchNumber,
     );
 
@@ -158,7 +158,7 @@ impl HandleReorgDetectorEvent for HealthUpdater {
 
     fn update_correct_block(
         &mut self,
-        last_correct_miniblock: MiniblockNumber,
+        last_correct_miniblock: L2BlockNumber,
         last_correct_l1_batch: L1BatchNumber,
     ) {
         let last_correct_miniblock = last_correct_miniblock.0.into();
@@ -309,7 +309,7 @@ impl ReorgDetector {
     /// Compares hashes of the given local miniblock and the same miniblock from main node.
     async fn miniblock_hashes_match(
         &self,
-        miniblock: MiniblockNumber,
+        miniblock: L2BlockNumber,
     ) -> Result<bool, HashMatchError> {
         let mut storage = self.pool.connection().await.context("connection()")?;
         let local_hash = storage

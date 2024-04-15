@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use anyhow::Context;
-use zksync_basic_types::{L1BatchNumber, MiniblockNumber};
+use zksync_basic_types::{L1BatchNumber, L2BlockNumber};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::ProtocolVersionId;
 use zksync_web3_decl::{
@@ -20,7 +20,7 @@ pub async fn get_l1_batch_remote_protocol_version(
         return Ok(None);
     };
     let sync_block = main_node_client
-        .sync_l2_block(MiniblockNumber(miniblock.as_u32()), false)
+        .sync_l2_block(L2BlockNumber(miniblock.as_u32()), false)
         .await?;
     Ok(sync_block.map(|b| b.protocol_version))
 }

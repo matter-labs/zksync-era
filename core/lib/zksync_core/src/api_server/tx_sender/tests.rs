@@ -56,7 +56,7 @@ async fn getting_nonce_for_account() {
     let nonce_log = StorageLog::new_write_log(nonce_key, H256::from_low_u64_be(123));
     storage
         .storage_logs_dal()
-        .append_storage_logs(MiniblockNumber(0), &[(H256::default(), vec![nonce_log])])
+        .append_storage_logs(L2BlockNumber(0), &[(H256::default(), vec![nonce_log])])
         .await
         .unwrap();
 
@@ -78,7 +78,7 @@ async fn getting_nonce_for_account() {
     };
     storage
         .storage_logs_dal()
-        .insert_storage_logs(MiniblockNumber(1), &[(H256::default(), vec![nonce_log])])
+        .insert_storage_logs(L2BlockNumber(1), &[(H256::default(), vec![nonce_log])])
         .await
         .unwrap();
 
@@ -91,7 +91,7 @@ async fn getting_nonce_for_account() {
 
 #[tokio::test]
 async fn getting_nonce_for_account_after_snapshot_recovery() {
-    const SNAPSHOT_MINIBLOCK_NUMBER: MiniblockNumber = MiniblockNumber(42);
+    const SNAPSHOT_MINIBLOCK_NUMBER: L2BlockNumber = L2BlockNumber(42);
 
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();

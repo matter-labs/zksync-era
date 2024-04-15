@@ -9,7 +9,7 @@ use multivm::utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_shared_metrics::{BlockStage, L2BlockStage, APP_METRICS};
 use zksync_types::{
-    block::{L1BatchHeader, MiniblockHeader},
+    block::{L1BatchHeader, L2BlockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
     helpers::unix_timestamp_ms,
     l1::L1Tx,
@@ -345,7 +345,7 @@ impl L2BlockSealCommand {
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined)
             .into();
 
-        let l2_block_header = MiniblockHeader {
+        let l2_block_header = L2BlockHeader {
             number: l2_block_number,
             timestamp: self.l2_block.timestamp,
             hash: self.l2_block.get_l2_block_hash(),

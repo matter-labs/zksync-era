@@ -7,7 +7,7 @@ use zksync_config::GenesisConfig;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
     api::{self, en},
-    get_code_key, Address, MiniblockNumber, ProtocolVersionId, H256, U64,
+    get_code_key, Address, L2BlockNumber, ProtocolVersionId, H256, U64,
 };
 use zksync_web3_decl::{
     client::L2Client,
@@ -33,11 +33,11 @@ pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
         protocol_version: ProtocolVersionId,
     ) -> EnrichedClientResult<Option<api::ProtocolVersion>>;
 
-    async fn fetch_l2_block_number(&self) -> EnrichedClientResult<MiniblockNumber>;
+    async fn fetch_l2_block_number(&self) -> EnrichedClientResult<L2BlockNumber>;
 
     async fn fetch_l2_block(
         &self,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
         with_transactions: bool,
     ) -> EnrichedClientResult<Option<en::SyncBlock>>;
 
@@ -108,19 +108,19 @@ impl MainNodeClient for L2Client {
         self.genesis_config().rpc_context("genesis_config").await
     }
 
-    async fn fetch_l2_block_number(&self) -> EnrichedClientResult<MiniblockNumber> {
+    async fn fetch_l2_block_number(&self) -> EnrichedClientResult<L2BlockNumber> {
         let number = self
             .get_block_number()
             .rpc_context("get_block_number")
             .await?;
         let number = u32::try_from(number)
             .map_err(|err| EnrichedClientError::custom(err, "u32::try_from"))?;
-        Ok(MiniblockNumber(number))
+        Ok(L2BlockNumber(number))
     }
 
     async fn fetch_l2_block(
         &self,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
         with_transactions: bool,
     ) -> EnrichedClientResult<Option<en::SyncBlock>> {
         self.sync_l2_block(number, with_transactions)

@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use test_casing::test_casing;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
-    block::{L1BatchHeader, MiniblockHeader},
+    block::{L1BatchHeader, L2BlockHeader},
     get_code_key, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
 };
 
@@ -107,8 +107,8 @@ async fn applier_errors_after_genesis() {
         .save_protocol_version_with_tx(&ProtocolVersion::default())
         .await
         .unwrap();
-    let genesis_miniblock = MiniblockHeader {
-        number: MiniblockNumber(0),
+    let genesis_miniblock = L2BlockHeader {
+        number: L2BlockNumber(0),
         timestamp: 0,
         hash: H256::zero(),
         l1_tx_count: 0,

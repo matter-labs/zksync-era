@@ -1,6 +1,6 @@
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{
-    snapshots::SnapshotRecoveryStatus, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
+    snapshots::SnapshotRecoveryStatus, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
 };
 
 use crate::Core;
@@ -94,7 +94,7 @@ impl SnapshotRecoveryDal<'_, '_> {
             l1_batch_number: L1BatchNumber(row.l1_batch_number as u32),
             l1_batch_timestamp: row.l1_batch_timestamp as u64,
             l1_batch_root_hash: H256::from_slice(&row.l1_batch_root_hash),
-            miniblock_number: MiniblockNumber(row.miniblock_number as u32),
+            miniblock_number: L2BlockNumber(row.miniblock_number as u32),
             miniblock_timestamp: row.miniblock_timestamp as u64,
             miniblock_hash: H256::from_slice(&row.miniblock_hash),
             protocol_version: ProtocolVersionId::try_from(row.protocol_version as u16).unwrap(),
@@ -106,7 +106,7 @@ impl SnapshotRecoveryDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        snapshots::SnapshotRecoveryStatus, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
+        snapshots::SnapshotRecoveryStatus, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
     };
 
     use crate::{ConnectionPool, Core, CoreDal};
@@ -125,7 +125,7 @@ mod tests {
             l1_batch_number: L1BatchNumber(123),
             l1_batch_timestamp: 123,
             l1_batch_root_hash: H256::random(),
-            miniblock_number: MiniblockNumber(234),
+            miniblock_number: L2BlockNumber(234),
             miniblock_timestamp: 234,
             miniblock_hash: H256::random(),
             protocol_version: ProtocolVersionId::latest(),

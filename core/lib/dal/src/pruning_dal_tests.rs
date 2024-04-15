@@ -10,7 +10,7 @@ mod tests {
         block::L1BatchHeader,
         l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
         tx::IncludedTxLocation,
-        AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersion, ProtocolVersionId,
+        AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersion, ProtocolVersionId,
         StorageKey, StorageLog, H256,
     };
 
@@ -22,7 +22,7 @@ mod tests {
 
     async fn insert_miniblock(
         conn: &mut Connection<'_, Core>,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
         l1_batch_number: L1BatchNumber,
     ) {
         let miniblock1 = create_miniblock_header(miniblock_number.0);
@@ -42,7 +42,7 @@ mod tests {
 
     async fn insert_l2_to_l1_logs(
         conn: &mut Connection<'_, Core>,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
     ) {
         let first_location = IncludedTxLocation {
             tx_hash: H256([1; 32]),
@@ -70,7 +70,7 @@ mod tests {
             .unwrap();
     }
 
-    async fn insert_events(conn: &mut Connection<'_, Core>, miniblock_number: MiniblockNumber) {
+    async fn insert_events(conn: &mut Connection<'_, Core>, miniblock_number: L2BlockNumber) {
         let first_location = IncludedTxLocation {
             tx_hash: H256([1; 32]),
             tx_index_in_miniblock: 0,
@@ -132,13 +132,13 @@ mod tests {
             insert_l1_batch(conn, L1BatchNumber(l1_batch_number)).await;
             insert_miniblock(
                 conn,
-                MiniblockNumber(l1_batch_number * 2),
+                L2BlockNumber(l1_batch_number * 2),
                 L1BatchNumber(l1_batch_number),
             )
             .await;
             insert_miniblock(
                 conn,
-                MiniblockNumber(l1_batch_number * 2 + 1),
+                L2BlockNumber(l1_batch_number * 2 + 1),
                 L1BatchNumber(l1_batch_number),
             )
             .await;
@@ -153,14 +153,14 @@ mod tests {
             let l1_batch_number = L1BatchNumber(l1_batch_number);
             assert!(conn
                 .blocks_dal()
-                .get_miniblock_header(MiniblockNumber(l1_batch_number.0 * 2))
+                .get_miniblock_header(L2BlockNumber(l1_batch_number.0 * 2))
                 .await
                 .unwrap()
                 .is_some());
 
             assert!(conn
                 .blocks_dal()
-                .get_miniblock_header(MiniblockNumber(l1_batch_number.0 * 2 + 1))
+                .get_miniblock_header(L2BlockNumber(l1_batch_number.0 * 2 + 1))
                 .await
                 .unwrap()
                 .is_some());
@@ -182,28 +182,28 @@ mod tests {
             let l1_batch_number = L1BatchNumber(l1_batch_number);
             assert!(conn
                 .blocks_dal()
-                .get_miniblock_header(MiniblockNumber(l1_batch_number.0 * 2))
+                .get_miniblock_header(L2BlockNumber(l1_batch_number.0 * 2))
                 .await
                 .unwrap()
                 .is_none());
             assert_eq!(
                 0,
                 conn.storage_logs_dal()
-                    .get_miniblock_storage_logs(MiniblockNumber(l1_batch_number.0 * 2))
+                    .get_miniblock_storage_logs(L2BlockNumber(l1_batch_number.0 * 2))
                     .await
                     .len()
             );
 
             assert!(conn
                 .blocks_dal()
-                .get_miniblock_header(MiniblockNumber(l1_batch_number.0 * 2 + 1))
+                .get_miniblock_header(L2BlockNumber(l1_batch_number.0 * 2 + 1))
                 .await
                 .unwrap()
                 .is_none());
             assert_eq!(
                 0,
                 conn.storage_logs_dal()
-                    .get_miniblock_storage_logs(MiniblockNumber(l1_batch_number.0 * 2 + 1))
+                    .get_miniblock_storage_logs(L2BlockNumber(l1_batch_number.0 * 2 + 1))
                     .await
                     .len()
             );
@@ -235,12 +235,12 @@ mod tests {
 
         transaction
             .pruning_dal()
-            .soft_prune_batches_range(L1BatchNumber(5), MiniblockNumber(11))
+            .soft_prune_batches_range(L1BatchNumber(5), L2BlockNumber(11))
             .await
             .unwrap();
         assert_eq!(
             PruningInfo {
-                last_soft_pruned_miniblock: Some(MiniblockNumber(11)),
+                last_soft_pruned_miniblock: Some(L2BlockNumber(11)),
                 last_soft_pruned_l1_batch: Some(L1BatchNumber(5)),
                 last_hard_pruned_miniblock: None,
                 last_hard_pruned_l1_batch: None
@@ -250,12 +250,12 @@ mod tests {
 
         transaction
             .pruning_dal()
-            .soft_prune_batches_range(L1BatchNumber(10), MiniblockNumber(21))
+            .soft_prune_batches_range(L1BatchNumber(10), L2BlockNumber(21))
             .await
             .unwrap();
         assert_eq!(
             PruningInfo {
-                last_soft_pruned_miniblock: Some(MiniblockNumber(21)),
+                last_soft_pruned_miniblock: Some(L2BlockNumber(21)),
                 last_soft_pruned_l1_batch: Some(L1BatchNumber(10)),
                 last_hard_pruned_miniblock: None,
                 last_hard_pruned_l1_batch: None
@@ -265,14 +265,14 @@ mod tests {
 
         transaction
             .pruning_dal()
-            .hard_prune_batches_range(L1BatchNumber(10), MiniblockNumber(21))
+            .hard_prune_batches_range(L1BatchNumber(10), L2BlockNumber(21))
             .await
             .unwrap();
         assert_eq!(
             PruningInfo {
-                last_soft_pruned_miniblock: Some(MiniblockNumber(21)),
+                last_soft_pruned_miniblock: Some(L2BlockNumber(21)),
                 last_soft_pruned_l1_batch: Some(L1BatchNumber(10)),
-                last_hard_pruned_miniblock: Some(MiniblockNumber(21)),
+                last_hard_pruned_miniblock: Some(L2BlockNumber(21)),
                 last_hard_pruned_l1_batch: Some(L1BatchNumber(10))
             },
             transaction.pruning_dal().get_pruning_info().await.unwrap()
@@ -288,7 +288,7 @@ mod tests {
     }
     async fn insert_miniblock_storage_logs(
         conn: &mut Connection<'_, Core>,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
         storage_logs: Vec<StorageLog>,
     ) {
         conn.storage_logs_dal()
@@ -299,7 +299,7 @@ mod tests {
 
     async fn assert_miniblock_storage_logs_equal(
         conn: &mut Connection<'_, Core>,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
         expected_logs: Vec<StorageLog>,
     ) {
         let actual_logs: Vec<(H256, H256)> = conn
@@ -329,14 +329,14 @@ mod tests {
         insert_realistic_l1_batches(&mut transaction, 10).await;
         insert_miniblock_storage_logs(
             &mut transaction,
-            MiniblockNumber(1),
+            L2BlockNumber(1),
             vec![random_storage_log(1, 1)],
         )
         .await;
 
         insert_miniblock_storage_logs(
             &mut transaction,
-            MiniblockNumber(0),
+            L2BlockNumber(0),
             // first storage will be overwritten in 1st miniblock,
             // the second one should be kept throughout the pruning
             // the third one will be overwritten in 10th miniblock
@@ -350,7 +350,7 @@ mod tests {
 
         insert_miniblock_storage_logs(
             &mut transaction,
-            MiniblockNumber(15),
+            L2BlockNumber(15),
             // this storage log overrides log from block 0
             vec![random_storage_log(3, 5)],
         )
@@ -358,7 +358,7 @@ mod tests {
 
         insert_miniblock_storage_logs(
             &mut transaction,
-            MiniblockNumber(17),
+            L2BlockNumber(17),
             // there are two logs with the same hashed key, the second one should be overwritten
             vec![random_storage_log(5, 5), random_storage_log(5, 7)],
         )
@@ -366,53 +366,53 @@ mod tests {
 
         transaction
             .pruning_dal()
-            .hard_prune_batches_range(L1BatchNumber(4), MiniblockNumber(9))
+            .hard_prune_batches_range(L1BatchNumber(4), L2BlockNumber(9))
             .await
             .unwrap();
 
         assert_miniblock_storage_logs_equal(
             &mut transaction,
-            MiniblockNumber(0),
+            L2BlockNumber(0),
             vec![random_storage_log(2, 3), random_storage_log(3, 4)],
         )
         .await;
         assert_miniblock_storage_logs_equal(
             &mut transaction,
-            MiniblockNumber(1),
+            L2BlockNumber(1),
             vec![random_storage_log(1, 1)],
         )
         .await;
 
         transaction
             .pruning_dal()
-            .hard_prune_batches_range(L1BatchNumber(10), MiniblockNumber(21))
+            .hard_prune_batches_range(L1BatchNumber(10), L2BlockNumber(21))
             .await
             .unwrap();
 
         assert_miniblock_storage_logs_equal(
             &mut transaction,
-            MiniblockNumber(0),
+            L2BlockNumber(0),
             vec![random_storage_log(2, 3)],
         )
         .await;
 
         assert_miniblock_storage_logs_equal(
             &mut transaction,
-            MiniblockNumber(1),
+            L2BlockNumber(1),
             vec![random_storage_log(1, 1)],
         )
         .await;
 
         assert_miniblock_storage_logs_equal(
             &mut transaction,
-            MiniblockNumber(15),
+            L2BlockNumber(15),
             vec![random_storage_log(3, 5)],
         )
         .await;
 
         assert_miniblock_storage_logs_equal(
             &mut transaction,
-            MiniblockNumber(17),
+            L2BlockNumber(17),
             vec![random_storage_log(5, 7)],
         )
         .await;
@@ -438,7 +438,7 @@ mod tests {
 
         transaction
             .pruning_dal()
-            .hard_prune_batches_range(L1BatchNumber(5), MiniblockNumber(11))
+            .hard_prune_batches_range(L1BatchNumber(5), L2BlockNumber(11))
             .await
             .unwrap();
 
@@ -458,7 +458,7 @@ mod tests {
 
         transaction
             .pruning_dal()
-            .hard_prune_batches_range(L1BatchNumber(10), MiniblockNumber(21))
+            .hard_prune_batches_range(L1BatchNumber(10), L2BlockNumber(21))
             .await
             .unwrap();
 

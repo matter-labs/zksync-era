@@ -6,7 +6,7 @@ use zksync_consensus_bft::PayloadManager;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{BlockStoreState, PersistentBlockStore, ReplicaState, ReplicaStore};
 use zksync_dal::{consensus_dal::Payload, ConnectionPool, Core, CoreDal, DalError};
-use zksync_types::MiniblockNumber;
+use zksync_types::L2BlockNumber;
 
 #[cfg(test)]
 mod testonly;
@@ -379,7 +379,7 @@ impl PersistentBlockStore for BlockStore {
         // This mutex prevents concurrent `store_next_block` calls.
         let mut guard = ctx.wait(self.store_next_block_mutex.lock()).await?;
         if let Some(cursor) = &mut *guard {
-            let number = MiniblockNumber(
+            let number = L2BlockNumber(
                 block
                     .number()
                     .0

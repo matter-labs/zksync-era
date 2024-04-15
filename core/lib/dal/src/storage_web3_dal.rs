@@ -4,7 +4,7 @@ use zksync_db_connection::{connection::Connection, error::DalResult, instrument:
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, storage_key_for_standard_token_balance},
-    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, Nonce, StorageKey,
+    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, Nonce, StorageKey,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
 };
 use zksync_utils::h256_to_u256;
@@ -20,7 +20,7 @@ impl StorageWeb3Dal<'_, '_> {
     pub async fn get_address_historical_nonce(
         &mut self,
         address: Address,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> DalResult<U256> {
         let nonce_key = get_nonce_key(&address);
         let nonce_value = self
@@ -58,7 +58,7 @@ impl StorageWeb3Dal<'_, '_> {
         &mut self,
         token_id: AccountTreeId,
         account_id: AccountTreeId,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> DalResult<U256> {
         let key = storage_key_for_standard_token_balance(token_id, account_id.address());
         let balance = self
@@ -69,7 +69,7 @@ impl StorageWeb3Dal<'_, '_> {
 
     /// Gets the current value for the specified `key`.
     pub async fn get_value(&mut self, key: &StorageKey) -> DalResult<H256> {
-        self.get_historical_value_unchecked(key, MiniblockNumber(u32::MAX))
+        self.get_historical_value_unchecked(key, L2BlockNumber(u32::MAX))
             .await
     }
 
@@ -79,7 +79,7 @@ impl StorageWeb3Dal<'_, '_> {
         let storage_map = self
             .storage
             .storage_logs_dal()
-            .get_storage_values(hashed_keys, MiniblockNumber(u32::MAX))
+            .get_storage_values(hashed_keys, L2BlockNumber(u32::MAX))
             .await?;
         Ok(storage_map
             .into_iter()
@@ -92,7 +92,7 @@ impl StorageWeb3Dal<'_, '_> {
     pub async fn get_historical_value_unchecked(
         &mut self,
         key: &StorageKey,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> DalResult<H256> {
         let hashed_key = key.hashed_key();
 
@@ -132,7 +132,7 @@ impl StorageWeb3Dal<'_, '_> {
     /// the returned value will be meaningless.
     pub async fn resolve_l1_batch_number_of_miniblock(
         &mut self,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
     ) -> DalResult<ResolvedL1BatchForMiniblock> {
         let row = sqlx::query!(
             r#"
@@ -205,7 +205,7 @@ impl StorageWeb3Dal<'_, '_> {
     pub async fn get_contract_code_unchecked(
         &mut self,
         address: Address,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> DalResult<Option<Vec<u8>>> {
         let hashed_key = get_code_key(&address).hashed_key();
         let row = sqlx::query!(
@@ -247,7 +247,7 @@ impl StorageWeb3Dal<'_, '_> {
     pub async fn get_factory_dep(
         &mut self,
         hash: H256,
-    ) -> DalResult<Option<(Vec<u8>, MiniblockNumber)>> {
+    ) -> DalResult<Option<(Vec<u8>, L2BlockNumber)>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -265,7 +265,7 @@ impl StorageWeb3Dal<'_, '_> {
         .fetch_optional(self.storage)
         .await?;
 
-        Ok(row.map(|row| (row.bytecode, MiniblockNumber(row.miniblock_number as u32))))
+        Ok(row.map(|row| (row.bytecode, L2BlockNumber(row.miniblock_number as u32))))
     }
 }
 
@@ -314,7 +314,7 @@ mod tests {
 
         let resolved = conn
             .storage_web3_dal()
-            .resolve_l1_batch_number_of_miniblock(MiniblockNumber(0))
+            .resolve_l1_batch_number_of_miniblock(L2BlockNumber(0))
             .await
             .unwrap();
         assert_eq!(resolved.miniblock_l1_batch, Some(L1BatchNumber(0)));
@@ -331,7 +331,7 @@ mod tests {
         for pending_miniblock_number in [1, 2] {
             let resolved = conn
                 .storage_web3_dal()
-                .resolve_l1_batch_number_of_miniblock(MiniblockNumber(pending_miniblock_number))
+                .resolve_l1_batch_number_of_miniblock(L2BlockNumber(pending_miniblock_number))
                 .await
                 .unwrap();
             assert_eq!(resolved.miniblock_l1_batch, None);

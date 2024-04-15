@@ -3,7 +3,7 @@ use std::time::Duration;
 use anyhow::Context;
 use multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_dal::{Connection, Core, CoreDal};
-use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
+use zksync_types::{L1BatchNumber, L2BlockNumber, H256};
 
 use super::PendingBatchData;
 
@@ -22,7 +22,7 @@ pub(crate) fn poll_iters(delay_interval: Duration, max_wait: Duration) -> usize 
 /// Cursor of the L2 block / L1 batch progress used by [`StateKeeperIO`](super::StateKeeperIO) implementations.
 #[derive(Debug)]
 pub struct IoCursor {
-    pub next_l2_block: MiniblockNumber,
+    pub next_l2_block: L2BlockNumber,
     pub prev_l2_block_hash: H256,
     pub prev_l2_block_timestamp: u64,
     pub l1_batch: L1BatchNumber,
@@ -93,7 +93,7 @@ pub(crate) async fn load_pending_batch(
     let first_pending_l2_block = pending_l2_blocks
         .first()
         .context("no pending L2 blocks; was environment loaded for a correct L1 batch number?")?;
-    let expected_pending_l2_block_number = MiniblockNumber(l1_batch_env.first_l2_block.number);
+    let expected_pending_l2_block_number = L2BlockNumber(l1_batch_env.first_l2_block.number);
     anyhow::ensure!(
         first_pending_l2_block.number == expected_pending_l2_block_number,
         "Invalid `L1BatchEnv` supplied: its L1 batch #{} is not pending; \

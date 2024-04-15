@@ -13,7 +13,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_shared_metrics::EN_METRICS;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, api, L1BatchNumber, MiniblockNumber, H256,
+    aggregated_operations::AggregatedActionType, api, L1BatchNumber, L2BlockNumber, H256,
 };
 use zksync_web3_decl::{
     client::L2Client,
@@ -78,11 +78,11 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
     async fn resolve_l1_batch_to_miniblock(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<MiniblockNumber>>;
+    ) -> EnrichedClientResult<Option<L2BlockNumber>>;
 
     async fn block_details(
         &self,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
     ) -> EnrichedClientResult<Option<api::BlockDetails>>;
 }
 
@@ -91,21 +91,21 @@ impl MainNodeClient for L2Client {
     async fn resolve_l1_batch_to_miniblock(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<MiniblockNumber>> {
+    ) -> EnrichedClientResult<Option<L2BlockNumber>> {
         let request_latency = FETCHER_METRICS.requests[&FetchStage::GetMiniblockRange].start();
         let number = self
             .get_miniblock_range(number)
             .rpc_context("resolve_l1_batch_to_miniblock")
             .with_arg("number", &number)
             .await?
-            .map(|(start, _)| MiniblockNumber(start.as_u32()));
+            .map(|(start, _)| L2BlockNumber(start.as_u32()));
         request_latency.observe();
         Ok(number)
     }
 
     async fn block_details(
         &self,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
     ) -> EnrichedClientResult<Option<api::BlockDetails>> {
         let request_latency = FETCHER_METRICS.requests[&FetchStage::GetBlockDetails].start();
         let details = self

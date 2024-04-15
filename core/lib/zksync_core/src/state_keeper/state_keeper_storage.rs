@@ -9,7 +9,7 @@ use zksync_state::{
     PostgresStorage, ReadStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily,
 };
 use zksync_storage::RocksDB;
-use zksync_types::{L1BatchNumber, MiniblockNumber};
+use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 /// Factory that can produce a [`ReadStorage`] implementation on demand.
 #[async_trait]
@@ -86,7 +86,7 @@ impl AsyncRocksdbCache {
     /// from unsealed batches).
     async fn load_latest_sealed_miniblock(
         connection: &mut Connection<'_, Core>,
-    ) -> anyhow::Result<Option<(MiniblockNumber, L1BatchNumber)>> {
+    ) -> anyhow::Result<Option<(L2BlockNumber, L1BatchNumber)>> {
         let mut dal = connection.blocks_dal();
         let Some(l1_batch_number) = dal.get_sealed_l1_batch_number().await? else {
             return Ok(None);

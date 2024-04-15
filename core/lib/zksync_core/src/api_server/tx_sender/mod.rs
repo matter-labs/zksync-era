@@ -24,7 +24,7 @@ use zksync_types::{
     get_code_key, get_intrinsic_constants,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     utils::storage_key_for_eth_balance,
-    AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, MiniblockNumber, Nonce,
+    AccountTreeId, Address, ExecuteTransactionCommon, L2BlockNumber, L2ChainId, Nonce,
     PackedEthSignature, ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
     MAX_NEW_FACTORY_DEPS, U256,
 };
@@ -532,7 +532,7 @@ impl TxSender {
             None => {
                 // We don't have miniblocks in the storage yet. Use the snapshot miniblock number instead.
                 let start = BlockStartInfo::new(&mut storage).await?;
-                MiniblockNumber(start.first_miniblock(&mut storage).await?.saturating_sub(1))
+                L2BlockNumber(start.first_miniblock(&mut storage).await?.saturating_sub(1))
             }
         };
 

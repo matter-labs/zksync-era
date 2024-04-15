@@ -1,5 +1,5 @@
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_types::{L1BatchNumber, MiniblockNumber};
+use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 use crate::Core;
 
@@ -11,9 +11,9 @@ pub struct PruningDal<'a, 'c> {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PruningInfo {
     pub last_soft_pruned_l1_batch: Option<L1BatchNumber>,
-    pub last_soft_pruned_miniblock: Option<MiniblockNumber>,
+    pub last_soft_pruned_miniblock: Option<L2BlockNumber>,
     pub last_hard_pruned_l1_batch: Option<L1BatchNumber>,
-    pub last_hard_pruned_miniblock: Option<MiniblockNumber>,
+    pub last_hard_pruned_miniblock: Option<L2BlockNumber>,
 }
 
 #[derive(Debug, sqlx::Type)]
@@ -75,20 +75,20 @@ impl PruningDal<'_, '_> {
                 .map(|x| L1BatchNumber(x as u32)),
             last_soft_pruned_miniblock: row
                 .last_soft_pruned_miniblock
-                .map(|x| MiniblockNumber(x as u32)),
+                .map(|x| L2BlockNumber(x as u32)),
             last_hard_pruned_l1_batch: row
                 .last_hard_pruned_l1_batch
                 .map(|x| L1BatchNumber(x as u32)),
             last_hard_pruned_miniblock: row
                 .last_hard_pruned_miniblock
-                .map(|x| MiniblockNumber(x as u32)),
+                .map(|x| L2BlockNumber(x as u32)),
         })
     }
 
     pub async fn soft_prune_batches_range(
         &mut self,
         last_l1_batch_to_prune: L1BatchNumber,
-        last_miniblock_to_prune: MiniblockNumber,
+        last_miniblock_to_prune: L2BlockNumber,
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
@@ -121,7 +121,7 @@ impl PruningDal<'_, '_> {
     pub async fn hard_prune_batches_range(
         &mut self,
         last_l1_batch_to_prune: L1BatchNumber,
-        last_miniblock_to_prune: MiniblockNumber,
+        last_miniblock_to_prune: L2BlockNumber,
     ) -> DalResult<()> {
         let row = sqlx::query!(
             r#"
@@ -143,7 +143,7 @@ impl PruningDal<'_, '_> {
         // we don't have any miniblocks available when recovering from a snapshot
         if row.first_miniblock_to_prune.is_some() {
             let first_miniblock_to_prune =
-                MiniblockNumber(row.first_miniblock_to_prune.unwrap() as u32);
+                L2BlockNumber(row.first_miniblock_to_prune.unwrap() as u32);
 
             let deleted_events = sqlx::query!(
                 r#"

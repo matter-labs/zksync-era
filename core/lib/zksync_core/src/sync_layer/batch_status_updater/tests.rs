@@ -108,7 +108,7 @@ impl L1BatchStagesMap {
         for (number, stage) in self.iter() {
             let local_details = storage
                 .blocks_web3_dal()
-                .get_block_details(MiniblockNumber(number.0))
+                .get_block_details(L2BlockNumber(number.0))
                 .await
                 .unwrap()
                 .unwrap_or_else(|| panic!("no details for block #{number}"));
@@ -144,7 +144,7 @@ impl L1BatchStagesMap {
 
 fn mock_block_details(number: u32, stage: L1BatchStage) -> api::BlockDetails {
     api::BlockDetails {
-        number: MiniblockNumber(number),
+        number: L2BlockNumber(number),
         l1_batch_number: L1BatchNumber(number),
         base: api::BlockDetailsBase {
             timestamp: number.into(),
@@ -183,17 +183,14 @@ impl MainNodeClient for MockMainNodeClient {
     async fn resolve_l1_batch_to_miniblock(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<MiniblockNumber>> {
+    ) -> EnrichedClientResult<Option<L2BlockNumber>> {
         let map = self.0.lock().await;
-        Ok(map
-            .get(number)
-            .is_some()
-            .then_some(MiniblockNumber(number.0)))
+        Ok(map.get(number).is_some().then_some(L2BlockNumber(number.0)))
     }
 
     async fn block_details(
         &self,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
     ) -> EnrichedClientResult<Option<api::BlockDetails>> {
         let map = self.0.lock().await;
         let Some(stage) = map.get(L1BatchNumber(number.0)) else {
@@ -261,7 +258,7 @@ async fn updater_cursor_for_storage_with_genesis_block() {
 async fn updater_cursor_after_snapshot_recovery() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
+    prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
 
     let cursor = UpdaterCursor::new(&mut storage).await.unwrap();
     assert_eq!(cursor.last_committed_l1_batch, L1BatchNumber(23));
@@ -275,7 +272,7 @@ async fn normal_updater_operation(snapshot_recovery: bool, async_batches: bool) 
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
     let first_batch_number = if snapshot_recovery {
-        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
         L1BatchNumber(24)
     } else {
         insert_genesis_batch(&mut storage, &GenesisParams::mock())
@@ -347,7 +344,7 @@ async fn updater_with_gradual_main_node_updates(snapshot_recovery: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
     let first_batch_number = if snapshot_recovery {
-        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
         L1BatchNumber(24)
     } else {
         insert_genesis_batch(&mut storage, &GenesisParams::mock())

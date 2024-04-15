@@ -20,11 +20,11 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::{BlockGasCount, MiniblockExecutionData, MiniblockHasher},
+    block::{BlockGasCount, L2BlockExecutionData, L2BlockHasher},
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     tx::tx_execution_info::ExecutionMetrics,
     zk_evm_types::{LogQuery, Timestamp},
-    Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, StorageLogQuery,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, StorageLogQuery,
     StorageLogQueryType, Transaction, H256, U256,
 };
 
@@ -80,7 +80,7 @@ pub(super) fn default_l1_batch_env(
         first_l2_block: L2BlockEnv {
             number,
             timestamp,
-            prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(number - 1)),
+            prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(number - 1)),
             max_virtual_blocks_to_create: 1,
         },
         fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
@@ -400,18 +400,18 @@ async fn pending_batch_is_applied() {
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
     let pending_batch = pending_batch_data(vec![
-        MiniblockExecutionData {
-            number: MiniblockNumber(1),
+        L2BlockExecutionData {
+            number: L2BlockNumber(1),
             timestamp: 1,
-            prev_block_hash: MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
+            prev_block_hash: L2BlockHasher::new(L2BlockNumber(0), 0, H256::zero())
                 .finalize(ProtocolVersionId::latest()),
             virtual_blocks: 1,
             txs: vec![random_tx(1)],
         },
-        MiniblockExecutionData {
-            number: MiniblockNumber(2),
+        L2BlockExecutionData {
+            number: L2BlockNumber(2),
             timestamp: 2,
-            prev_block_hash: MiniblockHasher::new(MiniblockNumber(1), 1, H256::zero())
+            prev_block_hash: L2BlockHasher::new(L2BlockNumber(1), 1, H256::zero())
                 .finalize(ProtocolVersionId::latest()),
             virtual_blocks: 1,
             txs: vec![random_tx(2)],
@@ -529,10 +529,10 @@ async fn l2_block_timestamp_after_pending_batch() {
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
-    let pending_batch = pending_batch_data(vec![MiniblockExecutionData {
-        number: MiniblockNumber(1),
+    let pending_batch = pending_batch_data(vec![L2BlockExecutionData {
+        number: L2BlockNumber(1),
         timestamp: 1,
-        prev_block_hash: MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
+        prev_block_hash: L2BlockHasher::new(L2BlockNumber(0), 0, H256::zero())
             .finalize(ProtocolVersionId::latest()),
         virtual_blocks: 1,
         txs: vec![random_tx(1)],

@@ -17,7 +17,7 @@ use zksync_types::{
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
     utils::storage_key_for_standard_token_balance,
-    AccountTreeId, L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey, Transaction,
+    AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction,
     L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_utils::{address_to_h256, h256_to_u256};
@@ -201,7 +201,7 @@ impl ZksNamespace {
     #[tracing::instrument(skip(self))]
     pub async fn get_l2_to_l1_msg_proof_impl(
         &self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
         sender: Address,
         msg: H256,
         l2_log_position: Option<usize>,
@@ -376,7 +376,7 @@ impl ZksNamespace {
     #[tracing::instrument(skip(self))]
     pub async fn get_block_details_impl(
         &self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> Result<Option<BlockDetails>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
         self.state
@@ -394,7 +394,7 @@ impl ZksNamespace {
     #[tracing::instrument(skip(self))]
     pub async fn get_raw_block_transactions_impl(
         &self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> Result<Vec<Transaction>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
         self.state

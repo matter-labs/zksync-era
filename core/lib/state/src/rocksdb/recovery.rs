@@ -7,7 +7,7 @@ use tokio::sync::watch;
 use zksync_dal::{storage_logs_dal::StorageRecoveryLogEntry, Connection, Core, CoreDal, DalError};
 use zksync_types::{
     snapshots::{uniform_hashed_keys_chunk, SnapshotRecoveryStatus},
-    L1BatchNumber, MiniblockNumber, H256,
+    L1BatchNumber, L2BlockNumber, H256,
 };
 
 use super::{
@@ -218,7 +218,7 @@ impl RocksdbStorage {
     async fn recover_logs_chunk(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        snapshot_miniblock: MiniblockNumber,
+        snapshot_miniblock: L2BlockNumber,
         key_chunk: ops::RangeInclusive<H256>,
     ) -> anyhow::Result<()> {
         let latency = RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::LoadEntries].start();

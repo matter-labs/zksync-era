@@ -12,7 +12,7 @@ use zksync_types::{
         SnapshotStorageLogsChunkMetadata, SnapshotStorageLogsStorageKey, SnapshotVersion,
     },
     tokens::{TokenInfo, TokenMetadata},
-    AccountTreeId, Address, Bytes, L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey,
+    AccountTreeId, Address, Bytes, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
     StorageValue, H160, H256,
 };
 use zksync_web3_decl::error::EnrichedClientResult;
@@ -22,7 +22,7 @@ use crate::SnapshotsApplierMainNodeClient;
 #[derive(Debug, Default)]
 pub(super) struct MockMainNodeClient {
     pub fetch_l1_batch_responses: HashMap<L1BatchNumber, api::L1BatchDetails>,
-    pub fetch_l2_block_responses: HashMap<MiniblockNumber, api::BlockDetails>,
+    pub fetch_l2_block_responses: HashMap<L2BlockNumber, api::BlockDetails>,
     pub fetch_newest_snapshot_response: Option<SnapshotHeader>,
     pub tokens_response: Vec<TokenInfo>,
 }
@@ -38,7 +38,7 @@ impl SnapshotsApplierMainNodeClient for MockMainNodeClient {
 
     async fn fetch_l2_block_details(
         &self,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
     ) -> EnrichedClientResult<Option<api::BlockDetails>> {
         Ok(self.fetch_l2_block_responses.get(&number).cloned())
     }
@@ -49,7 +49,7 @@ impl SnapshotsApplierMainNodeClient for MockMainNodeClient {
 
     async fn fetch_tokens(
         &self,
-        _at_miniblock: MiniblockNumber,
+        _at_miniblock: L2BlockNumber,
     ) -> EnrichedClientResult<Vec<TokenInfo>> {
         Ok(self.tokens_response.clone())
     }
@@ -125,7 +125,7 @@ fn block_details_base(hash: H256) -> api::BlockDetailsBase {
 }
 
 fn miniblock_details(
-    number: MiniblockNumber,
+    number: L2BlockNumber,
     l1_batch_number: L1BatchNumber,
     hash: H256,
 ) -> api::BlockDetails {
@@ -167,7 +167,7 @@ pub(super) fn mock_recovery_status() -> SnapshotRecoveryStatus {
         l1_batch_number: L1BatchNumber(123),
         l1_batch_root_hash: H256::random(),
         l1_batch_timestamp: 0,
-        miniblock_number: MiniblockNumber(321),
+        miniblock_number: L2BlockNumber(321),
         miniblock_hash: H256::random(),
         miniblock_timestamp: 0,
         protocol_version: ProtocolVersionId::default(),

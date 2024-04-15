@@ -40,7 +40,7 @@ use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::TreeEntry;
 use zksync_types::{
     snapshots::{uniform_hashed_keys_chunk, SnapshotRecoveryStatus},
-    MiniblockNumber, H256,
+    L2BlockNumber, H256,
 };
 
 use super::{
@@ -111,7 +111,7 @@ impl HandleRecoveryEvent for RecoveryHealthUpdater<'_> {
 
 #[derive(Debug, Clone, Copy)]
 struct SnapshotParameters {
-    miniblock: MiniblockNumber,
+    miniblock: L2BlockNumber,
     expected_root_hash: H256,
     log_count: u64,
 }
@@ -275,7 +275,7 @@ impl AsyncTreeRecovery {
     async fn filter_chunks(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        snapshot_miniblock: MiniblockNumber,
+        snapshot_miniblock: L2BlockNumber,
         key_chunks: &[ops::RangeInclusive<H256>],
     ) -> anyhow::Result<Vec<ops::RangeInclusive<H256>>> {
         let chunk_starts_latency =
@@ -318,7 +318,7 @@ impl AsyncTreeRecovery {
 
     async fn recover_key_chunk(
         tree: &Mutex<AsyncTreeRecovery>,
-        snapshot_miniblock: MiniblockNumber,
+        snapshot_miniblock: L2BlockNumber,
         key_chunk: ops::RangeInclusive<H256>,
         pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
