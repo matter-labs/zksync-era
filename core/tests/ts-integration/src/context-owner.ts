@@ -395,7 +395,9 @@ export class TestContextOwner {
                     overrides: {
                         nonce: nonce + (ethIsBaseToken ? 0 : 1), // if eth is base token the approve tx does not happen
                         gasPrice
-                    }
+                    },
+                    // specify gas limit manually, until EVM-554 is fixed
+                    l2GasLimit: 1000000
                 })
                 .then((tx) => {
                     const amount = ethers.utils.formatEther(l2ETHAmountToDeposit);
