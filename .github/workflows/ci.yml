@@ -108,7 +108,7 @@ jobs:
   build-core-images:
     name: Build core images
     needs: changed_files
-    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') && !contains(github.ref_name, 'kl-') }}
     uses: ./.github/workflows/build-core-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
@@ -120,7 +120,7 @@ jobs:
   build-prover-images:
     name: Build prover images
     needs: changed_files
-    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') && !contains(github.ref_name, 'kl-') }}
     uses: ./.github/workflows/build-prover-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
