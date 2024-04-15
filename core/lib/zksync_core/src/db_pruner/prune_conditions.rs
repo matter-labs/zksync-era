@@ -105,3 +105,25 @@ impl PruneCondition for L1BatchExistsCondition {
         Ok(l1_batch_header.is_some())
     }
 }
+
+pub struct ConsistencyCheckerProcessedBatch {
+    pub conn: ConnectionPool<Core>,
+}
+
+impl Debug for ConsistencyCheckerProcessedBatch {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "l1 batch was processed by consistency checker")
+    }
+}
+
+#[async_trait]
+impl PruneCondition for ConsistencyCheckerProcessedBatch {
+    async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
+        let mut storage = self.conn.connection().await?;
+        let last_processed_l1_batch = storage
+            .blocks_dal()
+            .get_consistency_checker_last_processed_l1_batch()
+            .await?;
+        Ok(l1_batch_number <= last_processed_l1_batch)
+    }
+}

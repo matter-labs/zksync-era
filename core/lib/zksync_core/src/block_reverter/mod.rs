@@ -3,7 +3,7 @@ use std::{path::Path, time::Duration};
 use bitflags::bitflags;
 use serde::Serialize;
 use tokio::time::sleep;
-use zksync_config::{ContractsConfig, ETHConfig};
+use zksync_config::{ContractsConfig, EthConfig};
 use zksync_contracts::zksync_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
@@ -54,7 +54,7 @@ pub struct BlockReverterEthConfig {
 
 impl BlockReverterEthConfig {
     pub fn new(
-        eth_config: ETHConfig,
+        eth_config: EthConfig,
         contract: ContractsConfig,
         reverter_address: Option<Address>,
     ) -> Self {

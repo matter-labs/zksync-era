@@ -8,6 +8,7 @@ use tokio::{
     sync::{watch, RwLock},
     task::{self, JoinHandle},
 };
+use zksync_commitment_generator::CommitmentGenerator;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{
     api::MerkleTreeApiConfig, chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode,
@@ -21,13 +22,13 @@ use zksync_core::{
         web3::{mempool_cache::MempoolCache, ApiBuilder, Namespace},
     },
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole},
-    commitment_generator::CommitmentGenerator,
     consensus,
     consistency_checker::ConsistencyChecker,
     db_pruner::{
         prune_conditions::{
-            L1BatchExistsCondition, L1BatchOlderThanPruneCondition,
-            NextL1BatchHasMetadataCondition, NextL1BatchWasExecutedCondition,
+            ConsistencyCheckerProcessedBatch, L1BatchExistsCondition,
+            L1BatchOlderThanPruneCondition, NextL1BatchHasMetadataCondition,
+            NextL1BatchWasExecutedCondition,
         },
         DbPruner, DbPrunerConfig,
     },
@@ -288,6 +289,9 @@ async fn run_core(
                     minimal_age: l1_batch_age_to_prune,
                     conn: connection_pool.clone(),
                 }),
+                Arc::new(ConsistencyCheckerProcessedBatch {
+                    conn: connection_pool.clone(),
+                }),
             ],
         )?;
         task_handles.push(tokio::spawn(
@@ -404,7 +408,7 @@ async fn run_api(
     sync_state: SyncState,
     tree_reader: Option<Arc<dyn TreeApiClient>>,
     main_node_client: L2Client,
-    singleton_pool_builder: ConnectionPoolBuilder<Core>,
+    singleton_pool_builder: &ConnectionPoolBuilder<Core>,
     fee_params_fetcher: Arc<MainNodeFeeParamsFetcher>,
     components: &HashSet<Component>,
 ) -> anyhow::Result<()> {
@@ -561,9 +565,11 @@ async fn run_api(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn init_tasks(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
+    singleton_pool_builder: ConnectionPoolBuilder<Core>,
     main_node_client: L2Client,
     task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
@@ -573,7 +579,6 @@ async fn init_tasks(
     let protocol_version_update_task =
         EN_METRICS.run_protocol_version_updates(connection_pool.clone(), stop_receiver.clone());
     task_handles.push(tokio::spawn(protocol_version_update_task));
-    let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
 
     // Run the components.
     let tree_pool = singleton_pool_builder
@@ -653,7 +658,7 @@ async fn init_tasks(
             sync_state,
             tree_reader,
             main_node_client,
-            singleton_pool_builder,
+            &singleton_pool_builder,
             fee_params_fetcher.clone(),
             components,
         )
@@ -800,6 +805,7 @@ async fn main() -> anyhow::Result<()> {
     RUST_METRICS.initialize();
     EN_METRICS.observe_config(&config);
 
+    let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
     let connection_pool = ConnectionPool::<Core>::builder(
         &config.postgres.database_url,
         config.postgres.max_connections,
@@ -839,7 +845,7 @@ async fn main() -> anyhow::Result<()> {
         app_health.clone(),
     );
     // Start scraping Postgres metrics before store initialization as well.
-    let pool_for_metrics = connection_pool.clone();
+    let pool_for_metrics = singleton_pool_builder.build().await?;
     let mut stop_receiver_for_metrics = stop_receiver.clone();
     let metrics_task = tokio::spawn(async move {
         tokio::select! {
@@ -926,8 +932,9 @@ async fn main() -> anyhow::Result<()> {
 
     init_tasks(
         &config,
-        connection_pool.clone(),
-        main_node_client.clone(),
+        connection_pool,
+        singleton_pool_builder,
+        main_node_client,
         &mut task_handles,
         &app_health,
         stop_receiver.clone(),
