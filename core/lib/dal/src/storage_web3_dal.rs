@@ -127,12 +127,12 @@ impl StorageWeb3Dal<'_, '_> {
         })
     }
 
-    /// Provides information about the L1 batch that the specified miniblock is a part of.
-    /// Assumes that the miniblock is present in the DB; this is not checked, and if this is false,
+    /// Provides information about the L1 batch that the specified L2 block is a part of.
+    /// Assumes that the L2 block is present in the DB; this is not checked, and if this is false,
     /// the returned value will be meaningless.
-    pub async fn resolve_l1_batch_number_of_miniblock(
+    pub async fn resolve_l1_batch_number_of_l2_block(
         &mut self,
-        miniblock_number: L2BlockNumber,
+        l2_block_number: L2BlockNumber,
     ) -> DalResult<ResolvedL1BatchForL2Block> {
         let row = sqlx::query!(
             r#"
@@ -161,15 +161,15 @@ impl StorageWeb3Dal<'_, '_> {
                     0
                 ) AS "pending_batch!"
             "#,
-            i64::from(miniblock_number.0)
+            i64::from(l2_block_number.0)
         )
-        .instrument("resolve_l1_batch_number_of_miniblock")
-        .with_arg("miniblock_number", &miniblock_number)
+        .instrument("resolve_l1_batch_number_of_l2_block")
+        .with_arg("l2_block_number", &l2_block_number)
         .fetch_one(self.storage)
         .await?;
 
         Ok(ResolvedL1BatchForL2Block {
-            miniblock_l1_batch: row.block_batch.map(|n| L1BatchNumber(n as u32)),
+            block_l1_batch: row.block_batch.map(|n| L1BatchNumber(n as u32)),
             pending_l1_batch: L1BatchNumber(row.pending_batch as u32),
         })
     }
@@ -243,7 +243,7 @@ impl StorageWeb3Dal<'_, '_> {
         Ok(row.map(|row| row.bytecode))
     }
 
-    /// Given bytecode hash, returns `bytecode` and `miniblock_number` at which it was inserted.
+    /// Given bytecode hash, returns bytecode and L2 block number at which it was inserted.
     pub async fn get_factory_dep(
         &mut self,
         hash: H256,
@@ -280,7 +280,7 @@ mod tests {
     };
 
     #[tokio::test]
-    async fn resolving_l1_batch_number_of_miniblock() {
+    async fn resolving_l1_batch_number_of_l2_block() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
@@ -306,18 +306,18 @@ mod tests {
             .await
             .unwrap();
 
-        let first_miniblock = create_l2_block_header(1);
+        let first_l2_block = create_l2_block_header(1);
         conn.blocks_dal()
-            .insert_l2_block(&first_miniblock)
+            .insert_l2_block(&first_l2_block)
             .await
             .unwrap();
 
         let resolved = conn
             .storage_web3_dal()
-            .resolve_l1_batch_number_of_miniblock(L2BlockNumber(0))
+            .resolve_l1_batch_number_of_l2_block(L2BlockNumber(0))
             .await
             .unwrap();
-        assert_eq!(resolved.miniblock_l1_batch, Some(L1BatchNumber(0)));
+        assert_eq!(resolved.block_l1_batch, Some(L1BatchNumber(0)));
         assert_eq!(resolved.pending_l1_batch, L1BatchNumber(1));
         assert_eq!(resolved.expected_l1_batch(), L1BatchNumber(0));
 
@@ -328,13 +328,13 @@ mod tests {
             .unwrap();
         assert_eq!(timestamp, Some(0));
 
-        for pending_miniblock_number in [1, 2] {
+        for pending_l2_block_number in [1, 2] {
             let resolved = conn
                 .storage_web3_dal()
-                .resolve_l1_batch_number_of_miniblock(L2BlockNumber(pending_miniblock_number))
+                .resolve_l1_batch_number_of_l2_block(L2BlockNumber(pending_l2_block_number))
                 .await
                 .unwrap();
-            assert_eq!(resolved.miniblock_l1_batch, None);
+            assert_eq!(resolved.block_l1_batch, None);
             assert_eq!(resolved.pending_l1_batch, L1BatchNumber(1));
             assert_eq!(resolved.expected_l1_batch(), L1BatchNumber(1));
 
@@ -343,12 +343,12 @@ mod tests {
                 .get_expected_l1_batch_timestamp(&resolved)
                 .await
                 .unwrap();
-            assert_eq!(timestamp, Some(first_miniblock.timestamp));
+            assert_eq!(timestamp, Some(first_l2_block.timestamp));
         }
     }
 
     #[tokio::test]
-    async fn resolving_l1_batch_number_of_miniblock_with_snapshot_recovery() {
+    async fn resolving_l1_batch_number_of_l2_block_with_snapshot_recovery() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
@@ -361,18 +361,18 @@ mod tests {
             .await
             .unwrap();
 
-        let first_miniblock = create_l2_block_header(snapshot_recovery.miniblock_number.0 + 1);
+        let first_l2_block = create_l2_block_header(snapshot_recovery.miniblock_number.0 + 1);
         conn.blocks_dal()
-            .insert_l2_block(&first_miniblock)
+            .insert_l2_block(&first_l2_block)
             .await
             .unwrap();
 
         let resolved = conn
             .storage_web3_dal()
-            .resolve_l1_batch_number_of_miniblock(snapshot_recovery.miniblock_number + 1)
+            .resolve_l1_batch_number_of_l2_block(snapshot_recovery.miniblock_number + 1)
             .await
             .unwrap();
-        assert_eq!(resolved.miniblock_l1_batch, None);
+        assert_eq!(resolved.block_l1_batch, None);
         assert_eq!(
             resolved.pending_l1_batch,
             snapshot_recovery.l1_batch_number + 1
@@ -387,7 +387,7 @@ mod tests {
             .get_expected_l1_batch_timestamp(&resolved)
             .await
             .unwrap();
-        assert_eq!(timestamp, Some(first_miniblock.timestamp));
+        assert_eq!(timestamp, Some(first_l2_block.timestamp));
 
         let l1_batch_header = L1BatchHeader::new(
             snapshot_recovery.l1_batch_number + 1,
@@ -406,10 +406,10 @@ mod tests {
 
         let resolved = conn
             .storage_web3_dal()
-            .resolve_l1_batch_number_of_miniblock(snapshot_recovery.miniblock_number + 1)
+            .resolve_l1_batch_number_of_l2_block(snapshot_recovery.miniblock_number + 1)
             .await
             .unwrap();
-        assert_eq!(resolved.miniblock_l1_batch, Some(l1_batch_header.number));
+        assert_eq!(resolved.block_l1_batch, Some(l1_batch_header.number));
         assert_eq!(resolved.pending_l1_batch, l1_batch_header.number + 1);
         assert_eq!(resolved.expected_l1_batch(), l1_batch_header.number);
 
@@ -418,6 +418,6 @@ mod tests {
             .get_expected_l1_batch_timestamp(&resolved)
             .await
             .unwrap();
-        assert_eq!(timestamp, Some(first_miniblock.timestamp));
+        assert_eq!(timestamp, Some(first_l2_block.timestamp));
     }
 }

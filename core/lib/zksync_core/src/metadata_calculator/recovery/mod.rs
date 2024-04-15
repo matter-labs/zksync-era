@@ -282,7 +282,7 @@ impl AsyncTreeRecovery {
             RECOVERY_METRICS.latency[&RecoveryStage::LoadChunkStarts].start();
         let chunk_starts = storage
             .storage_logs_dal()
-            .get_chunk_starts_for_miniblock(snapshot_miniblock, key_chunks)
+            .get_chunk_starts_for_l2_block(snapshot_miniblock, key_chunks)
             .await?;
         let chunk_starts_latency = chunk_starts_latency.observe();
         tracing::debug!(
@@ -336,7 +336,7 @@ impl AsyncTreeRecovery {
             RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::LoadEntries].start();
         let all_entries = storage
             .storage_logs_dal()
-            .get_tree_entries_for_miniblock(snapshot_miniblock, key_chunk.clone())
+            .get_tree_entries_for_l2_block(snapshot_miniblock, key_chunk.clone())
             .await?;
         drop(storage);
         let entries_latency = entries_latency.observe();

@@ -360,7 +360,7 @@ impl BlockArgs {
 
         let l1_batch = connection
             .storage_web3_dal()
-            .resolve_l1_batch_number_of_miniblock(resolved_block_number)
+            .resolve_l1_batch_number_of_l2_block(resolved_block_number)
             .await
             .with_context(|| {
                 format!("failed resolving L1 batch number of miniblock #{resolved_block_number}")

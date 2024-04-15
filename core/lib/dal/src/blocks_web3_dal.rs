@@ -279,7 +279,7 @@ impl BlocksWeb3Dal<'_, '_> {
         &mut self,
         l1_batch_number: &ResolvedL1BatchForL2Block,
     ) -> DalResult<Option<u64>> {
-        if let Some(l1_batch) = l1_batch_number.miniblock_l1_batch {
+        if let Some(l1_batch) = l1_batch_number.block_l1_batch {
             Ok(sqlx::query!(
                 r#"
                 SELECT

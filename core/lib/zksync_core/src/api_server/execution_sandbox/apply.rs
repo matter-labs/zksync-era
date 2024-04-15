@@ -451,7 +451,7 @@ impl BlockArgs {
         } else {
             vm_l1_batch_number = connection
                 .storage_web3_dal()
-                .resolve_l1_batch_number_of_miniblock(self.resolved_block_number)
+                .resolve_l1_batch_number_of_l2_block(self.resolved_block_number)
                 .await
                 .context("failed resolving L1 batch for miniblock")?
                 .expected_l1_batch();

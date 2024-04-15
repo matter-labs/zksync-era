@@ -251,7 +251,7 @@ impl EventsDal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> DalResult<Vec<H256>> {
-        let Some((from_miniblock, to_miniblock)) = self
+        let Some((from_l2_block, to_l2_block)) = self
             .storage
             .blocks_dal()
             .get_l2_block_range_of_l1_batch(l1_batch_number)
@@ -274,14 +274,14 @@ impl EventsDal<'_, '_> {
                 miniblock_number,
                 event_index_in_block
             "#,
-            i64::from(from_miniblock.0),
-            i64::from(to_miniblock.0),
+            i64::from(from_l2_block.0),
+            i64::from(to_l2_block.0),
             L1_MESSENGER_ADDRESS.as_bytes(),
             L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE.as_bytes()
         )
         .instrument("get_l1_batch_raw_published_bytecode_hashes")
-        .with_arg("from_miniblock", &from_miniblock)
-        .with_arg("to_miniblock", &to_miniblock)
+        .with_arg("from_l2_block", &from_l2_block)
+        .with_arg("to_l2_block", &to_l2_block)
         .fetch_all(self.storage)
         .await?
         .into_iter()
@@ -346,7 +346,7 @@ impl EventsDal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> DalResult<Option<Vec<VmEvent>>> {
-        let Some((from_miniblock, to_miniblock)) = self
+        let Some((from_l2_block, to_l2_block)) = self
             .storage
             .blocks_dal()
             .get_l2_block_range_of_l1_batch(l1_batch_number)
@@ -374,8 +374,8 @@ impl EventsDal<'_, '_> {
                 miniblock_number ASC,
                 event_index_in_block ASC
             "#,
-            i64::from(from_miniblock.0),
-            i64::from(to_miniblock.0),
+            i64::from(from_l2_block.0),
+            i64::from(to_l2_block.0),
         )
         .instrument("get_vm_events_for_l1_batch")
         .with_arg("l1_batch_number", &l1_batch_number)

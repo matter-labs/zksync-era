@@ -191,7 +191,7 @@ impl RocksdbStorage {
             .collect();
         let chunk_starts = storage
             .storage_logs_dal()
-            .get_chunk_starts_for_miniblock(snapshot_miniblock, &key_chunks)
+            .get_chunk_starts_for_l2_block(snapshot_miniblock, &key_chunks)
             .await?;
         let latency = latency.observe();
         tracing::info!("Loaded {chunk_count} chunk starts in {latency:?}");
@@ -224,7 +224,7 @@ impl RocksdbStorage {
         let latency = RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::LoadEntries].start();
         let all_entries = storage
             .storage_logs_dal()
-            .get_tree_entries_for_miniblock(snapshot_miniblock, key_chunk.clone())
+            .get_tree_entries_for_l2_block(snapshot_miniblock, key_chunk.clone())
             .await?;
         let latency = latency.observe();
         tracing::debug!(

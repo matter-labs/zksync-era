@@ -472,20 +472,20 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
     }
 }
 
-/// Information about L1 batch which a certain miniblock belongs to.
+/// Information about L1 batch which a certain L2 block belongs to.
 #[derive(Debug)]
 pub struct ResolvedL1BatchForL2Block {
-    /// L1 batch which the miniblock belongs to. `None` if the miniblock is not explicitly attached
+    /// L1 batch which the L2 block belongs to. `None` if the L2 block is not explicitly attached
     /// (i.e., its L1 batch is not sealed).
-    pub miniblock_l1_batch: Option<L1BatchNumber>,
+    pub block_l1_batch: Option<L1BatchNumber>,
     /// Pending (i.e., unsealed) L1 batch.
     pub pending_l1_batch: L1BatchNumber,
 }
 
 impl ResolvedL1BatchForL2Block {
-    /// Returns the L1 batch number that the miniblock has now or will have in the future (provided
+    /// Returns the L1 batch number that the L2 block has now or will have in the future (provided
     /// that the node will operate correctly).
     pub fn expected_l1_batch(&self) -> L1BatchNumber {
-        self.miniblock_l1_batch.unwrap_or(self.pending_l1_batch)
+        self.block_l1_batch.unwrap_or(self.pending_l1_batch)
     }
 }

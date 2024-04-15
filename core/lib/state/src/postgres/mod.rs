@@ -192,7 +192,7 @@ impl ValuesCache {
             let miniblocks = (from_miniblock + 1)..=to_miniblock;
             let modified_keys = connection
                 .storage_logs_dal()
-                .modified_keys_in_miniblocks(miniblocks.clone())
+                .modified_keys_in_l2_blocks(miniblocks.clone())
                 .await?;
 
             let elapsed = update_latency.observe();
@@ -438,7 +438,7 @@ impl<'a> PostgresStorage<'a> {
     ) -> anyhow::Result<PostgresStorage<'a>> {
         let resolved = connection
             .storage_web3_dal()
-            .resolve_l1_batch_number_of_miniblock(block_number)
+            .resolve_l1_batch_number_of_l2_block(block_number)
             .await
             .with_context(|| {
                 format!("failed resolving L1 batch number for miniblock #{block_number}")

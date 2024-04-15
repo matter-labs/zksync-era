@@ -17,7 +17,7 @@ pub struct DbStorageLog {
     pub value: H256,
     pub operation_number: u64,
     pub tx_hash: H256,
-    pub miniblock_number: L2BlockNumber,
+    pub l2_block_number: L2BlockNumber,
 }
 
 // We don't want to rely on the Merkle tree crate to import a single type, so we duplicate `TreeEntry` here.

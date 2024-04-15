@@ -86,7 +86,7 @@ async fn snapshots_creator_can_successfully_recover_db(
         assert_eq!(db_log.address, *expected_log.key.address());
         assert_eq!(db_log.key, *expected_log.key.key());
         assert_eq!(db_log.value, expected_log.value);
-        assert_eq!(db_log.miniblock_number, expected_status.miniblock_number);
+        assert_eq!(db_log.l2_block_number, expected_status.miniblock_number);
     }
 
     // Try recovering again.
