@@ -23,5 +23,5 @@ pub fn read_contract_toml() -> anyhow::Result<Document> {
 }
 
 pub fn get_contract_toml_path() -> PathBuf {
-    workspace_dir_or_current_dir().join("etc/env/base/contracts.toml")
+    workspace_dir_or_current_dir().join("../etc/env/base/contracts.toml")
 }

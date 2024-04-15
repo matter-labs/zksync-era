@@ -45,7 +45,7 @@ pub struct Keystore {
 }
 
 fn get_base_path_from_env() -> PathBuf {
-    workspace_dir_or_current_dir().join("/prover/vk_setup_data_generator_server_fri/data")
+    workspace_dir_or_current_dir().join("vk_setup_data_generator_server_fri/data")
 }
 
 impl Default for Keystore {
