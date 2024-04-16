@@ -28,11 +28,8 @@ use zksync_web3_decl::jsonrpsee::{
     MethodResponse,
 };
 
-use super::{
-    metadata::{MethodCall, MethodTracer},
-    RawParamsWithBorrow,
-};
-use crate::api_server::web3::metrics::API_METRICS;
+use super::metadata::{MethodCall, MethodTracer};
+use crate::api_server::web3::metrics::{ObservedRpcParams, API_METRICS};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "transport", rename_all = "snake_case")]
@@ -141,7 +138,7 @@ where
 {
     type Future = WithMethodCall<'a, S::Future>;
 
-    fn call(&self, mut request: Request<'a>) -> Self::Future {
+    fn call(&self, request: Request<'a>) -> Self::Future {
         // "Normalize" the method name by searching it in the set of all registered methods. This extends the lifetime
         // of the name to `'static` and maps unknown methods to "", so that method name metric labels don't have unlimited cardinality.
         let method_name = self
@@ -150,16 +147,8 @@ where
             .copied()
             .unwrap_or("");
 
-        let original_params = unsafe {
-            // SAFETY: as per `BorrowedRawParams` contract, `original_params` outlive `request.params`:
-            //
-            // - `request` is sent to `self.inner.call(_)` and lives at most as long as the returned `Future`
-            //   (i.e., `WithMethodCall.inner`)
-            // - `original_params` is a part of `call` and is thus dropped after `WithMethodCall.inner`
-            //   (fields in structs are dropped in the declaration order)
-            RawParamsWithBorrow::new(&mut request.params)
-        };
-        let call = self.method_tracer.new_call(method_name, original_params);
+        let observed_params = ObservedRpcParams::new(request.params.as_ref());
+        let call = self.method_tracer.new_call(method_name, observed_params);
         WithMethodCall::new(self.inner.call(request), call)
     }
 }
@@ -327,7 +316,7 @@ mod tests {
 
             WithMethodCall::new(
                 inner,
-                method_tracer.new_call("test", RawParamsWithBorrow(None)),
+                method_tracer.new_call("test", ObservedRpcParams::None),
             )
         });
 

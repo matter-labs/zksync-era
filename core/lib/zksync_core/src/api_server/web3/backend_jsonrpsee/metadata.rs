@@ -11,8 +11,7 @@ use zksync_web3_decl::{
 
 #[cfg(test)]
 use super::testonly::RecordedMethodCalls;
-use super::RawParamsWithBorrow;
-use crate::api_server::web3::metrics::API_METRICS;
+use crate::api_server::web3::metrics::{ObservedRpcParams, API_METRICS};
 
 /// Metadata assigned to a JSON-RPC method call.
 #[derive(Debug, Clone)]
@@ -92,11 +91,11 @@ impl MethodTracer {
     pub(super) fn new_call<'a>(
         self: &Arc<Self>,
         name: &'static str,
-        raw_params: RawParamsWithBorrow<'a>,
+        raw_params: ObservedRpcParams<'a>,
     ) -> MethodCall<'a> {
         MethodCall {
             tracer: self.clone(),
-            raw_params,
+            params: raw_params,
             meta: MethodMetadata::new(name),
             is_completed: false,
         }
@@ -127,15 +126,14 @@ impl MethodTracer {
 pub(super) struct MethodCall<'a> {
     tracer: Arc<MethodTracer>,
     meta: MethodMetadata,
-    raw_params: RawParamsWithBorrow<'a>,
+    params: ObservedRpcParams<'a>,
     is_completed: bool,
 }
 
 impl Drop for MethodCall<'_> {
     fn drop(&mut self) {
         if !self.is_completed {
-            let raw_params = self.raw_params.get().unwrap_or("[]");
-            API_METRICS.observe_dropped_call(&self.meta, raw_params);
+            API_METRICS.observe_dropped_call(&self.meta, &self.params);
         }
     }
 }
@@ -155,21 +153,21 @@ impl MethodCall<'_> {
     pub(super) fn observe_response(&mut self, response: &MethodResponse) {
         self.is_completed = true;
         let meta = &self.meta;
-        let raw_params = self.raw_params.get().unwrap_or("[]");
+        let params = &self.params;
         match response.success_or_error {
             MethodResponseResult::Success => {
-                API_METRICS.observe_response_size(meta.name, raw_params, response.result.len());
+                API_METRICS.observe_response_size(meta.name, params, response.result.len());
             }
             MethodResponseResult::Failed(error_code) => {
                 API_METRICS.observe_protocol_error(
                     meta.name,
-                    raw_params,
+                    params,
                     error_code,
                     meta.has_app_error,
                 );
             }
         }
-        API_METRICS.observe_latency(meta, raw_params);
+        API_METRICS.observe_latency(meta, params);
         #[cfg(test)]
         self.tracer.recorder.observe_response(meta, response);
     }

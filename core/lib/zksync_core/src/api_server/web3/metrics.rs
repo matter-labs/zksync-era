@@ -1,6 +1,7 @@
 //! Metrics for the JSON-RPC server.
 
 use std::{
+    borrow::Cow,
     cell::Cell,
     fmt, thread,
     time::{Duration, Instant},
@@ -54,6 +55,65 @@ macro_rules! report_filter {
             last_timestamp: &LAST_TIMESTAMP,
         }
     }};
+}
+
+/// Observed version of RPC parameters. Have a bounded upper-limit size (256 bytes), so that we don't over-allocate.
+#[derive(Debug)]
+pub(super) enum ObservedRpcParams<'a> {
+    None,
+    Borrowed(&'a serde_json::value::RawValue),
+    Owned { start: Box<str>, total_len: usize },
+}
+
+// FIXME: test
+impl fmt::Display for ObservedRpcParams<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let (start, total_len) = match self {
+            Self::None => return formatter.write_str("[]"),
+            Self::Borrowed(params) => (Self::maybe_shorten(params), params.get().len()),
+            Self::Owned { start, total_len } => (start.as_ref(), *total_len),
+        };
+
+        if total_len == start.len() {
+            formatter.write_str(start)
+        } else {
+            let skipped_bytes = total_len - start.len();
+            // Since params is a JSON array, we add a closing ']' at the end
+            write!(formatter, "{start} ...({skipped_bytes} bytes skipped)]")
+        }
+    }
+}
+
+impl<'a> ObservedRpcParams<'a> {
+    const MAX_LEN: usize = 256;
+
+    fn maybe_shorten(raw_value: &serde_json::value::RawValue) -> &str {
+        let raw_str = raw_value.get();
+        if raw_str.len() <= Self::MAX_LEN {
+            raw_str
+        } else {
+            // Truncate `params_str` to be no longer than `MAX_LEN`.
+            let mut pos = Self::MAX_LEN;
+            while !raw_str.is_char_boundary(pos) {
+                pos -= 1; // Shouldn't underflow; the char boundary is at most 3 bytes away
+            }
+            &raw_str[..pos]
+        }
+    }
+
+    pub fn new(raw: Option<&Cow<'a, serde_json::value::RawValue>>) -> Self {
+        match raw {
+            None => Self::None,
+            // In practice, `jsonrpsee` never returns `Some(Cow::Borrowed(_))` because of a `serde` / `serde_json` flaw (?)
+            // when deserializing `Cow<'_, RawValue`: https://github.com/serde-rs/json/issues/1076. Thus, each `new()` call
+            // in which params are actually specified will allocate, but this allocation is quite small.
+            Some(Cow::Borrowed(params)) => Self::Borrowed(params),
+            Some(Cow::Owned(params)) => Self::Owned {
+                start: Self::maybe_shorten(params).into(),
+                total_len: params.get().len(),
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
@@ -273,7 +333,11 @@ impl ApiMetrics {
     }
 
     /// Observes latency of a finished RPC call.
-    pub fn observe_latency(&self, meta: &MethodMetadata, raw_params: &str) {
+    pub(super) fn observe_latency(
+        &self,
+        meta: &MethodMetadata,
+        raw_params: &ObservedRpcParams<'_>,
+    ) {
         static FILTER: ReportFilter = report_filter!(Duration::from_secs(1));
         const MIN_REPORTED_LATENCY: Duration = Duration::from_secs(5);
 
@@ -291,7 +355,11 @@ impl ApiMetrics {
     }
 
     /// Observes latency of a dropped RPC call.
-    pub fn observe_dropped_call(&self, meta: &MethodMetadata, raw_params: &str) {
+    pub(super) fn observe_dropped_call(
+        &self,
+        meta: &MethodMetadata,
+        raw_params: &ObservedRpcParams<'_>,
+    ) {
         static FILTER: ReportFilter = report_filter!(Duration::from_secs(1));
 
         let latency = meta.started_at.elapsed();
@@ -305,9 +373,14 @@ impl ApiMetrics {
     }
 
     /// Observes serialized size of a response.
-    pub fn observe_response_size(&self, method: &'static str, raw_params: &str, size: usize) {
+    pub(super) fn observe_response_size(
+        &self,
+        method: &'static str,
+        raw_params: &ObservedRpcParams<'_>,
+        size: usize,
+    ) {
         static FILTER: ReportFilter = report_filter!(Duration::from_secs(1));
-        const MIN_REPORTED_SIZE: usize = 10 * 1_024 * 1_024; // 10 MiB
+        const MIN_REPORTED_SIZE: usize = 4 * 1_024 * 1_024; // 4 MiB
 
         self.web3_call_response_size[&method].observe(size);
         if size >= MIN_REPORTED_SIZE && FILTER.should_report() {
@@ -317,10 +390,10 @@ impl ApiMetrics {
         }
     }
 
-    pub fn observe_protocol_error(
+    pub(super) fn observe_protocol_error(
         &self,
         method: &'static str,
-        raw_params: &str,
+        raw_params: &ObservedRpcParams<'_>,
         error_code: i32,
         has_app_error: bool,
     ) {
@@ -347,7 +420,7 @@ impl ApiMetrics {
         }
     }
 
-    pub fn observe_web3_error(&self, method: &'static str, err: &Web3Error) {
+    pub(super) fn observe_web3_error(&self, method: &'static str, err: &Web3Error) {
         // Log internal error details.
         match err {
             Web3Error::InternalError(err) => {
