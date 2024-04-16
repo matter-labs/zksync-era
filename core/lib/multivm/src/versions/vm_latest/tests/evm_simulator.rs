@@ -29,11 +29,10 @@ use zksync_types::{
 use zksync_utils::{
     address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256,
 };
-use super::super::super::super::interface::ExecutionResult; //Check if there is a better way
 
 use super::tester::VmTester;
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmRevertReason},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     vm_boojum_integration::tracers::dispatcher,
     vm_latest::{
         tests::{
@@ -46,7 +45,7 @@ use crate::{
         },
         tracers::evm_debug_tracer::EvmDebugTracer,
         utils::{fee::get_batch_base_fee, hash_evm_bytecode},
-        HistoryEnabled, ToTracerPointer, TracerDispatcher, TracerPointer, VmExecutionResultAndLogs,
+        HistoryEnabled, ToTracerPointer, TracerDispatcher, TracerPointer,
     },
     vm_m5::storage::Storage,
     HistoryMode,
@@ -125,23 +124,6 @@ fn test_evm_vector(mut bytecode: Vec<u8>) -> U256 {
     let tracer_ptr = debug_tracer.into_tracer_pointer();
     let tx_result: crate::vm_latest::VmExecutionResultAndLogs =
         vm.vm.inspect(tracer_ptr.into(), VmExecutionMode::OneTx);
-
-    let result: Vec<u8> = match &tx_result.result {
-        ExecutionResult::Success{output} => output.clone(),
-        ExecutionResult::Revert{output} => vec![],
-        ExecutionResult::Halt{reason} => vec![]
-    };
-
-    println!("Result: {:#?}",result);
-
-    let revert: VmRevertReason = match &tx_result.result {
-        ExecutionResult::Success{output} => return U256::MAX,
-        ExecutionResult::Revert{output} => output.clone(),
-        ExecutionResult::Halt{reason} => return U256::MAX
-    };
-
-    println!("Result: {:#?}",result);
-    println!("Revert: {:#?}", revert);
 
     assert!(
         !tx_result.result.is_failed(),
