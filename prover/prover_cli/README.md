@@ -1,9 +1,9 @@
 # CLI to better understand and debug provers
 
 ## Usage
-> Note: 
-> For now, its necesary to use the 'zk f' tool to set up the environment.
-> The main command will later be changed to `pli`.
+
+> Note: For now, its necesary to use the 'zk f' tool to set up the environment. The main command will later be changed
+> to `pli`.
 
 ```bash
 Usage: zk f cargo run --release -- <COMMAND>
@@ -17,6 +17,7 @@ Options:
   -h, --help     Print help
   -V, --version  Print version
 ```
+
 ### Status-jobs
 
 You can get the progress for some batch proof, for a bunch of batches the `status-jobs` command:
