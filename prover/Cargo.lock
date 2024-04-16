@@ -4348,6 +4348,7 @@ dependencies = [
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",
+ "zksync_dal",
  "zksync_db_connection",
  "zksync_env_config",
  "zksync_eth_client",

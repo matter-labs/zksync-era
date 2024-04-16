@@ -1,52 +1,68 @@
-use zksync_config::{ContractsConfig, EthConfig};
+use anyhow::Context as _;
+use zksync_basic_types::L1BatchNumber;
+use zksync_config::{ContractsConfig, EthConfig, PostgresConfig};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_eth_client::{clients::QueryClient, CallFunctionArgs, EthInterface};
 
-async fn call_contract_function(
-    query_client: &QueryClient,
-    contract_name: &str,
-    function_name: &str,
-) -> Result<Uint256, Error> {
-    let args: ContractCall = CallFunctionArgs::new(function_name, ())
-        .for_contract(contracts_config.diamond_proxy_addr, contract_name.into());
-    query_client.call_contract_function(args).await
-}
+// fn pretty_print_l1_status(
+//     total_batches_committed: Vec<Token>,
+//     total_batches_verified: Vec<Token>,
+//     first_state_keeper_l1_batch: L1BatchNumber,
+//     last_state_keeper_l1_batch: L1BatchNumber
+// ) {
+//     println!("HOLIS");
+// }
 
 pub(crate) async fn run() -> anyhow::Result<()> {
     let contracts_config = ContractsConfig::from_env()?;
     let eth_config = EthConfig::from_env()?;
     let query_client = QueryClient::new(&eth_config.web3_url).unwrap();
 
-    let total_batches_committed = call_contract_function(
-        &query_client,
-        zksync_contracts::zksync_contract(),
-        "getTotalBatchesCommitted",
+    let args_for_total_batches_committed: zksync_eth_client::ContractCall =
+        CallFunctionArgs::new("getTotalBatchesCommitted", ()).for_contract(
+            contracts_config.diamond_proxy_addr,
+            zksync_contracts::zksync_contract(),
+        );
+    let total_batches_committed = query_client
+        .call_contract_function(args_for_total_batches_committed)
+        .await?;
+
+    let args_for_total_batches_verified: zksync_eth_client::ContractCall =
+        CallFunctionArgs::new("getTotalBatchesVerified", ()).for_contract(
+            contracts_config.diamond_proxy_addr,
+            zksync_contracts::zksync_contract(),
+        );
+    let total_batches_verified = query_client
+        .call_contract_function(args_for_total_batches_verified)
+        .await?;
+
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
+
+    let connection_pool = ConnectionPool::<Core>::builder(
+        postgres_config.replica_url()?,
+        postgres_config.max_connections()?,
     )
+    .build()
     .await?;
 
-    let total_batches_verified = call_contract_function(
-        &query_client,
-        zksync_contracts::zksync_contract(),
-        "getTotalBatchesVerified",
-    )
-    .await?;
+    let mut conn = connection_pool.connection().await?;
+
+    // Using unwrap() safely as there will always be at least one block.
+    let first_state_keeper_l1_batch = conn
+        .blocks_dal()
+        .get_earliest_l1_batch_number()
+        .await
+        .unwrap()
+        .unwrap();
+    let last_state_keeper_l1_batch = conn
+        .blocks_dal()
+        .get_sealed_l1_batch_number()
+        .await
+        .unwrap()
+        .unwrap();
+
+    // pretty_print_l1_status(total_batches_committed, total_batches_verified, first_state_keeper_l1_batch, last_state_keeper_l1_batch);
 
     Ok(())
 }
-
-// async function getL1ValidatorStatus(): Promise<[number, number]> {
-//     // Setup a provider
-//     let provider = new ethers.providers.JsonRpcProvider(process.env.ETH_CLIENT_WEB3_URL);
-
-//     // Create a contract instance
-//     let contract = new ethers.Contract(process.env.CONTRACTS_DIAMOND_PROXY_ADDR!, GETTER_ABI, provider);
-
-//     try {
-//         const blocksCommitted = await contract.getTotalBatchesCommitted();
-//         const blocksVerified = await contract.getTotalBatchesVerified();
-//         return [Number(blocksCommitted), Number(blocksVerified)];
-//     } catch (error) {
-//         console.error(`Error calling L1 contract: ${error}`);
-//         return [-1, -1];
-//     }
-// }
