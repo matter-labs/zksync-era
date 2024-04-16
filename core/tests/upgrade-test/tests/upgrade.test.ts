@@ -99,14 +99,13 @@ describe('Upgrade test', function () {
         const baseToken = await tester.syncWallet.provider.getBaseTokenContractAddress();
 
         if (!isAddressEq(baseToken, zkweb3.utils.ETH_ADDRESS_IN_CONTRACTS)) {
-            await (await alice.approveERC20(baseToken, ethers.constants.MaxUint256)).wait();
+            await (await tester.syncWallet.approveERC20(baseToken, ethers.constants.MaxUint256)).wait();
         }
 
         const firstDepositHandle = await tester.syncWallet.deposit({
             token: baseToken,
             amount: depositAmount,
-            to: alice.address,
-            approveBaseERC20: true
+            to: alice.address
         });
         await firstDepositHandle.wait();
         while ((await tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber) {
@@ -116,8 +115,7 @@ describe('Upgrade test', function () {
         const secondDepositHandle = await tester.syncWallet.deposit({
             token: baseToken,
             amount: depositAmount,
-            to: alice.address,
-            approveBaseERC20: true
+            to: alice.address
         });
         await secondDepositHandle.wait();
         while ((await tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber + 1) {
@@ -234,7 +232,7 @@ describe('Upgrade test', function () {
 
         let lastBatchExecuted = await mainContract.getTotalBatchesExecuted();
         let tryCount = 0;
-        while (lastBatchExecuted < l1BatchNumber && tryCount < 30) {
+        while (lastBatchExecuted < l1BatchNumber && tryCount < 40) {
             lastBatchExecuted = await mainContract.getTotalBatchesExecuted();
             tryCount += 1;
             await utils.sleep(2);
