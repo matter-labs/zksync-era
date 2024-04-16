@@ -1,14 +1,59 @@
 # CLI to better understand and debug provers
 
-For now, it has only one command 'file-info'
+## Usage
+> Note: 
+> For now, its necesary to use the 'zk f' tool to set up the environment.
+> The main command will later be changed to `pli`.
 
+```bash
+Usage: zk f cargo run --release -- <COMMAND>
+
+Commands:
+  file-info
+  status-jobs
+  help       Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
 ```
+### Status-jobs
+
+You can get the progress for some batch proof, for a bunch of batches the `status-jobs` command:
+
+```bash
+# Displays the proof progress of the batch 1
+ zk f cargo run -- status-jobs --batch 1
+# Displays the proof progress of the batches 1 and 2
+ zk f cargo run -- status-jobs --batch 1 2
+# Displays the proof progress of the batch 3, with additional information
+ zk f cargo run -- status-jobs --batch 3 --verbose
+```
+
+Example:
+
+```bash
+$ zk f cargo run -- status-jobs --batch 1 --verbose
+
+Batch number: 1
+Progress: 34.88% (45/129)
+In progress: 1
+Queued: 83
+Successful: 45
+Failed: 0
+```
+
+### File-Info
+
+Displays the information about a given file:
+
+```bash
 cargo run -- file-info --file-path /zksync-era/prover/artifacts/proofs_fri/l1_batch_proof_1.bin
 ```
 
 Example outputs:
 
-```
+```bash
 L1 proof
 AUX info:
   L1 msg linear hash: [163, 243, 172, 16, 189, 59, 100, 227, 249, 46, 226, 220, 82, 135, 213, 208, 221, 228, 49, 46, 121, 136, 78, 163, 15, 155, 199, 82, 64, 24, 172, 198]
@@ -18,7 +63,7 @@ AUX info:
 Inputs: [Fr(0x00000000775db828700e0ebbe0384f8a017598a271dfb6c96ebb2baf22a7a572)]
 ```
 
-```
+```bash
  == Circuit ==
 Type: basic. Id: 1 (Scheduler)
 Geometry: CSGeometry { num_columns_under_copy_permutation: 130, num_witness_columns: 0, num_constant_columns: 4, max_allowed_constraint_degree: 8 }
