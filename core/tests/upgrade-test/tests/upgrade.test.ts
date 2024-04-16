@@ -88,6 +88,7 @@ describe('Upgrade test', function () {
         if (!mainContract) {
             throw new Error('Server did not start');
         }
+
         const stmAddr = await mainContract.getStateTransitionManager();
         const stmContract = new ethers.Contract(stmAddr, STATE_TRANSITON_MANAGER, tester.syncWallet.providerL1);
         const governanceAddr = await stmContract.owner();
@@ -100,6 +101,7 @@ describe('Upgrade test', function () {
 
         if (!isAddressEq(baseToken, zkweb3.utils.ETH_ADDRESS_IN_CONTRACTS)) {
             await (await tester.syncWallet.approveERC20(baseToken, ethers.constants.MaxUint256)).wait();
+            await mintToWallet(baseToken, tester.syncWallet, depositAmount.mul(10));
         }
 
         const firstDepositHandle = await tester.syncWallet.deposit({
@@ -459,4 +461,14 @@ async function prepareUpgradeCalldata(
         executeOperation,
         finalizeOperation
     };
+}
+
+async function mintToWallet(
+    baseTokenAddress: zkweb3.types.Address,
+    ethersWallet: ethers.Wallet,
+    amountToMint: ethers.BigNumber
+) {
+    const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
+    const l1Erc20Contract = new ethers.Contract(baseTokenAddress, l1Erc20ABI, ethersWallet);
+    await (await l1Erc20Contract.mint(ethersWallet.address, amountToMint)).wait();
 }
