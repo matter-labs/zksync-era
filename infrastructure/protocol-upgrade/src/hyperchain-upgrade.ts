@@ -113,6 +113,9 @@ command
     .option('--post-upgrade-calldata')
     .option('--phase2')
     .option('--phase3')
+    // .option('--get-diamond-upgrade-batch-number-for-eth-withdrawals')
+    // .option('--get-erc20-bridge-upgrade-batch-number-for-token-withdrawals')
+    // .option('--get-last-deposit-batch-number-for-failed-deposits')
     .action(async (options) => {
         if (options.phase1) {
             await hyperchainUpgrade1();
@@ -124,5 +127,18 @@ command
             await deploySharedBridgeL2Implementation();
         } else if (options.phase3) {
             await hyperchainUpgrade3();
+        } else if (options.getDiamondUpgradeBatchNumberForEthWithdrawals) {
+            // What we care about for withdrawals is the executed batch number, since we are storing isWithdrawalFinalized flag, for some valid executed txs.
+            // this is printed out as part of the phase 2 script for local testing
+            // for the mainnet upgrade we will have to manually check executedBatchNumber after the upgrade, since governance is signing the txs
+        } else if (options.getErc20BridgeUpgradeBatchNumberForTokenWithdrawals) {
+            // this is the first batchNumber after the L1ERC20Bridge has been upgraded
+            // What we care about for withdrawals is the executed batch number, since we are storing isWithdrawalFinalized flag, for some valid executed txs.
+            // this is printed out as part of the phase 2 script for local testing
+            // for the mainnet upgrade we will have to manually check the priority queue at the given block, since governance is signing the txs
+        } else if (options.getLastDepositBatchNumberForFailedDeposits) {
+            // this is the batch number that the last deposit is processed in ( this is tied to a tx, so commit vs executed is not relevant)
+            // we will print the priority tx queue id as part of phase 2 script for local testing, and we can use that to find the batch number
+            // for the mainnet upgrade we will have to manually check the priority queue at the given block, since governance is signing the txs
         }
     });
