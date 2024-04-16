@@ -4347,8 +4347,10 @@ dependencies = [
  "tracing-subscriber",
  "zksync_basic_types",
  "zksync_config",
+ "zksync_contracts",
  "zksync_db_connection",
  "zksync_env_config",
+ "zksync_eth_client",
  "zksync_prover_fri_types",
  "zksync_prover_interface",
  "zksync_types",
@@ -7692,6 +7694,40 @@ dependencies = [
  "serde",
  "zksync_basic_types",
  "zksync_config",
+]
+
+[[package]]
+name = "zksync_eth_client"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "jsonrpc-core",
+ "rlp",
+ "serde",
+ "thiserror",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_eth_signer",
+ "zksync_types",
+]
+
+[[package]]
+name = "zksync_eth_signer"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "hex",
+ "jsonrpc-core",
+ "reqwest",
+ "rlp",
+ "secp256k1",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "thiserror",
+ "zksync_types",
 ]
 
 [[package]]
