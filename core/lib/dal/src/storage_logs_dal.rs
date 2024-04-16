@@ -630,6 +630,9 @@ impl StorageLogsDal<'_, '_> {
                 miniblock_number
             FROM
                 storage_logs
+            ORDER BY
+                miniblock_number,
+                operation_number
             "#
         )
         .fetch_all(self.storage.conn())

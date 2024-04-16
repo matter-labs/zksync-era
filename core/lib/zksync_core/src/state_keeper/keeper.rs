@@ -1,6 +1,5 @@
 use std::{
     convert::Infallible,
-    future::Future,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -8,7 +7,6 @@ use std::{
 use anyhow::Context as _;
 use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use tokio::sync::watch;
-use zksync_dal::{ConnectionPool, Core};
 use zksync_types::{
     block::MiniblockExecutionData, l2::TransactionType, protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::ProtocolVersionId, storage_writes_deduplicator::StorageWritesDeduplicator,
@@ -18,10 +16,7 @@ use zksync_types::{
 use super::{
     batch_executor::{BatchExecutor, BatchExecutorHandle, TxExecutionResult},
     extractors,
-    io::{
-        fee_address_migration, IoCursor, MiniblockParams, OutputHandler, PendingBatchData,
-        StateKeeperIO,
-    },
+    io::{IoCursor, MiniblockParams, OutputHandler, PendingBatchData, StateKeeperIO},
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
     seal_criteria::{ConditionalSealer, SealData, SealResolution},
     types::ExecutionMetricsForCriteria,
@@ -83,21 +78,6 @@ impl ZkSyncStateKeeper {
             batch_executor_base,
             output_handler,
             sealer,
-        }
-    }
-
-    /// Temporary method to migrate fee addresses from L1 batches to miniblocks.
-    pub fn run_fee_address_migration(
-        &self,
-        pool: ConnectionPool<Core>,
-    ) -> impl Future<Output = anyhow::Result<()>> {
-        let mut stop_receiver = self.stop_receiver.clone();
-        async move {
-            fee_address_migration::migrate_miniblocks(pool, stop_receiver.clone()).await?;
-            // Since this is run as a task, we don't want it to exit on success (this would shut down the node).
-            // We still want for the task to be cancellation-aware, so we just wait until a stop signal is sent.
-            stop_receiver.changed().await.ok();
-            Ok(())
         }
     }
 

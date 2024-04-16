@@ -18,7 +18,6 @@ pub use self::{
 use super::seal_criteria::IoSealCriteria;
 
 pub(crate) mod common;
-pub(crate) mod fee_address_migration;
 pub(crate) mod mempool;
 mod output_handler;
 mod persistence;

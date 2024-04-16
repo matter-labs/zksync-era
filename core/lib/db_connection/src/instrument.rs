@@ -15,7 +15,7 @@ use std::{fmt, future::Future, panic::Location};
 
 use sqlx::{
     postgres::{PgCopyIn, PgQueryResult, PgRow},
-    query::{Map, Query, QueryAs},
+    query::{Map, Query, QueryAs, QueryScalar},
     FromRow, IntoArguments, PgConnection, Postgres,
 };
 use tokio::time::Instant;
@@ -82,6 +82,19 @@ where
 }
 
 impl<'q, O, A> InstrumentExt for QueryAs<'q, Postgres, O, A>
+where
+    A: 'q + IntoArguments<'q, Postgres>,
+{
+    #[track_caller]
+    fn instrument(self, name: &'static str) -> Instrumented<'static, Self> {
+        Instrumented {
+            query: self,
+            data: InstrumentedData::new(name, Location::caller()),
+        }
+    }
+}
+
+impl<'q, O, A> InstrumentExt for QueryScalar<'q, Postgres, O, A>
 where
     A: 'q + IntoArguments<'q, Postgres>,
 {
@@ -298,6 +311,18 @@ impl<'a> Instrumented<'a, ()> {
         .into()
     }
 
+    /// Wraps a provided application-level data constraint error.
+    pub fn constraint_error(&self, err: anyhow::Error) -> DalError {
+        let err = err.context("application-level data constraint violation");
+        DalRequestError::new(
+            sqlx::Error::Decode(err.into()),
+            self.data.name,
+            self.data.location,
+        )
+        .with_args(self.data.args.to_owned())
+        .into()
+    }
+
     pub fn with<Q>(self, query: Q) -> Instrumented<'a, Q> {
         Instrumented {
             query,
@@ -361,6 +386,28 @@ where
     ) -> DalResult<Vec<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_all(conn)).await
+    }
+}
+
+impl<'q, O, A> Instrumented<'_, QueryScalar<'q, Postgres, O, A>>
+where
+    A: 'q + IntoArguments<'q, Postgres>,
+    O: Send + Unpin,
+    (O,): for<'r> FromRow<'r, PgRow>,
+{
+    /// Fetches an optional row using this query.
+    pub async fn fetch_optional<DB: DbMarker>(
+        self,
+        storage: &mut Connection<'_, DB>,
+    ) -> DalResult<Option<O>> {
+        let (conn, tags) = storage.conn_and_tags();
+        self.data.fetch(tags, self.query.fetch_optional(conn)).await
+    }
+
+    /// Fetches a single row using this query.
+    pub async fn fetch_one<DB: DbMarker>(self, storage: &mut Connection<'_, DB>) -> DalResult<O> {
+        let (conn, tags) = storage.conn_and_tags();
+        self.data.fetch(tags, self.query.fetch_one(conn)).await
     }
 }
 

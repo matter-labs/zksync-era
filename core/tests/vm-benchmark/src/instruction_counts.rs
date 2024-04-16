@@ -1,9 +1,19 @@
 //! Runs all benchmarks and prints out the number of zkEVM opcodes each one executed.
 
+use std::path::Path;
+
 use vm_benchmark_harness::{cut_to_allowed_bytecode_size, get_deploy_tx, BenchmarkingVm};
 
 fn main() {
-    for path in std::fs::read_dir("deployment_benchmarks").unwrap() {
+    // using source file location because this is just a script, the binary isn't meant to be reused
+    let benchmark_folder = Path::new(file!())
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("deployment_benchmarks");
+
+    for path in std::fs::read_dir(benchmark_folder).unwrap() {
         let path = path.unwrap().path();
 
         let test_contract = std::fs::read(&path).expect("failed to read file");

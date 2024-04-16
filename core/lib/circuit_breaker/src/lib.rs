@@ -33,8 +33,8 @@ impl CircuitBreakers {
 pub enum CircuitBreakerError {
     #[error("System has failed L1 transaction")]
     FailedL1Transaction,
-    #[error("Replication lag ({0}) is above the threshold ({1})")]
-    ReplicationLag(u32, u32),
+    #[error("Replication lag ({lag:?}) is above the threshold ({threshold:?})")]
+    ReplicationLag { lag: Duration, threshold: Duration },
     #[error("Internal error running circuit breaker checks")]
     Internal(#[from] anyhow::Error),
 }

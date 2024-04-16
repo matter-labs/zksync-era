@@ -16,7 +16,7 @@ use multivm::{
     VmInstance,
 };
 use tokio::runtime::Handle;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_state::{PostgresStorage, ReadStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
@@ -386,7 +386,7 @@ impl StoredL2BlockInfo {
                 .blocks_web3_dal()
                 .get_miniblock_hash(miniblock_number)
                 .await
-                .with_context(|| format!("failed getting hash for miniblock #{miniblock_number}"))?
+                .map_err(DalError::generalize)?
                 .with_context(|| format!("miniblock #{miniblock_number} not present in storage"))?
         };
 

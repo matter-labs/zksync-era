@@ -1,6 +1,5 @@
-use clap::{command, Parser, Subcommand};
-
 use crate::commands::{get_file_info, jobs_status};
+use clap::{command, Parser, Subcommand};
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
@@ -23,5 +22,6 @@ pub async fn start() -> anyhow::Result<()> {
         ProverCommand::FileInfo(args) => get_file_info::run(args).await?,
         ProverCommand::StatusJobs(args) => jobs_status::run(args).await?,
     };
+
     Ok(())
 }

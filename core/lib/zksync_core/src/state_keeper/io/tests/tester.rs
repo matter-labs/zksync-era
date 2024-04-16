@@ -114,8 +114,6 @@ impl Tester {
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
         let config = StateKeeperConfig {
             minimal_l2_gas_price: self.minimal_l2_gas_price(),
-            virtual_blocks_interval: 1,
-            virtual_blocks_per_miniblock: 1,
             validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             ..StateKeeperConfig::for_tests()
         };
