@@ -65,7 +65,6 @@ pub(super) enum ObservedRpcParams<'a> {
     Owned { start: Box<str>, total_len: usize },
 }
 
-// FIXME: test
 impl fmt::Display for ObservedRpcParams<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (start, total_len) = match self {
@@ -77,9 +76,8 @@ impl fmt::Display for ObservedRpcParams<'_> {
         if total_len == start.len() {
             formatter.write_str(start)
         } else {
-            let skipped_bytes = total_len - start.len();
             // Since params is a JSON array, we add a closing ']' at the end
-            write!(formatter, "{start} ...({skipped_bytes} bytes skipped)]")
+            write!(formatter, "{start} ...({total_len} bytes)]")
         }
     }
 }
@@ -538,3 +536,54 @@ pub(super) struct MempoolCacheMetrics {
 
 #[vise::register]
 pub(super) static MEMPOOL_CACHE_METRICS: vise::Global<MempoolCacheMetrics> = vise::Global::new();
+
+#[cfg(test)]
+mod tests {
+    use assert_matches::assert_matches;
+    use serde_json::value::RawValue;
+
+    use super::*;
+
+    #[test]
+    fn observing_rpc_params() {
+        let rpc_params = ObservedRpcParams::new(None);
+        assert_matches!(rpc_params, ObservedRpcParams::None);
+        assert_eq!(rpc_params.to_string(), "[]");
+
+        let raw_params = RawValue::from_string(r#"["0x1"]"#.into()).unwrap();
+        let rpc_params = ObservedRpcParams::new(Some(&Cow::Borrowed(&raw_params)));
+        assert_matches!(rpc_params, ObservedRpcParams::Borrowed(_));
+        assert_eq!(rpc_params.to_string(), r#"["0x1"]"#);
+
+        let rpc_params = ObservedRpcParams::new(Some(&Cow::Owned(raw_params)));
+        assert_matches!(rpc_params, ObservedRpcParams::Owned { .. });
+        assert_eq!(rpc_params.to_string(), r#"["0x1"]"#);
+
+        let raw_params = [zksync_types::Bytes(vec![0xff; 512])];
+        let raw_params = serde_json::value::to_raw_value(&raw_params).unwrap();
+        assert_eq!(raw_params.get().len(), 1_030); // 1_024 'f' chars + '0x' + '[]' + '""'
+        let rpc_params = ObservedRpcParams::new(Some(&Cow::Borrowed(&raw_params)));
+        assert_matches!(rpc_params, ObservedRpcParams::Borrowed(_));
+        let rpc_params_str = rpc_params.to_string();
+        assert!(
+            rpc_params_str.starts_with(r#"["0xffff"#),
+            "{rpc_params_str}"
+        );
+        assert!(
+            rpc_params_str.ends_with("ff ...(1030 bytes)]"),
+            "{rpc_params_str}"
+        );
+
+        let rpc_params = ObservedRpcParams::new(Some(&Cow::Owned(raw_params)));
+        assert_matches!(rpc_params, ObservedRpcParams::Owned { .. });
+        let rpc_params_str = rpc_params.to_string();
+        assert!(
+            rpc_params_str.starts_with(r#"["0xffff"#),
+            "{rpc_params_str}"
+        );
+        assert!(
+            rpc_params_str.ends_with("ff ...(1030 bytes)]"),
+            "{rpc_params_str}"
+        );
+    }
+}
