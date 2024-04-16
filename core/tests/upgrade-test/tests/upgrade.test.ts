@@ -272,7 +272,7 @@ describe('Upgrade test', function () {
 
         // Run again.
         utils.background(
-            'cd $ZKSYNC_HOME && cargo run --bin zksync_server --release -- --components=api,tree,eth,state_keeper,commitment_generator &> upgrade.log',
+            'cd $ZKSYNC_HOME && zk f cargo run --bin zksync_server --release -- --components=api,tree,eth,state_keeper,commitment_generator &> upgrade.log',
             [null, logs, logs]
         );
         await utils.sleep(5);
