@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use zksync_config::{ContractsConfig, ETHWatchConfig, EthWatchConfig, GenesisConfig};
+use zksync_config::{ContractsConfig, EthWatchConfig, GenesisConfig};
 use zksync_contracts::governance_contract;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
@@ -58,13 +58,13 @@ impl WiringLayer for EthWatchLayer {
             self.genesis_config
                 .shared_bridge
                 .map(|a| a.transparent_proxy_admin_addr),
-            Some(self.contracts_config.governance_addr),
+            self.contracts_config.governance_addr,
             self.eth_watch_config.confirmations_for_eth_event,
         );
         context.add_task(Box::new(EthWatchTask {
             main_pool,
             client: eth_client,
-            governance_contract: &governance_contract(),
+            governance_contract: governance_contract(),
             state_transition_manager_address,
             diamond_proxy_address: self.contracts_config.diamond_proxy_addr,
             poll_interval: self.eth_watch_config.poll_interval(),
@@ -78,7 +78,7 @@ impl WiringLayer for EthWatchLayer {
 struct EthWatchTask {
     main_pool: ConnectionPool<Core>,
     client: EthHttpQueryClient,
-    governance_contract: Option<Contract>,
+    governance_contract: Contract,
     state_transition_manager_address: Option<Address>,
     diamond_proxy_address: Address,
     poll_interval: Duration,
@@ -94,7 +94,7 @@ impl Task for EthWatchTask {
         let eth_watch = EthWatch::new(
             self.diamond_proxy_address,
             self.state_transition_manager_address,
-            self.governance_contract,
+            &self.governance_contract,
             Box::new(self.client),
             self.main_pool,
             self.poll_interval,

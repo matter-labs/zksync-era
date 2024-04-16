@@ -65,7 +65,7 @@ impl EthWatch {
         let governance_upgrades_processor = GovernanceUpgradesEventProcessor::new(
             state_transition_manager_address.unwrap_or(diamond_proxy_addr),
             state.last_seen_version_id,
-            &governance_contract,
+            governance_contract,
         );
         let event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
