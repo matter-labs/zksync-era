@@ -154,14 +154,14 @@ web3 = "0.19.0"
 
 # "Internal" dependencies
 # TODO: use the v1.5.0 circuit_sequencer_api once the prover is integrated
-circuit_sequencer_api = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.2" }
+circuit_sequencer_api = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
 circuit_sequencer_api_1_3_3 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3" }
 circuit_sequencer_api_1_4_0 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0" }
 circuit_sequencer_api_1_4_1 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1" }
 circuit_sequencer_api_1_4_2 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.2" }
 circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
 crypto_codegen = { package = "codegen", git = "https://github.com/matter-labs/solidity_plonk_verifier.git", branch = "dev" }
-kzg = { package = "kzg", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.2" }
+kzg = { package = "kzg", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
 vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "a5bb80c9ce7168663114ee30e794d6dc32159ee4" }
 vise-exporter = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "a5bb80c9ce7168663114ee30e794d6dc32159ee4" }
 zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", tag = "v1.3.3-rc2" }

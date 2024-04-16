@@ -1,3 +1,5 @@
+use std::iter::once;
+
 use anyhow::Context as _;
 use circuit_definitions::{
     circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuit,
@@ -28,8 +30,9 @@ pub fn get_leaf_vk_params(
 ) -> anyhow::Result<Vec<(u8, RecursionLeafParametersWitness<GoldilocksField>)>> {
     let mut leaf_vk_commits = vec![];
 
-    for circuit_type in
-        (BaseLayerCircuitType::VM as u8)..=(BaseLayerCircuitType::L1MessagesHasher as u8)
+    for circuit_type in (BaseLayerCircuitType::VM as u8
+        ..=BaseLayerCircuitType::Secp256r1Verify as u8)
+        .chain(once(BaseLayerCircuitType::EIP4844Repack as u8))
     {
         let recursive_circuit_type = base_circuit_type_into_recursive_leaf_circuit_type(
             BaseLayerCircuitType::from_numeric_value(circuit_type),
