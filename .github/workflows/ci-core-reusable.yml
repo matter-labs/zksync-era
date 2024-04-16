@@ -226,12 +226,11 @@ jobs:
 
         # This test should be the last one as soon as it
         # finished bootloader will be different
-      - name: Run upgrade test - DISABLED (EVM-558)
+      - name: Run upgrade test
         run: |
-          ls
-        # ci_run pkill zksync_server || true
-        # ci_run sleep 10
-        # ci_run zk test i upgrade
+          ci_run pkill zksync_server || true
+          ci_run sleep 10
+          ci_run zk test i upgrade
 
       - name: Show server.log logs
         if: always()
@@ -332,11 +331,10 @@ jobs:
         # ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
         # ci_run sleep 30
 
-      - name: Run upgrade test - DISABLED (EVM-558)
+      - name: Run upgrade test
         run: |
-          ls
-        # ci_run zk env docker
-        # CHECK_EN_URL="http://0.0.0.0:3060" ci_run zk test i upgrade
+          ci_run zk env docker
+          CHECK_EN_URL="http://0.0.0.0:3060" ci_run zk test i upgrade
 
       - name: Show server.log logs
         if: always()
