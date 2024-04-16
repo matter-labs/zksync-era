@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                hashed_key,\n                address,\n                key,\n                value,\n                operation_number,\n                tx_hash,\n                miniblock_number\n            FROM\n                storage_logs\n            ",
+  "query": "\n            SELECT\n                hashed_key,\n                address,\n                key,\n                value,\n                operation_number,\n                tx_hash,\n                miniblock_number\n            FROM\n                storage_logs\n            ORDER BY\n                miniblock_number,\n                operation_number\n            ",
   "describe": {
     "columns": [
       {
@@ -52,5 +52,5 @@
       false
     ]
   },
-  "hash": "555f396946bdb8b84a5d77abbfc1397212b4767039a6c0e22697cf40969729af"
+  "hash": "c75cdc655cd843a474f857e80b30685582bb37ba816a5434ee546d86ef9a8d9e"
 }

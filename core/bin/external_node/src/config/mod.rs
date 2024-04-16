@@ -290,8 +290,12 @@ pub(crate) struct OptionalENConfig {
 
     #[serde(default = "OptionalENConfig::default_l1_batch_commit_data_generator_mode")]
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
-
-    #[serde(default = "OptionalENConfig::default_snapshots_recovery_enabled")]
+    /// Enables application-level snapshot recovery. Required to start a node that was recovered from a snapshot,
+    /// or to initialize a node from a snapshot. Has no effect if a node that was initialized from a Postgres dump
+    /// or was synced from genesis.
+    ///
+    /// This is an experimental and incomplete feature; do not use unless you know what you're doing.
+    #[serde(default)]
     pub snapshots_recovery_enabled: bool,
 
     #[serde(default = "OptionalENConfig::default_pruning_chunk_size")]
@@ -432,10 +436,6 @@ impl OptionalENConfig {
 
     const fn default_l1_batch_commit_data_generator_mode() -> L1BatchCommitDataGeneratorMode {
         L1BatchCommitDataGeneratorMode::Rollup
-    }
-
-    const fn default_snapshots_recovery_enabled() -> bool {
-        false
     }
 
     const fn default_pruning_chunk_size() -> u32 {

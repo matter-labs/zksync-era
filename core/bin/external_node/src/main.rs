@@ -24,14 +24,7 @@ use zksync_core::{
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole},
     consensus,
     consistency_checker::ConsistencyChecker,
-    db_pruner::{
-        prune_conditions::{
-            ConsistencyCheckerProcessedBatch, L1BatchExistsCondition,
-            L1BatchOlderThanPruneCondition, NextL1BatchHasMetadataCondition,
-            NextL1BatchWasExecutedCondition,
-        },
-        DbPruner, DbPrunerConfig,
-    },
+    db_pruner::{DbPruner, DbPrunerConfig},
     eth_sender::l1_batch_commit_data_generator::{
         L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
         ValidiumModeL1BatchCommitDataGenerator,
@@ -264,39 +257,21 @@ async fn run_core(
     }));
 
     if let Some(data_retention_hours) = config.optional.pruning_data_retention_hours {
-        let l1_batch_age_to_prune = Duration::from_secs(3600 * data_retention_hours);
+        let minimum_l1_batch_age = Duration::from_secs(3600 * data_retention_hours);
         tracing::info!(
-            "Configured pruning of batches after they become {l1_batch_age_to_prune:?} old"
+            "Configured pruning of batches after they become {minimum_l1_batch_age:?} old"
         );
         let db_pruner = DbPruner::new(
             DbPrunerConfig {
                 // don't change this value without adjusting API server pruning info cache max age
                 soft_and_hard_pruning_time_delta: Duration::from_secs(60),
-                pruned_batch_chunk_size: config.optional.pruning_chunk_size,
                 next_iterations_delay: Duration::from_secs(30),
+                pruned_batch_chunk_size: config.optional.pruning_chunk_size,
+                minimum_l1_batch_age,
             },
-            vec![
-                Arc::new(L1BatchExistsCondition {
-                    conn: connection_pool.clone(),
-                }),
-                Arc::new(NextL1BatchHasMetadataCondition {
-                    conn: connection_pool.clone(),
-                }),
-                Arc::new(NextL1BatchWasExecutedCondition {
-                    conn: connection_pool.clone(),
-                }),
-                Arc::new(L1BatchOlderThanPruneCondition {
-                    minimal_age: l1_batch_age_to_prune,
-                    conn: connection_pool.clone(),
-                }),
-                Arc::new(ConsistencyCheckerProcessedBatch {
-                    conn: connection_pool.clone(),
-                }),
-            ],
-        )?;
-        task_handles.push(tokio::spawn(
-            db_pruner.run(connection_pool.clone(), stop_receiver.clone()),
-        ));
+            connection_pool.clone(),
+        );
+        task_handles.push(tokio::spawn(db_pruner.run(stop_receiver.clone())));
     }
 
     let reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
