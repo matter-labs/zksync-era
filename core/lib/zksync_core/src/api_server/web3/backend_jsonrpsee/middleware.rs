@@ -165,7 +165,10 @@ pin_project! {
 
 impl<'a, F> WithMethodCall<'a, F> {
     fn new(inner: F, call: MethodCall<'a>) -> Self {
-        let call_span = tracing::debug_span!("rpc_call", trace_id = generate_trace_id());
+        // Wrap a call into a span with unique correlation ID, so that events occurring in the span can be easily filtered.
+        // This works as a cheap alternative to OpenTelemetry tracing with its trace / span IDs.
+        let call_span =
+            tracing::debug_span!("rpc_call", correlation_id = generate_correlation_id());
         Self {
             inner,
             call,
@@ -264,11 +267,11 @@ where
     }
 }
 
-fn generate_trace_id() -> u64 {
+fn generate_correlation_id() -> u64 {
     thread_local! {
-        static TRACE_ID_RNG: RefCell<SmallRng> = RefCell::new(SmallRng::from_entropy());
+        static CORRELATION_ID_RNG: RefCell<SmallRng> = RefCell::new(SmallRng::from_entropy());
     }
-    TRACE_ID_RNG.with(|rng| rng.borrow_mut().next_u64())
+    CORRELATION_ID_RNG.with(|rng| rng.borrow_mut().next_u64())
 }
 
 #[cfg(test)]
