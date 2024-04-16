@@ -2205,6 +2205,49 @@ fn test_basic_block_environment_vectors() {
     assert_eq!(evm_output, 270.into());
 }
 
+#[test]
+fn test_basic_create_vectors() {
+    assert_ne!(
+        test_evm_vector(
+            vec![
+                // push32
+                hex::decode("7F").unwrap(),
+                hex::decode("6080604052348015600e575f80fd5b50603e80601a5f395ff3fe60806040525f").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // push32
+                hex::decode("7F").unwrap(),
+                hex::decode("80fdfea264697066735822122070e77c564e632657f44e4b3cb2d5d4f74255fc").unwrap(),
+                // push1 32
+                hex::decode("60").unwrap(),
+                hex::decode("20").unwrap(),
+                // push32
+                hex::decode("7F").unwrap(),
+                hex::decode("64ca5fae813eb74275609e61e364736f6c634300081900330000000000000000").unwrap(),
+                // push1 64
+                hex::decode("60").unwrap(),
+                hex::decode("40").unwrap(),
+                // push1 88
+                hex::decode("60").unwrap(),
+                hex::decode("58").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // create
+                hex::decode("F0").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+}
+
 fn assert_deployed_hash<H: HistoryMode>(
     tester: &mut VmTester<H>,
     address: Address,
