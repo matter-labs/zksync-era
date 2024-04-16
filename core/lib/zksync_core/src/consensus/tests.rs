@@ -64,9 +64,14 @@ async fn test_validator_block_store() {
 
     // Insert blocks one by one and check the storage state.
     for (i, block) in want.iter().enumerate() {
-        let store = store.clone().into_block_store();
-        store.store_next_block(ctx, block).await.unwrap();
-        assert_eq!(want[..i + 1], storage::testonly::dump(ctx, &store).await);
+        scope::run!(ctx,|ctx,s| async {
+            let (store,runner) = store.clone().into_block_store();
+            s.spawn_bg(runner.run(ctx));
+            store.queue_next_block(ctx, block.clone()).await.unwrap();
+            todo!() // TODO: wait until persisted.
+            assert_eq!(want[..i + 1], storage::testonly::dump(ctx, &store).await);
+            Ok(())
+        }).await.unwrap();
     }
 }
 

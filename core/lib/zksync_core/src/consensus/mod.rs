@@ -31,7 +31,8 @@ impl MainNodeConfig {
     /// Broadcasts the blocks with certificates to gossip network peers.
     pub async fn run(self, ctx: &ctx::Ctx, store: Store) -> anyhow::Result<()> {
         scope::run!(&ctx, |ctx, s| async {
-            let mut block_store = store.clone().into_block_store();
+            let (mut block_store,runner) = store.clone().into_block_store();
+            s.spawn_bg(runner.run(ctx));
             block_store
                 .try_init_genesis(ctx, &self.validator_key.public())
                 .await

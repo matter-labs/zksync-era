@@ -200,13 +200,23 @@ pub(super) struct BlockStore {
     store_next_block_mutex: sync::Mutex<Option<Cursor>>,
 }
 
+pub struct BlockStoreRunner {}
+
+impl BlockStoreRunner {
+    pub async fn run(self, _ctx: &ctx::Ctx) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+
 impl Store {
     /// Converts `Store` into a `BlockStore`.
-    pub(super) fn into_block_store(self) -> BlockStore {
-        BlockStore {
+    pub(super) fn into_block_store(self) -> (BlockStore,BlockStoreRunner) {
+        (BlockStore {
             inner: self,
             store_next_block_mutex: sync::Mutex::new(None),
-        }
+        },BlockStoreRunner {
+
+        })
     }
 
     /// Wrapper for `connection_tagged()`.
@@ -238,6 +248,38 @@ impl Store {
             }
             ctx.sleep(POLL_INTERVAL).await?;
         }
+    }
+
+    pub(super) async fn genesis(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::Genesis> {
+        Ok(self
+            .access(ctx)
+            .await
+            .wrap("access()")?
+            .genesis(ctx)
+            .await
+            .wrap("genesis()")?
+            .context("genesis is missing")?)
+    }
+
+    pub(super) async fn block(
+        &self,
+        ctx: &ctx::Ctx,
+        number: validator::BlockNumber,
+    ) -> ctx::Result<Option<validator::FinalBlock>> {
+        let conn = &mut self.access(ctx).await.wrap("access()")?;
+        let Some(justification) = conn
+            .certificate(ctx, number)
+            .await
+            .wrap("certificate()")? else { return Ok(None); };
+        let payload = conn
+            .payload(ctx, number)
+            .await
+            .wrap("payload()")?
+            .context("miniblock disappeared from storage")?;
+        Ok(Some(validator::FinalBlock {
+            payload: payload.encode(),
+            justification,
+        }))
     }
 }
 
@@ -283,18 +325,14 @@ impl BlockStore {
 #[async_trait::async_trait]
 impl PersistentBlockStore for BlockStore {
     async fn genesis(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::Genesis> {
-        Ok(self
-            .inner
-            .access(ctx)
-            .await
-            .wrap("access()")?
-            .genesis(ctx)
-            .await
-            .wrap("genesis()")?
-            .context("genesis is missing")?)
+        self.inner.genesis(ctx).await
     }
 
-    async fn state(&self, ctx: &ctx::Ctx) -> ctx::Result<BlockStoreState> {
+    fn persisted(&self) -> sync::watch::Receiver<BlockStoreState> {
+        todo!()
+    }
+
+    /*async fn state(&self, ctx: &ctx::Ctx) -> ctx::Result<BlockStoreState> {
         let mut conn = self.inner.access(ctx).await.wrap("access()")?;
 
         // Fetch the range of miniblocks in storage.
@@ -338,28 +376,14 @@ impl PersistentBlockStore for BlockStore {
             last: last_cert,
         };
         Ok(state)
-    }
+    }*/
 
     async fn block(
         &self,
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
     ) -> ctx::Result<validator::FinalBlock> {
-        let conn = &mut self.inner.access(ctx).await.wrap("access()")?;
-        let justification = conn
-            .certificate(ctx, number)
-            .await
-            .wrap("certificate()")?
-            .context("not found")?;
-        let payload = conn
-            .payload(ctx, number)
-            .await
-            .wrap("payload()")?
-            .context("miniblock disappeared from storage")?;
-        Ok(validator::FinalBlock {
-            payload: payload.encode(),
-            justification,
-        })
+        Ok(self.inner.block(ctx,number).await?.context("not found")?) 
     }
 
     /// If actions queue is set (and the block has not been stored yet),
@@ -370,10 +394,10 @@ impl PersistentBlockStore for BlockStore {
     /// `store_next_block()` call will wait synchronously for the miniblock.
     /// Once miniblock is observed in storage, `store_next_block()` will store a cert for this
     /// miniblock.
-    async fn store_next_block(
+    async fn queue_next_block(
         &self,
         ctx: &ctx::Ctx,
-        block: &validator::FinalBlock,
+        block: validator::FinalBlock,
     ) -> ctx::Result<()> {
         tracing::info!("storing block {}", block.number());
         // This mutex prevents concurrent `store_next_block` calls.

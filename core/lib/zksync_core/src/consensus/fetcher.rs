@@ -69,7 +69,8 @@ impl Fetcher {
             });
 
             // Run consensus component.
-            let mut block_store = self.store.clone().into_block_store();
+            let (mut block_store,runner) = self.store.clone().into_block_store();
+            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
             block_store
                 .set_cursor(cursor)
                 .context("block_store.set_cursor()")?;
