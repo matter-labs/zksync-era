@@ -8599,7 +8599,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "22.1.0"
+version = "23.0.0"
 dependencies = [
  "anyhow",
  "clap 4.4.6",
