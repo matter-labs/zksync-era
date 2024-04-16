@@ -416,6 +416,8 @@ async function prepareUpgradeCalldata(
     const stmUpgradeCalldata = STATE_TRANSITON_MANAGER.encodeFunctionData('setNewVersionUpgrade', [
         upgradeParam,
         oldProtocolVersion,
+        // The protocol version will not have any deadline in this upgrade
+        ethers.constants.MaxUint256,
         newProtocolVersion
     ]);
 
