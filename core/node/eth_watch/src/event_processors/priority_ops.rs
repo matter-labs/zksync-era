@@ -1,13 +1,14 @@
 use std::convert::TryFrom;
 
+use anyhow::Context;
 use zksync_contracts::state_transition_chain_contract;
-use zksync_dal::{Connection, Core, CoreDal};
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_types::{l1::L1Tx, web3::types::Log, PriorityOpId, H256};
 
 use crate::{
-    client::{Error, EthClient},
-    event_processors::EventProcessor,
+    client::EthClient,
+    event_processors::{EventProcessor, EventProcessorError},
     metrics::{PollStage, METRICS},
 };
 
@@ -19,14 +20,14 @@ pub struct PriorityOpsEventProcessor {
 }
 
 impl PriorityOpsEventProcessor {
-    pub fn new(next_expected_priority_id: PriorityOpId) -> Self {
-        Self {
+    pub fn new(next_expected_priority_id: PriorityOpId) -> anyhow::Result<Self> {
+        Ok(Self {
             next_expected_priority_id,
             new_priority_request_signature: state_transition_chain_contract()
                 .event("NewPriorityRequest")
-                .expect("NewPriorityRequest event is missing in abi")
+                .context("NewPriorityRequest event is missing in ABI")?
                 .signature(),
-        }
+        })
     }
 }
 
@@ -37,13 +38,12 @@ impl EventProcessor for PriorityOpsEventProcessor {
         storage: &mut Connection<'_, Core>,
         _client: &dyn EthClient,
         events: Vec<Log>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), EventProcessorError> {
         let mut priority_ops = Vec::new();
-        for event in events
-            .into_iter()
-            .filter(|event| event.topics[0] == self.new_priority_request_signature)
-        {
-            let tx = L1Tx::try_from(event).map_err(|err| Error::LogParse(format!("{}", err)))?;
+        for event in events {
+            assert_eq!(event.topics[0], self.new_priority_request_signature); // guaranteed by the watcher
+            let tx = L1Tx::try_from(event)
+                .map_err(|err| EventProcessorError::log_parse(err, "priority op"))?;
             priority_ops.push(tx);
         }
 
@@ -70,17 +70,15 @@ impl EventProcessor for PriorityOpsEventProcessor {
             .into_iter()
             .skip_while(|tx| tx.serial_id() < self.next_expected_priority_id)
             .collect();
-        if new_ops.is_empty() {
+        let (Some(first_new), Some(last_new)) = (new_ops.first(), new_ops.last()) else {
             return Ok(());
-        }
-
-        let first_new = &new_ops[0];
-        let last_new = new_ops[new_ops.len() - 1].clone();
+        };
         assert_eq!(
             first_new.serial_id(),
             self.next_expected_priority_id,
             "priority transaction serial id mismatch"
         );
+        let next_expected_priority_id = last_new.serial_id().next();
 
         let stage_latency = METRICS.poll_eth_node[&PollStage::PersistL1Txs].start();
         APP_METRICS.processed_txs[&TxStage::added_to_mempool()].inc();
@@ -91,10 +89,10 @@ impl EventProcessor for PriorityOpsEventProcessor {
                 .transactions_dal()
                 .insert_transaction_l1(&new_op, eth_block)
                 .await
-                .unwrap();
+                .map_err(DalError::generalize)?;
         }
         stage_latency.observe();
-        self.next_expected_priority_id = last_new.serial_id().next();
+        self.next_expected_priority_id = next_expected_priority_id;
         Ok(())
     }
 

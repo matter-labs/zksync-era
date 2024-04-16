@@ -216,20 +216,6 @@ command
     .action(revertReason);
 
 command
-    .command('exit-proof')
-    .option('--account <id>')
-    .option('--token <id>')
-    .option('--help')
-    .description('generate exit proof')
-    .action(async (cmd: Command) => {
-        if (!cmd.account || !cmd.token) {
-            await exitProof('--help');
-        } else {
-            await exitProof('--account_id', cmd.account, '--token', cmd.token);
-        }
-    });
-
-command
     .command('genesis-config-generator [options...]')
     .description('run the genesis-config-generator')
     .allowUnknownOption()

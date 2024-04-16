@@ -1,7 +1,7 @@
 use std::{fmt, sync::Arc};
 
 use async_trait::async_trait;
-use zksync_config::{configs::ContractsConfig, ETHConfig};
+use zksync_config::{configs::ContractsConfig, EthConfig};
 use zksync_contracts::state_transition_chain_contract;
 use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
 use zksync_types::{
@@ -30,7 +30,7 @@ pub type PKSigningClient = SigningClient<PrivateKeySigner>;
 
 impl PKSigningClient {
     pub fn from_config(
-        eth_sender: &ETHConfig,
+        eth_sender: &EthConfig,
         contracts_config: &ContractsConfig,
         l1_chain_id: L1ChainId,
         operator_private_key: H256,
@@ -68,7 +68,7 @@ impl PKSigningClient {
     }
 
     fn from_config_inner(
-        eth_sender: &ETHConfig,
+        eth_sender: &EthConfig,
         contracts_config: &ContractsConfig,
         l1_chain_id: L1ChainId,
         operator_private_key: H256,

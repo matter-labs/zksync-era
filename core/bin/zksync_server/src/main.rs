@@ -15,7 +15,7 @@ use zksync_config::{
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
         PrometheusConfig, ProofDataHandlerConfig,
     },
-    ApiConfig, ContractVerifierConfig, DBConfig, ETHConfig, ETHWatchConfig, GasAdjusterConfig,
+    ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core::{
@@ -266,8 +266,8 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         proof_data_handler_config: ProofDataHandlerConfig::from_env().ok(),
         api_config: ApiConfig::from_env().ok(),
         db_config: DBConfig::from_env().ok(),
-        eth_sender_config: ETHConfig::from_env().ok(),
-        eth_watch_config: ETHWatchConfig::from_env().ok(),
+        eth_sender_config: EthConfig::from_env().ok(),
+        eth_watch_config: EthWatchConfig::from_env().ok(),
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
         object_store_config: ObjectStoreConfig::from_env().ok(),
         observability: ObservabilityConfig::from_env().ok(),
