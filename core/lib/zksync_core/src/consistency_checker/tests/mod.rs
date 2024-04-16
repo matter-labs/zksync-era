@@ -145,7 +145,7 @@ fn build_commit_tx_input_data_is_correct(deployment_mode: DeploymentMode) {
     };
 
     let contract = zksync_contracts::state_transition_chain_contract();
-    let commit_function = contract.function("commitBatches").unwrap();
+    let commit_function = contract.function("commitBatchesSharedBridge").unwrap();
     let batches = vec![
         create_l1_batch_with_metadata(1),
         create_l1_batch_with_metadata(2),
