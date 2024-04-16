@@ -2938,17 +2938,17 @@ fn test_basic_logs_vectors() {
     // LOG0
     let evm_output = test_evm_logs(
         vec![
-            // push1 255
+            // push1 37
             hex::decode("60").unwrap(),
-            hex::decode("FF").unwrap(),
+            hex::decode("25").unwrap(),
             // push1 00
             hex::decode("60").unwrap(),
             hex::decode("00").unwrap(),
             // mstore
             hex::decode("52").unwrap(),
-            // push1 01
+            // push1 32
             hex::decode("60").unwrap(),
-            hex::decode("01").unwrap(),
+            hex::decode("20").unwrap(),
             // push1 00
             hex::decode("60").unwrap(),
             hex::decode("00").unwrap(),
@@ -2962,15 +2962,16 @@ fn test_basic_logs_vectors() {
     for e in evm_output.events {
         if e.address == Address::from_str(CONTRACT_ADDRESS).unwrap() {
             assert!(e.indexed_topics.is_empty());
+            assert_eq!(e.value[31], 37u8);
         }
     }
 
     // LOG1
     let evm_output = test_evm_logs(
         vec![
-            // push1 255
+            // push1 37
             hex::decode("60").unwrap(),
-            hex::decode("FF").unwrap(),
+            hex::decode("25").unwrap(),
             // push1 00
             hex::decode("60").unwrap(),
             hex::decode("00").unwrap(),
@@ -2979,9 +2980,9 @@ fn test_basic_logs_vectors() {
             // push1 64
             hex::decode("60").unwrap(),
             hex::decode("40").unwrap(),
-            // push1 01
+            // push1 32
             hex::decode("60").unwrap(),
-            hex::decode("01").unwrap(),
+            hex::decode("20").unwrap(),
             // push1 00
             hex::decode("60").unwrap(),
             hex::decode("00").unwrap(),
@@ -2995,15 +2996,16 @@ fn test_basic_logs_vectors() {
     for e in evm_output.events {
         if e.address == Address::from_str(CONTRACT_ADDRESS).unwrap() {
             assert_eq!(e.indexed_topics[0], u256_to_h256(64.into()));
+            assert_eq!(e.value[31], 37u8);
         }
     }
 
     // LOG2
     let evm_output = test_evm_logs(
         vec![
-            // push1 255
+            // push1 37
             hex::decode("60").unwrap(),
-            hex::decode("FF").unwrap(),
+            hex::decode("25").unwrap(),
             // push1 00
             hex::decode("60").unwrap(),
             hex::decode("00").unwrap(),
@@ -3012,12 +3014,12 @@ fn test_basic_logs_vectors() {
             // push1 64
             hex::decode("60").unwrap(),
             hex::decode("40").unwrap(),
-            // push1 64
+            // push1 32
             hex::decode("60").unwrap(),
             hex::decode("20").unwrap(),
-            // push1 01
+            // push1 32
             hex::decode("60").unwrap(),
-            hex::decode("01").unwrap(),
+            hex::decode("20").unwrap(),
             // push1 00
             hex::decode("60").unwrap(),
             hex::decode("00").unwrap(),
@@ -3032,15 +3034,16 @@ fn test_basic_logs_vectors() {
         if e.address == Address::from_str(CONTRACT_ADDRESS).unwrap() {
             assert_eq!(e.indexed_topics[0], u256_to_h256(32.into()));
             assert_eq!(e.indexed_topics[1], u256_to_h256(64.into()));
+            assert_eq!(e.value[31], 37u8);
         }
     }
 
     // LOG4
     let evm_output = test_evm_logs(
         vec![
-            // push1 255
+            // push1 37
             hex::decode("60").unwrap(),
-            hex::decode("FF").unwrap(),
+            hex::decode("25").unwrap(),
             // push1 00
             hex::decode("60").unwrap(),
             hex::decode("00").unwrap(),
@@ -3049,18 +3052,18 @@ fn test_basic_logs_vectors() {
             // push1 64
             hex::decode("60").unwrap(),
             hex::decode("40").unwrap(),
-            // push1 64
+            // push1 32
             hex::decode("60").unwrap(),
             hex::decode("20").unwrap(),
-            // push1 64
+            // push1 16
             hex::decode("60").unwrap(),
             hex::decode("10").unwrap(),
-            // push1 64
+            // push1 12
             hex::decode("60").unwrap(),
             hex::decode("0C").unwrap(),
-            // push1 01
+            // push1 32
             hex::decode("60").unwrap(),
-            hex::decode("01").unwrap(),
+            hex::decode("20").unwrap(),
             // push1 00
             hex::decode("60").unwrap(),
             hex::decode("00").unwrap(),
@@ -3077,6 +3080,7 @@ fn test_basic_logs_vectors() {
             assert_eq!(e.indexed_topics[1], u256_to_h256(16.into()));
             assert_eq!(e.indexed_topics[2], u256_to_h256(32.into()));
             assert_eq!(e.indexed_topics[3], u256_to_h256(64.into()));
+            assert_eq!(e.value[31], 37u8);
         }
     }
 }
