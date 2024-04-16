@@ -816,9 +816,6 @@ async function configDemoHyperchain(cmd: Command) {
         deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey]
     };
 
-    if (!cmd.skipEnvSetup) {
-        await up(initArgs.runObservability);
-    }
     await init(initArgs);
 
     env.mergeInitToEnv();
