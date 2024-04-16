@@ -108,8 +108,8 @@ export const command = new Command('hyperchain-upgrade').description('create and
 command
     .command('start')
     .description('start')
-    .option('--phase1')
     .option('--shared-bridge-l2-implementation')
+    .option('--phase1')
     .option('--post-upgrade-calldata')
     .option('--phase2')
     .option('--phase3')
