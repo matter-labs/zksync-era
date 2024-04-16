@@ -85,6 +85,7 @@ impl VmRunnerTester {
             loader_mock,
             100,
             L2ChainId::from(270),
+            10,
         )
         .await?;
         let handle = tokio::task::spawn(async move {
