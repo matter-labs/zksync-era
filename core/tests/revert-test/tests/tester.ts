@@ -11,7 +11,7 @@ export class Tester {
         public ethWallet: ethers.Wallet,
         public syncWallet: zkweb3.Wallet,
         public web3Provider: zkweb3.Provider,
-        public hyperchainAdmin: ethers.Wallet
+        public hyperchainAdmin: ethers.Wallet // We need to add validator to ValidatorTimelock with admin rights
     ) {
         this.runningFee = new Map();
     }

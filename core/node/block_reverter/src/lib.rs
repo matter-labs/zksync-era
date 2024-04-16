@@ -60,10 +60,7 @@ impl BlockReverterEthConfig {
     ) -> Self {
         #[allow(deprecated)]
         // `BlockReverter` doesn't support non env configs yet
-        let pk = eth_config
-            .sender
-            .expect("eth_sender_config")
-            .reverter_private_key();
+        let pk = eth_config.sender.expect("eth_sender_config").private_key();
 
         Self {
             eth_client_url: eth_config.web3_url,
@@ -336,7 +333,6 @@ impl BlockReverter {
         priority_fee_per_gas: U256,
         nonce: u64,
     ) {
-        const DEFAULT_ZKSYNC_CHAIN_ID: u128 = 270; // Default value if the environment variable is not set or cannot be parsed
         let eth_config = self
             .eth_config
             .as_ref()
@@ -353,7 +349,7 @@ impl BlockReverter {
         let zksync_chain_id = std::env::var("CHAIN_ETH_ZKSYNC_NETWORK_ID")
             .ok()
             .and_then(|val| val.parse::<u128>().ok())
-            .unwrap_or(DEFAULT_ZKSYNC_CHAIN_ID);
+            .expect("Hyperchain chain id has to be set in config");
         let revert_function = contract.function("revertBatchesSharedBridge").expect(
             "Either `revertBlocks` or `revertBatches` function must be present in contract",
         );
