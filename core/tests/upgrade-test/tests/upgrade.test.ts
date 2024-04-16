@@ -95,8 +95,10 @@ describe('Upgrade test', function () {
 
         const initialL1BatchNumber = await tester.web3Provider.getL1BatchNumber();
 
+        const baseToken = await tester.syncWallet.provider.getBaseTokenContractAddress();
+
         const firstDepositHandle = await tester.syncWallet.deposit({
-            token: zkweb3.utils.ETH_ADDRESS,
+            token: baseToken,
             amount: depositAmount,
             to: alice.address,
             approveBaseERC20: true
@@ -107,7 +109,7 @@ describe('Upgrade test', function () {
         }
 
         const secondDepositHandle = await tester.syncWallet.deposit({
-            token: zkweb3.utils.ETH_ADDRESS,
+            token: baseToken,
             amount: depositAmount,
             to: alice.address,
             approveBaseERC20: true
@@ -172,7 +174,6 @@ describe('Upgrade test', function () {
         const data = COMPLEX_UPGRADER_ABI.encodeFunctionData('upgrade', [delegateTo, delegateCalldata]);
 
         const oldProtocolVersion = await alice._providerL2().send('zks_getProtocolVersion', [null]);
-        console.log('old version ', oldProtocolVersion);
         const calldata = await prepareUpgradeCalldata(govWallet, alice._providerL2(), {
             l2ProtocolUpgradeTx: {
                 txType: 254,
