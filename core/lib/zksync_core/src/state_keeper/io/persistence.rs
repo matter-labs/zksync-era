@@ -156,7 +156,7 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
     }
 
     async fn handle_l1_batch(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
-        // We cannot start sealing an L1 batch until we've sealed all miniblocks included in it.
+        // We cannot start sealing an L1 batch until we've sealed all L2 blocks included in it.
         self.wait_for_all_commands().await;
 
         let pool = self.pool.clone();

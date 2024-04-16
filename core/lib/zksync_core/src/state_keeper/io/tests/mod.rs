@@ -454,7 +454,7 @@ async fn l2_block_processing_after_snapshot_recovery(deployment_mode: Deployment
         .get_l2_block_header(snapshot_recovery.l2_block_number + 1)
         .await
         .unwrap()
-        .expect("no miniblock persisted");
+        .expect("no L2 block persisted");
     assert_eq!(
         persisted_l2_block.number,
         snapshot_recovery.l2_block_number + 1

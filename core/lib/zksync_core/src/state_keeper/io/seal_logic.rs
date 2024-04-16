@@ -53,7 +53,7 @@ impl UpdatesManager {
             .context("L1 batch is not actually finished")?;
         let mut transaction = storage.start_transaction().await?;
 
-        let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FictiveMiniblock);
+        let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FictiveL2Block);
         // Seal fictive L2 block with last events and storage logs.
         let l2_block_command = self.seal_l2_block_command(
             l2_erc20_bridge_addr,
@@ -141,7 +141,7 @@ impl UpdatesManager {
             .await?;
         progress.observe(None);
 
-        let progress = L1_BATCH_METRICS.start(L1BatchSealStage::SetL1BatchNumberForMiniblocks);
+        let progress = L1_BATCH_METRICS.start(L1BatchSealStage::SetL1BatchNumberForL2Blocks);
         transaction
             .blocks_dal()
             .mark_l2_blocks_as_executed_in_l1_batch(self.l1_batch.number)
@@ -327,7 +327,7 @@ impl L2BlockSealCommand {
         let l1_batch_number = self.l1_batch_number;
         let l2_block_number = self.l2_block.number;
         let started_at = Instant::now();
-        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertMiniblockHeader, is_fictive);
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2BlockHeader, is_fictive);
 
         let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.l2_block.executed_transactions);
         let (writes_count, reads_count) =
@@ -368,7 +368,7 @@ impl L2BlockSealCommand {
         progress.observe(None);
 
         let progress =
-            L2_BLOCK_METRICS.start(L2BlockSealStage::MarkTransactionsInMiniblock, is_fictive);
+            L2_BLOCK_METRICS.start(L2BlockSealStage::MarkTransactionsInL2Block, is_fictive);
         transaction
             .transactions_dal()
             .mark_txs_as_executed_in_l2_block(
@@ -454,7 +454,7 @@ impl L2BlockSealCommand {
             .await?;
         progress.observe(user_l2_to_l1_log_count);
 
-        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::CommitMiniblock, is_fictive);
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::CommitL2Block, is_fictive);
 
         transaction.commit().await?;
         progress.observe(None);

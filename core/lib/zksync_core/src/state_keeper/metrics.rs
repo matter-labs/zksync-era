@@ -175,10 +175,12 @@ pub(super) static AGGREGATION_METRICS: vise::Global<TxAggregationMetrics> = vise
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
 pub(super) enum L1BatchSealStage {
-    FictiveMiniblock,
+    #[metrics(name = "fictive_miniblock")]
+    FictiveL2Block,
     LogDeduplication,
     InsertL1BatchHeader,
-    SetL1BatchNumberForMiniblocks,
+    #[metrics(name = "set_l1_batch_number_for_miniblocks")]
+    SetL1BatchNumberForL2Blocks,
     MarkTxsAsExecutedInL1Batch,
     InsertProtectiveReads,
     FilterWrittenSlots,
@@ -253,8 +255,10 @@ pub(super) enum L2BlockQueueStage {
 #[metrics(rename_all = "snake_case")]
 pub(super) enum L2BlockSealStage {
     PreInsertTxs,
-    InsertMiniblockHeader,
-    MarkTransactionsInMiniblock,
+    #[metrics(name = "insert_miniblock_header")]
+    InsertL2BlockHeader,
+    #[metrics(name = "mark_transactions_in_miniblock")]
+    MarkTransactionsInL2Block,
     InsertStorageLogs,
     ApplyStorageLogs,
     InsertFactoryDeps,
@@ -264,7 +268,8 @@ pub(super) enum L2BlockSealStage {
     InsertEvents,
     ExtractL2ToL1Logs,
     InsertL2ToL1Logs,
-    CommitMiniblock,
+    #[metrics(name = "commit_miniblock")]
+    CommitL2Block,
     ReportTxMetrics,
 }
 
@@ -360,7 +365,8 @@ impl SealProgress<'_> {
 #[metrics(label = "command", rename_all = "snake_case")]
 pub(super) enum ExecutorCommand {
     ExecuteTx,
-    StartNextMiniblock,
+    #[metrics(name = "start_next_miniblock")]
+    StartNextL2Block,
     RollbackLastTx,
     FinishBatch,
 }

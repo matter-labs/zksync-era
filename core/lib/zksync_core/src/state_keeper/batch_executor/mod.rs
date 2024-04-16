@@ -122,7 +122,7 @@ impl BatchExecutorHandle {
             .await
             .unwrap();
         let latency = EXECUTOR_METRICS.batch_executor_command_response_time
-            [&ExecutorCommand::StartNextMiniblock]
+            [&ExecutorCommand::StartNextL2Block]
             .start();
         response_receiver.await.unwrap();
         latency.observe();
