@@ -7,6 +7,7 @@ import { hashBytecode } from 'zksync-web3/build/src/utils';
 import fs from 'fs';
 import { TransactionResponse } from 'zksync-web3/build/src/types';
 import { BytesLike } from '@ethersproject/bytes';
+import { isAddressEq } from 'zksync-ethers/build/src/utils';
 
 const L1_CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/contracts/l1-contracts/artifacts/contracts`;
 const L1_DEFAULT_UPGRADE_ABI = new ethers.utils.Interface(
@@ -97,6 +98,10 @@ describe('Upgrade test', function () {
 
         const baseToken = await tester.syncWallet.provider.getBaseTokenContractAddress();
 
+        if (!isAddressEq(baseToken, zkweb3.utils.ETH_ADDRESS_IN_CONTRACTS)) {
+            await (await alice.approveERC20(baseToken, ethers.constants.MaxUint256)).wait();
+        }
+
         const firstDepositHandle = await tester.syncWallet.deposit({
             token: baseToken,
             amount: depositAmount,
@@ -133,7 +138,7 @@ describe('Upgrade test', function () {
         // Wait for at least one new committed block
         let newBlocksCommitted = await mainContract.getTotalBatchesCommitted();
         let tryCount = 0;
-        while (blocksCommitted.eq(newBlocksCommitted) && tryCount < 10) {
+        while (blocksCommitted.eq(newBlocksCommitted) && tryCount < 30) {
             newBlocksCommitted = await mainContract.getTotalBatchesCommitted();
             tryCount += 1;
             await utils.sleep(1);
@@ -229,7 +234,7 @@ describe('Upgrade test', function () {
 
         let lastBatchExecuted = await mainContract.getTotalBatchesExecuted();
         let tryCount = 0;
-        while (lastBatchExecuted < l1BatchNumber && tryCount < 10) {
+        while (lastBatchExecuted < l1BatchNumber && tryCount < 30) {
             lastBatchExecuted = await mainContract.getTotalBatchesExecuted();
             tryCount += 1;
             await utils.sleep(2);
