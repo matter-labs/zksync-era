@@ -1,7 +1,4 @@
-use std::{
-    fmt::{Debug, Formatter},
-    time::Duration,
-};
+use std::{fmt, time::Duration};
 
 use async_trait::async_trait;
 use chrono::Utc;
@@ -10,14 +7,15 @@ use zksync_types::L1BatchNumber;
 
 use crate::db_pruner::PruneCondition;
 
-pub struct L1BatchOlderThanPruneCondition {
-    pub minimal_age: Duration,
+#[derive(Debug)]
+pub(super) struct L1BatchOlderThanPruneCondition {
+    pub minimum_age: Duration,
     pub conn: ConnectionPool<Core>,
 }
 
-impl Debug for L1BatchOlderThanPruneCondition {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "l1 Batch is older than {:?}", self.minimal_age)
+impl fmt::Display for L1BatchOlderThanPruneCondition {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "L1 Batch is older than {:?}", self.minimum_age)
     }
 }
 
@@ -31,18 +29,19 @@ impl PruneCondition for L1BatchOlderThanPruneCondition {
             .await?;
         let is_old_enough = l1_batch_header.is_some()
             && (Utc::now().timestamp() as u64 - l1_batch_header.unwrap().timestamp
-                > self.minimal_age.as_secs());
+                > self.minimum_age.as_secs());
         Ok(is_old_enough)
     }
 }
 
-pub struct NextL1BatchWasExecutedCondition {
+#[derive(Debug)]
+pub(super) struct NextL1BatchWasExecutedCondition {
     pub conn: ConnectionPool<Core>,
 }
 
-impl Debug for NextL1BatchWasExecutedCondition {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "next l1 batch was executed")
+impl fmt::Display for NextL1BatchWasExecutedCondition {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "next L1 batch was executed")
     }
 }
 
@@ -61,13 +60,14 @@ impl PruneCondition for NextL1BatchWasExecutedCondition {
     }
 }
 
-pub struct NextL1BatchHasMetadataCondition {
+#[derive(Debug)]
+pub(super) struct NextL1BatchHasMetadataCondition {
     pub conn: ConnectionPool<Core>,
 }
 
-impl Debug for NextL1BatchHasMetadataCondition {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "next l1 batch has metadata")
+impl fmt::Display for NextL1BatchHasMetadataCondition {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "next L1 batch has metadata")
     }
 }
 
@@ -84,13 +84,14 @@ impl PruneCondition for NextL1BatchHasMetadataCondition {
     }
 }
 
-pub struct L1BatchExistsCondition {
+#[derive(Debug)]
+pub(super) struct L1BatchExistsCondition {
     pub conn: ConnectionPool<Core>,
 }
 
-impl Debug for L1BatchExistsCondition {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "l1 batch exists")
+impl fmt::Display for L1BatchExistsCondition {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "L1 batch exists")
     }
 }
 
@@ -103,5 +104,28 @@ impl PruneCondition for L1BatchExistsCondition {
             .get_l1_batch_header(l1_batch_number)
             .await?;
         Ok(l1_batch_header.is_some())
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct ConsistencyCheckerProcessedBatch {
+    pub conn: ConnectionPool<Core>,
+}
+
+impl fmt::Display for ConsistencyCheckerProcessedBatch {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "L1 batch was processed by consistency checker")
+    }
+}
+
+#[async_trait]
+impl PruneCondition for ConsistencyCheckerProcessedBatch {
+    async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
+        let mut storage = self.conn.connection().await?;
+        let last_processed_l1_batch = storage
+            .blocks_dal()
+            .get_consistency_checker_last_processed_l1_batch()
+            .await?;
+        Ok(l1_batch_number <= last_processed_l1_batch)
     }
 }

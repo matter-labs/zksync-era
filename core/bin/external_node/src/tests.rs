@@ -104,6 +104,7 @@ async fn external_node_basics(components_str: &'static str) {
     // Simplest case to mock: the EN already has a genesis L1 batch / miniblock, and it's the only L1 batch / miniblock
     // in the network.
     let connection_pool = ConnectionPool::test_pool().await;
+    let singleton_pool_builder = ConnectionPool::singleton(connection_pool.database_url());
     let mut storage = connection_pool.connection().await.unwrap();
     let genesis_params = insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
@@ -179,7 +180,16 @@ async fn external_node_basics(components_str: &'static str) {
 
     let (env, env_handles) = TestEnvironment::new();
     let node_handle = tokio::spawn(async move {
-        run_node(env, &opt, &config, connection_pool, l2_client, eth_client).await
+        run_node(
+            env,
+            &opt,
+            &config,
+            connection_pool,
+            singleton_pool_builder,
+            l2_client,
+            eth_client,
+        )
+        .await
     });
 
     // Wait until the node is ready.

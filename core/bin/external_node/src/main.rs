@@ -8,6 +8,7 @@ use tokio::{
     sync::{oneshot, watch, RwLock},
     task::{self, JoinHandle},
 };
+use zksync_commitment_generator::CommitmentGenerator;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{
     api::MerkleTreeApiConfig, chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode,
@@ -21,16 +22,9 @@ use zksync_core::{
         web3::{mempool_cache::MempoolCache, ApiBuilder, Namespace},
     },
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole},
-    commitment_generator::CommitmentGenerator,
     consensus,
     consistency_checker::ConsistencyChecker,
-    db_pruner::{
-        prune_conditions::{
-            L1BatchExistsCondition, L1BatchOlderThanPruneCondition,
-            NextL1BatchHasMetadataCondition, NextL1BatchWasExecutedCondition,
-        },
-        DbPruner, DbPrunerConfig,
-    },
+    db_pruner::{DbPruner, DbPrunerConfig},
     eth_sender::l1_batch_commit_data_generator::{
         L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
         ValidiumModeL1BatchCommitDataGenerator,
@@ -270,36 +264,21 @@ async fn run_core(
     }));
 
     if let Some(data_retention_hours) = config.optional.pruning_data_retention_hours {
-        let l1_batch_age_to_prune = Duration::from_secs(3600 * data_retention_hours);
+        let minimum_l1_batch_age = Duration::from_secs(3600 * data_retention_hours);
         tracing::info!(
-            "Configured pruning of batches after they become {l1_batch_age_to_prune:?} old"
+            "Configured pruning of batches after they become {minimum_l1_batch_age:?} old"
         );
         let db_pruner = DbPruner::new(
             DbPrunerConfig {
                 // don't change this value without adjusting API server pruning info cache max age
                 soft_and_hard_pruning_time_delta: Duration::from_secs(60),
-                pruned_batch_chunk_size: config.optional.pruning_chunk_size,
                 next_iterations_delay: Duration::from_secs(30),
+                pruned_batch_chunk_size: config.optional.pruning_chunk_size,
+                minimum_l1_batch_age,
             },
-            vec![
-                Arc::new(L1BatchExistsCondition {
-                    conn: connection_pool.clone(),
-                }),
-                Arc::new(NextL1BatchHasMetadataCondition {
-                    conn: connection_pool.clone(),
-                }),
-                Arc::new(NextL1BatchWasExecutedCondition {
-                    conn: connection_pool.clone(),
-                }),
-                Arc::new(L1BatchOlderThanPruneCondition {
-                    minimal_age: l1_batch_age_to_prune,
-                    conn: connection_pool.clone(),
-                }),
-            ],
-        )?;
-        task_handles.push(tokio::spawn(
-            db_pruner.run(connection_pool.clone(), stop_receiver.clone()),
-        ));
+            connection_pool.clone(),
+        );
+        task_handles.push(tokio::spawn(db_pruner.run(stop_receiver.clone())));
     }
 
     let reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
@@ -405,7 +384,7 @@ async fn run_api(
     sync_state: SyncState,
     tree_reader: Option<Arc<dyn TreeApiClient>>,
     main_node_client: BoxedL2Client,
-    singleton_pool_builder: ConnectionPoolBuilder<Core>,
+    singleton_pool_builder: &ConnectionPoolBuilder<Core>,
     fee_params_fetcher: Arc<MainNodeFeeParamsFetcher>,
     components: &HashSet<Component>,
 ) -> anyhow::Result<()> {
@@ -574,6 +553,7 @@ async fn run_api(
 async fn init_tasks(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
+    singleton_pool_builder: ConnectionPoolBuilder<Core>,
     main_node_client: BoxedL2Client,
     eth_client: Arc<dyn EthInterface>,
     task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
@@ -584,7 +564,6 @@ async fn init_tasks(
     let protocol_version_update_task =
         EN_METRICS.run_protocol_version_updates(connection_pool.clone(), stop_receiver.clone());
     task_handles.push(tokio::spawn(protocol_version_update_task));
-    let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
 
     // Run the components.
     let tree_pool = singleton_pool_builder
@@ -665,7 +644,7 @@ async fn init_tasks(
             sync_state,
             tree_reader,
             main_node_client,
-            singleton_pool_builder,
+            &singleton_pool_builder,
             fee_params_fetcher.clone(),
             components,
         )
@@ -812,6 +791,7 @@ async fn main() -> anyhow::Result<()> {
     RUST_METRICS.initialize();
     EN_METRICS.observe_config(&config);
 
+    let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
     let connection_pool = ConnectionPool::<Core>::builder(
         &config.postgres.database_url,
         config.postgres.max_connections,
@@ -842,6 +822,7 @@ async fn main() -> anyhow::Result<()> {
         &opt,
         &config,
         connection_pool,
+        singleton_pool_builder,
         main_node_client,
         eth_client,
     )
@@ -872,6 +853,7 @@ async fn run_node(
     opt: &Cli,
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
+    singleton_pool_builder: ConnectionPoolBuilder<Core>,
     main_node_client: BoxedL2Client,
     eth_client: Arc<dyn EthInterface>,
 ) -> anyhow::Result<()> {
@@ -896,7 +878,7 @@ async fn run_node(
         app_health.clone(),
     );
     // Start scraping Postgres metrics before store initialization as well.
-    let pool_for_metrics = connection_pool.clone();
+    let pool_for_metrics = singleton_pool_builder.build().await?;
     let mut stop_receiver_for_metrics = stop_receiver.clone();
     let metrics_task = tokio::spawn(async move {
         tokio::select! {
@@ -995,6 +977,7 @@ async fn run_node(
     init_tasks(
         config,
         connection_pool,
+        singleton_pool_builder,
         main_node_client,
         eth_client,
         &mut task_handles,
