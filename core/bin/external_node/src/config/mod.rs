@@ -23,6 +23,7 @@ use zksync_core::{
     temp_config_store::decode_yaml_repr,
 };
 use zksync_protobuf_config::proto;
+use zksync_snapshots_applier::SnapshotsApplierConfig;
 use zksync_types::{api::BridgeAddresses, fee_model::FeeParams};
 use zksync_web3_decl::{
     client::L2Client,
@@ -297,6 +298,11 @@ pub(crate) struct OptionalENConfig {
     /// This is an experimental and incomplete feature; do not use unless you know what you're doing.
     #[serde(default)]
     pub snapshots_recovery_enabled: bool,
+    /// Maximum concurrency factor for the concurrent parts of snapshot recovery for Postgres. It may be useful to
+    /// reduce this factor to ~5 if snapshot recovery overloads I/O capacity of the node. Conversely,
+    /// if I/O capacity of your infra is high, you may increase concurrency to speed up Postgres recovery.
+    #[serde(default = "OptionalENConfig::default_snapshots_recovery_postgres_max_concurrency")]
+    pub snapshots_recovery_postgres_max_concurrency: NonZeroUsize,
 
     #[serde(default = "OptionalENConfig::default_pruning_chunk_size")]
     pub pruning_chunk_size: u32,
@@ -436,6 +442,10 @@ impl OptionalENConfig {
 
     const fn default_l1_batch_commit_data_generator_mode() -> L1BatchCommitDataGeneratorMode {
         L1BatchCommitDataGeneratorMode::Rollup
+    }
+
+    fn default_snapshots_recovery_postgres_max_concurrency() -> NonZeroUsize {
+        SnapshotsApplierConfig::default().max_concurrency
     }
 
     const fn default_pruning_chunk_size() -> u32 {

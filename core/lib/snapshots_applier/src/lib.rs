@@ -1,6 +1,6 @@
 //! Logic for applying application-level snapshots to Postgres storage.
 
-use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
+use std::{collections::HashMap, fmt, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -168,7 +168,7 @@ pub struct SnapshotsApplierConfig {
     pub retry_backoff_multiplier: f32,
     /// Maximum concurrency factor when performing concurrent operations (for now, the only such operation
     /// is recovering chunks of storage logs).
-    pub max_concurrency: usize,
+    pub max_concurrency: NonZeroUsize,
 }
 
 impl Default for SnapshotsApplierConfig {
@@ -177,7 +177,7 @@ impl Default for SnapshotsApplierConfig {
             retry_count: 5,
             initial_retry_backoff: Duration::from_secs(2),
             retry_backoff_multiplier: 2.0,
-            max_concurrency: 10,
+            max_concurrency: NonZeroUsize::new(10).unwrap(),
         }
     }
 }
@@ -242,7 +242,7 @@ impl SnapshotsApplierTask {
                 self.main_node_client.as_ref(),
                 &self.blob_store,
                 &self.health_updater,
-                self.config.max_concurrency,
+                self.config.max_concurrency.get(),
             )
             .await;
 
