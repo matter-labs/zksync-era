@@ -51,7 +51,6 @@ export async function waitForServer() {
  */
 export async function loadTestEnvironment(): Promise<TestEnvironment> {
     const network = process.env.CHAIN_ETH_NETWORK || 'localhost';
-    let baseTokenAddress = process.env.CONTRACTS_BASE_TOKEN_ADDR!;
 
     let mainWalletPK;
     if (network == 'localhost') {
@@ -66,6 +65,9 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
         process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL,
         'L2 node URL'
     );
+    const l2Provider = new zksync.Provider(l2NodeUrl);
+    const baseTokenAddress = await l2Provider.getBaseTokenContractAddress();
+
     const l1NodeUrl = ensureVariable(process.env.L1_RPC_ADDRESS || process.env.ETH_CLIENT_WEB3_URL, 'L1 node URL');
     const wsL2NodeUrl = ensureVariable(
         process.env.ZKSYNC_WEB3_WS_API_URL || process.env.API_WEB3_JSON_RPC_WS_URL,
@@ -84,18 +86,20 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
         token = tokens[0];
     }
     const weth = tokens.find((token: { symbol: string }) => token.symbol == 'WETH')!;
-    const baseToken = tokens.find((token: { address: string }) => token.address == baseTokenAddress)!;
+    const baseToken = tokens.find((token: { address: string }) =>
+        zksync.utils.isAddressEq(token.address, baseTokenAddress)
+    )!;
 
     // `waitForServer` is expected to be executed. Otherwise this call may throw.
     const l2TokenAddress = await new zksync.Wallet(
         mainWalletPK,
-        new zksync.Provider(l2NodeUrl),
+        l2Provider,
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(token.address);
 
     const l2WethAddress = await new zksync.Wallet(
         mainWalletPK,
-        new zksync.Provider(l2NodeUrl),
+        l2Provider,
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(weth.address);
 

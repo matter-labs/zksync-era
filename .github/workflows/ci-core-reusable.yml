@@ -318,9 +318,8 @@ jobs:
           ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
           ci_run sleep 30
 
-      - name: Integration tests - DISABLED (EVM-559)
-        run: ls
-        # ci_run zk test i server --testPathIgnorePatterns 'contract-verification|snapshots-creator'
+      - name: Integration tests
+        run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|snapshots-creator'
 
       - name: Run revert test - DISABLED (EVM-539)
         run: |
