@@ -1,7 +1,7 @@
 //! Tests for the transaction sender.
 
 use zksync_config::configs::wallets::Wallets;
-use zksync_types::{get_nonce_key, L1BatchNumber, StorageLog};
+use zksync_types::{get_nonce_key, L1BatchNumber, L2BlockNumber, StorageLog};
 
 use super::*;
 use crate::{
@@ -113,14 +113,6 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
     let tx_executor = MockTransactionExecutor::default().into();
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
 
-    let nonce = tx_sender.get_expected_nonce(test_address).await.unwrap();
-    assert_eq!(nonce, Nonce(123));
-    let nonce = tx_sender.get_expected_nonce(other_address).await.unwrap();
-    assert_eq!(nonce, Nonce(25));
-    let missing_address = Address::repeat_byte(0xff);
-    let nonce = tx_sender.get_expected_nonce(missing_address).await.unwrap();
-    assert_eq!(nonce, Nonce(0));
-
     storage
         .blocks_dal()
         .insert_l2_block(&create_miniblock(SNAPSHOT_MINIBLOCK_NUMBER.0 + 1))
@@ -143,6 +135,7 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
     assert_eq!(nonce, Nonce(321));
     let nonce = tx_sender.get_expected_nonce(other_address).await.unwrap();
     assert_eq!(nonce, Nonce(25));
+    let missing_address = Address::repeat_byte(0xff);
     let nonce = tx_sender.get_expected_nonce(missing_address).await.unwrap();
     assert_eq!(nonce, Nonce(0));
 }

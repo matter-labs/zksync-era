@@ -24,8 +24,8 @@ use zksync_types::{
     get_code_key, get_intrinsic_constants,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     utils::storage_key_for_eth_balance,
-    AccountTreeId, Address, ExecuteTransactionCommon, L2BlockNumber, L2ChainId, Nonce,
-    PackedEthSignature, ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
+    AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
+    ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
     MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
@@ -35,8 +35,8 @@ use self::tx_sink::TxSink;
 use crate::{
     api_server::{
         execution_sandbox::{
-            BlockArgs, BlockStartInfo, SubmitTxStage, TransactionExecutor, TxExecutionArgs,
-            TxSharedArgs, VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
+            BlockArgs, SubmitTxStage, TransactionExecutor, TxExecutionArgs, TxSharedArgs,
+            VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
         },
         tx_sender::result::ApiCallResult,
     },
@@ -526,15 +526,11 @@ impl TxSender {
 
     async fn get_expected_nonce(&self, initiator_account: Address) -> anyhow::Result<Nonce> {
         let mut storage = self.acquire_replica_connection().await?;
-        let latest_block_number = storage.blocks_dal().get_sealed_l2_block_number().await?;
-        let latest_block_number = match latest_block_number {
-            Some(number) => number,
-            None => {
-                // We don't have miniblocks in the storage yet. Use the snapshot miniblock number instead.
-                let start = BlockStartInfo::new(&mut storage).await?;
-                L2BlockNumber(start.first_miniblock(&mut storage).await?.saturating_sub(1))
-            }
-        };
+        let latest_block_number = storage
+            .blocks_dal()
+            .get_sealed_l2_block_number()
+            .await?
+            .context("no L2 blocks in storage")?;
 
         let nonce = storage
             .storage_web3_dal()

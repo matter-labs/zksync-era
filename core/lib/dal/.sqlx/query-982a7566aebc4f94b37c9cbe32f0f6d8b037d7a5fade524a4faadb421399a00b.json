@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                SELECT\n                    transactions.hash AS tx_hash,\n                    transactions.index_in_block AS index_in_block,\n                    transactions.miniblock_number AS block_number,\n                    transactions.nonce AS nonce,\n                    transactions.signature AS signature,\n                    transactions.initiator_address AS initiator_address,\n                    transactions.tx_format AS tx_format,\n                    transactions.value AS value,\n                    transactions.gas_limit AS gas_limit,\n                    transactions.max_fee_per_gas AS max_fee_per_gas,\n                    transactions.max_priority_fee_per_gas AS max_priority_fee_per_gas,\n                    transactions.effective_gas_price AS effective_gas_price,\n                    transactions.l1_batch_number AS l1_batch_number,\n                    transactions.l1_batch_tx_index AS l1_batch_tx_index,\n                    transactions.data->'contractAddress' AS \"execute_contract_address\",\n                    transactions.data->'calldata' AS \"calldata\",\n                    miniblocks.hash AS \"block_hash\"\n                FROM transactions\n                LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number\n                WHERE\n                transactions.hash = ANY($1)",
+  "query": "\n                SELECT\n                    transactions.hash AS tx_hash,\n                    transactions.index_in_block AS index_in_block,\n                    transactions.miniblock_number AS block_number,\n                    transactions.nonce AS nonce,\n                    transactions.signature AS signature,\n                    transactions.initiator_address AS initiator_address,\n                    transactions.tx_format AS tx_format,\n                    transactions.value AS value,\n                    transactions.gas_limit AS gas_limit,\n                    transactions.max_fee_per_gas AS max_fee_per_gas,\n                    transactions.max_priority_fee_per_gas AS max_priority_fee_per_gas,\n                    transactions.effective_gas_price AS effective_gas_price,\n                    transactions.l1_batch_number AS l1_batch_number,\n                    transactions.l1_batch_tx_index AS l1_batch_tx_index,\n                    transactions.data->'contractAddress' AS \"execute_contract_address\",\n                    transactions.data->'calldata' AS \"calldata\",\n                    miniblocks.hash AS \"block_hash\"\n                FROM transactions\n                LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number\n                WHERE\n                transactions.miniblock_number = $1 AND transactions.index_in_block = $2 AND transactions.data != '{}'::jsonb",
   "describe": {
     "columns": [
       {
@@ -91,7 +91,8 @@
     ],
     "parameters": {
       "Left": [
-        "ByteaArray"
+        "Int8",
+        "Int4"
       ]
     },
     "nullable": [
@@ -111,8 +112,8 @@
       true,
       null,
       null,
-      true
+      false
     ]
   },
-  "hash": "aac861efb4acb81d5cefa598c822bef649a6db197a36aca098cd8054909d82e9"
+  "hash": "982a7566aebc4f94b37c9cbe32f0f6d8b037d7a5fade524a4faadb421399a00b"
 }

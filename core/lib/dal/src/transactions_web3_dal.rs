@@ -75,7 +75,10 @@ impl TransactionsWeb3Dal<'_, '_> {
                 AND sl.tx_hash = transactions.hash
             WHERE
                 transactions.hash = ANY ($3)
+                AND transactions.data != '{}'::jsonb
             "#,
+            // ^ Filter out transactions with pruned data, which would lead to potentially incomplete / bogus
+            // transaction info.
             ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes(),
             FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
             &hash_bytes as &[&[u8]]
@@ -179,7 +182,10 @@ impl TransactionsWeb3Dal<'_, '_> {
                 LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
                 WHERE
                 "#,
-                _ // WHERE condition
+                _, // WHERE condition
+                " AND transactions.data != '{}'::jsonb"
+                // ^ Filter out transactions with pruned data, which would lead to potentially incomplete / bogus
+                // transaction info.
             ],
             match (selector) {
                 TransactionSelector::Hashes(hashes) => (
@@ -234,53 +240,52 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         hash: H256,
     ) -> DalResult<Option<api::TransactionDetails>> {
-        {
-            let storage_tx_details: Option<StorageTransactionDetails> = sqlx::query_as!(
-                StorageTransactionDetails,
-                r#"
-                SELECT
-                    transactions.is_priority,
-                    transactions.initiator_address,
-                    transactions.gas_limit,
-                    transactions.gas_per_pubdata_limit,
-                    transactions.received_at,
-                    transactions.miniblock_number,
-                    transactions.error,
-                    transactions.effective_gas_price,
-                    transactions.refunded_gas,
-                    commit_tx.tx_hash AS "eth_commit_tx_hash?",
-                    prove_tx.tx_hash AS "eth_prove_tx_hash?",
-                    execute_tx.tx_hash AS "eth_execute_tx_hash?"
-                FROM
-                    transactions
-                    LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
-                    LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
-                    LEFT JOIN eth_txs_history AS commit_tx ON (
-                        l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id
-                        AND commit_tx.confirmed_at IS NOT NULL
-                    )
-                    LEFT JOIN eth_txs_history AS prove_tx ON (
-                        l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id
-                        AND prove_tx.confirmed_at IS NOT NULL
-                    )
-                    LEFT JOIN eth_txs_history AS execute_tx ON (
-                        l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
-                        AND execute_tx.confirmed_at IS NOT NULL
-                    )
-                WHERE
-                    transactions.hash = $1
-                "#,
-                hash.as_bytes()
-            )
-            .instrument("get_transaction_details")
-            .with_arg("hash", &hash)
-            .fetch_optional(self.storage)
-            .await?;
+        let row = sqlx::query_as!(
+            StorageTransactionDetails,
+            r#"
+            SELECT
+                transactions.is_priority,
+                transactions.initiator_address,
+                transactions.gas_limit,
+                transactions.gas_per_pubdata_limit,
+                transactions.received_at,
+                transactions.miniblock_number,
+                transactions.error,
+                transactions.effective_gas_price,
+                transactions.refunded_gas,
+                commit_tx.tx_hash AS "eth_commit_tx_hash?",
+                prove_tx.tx_hash AS "eth_prove_tx_hash?",
+                execute_tx.tx_hash AS "eth_execute_tx_hash?"
+            FROM
+                transactions
+                LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
+                LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
+                LEFT JOIN eth_txs_history AS commit_tx ON (
+                    l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id
+                    AND commit_tx.confirmed_at IS NOT NULL
+                )
+                LEFT JOIN eth_txs_history AS prove_tx ON (
+                    l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id
+                    AND prove_tx.confirmed_at IS NOT NULL
+                )
+                LEFT JOIN eth_txs_history AS execute_tx ON (
+                    l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
+                    AND execute_tx.confirmed_at IS NOT NULL
+                )
+            WHERE
+                transactions.hash = $1
+                AND transactions.data != '{}'::jsonb
+            "#,
+            // ^ Filter out transactions with pruned data, which would lead to potentially incomplete / bogus
+            // transaction info.
+            hash.as_bytes()
+        )
+        .instrument("get_transaction_details")
+        .with_arg("hash", &hash)
+        .fetch_optional(self.storage)
+        .await?;
 
-            let tx = storage_tx_details.map(|tx_details| tx_details.into());
-
-            Ok(tx)
-        }
+        Ok(row.map(Into::into))
     }
 
     /// Returns hashes of txs which were received after `from_timestamp` and the time of receiving the last tx.

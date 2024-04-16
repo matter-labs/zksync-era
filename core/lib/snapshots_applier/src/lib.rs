@@ -246,37 +246,38 @@ impl SnapshotsApplierConfig {
     }
 }
 
-/// Applying application-level storage snapshots to the Postgres storage.
+/// Strategy determining how snapshot recovery should proceed.
 #[derive(Debug)]
-struct SnapshotsApplier<'a> {
-    connection_pool: &'a ConnectionPool<Core>,
-    main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
-    blob_store: &'a dyn ObjectStore,
-    applied_snapshot_status: SnapshotRecoveryStatus,
-    health_updater: &'a HealthUpdater,
-    factory_deps_recovered: bool,
-    tokens_recovered: bool,
+enum SnapshotRecoveryStrategy {
+    /// Snapshot recovery should proceed from scratch with the specified params.
+    New(SnapshotRecoveryStatus),
+    /// Snapshot recovery should continue with the specified params.
+    Resumed(SnapshotRecoveryStatus),
+    /// Snapshot recovery has already been completed.
+    Completed,
 }
 
-impl<'a> SnapshotsApplier<'a> {
-    /// Recovers [`SnapshotRecoveryStatus`] from the storage and the main node.
-    async fn prepare_applied_snapshot_status(
+impl SnapshotRecoveryStrategy {
+    async fn new(
         storage: &mut Connection<'_, Core>,
         main_node_client: &dyn SnapshotsApplierMainNodeClient,
-    ) -> Result<(SnapshotRecoveryStatus, bool), SnapshotsApplierError> {
+    ) -> Result<Self, SnapshotsApplierError> {
         let latency =
             METRICS.initial_stage_duration[&InitialStage::FetchMetadataFromMainNode].start();
-
         let applied_snapshot_status = storage
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
             .await?;
 
         if let Some(applied_snapshot_status) = applied_snapshot_status {
+            let sealed_miniblock_number = storage.blocks_dal().get_sealed_l2_block_number().await?;
+            if sealed_miniblock_number.is_some() {
+                return Ok(Self::Completed);
+            }
+
             let latency = latency.observe();
             tracing::info!("Re-initialized snapshots applier after reset/failure in {latency:?}");
-
-            Ok((applied_snapshot_status, false))
+            Ok(Self::Resumed(applied_snapshot_status))
         } else {
             let is_genesis_needed = storage.blocks_dal().is_genesis_needed().await?;
             if !is_genesis_needed {
@@ -286,8 +287,7 @@ impl<'a> SnapshotsApplier<'a> {
                 return Err(SnapshotsApplierError::Fatal(err));
             }
 
-            let recovery_status =
-                SnapshotsApplier::create_fresh_recovery_status(main_node_client).await?;
+            let recovery_status = Self::create_fresh_recovery_status(main_node_client).await?;
 
             let storage_logs_count = storage
                 .storage_logs_dal()
@@ -304,95 +304,8 @@ impl<'a> SnapshotsApplier<'a> {
 
             let latency = latency.observe();
             tracing::info!("Initialized fresh snapshots applier in {latency:?}");
-            Ok((recovery_status, true))
+            Ok(Self::New(recovery_status))
         }
-    }
-
-    async fn load_snapshot(
-        connection_pool: &'a ConnectionPool<Core>,
-        main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
-        blob_store: &'a dyn ObjectStore,
-        health_updater: &'a HealthUpdater,
-    ) -> Result<(), SnapshotsApplierError> {
-        health_updater.update(HealthStatus::Ready.into());
-
-        let mut storage = connection_pool
-            .connection_tagged("snapshots_applier")
-            .await?;
-        let mut storage_transaction = storage.start_transaction().await?;
-
-        if storage_transaction
-            .snapshot_recovery_dal()
-            .get_applied_snapshot_status()
-            .await?
-            .is_some()
-            && storage_transaction
-                .blocks_dal()
-                .get_sealed_l2_block_number()
-                .await?
-                .is_some()
-        {
-            return Ok(());
-        }
-
-        let (applied_snapshot_status, created_from_scratch) =
-            Self::prepare_applied_snapshot_status(&mut storage_transaction, main_node_client)
-                .await?;
-
-        let mut this = Self {
-            connection_pool,
-            main_node_client,
-            blob_store,
-            applied_snapshot_status,
-            health_updater,
-            factory_deps_recovered: !created_from_scratch,
-            tokens_recovered: false,
-        };
-
-        METRICS.storage_logs_chunks_count.set(
-            this.applied_snapshot_status
-                .storage_logs_chunks_processed
-                .len(),
-        );
-        METRICS.storage_logs_chunks_left_to_process.set(
-            this.applied_snapshot_status
-                .storage_logs_chunks_left_to_process(),
-        );
-        this.update_health();
-
-        if created_from_scratch {
-            this.recover_factory_deps(&mut storage_transaction).await?;
-            storage_transaction
-                .snapshot_recovery_dal()
-                .insert_initial_recovery_status(&this.applied_snapshot_status)
-                .await?;
-            storage_transaction
-                .pruning_dal()
-                .soft_prune_batches_range(
-                    this.applied_snapshot_status.l1_batch_number,
-                    this.applied_snapshot_status.l2_block_number,
-                )
-                .await?;
-
-            storage_transaction
-                .pruning_dal()
-                .hard_prune_batches_range(
-                    this.applied_snapshot_status.l1_batch_number,
-                    this.applied_snapshot_status.l2_block_number,
-                )
-                .await?;
-        }
-        storage_transaction.commit().await?;
-        drop(storage);
-        this.factory_deps_recovered = true;
-        this.update_health();
-
-        this.recover_storage_logs().await?;
-        this.recover_tokens().await?;
-        this.tokens_recovered = true;
-        this.update_health();
-
-        Ok(())
     }
 
     async fn create_fresh_recovery_status(
@@ -460,6 +373,98 @@ impl<'a> SnapshotsApplier<'a> {
             "Cannot recover from a snapshot with version {version:?}; the only supported version is {:?}",
             SnapshotVersion::Version0
         );
+        Ok(())
+    }
+}
+
+/// Applying application-level storage snapshots to the Postgres storage.
+#[derive(Debug)]
+struct SnapshotsApplier<'a> {
+    connection_pool: &'a ConnectionPool<Core>,
+    main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
+    blob_store: &'a dyn ObjectStore,
+    applied_snapshot_status: SnapshotRecoveryStatus,
+    health_updater: &'a HealthUpdater,
+    factory_deps_recovered: bool,
+    tokens_recovered: bool,
+}
+
+impl<'a> SnapshotsApplier<'a> {
+    async fn load_snapshot(
+        connection_pool: &'a ConnectionPool<Core>,
+        main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
+        blob_store: &'a dyn ObjectStore,
+        health_updater: &'a HealthUpdater,
+    ) -> Result<(), SnapshotsApplierError> {
+        health_updater.update(HealthStatus::Ready.into());
+
+        let mut storage = connection_pool
+            .connection_tagged("snapshots_applier")
+            .await?;
+        let mut storage_transaction = storage.start_transaction().await?;
+
+        let strategy =
+            SnapshotRecoveryStrategy::new(&mut storage_transaction, main_node_client).await?;
+        let (applied_snapshot_status, created_from_scratch) = match strategy {
+            SnapshotRecoveryStrategy::Completed => return Ok(()),
+            SnapshotRecoveryStrategy::New(status) => (status, true),
+            SnapshotRecoveryStrategy::Resumed(status) => (status, false),
+        };
+        let mut this = Self {
+            connection_pool,
+            main_node_client,
+            blob_store,
+            applied_snapshot_status,
+            health_updater,
+            factory_deps_recovered: !created_from_scratch,
+            tokens_recovered: false,
+        };
+
+        METRICS.storage_logs_chunks_count.set(
+            this.applied_snapshot_status
+                .storage_logs_chunks_processed
+                .len(),
+        );
+        METRICS.storage_logs_chunks_left_to_process.set(
+            this.applied_snapshot_status
+                .storage_logs_chunks_left_to_process(),
+        );
+        this.update_health();
+
+        if created_from_scratch {
+            this.recover_factory_deps(&mut storage_transaction).await?;
+            storage_transaction
+                .snapshot_recovery_dal()
+                .insert_initial_recovery_status(&this.applied_snapshot_status)
+                .await?;
+
+            // Insert artificial entries into the pruning log so that it's guaranteed to match the snapshot recovery metadata.
+            // This allows to not deal with the corner cases when a node was recovered from a snapshot, but its pruning log is empty.
+            storage_transaction
+                .pruning_dal()
+                .soft_prune_batches_range(
+                    this.applied_snapshot_status.l1_batch_number,
+                    this.applied_snapshot_status.l2_block_number,
+                )
+                .await?;
+            storage_transaction
+                .pruning_dal()
+                .hard_prune_batches_range(
+                    this.applied_snapshot_status.l1_batch_number,
+                    this.applied_snapshot_status.l2_block_number,
+                )
+                .await?;
+        }
+        storage_transaction.commit().await?;
+        drop(storage);
+        this.factory_deps_recovered = true;
+        this.update_health();
+
+        this.recover_storage_logs().await?;
+        this.recover_tokens().await?;
+        this.tokens_recovered = true;
+        this.update_health();
+
         Ok(())
     }
 
