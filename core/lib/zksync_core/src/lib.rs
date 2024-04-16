@@ -904,18 +904,21 @@ async fn start_eth_watch(
     pool: ConnectionPool<Core>,
     eth_gateway: Arc<dyn EthInterface>,
     diamond_proxy_addr: Address,
+    state_transition_manager_addr: Option<Address>,
     governance: (Contract, Address),
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<JoinHandle<anyhow::Result<()>>> {
     let eth_client = EthHttpQueryClient::new(
         eth_gateway,
         diamond_proxy_addr,
+        state_transition_manager_addr,
         governance.1,
         config.confirmations_for_eth_event,
     );
 
     let eth_watch = EthWatch::new(
         diamond_proxy_addr,
+        state_transition_manager_addr,
         &governance.0,
         Box::new(eth_client),
         pool,

@@ -79,7 +79,7 @@ impl EthHttpQueryClient {
         let filter = FilterBuilder::default()
             .address(
                 [
-                    Some(self.diamond_proxy_addr),
+                    Some(self.zksync_contract_addr),
                     Some(self.governance_address),
                     self.state_transition_manager_address,
                 ]

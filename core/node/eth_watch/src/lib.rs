@@ -72,14 +72,6 @@ impl EthWatch {
             Box::new(governance_upgrades_processor),
         ];
 
-        let governance_upgrades_processor = GovernanceUpgradesEventProcessor::new(
-            state_transition_manager_address.unwrap_or(diamond_proxy_addr),
-            state.last_seen_version_id,
-            &governance_contract,
-        );
-        event_processors.push(Box::new(governance_upgrades_processor));
-        
-
         let topics = event_processors
             .iter()
             .map(|processor| processor.relevant_topic())
