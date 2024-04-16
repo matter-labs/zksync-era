@@ -28,4 +28,5 @@ thiserror.workspace = true
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
+assert_matches.workspace = true
 test-casing.workspace = true

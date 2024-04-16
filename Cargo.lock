@@ -8893,6 +8893,7 @@ name = "zksync_snapshots_applier"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "serde",
  "test-casing",

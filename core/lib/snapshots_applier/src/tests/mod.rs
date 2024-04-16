@@ -1,10 +1,17 @@
 //! Snapshot applier tests.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::{
+    future,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
+use assert_matches::assert_matches;
 use test_casing::test_casing;
+use tokio::sync::Barrier;
+use zksync_health_check::CheckHealth;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
+    api::{BlockDetails, L1BatchDetails},
     block::{L1BatchHeader, MiniblockHeader},
     get_code_key, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
 };
@@ -57,7 +64,12 @@ async fn snapshots_creator_can_successfully_recover_db(
         Box::new(client.clone()),
         object_store.clone(),
     );
+    let task_health = task.health_check();
     task.run().await.unwrap();
+    assert_matches!(
+        task_health.check_health().await.status(),
+        HealthStatus::Ready
+    );
 
     let mut storage = pool.connection().await.unwrap();
     let mut recovery_dal = storage.snapshot_recovery_dal();
@@ -101,6 +113,63 @@ async fn snapshots_creator_can_successfully_recover_db(
         object_store,
     );
     task.run().await.unwrap();
+}
+
+#[tokio::test]
+async fn health_status_immediately_after_task_start() {
+    #[derive(Debug, Clone)]
+    struct HangingMainNodeClient(Arc<Barrier>);
+
+    #[async_trait]
+    impl SnapshotsApplierMainNodeClient for HangingMainNodeClient {
+        async fn fetch_l1_batch_details(
+            &self,
+            _number: L1BatchNumber,
+        ) -> EnrichedClientResult<Option<L1BatchDetails>> {
+            self.0.wait().await;
+            future::pending().await
+        }
+
+        async fn fetch_l2_block_details(
+            &self,
+            _number: MiniblockNumber,
+        ) -> EnrichedClientResult<Option<BlockDetails>> {
+            self.0.wait().await;
+            future::pending().await
+        }
+
+        async fn fetch_newest_snapshot(&self) -> EnrichedClientResult<Option<SnapshotHeader>> {
+            self.0.wait().await;
+            future::pending().await
+        }
+
+        async fn fetch_tokens(
+            &self,
+            _at_miniblock: MiniblockNumber,
+        ) -> EnrichedClientResult<Vec<TokenInfo>> {
+            self.0.wait().await;
+            future::pending().await
+        }
+    }
+
+    let object_store_factory = ObjectStoreFactory::mock();
+    let object_store = object_store_factory.create_store().await;
+    let client = HangingMainNodeClient(Arc::new(Barrier::new(2)));
+    let task = SnapshotsApplierTask::new(
+        SnapshotsApplierConfig::for_tests(),
+        ConnectionPool::<Core>::test_pool().await,
+        Box::new(client.clone()),
+        object_store,
+    );
+    let task_health = task.health_check();
+    let task_handle = tokio::spawn(task.run());
+
+    client.0.wait().await; // Wait for the first L2 client call (at which point, the task is certainly initialized)
+    assert_matches!(
+        task_health.check_health().await.status(),
+        HealthStatus::Affected
+    );
+    task_handle.abort();
 }
 
 #[tokio::test]
