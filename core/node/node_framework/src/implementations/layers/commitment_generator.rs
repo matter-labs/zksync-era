@@ -1,4 +1,4 @@
-use zksync_core::commitment_generator::CommitmentGenerator;
+use zksync_commitment_generator::CommitmentGenerator;
 
 use crate::{
     implementations::resources::{healthcheck::AppHealthCheckResource, pools::MasterPoolResource},

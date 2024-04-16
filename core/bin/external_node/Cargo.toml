@@ -1,6 +1,6 @@
 [package]
 name = "zksync_external_node"
-version = "22.1.0" # x-release-please-version
+version = "23.0.0" # x-release-please-version
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -12,6 +12,7 @@ publish = false
 
 [dependencies]
 zksync_core.workspace = true
+zksync_commitment_generator.workspace = true
 zksync_dal.workspace = true
 zksync_db_connection.workspace = true
 zksync_config.workspace = true
