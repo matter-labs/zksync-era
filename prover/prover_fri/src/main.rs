@@ -9,6 +9,7 @@ use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tokio::{
     sync::{oneshot, watch::Receiver, Notify},
     task::JoinHandle,
+    time::Instant,
 };
 use zksync_config::configs::{
     fri_prover_group::FriProverGroupConfig, FriProverConfig, ObservabilityConfig, PostgresConfig,
@@ -25,6 +26,7 @@ use zksync_types::{
     prover_dal::{GpuProverInstanceStatus, SocketAddress},
 };
 use zksync_utils::wait_for_tasks::ManagedTasks;
+use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
 mod gpu_prover_availability_checker;
 mod gpu_prover_job_processor;
@@ -144,6 +146,11 @@ async fn main() -> anyhow::Result<()> {
     let port = prover_config.witness_vector_receiver_port;
 
     let notify = Arc::new(Notify::new());
+
+    tracing::info!("start loading commitments");
+    let time = Instant::now();
+    let _ = get_cached_commitments();
+    tracing::info!("commitments loaded in {:?}", time.elapsed().as_millis());
 
     let prover_tasks = get_prover_tasks(
         prover_config,
