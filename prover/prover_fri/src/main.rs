@@ -150,7 +150,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("start loading commitments");
     let time = Instant::now();
     let _ = get_cached_commitments();
-    tracing::info!("commitments loaded in {:?}", time.elapsed().as_millis());
+    tracing::info!("commitments loaded in {:?} secs", time.elapsed().as_secs());
 
     let prover_tasks = get_prover_tasks(
         prover_config,
