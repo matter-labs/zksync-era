@@ -20,9 +20,7 @@ export class Tester {
     // prettier-ignore
     static async init(network: Network) {
         const ethProvider = new ethers.providers.JsonRpcProvider(process.env.L1_RPC_ADDRESS || process.env.ETH_CLIENT_WEB3_URL);
-        const web3Provider = new zkweb3.Provider(process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL ||  "http://localhost:3050");
-        web3Provider.pollingInterval = 100; // It's OK to keep it low even on stage.
-        
+
         let ethWallet;
         if (network == 'localhost') {
             ethProvider.pollingInterval = 100;
@@ -32,12 +30,16 @@ export class Tester {
             ethWallet = ethers.Wallet.fromMnemonic(
                 ethTestConfig.test_mnemonic as string,
                 "m/44'/60'/0'/0/0"
-            ).connect(ethProvider);
+            )
         }
         else {
-            ethWallet = new ethers.Wallet(process.env.MASTER_WALLET_PK!, ethProvider);
+            ethWallet = new ethers.Wallet(process.env.MASTER_WALLET_PK!);
         }
+        ethWallet = ethWallet.connect(ethProvider);
+        const web3Provider = new zkweb3.Provider(process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL ||  "http://localhost:3050");
+        web3Provider.pollingInterval = 100; // It's OK to keep it low even on stage.
         const syncWallet = new zkweb3.Wallet(ethWallet.privateKey, web3Provider, ethProvider);
+
 
         // Since some tx may be pending on stage, we don't want to get stuck because of it.
         // In order to not get stuck transactions, we manually cancel all the pending txs.

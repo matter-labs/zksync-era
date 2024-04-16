@@ -234,7 +234,7 @@ describe('Upgrade test', function () {
 
         let lastBatchExecuted = await mainContract.getTotalBatchesExecuted();
         let tryCount = 0;
-        while (lastBatchExecuted < l1BatchNumber && tryCount < 40) {
+        while (lastBatchExecuted < l1BatchNumber && tryCount < 30) {
             lastBatchExecuted = await mainContract.getTotalBatchesExecuted();
             tryCount += 1;
             await utils.sleep(2);
