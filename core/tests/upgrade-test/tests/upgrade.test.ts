@@ -170,6 +170,7 @@ describe('Upgrade test', function () {
         const data = COMPLEX_UPGRADER_ABI.encodeFunctionData('upgrade', [delegateTo, delegateCalldata]);
 
         const oldProtocolVersion = await alice._providerL2().send('zks_getProtocolVersion', [null]);
+        console.log('old version ', oldProtocolVersion);
         const calldata = await prepareUpgradeCalldata(govWallet, alice._providerL2(), {
             l2ProtocolUpgradeTx: {
                 txType: 254,
