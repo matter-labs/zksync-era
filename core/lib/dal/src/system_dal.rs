@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 
@@ -12,12 +12,13 @@ pub(crate) struct TableSize {
     pub total_size: u64,
 }
 
+#[derive(Debug)]
 pub struct SystemDal<'a, 'c> {
-    pub storage: &'a mut Connection<'c, Core>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl SystemDal<'_, '_> {
-    pub async fn get_replication_lag_sec(&mut self) -> sqlx::Result<u32> {
+    pub async fn get_replication_lag(&mut self) -> DalResult<Duration> {
         // NOTE: lag (seconds) has a special meaning here
         // (it is not the same that `replay_lag/write_lag/flush_lag` from `pg_stat_replication` view)
         // and it is only useful when synced column is false,
@@ -33,12 +34,13 @@ impl SystemDal<'_, '_> {
                 )::INT AS LAG
             "#
         )
-        .fetch_one(self.storage.conn())
+        .instrument("get_replication_lag")
+        .fetch_one(self.storage)
         .await?;
 
         Ok(match row.synced {
-            Some(false) => row.lag.unwrap_or(0) as u32,
-            _ => 0, // We are synced, no lag
+            Some(false) => Duration::from_secs(row.lag.unwrap_or(0) as u64),
+            _ => Duration::ZERO, // We are synced, no lag
         })
     }
 

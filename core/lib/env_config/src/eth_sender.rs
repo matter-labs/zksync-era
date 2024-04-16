@@ -1,16 +1,16 @@
 use anyhow::Context as _;
 use zksync_config::{
-    configs::eth_sender::SenderConfig, ETHConfig, ETHWatchConfig, GasAdjusterConfig,
+    configs::eth_sender::SenderConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
 };
 
 use crate::{envy_load, FromEnv};
 
-impl FromEnv for ETHConfig {
+impl FromEnv for EthConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             sender: SenderConfig::from_env().ok(),
             gas_adjuster: GasAdjusterConfig::from_env().ok(),
-            watcher: ETHWatchConfig::from_env().ok(),
+            watcher: EthWatchConfig::from_env().ok(),
             web3_url: std::env::var("ETH_CLIENT_WEB3_URL").context("ETH_CLIENT_WEB3_URL")?,
         })
     }
@@ -39,8 +39,8 @@ mod tests {
 
     static MUTEX: EnvMutex = EnvMutex::new();
 
-    fn expected_config() -> ETHConfig {
-        ETHConfig {
+    fn expected_config() -> EthConfig {
+        EthConfig {
             sender: Some(SenderConfig {
                 aggregated_proof_sizes: vec![1, 5],
                 aggregated_block_commit_deadline: 30,
@@ -76,7 +76,7 @@ mod tests {
                 internal_pubdata_pricing_multiplier: 1.0,
                 max_blob_base_fee: None,
             }),
-            watcher: Some(ETHWatchConfig {
+            watcher: Some(EthWatchConfig {
                 confirmations_for_eth_event: Some(0),
                 eth_node_poll_interval: 300,
             }),
@@ -125,7 +125,7 @@ mod tests {
         "#;
         lock.set_env(config);
 
-        let actual = ETHConfig::from_env().unwrap();
+        let actual = EthConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
         assert_eq!(
             actual.sender.unwrap().private_key().unwrap(),

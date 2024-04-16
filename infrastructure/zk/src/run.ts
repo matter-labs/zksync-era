@@ -93,6 +93,11 @@ export async function loadtest(...args: string[]) {
     await utils.spawn(`cargo run --release --bin loadnext -- ${args.join(' ')}`);
 }
 
+export async function genesisConfigGenerator(...args: string[]) {
+    console.log(args);
+    await utils.spawn(`cargo run --release --bin genesis_generator -- ${args.join(' ')}`);
+}
+
 export async function readVariable(address: string, contractName: string, variableName: string, file?: string) {
     if (file === undefined)
         await utils.spawn(
@@ -136,6 +141,14 @@ command
     .command('revert-reason <tx_hash> [web3_url]')
     .description('get the revert reason for ethereum transaction')
     .action(revertReason);
+
+command
+    .command('genesis-config-generator [options...]')
+    .description('run the genesis-config-generator')
+    .allowUnknownOption()
+    .action(async (options: string[]) => {
+        await genesisConfigGenerator(...options);
+    });
 
 command
     .command('loadtest [options...]')

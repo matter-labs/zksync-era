@@ -1,6 +1,6 @@
 [package]
 name = "zksync_external_node"
-version = "0.1.0"
+version = "23.0.0" # x-release-please-version
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -12,9 +12,11 @@ publish = false
 
 [dependencies]
 zksync_core.workspace = true
+zksync_commitment_generator.workspace = true
 zksync_dal.workspace = true
 zksync_db_connection.workspace = true
 zksync_config.workspace = true
+zksync_protobuf_config.workspace = true
 zksync_eth_client.workspace = true
 zksync_storage.workspace = true
 zksync_utils.workspace = true
@@ -44,3 +46,6 @@ clap = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 semver.workspace = true
 tracing.workspace = true
+
+[build-dependencies]
+rustc_version.workspace = true

@@ -6,19 +6,21 @@ use zksync_config::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
             StateKeeperConfig,
         },
+        consensus::ConsensusSecrets,
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         wallets::{AddressWallet, EthSender, StateKeeper, Wallet, Wallets},
         FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
-        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, WitnessGeneratorConfig,
+        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
     },
-    ApiConfig, ContractVerifierConfig, DBConfig, ETHConfig, ETHWatchConfig, GasAdjusterConfig,
+    ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
-use zksync_protobuf::{read_optional, repr::ProtoRepr, ProtoFmt};
+use zksync_protobuf::{repr::ProtoRepr, ProtoFmt};
+use zksync_protobuf_config::read_optional_repr;
 
-use crate::{consensus, proto};
+use crate::proto;
 
 pub fn decode_yaml<T: ProtoFmt>(yaml: &str) -> anyhow::Result<T> {
     let d = serde_yaml::Deserializer::from_str(yaml);
@@ -56,11 +58,10 @@ pub struct TempConfigStore {
     pub fri_witness_generator_config: Option<FriWitnessGeneratorConfig>,
     pub prometheus_config: Option<PrometheusConfig>,
     pub proof_data_handler_config: Option<ProofDataHandlerConfig>,
-    pub witness_generator_config: Option<WitnessGeneratorConfig>,
     pub api_config: Option<ApiConfig>,
     pub db_config: Option<DBConfig>,
-    pub eth_sender_config: Option<ETHConfig>,
-    pub eth_watch_config: Option<ETHWatchConfig>,
+    pub eth_sender_config: Option<EthConfig>,
+    pub eth_watch_config: Option<EthWatchConfig>,
     pub gas_adjuster_config: Option<GasAdjusterConfig>,
     pub object_store_config: Option<ObjectStoreConfig>,
     pub observability: Option<ObservabilityConfig>,
@@ -69,20 +70,20 @@ pub struct TempConfigStore {
 
 #[derive(Debug)]
 pub struct Secrets {
-    pub consensus: Option<consensus::Secrets>,
+    pub consensus: Option<ConsensusSecrets>,
 }
 
 impl ProtoFmt for Secrets {
     type Proto = proto::Secrets;
     fn read(r: &Self::Proto) -> anyhow::Result<Self> {
         Ok(Self {
-            consensus: read_optional(&r.consensus).context("consensus")?,
+            consensus: read_optional_repr(&r.consensus).context("consensus")?,
         })
     }
 
     fn build(&self) -> Self::Proto {
         Self::Proto {
-            consensus: self.consensus.as_ref().map(|x| x.build()),
+            consensus: self.consensus.as_ref().map(ProtoRepr::build),
         }
     }
 }

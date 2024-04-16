@@ -26,7 +26,7 @@ use crate::{
         extractors,
         io::{
             common::{load_pending_batch, poll_iters, IoCursor},
-            fee_address_migration, L1BatchParams, MiniblockParams, PendingBatchData, StateKeeperIO,
+            L1BatchParams, MiniblockParams, PendingBatchData, StateKeeperIO,
         },
         mempool_actor::l2_tx_filter,
         metrics::KEEPER_METRICS,
@@ -322,10 +322,11 @@ impl StateKeeperIO for MempoolIO {
         version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
-        Ok(storage
+        storage
             .protocol_versions_dal()
             .get_protocol_upgrade_tx(version_id)
-            .await)
+            .await
+            .map_err(Into::into)
     }
 
     async fn load_batch_state_hash(
@@ -411,7 +412,6 @@ impl MempoolIO {
         let l1_batch_params_provider = L1BatchParamsProvider::new(&mut storage)
             .await
             .context("failed initializing L1 batch params provider")?;
-        fee_address_migration::migrate_pending_miniblocks(&mut storage).await?;
         drop(storage);
 
         Ok(Self {

@@ -12,8 +12,10 @@ use zksync_types::{
     Transaction, H256, U256,
 };
 
-use super::client::Error;
-use crate::{client::EthClient, event_processors::upgrades::UPGRADE_PROPOSAL_SIGNATURE, EthWatch};
+use crate::{
+    client::{EthClient, EthClientError},
+    EthWatch,
+};
 
 #[derive(Debug)]
 struct FakeEthClientData {
@@ -43,15 +45,6 @@ impl FakeEthClientData {
         }
     }
 
-    fn add_diamond_upgrades(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
-        for (upgrade, eth_block) in upgrades {
-            self.diamond_upgrades
-                .entry(*eth_block)
-                .or_default()
-                .push(upgrade_into_diamond_proxy_log(upgrade.clone(), *eth_block));
-        }
-    }
-
     fn add_governance_upgrades(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
         for (upgrade, eth_block) in upgrades {
             self.governance_upgrades
@@ -67,11 +60,11 @@ impl FakeEthClientData {
 }
 
 #[derive(Debug, Clone)]
-struct FakeEthClient {
+struct MockEthClient {
     inner: Arc<RwLock<FakeEthClientData>>,
 }
 
-impl FakeEthClient {
+impl MockEthClient {
     fn new() -> Self {
         Self {
             inner: Arc::new(RwLock::new(FakeEthClientData::new())),
@@ -80,10 +73,6 @@ impl FakeEthClient {
 
     async fn add_transactions(&mut self, transactions: &[L1Tx]) {
         self.inner.write().await.add_transactions(transactions);
-    }
-
-    async fn add_diamond_upgrades(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
-        self.inner.write().await.add_diamond_upgrades(upgrades);
     }
 
     async fn add_governance_upgrades(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
@@ -110,13 +99,13 @@ impl FakeEthClient {
 }
 
 #[async_trait::async_trait]
-impl EthClient for FakeEthClient {
+impl EthClient for MockEthClient {
     async fn get_events(
         &self,
         from: BlockNumber,
         to: BlockNumber,
         _retries_left: usize,
-    ) -> Result<Vec<Log>, Error> {
+    ) -> Result<Vec<Log>, EthClientError> {
         let from = self.block_to_number(from).await;
         let to = self.block_to_number(to).await;
         let mut logs = vec![];
@@ -136,11 +125,11 @@ impl EthClient for FakeEthClient {
 
     fn set_topics(&mut self, _topics: Vec<Hash>) {}
 
-    async fn scheduler_vk_hash(&self, _verifier_address: Address) -> Result<H256, Error> {
+    async fn scheduler_vk_hash(&self, _verifier_address: Address) -> Result<H256, EthClientError> {
         Ok(H256::zero())
     }
 
-    async fn finalized_block_number(&self) -> Result<u64, Error> {
+    async fn finalized_block_number(&self) -> Result<u64, EthClientError> {
         Ok(self.inner.read().await.last_finalized_block_number)
     }
 }
@@ -198,20 +187,26 @@ fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx 
     }
 }
 
+async fn create_test_watcher(connection_pool: ConnectionPool<Core>) -> (EthWatch, MockEthClient) {
+    let client = MockEthClient::new();
+    let watcher = EthWatch::new(
+        Address::default(),
+        &governance_contract(),
+        Box::new(client.clone()),
+        connection_pool,
+        std::time::Duration::from_nanos(1),
+    )
+    .await
+    .unwrap();
+
+    (watcher, client)
+}
+
 #[tokio::test]
 async fn test_normal_operation_l1_txs() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
-
-    let mut client = FakeEthClient::new();
-    let mut watcher = EthWatch::new(
-        Address::default(),
-        None,
-        Box::new(client.clone()),
-        connection_pool.clone(),
-        std::time::Duration::from_nanos(1),
-    )
-    .await;
+    let (mut watcher, mut client) = create_test_watcher(connection_pool.clone()).await;
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -247,84 +242,14 @@ async fn test_normal_operation_l1_txs() {
 }
 
 #[tokio::test]
-async fn test_normal_operation_upgrades() {
+async fn test_gap_in_governance_upgrades() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
-
-    let mut client = FakeEthClient::new();
-    let mut watcher = EthWatch::new(
-        Address::default(),
-        None,
-        Box::new(client.clone()),
-        connection_pool.clone(),
-        std::time::Duration::from_nanos(1),
-    )
-    .await;
+    let (mut watcher, mut client) = create_test_watcher(connection_pool.clone()).await;
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
-        .add_diamond_upgrades(&[
-            (
-                ProtocolUpgrade {
-                    id: ProtocolVersionId::latest(),
-                    tx: None,
-                    ..Default::default()
-                },
-                10,
-            ),
-            (
-                ProtocolUpgrade {
-                    id: ProtocolVersionId::next(),
-                    tx: Some(build_upgrade_tx(ProtocolVersionId::next(), 18)),
-                    ..Default::default()
-                },
-                18,
-            ),
-        ])
-        .await;
-    client.set_last_finalized_block_number(15).await;
-    // second upgrade will not be processed, as it has less than 5 confirmations
-    watcher.loop_iteration(&mut storage).await.unwrap();
-
-    let db_ids = storage.protocol_versions_dal().all_version_ids().await;
-    // there should be genesis version and just added version
-    assert_eq!(db_ids.len(), 2);
-    assert_eq!(db_ids[1], ProtocolVersionId::latest());
-
-    client.set_last_finalized_block_number(20).await;
-    // now the second upgrade will be processed
-    watcher.loop_iteration(&mut storage).await.unwrap();
-    let db_ids = storage.protocol_versions_dal().all_version_ids().await;
-    assert_eq!(db_ids.len(), 3);
-    assert_eq!(db_ids[2], ProtocolVersionId::next());
-
-    // check that tx was saved with the last upgrade
-    let tx = storage
-        .protocol_versions_dal()
-        .get_protocol_upgrade_tx(ProtocolVersionId::next())
-        .await
-        .unwrap();
-    assert_eq!(tx.common_data.upgrade_id, ProtocolVersionId::next());
-}
-
-#[tokio::test]
-async fn test_gap_in_upgrades() {
-    let connection_pool = ConnectionPool::<Core>::test_pool().await;
-    setup_db(&connection_pool).await;
-
-    let mut client = FakeEthClient::new();
-    let mut watcher = EthWatch::new(
-        Address::default(),
-        None,
-        Box::new(client.clone()),
-        connection_pool.clone(),
-        std::time::Duration::from_nanos(1),
-    )
-    .await;
-
-    let mut storage = connection_pool.connection().await.unwrap();
-    client
-        .add_diamond_upgrades(&[(
+        .add_governance_upgrades(&[(
             ProtocolUpgrade {
                 id: ProtocolVersionId::next(),
                 tx: None,
@@ -351,15 +276,16 @@ async fn test_normal_operation_governance_upgrades() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
 
-    let mut client = FakeEthClient::new();
+    let mut client = MockEthClient::new();
     let mut watcher = EthWatch::new(
         Address::default(),
-        Some(governance_contract()),
+        &governance_contract(),
         Box::new(client.clone()),
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
-    .await;
+    .await
+    .unwrap();
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -403,7 +329,8 @@ async fn test_normal_operation_governance_upgrades() {
         .protocol_versions_dal()
         .get_protocol_upgrade_tx(ProtocolVersionId::next())
         .await
-        .unwrap();
+        .unwrap()
+        .expect("no protocol upgrade transaction");
     assert_eq!(tx.common_data.upgrade_id, ProtocolVersionId::next());
 }
 
@@ -412,16 +339,7 @@ async fn test_normal_operation_governance_upgrades() {
 async fn test_gap_in_single_batch() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
-
-    let mut client = FakeEthClient::new();
-    let mut watcher = EthWatch::new(
-        Address::default(),
-        None,
-        Box::new(client.clone()),
-        connection_pool.clone(),
-        std::time::Duration::from_nanos(1),
-    )
-    .await;
+    let (mut watcher, mut client) = create_test_watcher(connection_pool.clone()).await;
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -442,16 +360,7 @@ async fn test_gap_in_single_batch() {
 async fn test_gap_between_batches() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
-
-    let mut client = FakeEthClient::new();
-    let mut watcher = EthWatch::new(
-        Address::default(),
-        None,
-        Box::new(client.clone()),
-        connection_pool.clone(),
-        std::time::Duration::from_nanos(1),
-    )
-    .await;
+    let (mut watcher, mut client) = create_test_watcher(connection_pool.clone()).await;
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -467,6 +376,7 @@ async fn test_gap_between_batches() {
         .await;
     client.set_last_finalized_block_number(15).await;
     watcher.loop_iteration(&mut storage).await.unwrap();
+
     let db_txs = get_all_db_txs(&mut storage).await;
     assert_eq!(db_txs.len(), 3);
     client.set_last_finalized_block_number(25).await;
@@ -477,16 +387,7 @@ async fn test_gap_between_batches() {
 async fn test_overlapping_batches() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
-
-    let mut client = FakeEthClient::new();
-    let mut watcher = EthWatch::new(
-        Address::default(),
-        None,
-        Box::new(client.clone()),
-        connection_pool.clone(),
-        std::time::Duration::from_nanos(1),
-    )
-    .await;
+    let (mut watcher, mut client) = create_test_watcher(connection_pool.clone()).await;
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -504,10 +405,13 @@ async fn test_overlapping_batches() {
         .await;
     client.set_last_finalized_block_number(15).await;
     watcher.loop_iteration(&mut storage).await.unwrap();
+
     let db_txs = get_all_db_txs(&mut storage).await;
     assert_eq!(db_txs.len(), 3);
+
     client.set_last_finalized_block_number(25).await;
     watcher.loop_iteration(&mut storage).await.unwrap();
+
     let db_txs = get_all_db_txs(&mut storage).await;
     assert_eq!(db_txs.len(), 5);
     let mut db_txs: Vec<L1Tx> = db_txs
@@ -574,24 +478,6 @@ fn tx_into_log(tx: L1Tx) -> Log {
         data: data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
         block_number: Some(eth_block),
-        transaction_hash: Some(H256::random()),
-        transaction_index: Some(0u64.into()),
-        log_index: Some(0u64.into()),
-        transaction_log_index: Some(0u64.into()),
-        log_type: None,
-        removed: None,
-    }
-}
-
-fn upgrade_into_diamond_proxy_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
-    let diamond_cut = upgrade_into_diamond_cut(upgrade);
-    let data = encode(&[diamond_cut, Token::FixedBytes(vec![0u8; 32])]);
-    Log {
-        address: Address::repeat_byte(0x1),
-        topics: vec![UPGRADE_PROPOSAL_SIGNATURE],
-        data: data.into(),
-        block_hash: Some(H256::repeat_byte(0x11)),
-        block_number: Some(eth_block.into()),
         transaction_hash: Some(H256::random()),
         transaction_index: Some(0u64.into()),
         log_index: Some(0u64.into()),
