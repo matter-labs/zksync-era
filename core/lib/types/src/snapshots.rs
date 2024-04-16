@@ -56,7 +56,7 @@ pub struct SnapshotHeader {
     #[serde(default)]
     pub version: u16,
     pub l1_batch_number: L1BatchNumber,
-    #[serde(rename = "miniblock_number")] // legacy naming
+    #[serde(rename = "miniblockNumber")] // legacy naming
     pub l2_block_number: L2BlockNumber,
     /// Ordered by chunk IDs.
     pub storage_logs_chunks: Vec<SnapshotStorageLogsChunkMetadata>,
