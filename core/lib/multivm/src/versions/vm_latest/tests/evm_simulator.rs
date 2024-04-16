@@ -7,10 +7,7 @@ use ethabi::{encode, ethereum_types::H264, Contract, Token};
 use itertools::Itertools;
 // FIXME: 1.4.1 should not be imported from 1.5.0
 use zk_evm_1_4_1::sha2::{self};
-use zk_evm_1_5_0::{
-    aux_structures::Timestamp,
-    zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32},
-};
+use zk_evm_1_5_0::zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32};
 use zksync_contracts::{load_contract, read_bytecode, read_evm_bytecode};
 use zksync_state::{InMemoryStorage, StorageView};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
@@ -19,7 +16,7 @@ use zksync_types::{
     get_known_code_key,
     utils::{deployed_address_evm_create, deployed_address_evm_create2},
     web3::signing::keccak256,
-    AccountTreeId, Address, Execute, StorageKey, H160, H256, U256,
+    AccountTreeId, Address, Execute, StorageKey, H256, U256,
 };
 use zksync_utils::{
     address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256,
