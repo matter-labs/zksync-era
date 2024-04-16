@@ -98,7 +98,8 @@ describe('Upgrade test', function () {
         const firstDepositHandle = await tester.syncWallet.deposit({
             token: zkweb3.utils.ETH_ADDRESS,
             amount: depositAmount,
-            to: alice.address
+            to: alice.address,
+            approveBaseERC20: true
         });
         await firstDepositHandle.wait();
         while ((await tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber) {
@@ -108,7 +109,8 @@ describe('Upgrade test', function () {
         const secondDepositHandle = await tester.syncWallet.deposit({
             token: zkweb3.utils.ETH_ADDRESS,
             amount: depositAmount,
-            to: alice.address
+            to: alice.address,
+            approveBaseERC20: true
         });
         await secondDepositHandle.wait();
         while ((await tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber + 1) {
