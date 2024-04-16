@@ -166,7 +166,7 @@ pin_project! {
 impl<'a, F> WithMethodCall<'a, F> {
     fn new(inner: F, call: MethodCall<'a>) -> Self {
         // Wrap a call into a span with unique correlation ID, so that events occurring in the span can be easily filtered.
-        // This works as a cheap alternative to OpenTelemetry tracing with its trace / span IDs.
+        // This works as a cheap alternative to Open Telemetry tracing with its trace / span IDs.
         let call_span =
             tracing::debug_span!("rpc_call", correlation_id = generate_correlation_id());
         Self {

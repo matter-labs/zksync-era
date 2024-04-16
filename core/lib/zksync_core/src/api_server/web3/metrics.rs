@@ -23,7 +23,7 @@ use super::{
 ///
 /// Current implementation uses thread-local vars in order to not rely on mutexes or other cross-thread primitives.
 /// I.e., it only really works if the number of threads accessing it is limited (which is the case for the API server;
-/// the number of worker threads is congruent to the number of CPUs).
+/// the number of worker threads is congruent to the CPU count).
 #[derive(Debug)]
 struct ReportFilter {
     interval: Duration,
@@ -561,7 +561,7 @@ mod tests {
 
         let raw_params = [zksync_types::Bytes(vec![0xff; 512])];
         let raw_params = serde_json::value::to_raw_value(&raw_params).unwrap();
-        assert_eq!(raw_params.get().len(), 1_030); // 1_024 'f' chars + '0x' + '[]' + '""'
+        assert_eq!(raw_params.get().len(), 1_030); // 1024 'f' chars + '0x' + '[]' + '""'
         let rpc_params = ObservedRpcParams::new(Some(&Cow::Borrowed(&raw_params)));
         assert_matches!(rpc_params, ObservedRpcParams::Borrowed(_));
         let rpc_params_str = rpc_params.to_string();
