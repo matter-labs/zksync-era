@@ -3224,6 +3224,171 @@ fn test_basic_revert_vectors() {
     ;
 }
 
+#[test]
+fn test_basic_callcode_vectors_not_success() { //Needs create opcode to work
+        assert_eq!(test_evm_vector(
+            vec![
+                // Create a contract that creates an exception if first slot of storage is 0
+                // push17 0x67600054600757FE5B60005260086018F3
+                hex::decode("70").unwrap(),
+                hex::decode("67600054600757FE5B60005260086018F3").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // push1 17
+                hex::decode("60").unwrap(),
+                hex::decode("11").unwrap(),
+                // push1 15
+                hex::decode("60").unwrap(),
+                hex::decode("0F").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // create
+                hex::decode("FD").unwrap(),
+                // Call with storage slot 0 = 0, returns 0
+                // push0
+                hex::decode("5F").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // dup6
+                hex::decode("85").unwrap(),
+                // push2 0xFFFF
+                hex::decode("61").unwrap(),
+                hex::decode("FFFF").unwrap(),
+                // callcode
+                hex::decode("F2").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),0.into())
+    ;
+}
+
+#[test]
+fn test_basic_callcode_vectors_success() { //Needs create opcode to work
+        assert_eq!(test_evm_vector(
+            vec![
+                // Create a contract that creates an exception if first slot of storage is 0
+                // push17 0x67600054600757FE5B60005260086018F3
+                hex::decode("70").unwrap(),
+                hex::decode("67600054600757FE5B60005260086018F3").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // push1 17
+                hex::decode("60").unwrap(),
+                hex::decode("11").unwrap(),
+                // push1 15
+                hex::decode("60").unwrap(),
+                hex::decode("0F").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // create
+                hex::decode("FD").unwrap(),
+                // Set first slot in the current contract
+                // push1 1
+                hex::decode("60").unwrap(),
+                hex::decode("01").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+                // Call with storage slot 0 != 0, returns 1
+                // push0
+                hex::decode("5F").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // push1 32
+                hex::decode("60").unwrap(),
+                hex::decode("20").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // dup7
+                hex::decode("86").unwrap(),
+                // push2 0xFFFF
+                hex::decode("61").unwrap(),
+                hex::decode("FFFF").unwrap(),
+                // callcode
+                hex::decode("F2").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),1.into())
+    ;
+}
+
+#[test]
+fn test_basic_callcode_vectors_gas() { //Needs create opcode to work
+    let initial_gas = U256::MAX;
+    let gas_left = test_evm_vector(
+        vec![
+            // Create a contract that creates an exception if first slot of storage is 0
+            // push17 0x67600054600757FE5B60005260086018F3
+            hex::decode("70").unwrap(),
+            hex::decode("67600054600757FE5B60005260086018F3").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 17
+            hex::decode("60").unwrap(),
+            hex::decode("11").unwrap(),
+            // push1 15
+            hex::decode("60").unwrap(),
+            hex::decode("0F").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // create
+            hex::decode("FD").unwrap(),
+            // Call with storage slot 0 = 0, returns 0
+            // push0
+            hex::decode("5F").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // dup6
+            hex::decode("85").unwrap(),
+            // push2 0xFFFF
+            hex::decode("61").unwrap(),
+            hex::decode("FFFF").unwrap(),
+            // callcode
+            hex::decode("F2").unwrap(),
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat()
+    );
+    assert_eq!(initial_gas - gas_left,U256::from_dec_str("35879").unwrap().into())
+}
+
 
 fn assert_deployed_hash<H: HistoryMode>(
     tester: &mut VmTester<H>,
