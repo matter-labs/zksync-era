@@ -123,7 +123,7 @@ impl CommandReceiver {
                     resp.send(()).unwrap();
                 }
                 Command::StartNextL2Block(l2_block_env, resp) => {
-                    self.start_next_miniblock(l2_block_env, &mut vm);
+                    self.start_next_l2_block(l2_block_env, &mut vm);
                     resp.send(()).unwrap();
                 }
                 Command::FinishBatch(resp) => {
@@ -190,7 +190,7 @@ impl CommandReceiver {
         latency.observe();
     }
 
-    fn start_next_miniblock<S: WriteStorage>(
+    fn start_next_l2_block<S: WriteStorage>(
         &self,
         l2_block_env: L2BlockEnv,
         vm: &mut VmInstance<S, HistoryEnabled>,

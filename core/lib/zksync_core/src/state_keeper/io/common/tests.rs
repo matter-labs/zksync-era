@@ -51,18 +51,18 @@ async fn creating_io_cursor_with_genesis() {
         L2BlockHasher::legacy_hash(L2BlockNumber(0))
     );
 
-    let miniblock = create_miniblock(1);
+    let l2_block = create_miniblock(1);
     storage
         .blocks_dal()
-        .insert_l2_block(&miniblock)
+        .insert_l2_block(&l2_block)
         .await
         .unwrap();
 
     let cursor = IoCursor::new(&mut storage).await.unwrap();
     assert_eq!(cursor.l1_batch, L1BatchNumber(1));
     assert_eq!(cursor.next_l2_block, L2BlockNumber(2));
-    assert_eq!(cursor.prev_l2_block_timestamp, miniblock.timestamp);
-    assert_eq!(cursor.prev_l2_block_hash, miniblock.hash);
+    assert_eq!(cursor.prev_l2_block_timestamp, l2_block.timestamp);
+    assert_eq!(cursor.prev_l2_block_hash, l2_block.hash);
 }
 
 #[tokio::test]
@@ -81,19 +81,19 @@ async fn creating_io_cursor_with_snapshot_recovery() {
     );
     assert_eq!(cursor.prev_l2_block_hash, snapshot_recovery.l2_block_hash);
 
-    // Add a miniblock so that we have miniblocks (but not an L1 batch) in the storage.
-    let miniblock = create_miniblock(snapshot_recovery.l2_block_number.0 + 1);
+    // Add an L2 block so that we have L2 blocks (but not an L1 batch) in the storage.
+    let l2_block = create_miniblock(snapshot_recovery.l2_block_number.0 + 1);
     storage
         .blocks_dal()
-        .insert_l2_block(&miniblock)
+        .insert_l2_block(&l2_block)
         .await
         .unwrap();
 
     let cursor = IoCursor::new(&mut storage).await.unwrap();
     assert_eq!(cursor.l1_batch, L1BatchNumber(24));
-    assert_eq!(cursor.next_l2_block, miniblock.number + 1);
-    assert_eq!(cursor.prev_l2_block_timestamp, miniblock.timestamp);
-    assert_eq!(cursor.prev_l2_block_hash, miniblock.hash);
+    assert_eq!(cursor.next_l2_block, l2_block.number + 1);
+    assert_eq!(cursor.prev_l2_block_timestamp, l2_block.timestamp);
+    assert_eq!(cursor.prev_l2_block_hash, l2_block.hash);
 }
 
 #[tokio::test]
@@ -184,7 +184,7 @@ async fn waiting_for_l1_batch_params_after_snapshot_recovery() {
 }
 
 #[tokio::test]
-async fn getting_first_miniblock_in_batch_with_genesis() {
+async fn getting_first_l2_block_in_batch_with_genesis() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
     insert_genesis_batch(&mut storage, &GenesisParams::mock())
@@ -192,28 +192,28 @@ async fn getting_first_miniblock_in_batch_with_genesis() {
         .unwrap();
 
     let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
-    let mut batches_and_miniblocks = HashMap::from([
+    let mut batches_and_l2_blocks = HashMap::from([
         (L1BatchNumber(0), Ok(Some(L2BlockNumber(0)))),
         (L1BatchNumber(1), Ok(Some(L2BlockNumber(1)))),
         (L1BatchNumber(2), Ok(None)),
         (L1BatchNumber(100), Ok(None)),
     ]);
-    assert_first_miniblock_numbers(&provider, &mut storage, &batches_and_miniblocks).await;
+    assert_first_l2_block_numbers(&provider, &mut storage, &batches_and_l2_blocks).await;
 
-    let new_miniblock = create_miniblock(1);
+    let new_l2_block = create_miniblock(1);
     storage
         .blocks_dal()
-        .insert_l2_block(&new_miniblock)
+        .insert_l2_block(&new_l2_block)
         .await
         .unwrap();
-    let new_miniblock = create_miniblock(2);
+    let new_l2_block = create_miniblock(2);
     storage
         .blocks_dal()
-        .insert_l2_block(&new_miniblock)
+        .insert_l2_block(&new_l2_block)
         .await
         .unwrap();
 
-    assert_first_miniblock_numbers(&provider, &mut storage, &batches_and_miniblocks).await;
+    assert_first_l2_block_numbers(&provider, &mut storage, &batches_and_l2_blocks).await;
 
     let new_l1_batch = create_l1_batch(1);
     storage
@@ -227,25 +227,25 @@ async fn getting_first_miniblock_in_batch_with_genesis() {
         .await
         .unwrap();
 
-    batches_and_miniblocks.insert(L1BatchNumber(2), Ok(Some(L2BlockNumber(3))));
-    assert_first_miniblock_numbers(&provider, &mut storage, &batches_and_miniblocks).await;
+    batches_and_l2_blocks.insert(L1BatchNumber(2), Ok(Some(L2BlockNumber(3))));
+    assert_first_l2_block_numbers(&provider, &mut storage, &batches_and_l2_blocks).await;
 }
 
-async fn assert_first_miniblock_numbers(
+async fn assert_first_l2_block_numbers(
     provider: &L1BatchParamsProvider,
     storage: &mut Connection<'_, Core>,
-    batches_and_miniblocks: &HashMap<L1BatchNumber, Result<Option<L2BlockNumber>, ()>>,
+    batches_and_l2_blocks: &HashMap<L1BatchNumber, Result<Option<L2BlockNumber>, ()>>,
 ) {
-    for (&batch, &expected_miniblock) in batches_and_miniblocks {
+    for (&batch, &expected_l2_block) in batches_and_l2_blocks {
         let number = provider
             .load_number_of_first_l2_block_in_batch(storage, batch)
             .await;
-        match expected_miniblock {
+        match expected_l2_block {
             Ok(expected) => {
                 assert_eq!(
                     number.unwrap(),
                     expected,
-                    "load_number_of_first_miniblock_in_batch({batch})"
+                    "load_number_of_first_l2_block_in_batch({batch})"
                 );
             }
             Err(()) => {
@@ -256,14 +256,14 @@ async fn assert_first_miniblock_numbers(
 }
 
 #[tokio::test]
-async fn getting_first_miniblock_in_batch_after_snapshot_recovery() {
+async fn getting_first_l2_block_in_batch_after_snapshot_recovery() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
     let snapshot_recovery =
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
 
     let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
-    let mut batches_and_miniblocks = HashMap::from([
+    let mut batches_and_l2_blocks = HashMap::from([
         (L1BatchNumber(1), Err(())),
         (snapshot_recovery.l1_batch_number, Err(())),
         (
@@ -273,16 +273,16 @@ async fn getting_first_miniblock_in_batch_after_snapshot_recovery() {
         (snapshot_recovery.l1_batch_number + 2, Ok(None)),
         (L1BatchNumber(100), Ok(None)),
     ]);
-    assert_first_miniblock_numbers(&provider, &mut storage, &batches_and_miniblocks).await;
+    assert_first_l2_block_numbers(&provider, &mut storage, &batches_and_l2_blocks).await;
 
-    let new_miniblock = create_miniblock(snapshot_recovery.l2_block_number.0 + 1);
+    let new_l2_block = create_miniblock(snapshot_recovery.l2_block_number.0 + 1);
     storage
         .blocks_dal()
-        .insert_l2_block(&new_miniblock)
+        .insert_l2_block(&new_l2_block)
         .await
         .unwrap();
 
-    assert_first_miniblock_numbers(&provider, &mut storage, &batches_and_miniblocks).await;
+    assert_first_l2_block_numbers(&provider, &mut storage, &batches_and_l2_blocks).await;
 
     let new_l1_batch = create_l1_batch(snapshot_recovery.l1_batch_number.0 + 1);
     storage
@@ -296,11 +296,11 @@ async fn getting_first_miniblock_in_batch_after_snapshot_recovery() {
         .await
         .unwrap();
 
-    batches_and_miniblocks.insert(
+    batches_and_l2_blocks.insert(
         snapshot_recovery.l1_batch_number + 2,
-        Ok(Some(new_miniblock.number + 1)),
+        Ok(Some(new_l2_block.number + 1)),
     );
-    assert_first_miniblock_numbers(&provider, &mut storage, &batches_and_miniblocks).await;
+    assert_first_l2_block_numbers(&provider, &mut storage, &batches_and_l2_blocks).await;
 }
 
 #[tokio::test]
@@ -311,7 +311,7 @@ async fn loading_pending_batch_with_genesis() {
     insert_genesis_batch(&mut storage, &genesis_params)
         .await
         .unwrap();
-    store_pending_miniblocks(
+    store_pending_l2_blocks(
         &mut storage,
         1..=2,
         genesis_params.base_system_contracts().hashes(),
@@ -319,17 +319,17 @@ async fn loading_pending_batch_with_genesis() {
     .await;
 
     let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
-    let first_miniblock_in_batch = provider
+    let first_l2_block_in_batch = provider
         .load_first_l2_block_in_batch(&mut storage, L1BatchNumber(1))
         .await
         .unwrap()
-        .expect("no first miniblock");
-    assert_eq!(first_miniblock_in_batch.number(), L2BlockNumber(1));
+        .expect("no first L2 block");
+    assert_eq!(first_l2_block_in_batch.number(), L2BlockNumber(1));
 
     let (system_env, l1_batch_env) = provider
         .load_l1_batch_params(
             &mut storage,
-            &first_miniblock_in_batch,
+            &first_l2_block_in_batch,
             u32::MAX,
             L2ChainId::default(),
         )
@@ -350,29 +350,29 @@ async fn loading_pending_batch_with_genesis() {
     );
 }
 
-async fn store_pending_miniblocks(
+async fn store_pending_l2_blocks(
     storage: &mut Connection<'_, Core>,
     numbers: ops::RangeInclusive<u32>,
     contract_hashes: BaseSystemContractsHashes,
 ) {
-    for miniblock_number in numbers {
+    for l2_block_number in numbers {
         let tx = create_l2_transaction(10, 100);
         storage
             .transactions_dal()
             .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
-        let mut new_miniblock = create_miniblock(miniblock_number);
-        new_miniblock.base_system_contracts_hashes = contract_hashes;
+        let mut new_l2_block = create_miniblock(l2_block_number);
+        new_l2_block.base_system_contracts_hashes = contract_hashes;
         storage
             .blocks_dal()
-            .insert_l2_block(&new_miniblock)
+            .insert_l2_block(&new_l2_block)
             .await
             .unwrap();
         let tx_result = execute_l2_transaction(tx);
         storage
             .transactions_dal()
-            .mark_txs_as_executed_in_l2_block(new_miniblock.number, &[tx_result], 1.into())
+            .mark_txs_as_executed_in_l2_block(new_l2_block.number, &[tx_result], 1.into())
             .await
             .unwrap();
     }
@@ -385,29 +385,29 @@ async fn loading_pending_batch_after_snapshot_recovery() {
     let snapshot_recovery =
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
 
-    let starting_miniblock_number = snapshot_recovery.l2_block_number.0 + 1;
-    store_pending_miniblocks(
+    let starting_l2_block_number = snapshot_recovery.l2_block_number.0 + 1;
+    store_pending_l2_blocks(
         &mut storage,
-        starting_miniblock_number..=starting_miniblock_number + 1,
+        starting_l2_block_number..=starting_l2_block_number + 1,
         GenesisParams::mock().base_system_contracts().hashes(),
     )
     .await;
 
     let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
-    let first_miniblock_in_batch = provider
+    let first_l2_block_in_batch = provider
         .load_first_l2_block_in_batch(&mut storage, snapshot_recovery.l1_batch_number + 1)
         .await
         .unwrap()
-        .expect("no first miniblock");
+        .expect("no first L2 block");
     assert_eq!(
-        first_miniblock_in_batch.number(),
+        first_l2_block_in_batch.number(),
         snapshot_recovery.l2_block_number + 1
     );
 
     let (system_env, l1_batch_env) = provider
         .load_l1_batch_params(
             &mut storage,
-            &first_miniblock_in_batch,
+            &first_l2_block_in_batch,
             u32::MAX,
             L2ChainId::default(),
         )

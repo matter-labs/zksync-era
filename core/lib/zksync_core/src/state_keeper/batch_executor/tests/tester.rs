@@ -463,15 +463,15 @@ pub fn mock_loadnext_gas_burn_calldata(gas: u32) -> Vec<u8> {
 /// Concise representation of a storage snapshot for testing recovery.
 #[derive(Debug)]
 pub(super) struct StorageSnapshot {
-    pub miniblock_number: L2BlockNumber,
-    pub miniblock_hash: H256,
-    pub miniblock_timestamp: u64,
+    pub l2_block_number: L2BlockNumber,
+    pub l2_block_hash: H256,
+    pub l2_block_timestamp: u64,
     pub storage_logs: HashMap<StorageKey, H256>,
     pub factory_deps: HashMap<H256, Vec<u8>>,
 }
 
 impl StorageSnapshot {
-    /// Generates a new snapshot by executing the specified number of transactions, each in a separate miniblock.
+    /// Generates a new snapshot by executing the specified number of transactions, each in a separate L2 block.
     pub async fn new(
         connection_pool: &ConnectionPool<Core>,
         alice: &mut Account,
@@ -548,8 +548,8 @@ impl StorageSnapshot {
                 .map(|(key, slot)| (key, u256_to_h256(slot.value))),
         );
 
-        // Compute the hash of the last (fictive) miniblock in the batch.
-        let miniblock_hash = L2BlockHasher::new(
+        // Compute the hash of the last (fictive) L2 block in the batch.
+        let l2_block_hash = L2BlockHasher::new(
             L2BlockNumber(l2_block_env.number),
             l2_block_env.timestamp,
             l2_block_env.prev_block_hash,
@@ -559,9 +559,9 @@ impl StorageSnapshot {
         let mut storage = connection_pool.connection().await.unwrap();
         storage.blocks_dal().delete_genesis().await.unwrap();
         Self {
-            miniblock_number: L2BlockNumber(l2_block_env.number),
-            miniblock_timestamp: l2_block_env.timestamp,
-            miniblock_hash,
+            l2_block_number: L2BlockNumber(l2_block_env.number),
+            l2_block_timestamp: l2_block_env.timestamp,
+            l2_block_hash,
             storage_logs: all_logs,
             factory_deps: factory_deps.into_iter().collect(),
         }
@@ -578,13 +578,13 @@ impl StorageSnapshot {
         let mut snapshot = prepare_recovery_snapshot(
             &mut storage,
             L1BatchNumber(1),
-            self.miniblock_number,
+            self.l2_block_number,
             &snapshot_logs,
         )
         .await;
 
-        snapshot.l2_block_hash = self.miniblock_hash;
-        snapshot.l2_block_timestamp = self.miniblock_timestamp;
+        snapshot.l2_block_hash = self.l2_block_hash;
+        snapshot.l2_block_timestamp = self.l2_block_timestamp;
 
         storage
             .factory_deps_dal()

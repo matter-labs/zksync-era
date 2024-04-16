@@ -74,7 +74,7 @@ impl SealResolution {
 }
 
 /// Information about transaction or block applicable either to a single transaction, or
-/// to the entire miniblock / L1 batch.
+/// to the entire L2 block / L1 batch.
 #[derive(Debug, Default)]
 pub struct SealData {
     pub(super) execution_metrics: ExecutionMetrics,
