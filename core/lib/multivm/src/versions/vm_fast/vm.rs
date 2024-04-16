@@ -6,19 +6,18 @@ use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{l1::is_l1_tx_type, AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, U256};
 use zksync_utils::bytecode::hash_bytecode;
 
+use super::{
+    bootloader_state::{BootloaderState, BootloaderStateSnapshot},
+    bytecode::compress_bytecodes,
+    initial_bootloader_memory::bootloader_initial_memory,
+    transaction_data::TransactionData,
+};
 use crate::{
     interface::{VmInterface, VmInterfaceHistoryEnabled},
     vm_latest::{
         constants::VM_HOOK_POSITION, BootloaderMemory, CurrentExecutionState, HistoryEnabled,
         L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs,
     },
-};
-
-use super::{
-    bootloader_state::{BootloaderState, BootloaderStateSnapshot},
-    bytecode::compress_bytecodes,
-    initial_bootloader_memory::bootloader_initial_memory,
-    transaction_data::TransactionData,
 };
 
 pub struct Vm<S: WriteStorage> {
