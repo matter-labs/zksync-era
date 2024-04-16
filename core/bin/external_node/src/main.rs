@@ -851,7 +851,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(
-        &connection_pool,
+        connection_pool.clone(),
         main_node_client.clone(),
         &app_health,
         config.remote.l2_chain_id,

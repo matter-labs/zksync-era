@@ -6,7 +6,7 @@ use zksync_core::sync_layer::genesis::perform_genesis_if_needed;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::AppHealthCheck;
 use zksync_object_store::ObjectStoreFactory;
-use zksync_snapshots_applier::SnapshotsApplierConfig;
+use zksync_snapshots_applier::{SnapshotsApplierConfig, SnapshotsApplierTask};
 use zksync_web3_decl::client::L2Client;
 
 use crate::config::read_snapshots_recovery_config;
@@ -20,7 +20,7 @@ enum InitDecision {
 }
 
 pub(crate) async fn ensure_storage_initialized(
-    pool: &ConnectionPool<Core>,
+    pool: ConnectionPool<Core>,
     main_node_client: L2Client,
     app_health: &AppHealthCheck,
     l2_chain_id: L2ChainId,
@@ -89,13 +89,15 @@ pub(crate) async fn ensure_storage_initialized(
                 .await;
 
             let config = SnapshotsApplierConfig::default();
-            app_health.insert_component(config.health_check());
-            config
-                .run(
-                    pool,
-                    &main_node_client.for_component("snapshot_recovery"),
-                    &blob_store,
-                )
+            let snapshots_applier_task = SnapshotsApplierTask::new(
+                config,
+                pool,
+                Box::new(main_node_client.for_component("snapshot_recovery")),
+                blob_store,
+            );
+            app_health.insert_component(snapshots_applier_task.health_check());
+            snapshots_applier_task
+                .run()
                 .await
                 .context("snapshot recovery failed")?;
             tracing::info!("Snapshot recovery is complete");

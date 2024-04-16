@@ -37,7 +37,7 @@ async fn snapshots_creator_can_successfully_recover_db(
         .collect();
 
     let object_store_with_errors;
-    let object_store: &dyn ObjectStore = if with_object_store_errors {
+    let object_store = if with_object_store_errors {
         let error_counter = AtomicUsize::new(0);
         object_store_with_errors = ObjectStoreWithErrors::new(object_store, move |_| {
             if error_counter.fetch_add(1, Ordering::SeqCst) >= 3 {
@@ -46,15 +46,18 @@ async fn snapshots_creator_can_successfully_recover_db(
                 Err(ObjectStoreError::Other("transient error".into()))
             }
         });
-        &object_store_with_errors
+        Arc::new(object_store_with_errors)
     } else {
-        &object_store
+        object_store
     };
 
-    SnapshotsApplierConfig::for_tests()
-        .run(&pool, &client, object_store)
-        .await
-        .unwrap();
+    let task = SnapshotsApplierTask::new(
+        SnapshotsApplierConfig::for_tests(),
+        pool.clone(),
+        Box::new(client.clone()),
+        object_store.clone(),
+    );
+    task.run().await.unwrap();
 
     let mut storage = pool.connection().await.unwrap();
     let mut recovery_dal = storage.snapshot_recovery_dal();
@@ -88,12 +91,16 @@ async fn snapshots_creator_can_successfully_recover_db(
         assert_eq!(db_log.value, expected_log.value);
         assert_eq!(db_log.miniblock_number, expected_status.miniblock_number);
     }
+    drop(storage);
 
     // Try recovering again.
-    SnapshotsApplierConfig::for_tests()
-        .run(&pool, &client, object_store)
-        .await
-        .unwrap();
+    let task = SnapshotsApplierTask::new(
+        SnapshotsApplierConfig::for_tests(),
+        pool,
+        Box::new(client),
+        object_store,
+    );
+    task.run().await.unwrap();
 }
 
 #[tokio::test]
@@ -143,15 +150,19 @@ async fn applier_errors_after_genesis() {
         .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(0))
         .await
         .unwrap();
+    drop(storage);
 
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
     let client = MockMainNodeClient::default();
 
-    SnapshotsApplierConfig::for_tests()
-        .run(&pool, &client, &object_store)
-        .await
-        .unwrap_err();
+    let task = SnapshotsApplierTask::new(
+        SnapshotsApplierConfig::for_tests(),
+        pool,
+        Box::new(client),
+        object_store,
+    );
+    task.run().await.unwrap_err();
 }
 
 #[tokio::test]
@@ -161,10 +172,13 @@ async fn applier_errors_without_snapshots() {
     let object_store = object_store_factory.create_store().await;
     let client = MockMainNodeClient::default();
 
-    SnapshotsApplierConfig::for_tests()
-        .run(&pool, &client, &object_store)
-        .await
-        .unwrap_err();
+    let task = SnapshotsApplierTask::new(
+        SnapshotsApplierConfig::for_tests(),
+        pool,
+        Box::new(client),
+        object_store,
+    );
+    task.run().await.unwrap_err();
 }
 
 #[tokio::test]
@@ -181,10 +195,13 @@ async fn applier_errors_with_unrecognized_snapshot_version() {
         ..MockMainNodeClient::default()
     };
 
-    SnapshotsApplierConfig::for_tests()
-        .run(&pool, &client, &object_store)
-        .await
-        .unwrap_err();
+    let task = SnapshotsApplierTask::new(
+        SnapshotsApplierConfig::for_tests(),
+        pool,
+        Box::new(client),
+        object_store,
+    );
+    task.run().await.unwrap_err();
 }
 
 #[tokio::test]
@@ -197,10 +214,13 @@ async fn applier_returns_error_on_fatal_object_store_error() {
         Err(ObjectStoreError::KeyNotFound("not found".into()))
     });
 
-    let err = SnapshotsApplierConfig::for_tests()
-        .run(&pool, &client, &object_store)
-        .await
-        .unwrap_err();
+    let task = SnapshotsApplierTask::new(
+        SnapshotsApplierConfig::for_tests(),
+        pool,
+        Box::new(client),
+        Arc::new(object_store),
+    );
+    let err = task.run().await.unwrap_err();
     assert!(err.chain().any(|cause| {
         matches!(
             cause.downcast_ref::<ObjectStoreError>(),
@@ -219,10 +239,13 @@ async fn applier_returns_error_after_too_many_object_store_retries() {
         Err(ObjectStoreError::Other("service not available".into()))
     });
 
-    let err = SnapshotsApplierConfig::for_tests()
-        .run(&pool, &client, &object_store)
-        .await
-        .unwrap_err();
+    let task = SnapshotsApplierTask::new(
+        SnapshotsApplierConfig::for_tests(),
+        pool,
+        Box::new(client),
+        Arc::new(object_store),
+    );
+    let err = task.run().await.unwrap_err();
     assert!(err.chain().any(|cause| {
         matches!(
             cause.downcast_ref::<ObjectStoreError>(),
@@ -251,10 +274,13 @@ async fn recovering_tokens() {
     let (object_store, mut client) = prepare_clients(&expected_status, &storage_logs).await;
     client.tokens_response = tokens.clone();
 
-    SnapshotsApplierConfig::for_tests()
-        .run(&pool, &client, &object_store)
-        .await
-        .unwrap();
+    let task = SnapshotsApplierTask::new(
+        SnapshotsApplierConfig::for_tests(),
+        pool.clone(),
+        Box::new(client.clone()),
+        object_store.clone(),
+    );
+    task.run().await.unwrap();
 
     // Check that tokens are successfully restored.
     let mut storage = pool.connection().await.unwrap();
@@ -273,10 +299,14 @@ async fn recovering_tokens() {
         .map(|token| (token.l2_address, token))
         .collect();
     assert_eq!(token_map, recovered_token_map);
+    drop(storage);
 
     // Check that recovering again works and is a no-op.
-    SnapshotsApplierConfig::for_tests()
-        .run(&pool, &client, &object_store)
-        .await
-        .unwrap();
+    let task = SnapshotsApplierTask::new(
+        SnapshotsApplierConfig::for_tests(),
+        pool,
+        Box::new(client),
+        object_store,
+    );
+    task.run().await.unwrap();
 }

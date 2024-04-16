@@ -1,6 +1,6 @@
 //! Logic for applying application-level snapshots to Postgres storage.
 
-use std::{collections::HashMap, fmt, time::Duration};
+use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -159,10 +159,16 @@ impl SnapshotsApplierMainNodeClient for L2Client {
 /// Snapshot applier configuration options.
 #[derive(Debug)]
 pub struct SnapshotsApplierConfig {
+    /// Number of retries for transient errors before giving up on recovery (i.e., returning an error
+    /// from [`Self::run()`]).
     pub retry_count: usize,
+    /// Initial backoff interval when retrying recovery on a transient error. Each subsequent retry interval
+    /// will be multiplied by [`Self.retry_backoff_multiplier`].
     pub initial_retry_backoff: Duration,
     pub retry_backoff_multiplier: f32,
-    health_updater: HealthUpdater,
+    /// Maximum concurrency factor when performing concurrent operations (for now, the only such operation
+    /// is recovering chunks of storage logs).
+    pub max_concurrency: usize,
 }
 
 impl Default for SnapshotsApplierConfig {
@@ -171,7 +177,7 @@ impl Default for SnapshotsApplierConfig {
             retry_count: 5,
             initial_retry_backoff: Duration::from_secs(2),
             retry_backoff_multiplier: 2.0,
-            health_updater: ReactiveHealthCheck::new("snapshot_recovery").1,
+            max_concurrency: 10,
         }
     }
 }
@@ -182,6 +188,32 @@ impl SnapshotsApplierConfig {
         Self {
             initial_retry_backoff: Duration::from_millis(5),
             ..Self::default()
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct SnapshotsApplierTask {
+    config: SnapshotsApplierConfig,
+    health_updater: HealthUpdater,
+    connection_pool: ConnectionPool<Core>,
+    main_node_client: Box<dyn SnapshotsApplierMainNodeClient>,
+    blob_store: Arc<dyn ObjectStore>,
+}
+
+impl SnapshotsApplierTask {
+    pub fn new(
+        config: SnapshotsApplierConfig,
+        connection_pool: ConnectionPool<Core>,
+        main_node_client: Box<dyn SnapshotsApplierMainNodeClient>,
+        blob_store: Arc<dyn ObjectStore>,
+    ) -> Self {
+        Self {
+            config,
+            health_updater: ReactiveHealthCheck::new("snapshot_recovery").1,
+            connection_pool,
+            main_node_client,
+            blob_store,
         }
     }
 
@@ -199,20 +231,18 @@ impl SnapshotsApplierConfig {
     ///
     /// - There are no snapshots on the main node
     /// - Storage contains at least one L1 batch
-    pub async fn run(
-        self,
-        connection_pool: &ConnectionPool<Core>,
-        main_node_client: &dyn SnapshotsApplierMainNodeClient,
-        blob_store: &dyn ObjectStore,
-    ) -> anyhow::Result<()> {
-        let mut backoff = self.initial_retry_backoff;
+    pub async fn run(self) -> anyhow::Result<()> {
+        tracing::info!("Starting snapshot recovery with config: {:?}", self.config);
+
+        let mut backoff = self.config.initial_retry_backoff;
         let mut last_error = None;
-        for retry_id in 0..self.retry_count {
+        for retry_id in 0..self.config.retry_count {
             let result = SnapshotsApplier::load_snapshot(
-                connection_pool,
-                main_node_client,
-                blob_store,
+                &self.connection_pool,
+                self.main_node_client.as_ref(),
+                &self.blob_store,
                 &self.health_updater,
+                self.config.max_concurrency,
             )
             .await;
 
@@ -232,10 +262,10 @@ impl SnapshotsApplierConfig {
                     last_error = Some(err);
                     tracing::info!(
                         "Recovering from error; attempt {retry_id} / {}, retrying in {backoff:?}",
-                        self.retry_count
+                        self.config.retry_count
                     );
                     tokio::time::sleep(backoff).await;
-                    backoff = backoff.mul_f32(self.retry_backoff_multiplier);
+                    backoff = backoff.mul_f32(self.config.retry_backoff_multiplier);
                 }
             }
         }
@@ -386,6 +416,7 @@ struct SnapshotsApplier<'a> {
     blob_store: &'a dyn ObjectStore,
     applied_snapshot_status: SnapshotRecoveryStatus,
     health_updater: &'a HealthUpdater,
+    max_concurrency: usize,
     factory_deps_recovered: bool,
     tokens_recovered: bool,
 }
@@ -396,6 +427,7 @@ impl<'a> SnapshotsApplier<'a> {
         main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
         blob_store: &'a dyn ObjectStore,
         health_updater: &'a HealthUpdater,
+        max_concurrency: usize,
     ) -> Result<(), SnapshotsApplierError> {
         health_updater.update(HealthStatus::Ready.into());
 
@@ -417,6 +449,7 @@ impl<'a> SnapshotsApplier<'a> {
             blob_store,
             applied_snapshot_status,
             health_updater,
+            max_concurrency,
             factory_deps_recovered: !created_from_scratch,
             tokens_recovered: false,
         };
@@ -630,7 +663,13 @@ impl<'a> SnapshotsApplier<'a> {
     }
 
     async fn recover_storage_logs(&self) -> Result<(), SnapshotsApplierError> {
-        let semaphore = Semaphore::new(self.connection_pool.max_size() as usize);
+        let effective_concurrency =
+            (self.connection_pool.max_size() as usize).min(self.max_concurrency);
+        tracing::info!(
+            "Recovering storage log chunks with {effective_concurrency} max concurrency"
+        );
+        let semaphore = Semaphore::new(effective_concurrency);
+
         let tasks = self
             .applied_snapshot_status
             .storage_logs_chunks_processed
