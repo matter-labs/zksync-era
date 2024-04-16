@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    COUNT(*) AS \"count!\",\n                    l1_batch_number AS \"l1_batch_number!\",\n                    status AS \"status!\"\n                FROM\n                    prover_jobs_fri\n                WHERE\n                    l1_batch_number = ANY ($1)\n                GROUP BY\n                    l1_batch_number,\n                    status\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "l1_batch_number!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "status!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      false
+    ]
+  },
+  "hash": "8f9c609a78ca4f854c0b24621ee8ad95ba0b3b5b7b3a81592a4720bc094c32f9"
+}
