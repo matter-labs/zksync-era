@@ -33,6 +33,7 @@ export async function waitForServer() {
             const bridgeAddress = (await l2Provider.getDefaultBridgeAddresses()).sharedL2;
             const code = await l2Provider.getCode(bridgeAddress);
             if (code == '0x') {
+                reporter.message(`kl to do ${bridgeAddress}`);
                 throw Error('L2 ERC20 bridge is not deployed yet, server is not ready');
             }
             reporter.finishAction();
