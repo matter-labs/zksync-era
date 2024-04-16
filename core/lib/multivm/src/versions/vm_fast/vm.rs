@@ -1,37 +1,40 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use vm2::{decode::decode_program, ExecutionEnd, Program, Settings, VirtualMachine};
+use vm2::{decode::decode_program, Event, ExecutionEnd, Program, Settings, State, VirtualMachine};
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::{
-    l1::is_l1_tx_type, AccountTreeId, L2ChainId, StorageKey, BOOTLOADER_ADDRESS, H160, U256,
-};
+use zksync_types::{l1::is_l1_tx_type, AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, U256};
 use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{
-    interface::VmInterface,
+    interface::{VmInterface, VmInterfaceHistoryEnabled},
     vm_latest::{
-        constants::VM_HOOK_POSITION, BootloaderMemory, CurrentExecutionState, L2BlockEnv,
-        VmExecutionMode, VmExecutionResultAndLogs,
+        constants::VM_HOOK_POSITION, BootloaderMemory, CurrentExecutionState, HistoryEnabled,
+        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs,
     },
-    HistoryMode,
 };
 
 use super::{
-    bootloader_state::BootloaderState, bytecode::compress_bytecodes,
-    initial_bootloader_memory::bootloader_initial_memory, transaction_data::TransactionData,
+    bootloader_state::{BootloaderState, BootloaderStateSnapshot},
+    bytecode::compress_bytecodes,
+    initial_bootloader_memory::bootloader_initial_memory,
+    transaction_data::TransactionData,
 };
 
 pub struct Vm<S: WriteStorage> {
-    inner: VirtualMachine,
+    pub(crate) inner: VirtualMachine,
     suspended_at: u16,
+    gas_for_account_validation: u32,
 
     bootloader_state: BootloaderState,
     storage: StoragePtr<S>,
     program_cache: Rc<RefCell<HashMap<U256, Program>>>,
 
-    gas_for_account_validation: u32,
-    chain_id: L2ChainId,
+    // these two are only needed for tests so far
+    pub(crate) batch_env: L1BatchEnv,
+    pub(crate) system_env: SystemEnv,
+
+    snapshots: Vec<VmSnapshot>,
 }
 
 impl<S: WriteStorage> Vm<S> {
@@ -103,9 +106,28 @@ impl<S: WriteStorage> Vm<S> {
             value.to_big_endian(&mut heap[slot * 32..(slot + 1) * 32]);
         }
     }
+
+    pub(crate) fn insert_bytecodes<'a>(&mut self, bytecodes: impl IntoIterator<Item = &'a [u8]>) {
+        for code in bytecodes {
+            self.program_cache.borrow_mut().insert(
+                U256::from_big_endian(hash_bytecode(code).as_bytes()),
+                bytecode_to_program(code),
+            );
+        }
+    }
+
+    #[cfg(test)]
+    /// Returns the current state of the VM in a format that can be compared for equality.
+    pub(crate) fn dump_state(&self) -> (State, Vec<((H160, U256), U256)>, Box<[Event]>) {
+        (
+            self.inner.state.clone(),
+            self.inner.world.get_storage_changes().collect(),
+            self.inner.world.events().into(),
+        )
+    }
 }
 
-impl<S: WriteStorage + 'static, H: HistoryMode> VmInterface<S, H> for Vm<S> {
+impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
     type TracerDispatcher = ();
 
     fn new(
@@ -143,14 +165,16 @@ impl<S: WriteStorage + 'static, H: HistoryMode> VmInterface<S, H> for Vm<S> {
             inner,
             suspended_at: 0,
             gas_for_account_validation: system_env.default_validation_computational_gas_limit,
-            chain_id: system_env.chain_id,
             bootloader_state: BootloaderState::new(
                 system_env.execution_mode,
                 bootloader_initial_memory(&batch_env),
                 batch_env.first_l2_block,
             ),
             storage,
+            system_env,
+            batch_env,
             program_cache,
+            snapshots: vec![],
         }
     }
 
@@ -158,12 +182,7 @@ impl<S: WriteStorage + 'static, H: HistoryMode> VmInterface<S, H> for Vm<S> {
         let tx: TransactionData = tx.into();
         let overhead = tx.overhead_gas();
 
-        for dep in &tx.factory_deps {
-            self.program_cache.borrow_mut().insert(
-                U256::from_big_endian(hash_bytecode(&dep).as_bytes()),
-                bytecode_to_program(&dep),
-            );
-        }
+        self.insert_bytecodes(tx.factory_deps.iter().map(|dep| &dep[..]));
 
         let compressed_bytecodes = if is_l1_tx_type(tx.tx_type) {
             // L1 transactions do not need compression
@@ -180,7 +199,7 @@ impl<S: WriteStorage + 'static, H: HistoryMode> VmInterface<S, H> for Vm<S> {
             0,
             compressed_bytecodes,
             trusted_ergs_limit,
-            self.chain_id,
+            self.system_env.chain_id,
         );
 
         self.write_to_bootloader_heap(memory);
@@ -191,6 +210,18 @@ impl<S: WriteStorage + 'static, H: HistoryMode> VmInterface<S, H> for Vm<S> {
         dispatcher: Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
+        todo!()
+    }
+
+    fn inspect_transaction_with_bytecode_compression(
+        &mut self,
+        tracer: Self::TracerDispatcher,
+        tx: zksync_types::Transaction,
+        with_compression: bool,
+    ) -> (
+        Result<(), crate::interface::BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    ) {
         todo!()
     }
 
@@ -212,24 +243,59 @@ impl<S: WriteStorage + 'static, H: HistoryMode> VmInterface<S, H> for Vm<S> {
         todo!()
     }
 
-    fn inspect_transaction_with_bytecode_compression(
-        &mut self,
-        tracer: Self::TracerDispatcher,
-        tx: zksync_types::Transaction,
-        with_compression: bool,
-    ) -> (
-        Result<(), crate::interface::BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    ) {
-        todo!()
-    }
-
     fn record_vm_memory_metrics(&self) -> crate::vm_latest::VmMemoryMetrics {
         todo!()
     }
 
     fn gas_remaining(&self) -> u32 {
         self.inner.state.current_frame.gas
+    }
+}
+
+struct VmSnapshot {
+    state: vm2::State,
+    world_snapshot: vm2::ExternalSnapshot,
+    bootloader_snapshot: BootloaderStateSnapshot,
+    suspended_at: u16,
+    gas_for_account_validation: u32,
+}
+
+impl<S: WriteStorage + 'static> VmInterfaceHistoryEnabled<S> for Vm<S> {
+    fn make_snapshot(&mut self) {
+        self.snapshots.push(VmSnapshot {
+            state: self.inner.state.clone(),
+            world_snapshot: self.inner.world.external_snapshot(),
+            bootloader_snapshot: self.bootloader_state.get_snapshot(),
+            suspended_at: self.suspended_at,
+            gas_for_account_validation: self.gas_for_account_validation,
+        });
+    }
+
+    fn rollback_to_the_latest_snapshot(&mut self) {
+        let VmSnapshot {
+            state,
+            world_snapshot,
+            bootloader_snapshot,
+            suspended_at,
+            gas_for_account_validation,
+        } = self.snapshots.pop().expect("no snapshots to rollback to");
+
+        self.inner.state = state;
+        self.inner.world.external_rollback(world_snapshot);
+        self.bootloader_state.apply_snapshot(bootloader_snapshot);
+        self.suspended_at = suspended_at;
+        self.gas_for_account_validation = gas_for_account_validation;
+    }
+
+    fn pop_snapshot_no_rollback(&mut self) {
+        self.snapshots.pop();
+        self.delete_history_if_appropriate();
+    }
+}
+
+impl<S: WriteStorage + 'static> Vm<S> {
+    fn delete_history_if_appropriate(&mut self) {
+        todo!()
     }
 }
 
