@@ -34,7 +34,7 @@ pub use self::{
     catchup::AsyncCatchupTask,
     in_memory::InMemoryStorage,
     postgres::{PostgresStorage, PostgresStorageCaches, PostgresStorageCachesTask},
-    rocksdb::{RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily},
+    rocksdb::{RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily, StateValue},
     shadow_storage::ShadowStorage,
     storage_factory::{PgOrRocksdbStorage, ReadStorageFactory},
     storage_view::{StorageView, StorageViewMetrics},

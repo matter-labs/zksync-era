@@ -1,3 +1,4 @@
+use std::time::Duration;
 use std::{ops, sync::Arc};
 
 use async_trait::async_trait;
@@ -173,10 +174,9 @@ async fn rerun_storage_on_existing_data() -> anyhow::Result<()> {
     drop(conn);
 
     // Generate 10 batches worth of data and persist it in Postgres
-    let batch_range = 1u32..=10u32;
     let batches = store_miniblocks(
         &mut connection_pool.connection().await?,
-        batch_range,
+        1u32..=10u32,
         genesis_params.base_system_contracts().hashes(),
     )
     .await;
@@ -185,8 +185,8 @@ async fn rerun_storage_on_existing_data() -> anyhow::Result<()> {
     let loader_mock = Arc::new(RwLock::new(LoaderMock::default()));
     let storage = tester.create_storage(loader_mock.clone()).await?;
     // Check that existing batches are returned in the exact same order with the exact same data
-    for batch in batches {
-        let batch_data = storage.load_next_batch().await?.unwrap();
+    for batch in &batches {
+        let batch_data = storage.load_batch(batch.number).await?.unwrap();
         let mut conn = connection_pool.connection().await.unwrap();
         let (previous_batch_hash, _) = conn
             .blocks_dal()
@@ -226,13 +226,19 @@ async fn rerun_storage_on_existing_data() -> anyhow::Result<()> {
             .get_miniblocks_to_execute_for_l1_batch(batch_data.l1_batch_env.number)
             .await?;
         assert_eq!(batch_data.miniblocks, miniblocks);
-
-        // "Mark" this batch as processed
-        loader_mock.write().await.0 += 1;
     }
 
-    // No more batches to load after the pre-generated ones are exhausted
-    assert!(storage.load_next_batch().await?.is_none());
+    // "Mark" these batches as processed
+    loader_mock.write().await.0 += batches.len() as u32;
+
+    // Sleep to give VM runner storage time to get rid of old batches
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
+    // All old batches except the last one should no longer be loadable
+    for batch in batches.iter().take(9) {
+        assert!(storage.load_batch(batch.number).await?.is_none());
+    }
+    assert!(storage.load_batch(L1BatchNumber(10)).await?.is_some());
 
     Ok(())
 }
@@ -251,7 +257,7 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
     let loader_mock = Arc::new(RwLock::new(LoaderMock::default()));
     let storage = tester.create_storage(loader_mock.clone()).await?;
     // No batches available yet
-    assert!(storage.load_next_batch().await?.is_none());
+    assert!(storage.load_batch(L1BatchNumber(1)).await?.is_none());
 
     // Generate one batch and persist it in Postgres
     store_miniblocks(
@@ -262,11 +268,11 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
     .await;
 
     // Load batch and mark it as processed
-    assert!(storage.load_next_batch().await?.is_some());
+    assert!(storage.load_batch(L1BatchNumber(1)).await?.is_some());
     loader_mock.write().await.0 += 1;
 
     // No more batches after that
-    assert!(storage.load_next_batch().await?.is_none());
+    assert!(storage.load_batch(L1BatchNumber(2)).await?.is_none());
 
     // Generate one more batch and persist it in Postgres
     store_miniblocks(
@@ -277,11 +283,11 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
     .await;
 
     // Load batch and mark it as processed
-    assert!(storage.load_next_batch().await?.is_some());
+    assert!(storage.load_batch(L1BatchNumber(2)).await?.is_some());
     loader_mock.write().await.0 += 1;
 
     // No more batches after that
-    assert!(storage.load_next_batch().await?.is_none());
+    assert!(storage.load_batch(L1BatchNumber(3)).await?.is_none());
 
     Ok(())
 }
@@ -318,25 +324,27 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
     let loader_mock = Arc::new(RwLock::new(LoaderMock::default()));
     let rt_handle = Handle::current();
     let handle = tokio::task::spawn_blocking(move || {
-        let conn = rt_handle.block_on(connection_pool.connection()).unwrap();
-        let mut pg_storage =
-            PostgresStorage::new(rt_handle.clone(), conn, MiniblockNumber(10), true);
         let vm_runner_storage =
             rt_handle.block_on(async { tester.create_storage(loader_mock.clone()).await.unwrap() });
-        let mut vm_storage = rt_handle.block_on(async {
-            vm_runner_storage
-                .access_storage(&receiver, L1BatchNumber(10))
-                .await
-                .unwrap()
-                .unwrap()
-        });
-        // Check that both storages have identical key-value pairs written in them
-        for storage_log in storage_logs {
-            let storage_key =
-                StorageKey::new(AccountTreeId::new(storage_log.address), storage_log.key);
-            let expected = pg_storage.read_value(&storage_key);
-            let actual = vm_storage.read_value(&storage_key);
-            assert_eq!(expected, actual);
+        for i in 1..=10 {
+            let conn = rt_handle.block_on(connection_pool.connection()).unwrap();
+            let mut pg_storage =
+                PostgresStorage::new(rt_handle.clone(), conn, MiniblockNumber(i), true);
+            let mut vm_storage = rt_handle.block_on(async {
+                vm_runner_storage
+                    .access_storage(&receiver, L1BatchNumber(i))
+                    .await
+                    .unwrap()
+                    .unwrap()
+            });
+            // Check that both storages have identical key-value pairs written in them
+            for storage_log in &storage_logs {
+                let storage_key =
+                    StorageKey::new(AccountTreeId::new(storage_log.address), storage_log.key);
+                let expected = pg_storage.read_value(&storage_key);
+                let actual = vm_storage.read_value(&storage_key);
+                assert_eq!(expected, actual);
+            }
         }
 
         anyhow::Ok(())

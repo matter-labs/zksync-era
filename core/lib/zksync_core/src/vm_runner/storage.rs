@@ -1,8 +1,11 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
+use std::marker::PhantomData;
+use std::time::Duration;
 use std::{fmt::Debug, sync::Arc};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use multivm::zk_evm_latest::ethereum_types::H256;
 use multivm::{interface::L1BatchEnv, vm_1_4_2::SystemEnv};
 use once_cell::sync::OnceCell;
 use tokio::sync::{watch, RwLock};
@@ -10,13 +13,13 @@ use vm_utils::storage::L1BatchParamsProvider;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_state::{
     AsyncCatchupTask, PgOrRocksdbStorage, ReadStorageFactory, RocksdbStorageBuilder,
-    StateKeeperColumnFamily,
+    StateKeeperColumnFamily, StateValue,
 };
 use zksync_storage::RocksDB;
-use zksync_types::{block::MiniblockExecutionData, L1BatchNumber, L2ChainId};
+use zksync_types::{block::MiniblockExecutionData, L1BatchNumber, L2ChainId, StorageKey};
 
 /// Data needed to re-execute an L1 batch.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BatchData {
     /// Parameters for L1 batch this data belongs to.
     pub l1_batch_env: L1BatchEnv,
@@ -24,6 +27,13 @@ pub struct BatchData {
     pub system_env: SystemEnv,
     /// List of miniblocks and corresponding transactions that were executed within batch.
     pub miniblocks: Vec<MiniblockExecutionData>,
+}
+
+#[derive(Debug, Clone)]
+struct StorageData {
+    batch_data: BatchData,
+    storage_diffs: HashMap<StorageKey, StateValue>,
+    factory_deps: HashMap<H256, Vec<u8>>,
 }
 
 /// Functionality to fetch data about processed/unprocessed batches for a particular VM runner
@@ -69,12 +79,13 @@ pub struct VmRunnerStorage<L: VmRunnerStorageLoader> {
     max_batches_to_load: u32,
     state: Arc<RwLock<State>>,
     rocksdb_cell: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
-    loader: L,
+    _marker: PhantomData<L>,
 }
 
 #[derive(Debug)]
 struct State {
-    batches: BTreeMap<L1BatchNumber, BatchData>,
+    l1_batch_number: L1BatchNumber,
+    storage: BTreeMap<L1BatchNumber, StorageData>,
 }
 
 impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
@@ -94,7 +105,8 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
         drop(conn);
         let rocksdb_cell = Arc::new(OnceCell::new());
         let state = Arc::new(RwLock::new(State {
-            batches: BTreeMap::new(),
+            l1_batch_number: L1BatchNumber(0),
+            storage: BTreeMap::new(),
         }));
         let task = StorageSyncTask::new(
             pool.clone(),
@@ -115,7 +127,7 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
                 max_batches_to_load,
                 state,
                 rocksdb_cell,
-                loader,
+                _marker: PhantomData,
             },
             task,
         ))
@@ -127,19 +139,62 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
         if let Some(rocksdb) = self.rocksdb_cell.get() {
-            let mut connection = self
+            let state = self.state.read().await;
+            let mut conn = self
                 .pool
                 .connection_tagged(L::name())
                 .await
                 .context("Failed getting a Postgres connection")?;
-            PgOrRocksdbStorage::access_storage_rocksdb(
-                &mut connection,
-                rocksdb.clone(),
-                stop_receiver,
-                l1_batch_number,
-            )
-            .await
-            .context("Failed accessing RocksDB storage")
+            let max_l1_batch = (state.l1_batch_number + self.max_batches_to_load - 1).min(
+                conn.blocks_dal()
+                    .get_sealed_l1_batch_number()
+                    .await?
+                    .unwrap_or_default(),
+            );
+            if l1_batch_number < state.l1_batch_number || l1_batch_number > max_l1_batch {
+                anyhow::bail!(
+                    "Trying to access VM runner storage with L1 batch #{} while only [#{}; #{}] are available",
+                    l1_batch_number,
+                    state.l1_batch_number,
+                    state.l1_batch_number + self.max_batches_to_load - 1
+                );
+            }
+            let rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb.clone());
+            let rocksdb = rocksdb_builder
+                .synchronize(&mut conn, stop_receiver, Some(state.l1_batch_number))
+                .await
+                .context("Failed to catch up RocksDB storage to Postgres")?;
+            let Some(rocksdb) = rocksdb else {
+                tracing::info!("Synchronizing RocksDB interrupted");
+                return Ok(None);
+            };
+            let storage_diffs = state
+                .storage
+                .iter()
+                .filter_map(|(x, y)| {
+                    if x <= &l1_batch_number {
+                        Some(y.storage_diffs.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            let factory_deps = state
+                .storage
+                .iter()
+                .filter_map(|(x, y)| {
+                    if x <= &l1_batch_number {
+                        Some(y.factory_deps.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            Ok(Some(PgOrRocksdbStorage::RocksdbWithMemory(
+                rocksdb,
+                storage_diffs,
+                factory_deps,
+            )))
         } else {
             Ok(Some(
                 PgOrRocksdbStorage::access_storage_pg(&self.pool, l1_batch_number)
@@ -159,45 +214,45 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
     /// # Errors
     ///
     /// Propagates DB errors.
-    pub async fn load_next_batch(&self) -> anyhow::Result<Option<BatchData>> {
-        let mut conn = self.pool.connection().await?;
-        let Some(l1_batch_number) = self.loader.first_unprocessed_batch(&mut conn).await? else {
-            return Ok(None);
-        };
-        let first_miniblock_in_batch = self
-            .l1_batch_params_provider
-            .load_first_miniblock_in_batch(&mut conn, l1_batch_number)
-            .await
-            .with_context(|| {
-                format!(
-                    "Аailed loading first miniblock for L1 batch #{}",
-                    l1_batch_number
-                )
-            })?;
-        let Some(first_miniblock_in_batch) = first_miniblock_in_batch else {
-            anyhow::bail!("Tried to re-execute L1 batch #{l1_batch_number} which does not contain any miniblocks");
-        };
-        let (system_env, l1_batch_env) = self
-            .l1_batch_params_provider
-            .load_l1_batch_params(
+    pub async fn load_batch(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<BatchData>> {
+        if let Some(_) = self.rocksdb_cell.get() {
+            loop {
+                let state = self.state.read().await;
+                let mut conn = self.pool.connection_tagged(L::name()).await?;
+                let max_l1_batch = (state.l1_batch_number + self.max_batches_to_load - 1).min(
+                    conn.blocks_dal()
+                        .get_sealed_l1_batch_number()
+                        .await?
+                        .unwrap_or_default(),
+                );
+                if l1_batch_number < state.l1_batch_number || l1_batch_number > max_l1_batch {
+                    tracing::debug!(
+                        %l1_batch_number,
+                        min_l1_batch = %state.l1_batch_number,
+                        %max_l1_batch,
+                        "Trying to load an L1 batch that is not available"
+                    );
+                    return Ok(None);
+                }
+                if let Some(storage_data) = state.storage.get(&l1_batch_number) {
+                    return Ok(Some(storage_data.batch_data.clone()));
+                }
+                drop(state);
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        } else {
+            let mut conn = self.pool.connection_tagged(L::name()).await?;
+            StorageSyncTask::<L>::load_batch_data(
                 &mut conn,
-                &first_miniblock_in_batch,
-                // validation_computational_gas_limit is only relevant when rejecting txs, but we
-                // are re-executing so none of them should be rejected
-                u32::MAX,
+                l1_batch_number,
+                &self.l1_batch_params_provider,
                 self.chain_id,
             )
             .await
-            .with_context(|| format!("Failed loading params for L1 batch #{}", l1_batch_number))?;
-        let miniblocks = conn
-            .transactions_dal()
-            .get_miniblocks_to_execute_for_l1_batch(l1_batch_number)
-            .await?;
-        Ok(Some(BatchData {
-            l1_batch_env,
-            system_env,
-            miniblocks,
-        }))
+        }
     }
 }
 
@@ -274,32 +329,40 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
                 tracing::info!("`StorageSyncTask` was interrupted");
                 return Ok(());
             }
+            // State guard lock also serves as a Mutex between `StorageSyncTask` and `VmRunnerStorage`
+            let mut state = self.state.write().await;
             let mut conn = self.pool.connection_tagged(L::name()).await?;
             let latest_processed_batch = self.loader.latest_processed_batch(&mut conn).await?;
+            let next_batch = (latest_processed_batch + 1).min(
+                conn.blocks_dal()
+                    .get_sealed_l1_batch_number()
+                    .await?
+                    .unwrap_or_default(),
+            );
             let rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb.clone());
             let rocksdb = rocksdb_builder
-                .synchronize(&mut conn, &stop_receiver, Some(latest_processed_batch + 1))
+                .synchronize(&mut conn, &stop_receiver, Some(next_batch))
                 .await
                 .context("Failed to catch up state keeper RocksDB storage to Postgres")?;
             let Some(_) = rocksdb else {
                 tracing::info!("`StorageSyncTask` was interrupted during RocksDB synchronization");
                 return Ok(());
             };
-            // TODO: reduce the scope of the guard lock
-            let mut state = self.state.write().await;
+            state.l1_batch_number = next_batch;
             state
-                .batches
-                .retain(|l1_batch_number, _| l1_batch_number > &latest_processed_batch);
+                .storage
+                .retain(|l1_batch_number, _| l1_batch_number >= &next_batch);
             let max_present = state
-                .batches
+                .storage
                 .last_entry()
                 .map(|e| *e.key())
-                .unwrap_or(latest_processed_batch);
-            let max_desired = latest_processed_batch + self.max_batches_to_load;
-            for l1_batch_number in max_present.0 + 1..max_desired.0 {
+                .unwrap_or(next_batch - 1);
+            let max_desired = next_batch + self.max_batches_to_load;
+            for l1_batch_number in max_present.0 + 1..=max_desired.0 {
+                let l1_batch_number = L1BatchNumber(l1_batch_number);
                 let Some(batch_data) = Self::load_batch_data(
                     &mut conn,
-                    L1BatchNumber(l1_batch_number),
+                    l1_batch_number,
                     &self.l1_batch_params_provider,
                     self.chain_id,
                 )
@@ -307,9 +370,43 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
                 else {
                     break;
                 };
-                state
-                    .batches
-                    .insert(batch_data.l1_batch_env.number, batch_data);
+                let touched_slots = conn
+                    .storage_logs_dal()
+                    .get_touched_slots_for_l1_batch(l1_batch_number)
+                    .await?;
+                let keys_with_unknown_indices = touched_slots
+                    .iter()
+                    .map(|(key, _)| key.hashed_key())
+                    .collect::<Vec<_>>();
+                let enum_indices_and_batches = conn
+                    .storage_logs_dal()
+                    .get_l1_batches_and_indices_for_initial_writes(&keys_with_unknown_indices)
+                    .await?;
+                let storage_diffs = touched_slots
+                    .into_iter()
+                    .map(|(key, value)| {
+                        (
+                            key,
+                            StateValue {
+                                value,
+                                enum_index: Some(enum_indices_and_batches[&key.hashed_key()].1),
+                            },
+                        )
+                    })
+                    .collect();
+
+                let factory_deps = conn
+                    .blocks_dal()
+                    .get_l1_batch_factory_deps(l1_batch_number)
+                    .await?;
+                state.storage.insert(
+                    batch_data.l1_batch_env.number,
+                    StorageData {
+                        batch_data,
+                        storage_diffs,
+                        factory_deps,
+                    },
+                );
             }
             drop(conn);
         }

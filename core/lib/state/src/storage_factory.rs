@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::Debug;
 
 use anyhow::Context as _;
@@ -5,8 +6,9 @@ use async_trait::async_trait;
 use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_storage::RocksDB;
-use zksync_types::L1BatchNumber;
+use zksync_types::{L1BatchNumber, StorageKey, H256};
 
+use crate::rocksdb::StateValue;
 use crate::{
     PostgresStorage, ReadStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily,
 };
@@ -34,6 +36,12 @@ pub enum PgOrRocksdbStorage<'a> {
     Postgres(PostgresStorage<'a>),
     /// Implementation over a RocksDB cache instance.
     Rocksdb(RocksdbStorage),
+    /// Implementation over a RocksDB cache instance with in-memory state diffs.
+    RocksdbWithMemory(
+        RocksdbStorage,
+        Vec<HashMap<StorageKey, StateValue>>,
+        Vec<HashMap<H256, Vec<u8>>>,
+    ),
 }
 
 impl<'a> PgOrRocksdbStorage<'a> {
@@ -113,31 +121,57 @@ impl<'a> PgOrRocksdbStorage<'a> {
 }
 
 impl ReadStorage for PgOrRocksdbStorage<'_> {
-    fn read_value(&mut self, key: &zksync_types::StorageKey) -> zksync_types::StorageValue {
+    fn read_value(&mut self, key: &StorageKey) -> zksync_types::StorageValue {
         match self {
             Self::Postgres(postgres) => postgres.read_value(key),
             Self::Rocksdb(rocksdb) => rocksdb.read_value(key),
+            Self::RocksdbWithMemory(rocksdb, diffs, _) => {
+                match diffs.iter().rev().find_map(|x| x.get(key)) {
+                    None => rocksdb.read_value(key),
+                    Some(value) => value.value.clone(),
+                }
+            }
         }
     }
 
-    fn is_write_initial(&mut self, key: &zksync_types::StorageKey) -> bool {
+    fn is_write_initial(&mut self, key: &StorageKey) -> bool {
         match self {
             Self::Postgres(postgres) => postgres.is_write_initial(key),
             Self::Rocksdb(rocksdb) => rocksdb.is_write_initial(key),
+            Self::RocksdbWithMemory(rocksdb, diffs, _) => {
+                match diffs.iter().rev().find_map(|x| x.get(key)) {
+                    None => rocksdb.is_write_initial(key),
+                    Some(_) => false,
+                }
+            }
         }
     }
 
-    fn load_factory_dep(&mut self, hash: zksync_types::H256) -> Option<Vec<u8>> {
+    fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
         match self {
             Self::Postgres(postgres) => postgres.load_factory_dep(hash),
             Self::Rocksdb(rocksdb) => rocksdb.load_factory_dep(hash),
+            Self::RocksdbWithMemory(rocksdb, _, new_factory_deps) => {
+                match new_factory_deps.iter().rev().find_map(|x| x.get(&hash)) {
+                    None => rocksdb.load_factory_dep(hash),
+                    Some(value) => Some(value.clone()),
+                }
+            }
         }
     }
 
-    fn get_enumeration_index(&mut self, key: &zksync_types::StorageKey) -> Option<u64> {
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
         match self {
             Self::Postgres(postgres) => postgres.get_enumeration_index(key),
             Self::Rocksdb(rocksdb) => rocksdb.get_enumeration_index(key),
+            Self::RocksdbWithMemory(rocksdb, diffs, _) => {
+                match rocksdb.get_enumeration_index(key) {
+                    None => diffs
+                        .iter()
+                        .find_map(|x| x.get(key).and_then(|sv| sv.enum_index)),
+                    Some(value) => Some(value),
+                }
+            }
         }
     }
 }

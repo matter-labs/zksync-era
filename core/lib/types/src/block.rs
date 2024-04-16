@@ -93,7 +93,7 @@ pub struct StorageOracleInfo {
 }
 
 /// Data needed to execute a miniblock in the VM.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct MiniblockExecutionData {
     pub number: MiniblockNumber,
     pub timestamp: u64,
