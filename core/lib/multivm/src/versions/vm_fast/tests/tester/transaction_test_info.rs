@@ -1,11 +1,10 @@
 use zksync_types::{ExecuteTransactionCommon, Transaction};
 
+use super::VmTester;
 use crate::interface::{
     CurrentExecutionState, ExecutionResult, Halt, TxRevertReason, VmExecutionMode,
     VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
 };
-
-use super::VmTester;
 
 #[derive(Debug, Clone)]
 pub(crate) enum TxModifier {

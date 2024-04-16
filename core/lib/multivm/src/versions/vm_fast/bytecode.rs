@@ -6,9 +6,8 @@ use zksync_utils::{
     bytes_to_be_words,
 };
 
-use crate::interface::VmInterface;
-
 use super::vm::Vm;
+use crate::interface::VmInterface;
 
 /*impl Vm {
     /// Checks the last transaction has successfully published compressed bytecodes and returns `true` if there is at least one is still unknown.
