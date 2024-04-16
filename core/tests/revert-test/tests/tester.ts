@@ -11,7 +11,9 @@ export class Tester {
         public ethWallet: ethers.Wallet,
         public syncWallet: zkweb3.Wallet,
         public web3Provider: zkweb3.Provider,
-        public hyperchainAdmin: ethers.Wallet // We need to add validator to ValidatorTimelock with admin rights
+        public hyperchainAdmin: ethers.Wallet, // We need to add validator to ValidatorTimelock with admin rights
+        public isETHBasedChain: boolean,
+        public baseTokenAddress: string
     ) {
         this.runningFee = new Map();
     }
@@ -55,7 +57,10 @@ export class Tester {
             console.log(`Canceled ${cancellationTxs.length} pending transactions`);
         }
 
-        return new Tester(ethProvider, ethWallet, syncWallet, web3Provider, hyperchainAdmin);
+        const baseTokenAddress = process.env.CONTRACTS_BASE_TOKEN_ADDR!;
+        const isETHBasedChain = baseTokenAddress == zkweb3.utils.ETH_ADDRESS_IN_CONTRACTS;
+
+        return new Tester(ethProvider, ethWallet, syncWallet, web3Provider, hyperchainAdmin, isETHBasedChain, baseTokenAddress);
     }
 
     async fundedWallet(

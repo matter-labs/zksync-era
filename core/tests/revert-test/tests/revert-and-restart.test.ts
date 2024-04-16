@@ -118,18 +118,22 @@ describe('Block reverting test', function () {
         // it gets updated with some batch logs only at the start of the next batch.
         const initialL1BatchNumber = await tester.web3Provider.getL1BatchNumber();
         const firstDepositHandle = await tester.syncWallet.deposit({
-            token: zkweb3.utils.LEGACY_ETH_ADDRESS,
+            token: tester.isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : tester.baseTokenAddress,
             amount: depositAmount,
-            to: alice.address
+            to: alice.address,
+            approveBaseERC20: true,
+            approveERC20: true
         });
         await firstDepositHandle.wait();
         while ((await tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber) {
             await utils.sleep(1);
         }
         const secondDepositHandle = await tester.syncWallet.deposit({
-            token: zkweb3.utils.LEGACY_ETH_ADDRESS,
+            token: tester.isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : tester.baseTokenAddress,
             amount: depositAmount,
-            to: alice.address
+            to: alice.address,
+            approveBaseERC20: true,
+            approveERC20: true
         });
         await secondDepositHandle.wait();
         while ((await tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber + 1) {
@@ -198,9 +202,11 @@ describe('Block reverting test', function () {
 
         // Execute a transaction
         const depositHandle = await tester.syncWallet.deposit({
-            token: zkweb3.utils.LEGACY_ETH_ADDRESS,
+            token: tester.isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : tester.baseTokenAddress,
             amount: depositAmount,
-            to: alice.address
+            to: alice.address,
+            approveBaseERC20: true,
+            approveERC20: true
         });
 
         let l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
