@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::fmt::Debug;
+use std::{collections::HashMap, fmt::Debug};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -8,9 +7,9 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_storage::RocksDB;
 use zksync_types::{L1BatchNumber, StorageKey, H256};
 
-use crate::rocksdb::StateValue;
 use crate::{
-    PostgresStorage, ReadStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily,
+    rocksdb::StateValue, PostgresStorage, ReadStorage, RocksdbStorage, RocksdbStorageBuilder,
+    StateKeeperColumnFamily,
 };
 
 /// Factory that can produce a [`ReadStorage`] implementation on demand.

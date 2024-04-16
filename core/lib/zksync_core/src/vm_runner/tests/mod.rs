@@ -1,5 +1,4 @@
-use std::time::Duration;
-use std::{ops, sync::Arc};
+use std::{ops, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use tempfile::TempDir;

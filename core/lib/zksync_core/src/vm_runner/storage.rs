@@ -1,12 +1,14 @@
-use std::collections::{BTreeMap, HashMap};
-use std::marker::PhantomData;
-use std::time::Duration;
-use std::{fmt::Debug, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fmt::Debug,
+    marker::PhantomData,
+    sync::Arc,
+    time::Duration,
+};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use multivm::zk_evm_latest::ethereum_types::H256;
-use multivm::{interface::L1BatchEnv, vm_1_4_2::SystemEnv};
+use multivm::{interface::L1BatchEnv, vm_1_4_2::SystemEnv, zk_evm_latest::ethereum_types::H256};
 use once_cell::sync::OnceCell;
 use tokio::sync::{watch, RwLock};
 use vm_utils::storage::L1BatchParamsProvider;
