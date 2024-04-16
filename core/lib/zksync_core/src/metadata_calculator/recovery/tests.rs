@@ -81,7 +81,7 @@ async fn basic_recovery_workflow() {
 
         assert_eq!(tree.root_hash(), snapshot_recovery.l1_batch_root_hash);
         let health = health_check.check_health().await;
-        assert_matches!(health.status(), HealthStatus::Ready);
+        assert_matches!(health.status(), HealthStatus::Affected);
     }
 }
 
