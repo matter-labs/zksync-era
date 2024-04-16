@@ -188,7 +188,7 @@ pub struct SnapshotsApplierConfig {
     /// Number of retries for transient errors before giving up on recovery (i.e., returning an error
     /// from [`Self::run()`]).
     pub retry_count: usize,
-    /// Initial backoff interval when retrying recovery on a transient error. Each subsequent retry interval
+    /// Initial back-off interval when retrying recovery on a transient error. Each subsequent retry interval
     /// will be multiplied by [`Self.retry_backoff_multiplier`].
     pub initial_retry_backoff: Duration,
     pub retry_backoff_multiplier: f32,

@@ -299,7 +299,7 @@ pub(crate) struct OptionalENConfig {
     #[serde(default)]
     pub snapshots_recovery_enabled: bool,
     /// Maximum concurrency factor for the concurrent parts of snapshot recovery for Postgres. It may be useful to
-    /// reduce this factor to ~5 if snapshot recovery overloads I/O capacity of the node. Conversely,
+    /// reduce this factor to about 5 if snapshot recovery overloads I/O capacity of the node. Conversely,
     /// if I/O capacity of your infra is high, you may increase concurrency to speed up Postgres recovery.
     #[serde(default = "OptionalENConfig::default_snapshots_recovery_postgres_max_concurrency")]
     pub snapshots_recovery_postgres_max_concurrency: NonZeroUsize,
