@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use vm2::{decode::decode_program, Event, ExecutionEnd, Program, Settings, State, VirtualMachine};
+use vm2::{decode::decode_program, ExecutionEnd, Program, Settings, VirtualMachine};
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{l1::is_l1_tx_type, AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, U256};
@@ -100,7 +100,7 @@ impl<S: WriteStorage> Vm<S> {
     }
 
     fn write_to_bootloader_heap(&mut self, memory: Vec<(usize, U256)>) {
-        //assert!(self.inner.state.previous_frames.is_empty());
+        assert!(self.inner.state.previous_frames.is_empty());
         let heap = &mut self.inner.state.heaps[self.inner.state.current_frame.heap];
         for (slot, value) in memory {
             value.to_big_endian(&mut heap[slot * 32..(slot + 1) * 32]);
@@ -118,7 +118,7 @@ impl<S: WriteStorage> Vm<S> {
 
     #[cfg(test)]
     /// Returns the current state of the VM in a format that can be compared for equality.
-    pub(crate) fn dump_state(&self) -> (State, Vec<((H160, U256), U256)>, Box<[Event]>) {
+    pub(crate) fn dump_state(&self) -> (vm2::State, Vec<((H160, U256), U256)>, Box<[vm2::Event]>) {
         (
             self.inner.state.clone(),
             self.inner.world.get_storage_changes().collect(),
@@ -285,6 +285,8 @@ impl<S: WriteStorage + 'static> VmInterfaceHistoryEnabled<S> for Vm<S> {
         self.bootloader_state.apply_snapshot(bootloader_snapshot);
         self.suspended_at = suspended_at;
         self.gas_for_account_validation = gas_for_account_validation;
+
+        self.delete_history_if_appropriate();
     }
 
     fn pop_snapshot_no_rollback(&mut self) {
@@ -295,7 +297,9 @@ impl<S: WriteStorage + 'static> VmInterfaceHistoryEnabled<S> for Vm<S> {
 
 impl<S: WriteStorage + 'static> Vm<S> {
     fn delete_history_if_appropriate(&mut self) {
-        todo!()
+        if self.snapshots.is_empty() && self.inner.state.previous_frames.is_empty() {
+            self.inner.world.delete_history();
+        }
     }
 }
 
