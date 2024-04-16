@@ -23,7 +23,7 @@ describe('base ERC20 contract checks', () => {
 
         baseTokenDetails = testMaster.environment().baseToken;
         const baseToken = await alice.provider.getBaseTokenContractAddress();
-        isETHBasedChain = baseToken == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
+        isETHBasedChain = zksync.utils.isAddressEq(baseToken, zksync.utils.ETH_ADDRESS_IN_CONTRACTS);
     });
 
     test('Can perform a deposit', async () => {
