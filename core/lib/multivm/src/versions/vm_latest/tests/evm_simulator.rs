@@ -131,7 +131,6 @@ fn test_evm_vector(mut bytecode: Vec<u8>) -> U256 {
         H256::zero(),
     ));
 
-
     h256_to_u256(saved_value)
 }
 
@@ -3158,59 +3157,61 @@ fn test_basic_logs_vectors() {
 
 #[test]
 fn test_basic_return_vectors() {
-        test_evm_vector(
-            vec![
-                // push32 0xFF01000000000000000000000000000000000000000000000000000000000000
-                hex::decode("7F").unwrap(),
-                hex::decode("FF01000000000000000000000000000000000000000000000000000000000000").unwrap(),
-                // push0
-                hex::decode("5F").unwrap(),
-                // mstore
-                hex::decode("52").unwrap(),
-                // push1 2
-                hex::decode("60").unwrap(),
-                hex::decode("02").unwrap(),
-                // push0
-                hex::decode("5F").unwrap(),
-                // return
-                hex::decode("F3").unwrap()
-            ]
-            .into_iter()
-            .concat()
-        )
-    ;
+    test_evm_vector(
+        vec![
+            // push32 0xFF01000000000000000000000000000000000000000000000000000000000000
+            hex::decode("7F").unwrap(),
+            hex::decode("FF01000000000000000000000000000000000000000000000000000000000000")
+                .unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 2
+            hex::decode("60").unwrap(),
+            hex::decode("02").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // return
+            hex::decode("F3").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
 }
 
 #[test]
 #[ignore]
 fn test_basic_revert_vectors() {
-        test_evm_vector(
-            vec![
-                // push32 0xFF01000000000000000000000000000000000000000000000000000000000000
-                hex::decode("7F").unwrap(),
-                hex::decode("FF01000000000000000000000000000000000000000000000000000000000000").unwrap(),
-                // push0
-                hex::decode("5F").unwrap(),
-                // mstore
-                hex::decode("52").unwrap(),
-                // push1 2
-                hex::decode("60").unwrap(),
-                hex::decode("02").unwrap(),
-                // push0
-                hex::decode("5F").unwrap(),
-                // revert
-                hex::decode("FD").unwrap()
-            ]
-            .into_iter()
-            .concat()
-        )
-    ;
+    test_evm_vector(
+        vec![
+            // push32 0xFF01000000000000000000000000000000000000000000000000000000000000
+            hex::decode("7F").unwrap(),
+            hex::decode("FF01000000000000000000000000000000000000000000000000000000000000")
+                .unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 2
+            hex::decode("60").unwrap(),
+            hex::decode("02").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // revert
+            hex::decode("FD").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
 }
 
 #[test]
 #[ignore]
-fn test_basic_callcode_vectors_not_success() { //Needs create opcode to work
-        assert_eq!(test_evm_vector(
+fn test_basic_callcode_vectors_not_success() {
+    //Needs create opcode to work
+    assert_eq!(
+        test_evm_vector(
             vec![
                 // Create a contract that creates an exception if first slot of storage is 0
                 // push17 0x67600054600757FE5B60005260086018F3
@@ -3255,14 +3256,17 @@ fn test_basic_callcode_vectors_not_success() { //Needs create opcode to work
             ]
             .into_iter()
             .concat()
-        ),0.into())
-    ;
+        ),
+        0.into()
+    );
 }
 
 #[test]
 #[ignore]
-fn test_basic_callcode_vectors_success() { //Needs create opcode to work
-        assert_eq!(test_evm_vector(
+fn test_basic_callcode_vectors_success() {
+    //Needs create opcode to work
+    assert_eq!(
+        test_evm_vector(
             vec![
                 // Create a contract that creates an exception if first slot of storage is 0
                 // push17 0x67600054600757FE5B60005260086018F3
@@ -3316,13 +3320,15 @@ fn test_basic_callcode_vectors_success() { //Needs create opcode to work
             ]
             .into_iter()
             .concat()
-        ),1.into())
-    ;
+        ),
+        1.into()
+    );
 }
 
 #[test]
 #[ignore]
-fn test_basic_callcode_vectors_gas() { //Needs create opcode to work
+fn test_basic_callcode_vectors_gas() {
+    //Needs create opcode to work
     let initial_gas = U256::MAX;
     let gas_left = test_evm_vector(
         vec![
@@ -3370,11 +3376,13 @@ fn test_basic_callcode_vectors_gas() { //Needs create opcode to work
             hex::decode("55").unwrap(),
         ]
         .into_iter()
-        .concat()
+        .concat(),
     );
-    assert_eq!(initial_gas - gas_left,U256::from_dec_str("35879").unwrap().into());
+    assert_eq!(
+        initial_gas - gas_left,
+        U256::from_dec_str("35879").unwrap().into()
+    );
 }
-
 
 fn assert_deployed_hash<H: HistoryMode>(
     tester: &mut VmTester<H>,
