@@ -215,13 +215,11 @@ jobs:
       - name: Fee projection tests
         run: ci_run zk test i fees
 
-      - name: Run revert test - DISABLED (EVM-539)
+      - name: Run revert test
         run: |
-          ls
-
-        # ci_run pkill zksync_server || true
-        # ci_run sleep 2
-        # ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=Rollup PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert
+          ci_run pkill zksync_server || true
+          ci_run sleep 2
+          ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=Rollup PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert
 
         # This test should be the last one as soon as it
         # finished bootloader will be different
