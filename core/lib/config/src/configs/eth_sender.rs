@@ -3,20 +3,20 @@ use std::time::Duration;
 use serde::Deserialize;
 use zksync_basic_types::H256;
 
-use crate::ETHWatchConfig;
+use crate::EthWatchConfig;
 
 /// Configuration for the Ethereum related components.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct ETHConfig {
+pub struct EthConfig {
     /// Options related to the Ethereum sender directly.
     pub sender: Option<SenderConfig>,
     /// Options related to the `GasAdjuster` submodule.
     pub gas_adjuster: Option<GasAdjusterConfig>,
-    pub watcher: Option<ETHWatchConfig>,
+    pub watcher: Option<EthWatchConfig>,
     pub web3_url: String,
 }
 
-impl ETHConfig {
+impl EthConfig {
     /// Creates a mock configuration object suitable for unit tests.
     /// Values inside match the config used for localhost development.
     pub fn for_tests() -> Self {
@@ -55,7 +55,7 @@ impl ETHConfig {
                 internal_pubdata_pricing_multiplier: 1.0,
                 max_blob_base_fee: None,
             }),
-            watcher: Some(ETHWatchConfig {
+            watcher: Some(EthWatchConfig {
                 confirmations_for_eth_event: None,
                 eth_node_poll_interval: 0,
             }),
