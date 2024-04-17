@@ -1,18 +1,36 @@
 use anyhow::Context as _;
-use zksync_basic_types::L1BatchNumber;
+use zksync_basic_types::{ethabi::Token, L1BatchNumber, U256};
 use zksync_config::{ContractsConfig, EthConfig, PostgresConfig};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_eth_client::{clients::QueryClient, CallFunctionArgs, EthInterface};
 
-// fn pretty_print_l1_status(
-//     total_batches_committed: Vec<Token>,
-//     total_batches_verified: Vec<Token>,
-//     first_state_keeper_l1_batch: L1BatchNumber,
-//     last_state_keeper_l1_batch: L1BatchNumber
-// ) {
-//     println!("HOLIS");
-// }
+fn pretty_print_l1_status(
+    total_batches_committed: U256,
+    total_batches_verified: U256,
+    first_state_keeper_l1_batch: L1BatchNumber,
+    last_state_keeper_l1_batch: L1BatchNumber,
+) {
+    println!(
+        "State keeper: First batch: {}, recent batch: {}",
+        first_state_keeper_l1_batch, last_state_keeper_l1_batch
+    );
+
+    println!(
+        "L1 state: block verified: {}, block committed: {}",
+        total_batches_verified, total_batches_committed
+    );
+
+    let eth_sender_lag = U256::from(last_state_keeper_l1_batch.0) - total_batches_committed;
+    if eth_sender_lag > U256::zero() {
+        println!(
+            "Eth sender is {} behind. Last block committed: {}. Most recent sealed state keeper batch: {}.", 
+            eth_sender_lag,
+            total_batches_committed,
+            last_state_keeper_l1_batch
+        );
+    }
+}
 
 pub(crate) async fn run() -> anyhow::Result<()> {
     let contracts_config = ContractsConfig::from_env()?;
@@ -24,18 +42,33 @@ pub(crate) async fn run() -> anyhow::Result<()> {
             contracts_config.diamond_proxy_addr,
             zksync_contracts::zksync_contract(),
         );
-    let total_batches_committed = query_client
+    let total_batches_committed_tokens = query_client
         .call_contract_function(args_for_total_batches_committed)
         .await?;
+
+    let mut total_batches_committed: U256 = U256::zero();
+    if let Some(first_token) = total_batches_committed_tokens.first() {
+        if let Token::Uint(value) = first_token {
+            total_batches_committed = value.into();
+        }
+    }
 
     let args_for_total_batches_verified: zksync_eth_client::ContractCall =
         CallFunctionArgs::new("getTotalBatchesVerified", ()).for_contract(
             contracts_config.diamond_proxy_addr,
             zksync_contracts::zksync_contract(),
         );
-    let total_batches_verified = query_client
+
+    let total_batches_verified_tokens = query_client
         .call_contract_function(args_for_total_batches_verified)
         .await?;
+
+    let mut total_batches_verified: U256 = U256::zero();
+    if let Some(first_token) = total_batches_verified_tokens.first() {
+        if let Token::Uint(value) = first_token {
+            total_batches_verified = value.into();
+        }
+    }
 
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
 
@@ -62,7 +95,12 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         .unwrap()
         .unwrap();
 
-    // pretty_print_l1_status(total_batches_committed, total_batches_verified, first_state_keeper_l1_batch, last_state_keeper_l1_batch);
+    pretty_print_l1_status(
+        total_batches_committed,
+        total_batches_verified,
+        first_state_keeper_l1_batch,
+        last_state_keeper_l1_batch,
+    );
 
     Ok(())
 }
