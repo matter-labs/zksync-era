@@ -8602,6 +8602,7 @@ name = "zksync_external_node"
 version = "23.0.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "clap 4.4.6",
  "envy",
  "futures 0.3.28",
@@ -8610,6 +8611,8 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "tempfile",
+ "test-casing",
  "tokio",
  "tracing",
  "url",
