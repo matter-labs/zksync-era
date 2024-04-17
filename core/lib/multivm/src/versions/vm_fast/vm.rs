@@ -4,7 +4,9 @@ use vm2::{decode::decode_program, ExecutionEnd, Program, Settings, VirtualMachin
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::{l1::is_l1_tx_type, AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, U256};
+use zksync_types::{
+    l1::is_l1_tx_type, tx, AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, U256,
+};
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
 use super::{
@@ -160,6 +162,33 @@ impl<S: WriteStorage + 'static> Vm<S> {
             self.inner.world.events().into(),
         )
     }
+
+    pub(crate) fn push_transaction_inner(&mut self, tx: zksync_types::Transaction, refund: u64) {
+        let tx: TransactionData = tx.into();
+        let overhead = tx.overhead_gas();
+
+        self.insert_bytecodes(tx.factory_deps.iter().map(|dep| &dep[..]));
+
+        let compressed_bytecodes = if is_l1_tx_type(tx.tx_type) {
+            // L1 transactions do not need compression
+            vec![]
+        } else {
+            compress_bytecodes(&tx.factory_deps, self.storage.clone())
+        };
+
+        let trusted_ergs_limit = tx.trusted_ergs_limit();
+
+        let memory = self.bootloader_state.push_tx(
+            tx,
+            overhead,
+            refund,
+            compressed_bytecodes,
+            trusted_ergs_limit,
+            self.system_env.chain_id,
+        );
+
+        self.write_to_bootloader_heap(memory);
+    }
 }
 
 impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
@@ -226,30 +255,7 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
     }
 
     fn push_transaction(&mut self, tx: zksync_types::Transaction) {
-        let tx: TransactionData = tx.into();
-        let overhead = tx.overhead_gas();
-
-        self.insert_bytecodes(tx.factory_deps.iter().map(|dep| &dep[..]));
-
-        let compressed_bytecodes = if is_l1_tx_type(tx.tx_type) {
-            // L1 transactions do not need compression
-            vec![]
-        } else {
-            compress_bytecodes(&tx.factory_deps, self.storage.clone())
-        };
-
-        let trusted_ergs_limit = tx.trusted_ergs_limit();
-
-        let memory = self.bootloader_state.push_tx(
-            tx,
-            overhead,
-            0,
-            compressed_bytecodes,
-            trusted_ergs_limit,
-            self.system_env.chain_id,
-        );
-
-        self.write_to_bootloader_heap(memory);
+        self.push_transaction_inner(tx, 0);
     }
 
     fn inspect(
