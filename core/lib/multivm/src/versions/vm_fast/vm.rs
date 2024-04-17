@@ -14,9 +14,7 @@ use super::{
     transaction_data::TransactionData,
 };
 use crate::{
-    interface::{
-        types::inputs::execution_mode, Halt, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
-    },
+    interface::{Halt, VmInterface, VmInterfaceHistoryEnabled},
     vm_latest::{
         constants::VM_HOOK_POSITION, BootloaderMemory, CurrentExecutionState, ExecutionResult,
         HistoryEnabled, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
@@ -40,7 +38,7 @@ pub struct Vm<S: WriteStorage> {
     snapshots: Vec<VmSnapshot>,
 }
 
-impl<S: WriteStorage> Vm<S> {
+impl<S: WriteStorage + 'static> Vm<S> {
     fn run(&mut self, execution_mode: VmExecutionMode) -> ExecutionResult {
         loop {
             let hook = match self.inner.resume_from(self.suspended_at) {
@@ -61,7 +59,11 @@ impl<S: WriteStorage> Vm<S> {
                 }
                 ExecutionEnd::Panicked => {
                     return ExecutionResult::Halt {
-                        reason: Halt::VMPanic,
+                        reason: if self.gas_remaining() == 0 {
+                            Halt::BootloaderOutOfGas
+                        } else {
+                            Halt::VMPanic
+                        },
                     }
                 }
             };
