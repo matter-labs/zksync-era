@@ -137,7 +137,7 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
                     .connection_tagged(L::name())
                     .await
                     .context("Failed getting a Postgres connection")?;
-                let max_l1_batch = (state.l1_batch_number + self.max_batches_to_load - 1).min(
+                let max_l1_batch = (state.l1_batch_number + self.max_batches_to_load).min(
                     conn.blocks_dal()
                         .get_sealed_l1_batch_number()
                         .await?
@@ -151,7 +151,9 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
                         max_l1_batch
                     );
                 }
-                if !state.storage.contains_key(&l1_batch_number) {
+                if l1_batch_number != state.l1_batch_number
+                    && !state.storage.contains_key(&l1_batch_number)
+                {
                     drop(state);
                     drop(conn);
                     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -221,17 +223,17 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
             loop {
                 let state = self.state.read().await;
                 let mut conn = self.pool.connection_tagged(L::name()).await?;
-                let max_l1_batch = (state.l1_batch_number + self.max_batches_to_load - 1).min(
+                let max_l1_batch = (state.l1_batch_number + self.max_batches_to_load).min(
                     conn.blocks_dal()
                         .get_sealed_l1_batch_number()
                         .await?
                         .unwrap_or_default(),
                 );
                 drop(conn);
-                if l1_batch_number < state.l1_batch_number || l1_batch_number > max_l1_batch {
+                if l1_batch_number <= state.l1_batch_number || l1_batch_number > max_l1_batch {
                     tracing::debug!(
                         %l1_batch_number,
-                        min_l1_batch = %state.l1_batch_number,
+                        min_l1_batch = %(state.l1_batch_number + 1),
                         %max_l1_batch,
                         "Trying to load an L1 batch that is not available"
                     );
@@ -334,31 +336,25 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
             let mut state = self.state.write().await;
             let mut conn = self.pool.connection_tagged(L::name()).await?;
             let latest_processed_batch = self.loader.latest_processed_batch(&mut conn).await?;
-            let next_batch = (latest_processed_batch + 1).min(
-                conn.blocks_dal()
-                    .get_sealed_l1_batch_number()
-                    .await?
-                    .unwrap_or_default(),
-            );
             let rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb.clone());
             let rocksdb = rocksdb_builder
-                .synchronize(&mut conn, &stop_receiver, Some(next_batch))
+                .synchronize(&mut conn, &stop_receiver, Some(latest_processed_batch))
                 .await
                 .context("Failed to catch up state keeper RocksDB storage to Postgres")?;
             let Some(_) = rocksdb else {
                 tracing::info!("`StorageSyncTask` was interrupted during RocksDB synchronization");
                 return Ok(());
             };
-            state.l1_batch_number = next_batch;
+            state.l1_batch_number = latest_processed_batch;
             state
                 .storage
-                .retain(|l1_batch_number, _| l1_batch_number >= &next_batch);
+                .retain(|l1_batch_number, _| l1_batch_number > &latest_processed_batch);
             let max_present = state
                 .storage
                 .last_entry()
                 .map(|e| *e.key())
-                .unwrap_or(next_batch - 1);
-            let max_desired = next_batch + self.max_batches_to_load;
+                .unwrap_or(latest_processed_batch);
+            let max_desired = latest_processed_batch + self.max_batches_to_load;
             for l1_batch_number in max_present.0 + 1..=max_desired.0 {
                 let l1_batch_number = L1BatchNumber(l1_batch_number);
                 let Some(batch_data) = Self::load_batch_data(
@@ -424,7 +420,7 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
             .await
             .with_context(|| {
                 format!(
-                    "Аailed loading first miniblock for L1 batch #{}",
+                    "Failed loading first miniblock for L1 batch #{}",
                     l1_batch_number
                 )
             })?;

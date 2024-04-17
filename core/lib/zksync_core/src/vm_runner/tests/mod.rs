@@ -216,11 +216,10 @@ async fn rerun_storage_on_existing_data() -> anyhow::Result<()> {
     // Sleep to give VM runner storage time to get rid of old batches
     tokio::time::sleep(Duration::from_secs(1)).await;
 
-    // All old batches except the last one should no longer be loadable
-    for batch in batches.iter().take(9) {
+    // All old batches should no longer be loadable
+    for batch in batches {
         assert!(storage.load_batch(batch.number).await?.is_none());
     }
-    assert!(storage.load_batch(L1BatchNumber(10)).await?.is_some());
 
     Ok(())
 }
