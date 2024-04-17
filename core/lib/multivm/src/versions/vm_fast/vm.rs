@@ -402,7 +402,7 @@ impl<S: WriteStorage> vm2::World for World<S> {
         self.storage
             .borrow_mut()
             .read_value(&StorageKey::new(
-                AccountTreeId::new(contract.into()),
+                AccountTreeId::new(contract),
                 u256_to_h256(key),
             ))
             .as_bytes()
@@ -421,7 +421,7 @@ fn bytecode_to_program(bytecode: &[u8]) -> Program {
         ),
         bytecode
             .chunks_exact(32)
-            .map(|chunk| U256::from_big_endian(chunk.try_into().unwrap()))
+            .map(U256::from_big_endian)
             .collect::<Vec<_>>(),
     )
 }
