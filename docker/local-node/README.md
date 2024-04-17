@@ -2,7 +2,7 @@
 
 This docker container is used for 'local-node' - the fast way to bring up the fully working system (similar to what you get by running `zk init`).
 
-You can find more instructions (and docker compose files) in https://github.com/matter-labs/local-setup
+You can find more instructions (and docker compose files) in [https://github.com/matter-labs/local-setup]
 
 This directory is more focused on 'creating' the image rather than using it.
 
@@ -30,5 +30,5 @@ ETH_CLIENT_WEB3_URL=http://127.0.0.1:8545
 ```
 
 The command above will start it in the 'bash' mode - where you can look around and modify things.
-If you want to start it with the default entrypoint - simly remove the '--entrypoint /bin/bash' from the command above.
+If you want to start it with the default entrypoint - simply remove the '--entrypoint /bin/bash' from the command above.
 
