@@ -30,7 +30,7 @@ use crate::{
         },
         mempool_actor::l2_tx_filter,
         metrics::KEEPER_METRICS,
-        seal_criteria::{IoSealCriteria, TimeoutSealer},
+        seal_criteria::{IoSealCriteria, MiniblockMaxPayloadSizeSealer, TimeoutSealer},
         updates::UpdatesManager,
         MempoolGuard,
     },
@@ -45,6 +45,7 @@ pub struct MempoolIO {
     mempool: MempoolGuard,
     pool: ConnectionPool<Core>,
     timeout_sealer: TimeoutSealer,
+    miniblock_max_payload_size_sealer: MiniblockMaxPayloadSizeSealer,
     filter: L2TxFilter,
     l1_batch_params_provider: L1BatchParamsProvider,
     fee_account: Address,
@@ -63,7 +64,11 @@ impl IoSealCriteria for MempoolIO {
     }
 
     fn should_seal_miniblock(&mut self, manager: &UpdatesManager) -> bool {
-        self.timeout_sealer.should_seal_miniblock(manager)
+        if self.timeout_sealer.should_seal_miniblock(manager) {
+            return true;
+        }
+        self.miniblock_max_payload_size_sealer
+            .should_seal_miniblock(manager)
     }
 }
 
@@ -413,6 +418,7 @@ impl MempoolIO {
             mempool,
             pool,
             timeout_sealer: TimeoutSealer::new(config),
+            miniblock_max_payload_size_sealer: MiniblockMaxPayloadSizeSealer::new(config),
             filter: L2TxFilter::default(),
             // ^ Will be initialized properly on the first newly opened batch
             l1_batch_params_provider,
