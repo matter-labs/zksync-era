@@ -12,6 +12,7 @@ publish = false
 
 [dependencies]
 zksync_core.workspace = true
+zksync_commitment_generator.workspace = true
 zksync_dal.workspace = true
 zksync_db_connection.workspace = true
 zksync_config.workspace = true
