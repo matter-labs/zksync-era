@@ -2777,6 +2777,78 @@ fn test_basic_logs_vectors() {
     }
 }
 
+#[test]
+#[ignore = "It cannot be tested right now since test_evm_vector makes an assert checking if the transaction fails, In this case we want it to fail"]
+fn test_basic_invalid_vectors() {
+    // It cannot be tested right now since test_evm_vector makes an assert checking if the transaction fails
+    // In this case we want it to fail
+    test_evm_vector(
+        vec![
+            // invalid
+            hex::decode("FE").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+}
+
+#[test]
+#[ignore = "It cannot be tested right now since we dont yet have a way of checking the results of result opcode"]
+fn test_basic_return_vectors() {
+    // It cannot be tested right now since we dont yet have a way of checking the results of result opcode
+    test_evm_vector(
+        vec![
+            // push32 0xFF01000000000000000000000000000000000000000000000000000000000000
+            hex::decode("7F").unwrap(),
+            hex::decode("FF01000000000000000000000000000000000000000000000000000000000000")
+                .unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 2
+            hex::decode("60").unwrap(),
+            hex::decode("02").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // return
+            hex::decode("F3").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    // Result should be 0xFF01
+}
+
+#[test]
+#[ignore = "It cannot be tested right now since test_evm_vector makes an assert checking if the transaction fails, In this case we want it to fail and check if the result is correct"]
+fn test_basic_revert_vectors() {
+    // It cannot be tested right now since test_evm_vector makes an assert checking if the transaction fails
+    // In this case we want it to fail and check if the result is correct
+    test_evm_vector(
+        vec![
+            // push32 0xFF01000000000000000000000000000000000000000000000000000000000000
+            hex::decode("7F").unwrap(),
+            hex::decode("FF01000000000000000000000000000000000000000000000000000000000000")
+                .unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 2
+            hex::decode("60").unwrap(),
+            hex::decode("02").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // revert
+            hex::decode("FD").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    // Result should be 0xFF01, maybe it includes the gas before?
+}
+
 fn assert_deployed_hash<H: HistoryMode>(
     tester: &mut VmTester<H>,
     address: Address,
