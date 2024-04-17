@@ -141,13 +141,13 @@ async function hyperchainFullUpgrade() {
 
     process.chdir(`${process.env.ZKSYNC_HOME}`);
     await spawn('zk config compile zksync_local');
-    env.reload();
+    env.reload('zksync_local');
     // process.chdir(`${process.env.ZKSYNC_HOME}/infrastructure/protocol-upgrade`);
     await hyperchainUpgrade1();
-    env.reload();
+    env.reload('zksync_local');
 
     await insertAddresses();
-    env.reload();
+    env.reload('zksync_local');
 
     await spawn('zk f yarn  workspace protocol-upgrade-tool start facets generate-facet-cuts');
     await spawn('zk f yarn  workspace protocol-upgrade-tool start system-contracts publish-all');
@@ -180,7 +180,8 @@ command
     .option('--post-upgrade-calldata')
     .option('--phase2')
     .option('--phase3')
-    .option('--full')
+    .option('--full-start')
+    .option('--execute-upgrade')
     // .option('--get-diamond-upgrade-batch-number-for-eth-withdrawals')
     // .option('--get-erc20-bridge-upgrade-batch-number-for-token-withdrawals')
     // .option('--get-last-deposit-batch-number-for-failed-deposits')
@@ -212,5 +213,9 @@ command
             // for the mainnet upgrade we will have to manually check the priority queue at the given block, since governance is signing the txs
         } else if (options.full) {
             await hyperchainFullUpgrade();
+        } else if (options.executeUpgrade) {
+            await spawn(
+                `zk f yarn  workspace protocol-upgrade-tool start transactions execute-upgrade --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --new-governance ${process.env.CONTRACTS_GOVERNANCE_ADDR}`
+            );
         }
     });
