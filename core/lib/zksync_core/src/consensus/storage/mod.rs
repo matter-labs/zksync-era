@@ -376,7 +376,7 @@ struct BlockStore {
     persisted: sync::watch::Receiver<storage::BlockStoreState>,
 }
 
-/// Background task of the BlockStore.
+/// Background task of the `BlockStore`.
 pub struct BlockStoreRunner {
     store: Store,
     persisted: sync::watch::Sender<storage::BlockStoreState>,
