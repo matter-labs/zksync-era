@@ -133,8 +133,7 @@ impl GenesisParams {
         Self::from_genesis_config(config, base_system_contracts, system_contracts)
     }
 
-    #[cfg(test)]
-    pub(crate) fn mock() -> Self {
+    pub fn mock() -> Self {
         Self {
             base_system_contracts: BaseSystemContracts::load_from_disk(),
             system_contracts: get_system_smart_contracts(),
@@ -152,8 +151,7 @@ impl GenesisParams {
     }
 }
 
-#[cfg(test)]
-pub fn mock_genesis_config() -> GenesisConfig {
+pub(crate) fn mock_genesis_config() -> GenesisConfig {
     use zksync_types::L1ChainId;
 
     let base_system_contracts_hashes = BaseSystemContracts::load_from_disk().hashes();
@@ -161,9 +159,9 @@ pub fn mock_genesis_config() -> GenesisConfig {
 
     GenesisConfig {
         protocol_version: Some(ProtocolVersionId::latest() as u16),
-        genesis_root_hash: Some(Default::default()),
+        genesis_root_hash: Some(H256::default()),
         rollup_last_leaf_index: Some(26),
-        genesis_commitment: Default::default(),
+        genesis_commitment: Some(H256::default()),
         bootloader_hash: Some(base_system_contracts_hashes.bootloader),
         default_aa_hash: Some(base_system_contracts_hashes.default_aa),
         l1_chain_id: L1ChainId(9),

@@ -319,6 +319,12 @@ impl<DB: DbMarker> ConnectionPool<DB> {
         Self::builder(database_url, 1)
     }
 
+    /// Returns database URL for this pool. It may include authentication info, so be mindful of
+    /// outputting it into logs etc.
+    pub fn database_url(&self) -> &str {
+        &self.database_url
+    }
+
     /// Returns the maximum number of connections in this pool specified during its creation.
     /// This number may be distinct from the current number of connections in the pool (including
     /// idle ones).

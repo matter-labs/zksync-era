@@ -90,11 +90,24 @@ impl ActionQueue {
             QUEUE_METRICS.action_queue_size.dec_by(1);
             return Some(peeked);
         }
-        let action = self.receiver.try_recv().ok();
-        if action.is_some() {
-            QUEUE_METRICS.action_queue_size.dec_by(1);
+        let action = self.receiver.try_recv().ok()?;
+        QUEUE_METRICS.action_queue_size.dec_by(1);
+        Some(action)
+    }
+
+    /// Removes the first action from the queue.
+    pub(super) async fn recv_action(
+        &mut self,
+        max_wait: tokio::time::Duration,
+    ) -> Option<SyncAction> {
+        if let Some(action) = self.pop_action() {
+            return Some(action);
         }
-        action
+        let action = tokio::time::timeout(max_wait, self.receiver.recv())
+            .await
+            .ok()??;
+        QUEUE_METRICS.action_queue_size.dec_by(1);
+        Some(action)
     }
 
     /// Returns the first action from the queue without removing it.
@@ -103,6 +116,20 @@ impl ActionQueue {
             return Some(action.clone());
         }
         self.peeked = self.receiver.try_recv().ok();
+        self.peeked.clone()
+    }
+
+    /// Returns the first action from the queue without removing it.
+    pub(super) async fn peek_action_async(
+        &mut self,
+        max_wait: tokio::time::Duration,
+    ) -> Option<SyncAction> {
+        if let Some(action) = &self.peeked {
+            return Some(action.clone());
+        }
+        self.peeked = tokio::time::timeout(max_wait, self.receiver.recv())
+            .await
+            .ok()?;
         self.peeked.clone()
     }
 }

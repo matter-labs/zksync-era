@@ -17,16 +17,13 @@ use super::{
 };
 use crate::state_keeper::{
     io::{
-        common::{load_pending_batch, poll_iters, IoCursor},
+        common::{load_pending_batch, IoCursor},
         L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
     },
     metrics::KEEPER_METRICS,
     seal_criteria::IoSealCriteria,
     updates::UpdatesManager,
 };
-
-/// The interval between the action queue polling attempts for the new actions.
-const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 /// ExternalIO is the IO abstraction for the state keeper that is used in the external node.
 /// It receives a sequence of actions from the fetcher via the action queue and propagates it
@@ -220,34 +217,31 @@ impl StateKeeperIO for ExternalIO {
         max_wait: Duration,
     ) -> anyhow::Result<Option<L1BatchParams>> {
         tracing::debug!("Waiting for the new batch params");
-        for _ in 0..poll_iters(POLL_INTERVAL, max_wait) {
-            match self.actions.pop_action() {
-                Some(SyncAction::OpenBatch {
-                    params,
-                    number,
-                    first_miniblock_number,
-                }) => {
-                    anyhow::ensure!(
-                        number == cursor.l1_batch,
-                        "Batch number mismatch: expected {}, got {number}",
-                        cursor.l1_batch
-                    );
-                    anyhow::ensure!(
-                        first_miniblock_number == cursor.next_l2_block,
-                        "Miniblock number mismatch: expected {}, got {first_miniblock_number}",
-                        cursor.next_l2_block
-                    );
-                    return Ok(Some(params));
-                }
-                Some(other) => {
-                    anyhow::bail!("unexpected action in the action queue: {other:?}");
-                }
-                None => {
-                    tokio::time::sleep(POLL_INTERVAL).await;
-                }
+        let Some(action) = self.actions.recv_action(max_wait).await else {
+            return Ok(None);
+        };
+        match action {
+            SyncAction::OpenBatch {
+                params,
+                number,
+                first_miniblock_number,
+            } => {
+                anyhow::ensure!(
+                    number == cursor.l1_batch,
+                    "Batch number mismatch: expected {}, got {number}",
+                    cursor.l1_batch
+                );
+                anyhow::ensure!(
+                    first_miniblock_number == cursor.next_l2_block,
+                    "Miniblock number mismatch: expected {}, got {first_miniblock_number}",
+                    cursor.next_l2_block
+                );
+                return Ok(Some(params));
+            }
+            other => {
+                anyhow::bail!("unexpected action in the action queue: {other:?}");
             }
         }
-        Ok(None)
     }
 
     async fn wait_for_new_l2_block_params(
@@ -256,62 +250,52 @@ impl StateKeeperIO for ExternalIO {
         max_wait: Duration,
     ) -> anyhow::Result<Option<L2BlockParams>> {
         // Wait for the next miniblock to appear in the queue.
-        let actions = &mut self.actions;
-        for _ in 0..poll_iters(POLL_INTERVAL, max_wait) {
-            match actions.pop_action() {
-                Some(SyncAction::Miniblock { params, number }) => {
-                    anyhow::ensure!(
-                        number == cursor.next_l2_block,
-                        "Miniblock number mismatch: expected {}, got {number}",
-                        cursor.next_l2_block
-                    );
-                    return Ok(Some(params));
-                }
-                Some(other) => {
-                    anyhow::bail!(
-                        "Unexpected action in the queue while waiting for the next miniblock: {other:?}"
-                    );
-                }
-                None => {
-                    tokio::time::sleep(POLL_INTERVAL).await;
-                }
+        let Some(action) = self.actions.recv_action(max_wait).await else {
+            return Ok(None);
+        };
+        match action {
+            SyncAction::Miniblock { params, number } => {
+                anyhow::ensure!(
+                    number == cursor.next_l2_block,
+                    "Miniblock number mismatch: expected {}, got {number}",
+                    cursor.next_l2_block
+                );
+                return Ok(Some(params));
+            }
+            other => {
+                anyhow::bail!(
+                    "Unexpected action in the queue while waiting for the next miniblock: {other:?}"
+                );
             }
         }
-        Ok(None)
     }
 
     async fn wait_for_next_tx(
         &mut self,
         max_wait: Duration,
     ) -> anyhow::Result<Option<Transaction>> {
-        let actions = &mut self.actions;
         tracing::debug!(
             "Waiting for the new tx, next action is {:?}",
-            actions.peek_action()
+            self.actions.peek_action()
         );
-        for _ in 0..poll_iters(POLL_INTERVAL, max_wait) {
-            match actions.peek_action() {
-                Some(SyncAction::Tx(_)) => {
-                    let SyncAction::Tx(tx) = actions.pop_action().unwrap() else {
-                        unreachable!()
-                    };
-                    return Ok(Some(Transaction::from(*tx)));
-                }
-                Some(SyncAction::SealMiniblock | SyncAction::SealBatch) => {
-                    // No more transactions in the current miniblock; the state keeper should seal it.
-                    return Ok(None);
-                }
-                Some(other) => {
-                    anyhow::bail!(
-                        "Unexpected action in the queue while waiting for the next transaction: {other:?}"
-                    );
-                }
-                _ => {
-                    tokio::time::sleep(POLL_INTERVAL).await;
-                }
+        let Some(action) = self.actions.peek_action_async(max_wait).await else {
+            return Ok(None);
+        };
+        match action {
+            SyncAction::Tx(tx) => {
+                self.actions.pop_action().unwrap();
+                return Ok(Some(Transaction::from(*tx)));
+            }
+            SyncAction::SealMiniblock | SyncAction::SealBatch => {
+                // No more transactions in the current miniblock; the state keeper should seal it.
+                return Ok(None);
+            }
+            other => {
+                anyhow::bail!(
+                    "Unexpected action in the queue while waiting for the next transaction: {other:?}"
+                );
             }
         }
-        Ok(None)
     }
 
     async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()> {

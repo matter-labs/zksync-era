@@ -168,7 +168,7 @@ pub(crate) async fn pending_protocol_version(
 
 async fn get_pubdata_pricing_mode(
     diamond_proxy_address: Address,
-    eth_client: &impl EthInterface,
+    eth_client: &dyn EthInterface,
 ) -> Result<Vec<ethabi::Token>, EthClientError> {
     let args = CallFunctionArgs::new("getPubdataPricingMode", ())
         .for_contract(diamond_proxy_address, zksync_contracts::zksync_contract());
@@ -178,7 +178,7 @@ async fn get_pubdata_pricing_mode(
 pub async fn ensure_l1_batch_commit_data_generation_mode(
     selected_l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
     diamond_proxy_address: Address,
-    eth_client: &impl EthInterface,
+    eth_client: &dyn EthInterface,
 ) -> anyhow::Result<()> {
     match get_pubdata_pricing_mode(diamond_proxy_address, eth_client).await {
         // Getters contract support getPubdataPricingMode method

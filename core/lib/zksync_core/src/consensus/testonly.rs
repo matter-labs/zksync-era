@@ -14,7 +14,7 @@ use zksync_types::{
     ProtocolVersionId, H256,
 };
 use zksync_web3_decl::{
-    client::L2Client,
+    client::{BoxedL2Client, L2Client},
     error::{EnrichedClientError, EnrichedClientResult},
 };
 
@@ -278,24 +278,25 @@ impl StateKeeper {
     }
 
     /// Connects to the json RPC endpoint exposed by the state keeper.
-    pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<L2Client> {
+    pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<BoxedL2Client> {
         let addr = sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some)
             .await?
             .unwrap();
-        Ok(L2Client::http(&format!("http://{addr}/"))
+        let client = L2Client::http(&format!("http://{addr}/"))
             .context("json_rpc()")?
-            .build())
+            .build();
+        Ok(BoxedL2Client::new(client))
     }
 
     /// Runs the centralized fetcher.
     pub async fn run_centralized_fetcher(
         self,
         ctx: &ctx::Ctx,
-        client: L2Client,
+        client: BoxedL2Client,
     ) -> anyhow::Result<()> {
         Fetcher {
             store: self.store,
-            client: Arc::new(client),
+            client,
             sync_state: SyncState::default(),
         }
         .run_centralized(ctx, self.actions_sender)
@@ -306,12 +307,12 @@ impl StateKeeper {
     pub async fn run_p2p_fetcher(
         self,
         ctx: &ctx::Ctx,
-        client: L2Client,
+        client: BoxedL2Client,
         cfg: P2PConfig,
     ) -> anyhow::Result<()> {
         Fetcher {
             store: self.store,
-            client: Arc::new(client),
+            client,
             sync_state: SyncState::default(),
         }
         .run_p2p(ctx, self.actions_sender, cfg)
