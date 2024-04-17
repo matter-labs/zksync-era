@@ -45,17 +45,6 @@ pub trait VmRunnerStorageLoader: Debug + Send + Sync + Clone + 'static {
     /// Unique name of the VM runner instance.
     fn name() -> &'static str;
 
-    /// Returns number of the next unprocessed L1 batch. Can return `None` if there are no batches
-    /// to be processed.
-    ///
-    /// # Errors
-    ///
-    /// Propagates DB errors.
-    async fn first_unprocessed_batch(
-        &self,
-        conn: &mut Connection<'_, Core>,
-    ) -> anyhow::Result<Option<L1BatchNumber>>;
-
     /// Returns the last L1 batch number that has been processed by this VM runner instance.
     ///
     /// # Errors

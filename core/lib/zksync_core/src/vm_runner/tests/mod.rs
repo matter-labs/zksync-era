@@ -34,23 +34,6 @@ impl VmRunnerStorageLoader for Arc<RwLock<LoaderMock>> {
         "loader_mock"
     }
 
-    async fn first_unprocessed_batch(
-        &self,
-        conn: &mut Connection<'_, Core>,
-    ) -> anyhow::Result<Option<L1BatchNumber>> {
-        let l1_batch_number = self.read().await.0 + 1;
-        if conn
-            .blocks_dal()
-            .get_storage_l1_batch(l1_batch_number)
-            .await?
-            .is_some()
-        {
-            Ok(Some(l1_batch_number))
-        } else {
-            Ok(None)
-        }
-    }
-
     async fn latest_processed_batch(
         &self,
         _conn: &mut Connection<'_, Core>,
