@@ -6694,6 +6694,7 @@ dependencies = [
  "zksync_env_config",
  "zksync_prover_fri_types",
  "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -7994,8 +7995,10 @@ dependencies = [
  "hex",
  "itertools 0.10.5",
  "num",
+ "once_cell",
  "reqwest",
  "serde",
+ "serde_json",
  "thiserror",
  "tokio",
  "tracing",
