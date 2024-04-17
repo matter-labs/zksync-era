@@ -6,7 +6,6 @@ use crate::{
         tester::VmTesterBuilder,
         utils::{get_bootloader, verify_required_memory, BASE_SYSTEM_CONTRACTS},
     },
-    vm_latest::constants::BOOTLOADER_HEAP_PAGE,
 };
 
 #[test]
@@ -24,9 +23,10 @@ fn test_dummy_bootloader() {
     assert!(!result.result.is_failed());
 
     let correct_first_cell = U256::from_str_radix("123123123", 16).unwrap();
+
     verify_required_memory(
         &vm.vm.inner.state,
-        vec![(correct_first_cell, BOOTLOADER_HEAP_PAGE, 0)],
+        vec![(correct_first_cell, vm2::FIRST_HEAP, 0)],
     );
 }
 
