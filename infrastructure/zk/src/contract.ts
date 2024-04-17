@@ -80,7 +80,6 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean): Pr
         await utils.spawn(`yarn l2-contracts build`);
     }
 
-
     await utils.spawn(`yarn l2-contracts deploy-shared-bridge-on-l2 ${args.join(' ')} | tee deployL2.log`);
 
     if (includePaymaster) {
@@ -108,7 +107,6 @@ export async function deployL2ThroughL1({ includePaymaster }: { includePaymaster
     const args = [privateKey ? `--private-key ${privateKey}` : ''];
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-
 
     // Skip compilation for local setup, since we already copied artifacts into the container.
     if (!isLocalSetup) {
@@ -306,7 +304,21 @@ command
     .command('upgrade-shared-bridge-era')
     .description('upgrade shared bridge with deployed era diamond proxy address')
     .action(upgradeSharedBridgeEra);
-command.command('initialize-governance [gov-opts...]').allowUnknownOption(true).description('initialize governance').action(initializeGovernance);
-command.command('register-hyperchain').description('register hyperchain').action(() => { registerHyperchain({}) });
-command.command('deploy-l2-through-l1').description("deploy l2 through l1").action(() => { deployL2ThroughL1({ includePaymaster: true }) });
-command.command('deploy-verifier').description("deploy verifier to l1").action(deployVerifier);
+command
+    .command('initialize-governance [gov-opts...]')
+    .allowUnknownOption(true)
+    .description('initialize governance')
+    .action(initializeGovernance);
+command
+    .command('register-hyperchain')
+    .description('register hyperchain')
+    .action(() => {
+        registerHyperchain({});
+    });
+command
+    .command('deploy-l2-through-l1')
+    .description('deploy l2 through l1')
+    .action(() => {
+        deployL2ThroughL1({ includePaymaster: true });
+    });
+command.command('deploy-verifier').description('deploy verifier to l1').action(deployVerifier);
