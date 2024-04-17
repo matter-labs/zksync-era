@@ -112,8 +112,11 @@ fn test_evm_vector(mut bytecode: Vec<u8>) -> U256 {
     );
 
     vm.vm.push_transaction(tx);
+
+    let debug_tracer = EvmDebugTracer::new();
+    let tracer_ptr = debug_tracer.into_tracer_pointer();
     let tx_result: crate::vm_latest::VmExecutionResultAndLogs =
-        vm.vm.execute(VmExecutionMode::OneTx);
+        vm.vm.inspect(tracer_ptr.into(), VmExecutionMode::OneTx);
 
     assert!(
         !tx_result.result.is_failed(),
