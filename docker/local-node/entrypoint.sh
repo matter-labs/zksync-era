@@ -72,15 +72,19 @@ else
     
     # Perform initialization
 
-    zk contract deploy --only-verifier
-    zk f zksync_server --genesis
+    zk contract deploy-verifier
     zk run deploy-erc20 dev # (created etc/tokens/localhost)
-    zk contract deploy # (deploys rest of stuff)
 
-    zk contract initialize-validator 
-
-    zk contract deploy-l2
+    ## init bridgehub state transition
+    zk contract deploy # (deploy L1)
     zk contract initialize-governance
+
+    ## init hyperchain
+    zk contract register-hyperchain
+    zk f zksync_server --genesis
+
+
+    zk contract deploy-l2-through-l1
 
     zk f yarn --cwd /infrastructure/local-setup-preparation start
 
