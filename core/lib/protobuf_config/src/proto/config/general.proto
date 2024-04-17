@@ -35,6 +35,4 @@ message GeneralConfig {
   optional config.prover.ProverGateway prover_gateway = 30;
   optional config.snapshot_creator.SnapshotsCreator snapshot_creator = 31;
   optional config.observability.Observability observability = 32;
-
 }
-

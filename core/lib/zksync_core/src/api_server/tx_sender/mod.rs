@@ -1,6 +1,6 @@
 //! Helper module to submit transactions into the zkSync Network.
 
-use std::{cmp, sync::Arc, time::Instant};
+use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use multivm::{
@@ -24,8 +24,8 @@ use zksync_types::{
     get_code_key, get_intrinsic_constants,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     utils::storage_key_for_eth_balance,
-    AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, MiniblockNumber, Nonce,
-    PackedEthSignature, ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
+    AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
+    ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
     MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
@@ -35,8 +35,8 @@ use self::tx_sink::TxSink;
 use crate::{
     api_server::{
         execution_sandbox::{
-            BlockArgs, BlockStartInfo, SubmitTxStage, TransactionExecutor, TxExecutionArgs,
-            TxSharedArgs, VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
+            BlockArgs, SubmitTxStage, TransactionExecutor, TxExecutionArgs, TxSharedArgs,
+            VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
         },
         tx_sender::result::ApiCallResult,
     },
@@ -526,15 +526,11 @@ impl TxSender {
 
     async fn get_expected_nonce(&self, initiator_account: Address) -> anyhow::Result<Nonce> {
         let mut storage = self.acquire_replica_connection().await?;
-        let latest_block_number = storage.blocks_dal().get_sealed_miniblock_number().await?;
-        let latest_block_number = match latest_block_number {
-            Some(number) => number,
-            None => {
-                // We don't have miniblocks in the storage yet. Use the snapshot miniblock number instead.
-                let start = BlockStartInfo::new(&mut storage).await?;
-                MiniblockNumber(start.first_miniblock(&mut storage).await?.saturating_sub(1))
-            }
-        };
+        let latest_block_number = storage
+            .blocks_dal()
+            .get_sealed_miniblock_number()
+            .await?
+            .context("no miniblocks in storage")?;
 
         let nonce = storage
             .storage_web3_dal()
@@ -846,12 +842,8 @@ impl TxSender {
             .estimate_gas_binary_search_iterations
             .observe(number_of_iterations);
 
-        let tx_body_gas_limit = cmp::min(
-            MAX_L2_TX_GAS_LIMIT,
-            ((upper_bound as f64) * estimated_fee_scale_factor) as u64,
-        );
-
-        let suggested_gas_limit = tx_body_gas_limit + additional_gas_for_pubdata;
+        let suggested_gas_limit =
+            ((upper_bound + additional_gas_for_pubdata) as f64 * estimated_fee_scale_factor) as u64;
         let (result, tx_metrics) = self
             .estimate_gas_step(
                 vm_permit,
@@ -878,32 +870,36 @@ impl TxSender {
             protocol_version.into(),
         ) as u64;
 
-        let full_gas_limit =
-            match tx_body_gas_limit.overflowing_add(additional_gas_for_pubdata + overhead) {
-                (value, false) => {
-                    if value > max_gas_limit {
-                        return Err(SubmitTxError::ExecutionReverted(
-                            "exceeds block gas limit".to_string(),
-                            vec![],
-                        ));
-                    }
-
-                    value
-                }
-                (_, true) => {
+        let full_gas_limit = match suggested_gas_limit.overflowing_add(overhead) {
+            (value, false) => {
+                if value > max_gas_limit {
                     return Err(SubmitTxError::ExecutionReverted(
                         "exceeds block gas limit".to_string(),
                         vec![],
                     ));
                 }
-            };
+
+                value
+            }
+            (_, true) => {
+                return Err(SubmitTxError::ExecutionReverted(
+                    "exceeds block gas limit".to_string(),
+                    vec![],
+                ));
+            }
+        };
+
+        let gas_for_pubdata = (tx_metrics.pubdata_published as u64) * gas_per_pubdata_byte;
+        let estimated_gas_for_pubdata =
+            (gas_for_pubdata as f64 * estimated_fee_scale_factor) as u64;
 
         tracing::info!(
             initiator = ?tx.initiator_account(),
             nonce = %tx.nonce().unwrap_or(Nonce(0)),
-            "fee estimation: gas for pubdata: {}, tx body gas: {tx_body_gas_limit}, overhead gas: {overhead} \
-            (with params base_fee: {base_fee}, gas_per_pubdata_byte: {gas_per_pubdata_byte})",
-            (tx_metrics.pubdata_published as u64) * gas_per_pubdata_byte,
+            "fee estimation: gas for pubdata: {estimated_gas_for_pubdata}, computational gas: {}, overhead gas: {overhead} \
+            (with params base_fee: {base_fee}, gas_per_pubdata_byte: {gas_per_pubdata_byte}) \
+            estimated_fee_scale_factor: {estimated_fee_scale_factor}",
+            suggested_gas_limit - estimated_gas_for_pubdata,
         );
 
         Ok(Fee {

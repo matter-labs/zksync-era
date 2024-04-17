@@ -16,7 +16,7 @@ use zksync_config::{
         FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, ObservabilityConfig,
         ProofDataHandlerConfig,
     },
-    ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, ETHConfig, ETHWatchConfig,
+    ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, EthConfig, EthWatchConfig,
     GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_core::{
@@ -91,7 +91,7 @@ impl MainNodeBuilder {
 
     fn add_pk_signing_client_layer(mut self) -> anyhow::Result<Self> {
         let genesis = GenesisConfig::from_env()?;
-        let eth_config = ETHConfig::from_env()?;
+        let eth_config = EthConfig::from_env()?;
         let wallets = Wallets::from_env()?;
         self.node.add_layer(PKSigningEthClientLayer::new(
             eth_config,
@@ -103,7 +103,7 @@ impl MainNodeBuilder {
     }
 
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
-        let eth_client_config = ETHConfig::from_env()?;
+        let eth_client_config = EthConfig::from_env()?;
         let query_eth_client_layer = QueryEthClientLayer::new(eth_client_config.web3_url);
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
@@ -113,7 +113,7 @@ impl MainNodeBuilder {
         let gas_adjuster_config = GasAdjusterConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
         let genesis_config = GenesisConfig::from_env()?;
-        let eth_sender_config = ETHConfig::from_env()?;
+        let eth_sender_config = EthConfig::from_env()?;
         let sequencer_l1_gas_layer = SequencerL1GasLayer::new(
             gas_adjuster_config,
             genesis_config,
@@ -167,7 +167,7 @@ impl MainNodeBuilder {
 
     fn add_eth_watch_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(EthWatchLayer::new(
-            ETHWatchConfig::from_env()?,
+            EthWatchConfig::from_env()?,
             ContractsConfig::from_env()?,
         ));
         Ok(self)
@@ -297,7 +297,7 @@ impl MainNodeBuilder {
         Ok(self)
     }
     fn add_eth_sender_layer(mut self) -> anyhow::Result<Self> {
-        let eth_sender_config = ETHConfig::from_env()?;
+        let eth_sender_config = EthConfig::from_env()?;
         let contracts_config = ContractsConfig::from_env()?;
         let network_config = NetworkConfig::from_env()?;
         let genesis_config = GenesisConfig::from_env()?;

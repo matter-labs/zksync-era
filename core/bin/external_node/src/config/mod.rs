@@ -1,6 +1,7 @@
 use std::{
-    env,
+    env, fmt,
     num::{NonZeroU32, NonZeroUsize},
+    str::FromStr,
     time::Duration,
 };
 
@@ -22,6 +23,8 @@ use zksync_core::{
     },
     temp_config_store::decode_yaml_repr,
 };
+#[cfg(test)]
+use zksync_dal::{ConnectionPool, Core};
 use zksync_protobuf_config::proto;
 use zksync_types::{api::BridgeAddresses, fee_model::FeeParams};
 use zksync_web3_decl::{
@@ -117,6 +120,26 @@ impl RemoteENConfig {
                 .map(|a| a.dummy_verifier)
                 .unwrap_or_default(),
         })
+    }
+
+    #[cfg(test)]
+    fn mock() -> Self {
+        Self {
+            bridgehub_proxy_addr: None,
+            state_transition_proxy_addr: None,
+            transparent_proxy_admin_addr: None,
+            diamond_proxy_addr: Address::repeat_byte(1),
+            l1_erc20_bridge_proxy_addr: Address::repeat_byte(2),
+            l2_erc20_bridge_addr: Address::repeat_byte(3),
+            l1_weth_bridge_proxy_addr: None,
+            l2_weth_bridge_addr: None,
+            l2_testnet_paymaster_addr: None,
+            l2_chain_id: L2ChainId::default(),
+            l1_chain_id: L1ChainId(9),
+            max_pubdata_per_batch: 1 << 17,
+            l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
+            dummy_verifier: true,
+        }
     }
 }
 
@@ -290,8 +313,12 @@ pub(crate) struct OptionalENConfig {
 
     #[serde(default = "OptionalENConfig::default_l1_batch_commit_data_generator_mode")]
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
-
-    #[serde(default = "OptionalENConfig::default_snapshots_recovery_enabled")]
+    /// Enables application-level snapshot recovery. Required to start a node that was recovered from a snapshot,
+    /// or to initialize a node from a snapshot. Has no effect if a node that was initialized from a Postgres dump
+    /// or was synced from genesis.
+    ///
+    /// This is an experimental and incomplete feature; do not use unless you know what you're doing.
+    #[serde(default)]
     pub snapshots_recovery_enabled: bool,
 
     #[serde(default = "OptionalENConfig::default_pruning_chunk_size")]
@@ -434,10 +461,6 @@ impl OptionalENConfig {
         L1BatchCommitDataGeneratorMode::Rollup
     }
 
-    const fn default_snapshots_recovery_enabled() -> bool {
-        false
-    }
-
     const fn default_pruning_chunk_size() -> u32 {
         10
     }
@@ -513,6 +536,12 @@ impl OptionalENConfig {
     pub fn mempool_cache_update_interval(&self) -> Duration {
         Duration::from_millis(self.mempool_cache_update_interval)
     }
+
+    #[cfg(test)]
+    fn mock() -> Self {
+        // Set all values to their defaults
+        serde_json::from_str("{}").unwrap()
+    }
 }
 
 /// This part of the external node config is required for its operation.
@@ -537,6 +566,24 @@ pub(crate) struct RequiredENConfig {
 }
 
 impl RequiredENConfig {
+    #[cfg(test)]
+    fn mock(temp_dir: &tempfile::TempDir) -> Self {
+        Self {
+            http_port: 0,
+            ws_port: 0,
+            healthcheck_port: 0,
+            eth_client_url: "unused".to_owned(), // L1 and L2 clients must be instantiated before accessing mocks
+            main_node_url: "unused".to_owned(),
+            state_cache_path: temp_dir
+                .path()
+                .join("state_keeper_cache")
+                .to_str()
+                .unwrap()
+                .to_owned(),
+            merkle_tree_path: temp_dir.path().join("tree").to_str().unwrap().to_owned(),
+        }
+    }
+
     pub fn main_node_url(&self) -> anyhow::Result<String> {
         Self::get_url(&self.main_node_url).context("Could not parse main node URL")
     }
@@ -571,6 +618,14 @@ impl PostgresConfig {
                 .parse()
                 .context("Unable to parse DATABASE_POOL_SIZE env variable")?,
         })
+    }
+
+    #[cfg(test)]
+    fn mock(test_pool: &ConnectionPool<Core>) -> Self {
+        Self {
+            database_url: test_pool.database_url().to_owned(),
+            max_connections: test_pool.max_size(),
+        }
     }
 }
 
@@ -658,8 +713,8 @@ impl ExternalNodeConfig {
             .await
             .context("Unable to check L1 chain ID through the configured L1 client")?;
 
-        let l2_chain_id: L2ChainId = env_var("EN_L2_CHAIN_ID");
-        let l1_chain_id: u64 = env_var("EN_L1_CHAIN_ID");
+        let l2_chain_id: L2ChainId = env_var("EN_L2_CHAIN_ID")?;
+        let l1_chain_id: u64 = env_var("EN_L1_CHAIN_ID")?;
         if l2_chain_id != remote.l2_chain_id {
             anyhow::bail!(
                 "Configured L2 chain id doesn't match the one from main node.
@@ -698,17 +753,30 @@ impl ExternalNodeConfig {
             api_component: api_component_config,
         })
     }
+
+    #[cfg(test)]
+    pub(crate) fn mock(temp_dir: &tempfile::TempDir, test_pool: &ConnectionPool<Core>) -> Self {
+        Self {
+            required: RequiredENConfig::mock(temp_dir),
+            postgres: PostgresConfig::mock(test_pool),
+            optional: OptionalENConfig::mock(),
+            remote: RemoteENConfig::mock(),
+            consensus: None,
+            api_component: ApiComponentConfig { tree_api_url: None },
+            tree_component: TreeComponentConfig { api_port: None },
+        }
+    }
 }
 
-fn env_var<T>(name: &str) -> T
+fn env_var<T>(name: &str) -> anyhow::Result<T>
 where
-    T: std::str::FromStr,
-    T::Err: std::fmt::Debug,
+    T: FromStr,
+    T::Err: fmt::Display,
 {
     env::var(name)
-        .unwrap_or_else(|_| panic!("{} env variable is not set", name))
+        .with_context(|| format!("`{name}` env variable is not set"))?
         .parse()
-        .unwrap_or_else(|_| panic!("unable to parse {} env variable", name))
+        .map_err(|err| anyhow::anyhow!("unable to parse `{name}` env variable: {err}"))
 }
 
 impl From<ExternalNodeConfig> for InternalApiConfig {

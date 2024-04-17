@@ -1,11 +1,10 @@
-use std::sync::Arc;
-
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
 use zksync_types::MiniblockNumber;
+use zksync_web3_decl::client::BoxedL2Client;
 
 use crate::{
     consensus::{storage, Store},
@@ -20,7 +19,7 @@ pub type P2PConfig = executor::Config;
 pub struct Fetcher {
     pub store: Store,
     pub sync_state: SyncState,
-    pub client: Arc<dyn MainNodeClient>,
+    pub client: BoxedL2Client,
 }
 
 impl Fetcher {
