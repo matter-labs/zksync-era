@@ -7501,6 +7501,7 @@ dependencies = [
 [[package]]
 name = "zksync_concurrency"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=1dcda70c1c25d0e4db6781ba8d2645d7e8966d49#1dcda70c1c25d0e4db6781ba8d2645d7e8966d49"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -7530,6 +7531,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_crypto"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=1dcda70c1c25d0e4db6781ba8d2645d7e8966d49#1dcda70c1c25d0e4db6781ba8d2645d7e8966d49"
 dependencies = [
  "anyhow",
  "blst",
@@ -7547,6 +7549,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_roles"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=1dcda70c1c25d0e4db6781ba8d2645d7e8966d49#1dcda70c1c25d0e4db6781ba8d2645d7e8966d49"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -7566,6 +7569,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_storage"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=1dcda70c1c25d0e4db6781ba8d2645d7e8966d49#1dcda70c1c25d0e4db6781ba8d2645d7e8966d49"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7583,6 +7587,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_utils"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=1dcda70c1c25d0e4db6781ba8d2645d7e8966d49#1dcda70c1c25d0e4db6781ba8d2645d7e8966d49"
 dependencies = [
  "rand 0.8.5",
  "thiserror",
@@ -7768,6 +7773,7 @@ dependencies = [
 [[package]]
 name = "zksync_protobuf"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=1dcda70c1c25d0e4db6781ba8d2645d7e8966d49#1dcda70c1c25d0e4db6781ba8d2645d7e8966d49"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -7787,6 +7793,7 @@ dependencies = [
 [[package]]
 name = "zksync_protobuf_build"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=1dcda70c1c25d0e4db6781ba8d2645d7e8966d49#1dcda70c1c25d0e4db6781ba8d2645d7e8966d49"
 dependencies = [
  "anyhow",
  "heck 0.5.0",
@@ -8076,19 +8083,3 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
-
-[[patch.unused]]
-name = "zksync_consensus_bft"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "zksync_consensus_executor"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "zksync_consensus_network"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "zksync_consensus_sync_blocks"
-version = "0.1.0"
