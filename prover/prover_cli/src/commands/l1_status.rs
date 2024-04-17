@@ -1,5 +1,11 @@
 use anyhow::Context as _;
-use zksync_basic_types::{ethabi::Token, L1BatchNumber, U256};
+use prover_dal::{Prover, ProverDal};
+use zksync_basic_types::{
+    ethabi::Token,
+    protocol_version::{L1VerifierConfig, VerifierParams},
+    web3::contract::tokens::Detokenize,
+    L1BatchNumber, H256, U256,
+};
 use zksync_config::{ContractsConfig, EthConfig, PostgresConfig};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
@@ -30,6 +36,44 @@ fn pretty_print_l1_status(
             last_state_keeper_l1_batch
         );
     }
+}
+
+fn print_hash_comparison(name: &str, contract_hash: H256, db_hash: H256) {
+    if contract_hash != db_hash {
+        println!("{} hash in DB differs from the one in contract.", name);
+        println!("Contract hash: {}", contract_hash);
+        println!("DB hash: {}", db_hash);
+    } else {
+        println!("{} hash matches: {}", name, contract_hash);
+    }
+}
+
+fn pretty_print_l1_verifier_config(
+    node_l1_verifier_config: L1VerifierConfig,
+    db_l1_verifier_config: L1VerifierConfig,
+) {
+    print_hash_comparison(
+        "Verifier key",
+        node_l1_verifier_config.recursion_scheduler_level_vk_hash,
+        db_l1_verifier_config.recursion_scheduler_level_vk_hash,
+    );
+    print_hash_comparison(
+        "Verification node",
+        node_l1_verifier_config.params.recursion_node_level_vk_hash,
+        db_l1_verifier_config.params.recursion_node_level_vk_hash,
+    );
+    print_hash_comparison(
+        "Verification leaf",
+        node_l1_verifier_config.params.recursion_leaf_level_vk_hash,
+        db_l1_verifier_config.params.recursion_leaf_level_vk_hash,
+    );
+    print_hash_comparison(
+        "Verification circuits",
+        node_l1_verifier_config
+            .params
+            .recursion_circuits_set_vks_hash,
+        db_l1_verifier_config.params.recursion_circuits_set_vks_hash,
+    );
 }
 
 pub(crate) async fn run() -> anyhow::Result<()> {
@@ -97,6 +141,45 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         first_state_keeper_l1_batch,
         last_state_keeper_l1_batch,
     );
+
+    let args_for_node_verification_key_hash: zksync_eth_client::ContractCall =
+        CallFunctionArgs::new("verificationKeyHash", ()).for_contract(
+            contracts_config.verifier_addr,
+            zksync_contracts::verifier_contract(),
+        );
+    let node_verification_key_hash_bytes = query_client
+        .call_contract_function(args_for_node_verification_key_hash)
+        .await?;
+
+    let args_for_node_verifier_params: zksync_eth_client::ContractCall =
+        CallFunctionArgs::new("getVerifierParams", ()).for_contract(
+            contracts_config.diamond_proxy_addr,
+            zksync_contracts::zksync_contract(),
+        );
+    let node_verifier_params = query_client
+        .call_contract_function(args_for_node_verifier_params)
+        .await?;
+
+    let node_l1_verifier_config = L1VerifierConfig {
+        params: VerifierParams::from_tokens(node_verifier_params)?,
+        recursion_scheduler_level_vk_hash: H256::from_tokens(node_verification_key_hash_bytes)?,
+    };
+
+    let prover_connection_pool = ConnectionPool::<Prover>::builder(
+        postgres_config.prover_url()?,
+        postgres_config.max_connections()?,
+    )
+    .build()
+    .await
+    .context("failed to build a prover_connection_pool")?;
+
+    let mut conn = prover_connection_pool.connection().await.unwrap();
+    let db_l1_verifier_config = conn
+        .fri_protocol_versions_dal()
+        .get_l1_verifier_config()
+        .await;
+
+    pretty_print_l1_verifier_config(node_l1_verifier_config, db_l1_verifier_config);
 
     Ok(())
 }
