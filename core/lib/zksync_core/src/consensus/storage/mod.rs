@@ -444,7 +444,7 @@ impl storage::PersistentBlockStore for BlockStore {
         block: validator::FinalBlock,
     ) -> ctx::Result<()> {
         if let Some(payloads) = &self.payloads {
-            let mut payloads = sync::lock(ctx, &payloads).await?.into_async();
+            let mut payloads = sync::lock(ctx, payloads).await?.into_async();
             let number = MiniblockNumber(
                 block
                     .number()
