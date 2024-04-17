@@ -75,7 +75,7 @@ services:
       EN_MERKLE_TREE_PATH: "./db/ext-node/lightweight"
       EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL: "zksync-era-mainnet-external-node-snapshots"
       EN_SNAPSHOTS_OBJECT_STORE_MODE: "GCSAnonymousReadOnly"
-      RUST_LOG: "zksync_core=debug,zksync_dal=info,zksync_eth_client=info,zksync_merkle_tree=info,zksync_storage=info,zksync_state=debug,zksync_types=info,vm=info,zksync_external_node=info,zksync_utils=debug,zksync_snapshots_applier=info"
+      RUST_LOG: "zksync_core=info,zksync_core::metadata_calculator=debug,zksync_dal=info,zksync_eth_client=info,zksync_merkle_tree=info,zksync_storage=info,zksync_state=debug,zksync_types=info,vm=info,zksync_external_node=info,zksync_utils=debug,zksync_snapshots_applier=info"
     command:
       - --enable-snapshots-recovery
 
