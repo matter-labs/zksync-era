@@ -1,7 +1,8 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use async_trait::async_trait;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_shared_metrics::{BlockL1Stage, BlockStage, L1StageLatencyLabel, APP_METRICS};
-use zksync_utils::time::seconds_since_epoch;
 
 use crate::periodic_job::PeriodicJob;
 
@@ -69,7 +70,10 @@ impl L1BatchMetricsReporter {
             .oldest_unexecuted_batch_timestamp()
             .await?;
 
-        let now = seconds_since_epoch();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Incorrect system time")
+            .as_secs();
 
         if let Some(timestamp) = oldest_uncommitted_batch_timestamp {
             APP_METRICS.blocks_state_block_eth_stage_latency

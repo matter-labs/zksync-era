@@ -8665,10 +8665,8 @@ dependencies = [
  "vise",
  "zksync_config",
  "zksync_dal",
- "zksync_db_connection",
  "zksync_shared_metrics",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]

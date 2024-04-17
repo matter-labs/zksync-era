@@ -1,5 +1,5 @@
 use prover_dal::{Prover, ProverDal};
-use zksync_db_connection::connection_pool::ConnectionPool;
+use zksync_dal::ConnectionPool;
 
 use crate::{metrics::HOUSE_KEEPER_METRICS, periodic_job::PeriodicJob};
 
