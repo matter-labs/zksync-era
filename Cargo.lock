@@ -3763,6 +3763,7 @@ dependencies = [
  "hex",
  "itertools 0.10.5",
  "once_cell",
+ "serde",
  "thiserror",
  "tokio",
  "tracing",

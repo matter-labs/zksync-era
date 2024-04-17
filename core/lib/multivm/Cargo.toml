@@ -36,6 +36,7 @@ once_cell.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 vise.workspace = true
+serde.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["time"] }

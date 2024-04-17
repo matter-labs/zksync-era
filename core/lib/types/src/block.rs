@@ -93,7 +93,7 @@ pub struct StorageOracleInfo {
 }
 
 /// Data needed to execute an L2 block in the VM.
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct L2BlockExecutionData {
     pub number: L2BlockNumber,
     pub timestamp: u64,

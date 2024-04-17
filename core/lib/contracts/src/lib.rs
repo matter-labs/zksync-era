@@ -219,13 +219,13 @@ fn read_zbin_bytecode_from_path(bytecode_path: PathBuf) -> Vec<u8> {
         .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {:?}: {}", bytecode_path, err))
 }
 /// Hash of code and code which consists of 32 bytes words
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemContractCode {
     pub code: Vec<U256>,
     pub hash: H256,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BaseSystemContracts {
     pub bootloader: SystemContractCode,
     pub default_aa: SystemContractCode,
