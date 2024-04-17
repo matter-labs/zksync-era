@@ -164,11 +164,9 @@ impl ReadStorage for PgOrRocksdbStorage<'_> {
             Self::Postgres(postgres) => postgres.get_enumeration_index(key),
             Self::Rocksdb(rocksdb) => rocksdb.get_enumeration_index(key),
             Self::RocksdbWithMemory(rocksdb, diffs, _) => {
-                match rocksdb.get_enumeration_index(key) {
-                    None => diffs
-                        .iter()
-                        .find_map(|x| x.get(key).and_then(|sv| sv.enum_index)),
-                    Some(value) => Some(value),
+                match diffs.iter().find_map(|x| x.get(key)) {
+                    None => rocksdb.get_enumeration_index(key),
+                    Some(value) => value.enum_index,
                 }
             }
         }
