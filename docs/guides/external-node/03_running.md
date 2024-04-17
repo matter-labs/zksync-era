@@ -7,17 +7,7 @@
 This section assumes that you have prepared a configuration file as described on the
 [previous page](./02_configuration.md).
 
-## Preferred hardware configuration
-
-This configuration is approximate, expect updates to these specs.
-
-- 32-core CPU
-- 64GB RAM
-- SSD storage:
-  - Testnet - ~800 GB (at the time of writing) and will grow over time, so should be constantly monitored
-  - Mainnet - ~400 GB (at the time of writing) and will grow over time, so should be constantly monitored
-  - NVMe recommended
-- 100 Mbps network connection.
+[**Minimal system requirements**](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/00_quick_start.md#system-requirements)
 
 ### A note about PostgreSQL storage
 
@@ -29,11 +19,6 @@ namespace. If you want to clear some space and aren't using the `debug` namespac
   [example config](prepared_configs/mainnet-config.env).
 
 ## Infrastructure
-
-You need to set up a PostgreSQL server with SSD storage:
-
-- Testnet - ~1TB (at the time of writing) and will grow over time, so should be constantly monitored
-- Mainnet - ~2TB (at the time of writing) and will grow over time, so should be constantly monitored
 
 Setting up Postgres is out of the scope of these docs, but the popular choice is to run it in Docker. There are many of
 guides on that, [here's one example](https://www.docker.com/blog/how-to-use-the-postgres-docker-official-image/).
