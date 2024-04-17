@@ -47,10 +47,8 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         .await?;
 
     let mut total_batches_committed: U256 = U256::zero();
-    if let Some(first_token) = total_batches_committed_tokens.first() {
-        if let Token::Uint(value) = first_token {
-            total_batches_committed = value.into();
-        }
+    if let Some(Token::Uint(value)) = total_batches_committed_tokens.first() {
+        total_batches_committed = value.into();
     }
 
     let args_for_total_batches_verified: zksync_eth_client::ContractCall =
@@ -64,10 +62,8 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         .await?;
 
     let mut total_batches_verified: U256 = U256::zero();
-    if let Some(first_token) = total_batches_verified_tokens.first() {
-        if let Token::Uint(value) = first_token {
-            total_batches_verified = value.into();
-        }
+    if let Some(Token::Uint(value)) = total_batches_verified_tokens.first() {
+        total_batches_verified = value.into();
     }
 
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
@@ -86,13 +82,13 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         .blocks_dal()
         .get_earliest_l1_batch_number()
         .await
-        .unwrap()
+        .context("get_earliest_l1_batch_number")?
         .unwrap();
     let last_state_keeper_l1_batch = conn
         .blocks_dal()
         .get_sealed_l1_batch_number()
         .await
-        .unwrap()
+        .context("last_state_keeper_l1_batch")?
         .unwrap();
 
     pretty_print_l1_status(
