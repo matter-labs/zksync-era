@@ -4,6 +4,8 @@ import fs from 'fs';
 import { ethers } from 'ethers';
 
 import { updateContractsEnv } from 'zk/build/contract';
+import * as env from 'zk/build/env';
+import { getFacetsFileName, getCryptoFileName } from './utils';
 import { getPostUpgradeCalldataFileName } from './utils';
 
 async function hyperchainUpgrade1() {
@@ -58,6 +60,21 @@ async function hyperchainUpgrade1() {
     );
 }
 
+async function insertAddresses() {
+    const facetsFile = getFacetsFileName(undefined);
+    const facets = JSON.parse(fs.readFileSync(facetsFile).toString());
+    facets.ExecutorFacet.address = process.env.CONTRACTS_EXECUTOR_FACET_ADDR;
+    facets.AdminFacet.address = process.env.CONTRACTS_ADMIN_FACET_ADDR;
+    facets.GettersFacet.address = process.env.CONTRACTS_GETTERS_FACET_ADDR;
+    facets.MailboxFacet.address = process.env.CONTRACTS_MAILBOX_FACET_ADDR;
+    fs.writeFileSync(facetsFile, JSON.stringify(facets, null, 4));
+
+    const verifierFile = getCryptoFileName(undefined);
+    const verifier = JSON.parse(fs.readFileSync(verifierFile).toString());
+    verifier.verifier.address = process.env.CONTRACTS_VERIFIER_ADDR;
+    fs.writeFileSync(verifierFile, JSON.stringify(verifier, null, 4));
+}
+
 async function hyperchainUpgrade2() {
     const cwd = process.cwd();
     process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
@@ -90,6 +107,12 @@ async function preparePostUpgradeCalldata() {
 }
 
 async function deploySharedBridgeL2Implementation() {
+    env.modify(
+        'CONTRACTS_ERA_DIAMOND_PROXY_ADDR',
+        process.env.CONTRACTS_DIAMOND_PROXY_ADDR,
+        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+    );
+
     const cwd = process.cwd();
     process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/`);
 
@@ -103,6 +126,46 @@ async function deploySharedBridgeL2Implementation() {
     updateContractsEnv(`etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`, deployLog, l2EnvVars);
 }
 
+async function hyperchainFullUpgrade() {
+    process.chdir(`${process.env.ZKSYNC_HOME}`);
+
+    await spawn(
+        'cd contracts && yarn l1 clean && yarn l2 clean && yarn sc clean && yarn l1 build && yarn l2 build && yarn sc build && cd ../'
+    );
+    await spawn(
+        'cp etc/env/.init.env etc/env/l1-inits/.init.env && rm ./etc/env/l2-inits/zksync_local.init.env && rm ./etc/env/target/zksync_local.env'
+    );
+
+    process.chdir(`${process.env.ZKSYNC_HOME}/infrastructure/protocol-upgrade`);
+    await spawn('zk env zksync_local');
+    await deploySharedBridgeL2Implementation();
+    await spawn('zk config compile zksync_local');
+    env.reload();
+    await hyperchainUpgrade1();
+    env.reload();
+    env.reload();
+
+    await insertAddresses();
+    await spawn('zk f yarn start facets generate-facet-cuts');
+    await spawn('zk f yarn start system-contracts publish-all');
+    await spawn(
+        'zk f yarn start l2-transaction complex-upgrader-calldata --use-forced-deployments --use-contract-deployer'
+    );
+    await spawn('zk f yarn start crypto save-verification-params');
+    await preparePostUpgradeCalldata();
+    await spawn(
+        `zk f yarn start transactions build-default --upgrade-timestamp 1711451944 --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --use-new-governance --upgrade-address ${process.env.CONTRACTS_HYPERCHAIN_UPGRADE_ADDR} --post-upgrade-calldata`
+    );
+    await spawn(
+        `zk f yarn start transactions propose-upgrade --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --new-governance ${process.env.CONTRACTS_GOVERNANCE_ADDR}`
+    );
+    await spawn(
+        `zk f yarn start transactions execute-upgrade --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --new-governance ${process.env.CONTRACTS_GOVERNANCE_ADDR}`
+    );
+    await hyperchainUpgrade2();
+    await hyperchainUpgrade3();
+}
+
 export const command = new Command('hyperchain-upgrade').description('create and publish custom l2 upgrade');
 
 command
@@ -110,15 +173,19 @@ command
     .description('start')
     .option('--shared-bridge-l2-implementation')
     .option('--phase1')
+    .option('--insert-addresses')
     .option('--post-upgrade-calldata')
     .option('--phase2')
     .option('--phase3')
+    .option('--full')
     // .option('--get-diamond-upgrade-batch-number-for-eth-withdrawals')
     // .option('--get-erc20-bridge-upgrade-batch-number-for-token-withdrawals')
     // .option('--get-last-deposit-batch-number-for-failed-deposits')
     .action(async (options) => {
         if (options.phase1) {
             await hyperchainUpgrade1();
+        } else if (options.insertAddresses) {
+            await insertAddresses();
         } else if (options.phase2) {
             await hyperchainUpgrade2();
         } else if (options.postUpgradeCalldata) {
@@ -140,5 +207,7 @@ command
             // this is the batch number that the last deposit is processed in ( this is tied to a tx, so commit vs executed is not relevant)
             // we will print the priority tx queue id as part of phase 2 script for local testing, and we can use that to find the batch number
             // for the mainnet upgrade we will have to manually check the priority queue at the given block, since governance is signing the txs
+        } else if (options.full) {
+            await hyperchainFullUpgrade();
         }
     });
