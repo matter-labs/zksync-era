@@ -68,11 +68,8 @@ else
 
     zk config compile
   
-
-    zk db drop
-    zk db setup
-
-
+    zk db reset
+    
     # Perform initialization
 
     zk contract deploy --only-verifier
