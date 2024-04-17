@@ -130,7 +130,10 @@ export async function setupForDal(dalPath: DalPath, dbUrl: string) {
     }
     await utils.spawn(`cargo sqlx database create --database-url ${dbUrl}`);
     await utils.spawn(`cargo sqlx migrate run --database-url ${dbUrl}`);
-    if (dbUrl.startsWith(localDbUrl)) {
+    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
+
+    if (dbUrl.startsWith(localDbUrl) && !isLocalSetup) {
+        // Dont't do this preparation for local (docker) setup - as it requires full cargo compilation.
         await utils.spawn(
             `cargo sqlx prepare --check --database-url ${dbUrl} -- --tests || cargo sqlx prepare --database-url ${dbUrl} -- --tests`
         );
