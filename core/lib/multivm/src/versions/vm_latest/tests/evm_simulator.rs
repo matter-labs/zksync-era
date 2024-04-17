@@ -2333,13 +2333,37 @@ fn test_basic_create_vectors() {
 
 #[test]
 fn test_basic_create2_vectors() {
-    assert_ne!(
+    assert_eq!(
         test_evm_vector(
             vec![
+                // push32
+                hex::decode("7F").unwrap(),
+                hex::decode("6080604052348015600e575f80fd5b50603e80601a5f395ff3fe60806040525f").unwrap(),
                 // push0
                 hex::decode("5F").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // push32
+                hex::decode("7F").unwrap(),
+                hex::decode("80fdfea264697066735822122070e77c564e632657f44e4b3cb2d5d4f74255fc").unwrap(),
+                // push1 32
+                hex::decode("60").unwrap(),
+                hex::decode("20").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // push32
+                hex::decode("7F").unwrap(),
+                hex::decode("64ca5fae813eb74275609e61e364736f6c634300081900330000000000000000").unwrap(),
+                // push1 64
+                hex::decode("60").unwrap(),
+                hex::decode("40").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
                 // push0
                 hex::decode("5F").unwrap(),
+                // push1 88
+                hex::decode("60").unwrap(),
+                hex::decode("58").unwrap(),
                 // push0
                 hex::decode("5F").unwrap(),
                 // push0
@@ -2354,7 +2378,7 @@ fn test_basic_create2_vectors() {
             .into_iter()
             .concat()
         ),
-        0.into()
+        h256_to_u256(H256::from_str("0x000000000000000000000000f9ce5b3ccbbbe0ce1a33b39bd9c723d048514878").unwrap()).into()
     );
 }
 
