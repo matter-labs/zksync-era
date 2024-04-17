@@ -32,9 +32,11 @@ impl MerkleTreePrunerHandle {
 
     /// Sets the version of the tree the pruner should attempt to prune to. Calls should provide
     /// monotonically increasing versions; call with a lesser version will have no effect.
-    pub fn set_target_retained_version(&self, new_version: u64) {
+    ///
+    /// Returns the previously set target retained version.
+    pub fn set_target_retained_version(&self, new_version: u64) -> u64 {
         self.target_retained_version
-            .fetch_max(new_version, Ordering::Relaxed);
+            .fetch_max(new_version, Ordering::Relaxed)
     }
 }
 
@@ -244,8 +246,9 @@ mod tests {
     #[test]
     fn pruner_basics() {
         let mut db = create_db();
-        let (mut pruner, _handle) = MerkleTreePruner::new(&mut db);
+        assert_eq!(MerkleTree::new(&mut db).first_retained_version(), Some(0));
 
+        let (mut pruner, _handle) = MerkleTreePruner::new(&mut db);
         let stats = pruner
             .prune_up_to(pruner.last_prunable_version().unwrap())
             .unwrap();
@@ -259,6 +262,8 @@ mod tests {
             assert!(db.root_mut(version).is_none());
         }
         assert!(db.root_mut(4).is_some());
+
+        assert_eq!(MerkleTree::new(&mut db).first_retained_version(), Some(4));
     }
 
     #[test]
@@ -321,6 +326,7 @@ mod tests {
         assert_no_stale_keys(&db, first_retained_version);
 
         let mut tree = MerkleTree::new(&mut db);
+        assert_eq!(tree.first_retained_version(), Some(first_retained_version));
         for version in first_retained_version..=latest_version {
             tree.verify_consistency(version, true).unwrap();
         }

@@ -6,6 +6,7 @@ use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, StorageLogMetadat
 use zksync_types::{L1BatchNumber, StorageKey};
 
 use crate::{
+    consistency::ConsistencyError,
     storage::{PatchSet, Patched, RocksDBWrapper},
     types::{
         Key, Root, TreeEntry, TreeEntryWithProof, TreeInstruction, TreeLogEntry, ValueHash,
@@ -378,6 +379,14 @@ impl ZkSyncTreeReader {
         L1BatchNumber(number)
     }
 
+    /// Returns the minimum L1 batch number retained by the tree.
+    #[allow(clippy::missing_panics_doc)]
+    pub fn min_l1_batch_number(&self) -> Option<L1BatchNumber> {
+        self.0.first_retained_version().map(|version| {
+            L1BatchNumber(u32::try_from(version).expect("integer overflow for L1 batch number"))
+        })
+    }
+
     /// Returns the number of leaves in the tree.
     pub fn leaf_count(&self) -> u64 {
         self.0.latest_root().leaf_count()
@@ -396,5 +405,18 @@ impl ZkSyncTreeReader {
     ) -> Result<Vec<TreeEntryWithProof>, NoVersionError> {
         let version = u64::from(l1_batch_number.0);
         self.0.entries_with_proofs(version, keys)
+    }
+
+    /// Verifies consistency of the tree at the specified L1 batch number.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first encountered verification error, should one occur.
+    pub fn verify_consistency(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<(), ConsistencyError> {
+        let version = l1_batch_number.0.into();
+        self.0.verify_consistency(version, true)
     }
 }
