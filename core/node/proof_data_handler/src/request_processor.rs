@@ -17,7 +17,6 @@ use zksync_types::{
     basic_fri_types::Eip4844Blobs, commitment::serialize_commitments, web3::signing::keccak256,
     L1BatchNumber, H256,
 };
-use zksync_utils::u256_to_h256;
 
 #[derive(Clone)]
 pub(crate) struct RequestProcessor {
@@ -220,7 +219,7 @@ impl RequestProcessor {
                         .header
                         .system_logs
                         .into_iter()
-                        .find(|elem| elem.0.key == u256_to_h256(2.into()))
+                        .find(|elem| elem.0.key == H256::from_low_u64_be(2))
                         .expect("No state diff hash key")
                         .0
                         .value;
