@@ -377,9 +377,10 @@ impl SnapshotRecoveryStrategy {
         let l1_batch_number = snapshot.l1_batch_number;
         let miniblock_number = snapshot.miniblock_number;
         tracing::info!(
-            "Found snapshot with data up to L1 batch #{l1_batch_number}, version {}, storage_logs are divided into {} chunk(s)",
-            snapshot.version,
-            snapshot.storage_logs_chunks.len()
+            "Found snapshot with data up to L1 batch #{l1_batch_number}, miniblock #{miniblock_number}, \
+            version {version}, storage logs are divided into {chunk_count} chunk(s)",
+            version = snapshot.version,
+            chunk_count = snapshot.storage_logs_chunks.len()
         );
         Self::check_snapshot_version(snapshot.version)?;
 
@@ -469,6 +470,7 @@ impl<'a> SnapshotsApplier<'a> {
 
         let strategy =
             SnapshotRecoveryStrategy::new(&mut storage_transaction, main_node_client).await?;
+        tracing::info!("Chosen snapshot recovery strategy: {strategy:?}");
         let (applied_snapshot_status, created_from_scratch) = match strategy {
             SnapshotRecoveryStrategy::Completed(status) => {
                 return Ok(status);
@@ -476,6 +478,7 @@ impl<'a> SnapshotsApplier<'a> {
             SnapshotRecoveryStrategy::New(status) => (status, true),
             SnapshotRecoveryStrategy::Resumed(status) => (status, false),
         };
+
         let mut this = Self {
             connection_pool,
             main_node_client,
