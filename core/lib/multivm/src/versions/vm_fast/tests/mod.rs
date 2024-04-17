@@ -6,7 +6,7 @@ mod bootloader;
 // mod bytecode_publishing;
 // mod call_tracer;
 // mod circuits;
-// mod code_oracle;
+mod code_oracle;
 // mod gas_limit;
 // mod get_used_contracts;
 // mod is_write_initial;

@@ -71,28 +71,37 @@ impl<S: WriteStorage + 'static> Vm<S> {
             match hook {
                 0 => {
                     // Account validation entered
-                    match self.inner.resume_with_additional_gas_limit(
-                        self.suspended_at,
-                        self.gas_for_account_validation,
-                    ) {
-                        None => {
-                            // Used too much gas
-                            todo!()
-                        }
-                        Some((
-                            validation_gas_left,
-                            ExecutionEnd::SuspendedOnHook {
-                                hook,
-                                pc_to_resume_from,
-                            },
-                        )) => {
-                            assert_eq!(hook, 2, "Should not hook while in account validation");
-                            self.gas_for_account_validation = validation_gas_left;
-                            self.suspended_at = pc_to_resume_from;
-                        }
-                        _ => {
-                            // Exited normally without ending account validation, panicked or reverted.
-                            panic!("unexpected exit from account validation")
+                    loop {
+                        match self.inner.resume_with_additional_gas_limit(
+                            self.suspended_at,
+                            self.gas_for_account_validation,
+                        ) {
+                            None => {
+                                // Used too much gas
+                                todo!()
+                            }
+                            Some((
+                                validation_gas_left,
+                                ExecutionEnd::SuspendedOnHook {
+                                    hook,
+                                    pc_to_resume_from,
+                                },
+                            )) => {
+                                self.suspended_at = pc_to_resume_from;
+                                self.gas_for_account_validation = validation_gas_left;
+
+                                if hook == 2 {
+                                    break;
+                                } else if hook == 5 {
+                                    // DebugLog is ok
+                                } else {
+                                    panic!("Should not hook while in account validation");
+                                }
+                            }
+                            _ => {
+                                // Exited normally without ending account validation, panicked or reverted.
+                                panic!("unexpected exit from account validation")
+                            }
                         }
                     }
                 }
@@ -125,7 +134,11 @@ impl<S: WriteStorage + 'static> Vm<S> {
         assert!(self.inner.state.previous_frames.is_empty());
         let heap = &mut self.inner.state.heaps[self.inner.state.current_frame.heap];
         for (slot, value) in memory {
-            value.to_big_endian(&mut heap[slot * 32..(slot + 1) * 32]);
+            let end = (slot + 1) * 32;
+            if heap.len() <= end {
+                heap.resize(end, 0);
+            }
+            value.to_big_endian(&mut heap[slot * 32..end]);
         }
     }
 
@@ -170,6 +183,7 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
 
         let (_, bootloader) =
             convert_system_contract_code(&system_env.base_system_smart_contracts.bootloader, true);
+        let bootloader_memory = bootloader_initial_memory(&batch_env);
 
         let mut inner = VirtualMachine::new(
             Box::new(World::new(storage.clone(), program_cache.clone())),
@@ -190,7 +204,7 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
         // TODO: bootloader should not pay for memory growth but with how vm2 currently works that would allocate 4GB
         inner.state.current_frame.exception_handler = INITIAL_FRAME_FORMAL_EH_LOCATION;
 
-        Self {
+        let mut me = Self {
             inner,
             suspended_at: 0,
             gas_for_account_validation: system_env.default_validation_computational_gas_limit,
@@ -204,7 +218,11 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
             batch_env,
             program_cache,
             snapshots: vec![],
-        }
+        };
+
+        me.write_to_bootloader_heap(bootloader_memory);
+
+        me
     }
 
     fn push_transaction(&mut self, tx: zksync_types::Transaction) {
