@@ -2,9 +2,10 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use vm2::{decode::decode_program, ExecutionEnd, Program, Settings, VirtualMachine};
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
+use zksync_contracts::SystemContractCode;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{l1::is_l1_tx_type, AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, U256};
-use zksync_utils::bytecode::hash_bytecode;
+use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
 use super::{
     bootloader_state::{BootloaderState, BootloaderStateSnapshot},
@@ -13,10 +14,13 @@ use super::{
     transaction_data::TransactionData,
 };
 use crate::{
-    interface::{VmInterface, VmInterfaceHistoryEnabled},
+    interface::{
+        types::inputs::execution_mode, Halt, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
+    },
     vm_latest::{
-        constants::VM_HOOK_POSITION, BootloaderMemory, CurrentExecutionState, HistoryEnabled,
-        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs,
+        constants::VM_HOOK_POSITION, BootloaderMemory, CurrentExecutionState, ExecutionResult,
+        HistoryEnabled, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
+        VmExecutionResultAndLogs,
     },
 };
 
@@ -37,24 +41,36 @@ pub struct Vm<S: WriteStorage> {
 }
 
 impl<S: WriteStorage> Vm<S> {
-    fn run(&mut self) {
+    fn run(&mut self, execution_mode: VmExecutionMode) -> ExecutionResult {
         loop {
-            let end = self.inner.resume_from(self.suspended_at);
-            let ExecutionEnd::SuspendedOnHook {
-                hook,
-                pc_to_resume_from,
-            } = end
-            else {
-                panic!("expected hook")
+            let hook = match self.inner.resume_from(self.suspended_at) {
+                ExecutionEnd::SuspendedOnHook {
+                    hook,
+                    pc_to_resume_from,
+                } => {
+                    self.suspended_at = pc_to_resume_from;
+                    hook
+                }
+                ExecutionEnd::ProgramFinished(output) => {
+                    return ExecutionResult::Success { output };
+                }
+                ExecutionEnd::Reverted(output) => {
+                    return ExecutionResult::Revert {
+                        output: output.as_slice().into(),
+                    }
+                }
+                ExecutionEnd::Panicked => {
+                    return ExecutionResult::Halt {
+                        reason: Halt::VMPanic,
+                    }
+                }
             };
-
-            self.suspended_at = pc_to_resume_from;
 
             match hook {
                 0 => {
                     // Account validation entered
                     match self.inner.resume_with_additional_gas_limit(
-                        pc_to_resume_from,
+                        self.suspended_at,
                         self.gas_for_account_validation,
                     ) {
                         None => {
@@ -83,8 +99,13 @@ impl<S: WriteStorage> Vm<S> {
                     // Account validation exited
                     panic!("must enter account validation before exiting");
                 }
-                3 => {}  // ValidationStepEnded,
-                4 => {}  // TxHasEnded,
+                3 => {} // ValidationStepEnded,
+                4 => {
+                    // TxHasEnded
+                    if let VmExecutionMode::OneTx = execution_mode {
+                        return ExecutionResult::Success { output: vec![] };
+                    }
+                }
                 5 => {}  // DebugLog,
                 6 => {}  // DebugReturnData,
                 7 => {}  // NearCallCatch,
@@ -140,11 +161,18 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
             .hash
             .into();
 
-        let program_cache = Rc::new(RefCell::new(HashMap::new()));
+        let program_cache = Rc::new(RefCell::new(HashMap::from([convert_system_contract_code(
+            &system_env.base_system_smart_contracts.default_aa,
+            false,
+        )])));
+
+        let (_, bootloader) =
+            convert_system_contract_code(&system_env.base_system_smart_contracts.bootloader, true);
 
         let mut inner = VirtualMachine::new(
             Box::new(World::new(storage.clone(), program_cache.clone())),
             BOOTLOADER_ADDRESS,
+            bootloader,
             H160::zero(),
             vec![],
             system_env.bootloader_gas_limit,
@@ -206,10 +234,24 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
 
     fn inspect(
         &mut self,
-        dispatcher: Self::TracerDispatcher,
+        _dispatcher: Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        todo!()
+        let mut enable_refund_tracer = false;
+        if let VmExecutionMode::OneTx = execution_mode {
+            // Move the pointer to the next transaction
+            self.bootloader_state.move_tx_to_execute_pointer();
+            enable_refund_tracer = true;
+        }
+
+        let result = self.run(execution_mode);
+
+        VmExecutionResultAndLogs {
+            result,
+            logs: Default::default(),
+            statistics: Default::default(),
+            refunds: Default::default(),
+        }
     }
 
     fn inspect_transaction_with_bytecode_compression(
@@ -325,13 +367,10 @@ impl<S: WriteStorage> vm2::World for World<S> {
             .borrow_mut()
             .entry(hash)
             .or_insert_with(|| {
-                let mut hash_bytes = [0; 32];
-                hash.to_big_endian(&mut hash_bytes);
-
                 let bytecode = self
                     .storage
                     .borrow_mut()
-                    .load_factory_dep(hash_bytes.into())
+                    .load_factory_dep(u256_to_h256(hash))
                     .expect("vm tried to decommit nonexistent bytecode");
 
                 bytecode_to_program(&bytecode)
@@ -340,14 +379,11 @@ impl<S: WriteStorage> vm2::World for World<S> {
     }
 
     fn read_storage(&mut self, contract: zksync_types::H160, key: U256) -> U256 {
-        let mut key_bytes = [0; 32];
-        key.to_big_endian(&mut key_bytes);
-
         self.storage
             .borrow_mut()
             .read_value(&StorageKey::new(
                 AccountTreeId::new(contract.into()),
-                key_bytes.into(),
+                u256_to_h256(key),
             ))
             .as_bytes()
             .into()
@@ -367,5 +403,22 @@ fn bytecode_to_program(bytecode: &[u8]) -> Program {
             .chunks_exact(32)
             .map(|chunk| U256::from_big_endian(chunk.try_into().unwrap()))
             .collect::<Vec<_>>(),
+    )
+}
+
+fn convert_system_contract_code(code: &SystemContractCode, is_bootloader: bool) -> (U256, Program) {
+    (
+        h256_to_u256(code.hash),
+        Program::new(
+            decode_program(
+                &code
+                    .code
+                    .iter()
+                    .flat_map(|x| x.0.into_iter().rev())
+                    .collect::<Vec<_>>(),
+                is_bootloader,
+            ),
+            code.code.clone(),
+        ),
     )
 }
