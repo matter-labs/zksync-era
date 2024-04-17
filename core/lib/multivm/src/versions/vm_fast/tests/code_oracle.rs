@@ -1,16 +1,12 @@
 use ethabi::Token;
-use zk_evm_1_5_0::aux_structures::Timestamp;
 use zksync_types::{get_known_code_key, web3::signing::keccak256, Address, Execute, U256};
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
+use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
-        tests::{
-            tester::{get_empty_storage, VmTesterBuilder},
-            utils::{load_precompiles_contract, read_precompiles_contract, read_test_contract},
-        },
-        HistoryEnabled,
+    vm_fast::tests::{
+        tester::{get_empty_storage, VmTesterBuilder},
+        utils::{load_precompiles_contract, read_precompiles_contract, read_test_contract},
     },
 };
 
@@ -36,7 +32,7 @@ fn test_code_oracle() {
 
     // In this test, we aim to test whether a simple account interaction (without any fee logic)
     // will work. The account will try to deploy a simple contract from integration tests.
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -51,14 +47,7 @@ fn test_code_oracle() {
     let precompile_contract = load_precompiles_contract();
     let call_code_oracle_function = precompile_contract.function("callCodeOracle").unwrap();
 
-    vm.vm.state.decommittment_processor.populate(
-        vec![(
-            h256_to_u256(normal_zkevm_bytecode_hash),
-            bytes_to_be_words(normal_zkevm_bytecode),
-        )],
-        Timestamp(0),
-    );
-
+    vm.vm.insert_bytecodes([normal_zkevm_bytecode.as_slice()]);
     let account = &mut vm.rich_accounts[0];
 
     // Firstly, let's ensure that the contract works.
@@ -119,7 +108,7 @@ fn test_code_oracle_big_bytecode() {
 
     // In this test, we aim to test whether a simple account interaction (without any fee logic)
     // will work. The account will try to deploy a simple contract from integration tests.
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -134,13 +123,7 @@ fn test_code_oracle_big_bytecode() {
     let precompile_contract = load_precompiles_contract();
     let call_code_oracle_function = precompile_contract.function("callCodeOracle").unwrap();
 
-    vm.vm.state.decommittment_processor.populate(
-        vec![(
-            h256_to_u256(big_zkevm_bytecode_hash),
-            bytes_to_be_words(big_zkevm_bytecode),
-        )],
-        Timestamp(0),
-    );
+    vm.vm.insert_bytecodes([big_zkevm_bytecode.as_slice()]);
 
     let account = &mut vm.rich_accounts[0];
 
