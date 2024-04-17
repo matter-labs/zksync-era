@@ -1,7 +1,7 @@
 use std::{
     fs::{self, File},
     io::Read,
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 use anyhow::Context as _;
@@ -20,7 +20,6 @@ use zksync_config::configs::FriProverConfig;
 use zksync_env_config::FromEnv;
 use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_types::basic_fri_types::AggregationRound;
-use zksync_utils::workspace_dir_or_current_dir;
 
 #[cfg(feature = "gpu")]
 use crate::GoldilocksGpuProverSetupData;
@@ -39,13 +38,17 @@ pub enum ProverServiceDataType {
 /// - large setup keys, used during proving.
 pub struct Keystore {
     /// Directory to store all the small keys.
-    basedir: PathBuf,
+    basedir: String,
     /// Directory to store large setup keys.
     setup_data_path: Option<String>,
 }
 
-fn get_base_path_from_env() -> PathBuf {
-    workspace_dir_or_current_dir().join("vk_setup_data_generator_server_fri/data")
+fn get_base_path_from_env() -> String {
+    let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| "/".into());
+    format!(
+        "{}/prover/vk_setup_data_generator_server_fri/data",
+        zksync_home
+    )
 }
 
 impl Default for Keystore {
@@ -64,20 +67,20 @@ impl Default for Keystore {
 impl Keystore {
     /// Base-dir is the location of smaller keys (like verification keys and finalization hints).
     /// Setup data path is used for the large setup keys.
-    pub fn new(basedir: PathBuf, setup_data_path: String) -> Self {
+    pub fn new(basedir: String, setup_data_path: String) -> Self {
         Keystore {
             basedir,
             setup_data_path: Some(setup_data_path),
         }
     }
-    pub fn new_with_optional_setup_path(basedir: PathBuf, setup_data_path: Option<String>) -> Self {
+    pub fn new_with_optional_setup_path(basedir: String, setup_data_path: Option<String>) -> Self {
         Keystore {
             basedir,
             setup_data_path,
         }
     }
 
-    pub fn get_base_path(&self) -> &PathBuf {
+    pub fn get_base_path(&self) -> &str {
         &self.basedir
     }
 
@@ -85,49 +88,43 @@ impl Keystore {
         &self,
         key: ProverServiceDataKey,
         service_data_type: ProverServiceDataType,
-    ) -> PathBuf {
+    ) -> String {
         let name = key.name();
         match service_data_type {
             ProverServiceDataType::VerificationKey => {
-                self.basedir.join(format!("verification_{}_key.json", name))
+                format!("{}/verification_{}_key.json", self.basedir, name)
             }
-            ProverServiceDataType::SetupData => PathBuf::from(format!(
-                "{}/setup_{}_data.bin",
-                self.setup_data_path
-                    .as_ref()
-                    .expect("Setup data path not set"),
-                name
-            )),
-            ProverServiceDataType::FinalizationHints => self
-                .basedir
-                .join(format!("finalization_hints_{}.bin", name)),
-            ProverServiceDataType::SnarkVerificationKey => self
-                .basedir
-                .join(format!("snark_verification_{}_key.json", name)),
+            ProverServiceDataType::SetupData => {
+                format!(
+                    "{}/setup_{}_data.bin",
+                    self.setup_data_path
+                        .as_ref()
+                        .expect("Setup data path not set"),
+                    name
+                )
+            }
+            ProverServiceDataType::FinalizationHints => {
+                format!("{}/finalization_hints_{}.bin", self.basedir, name)
+            }
+            ProverServiceDataType::SnarkVerificationKey => {
+                format!("{}/snark_verification_{}_key.json", self.basedir, name)
+            }
         }
     }
 
-    fn load_json_from_file<T: for<'a> Deserialize<'a>>(
-        filepath: impl AsRef<Path> + std::fmt::Debug,
-    ) -> anyhow::Result<T> {
+    fn load_json_from_file<T: for<'a> Deserialize<'a>>(filepath: String) -> anyhow::Result<T> {
         let text = std::fs::read_to_string(&filepath)
-            .with_context(|| format!("Failed reading verification key from path: {filepath:?}"))?;
-        serde_json::from_str::<T>(&text).with_context(|| {
-            format!("Failed deserializing verification key from path: {filepath:?}")
-        })
+            .with_context(|| format!("Failed reading verification key from path: {filepath}"))?;
+        serde_json::from_str::<T>(&text)
+            .with_context(|| format!("Failed deserializing verification key from path: {filepath}"))
     }
-    fn save_json_pretty<T: Serialize>(
-        filepath: impl AsRef<Path> + std::fmt::Debug,
-        data: &T,
-    ) -> anyhow::Result<()> {
+    fn save_json_pretty<T: Serialize>(filepath: String, data: &T) -> anyhow::Result<()> {
         std::fs::write(&filepath, serde_json::to_string_pretty(data).unwrap())
-            .with_context(|| format!("writing to '{filepath:?}' failed"))
+            .with_context(|| format!("writing to '{filepath}' failed"))
     }
 
-    fn load_bincode_from_file<T: for<'a> Deserialize<'a>>(
-        filepath: impl AsRef<Path> + std::fmt::Debug,
-    ) -> anyhow::Result<T> {
-        let mut file = File::open(&filepath)
+    fn load_bincode_from_file<T: for<'a> Deserialize<'a>>(filepath: String) -> anyhow::Result<T> {
+        let mut file = File::open(filepath.clone())
             .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer).with_context(|| {
@@ -176,7 +173,7 @@ impl Keystore {
             ProverServiceDataKey::new(vk.numeric_circuit_type(), AggregationRound::BasicCircuits),
             ProverServiceDataType::VerificationKey,
         );
-        tracing::info!("saving basic verification key to: {:?}", filepath);
+        tracing::info!("saving basic verification key to: {}", filepath);
         Self::save_json_pretty(filepath, &vk)
     }
 
@@ -188,7 +185,7 @@ impl Keystore {
             ProverServiceDataKey::new_recursive(vk.numeric_circuit_type()),
             ProverServiceDataType::VerificationKey,
         );
-        tracing::info!("saving recursive layer verification key to: {:?}", filepath);
+        tracing::info!("saving recursive layer verification key to: {}", filepath);
         Self::save_json_pretty(filepath, &vk)
     }
 
@@ -197,7 +194,7 @@ impl Keystore {
             ProverServiceDataKey::eip4844(),
             ProverServiceDataType::VerificationKey,
         );
-        tracing::info!("saving 4844 verification key to: {:?}", filepath);
+        tracing::info!("saving 4844 verification key to: {}", filepath);
         Self::save_json_pretty(filepath, &vk)
     }
 
@@ -212,7 +209,7 @@ impl Keystore {
     ) -> anyhow::Result<()> {
         let filepath = self.get_file_path(key.clone(), ProverServiceDataType::FinalizationHints);
 
-        tracing::info!("saving finalization hints for {:?} to: {:?}", key, filepath);
+        tracing::info!("saving finalization hints for {:?} to: {}", key, filepath);
         let serialized =
             bincode::serialize(&hint).context("Failed to serialize finalization hints")?;
         fs::write(filepath, serialized).context("Failed to write finalization hints to file")
@@ -246,9 +243,8 @@ impl Keystore {
             ProverServiceDataKey::snark(),
             ProverServiceDataType::SnarkVerificationKey,
         );
-        std::fs::read_to_string(&filepath).with_context(|| {
-            format!("Failed reading Snark verification key from path: {filepath:?}")
-        })
+        std::fs::read_to_string(&filepath)
+            .with_context(|| format!("Failed reading Snark verification key from path: {filepath}"))
     }
 
     pub fn save_snark_verification_key(&self, vk: ZkSyncSnarkWrapperVK) -> anyhow::Result<()> {
@@ -256,7 +252,7 @@ impl Keystore {
             ProverServiceDataKey::snark(),
             ProverServiceDataType::SnarkVerificationKey,
         );
-        tracing::info!("saving snark verification key to: {:?}", filepath);
+        tracing::info!("saving snark verification key to: {}", filepath);
         Self::save_json_pretty(filepath, &vk.into_inner())
     }
 
@@ -276,7 +272,7 @@ impl Keystore {
         file.read_to_end(&mut buffer).with_context(|| {
             format!("Failed reading setup-data to buffer from path: {filepath:?}")
         })?;
-        tracing::info!("loading {:?} setup data from path: {:?}", key, filepath);
+        tracing::info!("loading {:?} setup data from path: {}", key, filepath);
         bincode::deserialize::<GoldilocksProverSetupData>(&buffer).with_context(|| {
             format!("Failed deserializing setup-data at path: {filepath:?} for circuit: {key:?}")
         })
@@ -295,7 +291,7 @@ impl Keystore {
         file.read_to_end(&mut buffer).with_context(|| {
             format!("Failed reading setup-data to buffer from path: {filepath:?}")
         })?;
-        tracing::info!("loading {:?} setup data from path: {:?}", key, filepath);
+        tracing::info!("loading {:?} setup data from path: {}", key, filepath);
         bincode::deserialize::<GoldilocksGpuProverSetupData>(&buffer).with_context(|| {
             format!("Failed deserializing setup-data at path: {filepath:?} for circuit: {key:?}")
         })
@@ -311,7 +307,7 @@ impl Keystore {
         serialized_setup_data: &Vec<u8>,
     ) -> anyhow::Result<()> {
         let filepath = self.get_file_path(key.clone(), ProverServiceDataType::SetupData);
-        tracing::info!("saving {:?} setup data to: {:?}", key, filepath);
+        tracing::info!("saving {:?} setup data to: {}", key, filepath);
         std::fs::write(filepath.clone(), serialized_setup_data)
             .with_context(|| format!("Failed saving setup-data at path: {filepath:?}"))
     }
@@ -460,9 +456,12 @@ impl Keystore {
     }
 
     pub fn load_commitments(&self) -> anyhow::Result<VkCommitments> {
-        Self::load_json_from_file(self.get_base_path().join("commitments.json"))
+        Self::load_json_from_file(format!("{}/commitments.json", self.get_base_path()))
     }
     pub fn save_commitments(&self, commitments: &VkCommitments) -> anyhow::Result<()> {
-        Self::save_json_pretty(self.get_base_path().join("commitments.json"), &commitments)
+        Self::save_json_pretty(
+            format!("{}/commitments.json", self.get_base_path()),
+            &commitments,
+        )
     }
 }
