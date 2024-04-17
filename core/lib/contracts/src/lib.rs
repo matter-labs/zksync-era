@@ -130,7 +130,7 @@ pub fn l1_messenger_contract() -> Contract {
     load_sys_contract("L1Messenger")
 }
 
-/// Reads bytecode from the path RELATIVE to the workspace location environment variable.
+/// Reads bytecode from the path RELATIVE to the Cargo workspace location.
 pub fn read_bytecode(relative_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u8> {
     read_bytecode_from_path(relative_path)
 }
@@ -158,14 +158,14 @@ static DEFAULT_SYSTEM_CONTRACTS_REPO: Lazy<SystemContractsRepo> =
 
 /// Structure representing a system contract repository - that allows
 /// fetching contracts that are located there.
-/// As most of the static methods in this file, is loading data based on workspace location environment variable.
+/// As most of the static methods in this file, is loading data based on the Cargo workspace location.
 pub struct SystemContractsRepo {
     // Path to the root of the system contracts repository.
     pub root: PathBuf,
 }
 
 impl SystemContractsRepo {
-    /// Returns the default system contracts repository with directory based on the workspace location environment variable.
+    /// Returns the default system contracts repository with directory based on the Cargo workspace location.
     pub fn from_env() -> Self {
         SystemContractsRepo {
             root: home_path().join("contracts/system-contracts"),

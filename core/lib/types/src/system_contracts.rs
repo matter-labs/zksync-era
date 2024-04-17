@@ -168,7 +168,7 @@ static SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new(|| {
         .collect::<Vec<_>>()
 });
 
-/// Gets default set of system contracts, based on workspace location environment variable.
+/// Gets default set of system contracts, based on Cargo workspace location.
 pub fn get_system_smart_contracts() -> Vec<DeployedContract> {
     SYSTEM_CONTRACTS.clone()
 }
