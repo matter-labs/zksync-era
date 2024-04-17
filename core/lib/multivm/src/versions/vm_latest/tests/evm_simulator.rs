@@ -131,6 +131,46 @@ fn test_evm_vector(mut bytecode: Vec<u8>) -> U256 {
     h256_to_u256(saved_value)
 }
 
+//fn test_evm_logs(mut bytecode: Vec<u8>) -> Vec<zksync_types::VmEvent> {
+fn test_evm_logs(mut bytecode: Vec<u8>) -> crate::vm_latest::VmExecutionLogs {
+    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+
+    let test_address = insert_evm_contract(&mut storage, bytecode.clone());
+
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_storage(storage)
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .build();
+
+    let account = &mut vm.rich_accounts[0];
+
+    let tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(test_address),
+            calldata: vec![],
+            value: U256::zero(),
+            factory_deps: None,
+        },
+        None,
+    );
+
+    vm.vm.push_transaction(tx);
+    let tx_result: crate::vm_latest::VmExecutionResultAndLogs =
+        vm.vm.execute(VmExecutionMode::OneTx);
+
+    assert!(
+        !tx_result.result.is_failed(),
+        "Transaction wasn't successful"
+    );
+
+    let batch_result = vm.vm.execute(VmExecutionMode::Batch);
+    assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
+
+    //vm.vm.collect_events_and_l1_system_logs_after_timestamp(Timestamp(0)).0
+    tx_result.logs
+}
+
 #[test]
 fn test_basic_evm_vectors() {
     // Here we just try to test some small EVM contracts and ensure that they work.
@@ -2579,6 +2619,159 @@ fn test_basic_environment3_vectors() {
     );
     // codesize = 37 + memory_expansion = 64 (chunks of 32bytes)
     assert_eq!(evm_output, 64.into());
+}
+
+#[test]
+fn test_basic_logs_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    // LOG0
+    let evm_output = test_evm_logs(
+        vec![
+            // push1 37
+            hex::decode("60").unwrap(),
+            hex::decode("25").unwrap(),
+            // push1 00
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 32
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 00
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // log0
+            hex::decode("A0").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+
+    for e in evm_output.events {
+        if e.address == Address::from_str(CONTRACT_ADDRESS).unwrap() {
+            assert!(e.indexed_topics.is_empty());
+            assert_eq!(e.value[31], 37u8);
+        }
+    }
+
+    // LOG1
+    let evm_output = test_evm_logs(
+        vec![
+            // push1 37
+            hex::decode("60").unwrap(),
+            hex::decode("25").unwrap(),
+            // push1 00
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 64
+            hex::decode("60").unwrap(),
+            hex::decode("40").unwrap(),
+            // push1 32
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 00
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // log1
+            hex::decode("A1").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+
+    for e in evm_output.events {
+        if e.address == Address::from_str(CONTRACT_ADDRESS).unwrap() {
+            assert_eq!(e.indexed_topics[0], u256_to_h256(64.into()));
+            assert_eq!(e.value[31], 37u8);
+        }
+    }
+
+    // LOG2
+    let evm_output = test_evm_logs(
+        vec![
+            // push1 37
+            hex::decode("60").unwrap(),
+            hex::decode("25").unwrap(),
+            // push1 00
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 64
+            hex::decode("60").unwrap(),
+            hex::decode("40").unwrap(),
+            // push1 32
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 32
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 00
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // log2
+            hex::decode("A2").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+
+    for e in evm_output.events {
+        if e.address == Address::from_str(CONTRACT_ADDRESS).unwrap() {
+            assert_eq!(e.indexed_topics[0], u256_to_h256(32.into()));
+            assert_eq!(e.indexed_topics[1], u256_to_h256(64.into()));
+            assert_eq!(e.value[31], 37u8);
+        }
+    }
+
+    // LOG4
+    let evm_output = test_evm_logs(
+        vec![
+            // push1 37
+            hex::decode("60").unwrap(),
+            hex::decode("25").unwrap(),
+            // push1 00
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 64
+            hex::decode("60").unwrap(),
+            hex::decode("40").unwrap(),
+            // push1 32
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 16
+            hex::decode("60").unwrap(),
+            hex::decode("10").unwrap(),
+            // push1 12
+            hex::decode("60").unwrap(),
+            hex::decode("0C").unwrap(),
+            // push1 32
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 00
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // log4
+            hex::decode("A4").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+
+    for e in evm_output.events {
+        if e.address == Address::from_str(CONTRACT_ADDRESS).unwrap() {
+            assert_eq!(e.indexed_topics[0], u256_to_h256(12.into()));
+            assert_eq!(e.indexed_topics[1], u256_to_h256(16.into()));
+            assert_eq!(e.indexed_topics[2], u256_to_h256(32.into()));
+            assert_eq!(e.indexed_topics[3], u256_to_h256(64.into()));
+            assert_eq!(e.value[31], 37u8);
+        }
+    }
 }
 
 fn assert_deployed_hash<H: HistoryMode>(
