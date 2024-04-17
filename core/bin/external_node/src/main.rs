@@ -139,7 +139,7 @@ async fn run_tree(
         memtable_capacity: config.optional.merkle_tree_memtable_capacity(),
         stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
     };
-    let metadata_calculator = MetadataCalculator::new(metadata_calculator_config, None)
+    let metadata_calculator = MetadataCalculator::new(metadata_calculator_config, None, tree_pool)
         .await
         .context("failed initializing metadata calculator")?;
     let tree_reader = Arc::new(metadata_calculator.tree_reader());
@@ -158,7 +158,7 @@ async fn run_tree(
         }));
     }
 
-    let tree_handle = task::spawn(metadata_calculator.run(tree_pool, stop_receiver));
+    let tree_handle = task::spawn(metadata_calculator.run(stop_receiver));
 
     task_futures.push(tree_handle);
     Ok(tree_reader)

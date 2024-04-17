@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::Context as _;
-use tokio::sync::watch;
+use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{
     chain::OperationsManagerConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
@@ -16,15 +16,17 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_object_store::ObjectStore;
 
-pub use self::helpers::LazyAsyncTreeReader;
 pub(crate) use self::helpers::{AsyncTreeReader, L1BatchWithLogs, MerkleTreeInfo};
+pub use self::{helpers::LazyAsyncTreeReader, pruning::MerkleTreePruningTask};
 use self::{
     helpers::{create_db, Delayer, GenericAsyncTree, MerkleTreeHealth},
+    pruning::PruningHandles,
     updater::TreeUpdater,
 };
 
 mod helpers;
 mod metrics;
+mod pruning;
 mod recovery;
 #[cfg(test)]
 pub(crate) mod tests;
@@ -75,6 +77,8 @@ impl MetadataCalculatorConfig {
 pub struct MetadataCalculator {
     config: MetadataCalculatorConfig,
     tree_reader: watch::Sender<Option<AsyncTreeReader>>,
+    pruning_handles_sender: oneshot::Sender<PruningHandles>,
+    pool: ConnectionPool<Core>,
     object_store: Option<Arc<dyn ObjectStore>>,
     delayer: Delayer,
     health_updater: HealthUpdater,
@@ -86,6 +90,7 @@ impl MetadataCalculator {
     pub async fn new(
         config: MetadataCalculatorConfig,
         object_store: Option<Arc<dyn ObjectStore>>,
+        pool: ConnectionPool<Core>,
     ) -> anyhow::Result<Self> {
         anyhow::ensure!(
             config.max_l1_batches_per_iter > 0,
@@ -100,6 +105,8 @@ impl MetadataCalculator {
         let (_, health_updater) = ReactiveHealthCheck::new("tree");
         Ok(Self {
             tree_reader: watch::channel(None).0,
+            pruning_handles_sender: oneshot::channel().0,
+            pool,
             object_store,
             delayer: Delayer::new(config.delay_interval),
             health_updater,
@@ -116,6 +123,15 @@ impl MetadataCalculator {
     /// Returns a reference to the tree reader.
     pub fn tree_reader(&self) -> LazyAsyncTreeReader {
         LazyAsyncTreeReader(self.tree_reader.subscribe())
+    }
+
+    /// Returns a task that can be used to prune the Merkle tree according to the pruning logs in Postgres.
+    /// This method should be called once; only the latest returned task will do any job, all previous ones
+    /// will terminate immediately.
+    pub fn pruning_task(&mut self, poll_interval: Duration) -> MerkleTreePruningTask {
+        let (pruning_handles_sender, pruning_handles) = oneshot::channel();
+        self.pruning_handles_sender = pruning_handles_sender;
+        MerkleTreePruningTask::new(pruning_handles, self.pool.clone(), poll_interval)
     }
 
     async fn create_tree(&self) -> anyhow::Result<GenericAsyncTree> {
@@ -146,16 +162,12 @@ impl MetadataCalculator {
         Ok(GenericAsyncTree::new(db, self.config.mode).await)
     }
 
-    pub async fn run(
-        self,
-        pool: ConnectionPool<Core>,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
+    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let tree = self.create_tree().await?;
         let tree = tree
-            .ensure_ready(&pool, &stop_receiver, &self.health_updater)
+            .ensure_ready(&self.pool, &stop_receiver, &self.health_updater)
             .await?;
-        let Some(tree) = tree else {
+        let Some(mut tree) = tree else {
             return Ok(()); // recovery was aborted because a stop signal was received
         };
         let tree_reader = tree.reader();
@@ -164,11 +176,14 @@ impl MetadataCalculator {
             tree_reader.clone().info().await
         );
 
+        if !self.pruning_handles_sender.is_closed() {
+            self.pruning_handles_sender.send(tree.pruner()).ok();
+        }
         self.tree_reader.send_replace(Some(tree_reader));
 
         let updater = TreeUpdater::new(tree, self.max_l1_batches_per_iter, self.object_store);
         updater
-            .loop_updating_tree(self.delayer, &pool, stop_receiver, self.health_updater)
+            .loop_updating_tree(self.delayer, &self.pool, stop_receiver, self.health_updater)
             .await?;
 
         Ok(())
