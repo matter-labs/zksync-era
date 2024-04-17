@@ -57,11 +57,12 @@ This configuration is approximate and should be considered as **minimal** requir
 - 32-core CPU
 - 64GB RAM
 - SSD storage (NVME recommended):
-  - Sepolia Testnet - 10GB EN + 50GB PostgreSQL (at the time of writing, will grow over time, so should be constantly monitored)
+  - Sepolia Testnet - 10GB EN + 50GB PostgreSQL (at the time of writing, will grow over time, so should be constantly
+    monitored)
   - Mainnet - 3TB EN + 7TB PostgreSQL (at the time of writing, will grow over time, so should be constantly monitored)
 - 100 Mbps connection (1 Gbps+ recommended)
 
 ## Advanced setup
 
-If you need monitoring, backups, to recover from DB dump/snapshot or a more customized PostgreSQL settings, etc, please see:
-[ansible-en-role repo](https://github.com/matter-labs/ansible-en-role)
+If you need monitoring, backups, to recover from DB dump/snapshot or a more customized PostgreSQL settings, etc, please
+see: [ansible-en-role repo](https://github.com/matter-labs/ansible-en-role)
