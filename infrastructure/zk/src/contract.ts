@@ -60,7 +60,6 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean, inc
         await utils.spawn(`yarn l2-contracts build`);
     }
 
-
     await utils.spawn(`yarn l1-contracts initialize-bridges ${args.join(' ')} | tee deployL2.log`);
 
     if (includePaymaster) {
@@ -160,7 +159,19 @@ command
     .action(redeployL1);
 command.command('deploy [deploy-opts...]').allowUnknownOption(true).description('deploy contracts').action(deployL1);
 command.command('build').description('build contracts').action(build);
-command.command('initialize-validator [init-opts...]').allowUnknownOption(true).description('initialize validator').action(initializeValidator);
+command
+    .command('initialize-validator [init-opts...]')
+    .allowUnknownOption(true)
+    .description('initialize validator')
+    .action(initializeValidator);
 command.command('verify').description('verify L1 contracts').action(verifyL1Contracts);
-command.command('deploy-l2 [deploy-opts...]').allowUnknownOption(true).description('deploy l2 contracts').action(deployL2);
-command.command('initialize-governance [gov-opts...]').allowUnknownOption(true).description('initialize governance').action(initializeGovernance);
+command
+    .command('deploy-l2 [deploy-opts...]')
+    .allowUnknownOption(true)
+    .description('deploy l2 contracts')
+    .action(deployL2);
+command
+    .command('initialize-governance [gov-opts...]')
+    .allowUnknownOption(true)
+    .description('initialize governance')
+    .action(initializeGovernance);
