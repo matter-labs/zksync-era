@@ -107,11 +107,6 @@ async function preparePostUpgradeCalldata() {
 }
 
 async function deploySharedBridgeL2Implementation() {
-    env.modify(
-        'CONTRACTS_ERA_DIAMOND_PROXY_ADDR',
-        process.env.CONTRACTS_DIAMOND_PROXY_ADDR,
-        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
-    );
 
     const cwd = process.cwd();
     process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/`);
@@ -135,35 +130,43 @@ async function hyperchainFullUpgrade() {
     await spawn(
         'cp etc/env/.init.env etc/env/l1-inits/.init.env && rm ./etc/env/l2-inits/zksync_local.init.env && rm ./etc/env/target/zksync_local.env'
     );
-
-    process.chdir(`${process.env.ZKSYNC_HOME}/infrastructure/protocol-upgrade`);
     await spawn('zk env zksync_local');
+    env.modify(
+        'CONTRACTS_ERA_DIAMOND_PROXY_ADDR',
+        process.env.CONTRACTS_DIAMOND_PROXY_ADDR,
+        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+    );
+
     await deploySharedBridgeL2Implementation();
+
+    process.chdir(`${process.env.ZKSYNC_HOME}`);
     await spawn('zk config compile zksync_local');
     env.reload();
+    // process.chdir(`${process.env.ZKSYNC_HOME}/infrastructure/protocol-upgrade`);
     await hyperchainUpgrade1();
-    env.reload();
     env.reload();
 
     await insertAddresses();
-    await spawn('zk f yarn start facets generate-facet-cuts');
-    await spawn('zk f yarn start system-contracts publish-all');
+    env.reload();
+
+    await spawn('zk f yarn  workspace protocol-upgrade-tool start facets generate-facet-cuts');
+    await spawn('zk f yarn  workspace protocol-upgrade-tool start system-contracts publish-all');
     await spawn(
-        'zk f yarn start l2-transaction complex-upgrader-calldata --use-forced-deployments --use-contract-deployer'
+        'zk f yarn  workspace protocol-upgrade-tool start l2-transaction complex-upgrader-calldata --use-forced-deployments --use-contract-deployer'
     );
-    await spawn('zk f yarn start crypto save-verification-params');
+    await spawn('zk f yarn  workspace protocol-upgrade-tool start crypto save-verification-params');
     await preparePostUpgradeCalldata();
     await spawn(
-        `zk f yarn start transactions build-default --upgrade-timestamp 1711451944 --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --use-new-governance --upgrade-address ${process.env.CONTRACTS_HYPERCHAIN_UPGRADE_ADDR} --post-upgrade-calldata`
+        `zk f yarn  workspace protocol-upgrade-tool start transactions build-default --upgrade-timestamp 1711451944 --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --use-new-governance --upgrade-address ${process.env.CONTRACTS_HYPERCHAIN_UPGRADE_ADDR} --post-upgrade-calldata`
     );
     await spawn(
-        `zk f yarn start transactions propose-upgrade --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --new-governance ${process.env.CONTRACTS_GOVERNANCE_ADDR}`
+        `zk f yarn  workspace protocol-upgrade-tool start transactions propose-upgrade --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --new-governance ${process.env.CONTRACTS_GOVERNANCE_ADDR}`
     );
-    await spawn(
-        `zk f yarn start transactions execute-upgrade --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --new-governance ${process.env.CONTRACTS_GOVERNANCE_ADDR}`
-    );
-    await hyperchainUpgrade2();
-    await hyperchainUpgrade3();
+    // await spawn(
+    //     `zk f yarn  workspace protocol-upgrade-tool start transactions execute-upgrade --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --new-governance ${process.env.CONTRACTS_GOVERNANCE_ADDR}`
+    // );
+    // await hyperchainUpgrade2();
+    // await hyperchainUpgrade3();
 }
 
 export const command = new Command('hyperchain-upgrade').description('create and publish custom l2 upgrade');
