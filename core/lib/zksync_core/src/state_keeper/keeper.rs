@@ -449,17 +449,6 @@ impl ZkSyncStateKeeper {
         }
 
         while !self.is_canceled() {
-            if self
-                .io
-                .should_seal_l1_batch_unconditionally(updates_manager)
-            {
-                tracing::debug!(
-                    "L1 batch #{} should be sealed unconditionally as per sealing rules",
-                    updates_manager.l1_batch.number
-                );
-                return Ok(());
-            }
-
             if self.io.should_seal_miniblock(updates_manager) {
                 tracing::debug!(
                     "Miniblock #{} (L1 batch #{}) should be sealed as per sealing rules",
@@ -480,6 +469,14 @@ impl ZkSyncStateKeeper {
                 );
                 Self::start_next_miniblock(new_miniblock_params, updates_manager, batch_executor)
                     .await;
+
+                if self.io.should_seal_l1_batch(updates_manager) {
+                    tracing::debug!(
+                        "L1 batch #{} should be sealed as per sealing rules",
+                        updates_manager.l1_batch.number
+                    );
+                    return Ok(());
+                }
             }
 
             let waiting_latency = KEEPER_METRICS.waiting_for_tx.start();

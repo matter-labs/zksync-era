@@ -124,9 +124,9 @@ pub(super) trait SealCriterion: fmt::Debug + Send + Sync + 'static {
 
 /// I/O-dependent seal criteria.
 pub trait IoSealCriteria {
-    /// Checks whether an L1 batch should be sealed unconditionally (i.e., regardless of metrics
+    /// Checks whether an L1 batch should be sealed (i.e., regardless of metrics
     /// related to transaction execution) given the provided `manager` state.
-    fn should_seal_l1_batch_unconditionally(&mut self, manager: &UpdatesManager) -> bool;
+    fn should_seal_l1_batch(&mut self, manager: &UpdatesManager) -> bool;
     /// Checks whether a miniblock should be sealed given the provided `manager` state.
     fn should_seal_miniblock(&mut self, manager: &UpdatesManager) -> bool;
 }
@@ -147,8 +147,8 @@ impl TimeoutSealer {
 }
 
 impl IoSealCriteria for TimeoutSealer {
-    fn should_seal_l1_batch_unconditionally(&mut self, manager: &UpdatesManager) -> bool {
-        const RULE_NAME: &str = "no_txs_timeout";
+    fn should_seal_l1_batch(&mut self, manager: &UpdatesManager) -> bool {
+        const RULE_NAME: &str = "miniblock_timestamp_timeout";
 
         if manager.pending_executed_transactions_len() == 0 {
             // Regardless of which sealers are provided, we never want to seal an empty batch.
@@ -156,9 +156,10 @@ impl IoSealCriteria for TimeoutSealer {
         }
 
         let block_commit_deadline_ms = self.block_commit_deadline_ms;
+
         // Verify timestamp
-        let should_seal_timeout =
-            millis_since(manager.batch_timestamp()) > block_commit_deadline_ms;
+        let diff = manager.miniblock.timestamp - manager.batch_timestamp();
+        let should_seal_timeout = (diff * 1000) > block_commit_deadline_ms;
 
         if should_seal_timeout {
             AGGREGATION_METRICS.inc_criterion(RULE_NAME);

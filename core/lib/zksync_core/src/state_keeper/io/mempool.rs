@@ -58,9 +58,8 @@ pub struct MempoolIO {
 }
 
 impl IoSealCriteria for MempoolIO {
-    fn should_seal_l1_batch_unconditionally(&mut self, manager: &UpdatesManager) -> bool {
-        self.timeout_sealer
-            .should_seal_l1_batch_unconditionally(manager)
+    fn should_seal_l1_batch(&mut self, manager: &UpdatesManager) -> bool {
+        self.timeout_sealer.should_seal_l1_batch(manager)
     }
 
     fn should_seal_miniblock(&mut self, manager: &UpdatesManager) -> bool {

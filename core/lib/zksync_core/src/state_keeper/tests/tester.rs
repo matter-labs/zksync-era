@@ -685,7 +685,7 @@ impl TestIO {
 }
 
 impl IoSealCriteria for TestIO {
-    fn should_seal_l1_batch_unconditionally(&mut self, manager: &UpdatesManager) -> bool {
+    fn should_seal_l1_batch(&mut self, manager: &UpdatesManager) -> bool {
         (self.l1_batch_seal_fn)(manager)
     }
 
