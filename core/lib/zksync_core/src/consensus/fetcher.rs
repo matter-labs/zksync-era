@@ -4,7 +4,6 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
-use zksync_consensus_storage::BlockStore;
 use zksync_types::MiniblockNumber;
 
 use crate::{
@@ -42,14 +41,14 @@ impl Fetcher {
             conn.try_update_genesis(ctx, &genesis)
                 .await
                 .wrap("set_genesis()")?;
-            let mut cursor = conn
-                .new_fetcher_cursor(ctx, actions)
+            let mut payload_queue = conn
+                .new_payload_queue(ctx, actions)
                 .await
-                .wrap("new_fetcher_cursor()")?;
+                .wrap("new_payload_queue()")?;
             drop(conn);
 
             // Fetch blocks before the genesis.
-            self.fetch_blocks(ctx, &mut cursor, Some(genesis.fork.first_block))
+            self.fetch_blocks(ctx, &mut payload_queue, Some(genesis.fork.first_block))
                 .await?;
             // Monitor the genesis of the main node.
             // If it changes, it means that a hard fork occurred and we need to reset the consensus state.
@@ -69,14 +68,12 @@ impl Fetcher {
             });
 
             // Run consensus component.
-            let (mut block_store,runner) = self.store.clone().into_block_store();
-            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
-            block_store
-                .set_cursor(cursor)
-                .context("block_store.set_cursor()")?;
-            let (block_store, runner) = BlockStore::new(ctx, Box::new(block_store))
+            let (block_store, runner) = self
+                .store
+                .clone()
+                .into_block_store(ctx, Some(payload_queue))
                 .await
-                .wrap("BlockStore::new()")?;
+                .wrap("into_block_store()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
             let executor = executor::Executor {
                 config: p2p.clone(),
@@ -102,15 +99,15 @@ impl Fetcher {
         let res: ctx::Result<()> = scope::run!(ctx, |ctx, s| async {
             // Update sync state in the background.
             s.spawn_bg(self.fetch_state_loop(ctx));
-            let mut cursor = self
+            let mut payload_queue = self
                 .store
                 .access(ctx)
                 .await
                 .wrap("access()")?
-                .new_fetcher_cursor(ctx, actions)
+                .new_payload_queue(ctx, actions)
                 .await
                 .wrap("new_fetcher_cursor()")?;
-            self.fetch_blocks(ctx, &mut cursor, None).await
+            self.fetch_blocks(ctx, &mut payload_queue, None).await
         })
         .await;
         match res {
@@ -170,12 +167,12 @@ impl Fetcher {
     pub(super) async fn fetch_blocks(
         &self,
         ctx: &ctx::Ctx,
-        cursor: &mut storage::Cursor,
+        queue: &mut storage::PayloadQueue,
         end: Option<validator::BlockNumber>,
     ) -> ctx::Result<()> {
         const MAX_CONCURRENT_REQUESTS: usize = 30;
-        let first = cursor.next();
-        let mut next = cursor.next();
+        let first = queue.next();
+        let mut next = first;
         scope::run!(ctx, |ctx, s| async {
             let (send, mut recv) = ctx::channel::bounded(MAX_CONCURRENT_REQUESTS);
             s.spawn(async {
@@ -188,17 +185,17 @@ impl Fetcher {
                 }
                 Ok(())
             });
-            while end.map_or(true, |end| cursor.next() < end) {
+            while end.map_or(true, |end| queue.next() < end) {
                 let block = recv.recv(ctx).await?.join(ctx).await?;
-                cursor.advance(block).await?;
+                queue.send(block).await?;
             }
             Ok(())
         })
         .await?;
         // If fetched anything, wait for the last block to be stored persistently.
-        if first < cursor.next() {
+        if first < queue.next() {
             self.store
-                .wait_for_payload(ctx, cursor.next().prev().unwrap())
+                .wait_for_payload(ctx, queue.next().prev().unwrap())
                 .await?;
         }
         Ok(())

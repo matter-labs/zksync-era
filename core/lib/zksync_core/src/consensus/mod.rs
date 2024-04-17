@@ -6,7 +6,6 @@
 use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
-use zksync_consensus_storage::BlockStore;
 
 pub use self::{fetcher::*, storage::Store};
 
@@ -31,15 +30,15 @@ impl MainNodeConfig {
     /// Broadcasts the blocks with certificates to gossip network peers.
     pub async fn run(self, ctx: &ctx::Ctx, store: Store) -> anyhow::Result<()> {
         scope::run!(&ctx, |ctx, s| async {
-            let (mut block_store,runner) = store.clone().into_block_store();
-            s.spawn_bg(runner.run(ctx));
-            block_store
+            store
                 .try_init_genesis(ctx, &self.validator_key.public())
                 .await
                 .wrap("block_store.try_init_genesis()")?;
-            let (block_store, runner) = BlockStore::new(ctx, Box::new(block_store))
+            let (block_store, runner) = store
+                .clone()
+                .into_block_store(ctx, None)
                 .await
-                .wrap("BlockStore::new()")?;
+                .wrap("into_block_store()")?;
             s.spawn_bg(runner.run(ctx));
             let executor = executor::Executor {
                 config: self.executor,
