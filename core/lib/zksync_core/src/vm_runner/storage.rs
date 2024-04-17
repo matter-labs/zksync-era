@@ -130,62 +130,70 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
         if let Some(rocksdb) = self.rocksdb_cell.get() {
-            let state = self.state.read().await;
-            let mut conn = self
-                .pool
-                .connection_tagged(L::name())
-                .await
-                .context("Failed getting a Postgres connection")?;
-            let max_l1_batch = (state.l1_batch_number + self.max_batches_to_load - 1).min(
-                conn.blocks_dal()
-                    .get_sealed_l1_batch_number()
-                    .await?
-                    .unwrap_or_default(),
-            );
-            if l1_batch_number < state.l1_batch_number || l1_batch_number > max_l1_batch {
-                anyhow::bail!(
-                    "Trying to access VM runner storage with L1 batch #{} while only [#{}; #{}] are available",
-                    l1_batch_number,
-                    state.l1_batch_number,
-                    state.l1_batch_number + self.max_batches_to_load - 1
+            loop {
+                let state = self.state.read().await;
+                let mut conn = self
+                    .pool
+                    .connection_tagged(L::name())
+                    .await
+                    .context("Failed getting a Postgres connection")?;
+                let max_l1_batch = (state.l1_batch_number + self.max_batches_to_load - 1).min(
+                    conn.blocks_dal()
+                        .get_sealed_l1_batch_number()
+                        .await?
+                        .unwrap_or_default(),
                 );
+                if l1_batch_number < state.l1_batch_number || l1_batch_number > max_l1_batch {
+                    anyhow::bail!(
+                        "Trying to access VM runner storage with L1 batch #{} while only [#{}; #{}] are available",
+                        l1_batch_number,
+                        state.l1_batch_number,
+                        max_l1_batch
+                    );
+                }
+                if !state.storage.contains_key(&l1_batch_number) {
+                    drop(state);
+                    drop(conn);
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    continue;
+                }
+                let rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb.clone());
+                let rocksdb = rocksdb_builder
+                    .synchronize(&mut conn, stop_receiver, Some(state.l1_batch_number))
+                    .await
+                    .context("Failed to catch up RocksDB storage to Postgres")?;
+                let Some(rocksdb) = rocksdb else {
+                    tracing::info!("Synchronizing RocksDB interrupted");
+                    return Ok(None);
+                };
+                let storage_diffs = state
+                    .storage
+                    .iter()
+                    .filter_map(|(x, y)| {
+                        if x <= &l1_batch_number {
+                            Some(y.storage_diffs.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                let factory_deps = state
+                    .storage
+                    .iter()
+                    .filter_map(|(x, y)| {
+                        if x <= &l1_batch_number {
+                            Some(y.factory_deps.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                return Ok(Some(PgOrRocksdbStorage::RocksdbWithMemory(
+                    rocksdb,
+                    storage_diffs,
+                    factory_deps,
+                )));
             }
-            let rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb.clone());
-            let rocksdb = rocksdb_builder
-                .synchronize(&mut conn, stop_receiver, Some(state.l1_batch_number))
-                .await
-                .context("Failed to catch up RocksDB storage to Postgres")?;
-            let Some(rocksdb) = rocksdb else {
-                tracing::info!("Synchronizing RocksDB interrupted");
-                return Ok(None);
-            };
-            let storage_diffs = state
-                .storage
-                .iter()
-                .filter_map(|(x, y)| {
-                    if x <= &l1_batch_number {
-                        Some(y.storage_diffs.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>();
-            let factory_deps = state
-                .storage
-                .iter()
-                .filter_map(|(x, y)| {
-                    if x <= &l1_batch_number {
-                        Some(y.factory_deps.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>();
-            Ok(Some(PgOrRocksdbStorage::RocksdbWithMemory(
-                rocksdb,
-                storage_diffs,
-                factory_deps,
-            )))
         } else {
             Ok(Some(
                 PgOrRocksdbStorage::access_storage_pg(&self.pool, l1_batch_number)
@@ -219,6 +227,7 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
                         .await?
                         .unwrap_or_default(),
                 );
+                drop(conn);
                 if l1_batch_number < state.l1_batch_number || l1_batch_number > max_l1_batch {
                     tracing::debug!(
                         %l1_batch_number,
@@ -228,11 +237,12 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
                     );
                     return Ok(None);
                 }
-                if let Some(storage_data) = state.storage.get(&l1_batch_number) {
-                    return Ok(Some(storage_data.batch_data.clone()));
-                }
-                drop(state);
-                tokio::time::sleep(Duration::from_millis(100)).await;
+                let Some(storage_data) = state.storage.get(&l1_batch_number) else {
+                    drop(state);
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    continue;
+                };
+                return Ok(Some(storage_data.batch_data.clone()));
             }
         } else {
             let mut conn = self.pool.connection_tagged(L::name()).await?;
