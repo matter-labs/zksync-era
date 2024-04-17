@@ -21,15 +21,15 @@ pin-project-lite.workspace = true
 zksync_types.workspace = true
 zksync_config.workspace = true
 async-trait.workspace = true
+futures.workspace = true
+serde_json.workspace = true
 tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
 vise.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true
-futures.workspace = true
 rand.workspace = true
-serde_json.workspace = true
 test-casing.workspace = true
 tokio = { workspace = true, features = ["rt", "test-util"] }
 

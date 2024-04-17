@@ -77,6 +77,7 @@ mod tests {
             block_commit_deadline_ms: 2500,
             miniblock_commit_deadline_ms: 1000,
             miniblock_seal_queue_capacity: 10,
+            miniblock_max_payload_size: 1_000_000,
             max_single_tx_gas: 1_000_000,
             max_allowed_l2_tx_gas_limit: 2_000_000_000,
             close_block_at_eth_params_percentage: 0.2,
@@ -123,6 +124,7 @@ mod tests {
             CHAIN_STATE_KEEPER_BLOCK_COMMIT_DEADLINE_MS="2500"
             CHAIN_STATE_KEEPER_MINIBLOCK_COMMIT_DEADLINE_MS="1000"
             CHAIN_STATE_KEEPER_MINIBLOCK_SEAL_QUEUE_CAPACITY="10"
+            CHAIN_STATE_KEEPER_MINIBLOCK_MAX_PAYLOAD_SIZE="1000000"
             CHAIN_STATE_KEEPER_MINIMAL_L2_GAS_PRICE="100000000"
             CHAIN_STATE_KEEPER_COMPUTE_OVERHEAD_PART="0.0"
             CHAIN_STATE_KEEPER_PUBDATA_OVERHEAD_PART="1.0"
