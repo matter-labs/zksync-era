@@ -52,7 +52,7 @@ The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be ac
 
 ### System Requirements
 
-This configuration is approximate and should be considered as *minimal* requirements.
+This configuration is approximate and should be considered as **minimal** requirements.
 
 - 32-core CPU
 - 64GB RAM
