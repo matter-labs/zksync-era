@@ -13,27 +13,6 @@ pub(crate) struct Args {
     verbose: bool,
 }
 
-fn pretty_print_job_status(
-    l1_batch_number: &L1BatchNumber,
-    statistics: &JobCountStatistics,
-    verbose: bool,
-) {
-    let total_jobs =
-        statistics.queued + statistics.in_progress + statistics.failed + statistics.successful;
-    let progress = (statistics.successful as f32 / total_jobs as f32) * 100.0;
-    println!("Batch number: {}", l1_batch_number);
-    println!(
-        "Progress: {:.2}% ({}/{})",
-        progress, statistics.successful, total_jobs
-    );
-    if verbose {
-        println!("In progress: {}", statistics.in_progress);
-        println!("Queued: {}", statistics.in_progress);
-        println!("Successful: {}", statistics.in_progress);
-    }
-    println!("Failed: {}", statistics.failed);
-}
-
 pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
 
@@ -60,4 +39,25 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
         println!("No batches found.")
     }
     Ok(())
+}
+
+fn pretty_print_job_status(
+    l1_batch_number: &L1BatchNumber,
+    statistics: &JobCountStatistics,
+    verbose: bool,
+) {
+    let total_jobs =
+        statistics.queued + statistics.in_progress + statistics.failed + statistics.successful;
+    let progress = (statistics.successful as f32 / total_jobs as f32) * 100.0;
+    println!("Batch number: {}", l1_batch_number);
+    println!(
+        "Progress: {:.2}% ({}/{})",
+        progress, statistics.successful, total_jobs
+    );
+    if verbose {
+        println!("In progress: {}", statistics.in_progress);
+        println!("Queued: {}", statistics.in_progress);
+        println!("Successful: {}", statistics.in_progress);
+    }
+    println!("Failed: {}", statistics.failed);
 }
