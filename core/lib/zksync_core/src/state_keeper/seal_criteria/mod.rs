@@ -81,25 +81,27 @@ pub struct SealData {
     pub(super) gas_count: BlockGasCount,
     pub(super) cumulative_size: usize,
     pub(super) writes_metrics: DeduplicatedWritesMetrics,
+    pub(super) gas_remaining: u32,
 }
 
 impl SealData {
     /// Creates sealing data based on the execution of a `transaction`. Assumes that all writes
     /// performed by the transaction are initial.
     pub(crate) fn for_transaction(
-        transaction: Transaction,
+        transaction: &Transaction,
         tx_metrics: &TransactionExecutionMetrics,
         protocol_version: ProtocolVersionId,
     ) -> Self {
         let execution_metrics = ExecutionMetrics::from_tx_metrics(tx_metrics);
         let writes_metrics = DeduplicatedWritesMetrics::from_tx_metrics(tx_metrics);
-        let gas_count = gas_count_from_tx_and_metrics(&transaction, &execution_metrics)
+        let gas_count = gas_count_from_tx_and_metrics(transaction, &execution_metrics)
             + gas_count_from_writes(&writes_metrics, protocol_version);
         Self {
             execution_metrics,
             gas_count,
             cumulative_size: transaction.bootloader_encoding_size(),
             writes_metrics,
+            gas_remaining: tx_metrics.gas_remaining,
         }
     }
 }

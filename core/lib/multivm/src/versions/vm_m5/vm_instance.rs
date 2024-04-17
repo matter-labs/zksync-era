@@ -128,6 +128,7 @@ pub struct VmExecutionResult {
     /// is executed, but it's not enforced. So best we can do is to calculate the amount of gas before and
     /// after the invocation, leaving the interpretation of this value to the user.
     pub gas_used: u32,
+    pub gas_remaining: u32,
     pub contracts_used: usize,
     pub revert_reason: Option<VmRevertReasonParsingResult>,
     pub trace: VmExecutionTrace,
@@ -228,7 +229,8 @@ fn vm_may_have_ended_inner<const B: bool, S: Storage>(
 fn vm_may_have_ended<S: Storage>(vm: &VmInstance<S>, gas_before: u32) -> Option<VmExecutionResult> {
     let basic_execution_result = vm_may_have_ended_inner(&vm.state)?;
 
-    let gas_used = gas_before - vm.gas_remaining();
+    let gas_remaining = vm.gas_remaining();
+    let gas_used = gas_before - gas_remaining;
 
     match basic_execution_result {
         NewVmExecutionResult::Ok(data) => {
@@ -241,6 +243,7 @@ fn vm_may_have_ended<S: Storage>(vm: &VmInstance<S>, gas_before: u32) -> Option<
                 l2_to_l1_logs: vec![],
                 return_data: data,
                 gas_used,
+                gas_remaining,
                 contracts_used: vm
                     .state
                     .decommittment_processor
@@ -279,6 +282,7 @@ fn vm_may_have_ended<S: Storage>(vm: &VmInstance<S>, gas_before: u32) -> Option<
                 l2_to_l1_logs: vec![],
                 return_data: vec![],
                 gas_used,
+                gas_remaining,
                 contracts_used: vm
                     .state
                     .decommittment_processor
@@ -300,6 +304,7 @@ fn vm_may_have_ended<S: Storage>(vm: &VmInstance<S>, gas_before: u32) -> Option<
             l2_to_l1_logs: vec![],
             return_data: vec![],
             gas_used,
+            gas_remaining,
             contracts_used: vm
                 .state
                 .decommittment_processor

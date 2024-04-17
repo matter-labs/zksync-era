@@ -12,7 +12,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use tokio::time;
 use zksync_config::ContractVerifierConfig;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
@@ -42,11 +42,11 @@ enum ConstructorArgs {
 #[derive(Debug)]
 pub struct ContractVerifier {
     config: ContractVerifierConfig,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Core>,
 }
 
 impl ContractVerifier {
-    pub fn new(config: ContractVerifierConfig, connection_pool: ConnectionPool) -> Self {
+    pub fn new(config: ContractVerifierConfig, connection_pool: ConnectionPool<Core>) -> Self {
         Self {
             config,
             connection_pool,
@@ -54,7 +54,7 @@ impl ContractVerifier {
     }
 
     async fn verify(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         mut request: VerificationRequest,
         config: ContractVerifierConfig,
     ) -> Result<VerificationInfo, ContractVerifierError> {
@@ -301,14 +301,21 @@ impl ContractVerifier {
                 };
                 let sources: HashMap<String, Source> =
                     vec![(file_name, source)].into_iter().collect();
-                let optimizer = Optimizer::new(request.req.optimization_used);
+                let optimizer = Optimizer {
+                    enabled: request.req.optimization_used,
+                    mode: request.req.optimizer_mode.and_then(|s| s.chars().next()),
+                };
+                let optimizer_value = serde_json::to_value(optimizer).unwrap();
 
                 let settings = Settings {
-                    libraries: None,
                     output_selection: Some(default_output_selection),
-                    optimizer,
                     is_system: request.req.is_system,
-                    metadata: None,
+                    force_evmla: request.req.force_evmla,
+                    other: serde_json::Value::Object(
+                        vec![("optimizer".to_string(), optimizer_value)]
+                            .into_iter()
+                            .collect(),
+                    ),
                 };
 
                 Ok(ZkSolcInput::StandardJson(StandardJson {
@@ -422,7 +429,7 @@ impl ContractVerifier {
     }
 
     async fn process_result(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         request_id: usize,
         verification_result: Result<VerificationInfo, ContractVerifierError>,
     ) {
@@ -464,7 +471,7 @@ impl JobProcessor for ContractVerifier {
     const BACKOFF_MULTIPLIER: u64 = 1;
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut connection = self.connection_pool.access_storage().await.unwrap();
+        let mut connection = self.connection_pool.connection().await.unwrap();
 
         // Time overhead for all operations except for compilation.
         const TIME_OVERHEAD: Duration = Duration::from_secs(10);
@@ -482,7 +489,7 @@ impl JobProcessor for ContractVerifier {
     }
 
     async fn save_failure(&self, job_id: usize, _started_at: Instant, error: String) {
-        let mut connection = self.connection_pool.access_storage().await.unwrap();
+        let mut connection = self.connection_pool.connection().await.unwrap();
 
         connection
             .contract_verification_dal()
@@ -499,6 +506,7 @@ impl JobProcessor for ContractVerifier {
     #[allow(clippy::async_yields_async)]
     async fn process_job(
         &self,
+        _job_id: &Self::JobId,
         job: VerificationRequest,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<()>> {
@@ -508,7 +516,7 @@ impl JobProcessor for ContractVerifier {
 
             let config: ContractVerifierConfig =
                 ContractVerifierConfig::from_env().context("ContractVerifierConfig")?;
-            let mut connection = connection_pool.access_storage().await.unwrap();
+            let mut connection = connection_pool.connection().await.unwrap();
 
             let job_id = job.id;
             let verification_result = Self::verify(&mut connection, job, config).await;

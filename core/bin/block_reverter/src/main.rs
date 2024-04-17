@@ -1,13 +1,15 @@
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
-use zksync_config::{ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, PostgresConfig};
-use zksync_core::block_reverter::{
-    BlockReverter, BlockReverterEthConfig, BlockReverterFlags, L1ExecutedBatchesRevert,
+use zksync_config::{
+    configs::ObservabilityConfig, ContractsConfig, DBConfig, EthConfig, PostgresConfig,
 };
-use zksync_dal::ConnectionPool;
+use zksync_core::block_reverter::{
+    BlockReverter, BlockReverterEthConfig, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole,
+};
+use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::FromEnv;
-use zksync_types::{L1BatchNumber, U256};
+use zksync_types::{Address, L1BatchNumber, U256};
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None)]
@@ -24,6 +26,9 @@ enum Command {
         /// Displays the values as a JSON object, so that they are machine-readable.
         #[arg(long)]
         json: bool,
+        /// Operator address.
+        #[arg(long = "operator-address")]
+        operator_address: Address,
     },
     /// Sends revert transaction to L1.
     #[command(name = "send-eth-transaction")]
@@ -68,32 +73,44 @@ enum Command {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let log_format = vlog::log_format_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let sentry_url = vlog::sentry_url_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let environment = vlog::environment_from_env();
+    let command = Cli::parse().command;
+    let observability_config =
+        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
+    let log_format: vlog::LogFormat = observability_config
+        .log_format
+        .parse()
+        .context("Invalid log format")?;
 
     let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = sentry_url {
+    if let Some(sentry_url) = observability_config.sentry_url {
         builder = builder
             .with_sentry_url(&sentry_url)
             .context("Invalid Sentry URL")?
-            .with_sentry_environment(environment);
+            .with_sentry_environment(observability_config.sentry_environment);
     }
     let _guard = builder.build();
 
-    let eth_sender = ETHSenderConfig::from_env().context("ETHSenderConfig::from_env()")?;
+    let eth_sender = EthConfig::from_env().context("EthConfig::from_env()")?;
     let db_config = DBConfig::from_env().context("DBConfig::from_env()")?;
-    let eth_client = ETHClientConfig::from_env().context("ETHClientConfig::from_env()")?;
-    let default_priority_fee_per_gas =
-        U256::from(eth_sender.gas_adjuster.default_priority_fee_per_gas);
+    let default_priority_fee_per_gas = U256::from(
+        eth_sender
+            .gas_adjuster
+            .context("gas_adjuster")?
+            .default_priority_fee_per_gas,
+    );
     let contracts = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let config = BlockReverterEthConfig::new(eth_sender, contracts, eth_client.web3_url.clone());
+    let operator_address = if let Command::Display {
+        operator_address, ..
+    } = &command
+    {
+        Some(operator_address)
+    } else {
+        None
+    };
+    let config = BlockReverterEthConfig::new(eth_sender, contracts, operator_address.copied());
 
-    let connection_pool = ConnectionPool::builder(
+    let connection_pool = ConnectionPool::<Core>::builder(
         postgres_config.master_url()?,
         postgres_config.max_connections()?,
     )
@@ -101,6 +118,7 @@ async fn main() -> anyhow::Result<()> {
     .await
     .context("failed to build a connection pool")?;
     let mut block_reverter = BlockReverter::new(
+        NodeRole::Main,
         db_config.state_keeper_db_path,
         db_config.merkle_tree.path,
         Some(config),
@@ -108,8 +126,8 @@ async fn main() -> anyhow::Result<()> {
         L1ExecutedBatchesRevert::Disallowed,
     );
 
-    match Cli::parse().command {
-        Command::Display { json } => {
+    match command {
+        Command::Display { json, .. } => {
             let suggested_values = block_reverter.suggested_values().await;
             if json {
                 println!("{}", serde_json::to_string(&suggested_values).unwrap());
@@ -179,6 +197,7 @@ async fn main() -> anyhow::Result<()> {
             if rollback_sk_cache {
                 flags |= BlockReverterFlags::SK_CACHE;
             }
+
             block_reverter
                 .rollback_db(L1BatchNumber(l1_batch_number), flags)
                 .await

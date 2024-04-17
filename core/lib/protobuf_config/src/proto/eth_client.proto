@@ -1,8 +1,0 @@
-syntax = "proto3";
-
-package zksync.config;
-
-message ETHClient {
-  optional uint64 chain_id = 1; // required; TODO: shouldn't it be Network?
-  optional string web3_url = 2; // required
-}

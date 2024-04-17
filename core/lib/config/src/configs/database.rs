@@ -133,9 +133,21 @@ pub struct PostgresConfig {
     pub prover_url: Option<String>,
     /// Maximum size of the connection pool.
     pub max_connections: Option<u32>,
+    /// Maximum size of the connection pool to master DB.
+    pub max_connections_master: Option<u32>,
+
+    /// Acquire timeout in seconds for a single connection attempt. There are multiple attempts (currently 3)
+    /// before acquire methods will return an error.
+    pub acquire_timeout_sec: Option<u64>,
     /// Statement timeout in seconds for Postgres connections. Applies only to the replica
     /// connection pool used by the API servers.
     pub statement_timeout_sec: Option<u64>,
+    /// Threshold in milliseconds for the DB connection lifetime to denote it as long-living and log its details.
+    pub long_connection_threshold_ms: Option<u64>,
+    /// Threshold in milliseconds to denote a DB query as "slow" and log its details.
+    pub slow_query_threshold_ms: Option<u64>,
+    pub test_server_url: Option<String>,
+    pub test_prover_url: Option<String>,
 }
 
 impl PostgresConfig {
@@ -165,8 +177,25 @@ impl PostgresConfig {
         self.max_connections.context("Max connections is absent")
     }
 
+    pub fn max_connections_master(&self) -> Option<u32> {
+        self.max_connections_master
+    }
+
     /// Returns the Postgres statement timeout.
     pub fn statement_timeout(&self) -> Option<Duration> {
         self.statement_timeout_sec.map(Duration::from_secs)
+    }
+
+    /// Returns the acquire timeout for a single connection attempt.
+    pub fn acquire_timeout(&self) -> Option<Duration> {
+        self.acquire_timeout_sec.map(Duration::from_secs)
+    }
+
+    pub fn long_connection_threshold(&self) -> Option<Duration> {
+        self.long_connection_threshold_ms.map(Duration::from_millis)
+    }
+
+    pub fn slow_query_threshold(&self) -> Option<Duration> {
+        self.slow_query_threshold_ms.map(Duration::from_millis)
     }
 }

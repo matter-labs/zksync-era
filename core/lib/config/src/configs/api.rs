@@ -1,7 +1,7 @@
 use std::{net::SocketAddr, num::NonZeroU32, time::Duration};
 
 use serde::Deserialize;
-use zksync_basic_types::H256;
+use zksync_basic_types::{Address, H256};
 
 pub use crate::configs::PrometheusConfig;
 
@@ -10,8 +10,6 @@ pub use crate::configs::PrometheusConfig;
 pub struct ApiConfig {
     /// Configuration options for the Web3 JSON RPC servers.
     pub web3_json_rpc: Web3JsonRpcConfig,
-    /// Configuration options for the REST servers.
-    pub contract_verification: ContractVerificationApiConfig,
     /// Configuration options for the Prometheus exporter.
     pub prometheus: PrometheusConfig,
     /// Configuration options for the Health check.
@@ -32,6 +30,16 @@ pub struct Web3JsonRpcConfig {
     pub ws_url: String,
     /// Max possible limit of entities to be requested once.
     pub req_entities_limit: Option<u32>,
+    /// Whether to support HTTP methods that install filters and query filter changes.
+    /// WS methods are unaffected.
+    ///
+    /// When to set this value to `true`:
+    /// Filters are local to the specific node they were created at. Meaning if
+    /// there are multiple nodes behind a load balancer the client cannot reliably
+    /// query the previously created filter as the request might get routed to a
+    /// different node.
+    #[serde(default)]
+    pub filters_disabled: bool,
     /// Max possible limit of filters to be in the state at once.
     pub filters_limit: Option<u32>,
     /// Max possible limit of subscriptions to be in the state at once.
@@ -51,14 +59,6 @@ pub struct Web3JsonRpcConfig {
     pub estimate_gas_scale_factor: f64,
     /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
     pub estimate_gas_acceptable_overestimation: u32,
-    /// Whether to use the compatibility mode for gas estimation for L1->L2 transactions.
-    /// During the migration to the 1.4.1 fee model, there will be a period, when the server
-    /// will already have the 1.4.1 fee model, while the L1 contracts will still expect the transactions
-    /// to use the previous fee model with much higher overhead.
-    ///
-    /// When set to `true`, the API will ensure to return gasLimit is high enough overhead for both the old
-    /// and the new fee model when estimating L1->L2 transactions.  
-    pub l1_to_l2_transactions_compatibility_mode: bool,
     ///  Max possible size of an ABI encoded tx (in bytes).
     pub max_tx_size: usize,
     /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the API server panics.
@@ -87,6 +87,15 @@ pub struct Web3JsonRpcConfig {
     pub websocket_requests_per_minute_limit: Option<NonZeroU32>,
     /// Tree API url, currently used to proxy `getProof` calls to the tree
     pub tree_api_url: Option<String>,
+    /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
+    /// In milliseconds. Default is 50 milliseconds.
+    pub mempool_cache_update_interval: Option<u64>,
+    /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
+    pub mempool_cache_size: Option<usize>,
+    /// List of L2 token addresses that are white-listed to use by paymasters
+    /// (additionally to natively bridged tokens).
+    #[serde(default)]
+    pub whitelisted_tokens_for_aa: Vec<Address>,
 }
 
 impl Web3JsonRpcConfig {
@@ -100,6 +109,7 @@ impl Web3JsonRpcConfig {
             ws_port: 3051,
             ws_url: "ws://localhost:3051".into(),
             req_entities_limit: Some(10000),
+            filters_disabled: false,
             filters_limit: Some(10000),
             subscriptions_limit: Some(10000),
             pubsub_polling_interval: Some(200),
@@ -109,7 +119,6 @@ impl Web3JsonRpcConfig {
             account_pks: Default::default(),
             estimate_gas_scale_factor: 1.2,
             estimate_gas_acceptable_overestimation: 1000,
-            l1_to_l2_transactions_compatibility_mode: true,
             max_tx_size: 1000000,
             vm_execution_cache_misses_limit: Default::default(),
             vm_concurrency_limit: Default::default(),
@@ -120,7 +129,10 @@ impl Web3JsonRpcConfig {
             max_batch_request_size: Default::default(),
             max_response_body_size_mb: Default::default(),
             websocket_requests_per_minute_limit: Default::default(),
+            mempool_cache_update_interval: Default::default(),
+            mempool_cache_size: Default::default(),
             tree_api_url: None,
+            whitelisted_tokens_for_aa: Default::default(),
         }
     }
 
@@ -197,8 +209,16 @@ impl Web3JsonRpcConfig {
             .unwrap_or(NonZeroU32::new(6000).unwrap())
     }
 
-    pub fn tree_api_url(&self) -> Option<String> {
-        self.tree_api_url.clone()
+    pub fn tree_api_url(&self) -> Option<&str> {
+        self.tree_api_url.as_deref()
+    }
+
+    pub fn mempool_cache_update_interval(&self) -> Duration {
+        Duration::from_millis(self.mempool_cache_update_interval.unwrap_or(50))
+    }
+
+    pub fn mempool_cache_size(&self) -> usize {
+        self.mempool_cache_size.unwrap_or(10_000)
     }
 }
 
@@ -206,11 +226,25 @@ impl Web3JsonRpcConfig {
 pub struct HealthCheckConfig {
     /// Port to which the REST server is listening.
     pub port: u16,
+    /// Time limit in milliseconds to mark a health check as slow and log the corresponding warning.
+    /// If not specified, the default value in the health check crate will be used.
+    pub slow_time_limit_ms: Option<u64>,
+    /// Time limit in milliseconds to abort a health check and return "not ready" status for the corresponding component.
+    /// If not specified, the default value in the health check crate will be used.
+    pub hard_time_limit_ms: Option<u64>,
 }
 
 impl HealthCheckConfig {
     pub fn bind_addr(&self) -> SocketAddr {
         SocketAddr::new("0.0.0.0".parse().unwrap(), self.port)
+    }
+
+    pub fn slow_time_limit(&self) -> Option<Duration> {
+        self.slow_time_limit_ms.map(Duration::from_millis)
+    }
+
+    pub fn hard_time_limit(&self) -> Option<Duration> {
+        self.hard_time_limit_ms.map(Duration::from_millis)
     }
 }
 

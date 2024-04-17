@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use multivm::interface::{VmExecutionResultAndLogs, VmMemoryMetrics};
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
+use zksync_shared_metrics::InteractionType;
 use zksync_state::StorageViewMetrics;
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
@@ -9,8 +10,6 @@ use zksync_types::{
     storage_writes_deduplicator::StorageWritesDeduplicator,
 };
 use zksync_utils::bytecode::bytecode_len_in_bytes;
-
-use crate::metrics::InteractionType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "type", rename_all = "snake_case")]
@@ -227,6 +226,7 @@ pub(super) fn collect_tx_execution_metrics(
         initial_storage_writes: writes_metrics.initial_storage_writes,
         repeated_storage_writes: writes_metrics.repeated_storage_writes,
         gas_used: result.statistics.gas_used as usize,
+        gas_remaining: result.statistics.gas_remaining,
         event_topics,
         published_bytecode_bytes,
         l2_l1_long_messages,

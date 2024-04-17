@@ -1,111 +1,23 @@
 version: '3.2'
 services:
-  create-beacon-chain-genesis:
-    image: "gcr.io/prysmaticlabs/prysm/cmd/prysmctl:HEAD-c6801d"
-    command:
-      - testnet
-      - generate-genesis
-      - --fork=deneb
-      - --num-validators=64
-      - --genesis-time-delay=5
-      - --output-ssz=/consensus/genesis.ssz
-      - --chain-config-file=/prysm/config.yml
-      - --geth-genesis-json-in=/geth/standard-dev.json
-      - --geth-genesis-json-out=/execution/genesis.json
+  reth:
+    restart: always
+    image: "ghcr.io/paradigmxyz/reth:v0.2.0-beta.2"
     volumes:
-      - ./docker/geth:/geth/:ro
-      - ./docker/prysm:/prysm/:ro
-      - ./volumes/geth:/execution
-      - ./volumes/prysm:/consensus
-  geth-genesis:
-    image: "ethereum/client-go:v1.13.5"
-    command: --datadir=/execution init /execution/genesis.json
-    volumes:
-      - ./volumes/geth:/execution
-    depends_on:
-      create-beacon-chain-genesis:
-        condition: service_completed_successfully
-  geth:
-    image: "ethereum/client-go:v1.13.5"
+      - type: bind
+        source: ./volumes/reth/data
+        target: /rethdata
+      - type: bind
+        source: ./etc/reth/chaindata
+        target: /chaindata
+
+    command: node --dev --datadir /rethdata --http --http.addr 0.0.0.0 --http.port 8545  --dev.block-time 300ms --chain /chaindata/reth_config
     ports:
-      - 8551:8551
-      - 8545:8545
-      - 8546:8546
-    volumes:
-      - ./volumes/geth:/var/lib/geth/data
-      - ./docker/geth/:/geth/:ro
-    command:
-      - --networkid=9
-      - --datadir=/var/lib/geth/data
-      - --http
-      - --http.api=engine,eth,web3,personal,net,debug
-      - --http.addr=0.0.0.0
-      - --http.corsdomain=*
-      - --http.vhosts=*
-      - --ws
-      - --ws.addr=0.0.0.0
-      - --ws.port=8546
-      - --ws.origins=*
-      - --nodiscover
-      - --authrpc.addr=0.0.0.0
-      - --authrpc.vhosts=*
-      - --authrpc.jwtsecret=/var/lib/geth/data/jwtsecret
-      - --allow-insecure-unlock
-      - --unlock=0x8a91dc2d28b689474298d91899f0c1baf62cb85b
-      - --password=/var/lib/geth/data/password.sec
-      - --syncmode=full
-    depends_on:
-      beacon:
-        condition: service_started
-      geth-genesis:
-        condition: service_completed_successfully
-  beacon:
-    image: "gcr.io/prysmaticlabs/prysm/beacon-chain:HEAD-c6801d"
-    command:
-      - --datadir=/consensus/beacon/
-      - --min-sync-peers=0
-      - --genesis-state=/consensus/genesis.ssz
-      - --bootstrap-node=
-      - --interop-eth1data-votes
-      - --chain-config-file=/consensus/config.yml
-      - --contract-deployment-block=0
-      - --chain-id=9
-      - --rpc-host=0.0.0.0
-      - --grpc-gateway-host=0.0.0.0
-      - --execution-endpoint=http://geth:8551
-      - --accept-terms-of-use
-      - --jwt-secret=/execution/jwtsecret
-      - --suggested-fee-recipient=0x8a91dc2d28b689474298d91899f0c1baf62cb85b
-      - --minimum-peers-per-subnet=0
-      - --enable-debug-rpc-endpoints
-    ports:
-      - 4000:4000
-      - 3500:3500
-      - 8080:8080
-      - 6060:6060
-      - 9090:9090
-    volumes:
-      - ./volumes/prysm:/consensus
-      - ./volumes/geth:/execution
-    depends_on:
-      create-beacon-chain-genesis:
-        condition: service_completed_successfully
-  validator:
-    image: "gcr.io/prysmaticlabs/prysm/validator:HEAD-c6801d"
-    command:
-      - --beacon-rpc-provider=beacon:4000
-      - --datadir=/consensus/validatordata
-      - --accept-terms-of-use
-      - --interop-num-validators=64
-      - --interop-start-index=0
-      - --chain-config-file=/consensus/config.yml
-    depends_on:
-      beacon:
-        condition: service_started
-    volumes:
-      - ./volumes/prysm:/consensus
+      - 127.0.0.1:8545:8545
+
   postgres:
     image: "postgres:14"
+    command: postgres -c 'max_connections=200'
     ports:
       - 127.0.0.1:5432:5432
     volumes:
@@ -113,7 +25,8 @@ services:
         source: ./volumes/postgres
         target: /var/lib/postgresql/data
     environment:
-      - POSTGRES_HOST_AUTH_METHOD=trust
+      # We bind only to 127.0.0.1, so setting insecure password is acceptable here
+      - POSTGRES_PASSWORD=notsecurepassword
 
   # This is specific to runner
   zk:

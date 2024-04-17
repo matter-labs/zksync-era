@@ -1,21 +1,19 @@
-use std::ops;
+use std::collections::HashMap;
 
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, storage_key_for_standard_token_balance},
-    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey,
+    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, Nonce, StorageKey,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
 };
 use zksync_utils::h256_to_u256;
 
-use crate::{
-    instrument::InstrumentExt, models::storage_block::ResolvedL1BatchForMiniblock, SqlxError,
-    StorageProcessor,
-};
+use crate::{models::storage_block::ResolvedL1BatchForMiniblock, Core, CoreDal};
 
 #[derive(Debug)]
 pub struct StorageWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl StorageWeb3Dal<'_, '_> {
@@ -23,7 +21,7 @@ impl StorageWeb3Dal<'_, '_> {
         &mut self,
         address: Address,
         block_number: MiniblockNumber,
-    ) -> Result<U256, SqlxError> {
+    ) -> DalResult<U256> {
         let nonce_key = get_nonce_key(&address);
         let nonce_value = self
             .get_historical_value_unchecked(&nonce_key, block_number)
@@ -32,17 +30,61 @@ impl StorageWeb3Dal<'_, '_> {
         Ok(decompose_full_nonce(full_nonce).0)
     }
 
+    /// Returns the current *stored* nonces (i.e., w/o accounting for pending transactions) for the specified accounts.
+    pub async fn get_nonces_for_addresses(
+        &mut self,
+        addresses: &[Address],
+    ) -> DalResult<HashMap<Address, Nonce>> {
+        let nonce_keys: HashMap<_, _> = addresses
+            .iter()
+            .map(|address| (get_nonce_key(address).hashed_key(), *address))
+            .collect();
+
+        let res = self
+            .get_values(&nonce_keys.keys().copied().collect::<Vec<_>>())
+            .await?
+            .into_iter()
+            .filter_map(|(hashed_key, value)| {
+                let address = nonce_keys.get(&hashed_key)?;
+                let full_nonce = h256_to_u256(value);
+                let (nonce, _) = decompose_full_nonce(full_nonce);
+                Some((*address, Nonce(nonce.as_u32())))
+            })
+            .collect();
+        Ok(res)
+    }
+
     pub async fn standard_token_historical_balance(
         &mut self,
         token_id: AccountTreeId,
         account_id: AccountTreeId,
         block_number: MiniblockNumber,
-    ) -> Result<U256, SqlxError> {
+    ) -> DalResult<U256> {
         let key = storage_key_for_standard_token_balance(token_id, account_id.address());
         let balance = self
             .get_historical_value_unchecked(&key, block_number)
             .await?;
         Ok(h256_to_u256(balance))
+    }
+
+    /// Gets the current value for the specified `key`.
+    pub async fn get_value(&mut self, key: &StorageKey) -> DalResult<H256> {
+        self.get_historical_value_unchecked(key, MiniblockNumber(u32::MAX))
+            .await
+    }
+
+    /// Gets the current values for the specified `hashed_keys`. The returned map has requested hashed keys as keys
+    /// and current storage values as values.
+    pub async fn get_values(&mut self, hashed_keys: &[H256]) -> DalResult<HashMap<H256, H256>> {
+        let storage_map = self
+            .storage
+            .storage_logs_dal()
+            .get_storage_values(hashed_keys, MiniblockNumber(u32::MAX))
+            .await?;
+        Ok(storage_map
+            .into_iter()
+            .map(|(key, value)| (key, value.unwrap_or_default()))
+            .collect())
     }
 
     /// This method does not check if a block with this number exists in the database.
@@ -51,42 +93,38 @@ impl StorageWeb3Dal<'_, '_> {
         &mut self,
         key: &StorageKey,
         block_number: MiniblockNumber,
-    ) -> Result<H256, SqlxError> {
-        {
-            // We need to proper distinguish if the value is zero or None
-            // for the VM to correctly determine initial writes.
-            // So, we accept that the value is None if it's zero and it wasn't initially written at the moment.
-            let hashed_key = key.hashed_key();
+    ) -> DalResult<H256> {
+        let hashed_key = key.hashed_key();
 
-            sqlx::query!(
-                r#"
-                SELECT
-                    value
-                FROM
-                    storage_logs
-                WHERE
-                    storage_logs.hashed_key = $1
-                    AND storage_logs.miniblock_number <= $2
-                ORDER BY
-                    storage_logs.miniblock_number DESC,
-                    storage_logs.operation_number DESC
-                LIMIT
-                    1
-                "#,
-                hashed_key.as_bytes(),
-                block_number.0 as i64
-            )
-            .instrument("get_historical_value_unchecked")
-            .report_latency()
-            .with_arg("key", &hashed_key)
-            .fetch_optional(self.storage.conn())
-            .await
-            .map(|option_row| {
-                option_row
-                    .map(|row| H256::from_slice(&row.value))
-                    .unwrap_or_else(H256::zero)
-            })
-        }
+        sqlx::query!(
+            r#"
+            SELECT
+                value
+            FROM
+                storage_logs
+            WHERE
+                storage_logs.hashed_key = $1
+                AND storage_logs.miniblock_number <= $2
+            ORDER BY
+                storage_logs.miniblock_number DESC,
+                storage_logs.operation_number DESC
+            LIMIT
+                1
+            "#,
+            hashed_key.as_bytes(),
+            i64::from(block_number.0)
+        )
+        .instrument("get_historical_value_unchecked")
+        .report_latency()
+        .with_arg("key", &hashed_key)
+        .with_arg("block_number", &block_number)
+        .fetch_optional(self.storage)
+        .await
+        .map(|option_row| {
+            option_row
+                .map(|row| H256::from_slice(&row.value))
+                .unwrap_or_else(H256::zero)
+        })
     }
 
     /// Provides information about the L1 batch that the specified miniblock is a part of.
@@ -95,7 +133,7 @@ impl StorageWeb3Dal<'_, '_> {
     pub async fn resolve_l1_batch_number_of_miniblock(
         &mut self,
         miniblock_number: MiniblockNumber,
-    ) -> Result<ResolvedL1BatchForMiniblock, SqlxError> {
+    ) -> DalResult<ResolvedL1BatchForMiniblock> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -123,9 +161,11 @@ impl StorageWeb3Dal<'_, '_> {
                     0
                 ) AS "pending_batch!"
             "#,
-            miniblock_number.0 as i64
+            i64::from(miniblock_number.0)
         )
-        .fetch_one(self.storage.conn())
+        .instrument("resolve_l1_batch_number_of_miniblock")
+        .with_arg("miniblock_number", &miniblock_number)
+        .fetch_one(self.storage)
         .await?;
 
         Ok(ResolvedL1BatchForMiniblock {
@@ -137,7 +177,7 @@ impl StorageWeb3Dal<'_, '_> {
     pub async fn get_l1_batch_number_for_initial_write(
         &mut self,
         key: &StorageKey,
-    ) -> Result<Option<L1BatchNumber>, SqlxError> {
+    ) -> DalResult<Option<L1BatchNumber>> {
         let hashed_key = key.hashed_key();
         let row = sqlx::query!(
             r#"
@@ -153,36 +193,11 @@ impl StorageWeb3Dal<'_, '_> {
         .instrument("get_l1_batch_number_for_initial_write")
         .report_latency()
         .with_arg("key", &hashed_key)
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage)
         .await?;
 
         let l1_batch_number = row.map(|record| L1BatchNumber(record.l1_batch_number as u32));
         Ok(l1_batch_number)
-    }
-
-    /// Returns distinct hashed storage keys that were modified in the specified miniblock range.
-    pub async fn modified_keys_in_miniblocks(
-        &mut self,
-        miniblock_numbers: ops::RangeInclusive<MiniblockNumber>,
-    ) -> Vec<H256> {
-        sqlx::query!(
-            r#"
-            SELECT DISTINCT
-                hashed_key
-            FROM
-                storage_logs
-            WHERE
-                miniblock_number BETWEEN $1 AND $2
-            "#,
-            miniblock_numbers.start().0 as i64,
-            miniblock_numbers.end().0 as i64
-        )
-        .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|row| H256::from_slice(&row.hashed_key))
-        .collect()
     }
 
     /// This method doesn't check if block with number equals to `block_number`
@@ -191,86 +206,87 @@ impl StorageWeb3Dal<'_, '_> {
         &mut self,
         address: Address,
         block_number: MiniblockNumber,
-    ) -> Result<Option<Vec<u8>>, SqlxError> {
+    ) -> DalResult<Option<Vec<u8>>> {
         let hashed_key = get_code_key(&address).hashed_key();
-        {
-            sqlx::query!(
-                r#"
-                SELECT
-                    bytecode
-                FROM
-                    (
-                        SELECT
-                            *
-                        FROM
-                            storage_logs
-                        WHERE
-                            storage_logs.hashed_key = $1
-                            AND storage_logs.miniblock_number <= $2
-                        ORDER BY
-                            storage_logs.miniblock_number DESC,
-                            storage_logs.operation_number DESC
-                        LIMIT
-                            1
-                    ) t
-                    JOIN factory_deps ON value = factory_deps.bytecode_hash
-                WHERE
-                    value != $3
-                "#,
-                hashed_key.as_bytes(),
-                block_number.0 as i64,
-                FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
-            )
-            .fetch_optional(self.storage.conn())
-            .await
-            .map(|option_row| option_row.map(|row| row.bytecode))
-        }
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                bytecode
+            FROM
+                (
+                    SELECT
+                        *
+                    FROM
+                        storage_logs
+                    WHERE
+                        storage_logs.hashed_key = $1
+                        AND storage_logs.miniblock_number <= $2
+                    ORDER BY
+                        storage_logs.miniblock_number DESC,
+                        storage_logs.operation_number DESC
+                    LIMIT
+                        1
+                ) t
+                JOIN factory_deps ON value = factory_deps.bytecode_hash
+            WHERE
+                value != $3
+            "#,
+            hashed_key.as_bytes(),
+            i64::from(block_number.0),
+            FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
+        )
+        .instrument("get_contract_code_unchecked")
+        .with_arg("address", &address)
+        .with_arg("block_number", &block_number)
+        .fetch_optional(self.storage)
+        .await?;
+        Ok(row.map(|row| row.bytecode))
     }
 
-    /// This method doesn't check if block with number equals to `block_number`
-    /// is present in the database. For such blocks `None` will be returned.
-    pub async fn get_factory_dep_unchecked(
+    /// Given bytecode hash, returns `bytecode` and `miniblock_number` at which it was inserted.
+    pub async fn get_factory_dep(
         &mut self,
         hash: H256,
-        block_number: MiniblockNumber,
-    ) -> Result<Option<Vec<u8>>, SqlxError> {
-        {
-            sqlx::query!(
-                r#"
-                SELECT
-                    bytecode
-                FROM
-                    factory_deps
-                WHERE
-                    bytecode_hash = $1
-                    AND miniblock_number <= $2
-                "#,
-                hash.as_bytes(),
-                block_number.0 as i64
-            )
-            .fetch_optional(self.storage.conn())
-            .await
-            .map(|option_row| option_row.map(|row| row.bytecode))
-        }
+    ) -> DalResult<Option<(Vec<u8>, MiniblockNumber)>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                bytecode,
+                miniblock_number
+            FROM
+                factory_deps
+            WHERE
+                bytecode_hash = $1
+            "#,
+            hash.as_bytes(),
+        )
+        .instrument("get_factory_dep")
+        .with_arg("hash", &hash)
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| (row.bytecode, MiniblockNumber(row.miniblock_number as u32))))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{
-        block::L1BatchHeader, snapshots::SnapshotRecoveryStatus, ProtocolVersion, ProtocolVersionId,
-    };
+    use zksync_types::{block::L1BatchHeader, ProtocolVersion, ProtocolVersionId};
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool};
+    use crate::{
+        tests::{create_miniblock_header, create_snapshot_recovery},
+        ConnectionPool, Core, CoreDal,
+    };
 
     #[tokio::test]
     async fn resolving_l1_batch_number_of_miniblock() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
             .await
@@ -333,18 +349,13 @@ mod tests {
 
     #[tokio::test]
     async fn resolving_l1_batch_number_of_miniblock_with_snapshot_recovery() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
-        let snapshot_recovery = SnapshotRecoveryStatus {
-            l1_batch_number: L1BatchNumber(23),
-            l1_batch_root_hash: H256::zero(),
-            miniblock_number: MiniblockNumber(42),
-            miniblock_root_hash: H256::zero(),
-            storage_logs_chunks_processed: vec![true; 100],
-        };
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+        let snapshot_recovery = create_snapshot_recovery();
         conn.snapshot_recovery_dal()
             .insert_initial_recovery_status(&snapshot_recovery)
             .await

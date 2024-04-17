@@ -81,14 +81,15 @@ describe('Tests for the mempool behavior', () => {
             nonce: startNonce + 1,
             to: bob.address
         });
-        // First transaction should disappear from the server.
-        await expect(alice.provider.getTransaction(tx2.hash)).resolves.toBeNull();
 
         // Now fill the gap and see what gets executed
         await sendTxWithNonce(alice, startNonce).then((tx) => tx.wait());
         const replacedReceipt = await replacedTx2.wait();
 
         expect(replacedReceipt.to).toEqual(bob.address);
+
+        // First transaction should disappear from the server.
+        await expect(alice.provider.getTransaction(tx2.hash)).resolves.toBeNull();
     });
 
     test('Should reject a pre-sent transaction with not enough balance', async () => {

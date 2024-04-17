@@ -5,7 +5,7 @@ use std::fmt;
 use assert_matches::assert_matches;
 use tempfile::TempDir;
 use test_casing::test_casing;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_types::{MiniblockNumber, StorageLog};
 
 use super::*;
@@ -41,7 +41,7 @@ impl Default for RocksdbStorageEventListener {
 #[tokio::test]
 async fn rocksdb_storage_basics() {
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path().to_path_buf()).await.unwrap();
+    let mut storage = RocksdbStorage::new(dir.path().into()).await.unwrap();
     let mut storage_logs: HashMap<_, _> = gen_storage_logs(0..20)
         .into_iter()
         .map(|log| (log.key, log.value))
@@ -76,11 +76,12 @@ async fn rocksdb_storage_basics() {
     }
 }
 
-async fn sync_test_storage(dir: &TempDir, conn: &mut StorageProcessor<'_>) -> RocksdbStorage {
+async fn sync_test_storage(dir: &TempDir, conn: &mut Connection<'_, Core>) -> RocksdbStorage {
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    RocksdbStorage::builder(dir.path())
+    let builder = RocksdbStorage::builder(dir.path())
         .await
-        .expect("Failed initializing RocksDB")
+        .expect("Failed initializing RocksDB");
+    builder
         .synchronize(conn, &stop_receiver)
         .await
         .unwrap()
@@ -89,8 +90,8 @@ async fn sync_test_storage(dir: &TempDir, conn: &mut StorageProcessor<'_>) -> Ro
 
 #[tokio::test]
 async fn rocksdb_storage_syncing_with_postgres() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut conn = pool.connection().await.unwrap();
     prepare_postgres(&mut conn).await;
     let storage_logs = gen_storage_logs(20..40);
     create_miniblock(&mut conn, MiniblockNumber(1), storage_logs.clone()).await;
@@ -107,8 +108,8 @@ async fn rocksdb_storage_syncing_with_postgres() {
 
 #[tokio::test]
 async fn rocksdb_storage_syncing_fault_tolerance() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut conn = pool.connection().await.unwrap();
     prepare_postgres(&mut conn).await;
     let storage_logs = gen_storage_logs(100..200);
     for (i, block_logs) in storage_logs.chunks(20).enumerate() {
@@ -156,14 +157,14 @@ async fn rocksdb_storage_syncing_fault_tolerance() {
 }
 
 async fn insert_factory_deps(
-    conn: &mut StorageProcessor<'_>,
+    conn: &mut Connection<'_, Core>,
     miniblock_number: MiniblockNumber,
     indices: impl Iterator<Item = u8>,
 ) {
     let factory_deps = indices
         .map(|i| (H256::repeat_byte(i), vec![i; 64]))
         .collect();
-    conn.storage_dal()
+    conn.factory_deps_dal()
         .insert_factory_deps(miniblock_number, &factory_deps)
         .await
         .unwrap();
@@ -171,8 +172,8 @@ async fn insert_factory_deps(
 
 #[tokio::test]
 async fn rocksdb_storage_revert() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut conn = pool.connection().await.unwrap();
     prepare_postgres(&mut conn).await;
     let storage_logs = gen_storage_logs(20..40);
     create_miniblock(&mut conn, MiniblockNumber(1), storage_logs[..10].to_vec()).await;
@@ -242,8 +243,8 @@ async fn rocksdb_storage_revert() {
 
 #[tokio::test]
 async fn rocksdb_enum_index_migration() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut conn = pool.connection().await.unwrap();
     prepare_postgres(&mut conn).await;
     let storage_logs = gen_storage_logs(20..40);
     create_miniblock(&mut conn, MiniblockNumber(1), storage_logs.clone()).await;
@@ -253,6 +254,7 @@ async fn rocksdb_enum_index_migration() {
         .storage_logs_dedup_dal()
         .initial_writes_for_batch(L1BatchNumber(1))
         .await
+        .unwrap()
         .into_iter()
         .collect();
 
@@ -326,13 +328,13 @@ async fn rocksdb_enum_index_migration() {
 #[test_casing(4, [RocksdbStorage::DESIRED_LOG_CHUNK_SIZE, 20, 5, 1])]
 #[tokio::test]
 async fn low_level_snapshot_recovery(log_chunk_size: u64) {
-    let pool = ConnectionPool::test_pool().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut conn = pool.connection().await.unwrap();
     let (snapshot_recovery, mut storage_logs) =
         prepare_postgres_for_snapshot_recovery(&mut conn).await;
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path().to_path_buf()).await.unwrap();
+    let mut storage = RocksdbStorage::new(dir.path().into()).await.unwrap();
     let (_stop_sender, stop_receiver) = watch::channel(false);
     let next_l1_batch = storage
         .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
@@ -358,8 +360,8 @@ async fn low_level_snapshot_recovery(log_chunk_size: u64) {
 
 #[tokio::test]
 async fn recovering_factory_deps_from_snapshot() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut conn = pool.connection().await.unwrap();
     let (snapshot_recovery, _) = prepare_postgres_for_snapshot_recovery(&mut conn).await;
 
     let mut all_factory_deps = HashMap::new();
@@ -369,9 +371,7 @@ async fn recovering_factory_deps_from_snapshot() {
         all_factory_deps.insert(bytecode_hash, bytecode.clone());
 
         let number = MiniblockNumber(number);
-        // FIXME (PLA-589): don't store miniblocks once the corresponding foreign keys are removed
-        create_miniblock(&mut conn, number, vec![]).await;
-        conn.storage_dal()
+        conn.factory_deps_dal()
             .insert_factory_deps(number, &HashMap::from([(bytecode_hash, bytecode)]))
             .await
             .unwrap();
@@ -387,8 +387,8 @@ async fn recovering_factory_deps_from_snapshot() {
 
 #[tokio::test]
 async fn recovering_from_snapshot_and_following_logs() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut conn = pool.connection().await.unwrap();
     let (snapshot_recovery, mut storage_logs) =
         prepare_postgres_for_snapshot_recovery(&mut conn).await;
 
@@ -454,13 +454,13 @@ async fn recovering_from_snapshot_and_following_logs() {
 
 #[tokio::test]
 async fn recovery_fault_tolerance() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut conn = pool.connection().await.unwrap();
     let (_, storage_logs) = prepare_postgres_for_snapshot_recovery(&mut conn).await;
     let log_chunk_size = storage_logs.len() as u64 / 5;
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path().to_path_buf()).await.unwrap();
+    let mut storage = RocksdbStorage::new(dir.path().into()).await.unwrap();
     let (stop_sender, stop_receiver) = watch::channel(false);
     let mut synced_chunk_count = 0_u64;
     storage.listener.on_logs_chunk_recovered = Box::new(move |chunk_id| {
@@ -480,7 +480,7 @@ async fn recovery_fault_tolerance() {
 
     // Resume recovery and check that no chunks are recovered twice.
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    let mut storage = RocksdbStorage::new(dir.path().to_path_buf()).await.unwrap();
+    let mut storage = RocksdbStorage::new(dir.path().into()).await.unwrap();
     storage.listener.on_logs_chunk_recovered = Box::new(|chunk_id| {
         assert!(chunk_id >= 2);
     });

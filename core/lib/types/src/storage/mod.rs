@@ -15,7 +15,8 @@ pub use zksync_system_constants::*;
 use zksync_utils::address_to_h256;
 
 /// Typed fully qualified key of the storage slot in global state tree.
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Serialize, Deserialize)]
 pub struct StorageKey {
     account: AccountTreeId,
     key: H256,

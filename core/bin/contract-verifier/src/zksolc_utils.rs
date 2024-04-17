@@ -34,38 +34,23 @@ pub struct Source {
     pub content: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub enum MetadataHash {
-    /// Do not include bytecode hash.
-    #[serde(rename = "none")]
-    None,
-}
-
-#[derive(Debug, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Metadata {
-    /// The bytecode hash mode.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub bytecode_hash: Option<MetadataHash>,
-}
-
+/// Compiler settings.
+/// There are fields like `output_selection`, `is_system`, `force_evmla` which are accessed by contract verifier explicitly.
+/// Other fields are accumulated in `other`, this way every field that was in the original request will be passed to a compiler.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
-    /// The linker library addresses.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub libraries: Option<HashMap<String, HashMap<String, String>>>,
     /// The output selection filters.
     pub output_selection: Option<serde_json::Value>,
-    /// The optimizer settings.
-    #[serde(default)]
-    pub optimizer: Optimizer,
-    /// The metadata settings.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<Metadata>,
     /// Flag for system compilation mode.
     #[serde(default)]
     pub is_system: bool,
+    /// Flag to force `evmla` IR.
+    #[serde(default)]
+    pub force_evmla: bool,
+    /// Other fields.
+    #[serde(flatten)]
+    pub other: serde_json::Value,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -120,6 +105,9 @@ impl ZkSolc {
         if let ZkSolcInput::StandardJson(input) = &input {
             if input.settings.is_system {
                 command.arg("--system-mode");
+            }
+            if input.settings.force_evmla {
+                command.arg("--force-evmla");
             }
         }
         command

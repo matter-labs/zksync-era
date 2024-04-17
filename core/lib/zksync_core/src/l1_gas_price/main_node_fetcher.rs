@@ -6,8 +6,7 @@ use std::{
 use tokio::sync::watch::Receiver;
 use zksync_types::fee_model::FeeParams;
 use zksync_web3_decl::{
-    jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
-    namespaces::ZksNamespaceClient,
+    client::BoxedL2Client, error::ClientRpcContext, namespaces::ZksNamespaceClient,
 };
 
 use crate::fee_model::BatchFeeModelInputProvider;
@@ -22,44 +21,50 @@ const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 /// since it relies on the configuration, which may change.
 #[derive(Debug)]
 pub struct MainNodeFeeParamsFetcher {
-    client: HttpClient,
+    client: BoxedL2Client,
     main_node_fee_params: RwLock<FeeParams>,
 }
 
 impl MainNodeFeeParamsFetcher {
-    pub fn new(main_node_url: &str) -> Self {
+    pub fn new(client: BoxedL2Client) -> Self {
         Self {
-            client: Self::build_client(main_node_url),
+            client: client.for_component("fee_params_fetcher"),
             main_node_fee_params: RwLock::new(FeeParams::sensible_v1_default()),
         }
     }
 
-    fn build_client(main_node_url: &str) -> HttpClient {
-        HttpClientBuilder::default()
-            .build(main_node_url)
-            .expect("Unable to create a main node client")
-    }
-
-    pub async fn run(self: Arc<Self>, stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
-        loop {
-            if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, MainNodeFeeParamsFetcher is shutting down");
-                break;
-            }
-
-            let main_node_fee_params = match self.client.get_fee_params().await {
+    pub async fn run(self: Arc<Self>, mut stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
+        while !*stop_receiver.borrow_and_update() {
+            let fetch_result = self
+                .client
+                .get_fee_params()
+                .rpc_context("get_fee_params")
+                .await;
+            let main_node_fee_params = match fetch_result {
                 Ok(price) => price,
                 Err(err) => {
                     tracing::warn!("Unable to get the gas price: {}", err);
                     // A delay to avoid spamming the main node with requests.
-                    tokio::time::sleep(SLEEP_INTERVAL).await;
+                    if tokio::time::timeout(SLEEP_INTERVAL, stop_receiver.changed())
+                        .await
+                        .is_ok()
+                    {
+                        break;
+                    }
                     continue;
                 }
             };
             *self.main_node_fee_params.write().unwrap() = main_node_fee_params;
 
-            tokio::time::sleep(SLEEP_INTERVAL).await;
+            if tokio::time::timeout(SLEEP_INTERVAL, stop_receiver.changed())
+                .await
+                .is_ok()
+            {
+                break;
+            }
         }
+
+        tracing::info!("Stop signal received, MainNodeFeeParamsFetcher is shutting down");
         Ok(())
     }
 }

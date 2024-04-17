@@ -1,16 +1,13 @@
 use tokio::sync::mpsc;
-use zksync_types::{Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction};
+use zksync_types::{L1BatchNumber, MiniblockNumber};
 
-use super::metrics::QUEUE_METRICS;
+use super::{fetcher::FetchedTransaction, metrics::QUEUE_METRICS};
+use crate::state_keeper::io::{L1BatchParams, MiniblockParams};
 
 #[derive(Debug)]
 pub struct ActionQueueSender(mpsc::Sender<SyncAction>);
 
 impl ActionQueueSender {
-    pub(crate) fn has_action_capacity(&self) -> bool {
-        self.0.capacity() > 0
-    }
-
     /// Pushes a set of actions to the queue.
     ///
     /// Requires that the actions are in the correct order: starts with a new open batch/miniblock,
@@ -51,7 +48,7 @@ impl ActionQueueSender {
                         return Err(format!("Unexpected Tx: {:?}", actions));
                     }
                 }
-                SyncAction::SealMiniblock | SyncAction::SealBatch { .. } => {
+                SyncAction::SealMiniblock | SyncAction::SealBatch => {
                     if !opened || miniblock_sealed {
                         return Err(format!("Unexpected SealMiniblock/SealBatch: {:?}", actions));
                     }
@@ -93,22 +90,24 @@ impl ActionQueue {
             QUEUE_METRICS.action_queue_size.dec_by(1);
             return Some(peeked);
         }
-        let action = self.receiver.try_recv().ok();
-        if action.is_some() {
-            QUEUE_METRICS.action_queue_size.dec_by(1);
-        }
-        action
+        let action = self.receiver.try_recv().ok()?;
+        QUEUE_METRICS.action_queue_size.dec_by(1);
+        Some(action)
     }
 
-    #[cfg(test)]
-    pub(super) async fn recv_action(&mut self) -> SyncAction {
-        if let Some(peeked) = self.peeked.take() {
-            return peeked;
+    /// Removes the first action from the queue.
+    pub(super) async fn recv_action(
+        &mut self,
+        max_wait: tokio::time::Duration,
+    ) -> Option<SyncAction> {
+        if let Some(action) = self.pop_action() {
+            return Some(action);
         }
-        self.receiver
-            .recv()
+        let action = tokio::time::timeout(max_wait, self.receiver.recv())
             .await
-            .expect("actions sender was dropped prematurely")
+            .ok()??;
+        QUEUE_METRICS.action_queue_size.dec_by(1);
+        Some(action)
     }
 
     /// Returns the first action from the queue without removing it.
@@ -119,70 +118,82 @@ impl ActionQueue {
         self.peeked = self.receiver.try_recv().ok();
         self.peeked.clone()
     }
+
+    /// Returns the first action from the queue without removing it.
+    pub(super) async fn peek_action_async(
+        &mut self,
+        max_wait: tokio::time::Duration,
+    ) -> Option<SyncAction> {
+        if let Some(action) = &self.peeked {
+            return Some(action.clone());
+        }
+        self.peeked = tokio::time::timeout(max_wait, self.receiver.recv())
+            .await
+            .ok()?;
+        self.peeked.clone()
+    }
 }
 
 /// An instruction for the ExternalIO to request a certain action from the state keeper.
 #[derive(Debug, Clone)]
 pub(crate) enum SyncAction {
     OpenBatch {
+        params: L1BatchParams,
+        // Additional parameters used only for sanity checks
         number: L1BatchNumber,
-        timestamp: u64,
-        l1_gas_price: u64,
-        l2_fair_gas_price: u64,
-        fair_pubdata_price: Option<u64>,
-        operator_address: Address,
-        protocol_version: ProtocolVersionId,
-        // Miniblock number and virtual blocks count.
-        first_miniblock_info: (MiniblockNumber, u32),
+        first_miniblock_number: MiniblockNumber,
     },
     Miniblock {
+        params: MiniblockParams,
+        // Additional parameters used only for sanity checks
         number: MiniblockNumber,
-        timestamp: u64,
-        virtual_blocks: u32,
     },
-    Tx(Box<Transaction>),
+    Tx(Box<FetchedTransaction>),
     /// We need an explicit action for the miniblock sealing, since we fetch the whole miniblocks and already know
     /// that they are sealed, but at the same time the next miniblock may not exist yet.
     /// By having a dedicated action for that we prevent a situation where the miniblock is kept open on the EN until
     /// the next one is sealed on the main node.
     SealMiniblock,
     /// Similarly to `SealMiniblock` we must be able to seal the batch even if there is no next miniblock yet.
-    SealBatch {
-        /// Virtual blocks count for the fictive miniblock.
-        virtual_blocks: u32,
-    },
+    SealBatch,
 }
 
-impl From<Transaction> for SyncAction {
-    fn from(tx: Transaction) -> Self {
+impl From<FetchedTransaction> for SyncAction {
+    fn from(tx: FetchedTransaction) -> Self {
         Self::Tx(Box::new(tx))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{l2::L2Tx, H256};
+    use zksync_types::{fee_model::BatchFeeInput, l2::L2Tx, Address, ProtocolVersionId, H256};
 
     use super::*;
 
     fn open_batch() -> SyncAction {
         SyncAction::OpenBatch {
-            number: 1.into(),
-            timestamp: 1,
-            l1_gas_price: 1,
-            l2_fair_gas_price: 1,
-            fair_pubdata_price: Some(1),
-            operator_address: Default::default(),
-            protocol_version: ProtocolVersionId::latest(),
-            first_miniblock_info: (1.into(), 1),
+            params: L1BatchParams {
+                protocol_version: ProtocolVersionId::latest(),
+                validation_computational_gas_limit: u32::MAX,
+                operator_address: Address::default(),
+                fee_input: BatchFeeInput::default(),
+                first_miniblock: MiniblockParams {
+                    timestamp: 1,
+                    virtual_blocks: 1,
+                },
+            },
+            number: L1BatchNumber(1),
+            first_miniblock_number: MiniblockNumber(1),
         }
     }
 
     fn miniblock() -> SyncAction {
         SyncAction::Miniblock {
+            params: MiniblockParams {
+                timestamp: 1,
+                virtual_blocks: 1,
+            },
             number: 1.into(),
-            timestamp: 1,
-            virtual_blocks: 1,
         }
     }
 
@@ -199,7 +210,7 @@ mod tests {
         );
         tx.set_input(H256::default().0.to_vec(), H256::default());
 
-        SyncAction::Tx(Box::new(tx.into()))
+        FetchedTransaction::new(tx.into()).into()
     }
 
     fn seal_miniblock() -> SyncAction {
@@ -207,7 +218,7 @@ mod tests {
     }
 
     fn seal_batch() -> SyncAction {
-        SyncAction::SealBatch { virtual_blocks: 1 }
+        SyncAction::SealBatch
     }
 
     #[test]

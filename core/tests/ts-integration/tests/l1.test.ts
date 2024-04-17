@@ -173,6 +173,7 @@ describe('Tests for L1 behavior', () => {
         }
 
         const contract = await deployContract(alice, contracts.writesAndMessages, []);
+        testMaster.reporter.debug(`Deployed 'writesAndMessages' contract at ${contract.address}`);
         // The circuit allows us to have ~4700 initial writes for an L1 batch.
         // We check that we will run out of gas if we do a bit smaller amount of writes.
         const calldata = contract.interface.encodeFunctionData('writes', [0, 4500, 1]);
@@ -188,8 +189,12 @@ describe('Tests for L1 behavior', () => {
                 gasPrice
             }
         });
+        testMaster.reporter.debug(
+            `Requested priority execution of transaction with big message: ${priorityOpHandle.hash}`
+        );
         // The request should be accepted on L1.
         await priorityOpHandle.waitL1Commit();
+        testMaster.reporter.debug(`Request ${priorityOpHandle.hash} is accepted on L1`);
         // The L2 tx should revert.
         await expect(priorityOpHandle).toBeReverted();
     });
@@ -202,6 +207,7 @@ describe('Tests for L1 behavior', () => {
         }
 
         const contract = await deployContract(alice, contracts.writesAndMessages, []);
+        testMaster.reporter.debug(`Deployed 'writesAndMessages' contract at ${contract.address}`);
         // The circuit allows us to have ~7500 repeated writes for an L1 batch.
         // We check that we will run out of gas if we do a bit smaller amount of writes.
         // In order for writes to be repeated we should firstly write to the keys initially.
@@ -211,20 +217,22 @@ describe('Tests for L1 behavior', () => {
 
         let proms = [];
         const nonce = await alice.getNonce();
+        testMaster.reporter.debug(`Obtained nonce: ${nonce}`);
         for (let i = 0; i < repeatedWritesInOneTx / initialWritesInOneTx; ++i) {
             proms.push(
                 contract.writes(i * initialWritesInOneTx, initialWritesInOneTx, 1, { gasLimit, nonce: nonce + i })
             );
         }
         const handles = await Promise.all(proms);
+        testMaster.reporter.debug(`Sent ${handles.length} L2 transactions with writes`);
         for (const handle of handles) {
             await handle.wait();
         }
         await waitForNewL1Batch(alice);
+        testMaster.reporter.debug('L1 batch sealed with write transactions');
 
         const calldata = contract.interface.encodeFunctionData('writes', [0, repeatedWritesInOneTx, 2]);
         const gasPrice = scaledGasPrice(alice);
-
         const l2GasLimit = maxL2GasLimitForPriorityTxs();
 
         const priorityOpHandle = await alice.requestExecute({
@@ -235,8 +243,12 @@ describe('Tests for L1 behavior', () => {
                 gasPrice
             }
         });
+        testMaster.reporter.debug(
+            `Requested priority execution of transaction with repeated storage writes on L1: ${priorityOpHandle.hash}`
+        );
         // The request should be accepted on L1.
         await priorityOpHandle.waitL1Commit();
+        testMaster.reporter.debug(`Request ${priorityOpHandle.hash} is accepted on L1`);
         // The L2 tx should revert.
         await expect(priorityOpHandle).toBeReverted();
     });
@@ -249,6 +261,7 @@ describe('Tests for L1 behavior', () => {
         }
 
         const contract = await deployContract(alice, contracts.writesAndMessages, []);
+        testMaster.reporter.debug(`Deployed 'writesAndMessages' contract at ${contract.address}`);
         // The circuit allows us to have 512 L2->L1 logs for an L1 batch.
         // We check that we will run out of gas if we send a bit smaller amount of L2->L1 logs.
         const calldata = contract.interface.encodeFunctionData('l2_l1_messages', [1000]);
@@ -264,8 +277,12 @@ describe('Tests for L1 behavior', () => {
                 gasPrice
             }
         });
+        testMaster.reporter.debug(
+            `Requested priority execution of transaction with big message: ${priorityOpHandle.hash}`
+        );
         // The request should be accepted on L1.
         await priorityOpHandle.waitL1Commit();
+        testMaster.reporter.debug(`Request ${priorityOpHandle.hash} is accepted on L1`);
         // The L2 tx should revert.
         await expect(priorityOpHandle).toBeReverted();
     });
@@ -278,6 +295,7 @@ describe('Tests for L1 behavior', () => {
         }
 
         const contract = await deployContract(alice, contracts.writesAndMessages, []);
+        testMaster.reporter.debug(`Deployed 'writesAndMessages' contract at ${contract.address}`);
         const MAX_PUBDATA_PER_BATCH = ethers.BigNumber.from(SYSTEM_CONFIG['PRIORITY_TX_PUBDATA_PER_BATCH']);
         // We check that we will run out of gas if we send a bit
         // smaller than `MAX_PUBDATA_PER_BATCH` amount of pubdata in a single tx.
@@ -296,8 +314,12 @@ describe('Tests for L1 behavior', () => {
                 gasPrice
             }
         });
+        testMaster.reporter.debug(
+            `Requested priority execution of transaction with big message: ${priorityOpHandle.hash}`
+        );
         // The request should be accepted on L1.
         await priorityOpHandle.waitL1Commit();
+        testMaster.reporter.debug(`Request ${priorityOpHandle.hash} is accepted on L1`);
         // The L2 tx should revert.
         await expect(priorityOpHandle).toBeReverted();
     });

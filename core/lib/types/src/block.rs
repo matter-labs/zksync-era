@@ -76,6 +76,20 @@ pub struct MiniblockHeader {
     pub protocol_version: Option<ProtocolVersionId>,
     /// The maximal number of virtual blocks to be created in the miniblock.
     pub virtual_blocks: u32,
+
+    /// The formal value of the gas limit for the miniblock.
+    /// This value should bound the maximal amount of gas that can be spent by transactions in the miniblock.
+    /// Note, that it is an `u64`, i.e. while the computational limit for the bootloader is an `u32` a much larger
+    /// amount of gas can be spent on pubdata.
+    pub gas_limit: u64,
+}
+
+/// Structure that represents the data is returned by the storage oracle during batch execution.
+pub struct StorageOracleInfo {
+    /// The refunds returned by the storage oracle.
+    pub storage_refunds: Vec<u32>,
+    // Pubdata costs are available only since v1.5.0, so we allow them to be optional.
+    pub pubdata_costs: Option<Vec<i32>>,
 }
 
 /// Data needed to execute a miniblock in the VM.
@@ -248,6 +262,12 @@ pub fn unpack_block_info(info: U256) -> (u64, u64) {
 pub fn pack_block_info(block_number: u64, block_timestamp: u64) -> U256 {
     U256::from(block_number) * SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER
         + U256::from(block_timestamp)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct L1BatchTreeData {
+    pub hash: H256,
+    pub rollup_last_leaf_index: u64,
 }
 
 #[cfg(test)]

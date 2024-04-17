@@ -18,6 +18,7 @@ pub struct StorageVerificationRequest {
     pub optimizer_mode: Option<String>,
     pub constructor_arguments: Vec<u8>,
     pub is_system: bool,
+    pub force_evmla: bool,
 }
 
 impl From<StorageVerificationRequest> for VerificationRequest {
@@ -44,6 +45,7 @@ impl From<StorageVerificationRequest> for VerificationRequest {
                 optimizer_mode: value.optimizer_mode,
                 constructor_arguments: value.constructor_arguments.into(),
                 is_system: value.is_system,
+                force_evmla: value.force_evmla,
             },
         }
     }

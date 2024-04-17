@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
+use circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries;
 use itertools::Itertools;
 use zk_evm_1_3_1::aux_structures::LogQuery;
-use zkevm_test_harness_1_3_3::witness::sort_storage_access::sort_storage_access_queries;
 use zksync_state::StoragePtr;
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
@@ -53,7 +53,7 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
             block_properties,
             system_env.execution_mode.glue_into(),
             &system_env.base_system_smart_contracts.clone().glue_into(),
-            system_env.gas_limit,
+            system_env.bootloader_gas_limit,
         );
         Self {
             vm: inner_vm,
@@ -209,6 +209,7 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             deduplicated_events_logs: vec![],
             storage_refunds: vec![],
             user_l2_to_l1_logs: l2_to_l1_logs,
+            pubdata_costs: vec![],
         }
     }
 
@@ -314,10 +315,8 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         }
     }
 
-    fn has_enough_gas_for_batch_tip(&self) -> bool {
-        // For this version this overhead has not been calculated and it has not been used with those versions.
-        // We return some value just in case for backwards compatibility
-        true
+    fn gas_remaining(&self) -> u32 {
+        self.vm.gas_remaining()
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {

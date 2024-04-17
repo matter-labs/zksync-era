@@ -1,21 +1,21 @@
 [package]
 name = "verified_sources_fetcher"
 version = "0.1.0"
-edition = "2021"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
-publish = false # We don't want to publish our binaries.
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
 
 [dependencies]
-zksync_dal = { path = "../../lib/dal" }
-zksync_types = { path = "../../lib/types" }
-zksync_config = { path = "../../lib/config" }
-zksync_env_config = { path = "../../lib/env_config" }
+zksync_dal.workspace = true
+zksync_types.workspace = true
+zksync_config.workspace = true
+zksync_env_config.workspace = true
 
-anyhow = "1.0"
-tokio = { version = "1", features = ["full"] }
-serde_json = "1.0"
+anyhow.workspace = true
+tokio = { workspace = true, features = ["full"] }
+serde_json.workspace = true

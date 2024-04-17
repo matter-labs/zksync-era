@@ -176,36 +176,19 @@ async function setupArtifactsMode() {
     }
 }
 
-async function generateSetupDataForBaseLayer(proverType: ProverType) {
-    await generateSetupData(true, proverType);
-}
-
-async function generateSetupDataForRecursiveLayers(proverType: ProverType) {
-    await generateSetupData(false, proverType);
-}
-
-async function generateSetupData(isBaseLayer: boolean, proverType: ProverType) {
+async function generateAllSetupData(proverType: ProverType) {
     const currentEnv = env.get();
 
     const proverKeysDir = `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`;
     fs.mkdirSync(proverKeysDir, { recursive: true });
     const proverDir = `${process.env.ZKSYNC_HOME}/prover`;
     process.chdir(proverDir);
-    const range = isBaseLayer ? 13 : 15;
     const gpuFeatureFlag = proverType == ProverType.GPU ? '--features "gpu"' : '';
-    for (let i = 1; i <= range; i++) {
-        const spawnCommand = `zk f cargo run ${gpuFeatureFlag} --release --bin zksync_setup_data_generator_fri -- --numeric-circuit ${i} ${
-            isBaseLayer ? '--is_base_layer' : ''
-        }`;
-        await utils.spawn(spawnCommand);
-    }
+    const command = proverType == ProverType.GPU ? 'generate-sk-gpu' : 'generate-sk';
+    const spawnCommand = `zk f cargo run ${gpuFeatureFlag} --release --bin key_generator -- ${command} all`;
+    await utils.spawn(spawnCommand);
 
     process.chdir(process.env.ZKSYNC_HOME as string);
-}
-
-async function generateAllSetupData(proverType: ProverType) {
-    await generateSetupDataForBaseLayer(proverType);
-    await generateSetupDataForRecursiveLayers(proverType);
 }
 
 async function downloadDefaultSetupKeys(proverType: ProverType, region: string) {

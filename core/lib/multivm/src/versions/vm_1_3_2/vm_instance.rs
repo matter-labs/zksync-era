@@ -111,6 +111,7 @@ pub struct VmExecutionResult {
     /// is executed, but it's not enforced. So best we can do is to calculate the amount of gas before and
     /// after the invocation, leaving the interpretation of this value to the user.
     pub gas_used: u32,
+    pub gas_remaining: u32,
     /// This value also depends on the context, the same as `gas_used`.
     pub computational_gas_used: u32,
     pub contracts_used: usize,
@@ -211,9 +212,8 @@ fn vm_may_have_ended<H: HistoryMode, S: WriteStorage>(
 ) -> Option<VmExecutionResult> {
     let basic_execution_result = vm_may_have_ended_inner(&vm.state)?;
 
-    let gas_used = gas_before
-        .checked_sub(vm.gas_remaining())
-        .expect("underflow");
+    let gas_remaining = vm.gas_remaining();
+    let gas_used = gas_before.checked_sub(gas_remaining).expect("underflow");
 
     match basic_execution_result {
         NewVmExecutionResult::Ok(data) => {
@@ -226,6 +226,7 @@ fn vm_may_have_ended<H: HistoryMode, S: WriteStorage>(
                 l2_to_l1_logs: vec![],
                 return_data: data,
                 gas_used,
+                gas_remaining,
                 // The correct `computational_gas_used` value for this field should be set separately later.
                 computational_gas_used: 0,
                 contracts_used: vm
@@ -266,6 +267,7 @@ fn vm_may_have_ended<H: HistoryMode, S: WriteStorage>(
                 l2_to_l1_logs: vec![],
                 return_data: vec![],
                 gas_used,
+                gas_remaining,
                 // The correct `computational_gas_used` value for this field should be set separately later.
                 computational_gas_used: 0,
                 contracts_used: vm
@@ -289,6 +291,7 @@ fn vm_may_have_ended<H: HistoryMode, S: WriteStorage>(
             l2_to_l1_logs: vec![],
             return_data: vec![],
             gas_used,
+            gas_remaining,
             // The correct `computational_gas_used` value for this field should be set separately later.
             computational_gas_used: 0,
             contracts_used: vm
@@ -792,6 +795,7 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
                             l2_to_l1_logs: vec![],
                             return_data: vec![],
                             gas_used: 0,
+                            gas_remaining: 0,
                             computational_gas_used: 0,
                             contracts_used: 0,
                             revert_reason: Some(VmRevertReasonParsingResult {

@@ -3,7 +3,7 @@ group_0 = [{"circuit_id"=1,"aggregation_round"=3},{"circuit_id"=2,"aggregation_r
 group_1 = [{"circuit_id"=1,"aggregation_round"=0}]
 group_2 = [{"circuit_id"=2,"aggregation_round"=0},{"circuit_id"=4,"aggregation_round"=0},{"circuit_id"=6,"aggregation_round"=0},{"circuit_id"=9,"aggregation_round"=0}]
 group_3 = [{"circuit_id"=3,"aggregation_round"=0}]
-group_4 = [{"circuit_id"=11,"aggregation_round"=0},{"circuit_id"=12,"aggregation_round"=0},{"circuit_id"=13,"aggregation_round"=0}]
+group_4 = [{"circuit_id"=11,"aggregation_round"=0},{"circuit_id"=12,"aggregation_round"=0},{"circuit_id"=13,"aggregation_round"=0},{"circuit_id"=255,"aggregation_round"=0}]
 group_5 = [{"circuit_id"=5,"aggregation_round"=0}]
 group_6 = [{"circuit_id"=3,"aggregation_round"=1}]
 group_7 = [{"circuit_id"=7,"aggregation_round"=0}]

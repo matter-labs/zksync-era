@@ -1,11 +1,7 @@
 use core::fmt;
 
+use circuit_sequencer_api::proof::FinalProof;
 use serde::{Deserialize, Serialize};
-use zkevm_test_harness::{
-    abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
-    bellman::{bn256::Bn256, plonk::better_better_cs::proof::Proof},
-    witness::oracle::VmWitnessOracle,
-};
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::L1BatchNumber;
 
@@ -14,7 +10,7 @@ use zksync_types::L1BatchNumber;
 #[derive(Clone, Serialize, Deserialize)]
 pub struct L1BatchProofForL1 {
     pub aggregation_result_coords: [[u8; 32]; 4],
-    pub scheduler_proof: Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
+    pub scheduler_proof: FinalProof,
 }
 
 impl fmt::Debug for L1BatchProofForL1 {

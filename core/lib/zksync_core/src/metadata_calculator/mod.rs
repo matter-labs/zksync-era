@@ -2,7 +2,7 @@
 //! stores them in the DB.
 
 use std::{
-    future::{self, Future},
+    num::NonZeroU32,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -13,23 +13,17 @@ use zksync_config::configs::{
     chain::OperationsManagerConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
-use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
-use zksync_types::{
-    block::L1BatchHeader,
-    commitment::{L1BatchCommitment, L1BatchMetadata},
-    ProtocolVersionId, H256,
-};
 
+pub use self::helpers::LazyAsyncTreeReader;
 pub(crate) use self::helpers::{AsyncTreeReader, L1BatchWithLogs, MerkleTreeInfo};
 use self::{
     helpers::{create_db, Delayer, GenericAsyncTree, MerkleTreeHealth},
-    metrics::{TreeUpdateStage, METRICS},
+    metrics::{ConfigLabels, METRICS},
     updater::TreeUpdater,
 };
-use crate::gas_tracker::commit_gas_count_for_l1_batch;
 
 mod helpers;
 mod metrics;
@@ -39,10 +33,13 @@ pub(crate) mod tests;
 mod updater;
 
 /// Configuration of [`MetadataCalculator`].
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MetadataCalculatorConfig {
     /// Filesystem path to the RocksDB instance that stores the tree.
     pub db_path: String,
+    /// Maximum number of files concurrently opened by RocksDB. Useful to fit into OS limits; can be used
+    /// as a rudimentary way to control RAM usage of the tree.
+    pub max_open_files: Option<NonZeroU32>,
     /// Configuration of the Merkle tree mode.
     pub mode: MerkleTreeMode,
     /// Interval between polling Postgres for updates if no progress was made by the tree.
@@ -54,6 +51,10 @@ pub struct MetadataCalculatorConfig {
     pub multi_get_chunk_size: usize,
     /// Capacity of RocksDB block cache in bytes. Reasonable values range from ~100 MiB to several GB.
     pub block_cache_capacity: usize,
+    /// If specified, RocksDB indices and Bloom filters will be managed by the block cache, rather than
+    /// being loaded entirely into RAM on the RocksDB initialization. The block cache capacity should be increased
+    /// correspondingly; otherwise, RocksDB performance can significantly degrade.
+    pub include_indices_and_filters_in_block_cache: bool,
     /// Capacity of RocksDB memtables. Can be set to a reasonably large value (order of 512 MiB)
     /// to mitigate write stalls.
     pub memtable_capacity: usize,
@@ -68,11 +69,13 @@ impl MetadataCalculatorConfig {
     ) -> Self {
         Self {
             db_path: merkle_tree_config.path.clone(),
+            max_open_files: None,
             mode: merkle_tree_config.mode,
             delay_interval: operation_config.delay_interval(),
             max_l1_batches_per_iter: merkle_tree_config.max_l1_batches_per_iter,
             multi_get_chunk_size: merkle_tree_config.multi_get_chunk_size,
             block_cache_capacity: merkle_tree_config.block_cache_size(),
+            include_indices_and_filters_in_block_cache: false,
             memtable_capacity: merkle_tree_config.memtable_capacity(),
             stalled_writes_timeout: merkle_tree_config.stalled_writes_timeout(),
         }
@@ -95,10 +98,23 @@ impl MetadataCalculator {
         config: MetadataCalculatorConfig,
         object_store: Option<Arc<dyn ObjectStore>>,
     ) -> anyhow::Result<Self> {
+        if let Err(err) = METRICS.info.set(ConfigLabels::new(&config)) {
+            tracing::warn!(
+                "Cannot set config {:?}; it's already set to {:?}",
+                err.into_inner(),
+                METRICS.info.get()
+            );
+        }
+
         anyhow::ensure!(
             config.max_l1_batches_per_iter > 0,
             "Maximum L1 batches per iteration is misconfigured to be 0; please update it to positive value"
         );
+        if matches!(config.mode, MerkleTreeMode::Lightweight) && object_store.is_some() {
+            anyhow::bail!(
+                "Cannot run lightweight tree with an object store; the tree won't produce information to be stored in the store"
+            );
+        }
 
         let (_, health_updater) = ReactiveHealthCheck::new("tree");
         Ok(Self {
@@ -117,19 +133,8 @@ impl MetadataCalculator {
     }
 
     /// Returns a reference to the tree reader.
-    pub(crate) fn tree_reader(&self) -> impl Future<Output = AsyncTreeReader> {
-        let mut receiver = self.tree_reader.subscribe();
-        async move {
-            loop {
-                if let Some(reader) = receiver.borrow().clone() {
-                    break reader;
-                }
-                if receiver.changed().await.is_err() {
-                    tracing::info!("Tree dropped without getting ready; not resolving tree reader");
-                    future::pending::<()>().await;
-                }
-            }
-        }
+    pub fn tree_reader(&self) -> LazyAsyncTreeReader {
+        LazyAsyncTreeReader(self.tree_reader.subscribe())
     }
 
     async fn create_tree(&self) -> anyhow::Result<GenericAsyncTree> {
@@ -137,15 +142,7 @@ impl MetadataCalculator {
             .update(MerkleTreeHealth::Initialization.into());
 
         let started_at = Instant::now();
-        let db = create_db(
-            self.config.db_path.clone().into(),
-            self.config.block_cache_capacity,
-            self.config.memtable_capacity,
-            self.config.stalled_writes_timeout,
-            self.config.multi_get_chunk_size,
-        )
-        .await
-        .with_context(|| {
+        let db = create_db(self.config.clone()).await.with_context(|| {
             format!(
                 "failed opening Merkle tree RocksDB with configuration {:?}",
                 self.config
@@ -162,7 +159,7 @@ impl MetadataCalculator {
 
     pub async fn run(
         self,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         let tree = self.create_tree().await?;
@@ -183,88 +180,5 @@ impl MetadataCalculator {
         updater
             .loop_updating_tree(self.delayer, &pool, stop_receiver, self.health_updater)
             .await
-    }
-
-    /// This is used to improve L1 gas estimation for the commit operation. The estimations are computed
-    /// in the State Keeper, where storage writes aren't yet deduplicated, whereas L1 batch metadata
-    /// contains deduplicated storage writes.
-    async fn reestimate_l1_batch_commit_gas(
-        storage: &mut StorageProcessor<'_>,
-        header: &L1BatchHeader,
-        metadata: &L1BatchMetadata,
-    ) {
-        let estimate_latency = METRICS.start_stage(TreeUpdateStage::ReestimateGasCost);
-        let unsorted_factory_deps = storage
-            .blocks_dal()
-            .get_l1_batch_factory_deps(header.number)
-            .await
-            .unwrap();
-        let commit_gas_cost =
-            commit_gas_count_for_l1_batch(header, &unsorted_factory_deps, metadata);
-        storage
-            .blocks_dal()
-            .update_predicted_l1_batch_commit_gas(header.number, commit_gas_cost)
-            .await
-            .unwrap();
-        estimate_latency.observe();
-    }
-
-    fn build_l1_batch_metadata(
-        tree_metadata: TreeMetadata,
-        header: &L1BatchHeader,
-        events_queue_commitment: Option<H256>,
-        bootloader_initial_content_commitment: Option<H256>,
-    ) -> L1BatchMetadata {
-        // The commitment generation pre-boojum is the same for all the version, so in case the version is not present, we just supply the
-        // last pre-boojum version.
-        // TODO(PLA-731): make sure that protocol version is not an Option
-        let protocol_version = header
-            .protocol_version
-            .unwrap_or(ProtocolVersionId::last_potentially_undefined());
-
-        let merkle_root_hash = tree_metadata.root_hash;
-
-        let commitment = L1BatchCommitment::new(
-            header.l2_to_l1_logs.clone(),
-            tree_metadata.rollup_last_leaf_index,
-            merkle_root_hash,
-            tree_metadata.initial_writes,
-            tree_metadata.repeated_writes,
-            header.base_system_contracts_hashes.bootloader,
-            header.base_system_contracts_hashes.default_aa,
-            header.system_logs.clone(),
-            tree_metadata.state_diffs,
-            bootloader_initial_content_commitment.unwrap_or_default(),
-            events_queue_commitment.unwrap_or_default(),
-            protocol_version,
-        );
-        let commitment_hash = commitment.hash();
-        tracing::trace!("L1 batch commitment: {commitment:?}");
-
-        let l2_l1_messages_compressed = if protocol_version.is_pre_boojum() {
-            commitment.l2_l1_logs_compressed().to_vec()
-        } else {
-            commitment.system_logs_compressed().to_vec()
-        };
-        let metadata = L1BatchMetadata {
-            root_hash: merkle_root_hash,
-            rollup_last_leaf_index: tree_metadata.rollup_last_leaf_index,
-            merkle_root_hash,
-            initial_writes_compressed: commitment.initial_writes_compressed().to_vec(),
-            repeated_writes_compressed: commitment.repeated_writes_compressed().to_vec(),
-            commitment: commitment_hash.commitment,
-            l2_l1_messages_compressed,
-            l2_l1_merkle_root: commitment.l2_l1_logs_merkle_root(),
-            block_meta_params: commitment.meta_parameters(),
-            aux_data_hash: commitment_hash.aux_output,
-            meta_parameters_hash: commitment_hash.meta_parameters,
-            pass_through_data_hash: commitment_hash.pass_through_data,
-            state_diffs_compressed: commitment.state_diffs_compressed().to_vec(),
-            events_queue_commitment,
-            bootloader_initial_content_commitment,
-        };
-
-        tracing::trace!("L1 batch metadata: {metadata:?}");
-        metadata
     }
 }

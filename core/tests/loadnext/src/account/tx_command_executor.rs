@@ -1,14 +1,5 @@
 use std::time::Instant;
 
-use zksync::{
-    error::ClientError,
-    ethereum::PriorityOpHolder,
-    utils::{
-        get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
-    },
-    web3::ethabi,
-    EthNamespaceClient,
-};
 use zksync_eth_client::EthInterface;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
@@ -25,6 +16,15 @@ use crate::{
     },
     corrupted_tx::Corrupted,
     report::ReportLabel,
+    sdk::{
+        error::ClientError,
+        ethereum::PriorityOpHolder,
+        utils::{
+            get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
+        },
+        web3::ethabi,
+        EthNamespaceClient,
+    },
     utils::format_gwei,
 };
 

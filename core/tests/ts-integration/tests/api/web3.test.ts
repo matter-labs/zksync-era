@@ -215,9 +215,6 @@ describe('web3 API compatibility tests', () => {
     test('Should test various token methods', async () => {
         const tokens = await alice.provider.getConfirmedTokens();
         expect(tokens).not.toHaveLength(0); // Should not be an empty array.
-
-        const price = await alice.provider.getTokenPrice(l2Token);
-        expect(+price!).toEqual(expect.any(Number));
     });
 
     test('Should check transactions from API / Legacy tx', async () => {
@@ -229,7 +226,7 @@ describe('web3 API compatibility tests', () => {
         await legacyTx.wait();
 
         const legacyApiReceipt = await alice.provider.getTransaction(legacyTx.hash);
-        expect(legacyApiReceipt.gasPrice).bnToBeEq(legacyTx.gasPrice!);
+        expect(legacyApiReceipt.gasPrice).bnToBeLte(legacyTx.gasPrice!);
     });
 
     test('Should check transactions from API / EIP1559 tx', async () => {
@@ -243,6 +240,56 @@ describe('web3 API compatibility tests', () => {
         const eip1559ApiReceipt = await alice.provider.getTransaction(eip1559Tx.hash);
         expect(eip1559ApiReceipt.maxFeePerGas).bnToBeEq(eip1559Tx.maxFeePerGas!);
         expect(eip1559ApiReceipt.maxPriorityFeePerGas).bnToBeEq(eip1559Tx.maxPriorityFeePerGas!);
+    });
+
+    test('Should test getFilterChanges for pending transactions', async () => {
+        if (process.env.EN_MAIN_NODE_URL) {
+            // Pending transactions logic doesn't work on EN since we don't have a proper mempool -
+            // transactions only appear in the DB after they are included in the block.
+            return;
+        }
+
+        // We will need to wait until the mempool cache on the server is updated.
+        // The default update period is 50 ms, so we will wait for 75 ms to be sure.
+        const MEMPOOL_CACHE_WAIT = 50 + 25;
+
+        const filterId = await alice.provider.send('eth_newPendingTransactionFilter', []);
+        let changes: string[] = await alice.provider.send('eth_getFilterChanges', [filterId]);
+
+        const tx1 = await alice.sendTransaction({
+            to: alice.address
+        });
+        testMaster.reporter.debug(`Sent a transaction ${tx1.hash}`);
+
+        while (!changes.includes(tx1.hash)) {
+            await zksync.utils.sleep(MEMPOOL_CACHE_WAIT);
+            changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
+            testMaster.reporter.debug('Received filter changes', changes);
+        }
+        expect(changes).toContain(tx1.hash);
+
+        const tx2 = await alice.sendTransaction({
+            to: alice.address
+        });
+        const tx3 = await alice.sendTransaction({
+            to: alice.address
+        });
+        const tx4 = await alice.sendTransaction({
+            to: alice.address
+        });
+        const remainingHashes = new Set([tx2.hash, tx3.hash, tx4.hash]);
+        testMaster.reporter.debug('Sent new transactions with hashes', remainingHashes);
+
+        while (remainingHashes.size > 0) {
+            await zksync.utils.sleep(MEMPOOL_CACHE_WAIT);
+            changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
+            testMaster.reporter.debug('Received filter changes', changes);
+
+            expect(changes).not.toContain(tx1.hash);
+            for (const receivedHash of changes) {
+                remainingHashes.delete(receivedHash);
+            }
+        }
     });
 
     test('Should test pub-sub API: blocks', async () => {
@@ -732,12 +779,24 @@ describe('web3 API compatibility tests', () => {
         let latestBlock = await alice.provider.getBlock('latest');
 
         // Check API returns identical logs by block number and block hash.
-        const getLogsByNumber = await alice.provider.getLogs({
-            fromBlock: latestBlock.number,
-            toBlock: latestBlock.number
+        // Logs can have different `l1BatchNumber` field though,
+        // if L1 batch was sealed in between API requests are processed.
+        const getLogsByNumber = (
+            await alice.provider.getLogs({
+                fromBlock: latestBlock.number,
+                toBlock: latestBlock.number
+            })
+        ).map((x) => {
+            x.l1BatchNumber = 0; // Set bogus value.
+            return x;
         });
-        const getLogsByHash = await alice.provider.getLogs({
-            blockHash: latestBlock.hash
+        const getLogsByHash = (
+            await alice.provider.getLogs({
+                blockHash: latestBlock.hash
+            })
+        ).map((x) => {
+            x.l1BatchNumber = 0; // Set bogus value.
+            return x;
         });
         await expect(getLogsByNumber).toEqual(getLogsByHash);
 

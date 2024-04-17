@@ -1,19 +1,17 @@
 #![feature(generic_const_exprs)]
-use std::{future::Future, sync::Arc};
+
+use std::{future::Future, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use local_ip_address::local_ip;
 use prometheus_exporter::PrometheusExporterConfig;
+use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tokio::{
-    sync::{oneshot, watch::Receiver},
+    sync::{oneshot, watch::Receiver, Notify},
     task::JoinHandle,
 };
 use zksync_config::configs::{
-    fri_prover_group::FriProverGroupConfig, FriProverConfig, PostgresConfig,
-};
-use zksync_dal::{
-    fri_prover_dal::types::{GpuProverInstanceStatus, SocketAddress},
-    ConnectionPool,
+    fri_prover_group::FriProverGroupConfig, FriProverConfig, ObservabilityConfig, PostgresConfig,
 };
 use zksync_env_config::{
     object_store::{ProverObjectStoreConfig, PublicObjectStoreConfig},
@@ -22,9 +20,13 @@ use zksync_env_config::{
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::basic_fri_types::CircuitIdRoundTuple;
-use zksync_utils::wait_for_tasks::wait_for_tasks;
+use zksync_types::{
+    basic_fri_types::CircuitIdRoundTuple,
+    prover_dal::{GpuProverInstanceStatus, SocketAddress},
+};
+use zksync_utils::wait_for_tasks::ManagedTasks;
 
+mod gpu_prover_availability_checker;
 mod gpu_prover_job_processor;
 mod metrics;
 mod prover_job_processor;
@@ -33,7 +35,7 @@ mod utils;
 
 async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>> {
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ConnectionPool::singleton(postgres_config.prover_url()?)
+    let pool = ConnectionPool::<Prover>::singleton(postgres_config.prover_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;
@@ -44,7 +46,7 @@ async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>
     let zone = get_zone(zone_url).await.context("get_zone()")?;
     let address = SocketAddress { host, port };
     Ok(async move {
-        pool.access_storage()
+        pool.connection()
             .await
             .unwrap()
             .fri_gpu_prover_queue_dal()
@@ -55,24 +57,34 @@ async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let log_format = vlog::log_format_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let sentry_url = vlog::sentry_url_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let environment = vlog::environment_from_env();
+    let observability_config =
+        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
+    let log_format: vlog::LogFormat = observability_config
+        .log_format
+        .parse()
+        .context("Invalid log format")?;
 
     let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = &sentry_url {
+    if let Some(sentry_url) = &observability_config.sentry_url {
         builder = builder
             .with_sentry_url(sentry_url)
-            .context("Invalid Sentry URL")?
-            .with_sentry_environment(environment);
+            .expect("Invalid Sentry URL")
+            .with_sentry_environment(observability_config.sentry_environment);
+    }
+
+    if let Some(opentelemetry) = observability_config.opentelemetry {
+        builder = builder
+            .with_opentelemetry(
+                &opentelemetry.level,
+                opentelemetry.endpoint,
+                "zksync-prover-fri".into(),
+            )
+            .expect("Invalid OpenTelemetry config");
     }
     let _guard = builder.build();
 
     // Report whether sentry is running after the logging subsystem was initialized.
-    if let Some(sentry_url) = sentry_url {
+    if let Some(sentry_url) = observability_config.sentry_url {
         tracing::info!("Sentry configured with URL: {sentry_url}",);
     } else {
         tracing::info!("No sentry URL was provided");
@@ -130,6 +142,9 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("failed to build a connection pool")?;
     let port = prover_config.witness_vector_receiver_port;
+
+    let notify = Arc::new(Notify::new());
+
     let prover_tasks = get_prover_tasks(
         prover_config,
         stop_receiver.clone(),
@@ -137,42 +152,45 @@ async fn main() -> anyhow::Result<()> {
         public_blob_store,
         pool,
         circuit_ids_for_round_to_be_proven,
+        notify,
     )
     .await
     .context("get_prover_tasks()")?;
 
     let mut tasks = vec![tokio::spawn(exporter_config.run(stop_receiver))];
+
     tasks.extend(prover_tasks);
 
-    let particular_crypto_alerts = None;
-    let graceful_shutdown = match cfg!(feature = "gpu") {
-        true => Some(
-            graceful_shutdown(port)
-                .await
-                .context("failed to prepare graceful shutdown future")?,
-        ),
-        false => None,
-    };
-    let tasks_allowed_to_finish = false;
+    let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {
-        _ = wait_for_tasks(tasks, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
+        _ = tasks.wait_single() => {
+            if cfg!(feature = "gpu") {
+                graceful_shutdown(port)
+                    .await
+                    .context("failed to prepare graceful shutdown future")?
+                    .await;
+            }
+        },
         _ = stop_signal_receiver => {
             tracing::info!("Stop signal received, shutting down");
         },
     }
 
     stop_sender.send(true).ok();
+    tasks.complete(Duration::from_secs(5)).await;
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 #[cfg(not(feature = "gpu"))]
 async fn get_prover_tasks(
     prover_config: FriProverConfig,
     stop_receiver: Receiver<bool>,
     store_factory: ObjectStoreFactory,
     public_blob_store: Option<Arc<dyn ObjectStore>>,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
+    _init_notifier: Arc<Notify>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
@@ -199,17 +217,17 @@ async fn get_prover_tasks(
     Ok(vec![tokio::spawn(prover.run(stop_receiver, None))])
 }
 
+#[allow(clippy::too_many_arguments)]
 #[cfg(feature = "gpu")]
 async fn get_prover_tasks(
     prover_config: FriProverConfig,
     stop_receiver: Receiver<bool>,
     store_factory: ObjectStoreFactory,
     public_blob_store: Option<Arc<dyn ObjectStore>>,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
+    init_notifier: Arc<Notify>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
-    use std::sync::Arc;
-
     use gpu_prover_job_processor::gpu_prover;
     use socket_listener::gpu_socket_listener;
     use tokio::sync::Mutex;
@@ -248,14 +266,35 @@ async fn get_prover_tasks(
         zone.clone()
     );
     let socket_listener = gpu_socket_listener::SocketListener::new(
-        address,
+        address.clone(),
         producer,
         pool.clone(),
         prover_config.specialized_group_id,
-        zone,
+        zone.clone(),
     );
-    Ok(vec![
-        tokio::spawn(socket_listener.listen_incoming_connections(stop_receiver.clone())),
-        tokio::spawn(prover.run(stop_receiver, None)),
-    ])
+
+    let mut tasks = vec![
+        tokio::spawn(
+            socket_listener
+                .listen_incoming_connections(stop_receiver.clone(), init_notifier.clone()),
+        ),
+        tokio::spawn(prover.run(stop_receiver.clone(), None)),
+    ];
+
+    // TODO(PLA-874): remove the check after making the availability checker required
+    if let Some(check_interval) = prover_config.availability_check_interval_in_secs {
+        let availability_checker =
+            gpu_prover_availability_checker::availability_checker::AvailabilityChecker::new(
+                address,
+                zone,
+                check_interval,
+                pool,
+            );
+
+        tasks.push(tokio::spawn(
+            availability_checker.run(stop_receiver.clone(), init_notifier),
+        ));
+    }
+
+    Ok(tasks)
 }

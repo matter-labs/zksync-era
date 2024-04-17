@@ -1,5 +1,7 @@
 use async_trait::async_trait;
-use zksync_dal::{fri_prover_dal::types::JobCountStatistics, ConnectionPool};
+use prover_dal::{Prover, ProverDal};
+use zksync_dal::ConnectionPool;
+use zksync_types::prover_dal::JobCountStatistics;
 
 use crate::house_keeper::periodic_job::PeriodicJob;
 
@@ -8,19 +10,19 @@ const PROOF_COMPRESSOR_SERVICE_NAME: &str = "proof_compressor";
 #[derive(Debug)]
 pub struct FriProofCompressorStatsReporter {
     reporting_interval_ms: u64,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Prover>,
 }
 
 impl FriProofCompressorStatsReporter {
-    pub fn new(reporting_interval_ms: u64, pool: ConnectionPool) -> Self {
+    pub fn new(reporting_interval_ms: u64, pool: ConnectionPool<Prover>) -> Self {
         Self {
             reporting_interval_ms,
             pool,
         }
     }
 
-    async fn get_job_statistics(pool: &ConnectionPool) -> JobCountStatistics {
-        pool.access_storage()
+    async fn get_job_statistics(pool: &ConnectionPool<Prover>) -> JobCountStatistics {
+        pool.connection()
             .await
             .unwrap()
             .fri_proof_compressor_dal()
@@ -60,7 +62,7 @@ impl PeriodicJob for FriProofCompressorStatsReporter {
 
         let oldest_not_compressed_batch = self
             .pool
-            .access_storage()
+            .connection()
             .await
             .unwrap()
             .fri_proof_compressor_dal()

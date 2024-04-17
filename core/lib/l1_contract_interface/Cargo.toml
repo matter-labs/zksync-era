@@ -1,20 +1,29 @@
 [package]
 name = "zksync_l1_contract_interface"
-version = "0.1.0"
-edition = "2018"
-authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
-homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
-license = "MIT OR Apache-2.0"
-keywords = ["blockchain", "zksync"]
-categories = ["cryptography"]
-readme = "README.md"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-zksync_types = { path = "../types" }
-zksync_prover_interface = { path = "../prover_interface" }
+zksync_types.workspace = true
+zksync_prover_interface.workspace = true
 
 # Used to serialize proof data
-codegen = { git = "https://github.com/matter-labs/solidity_plonk_verifier.git", branch = "dev" }
-# Used to calculate commitment for vk from the old L1 verifier contract (backward comatibility needs)
-zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3" }
+crypto_codegen.workspace = true
+# Used to calculate the kzg commitment and proofs
+kzg.workspace = true
+
+sha2.workspace = true
+sha3.workspace = true
+hex.workspace = true
+once_cell.workspace = true
+
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true
+serde_with = { workspace = true, features = ["base64", "hex"] }

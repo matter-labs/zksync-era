@@ -4,19 +4,20 @@ use async_trait::async_trait;
 use zksync_types::web3::{
     self,
     contract::Contract,
-    ethabi,
+    ethabi, helpers,
+    helpers::CallFuture,
     transports::Http,
     types::{
-        Address, Block, BlockId, BlockNumber, Bytes, Filter, Log, Transaction, TransactionId,
+        Address, BlockId, BlockNumber, Bytes, Filter, Log, Transaction, TransactionId,
         TransactionReceipt, H256, U256, U64,
     },
-    Web3,
+    Transport, Web3,
 };
 
 use crate::{
     clients::http::{Method, COUNTERS, LATENCIES},
-    types::{Error, ExecutedTxStatus, FailureInfo, RawTokens},
-    ContractCall, EthInterface, RawTransactionBytes,
+    types::{Error, ExecutedTxStatus, FailureInfo, FeeHistory, RawTokens},
+    Block, ContractCall, EthInterface, RawTransactionBytes,
 };
 
 /// An "anonymous" Ethereum client that can invoke read-only methods that aren't
@@ -103,14 +104,19 @@ impl EthInterface for QueryClient {
         for chunk_start in (from_block..=upto_block).step_by(MAX_REQUEST_CHUNK) {
             let chunk_end = (chunk_start + MAX_REQUEST_CHUNK).min(upto_block);
             let chunk_size = chunk_end - chunk_start;
-            let chunk = self
-                .web3
-                .eth()
-                .fee_history(chunk_size.into(), chunk_end.into(), None)
-                .await?
-                .base_fee_per_gas;
 
-            history.extend(chunk);
+            let block_count = helpers::serialize(&U256::from(chunk_size));
+            let newest_block = helpers::serialize(&web3::types::BlockNumber::from(chunk_end));
+            let reward_percentiles = helpers::serialize(&Option::<()>::None);
+
+            let fee_history: FeeHistory = CallFuture::new(self.web3.transport().execute(
+                "eth_feeHistory",
+                vec![block_count, newest_block, reward_percentiles],
+            ))
+            .await?;
+            if let Some(base_fees) = fee_history.base_fee_per_gas {
+                history.extend(base_fees);
+            }
         }
 
         latency.observe();
@@ -128,8 +134,18 @@ impl EthInterface for QueryClient {
             .web3
             .eth()
             .block(BlockId::Number(BlockNumber::Pending))
-            .await?
-            .expect("Pending block should always exist");
+            .await?;
+        let block = if let Some(block) = block {
+            block
+        } else {
+            // Fallback for local reth. Because of artificial nature of producing blocks in local reth setup
+            // there may be no pending block
+            self.web3
+                .eth()
+                .block(BlockId::Number(BlockNumber::Latest))
+                .await?
+                .expect("Latest block always exists")
+        };
 
         latency.observe();
         // base_fee_per_gas always exists after London fork
@@ -284,7 +300,28 @@ impl EthInterface for QueryClient {
     ) -> Result<Option<Block<H256>>, Error> {
         COUNTERS.call[&(Method::Block, component)].inc();
         let latency = LATENCIES.direct[&Method::Block].start();
-        let block = self.web3.eth().block(block_id).await?;
+        // Copy of `web3::block` implementation. It's required to deserialize response as `crate::types::Block`
+        // that has EIP-4844 fields.
+        let block = {
+            let include_txs = helpers::serialize(&false);
+
+            let result = match block_id {
+                BlockId::Hash(hash) => {
+                    let hash = helpers::serialize(&hash);
+                    self.web3
+                        .transport()
+                        .execute("eth_getBlockByHash", vec![hash, include_txs])
+                }
+                BlockId::Number(num) => {
+                    let num = helpers::serialize(&num);
+                    self.web3
+                        .transport()
+                        .execute("eth_getBlockByNumber", vec![num, include_txs])
+                }
+            };
+
+            CallFuture::new(result).await?
+        };
         latency.observe();
         Ok(block)
     }

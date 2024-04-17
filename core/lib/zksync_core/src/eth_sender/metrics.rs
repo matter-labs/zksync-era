@@ -3,22 +3,21 @@
 use std::{fmt, time::Duration};
 
 use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Connection, Core, CoreDal};
+use zksync_shared_metrics::{BlockL1Stage, BlockStage, APP_METRICS};
 use zksync_types::{aggregated_operations::AggregatedActionType, eth_sender::EthTx};
 use zksync_utils::time::seconds_since_epoch;
 
-use crate::{
-    eth_sender::eth_tx_manager::L1BlockNumbers,
-    metrics::{BlockL1Stage, BlockStage, APP_METRICS},
-};
+use crate::eth_sender::eth_tx_manager::L1BlockNumbers;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "kind", rename_all = "snake_case")]
 #[allow(clippy::enum_variant_names)]
 pub(super) enum PubdataKind {
-    L2ToL1MessagesCompressed,
-    InitialWritesCompressed,
-    RepeatedWritesCompressed,
+    UserL2ToL1Logs,
+    StateDiffs,
+    LongL2ToL1Messages,
+    RawPublishedBytecodes,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
@@ -76,7 +75,7 @@ pub(super) struct EthSenderMetrics {
     #[metrics(buckets = Buckets::LATENCIES)]
     metrics_latency: Histogram<Duration>,
     /// Size of data published on L1 for an L1 batch.
-    #[metrics(buckets = Buckets::exponential(16.0..=4_096.0, 2.0))]
+    #[metrics(buckets = Buckets::exponential(1024.0..=131_072.0, 2.0))]
     pub pubdata_size: Family<PubdataKind, Histogram<usize>>,
     /// Size of the L1 batch range for a certain Ethereum sender operation.
     #[metrics(buckets = Buckets::linear(1.0..=10.0, 1.0))]
@@ -112,7 +111,7 @@ impl EthSenderMetrics {
 
     pub async fn track_eth_tx_metrics(
         &self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut Connection<'_, Core>,
         l1_stage: BlockL1Stage,
         tx: &EthTx,
     ) {

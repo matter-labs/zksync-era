@@ -2,19 +2,20 @@
 
 use std::ops;
 
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
     snapshots::SnapshotRecoveryStatus,
-    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersion, StorageKey,
-    StorageLog, H256,
+    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersion, ProtocolVersionId,
+    StorageKey, StorageLog, H256,
 };
 
-pub(crate) async fn prepare_postgres(conn: &mut StorageProcessor<'_>) {
+pub(crate) async fn prepare_postgres(conn: &mut Connection<'_, Core>) {
     if conn.blocks_dal().is_genesis_needed().await.unwrap() {
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         // The created genesis block is likely to be invalid, but since it's not committed,
         // we don't really care.
         let genesis_storage_logs = gen_storage_logs(0..20);
@@ -24,7 +25,8 @@ pub(crate) async fn prepare_postgres(conn: &mut StorageProcessor<'_>) {
 
     conn.storage_logs_dal()
         .rollback_storage_logs(MiniblockNumber(0))
-        .await;
+        .await
+        .unwrap();
     conn.blocks_dal()
         .delete_miniblocks(MiniblockNumber(0))
         .await
@@ -67,7 +69,7 @@ pub(crate) fn gen_storage_logs(indices: ops::Range<u64>) -> Vec<StorageLog> {
 #[allow(clippy::default_trait_access)]
 // ^ `BaseSystemContractsHashes::default()` would require a new direct dependency
 pub(crate) async fn create_miniblock(
-    conn: &mut StorageProcessor<'_>,
+    conn: &mut Connection<'_, Core>,
     miniblock_number: MiniblockNumber,
     block_logs: Vec<StorageLog>,
 ) {
@@ -84,6 +86,7 @@ pub(crate) async fn create_miniblock(
         base_system_contracts_hashes: Default::default(),
         protocol_version: Some(Default::default()),
         virtual_blocks: 0,
+        gas_limit: 0,
     };
 
     conn.blocks_dal()
@@ -92,13 +95,14 @@ pub(crate) async fn create_miniblock(
         .unwrap();
     conn.storage_logs_dal()
         .insert_storage_logs(miniblock_number, &[(H256::zero(), block_logs)])
-        .await;
+        .await
+        .unwrap();
 }
 
 #[allow(clippy::default_trait_access)]
 // ^ `BaseSystemContractsHashes::default()` would require a new direct dependency
 pub(crate) async fn create_l1_batch(
-    conn: &mut StorageProcessor<'_>,
+    conn: &mut Connection<'_, Core>,
     l1_batch_number: L1BatchNumber,
     logs_for_initial_writes: &[StorageLog],
 ) {
@@ -116,21 +120,26 @@ pub(crate) async fn create_l1_batch(
     written_keys.sort_unstable();
     conn.storage_logs_dedup_dal()
         .insert_initial_writes(l1_batch_number, &written_keys)
-        .await;
+        .await
+        .unwrap();
 }
 
 pub(crate) async fn prepare_postgres_for_snapshot_recovery(
-    conn: &mut StorageProcessor<'_>,
+    conn: &mut Connection<'_, Core>,
 ) -> (SnapshotRecoveryStatus, Vec<StorageLog>) {
     conn.protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion::default())
-        .await;
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
 
     let snapshot_recovery = SnapshotRecoveryStatus {
         l1_batch_number: L1BatchNumber(23),
+        l1_batch_timestamp: 23,
         l1_batch_root_hash: H256::zero(), // not used
         miniblock_number: MiniblockNumber(42),
-        miniblock_root_hash: H256::zero(), // not used
+        miniblock_timestamp: 42,
+        miniblock_hash: H256::zero(), // not used
+        protocol_version: ProtocolVersionId::latest(),
         storage_logs_chunks_processed: vec![true; 100],
     };
     conn.snapshot_recovery_dal()
@@ -138,19 +147,19 @@ pub(crate) async fn prepare_postgres_for_snapshot_recovery(
         .await
         .unwrap();
 
-    // FIXME (PLA-589): don't store miniblock / L1 batch once the corresponding foreign keys are removed
     let snapshot_storage_logs = gen_storage_logs(100..200);
-    create_miniblock(
-        conn,
-        snapshot_recovery.miniblock_number,
-        snapshot_storage_logs.clone(),
-    )
-    .await;
-    create_l1_batch(
-        conn,
-        snapshot_recovery.l1_batch_number,
-        &snapshot_storage_logs,
-    )
-    .await;
+    conn.storage_logs_dal()
+        .insert_storage_logs(
+            snapshot_recovery.miniblock_number,
+            &[(H256::zero(), snapshot_storage_logs.clone())],
+        )
+        .await
+        .unwrap();
+    let mut written_keys: Vec<_> = snapshot_storage_logs.iter().map(|log| log.key).collect();
+    written_keys.sort_unstable();
+    conn.storage_logs_dedup_dal()
+        .insert_initial_writes(snapshot_recovery.l1_batch_number, &written_keys)
+        .await
+        .unwrap();
     (snapshot_recovery, snapshot_storage_logs)
 }

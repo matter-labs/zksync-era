@@ -24,7 +24,7 @@ RUN curl -Lo cmake-3.24.2-linux-x86_64.sh https://github.com/Kitware/CMake/relea
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN cargo build --release --features "gpu" --bin zksync_prover_fri
+RUN cd prover && cargo build --release --features "gpu" --bin zksync_prover_fri
 
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 
@@ -33,6 +33,6 @@ RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /
 # copy finalization hints required for assembly generation
 COPY prover/vk_setup_data_generator_server_fri/data/ /prover/vk_setup_data_generator_server_fri/data/
 
-COPY --from=builder /usr/src/zksync/target/release/zksync_prover_fri /usr/bin/
+COPY --from=builder /usr/src/zksync/prover/target/release/zksync_prover_fri /usr/bin/
 
 ENTRYPOINT ["zksync_prover_fri"]

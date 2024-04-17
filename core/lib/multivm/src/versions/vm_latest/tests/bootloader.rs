@@ -41,7 +41,7 @@ fn test_bootloader_out_of_gas() {
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(base_system_contracts)
-        .with_gas_limit(10)
+        .with_bootloader_gas_limit(10)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build();
 

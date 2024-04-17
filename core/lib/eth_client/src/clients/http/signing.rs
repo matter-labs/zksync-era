@@ -1,27 +1,28 @@
 use std::{fmt, sync::Arc};
 
 use async_trait::async_trait;
-use zksync_config::{ContractsConfig, ETHClientConfig, ETHSenderConfig};
+use zksync_config::{configs::ContractsConfig, EthConfig};
 use zksync_contracts::zksync_contract;
 use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
 use zksync_types::{
     web3::{
         self,
-        contract::{tokens::Detokenize, Options},
+        contract::tokens::Detokenize,
         ethabi,
         transports::Http,
         types::{
-            Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt,
-            H160, H256, U256, U64,
+            Address, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, H160,
+            H256, U256, U64,
         },
     },
-    L1ChainId, PackedEthSignature, EIP_1559_TX_TYPE,
+    L1ChainId, PackedEthSignature, EIP_4844_TX_TYPE,
 };
 
 use super::{query::QueryClient, Method, LATENCIES};
 use crate::{
-    types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
-    BoundEthInterface, CallFunctionArgs, ContractCall, EthInterface, RawTransactionBytes,
+    types::{encode_blob_tx_with_sidecar, Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
+    Block, BoundEthInterface, CallFunctionArgs, ContractCall, EthInterface, Options,
+    RawTransactionBytes,
 };
 
 /// HTTP-based Ethereum client, backed by a private key to sign transactions.
@@ -29,35 +30,62 @@ pub type PKSigningClient = SigningClient<PrivateKeySigner>;
 
 impl PKSigningClient {
     pub fn from_config(
-        eth_sender: &ETHSenderConfig,
+        eth_sender: &EthConfig,
         contracts_config: &ContractsConfig,
-        eth_client: &ETHClientConfig,
+        l1_chain_id: L1ChainId,
+        operator_private_key: H256,
     ) -> Self {
-        // Gather required data from the config.
-        // It's done explicitly to simplify getting rid of this function later.
-        let main_node_url = &eth_client.web3_url;
-        let operator_private_key = eth_sender
-            .sender
-            .private_key()
-            .expect("Operator private key is required for signing client");
-        let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
-        let default_priority_fee_per_gas = eth_sender.gas_adjuster.default_priority_fee_per_gas;
-        let l1_chain_id = eth_client.chain_id;
+        Self::from_config_inner(
+            eth_sender,
+            contracts_config,
+            l1_chain_id,
+            operator_private_key,
+        )
+    }
 
-        let transport = Http::new(main_node_url).expect("Failed to create transport");
+    pub fn new_raw(
+        operator_private_key: H256,
+        diamond_proxy_addr: Address,
+        default_priority_fee_per_gas: u64,
+        l1_chain_id: L1ChainId,
+        web3_url: &str,
+    ) -> Self {
+        let transport = Http::new(web3_url).expect("Failed to create transport");
         let operator_address = PackedEthSignature::address_from_private_key(&operator_private_key)
             .expect("Failed to get address from private key");
 
+        let signer = PrivateKeySigner::new(operator_private_key);
         tracing::info!("Operator address: {:?}", operator_address);
-
         SigningClient::new(
             transport,
             zksync_contract(),
             operator_address,
-            PrivateKeySigner::new(operator_private_key),
+            signer,
             diamond_proxy_addr,
             default_priority_fee_per_gas.into(),
-            L1ChainId(l1_chain_id),
+            l1_chain_id,
+        )
+    }
+
+    fn from_config_inner(
+        eth_sender: &EthConfig,
+        contracts_config: &ContractsConfig,
+        l1_chain_id: L1ChainId,
+        operator_private_key: H256,
+    ) -> Self {
+        let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
+        let default_priority_fee_per_gas = eth_sender
+            .gas_adjuster
+            .expect("Gas adjuster")
+            .default_priority_fee_per_gas;
+        let main_node_url = &eth_sender.web3_url;
+
+        SigningClient::new_raw(
+            operator_private_key,
+            diamond_proxy_addr,
+            default_priority_fee_per_gas,
+            l1_chain_id,
+            main_node_url,
         )
     }
 }
@@ -226,6 +254,15 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
             None => self.inner.default_priority_fee_per_gas,
         };
 
+        if options.transaction_type == Some(EIP_4844_TX_TYPE.into()) {
+            if options.max_fee_per_blob_gas.is_none() {
+                return Err(Error::Eip4844MissingMaxFeePerBlobGas);
+            }
+            if options.blob_versioned_hashes.is_none() {
+                return Err(Error::Eip4844MissingBlobVersionedHashes);
+            }
+        }
+
         // Fetch current base fee and add `max_priority_fee_per_gas`
         let max_fee_per_gas = match options.max_fee_per_gas {
             Some(max_fee_per_gas) => max_fee_per_gas,
@@ -267,21 +304,28 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
             chain_id: self.inner.chain_id.0,
             max_priority_fee_per_gas,
             gas_price: None,
-            transaction_type: Some(EIP_1559_TX_TYPE.into()),
+            transaction_type: options.transaction_type,
             access_list: None,
             max_fee_per_gas,
+            max_fee_per_blob_gas: options.max_fee_per_blob_gas,
+            blob_versioned_hashes: options.blob_versioned_hashes,
         };
 
-        let signed_tx = self.inner.eth_signer.sign_transaction(tx).await?;
+        let mut signed_tx = self.inner.eth_signer.sign_transaction(tx).await?;
         let hash = web3::signing::keccak256(&signed_tx).into();
         latency.observe();
-        Ok(SignedCallResult {
-            raw_tx: RawTransactionBytes(signed_tx),
+
+        if let Some(sidecar) = options.blob_tx_sidecar {
+            signed_tx = encode_blob_tx_with_sidecar(&signed_tx, &sidecar);
+        }
+
+        Ok(SignedCallResult::new(
+            RawTransactionBytes(signed_tx),
             max_priority_fee_per_gas,
             max_fee_per_gas,
             nonce,
             hash,
-        })
+        ))
     }
 
     async fn allowance_on_account(

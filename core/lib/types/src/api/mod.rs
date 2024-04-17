@@ -362,6 +362,37 @@ impl<TX> Default for Block<TX> {
     }
 }
 
+impl<TX> Block<TX> {
+    pub fn with_transactions<U>(self, transactions: Vec<U>) -> Block<U> {
+        Block {
+            hash: self.hash,
+            parent_hash: self.parent_hash,
+            uncles_hash: self.uncles_hash,
+            author: self.author,
+            state_root: self.state_root,
+            transactions_root: self.transactions_root,
+            receipts_root: self.receipts_root,
+            number: self.number,
+            l1_batch_number: self.l1_batch_number,
+            gas_used: self.gas_used,
+            gas_limit: self.gas_limit,
+            base_fee_per_gas: self.base_fee_per_gas,
+            extra_data: self.extra_data,
+            logs_bloom: self.logs_bloom,
+            timestamp: self.timestamp,
+            l1_batch_timestamp: self.l1_batch_timestamp,
+            difficulty: self.difficulty,
+            total_difficulty: self.total_difficulty,
+            seal_fields: self.seal_fields,
+            uncles: self.uncles,
+            transactions,
+            size: self.size,
+            mix_hash: self.mix_hash,
+            nonce: self.nonce,
+        }
+    }
+}
+
 fn null_to_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 where
     T: Default + Deserialize<'de>,
@@ -655,6 +686,7 @@ pub struct BlockDetailsBase {
     pub timestamp: u64,
     pub l1_tx_count: usize,
     pub l2_tx_count: usize,
+    /// Hash for a miniblock, or the root hash (aka state hash) for an L1 batch.
     pub root_hash: Option<H256>,
     pub status: BlockStatus,
     pub commit_tx_hash: Option<H256>,

@@ -1,13 +1,15 @@
+#![doc = include_str!("../doc/ProofGenerationDal.md")]
 use std::time::Duration;
 
 use strum::{Display, EnumString};
+use zksync_db_connection::{connection::Connection, utils::pg_interval_from_duration};
 use zksync_types::L1BatchNumber;
 
-use crate::{time_utils::pg_interval_from_duration, SqlxError, StorageProcessor};
+use crate::{Core, SqlxError};
 
 #[derive(Debug)]
 pub struct ProofGenerationDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 #[derive(Debug, EnumString, Display)]
@@ -83,7 +85,7 @@ impl ProofGenerationDal<'_, '_> {
                 l1_batch_number = $2
             "#,
             proof_blob_url,
-            block_number.0 as i64,
+            i64::from(block_number.0)
         )
         .execute(self.storage.conn())
         .await?
@@ -106,7 +108,7 @@ impl ProofGenerationDal<'_, '_> {
                 ($1, 'ready_to_be_proven', $2, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-            block_number.0 as i64,
+            i64::from(block_number.0),
             proof_gen_data_blob_url,
         )
         .execute(self.storage.conn())
@@ -128,7 +130,7 @@ impl ProofGenerationDal<'_, '_> {
                 l1_batch_number = $2
             "#,
             ProofGenerationJobStatus::Skipped.to_string(),
-            block_number.0 as i64,
+            i64::from(block_number.0)
         )
         .execute(self.storage.conn())
         .await?

@@ -1,22 +1,23 @@
 use async_trait::async_trait;
+use prover_dal::{Prover, ProverDal};
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 
 use crate::house_keeper::periodic_job::PeriodicJob;
 
 #[derive(Debug)]
 pub struct FriProverStatsReporter {
     reporting_interval_ms: u64,
-    prover_connection_pool: ConnectionPool,
-    db_connection_pool: ConnectionPool,
+    prover_connection_pool: ConnectionPool<Prover>,
+    db_connection_pool: ConnectionPool<Core>,
     config: FriProverGroupConfig,
 }
 
 impl FriProverStatsReporter {
     pub fn new(
         reporting_interval_ms: u64,
-        prover_connection_pool: ConnectionPool,
-        db_connection_pool: ConnectionPool,
+        prover_connection_pool: ConnectionPool<Prover>,
+        db_connection_pool: ConnectionPool<Core>,
         config: FriProverGroupConfig,
     ) -> Self {
         Self {
@@ -34,7 +35,7 @@ impl PeriodicJob for FriProverStatsReporter {
     const SERVICE_NAME: &'static str = "FriProverStatsReporter";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
-        let mut conn = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut conn = self.prover_connection_pool.connection().await.unwrap();
         let stats = conn.fri_prover_jobs_dal().get_prover_jobs_stats().await;
 
         for ((circuit_id, aggregation_round), stats) in stats.into_iter() {
@@ -89,7 +90,7 @@ impl PeriodicJob for FriProverStatsReporter {
 
         // FIXME: refactor metrics here
 
-        let mut db_conn = self.db_connection_pool.access_storage().await.unwrap();
+        let mut db_conn = self.db_connection_pool.connection().await.unwrap();
 
         let oldest_unpicked_batch = match db_conn
             .proof_generation_dal()

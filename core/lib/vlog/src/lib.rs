@@ -1,13 +1,34 @@
 //! This module contains the observability subsystem.
 //! It is responsible for providing a centralized interface for consistent observability configuration.
 
-use std::{backtrace::Backtrace, borrow::Cow, panic::PanicInfo};
+use std::{backtrace::Backtrace, borrow::Cow, panic::PanicInfo, str::FromStr};
 
 // Temporary re-export of `sentry::capture_message` aiming to simplify the transition from `vlog` to using
 // crates directly.
+use opentelemetry::{
+    sdk::{
+        propagation::TraceContextPropagator,
+        trace::{self, RandomIdGenerator, Sampler, Tracer},
+        Resource,
+    },
+    KeyValue,
+};
+use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_semantic_conventions::resource::SERVICE_NAME;
 pub use sentry::{capture_message, Level as AlertLevel};
 use sentry::{types::Dsn, ClientInitGuard};
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_opentelemetry::OpenTelemetryLayer;
+use tracing_subscriber::{
+    filter::Filtered,
+    fmt,
+    layer::{Layered, SubscriberExt},
+    registry::LookupSpan,
+    util::SubscriberInitExt,
+    EnvFilter, Layer,
+};
+
+type TracingLayer<Inner> =
+    Layered<Filtered<OpenTelemetryLayer<Inner, Tracer>, EnvFilter, Inner>, Inner>;
 
 /// Specifies the format of the logs in stdout.
 #[derive(Debug, Clone, Copy, Default)]
@@ -17,13 +38,95 @@ pub enum LogFormat {
     Json,
 }
 
+#[derive(Debug)]
+pub struct LogFormatError(&'static str);
+
+impl std::fmt::Display for LogFormatError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::error::Error for LogFormatError {}
+
+impl FromStr for LogFormat {
+    type Err = LogFormatError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "plain" => Ok(LogFormat::Plain),
+            "json" => Ok(LogFormat::Json),
+            _ => Err(LogFormatError("invalid log format")),
+        }
+    }
+}
+
+// Doesn't define WARN and ERROR, because the highest verbosity of spans is INFO.
+#[derive(Copy, Clone, Debug, Default)]
+pub enum OpenTelemetryLevel {
+    #[default]
+    OFF,
+    INFO,
+    DEBUG,
+    TRACE,
+}
+
+#[derive(Debug)]
+pub struct OpenTelemetryLevelFormatError;
+
+impl std::fmt::Display for OpenTelemetryLevelFormatError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Invalid OpenTelemetry level format")
+    }
+}
+
+impl std::error::Error for OpenTelemetryLevelFormatError {}
+
+impl FromStr for OpenTelemetryLevel {
+    type Err = OpenTelemetryLevelFormatError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "off" => Ok(OpenTelemetryLevel::OFF),
+            "info" => Ok(OpenTelemetryLevel::INFO),
+            "debug" => Ok(OpenTelemetryLevel::DEBUG),
+            "trace" => Ok(OpenTelemetryLevel::TRACE),
+            _ => Err(OpenTelemetryLevelFormatError),
+        }
+    }
+}
+
+impl std::fmt::Display for OpenTelemetryLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
+            OpenTelemetryLevel::OFF => "off",
+            OpenTelemetryLevel::INFO => "info",
+            OpenTelemetryLevel::DEBUG => "debug",
+            OpenTelemetryLevel::TRACE => "trace",
+        };
+        write!(f, "{}", str)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct OpenTelemetryOptions {
+    /// Enables export of span data of specified level (and above) using opentelemetry exporters.
+    pub opentelemetry_level: OpenTelemetryLevel,
+    /// Opentelemetry HTTP collector endpoint.
+    pub otlp_endpoint: String,
+    /// Logical service name to be used for exported events. See [`SERVICE_NAME`].
+    pub service_name: String,
+}
+
 /// Builder for the observability subsystem.
 /// Currently capable of configuring logging output and sentry integration.
 #[derive(Debug, Default)]
 pub struct ObservabilityBuilder {
     log_format: LogFormat,
+    log_directives: Option<String>,
     sentry_url: Option<Dsn>,
     sentry_environment: Option<String>,
+    opentelemetry_options: Option<OpenTelemetryOptions>,
 }
 
 /// Guard for the observability subsystem.
@@ -51,6 +154,11 @@ impl ObservabilityBuilder {
         self
     }
 
+    pub fn with_log_directives(mut self, log_level: String) -> Self {
+        self.log_directives = Some(log_level);
+        self
+    }
+
     /// Enables Sentry integration.
     /// Returns an error if the provided Sentry URL is invalid.
     pub fn with_sentry_url(
@@ -69,28 +177,113 @@ impl ObservabilityBuilder {
         self
     }
 
+    pub fn with_opentelemetry(
+        mut self,
+        opentelemetry_level: &str,
+        otlp_endpoint: String,
+        service_name: String,
+    ) -> Result<Self, OpenTelemetryLevelFormatError> {
+        self.opentelemetry_options = Some(OpenTelemetryOptions {
+            opentelemetry_level: opentelemetry_level.parse()?,
+            otlp_endpoint,
+            service_name,
+        });
+        Ok(self)
+    }
+
+    fn add_opentelemetry_layer<S>(
+        opentelemetry_level: OpenTelemetryLevel,
+        otlp_endpoint: String,
+        service_name: String,
+        subscriber: S,
+    ) -> TracingLayer<S>
+    where
+        S: tracing::Subscriber + for<'span> LookupSpan<'span> + Send + Sync,
+    {
+        let filter = match opentelemetry_level {
+            OpenTelemetryLevel::OFF => EnvFilter::new("off"),
+            OpenTelemetryLevel::INFO => EnvFilter::new("info"),
+            OpenTelemetryLevel::DEBUG => EnvFilter::new("debug"),
+            OpenTelemetryLevel::TRACE => EnvFilter::new("trace"),
+        };
+        // `otel::tracing` should be a level info to emit opentelemetry trace & span
+        // `otel` set to debug to log detected resources, configuration read and inferred
+        let filter = filter
+            .add_directive("otel::tracing=trace".parse().unwrap())
+            .add_directive("otel=debug".parse().unwrap());
+
+        let resource = vec![KeyValue::new(SERVICE_NAME, service_name)];
+
+        let tracer = opentelemetry_otlp::new_pipeline()
+            .tracing()
+            .with_exporter(
+                opentelemetry_otlp::new_exporter()
+                    .http()
+                    .with_endpoint(otlp_endpoint),
+            )
+            .with_trace_config(
+                trace::config()
+                    .with_sampler(Sampler::AlwaysOn)
+                    .with_id_generator(RandomIdGenerator::default())
+                    .with_resource(Resource::new(resource)),
+            )
+            .install_batch(opentelemetry::runtime::Tokio)
+            .unwrap();
+
+        opentelemetry::global::set_text_map_propagator(TraceContextPropagator::new());
+        let layer = tracing_opentelemetry::layer()
+            .with_tracer(tracer)
+            .with_filter(filter);
+        subscriber.with(layer)
+    }
+
     /// Initializes the observability subsystem.
     pub fn build(self) -> ObservabilityGuard {
         // Initialize logs.
+
+        let env_filter = if let Some(log_directives) = self.log_directives {
+            tracing_subscriber::EnvFilter::new(log_directives)
+        } else {
+            tracing_subscriber::EnvFilter::from_default_env()
+        };
+
         match self.log_format {
             LogFormat::Plain => {
-                tracing_subscriber::registry()
-                    .with(tracing_subscriber::EnvFilter::from_default_env())
-                    .with(fmt::Layer::default())
-                    .init();
+                let subscriber = tracing_subscriber::registry()
+                    .with(env_filter)
+                    .with(fmt::Layer::default());
+                if let Some(opts) = self.opentelemetry_options {
+                    let subscriber = Self::add_opentelemetry_layer(
+                        opts.opentelemetry_level,
+                        opts.otlp_endpoint,
+                        opts.service_name,
+                        subscriber,
+                    );
+                    subscriber.init()
+                } else {
+                    subscriber.init()
+                }
             }
             LogFormat::Json => {
                 let timer = tracing_subscriber::fmt::time::UtcTime::rfc_3339();
-                tracing_subscriber::registry()
-                    .with(tracing_subscriber::EnvFilter::from_default_env())
-                    .with(
-                        fmt::Layer::default()
-                            .with_file(true)
-                            .with_line_number(true)
-                            .with_timer(timer)
-                            .json(),
-                    )
-                    .init();
+                let subscriber = tracing_subscriber::registry().with(env_filter).with(
+                    fmt::Layer::default()
+                        .with_file(true)
+                        .with_line_number(true)
+                        .with_timer(timer)
+                        .json(),
+                );
+                if let Some(opts) = self.opentelemetry_options {
+                    let subscriber = Self::add_opentelemetry_layer(
+                        opts.opentelemetry_level,
+                        opts.otlp_endpoint,
+                        opts.service_name,
+                        subscriber,
+                    );
+                    subscriber.init()
+                } else {
+                    subscriber.init()
+                }
             }
         };
 
@@ -125,72 +318,8 @@ impl ObservabilityBuilder {
     }
 }
 
-/// Loads the log format from the environment variable according to the existing zkSync configuration scheme.
-/// If the variable is not set, the default value is used.
-///
-/// This is a deprecated function existing for compatibility with the old configuration scheme.
-/// Not recommended for use in new applications.
-///
-/// # Panics
-///
-/// Panics if the value of the variable is set, but is not `plain` or `json`.
-#[deprecated(
-    note = "This function will be removed in the future. Applications are expected to handle their configuration themselves."
-)]
-pub fn log_format_from_env() -> LogFormat {
-    match std::env::var("MISC_LOG_FORMAT") {
-        Ok(log_format) => match log_format.as_str() {
-            "plain" => LogFormat::Plain,
-            "json" => LogFormat::Json,
-            _ => panic!("MISC_LOG_FORMAT has an unexpected value {}", log_format),
-        },
-        Err(_) => LogFormat::Plain,
-    }
-}
-
-/// Loads the Sentry URL from the environment variable according to the existing zkSync configuration scheme.
-/// If the environment value is present but the value is `unset`, `None` will be returned for compatibility with the
-/// existing configuration setup.
-///
-/// This is a deprecated function existing for compatibility with the old configuration scheme.
-/// Not recommended for use in new applications.
-#[deprecated(
-    note = "This function will be removed in the future. Applications are expected to handle their configuration themselves."
-)]
-pub fn sentry_url_from_env() -> Option<String> {
-    match std::env::var("MISC_SENTRY_URL") {
-        Ok(str) if str == "unset" => {
-            // This bogus value may be provided an sentry is expected to just not be initialized in this case.
-            None
-        }
-        Ok(str) => Some(str),
-        Err(_) => None,
-    }
-}
-
-/// Prepared the Sentry environment ID from the environment variable according to the existing zkSync configuration
-/// scheme.
-/// This function mimics like `vlog` configuration worked historically, e.g. it would also try to load environment
-/// for the external node, and the EN variable is preferred if it is set.
-///
-/// This is a deprecated function existing for compatibility with the old configuration scheme.
-/// Not recommended for use in new applications.
-#[deprecated(
-    note = "This function will be removed in the future. Applications are expected to handle their configuration themselves."
-)]
-pub fn environment_from_env() -> Option<String> {
-    if let Ok(en_env) = std::env::var("EN_SENTRY_ENVIRONMENT") {
-        return Some(en_env);
-    }
-
-    let l1_network = std::env::var("CHAIN_ETH_NETWORK").ok()?;
-    let l2_network = std::env::var("CHAIN_ETH_ZKSYNC_NETWORK").ok()?;
-
-    Some(format!("{} - {}", l1_network, l2_network))
-}
-
 fn json_panic_handler(panic_info: &PanicInfo) {
-    let backtrace = Backtrace::capture();
+    let backtrace = Backtrace::force_capture();
     let timestamp = chrono::Utc::now();
     let panic_message = if let Some(s) = panic_info.payload().downcast_ref::<String>() {
         s.as_str()

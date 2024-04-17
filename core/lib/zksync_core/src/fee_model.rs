@@ -1,6 +1,6 @@
 use std::{fmt, sync::Arc};
 
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
     fee_model::{
         BatchFeeInput, FeeModelConfig, FeeModelConfigV2, FeeParams, FeeParamsV1, FeeParamsV2,
@@ -10,7 +10,7 @@ use zksync_types::{
 };
 use zksync_utils::ceil_div_u256;
 
-use crate::l1_gas_price::L1GasPriceProvider;
+use crate::l1_gas_price::GasAdjuster;
 
 /// Trait responsible for providing fee info for a batch
 #[async_trait::async_trait]
@@ -52,8 +52,8 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
 /// it explicitly gets the L1 gas price from the provider and uses it to calculate the batch fee input instead of getting
 /// it from other node.
 #[derive(Debug)]
-pub(crate) struct MainNodeFeeInputProvider {
-    provider: Arc<dyn L1GasPriceProvider>,
+pub struct MainNodeFeeInputProvider {
+    provider: Arc<GasAdjuster>,
     config: FeeModelConfig,
 }
 
@@ -74,7 +74,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
 }
 
 impl MainNodeFeeInputProvider {
-    pub(crate) fn new(provider: Arc<dyn L1GasPriceProvider>, config: FeeModelConfig) -> Self {
+    pub fn new(provider: Arc<GasAdjuster>, config: FeeModelConfig) -> Self {
         Self { provider, config }
     }
 }
@@ -83,18 +83,17 @@ impl MainNodeFeeInputProvider {
 /// the one from the last sealed miniblock.
 #[derive(Debug)]
 pub(crate) struct ApiFeeInputProvider {
-    inner: MainNodeFeeInputProvider,
-    connection_pool: ConnectionPool,
+    inner: Arc<dyn BatchFeeModelInputProvider>,
+    connection_pool: ConnectionPool<Core>,
 }
 
 impl ApiFeeInputProvider {
     pub fn new(
-        provider: Arc<dyn L1GasPriceProvider>,
-        config: FeeModelConfig,
-        connection_pool: ConnectionPool,
+        inner: Arc<dyn BatchFeeModelInputProvider>,
+        connection_pool: ConnectionPool<Core>,
     ) -> Self {
         Self {
-            inner: MainNodeFeeInputProvider::new(provider, config),
+            inner,
             connection_pool,
         }
     }
@@ -113,7 +112,7 @@ impl BatchFeeModelInputProvider for ApiFeeInputProvider {
             .await;
         let last_miniblock_params = self
             .connection_pool
-            .access_storage_tagged("api_fee_input_provider")
+            .connection_tagged("api_fee_input_provider")
             .await
             .unwrap()
             .blocks_dal()

@@ -1,0 +1,9 @@
+fee_account:
+  private_key: 0x27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be
+  address: 0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7
+operator:
+  private_key: 0x27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be
+  address: 0xde03a0b5963f75f1c8485b355ff6d30f3093bde7
+blob_operator:
+  private_key: 0xe667e57a9b8aaa6709e51ff7d093f1c5b73b63f9987e4ab4aa9a5c699e024ee8
+  address: 0x4f9133d1d3f50011a6859807c837bdcb31aaab13

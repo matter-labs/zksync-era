@@ -5,7 +5,6 @@ This documentation explains the basics of the zkSync Era External Node.
 ## Disclaimers
 
 - The external node is in the alpha phase, and should be used with caution.
-- While in alpha, the EN is dependent on a DB snapshot in order to run that is not yet publicly available.
 - The EN is a read-only replica of the main node. We are currently working on decentralizing our infrastructure by
   creating a consensus node. The EN is not going to be the consensus node.
 
@@ -16,8 +15,11 @@ functions by fetching data from the zkSync API and re-applying transactions loca
 The EN shares most of its codebase with the main node. Consequently, when it re-applies transactions, it does so exactly
 as the main node did in the past.
 
-In Ethereum terms, the current state of the EN represents an archive node, providing access to the entire history of the
-blockchain.
+**It has two modes of initialization:**
+
+- recovery from a DB dump, in Ethereum terms this corresponds to archival node
+- recovery from a snapshot, in Ethereum terms this corresponds to light node, such nodes will only have access to
+  transactions data from after the node was initialized. The database is currently not pruned on such nodes.
 
 ## High-level overview
 

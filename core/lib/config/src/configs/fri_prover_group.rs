@@ -77,11 +77,11 @@ impl FriProverGroupConfig {
     }
     /// check all_circuit ids present exactly once
     /// and For each aggregation round, check that the circuit ids are in the correct range.
-    /// For example, in aggregation round 0, the circuit ids should be 1 to 13.
+    /// For example, in aggregation round 0, the circuit ids should be 1 to 13 + 255 (EIP4844).
     /// In aggregation round 1, the circuit ids should be 3 to 15.
     /// In aggregation round 2, the circuit ids should be 2.
     /// In aggregation round 3, the circuit ids should be 1.
-    pub fn validate(&self) {
+    pub fn validate(&self) -> anyhow::Result<()> {
         let mut rounds: Vec<Vec<CircuitIdRoundTuple>> = vec![Vec::new(); 4];
         let groups = [
             &self.group_0,
@@ -113,111 +113,77 @@ impl FriProverGroupConfig {
                 .copied()
                 .collect();
 
-            match round {
+            let (missing_ids, not_in_range, expected_circuits_description) = match round {
                 0 => {
-                    let expected_range: Vec<_> = (1..=13).collect();
+                    let mut expected_range: Vec<_> = (1..=13).collect();
+                    // temporary EIP4844 1.4.2 circuits
+                    // will be removed with a proper circuit id in 1.5.0
+                    expected_range.push(255);
                     let missing_ids: Vec<_> = expected_range
                         .iter()
+                        .copied()
                         .filter(|id| !circuit_ids.contains(id))
                         .collect();
-                    assert!(
-                        missing_ids.is_empty(),
-                        "Circuit IDs for round {} are missing: {:?}",
-                        round,
-                        missing_ids
-                    );
-                    assert_eq!(
-                        circuit_ids.len(),
-                        unique_circuit_ids.len(),
-                        "Circuit IDs: {:?} should be unique for round {}.",
-                        duplicates,
-                        round
-                    );
+
                     let not_in_range: Vec<_> = circuit_ids
                         .iter()
                         .filter(|&id| !expected_range.contains(id))
                         .collect();
-                    assert!(not_in_range.is_empty(), "Aggregation round 0 should only contain circuit IDs 1 to 13. Ids out of range: {:?}", not_in_range);
+                    (missing_ids, not_in_range, "circuit IDs 1 to 13 and 255")
                 }
                 1 => {
                     let expected_range: Vec<_> = (3..=15).collect();
                     let missing_ids: Vec<_> = expected_range
                         .iter()
+                        .copied()
                         .filter(|id| !circuit_ids.contains(id))
                         .collect();
-                    assert!(
-                        missing_ids.is_empty(),
-                        "Circuit IDs for round {} are missing: {:?}",
-                        round,
-                        missing_ids
-                    );
-                    assert_eq!(
-                        circuit_ids.len(),
-                        unique_circuit_ids.len(),
-                        "Circuit IDs: {:?} should be unique for round {}.",
-                        duplicates,
-                        round
-                    );
                     let not_in_range: Vec<_> = circuit_ids
                         .iter()
                         .filter(|&id| !expected_range.contains(id))
                         .collect();
-                    assert!(not_in_range.is_empty(), "Aggregation round 1 should only contain circuit IDs 3 to 15. Ids out of range: {:?}", not_in_range);
+                    (missing_ids, not_in_range, "circuit IDs 3 to 15")
                 }
                 2 => {
-                    let expected_range = [2];
+                    let expected_range: Vec<_> = vec![2];
                     let missing_ids: Vec<_> = expected_range
                         .iter()
+                        .copied()
                         .filter(|id| !circuit_ids.contains(id))
                         .collect();
-                    assert!(
-                        missing_ids.is_empty(),
-                        "Circuit IDs for round {} are missing: {:?}",
-                        round,
-                        missing_ids
-                    );
-                    assert_eq!(
-                        circuit_ids.len(),
-                        unique_circuit_ids.len(),
-                        "Circuit IDs: {:?} should be unique for round {}.",
-                        duplicates,
-                        round
-                    );
                     let not_in_range: Vec<_> = circuit_ids
                         .iter()
                         .filter(|&id| !expected_range.contains(id))
                         .collect();
-                    assert!(not_in_range.is_empty(), "Aggregation round 2 should only contain circuit ID 2. Ids out of range: {:?}", not_in_range);
+                    (missing_ids, not_in_range, "circuit ID 2")
                 }
                 3 => {
-                    let expected_range = [1];
+                    let expected_range: Vec<_> = vec![1];
                     let missing_ids: Vec<_> = expected_range
                         .iter()
+                        .copied()
                         .filter(|id| !circuit_ids.contains(id))
                         .collect();
-                    assert!(
-                        missing_ids.is_empty(),
-                        "Circuit IDs for round {} are missing: {:?}",
-                        round,
-                        missing_ids
-                    );
-                    assert_eq!(
-                        circuit_ids.len(),
-                        unique_circuit_ids.len(),
-                        "Circuit IDs: {:?} should be unique for round {}.",
-                        duplicates,
-                        round
-                    );
                     let not_in_range: Vec<_> = circuit_ids
                         .iter()
                         .filter(|&id| !expected_range.contains(id))
                         .collect();
-                    assert!(not_in_range.is_empty(), "Aggregation round 3 should only contain circuit ID 1. Ids out of range: {:?}", not_in_range);
+                    (missing_ids, not_in_range, "circuit ID 1")
                 }
                 _ => {
-                    panic!("Unknown round {}", round)
+                    anyhow::bail!("Unknown round {}", round);
                 }
+            };
+            if !missing_ids.is_empty() {
+                anyhow::bail!("Circuit IDs for round {round} are missing: {missing_ids:?}");
+            }
+            if circuit_ids.len() != unique_circuit_ids.len() {
+                anyhow::bail!("Circuit IDs: {duplicates:?} should be unique for round {round}.",);
+            }
+            if !not_in_range.is_empty() {
+                anyhow::bail!("Aggregation round {round} should only contain {expected_circuits_description}. Ids out of range: {not_in_range:?}");
             }
         }
+        Ok(())
     }
 }

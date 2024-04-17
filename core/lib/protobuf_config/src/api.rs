@@ -1,19 +1,17 @@
 use anyhow::Context as _;
 use zksync_config::configs::{api, ApiConfig};
-use zksync_protobuf::required;
-
-use crate::{
-    parse_h256, proto,
+use zksync_protobuf::{
     repr::{read_required_repr, ProtoRepr},
+    required,
 };
+
+use crate::{parse_h160, parse_h256, proto::api as proto};
 
 impl ProtoRepr for proto::Api {
     type Type = ApiConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             web3_json_rpc: read_required_repr(&self.web3_json_rpc).context("web3_json_rpc")?,
-            contract_verification: read_required_repr(&self.contract_verification)
-                .context("contract_verification")?,
             prometheus: read_required_repr(&self.prometheus).context("prometheus")?,
             healthcheck: read_required_repr(&self.healthcheck).context("healthcheck")?,
             merkle_tree: read_required_repr(&self.merkle_tree).context("merkle_tree")?,
@@ -23,7 +21,6 @@ impl ProtoRepr for proto::Api {
     fn build(this: &Self::Type) -> Self {
         Self {
             web3_json_rpc: Some(ProtoRepr::build(&this.web3_json_rpc)),
-            contract_verification: Some(ProtoRepr::build(&this.contract_verification)),
             prometheus: Some(ProtoRepr::build(&this.prometheus)),
             healthcheck: Some(ProtoRepr::build(&this.healthcheck)),
             merkle_tree: Some(ProtoRepr::build(&this.merkle_tree)),
@@ -34,6 +31,19 @@ impl ProtoRepr for proto::Api {
 impl ProtoRepr for proto::Web3JsonRpc {
     type Type = api::Web3JsonRpcConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
+        let account_pks = self
+            .account_pks
+            .iter()
+            .enumerate()
+            .map(|(i, k)| parse_h256(k).context(i))
+            .collect::<Result<Vec<_>, _>>()
+            .context("account_pks")?;
+        let account_pks = if account_pks.is_empty() {
+            None
+        } else {
+            Some(account_pks)
+        };
+
         Ok(Self::Type {
             http_port: required(&self.http_port)
                 .and_then(|p| Ok((*p).try_into()?))
@@ -44,6 +54,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .context("ws_port")?,
             ws_url: required(&self.ws_url).context("ws_url")?.clone(),
             req_entities_limit: self.req_entities_limit,
+            filters_disabled: self.filters_disabled.unwrap_or(false),
             filters_limit: self.filters_limit,
             subscriptions_limit: self.subscriptions_limit,
             pubsub_polling_interval: self.pubsub_polling_interval,
@@ -51,29 +62,13 @@ impl ProtoRepr for proto::Web3JsonRpc {
             gas_price_scale_factor: *required(&self.gas_price_scale_factor)
                 .context("gas_price_scale_factor")?,
             request_timeout: self.request_timeout,
-            account_pks: self
-                .account_pks
-                .as_ref()
-                .map(|keys| {
-                    keys.keys
-                        .iter()
-                        .enumerate()
-                        .map(|(i, k)| parse_h256(k).context(i))
-                        .collect::<Result<_, _>>()
-                        .context("keys")
-                })
-                .transpose()
-                .context("account_pks")?,
+            account_pks,
             estimate_gas_scale_factor: *required(&self.estimate_gas_scale_factor)
                 .context("estimate_gas_scale_factor")?,
             estimate_gas_acceptable_overestimation: *required(
                 &self.estimate_gas_acceptable_overestimation,
             )
             .context("acceptable_overestimation")?,
-            l1_to_l2_transactions_compatibility_mode: *required(
-                &self.l1_to_l2_transactions_compatibility_mode,
-            )
-            .context("l1_to_l2_transactions_compatibility_mode")?,
             max_tx_size: required(&self.max_tx_size)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("max_tx_size")?,
@@ -119,6 +114,19 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .transpose()
                 .context("websocket_requests_per_minute_limit")?,
             tree_api_url: self.tree_api_url.clone(),
+            mempool_cache_update_interval: self.mempool_cache_update_interval,
+            mempool_cache_size: self
+                .mempool_cache_size
+                .map(|x| x.try_into())
+                .transpose()
+                .context("mempool_cache_size")?,
+            whitelisted_tokens_for_aa: self
+                .whitelisted_tokens_for_aa
+                .iter()
+                .enumerate()
+                .map(|(i, k)| parse_h160(k).context(i))
+                .collect::<Result<Vec<_>, _>>()
+                .context("account_pks")?,
         })
     }
     fn build(this: &Self::Type) -> Self {
@@ -128,21 +136,23 @@ impl ProtoRepr for proto::Web3JsonRpc {
             ws_port: Some(this.ws_port.into()),
             ws_url: Some(this.ws_url.clone()),
             req_entities_limit: this.req_entities_limit,
+            filters_disabled: Some(this.filters_disabled),
+            mempool_cache_update_interval: this.mempool_cache_update_interval,
+            mempool_cache_size: this.mempool_cache_size.map(|x| x.try_into().unwrap()),
             filters_limit: this.filters_limit,
             subscriptions_limit: this.subscriptions_limit,
             pubsub_polling_interval: this.pubsub_polling_interval,
             max_nonce_ahead: Some(this.max_nonce_ahead),
             gas_price_scale_factor: Some(this.gas_price_scale_factor),
             request_timeout: this.request_timeout,
-            account_pks: this.account_pks.as_ref().map(|keys| proto::PrivateKeys {
-                keys: keys.iter().map(|k| k.as_bytes().into()).collect(),
-            }),
+            account_pks: this
+                .account_pks
+                .as_ref()
+                .map(|keys| keys.iter().map(|k| format!("{:?}", k)).collect())
+                .unwrap_or_default(),
             estimate_gas_scale_factor: Some(this.estimate_gas_scale_factor),
             estimate_gas_acceptable_overestimation: Some(
                 this.estimate_gas_acceptable_overestimation,
-            ),
-            l1_to_l2_transactions_compatibility_mode: Some(
-                this.l1_to_l2_transactions_compatibility_mode,
             ),
             max_tx_size: Some(this.max_tx_size.try_into().unwrap()),
             vm_execution_cache_misses_limit: this
@@ -167,40 +177,33 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .websocket_requests_per_minute_limit
                 .map(|x| x.into()),
             tree_api_url: this.tree_api_url.clone(),
-        }
-    }
-}
-
-impl ProtoRepr for proto::ContractVerificationApi {
-    type Type = api::ContractVerificationApiConfig;
-    fn read(&self) -> anyhow::Result<Self::Type> {
-        Ok(Self::Type {
-            port: required(&self.port)
-                .and_then(|p| Ok((*p).try_into()?))
-                .context("port")?,
-            url: required(&self.url).context("url")?.clone(),
-        })
-    }
-    fn build(this: &Self::Type) -> Self {
-        Self {
-            port: Some(this.port.into()),
-            url: Some(this.url.clone()),
+            whitelisted_tokens_for_aa: this
+                .whitelisted_tokens_for_aa
+                .iter()
+                .map(|k| format!("{:?}", k))
+                .collect(),
         }
     }
 }
 
 impl ProtoRepr for proto::HealthCheck {
     type Type = api::HealthCheckConfig;
+
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             port: required(&self.port)
-                .and_then(|p| Ok((*p).try_into()?))
+                .and_then(|&port| Ok(port.try_into()?))
                 .context("port")?,
+            slow_time_limit_ms: self.slow_time_limit_ms,
+            hard_time_limit_ms: self.hard_time_limit_ms,
         })
     }
+
     fn build(this: &Self::Type) -> Self {
         Self {
             port: Some(this.port.into()),
+            slow_time_limit_ms: this.slow_time_limit_ms,
+            hard_time_limit_ms: this.hard_time_limit_ms,
         }
     }
 }

@@ -2,11 +2,6 @@ use std::time::Instant;
 
 use rand::seq::IteratorRandom;
 use regex::Regex;
-use zksync::{
-    error::{ClientError, RpcError},
-    types::FilterBuilder,
-    EthNamespaceClient,
-};
 use zksync_types::{api, ethabi::Contract, H256, U64};
 
 use super::{Aborted, AccountLifespan};
@@ -16,6 +11,11 @@ use crate::{
     constants::API_REQUEST_TIMEOUT,
     report::{ApiActionType, ReportBuilder, ReportLabel},
     rng::LoadtestRng,
+    sdk::{
+        error::{ClientError, RpcError},
+        types::FilterBuilder,
+        EthNamespaceClient,
+    },
 };
 
 impl AccountLifespan {

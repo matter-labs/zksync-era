@@ -10,7 +10,7 @@
   },
   "devDependencies": {
     "typescript": "^4.5.5",
-    "@types/node": "^14.6.1"
+    "@types/node": "^18.19.15"
   },
   "scripts": {
     "start": "ts-node ./src/index.ts"

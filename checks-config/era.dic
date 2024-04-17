@@ -42,6 +42,7 @@ U256
 20%
 *%
 90%
+1%
 f64
 k
 M
@@ -59,6 +60,8 @@ kb
 24k
 500k
 50k
+52k
+260k
 120kb
 18kb
 12GB
@@ -80,6 +83,8 @@ L2s
 L1
 json
 l1
+G1
+G2
 SystemConfig
 TODO
 se
@@ -119,6 +124,7 @@ stdout
 GCS
 websocket
 struct
+struct's
 localhost
 TOML
 config
@@ -137,6 +143,8 @@ merkle
 eth
 Ethereum
 deployer
+designator
+designators
 RPC
 tx
 txs
@@ -162,6 +170,7 @@ zkEVM
 src
 utils
 ptr
+recurse
 RefCell
 Rc
 StorageView
@@ -181,6 +190,7 @@ sorted_timestamps
 known_bytecodes
 returndata
 namespaces
+natively
 StateDiffRecord
 BYTES_PER_ENUMERATION_INDEX
 derived_key
@@ -198,7 +208,7 @@ Serde
 tokenize
 EOAs
 zeroized
-value
+cardinality
 
 // zkSync-related words
 matterlabs
@@ -411,6 +421,12 @@ prode
 StorageBatchInfo
 CommitBatchInfo
 IExecutor
+SetChainId
+setChainId
+SetChainIdUpgrade
+state_transition_manager_contract
+prunable
+bytea
 
 // Names
 Vyper
@@ -525,6 +541,7 @@ swrite
 Devs
 insta
 NFTF
+yaml
 
 // ETC
 gitter
@@ -597,7 +614,7 @@ coinbase
 FIXME
 ASC
 DESC
-Versioning
+versioning
 initializer
 refactoring
 prefetch
@@ -669,6 +686,7 @@ OversizedData
 M5
 eth_sign
 geth
+reth
 ethers
 js
 recovery_id
@@ -896,3 +914,27 @@ downcasting
 parameterized
 reimplementation
 composability
+md5
+shivini
+balancer
+lookups
+stateful
+getPubdataPricingMode
+Uint
+implementors
+WIP
+oneshot
+p2p
+StorageProcessor
+StorageMarker
+SIGINT
+opentelemetry
+PubdataSendingMode
+FriGpuProverArchiver
+vm
+demuxer
+2k
+4k
+superset
+80M
+780kb

@@ -1,6 +1,11 @@
 use serde::{Deserialize, Serialize};
+use zksync_system_constants::{BLOB1_LINEAR_HASH_KEY, PUBDATA_CHUNK_PUBLISHER_ADDRESS};
 
-use crate::{commitment::SerializeCommitment, Address, H256};
+use crate::{
+    blob::{num_blobs_created, num_blobs_required},
+    commitment::SerializeCommitment,
+    Address, ProtocolVersionId, H256,
+};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, Eq)]
 pub struct L2ToL1Log {
@@ -24,14 +29,6 @@ pub struct UserL2ToL1Log(pub L2ToL1Log);
 pub struct SystemL2ToL1Log(pub L2ToL1Log);
 
 impl L2ToL1Log {
-    /// Determines the minimum number of items in the Merkle tree built from L2-to-L1 logs
-    /// for a certain batch.
-    pub const MIN_L2_L1_LOGS_TREE_SIZE: usize = 2048;
-
-    /// Determines the minimum number of items in the Merkle tree built from L2-to-L1 logs
-    /// for a pre-boojum batch.
-    pub const PRE_BOOJUM_MIN_L2_L1_LOGS_TREE_SIZE: usize = 512;
-
     pub fn from_slice(data: &[u8]) -> Self {
         assert_eq!(data.len(), Self::SERIALIZED_SIZE);
         Self {
@@ -61,6 +58,54 @@ impl L2ToL1Log {
         res.extend(self.value.as_bytes());
         res
     }
+}
+
+/// Returns the number of items in the Merkle tree built from L2-to-L1 logs
+/// for a certain protocol version.
+pub fn l2_to_l1_logs_tree_size(protocol_version: ProtocolVersionId) -> usize {
+    pub const PRE_BOOJUM_L2_L1_LOGS_TREE_SIZE: usize = 512;
+    pub const VM_1_4_0_L2_L1_LOGS_TREE_SIZE: usize = 2048;
+    pub const VM_1_4_2_L2_L1_LOGS_TREE_SIZE: usize = 4096;
+    pub const VM_1_5_0_L2_L1_LOGS_TREE_SIZE: usize = 16384;
+
+    if protocol_version.is_pre_boojum() {
+        PRE_BOOJUM_L2_L1_LOGS_TREE_SIZE
+    } else if protocol_version.is_1_4_0() || protocol_version.is_1_4_1() {
+        VM_1_4_0_L2_L1_LOGS_TREE_SIZE
+    } else if protocol_version.is_pre_1_5_0() {
+        VM_1_4_2_L2_L1_LOGS_TREE_SIZE
+    } else {
+        VM_1_5_0_L2_L1_LOGS_TREE_SIZE
+    }
+}
+
+/// Returns the blob hashes parsed out from the system logs
+pub fn parse_system_logs_for_blob_hashes(
+    protocol_version: &ProtocolVersionId,
+    system_logs: &[SystemL2ToL1Log],
+) -> Vec<H256> {
+    let num_required_blobs = num_blobs_required(protocol_version) as u32;
+    let num_created_blobs = num_blobs_created(protocol_version) as u32;
+
+    if num_created_blobs == 0 {
+        return vec![H256::zero(); num_required_blobs as usize];
+    }
+
+    let mut blob_hashes = system_logs
+        .iter()
+        .filter(|log| {
+            log.0.sender == PUBDATA_CHUNK_PUBLISHER_ADDRESS
+                && log.0.key >= H256::from_low_u64_be(BLOB1_LINEAR_HASH_KEY as u64)
+                && log.0.key
+                    < H256::from_low_u64_be((BLOB1_LINEAR_HASH_KEY + num_created_blobs) as u64)
+        })
+        .map(|log| (log.0.key, log.0.value))
+        .collect::<Vec<(H256, H256)>>();
+
+    blob_hashes.sort_unstable_by_key(|(k, _)| *k);
+    let mut blob_hashes = blob_hashes.iter().map(|(_, v)| *v).collect::<Vec<H256>>();
+    blob_hashes.resize(num_required_blobs as usize, H256::zero());
+    blob_hashes
 }
 
 #[cfg(test)]

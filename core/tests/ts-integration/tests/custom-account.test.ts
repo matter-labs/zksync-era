@@ -8,7 +8,7 @@ import * as zksync from 'zksync-web3';
 import { utils, types } from 'zksync-web3';
 import * as ethers from 'ethers';
 import { deployContract, getTestContract } from '../src/helpers';
-import { ERC20_PER_ACCOUNT, L2_ETH_PER_ACCOUNT } from '../src/context-owner';
+import { ERC20_PER_ACCOUNT, L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 import { shouldChangeETHBalances, shouldChangeTokenBalances } from '../src/modifiers/balance-checker';
 
 const contracts = {
@@ -17,7 +17,7 @@ const contracts = {
 };
 
 // We create multiple custom accounts and we need to fund them with ETH to pay for fees.
-const ETH_PER_CUSTOM_ACCOUNT = L2_ETH_PER_ACCOUNT.div(8);
+const ETH_PER_CUSTOM_ACCOUNT = L2_DEFAULT_ETH_PER_ACCOUNT.div(8);
 const TRANSFER_AMOUNT = 1;
 
 describe('Tests for the custom account behavior', () => {

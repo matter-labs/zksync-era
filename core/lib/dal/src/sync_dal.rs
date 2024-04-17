@@ -1,24 +1,25 @@
+use zksync_db_connection::{
+    connection::Connection, error::DalResult, instrument::InstrumentExt, metrics::MethodLatency,
+};
 use zksync_types::{api::en, MiniblockNumber};
 
 use crate::{
-    instrument::InstrumentExt,
-    metrics::MethodLatency,
     models::storage_sync::{StorageSyncBlock, SyncBlock},
-    StorageProcessor,
+    Core, CoreDal,
 };
 
 /// DAL subset dedicated to the EN synchronization.
 #[derive(Debug)]
 pub struct SyncDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut Connection<'c, Core>,
 }
 
 impl SyncDal<'_, '_> {
     pub(super) async fn sync_block_inner(
         &mut self,
         block_number: MiniblockNumber,
-    ) -> anyhow::Result<Option<SyncBlock>> {
-        let Some(block) = sqlx::query_as!(
+    ) -> DalResult<Option<SyncBlock>> {
+        let block = sqlx::query_as!(
             StorageSyncBlock,
             r#"
             SELECT
@@ -30,6 +31,12 @@ impl SyncDal<'_, '_> {
                             (MAX(number) + 1)
                         FROM
                             l1_batches
+                    ),
+                    (
+                        SELECT
+                            MAX(l1_batch_number) + 1
+                        FROM
+                            snapshot_recovery
                     )
                 ) AS "l1_batch_number!",
                 (
@@ -55,31 +62,22 @@ impl SyncDal<'_, '_> {
             WHERE
                 miniblocks.number = $1
             "#,
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
+        .try_map(SyncBlock::try_from)
         .instrument("sync_dal_sync_block.block")
         .with_arg("block_number", &block_number)
-        .fetch_optional(self.storage.conn())
-        .await?
-        else {
-            return Ok(None);
-        };
+        .fetch_optional(self.storage)
+        .await?;
 
-        let mut block = SyncBlock::try_from(block)?;
-        // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
-        #[allow(deprecated)]
-        self.storage
-            .blocks_dal()
-            .maybe_load_fee_address(&mut block.fee_account_address, block.number)
-            .await?;
-        Ok(Some(block))
+        Ok(block)
     }
 
     pub async fn sync_block(
         &mut self,
         block_number: MiniblockNumber,
         include_transactions: bool,
-    ) -> anyhow::Result<Option<en::SyncBlock>> {
+    ) -> DalResult<Option<en::SyncBlock>> {
         let _latency = MethodLatency::new("sync_dal_sync_block");
         let Some(block) = self.sync_block_inner(block_number).await? else {
             return Ok(None);
@@ -108,19 +106,23 @@ mod tests {
 
     use super::*;
     use crate::{
-        tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
-        ConnectionPool,
+        tests::{
+            create_miniblock_header, create_snapshot_recovery, mock_execution_result,
+            mock_l2_transaction,
+        },
+        ConnectionPool, Core,
     };
 
     #[tokio::test]
     async fn sync_block_basics() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
 
         // Simulate genesis.
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
             .await
@@ -154,8 +156,9 @@ mod tests {
         };
         let tx = mock_l2_transaction();
         conn.transactions_dal()
-            .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
-            .await;
+            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_miniblock(&miniblock_header)
             .await
@@ -166,7 +169,8 @@ mod tests {
                 &[mock_execution_result(tx.clone())],
                 1.into(),
             )
-            .await;
+            .await
+            .unwrap();
 
         let block = conn
             .sync_dal()
@@ -226,5 +230,45 @@ mod tests {
         assert_eq!(block.l1_batch_number, L1BatchNumber(1));
         assert!(block.last_in_batch);
         assert_eq!(block.operator_address, miniblock_header.fee_account_address);
+    }
+
+    #[tokio::test]
+    async fn sync_block_after_snapshot_recovery() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        // Simulate snapshot recovery.
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+        let snapshot_recovery = create_snapshot_recovery();
+        conn.snapshot_recovery_dal()
+            .insert_initial_recovery_status(&snapshot_recovery)
+            .await
+            .unwrap();
+
+        assert!(conn
+            .sync_dal()
+            .sync_block(snapshot_recovery.miniblock_number, false)
+            .await
+            .unwrap()
+            .is_none());
+
+        let miniblock_header = create_miniblock_header(snapshot_recovery.miniblock_number.0 + 1);
+        conn.blocks_dal()
+            .insert_miniblock(&miniblock_header)
+            .await
+            .unwrap();
+
+        let block = conn
+            .sync_dal()
+            .sync_block(miniblock_header.number, false)
+            .await
+            .unwrap()
+            .expect("No new miniblock");
+        assert_eq!(block.number, miniblock_header.number);
+        assert_eq!(block.timestamp, miniblock_header.timestamp);
+        assert_eq!(block.l1_batch_number, snapshot_recovery.l1_batch_number + 1);
     }
 }

@@ -2,24 +2,65 @@ use std::fmt;
 
 use async_trait::async_trait;
 use zksync_types::{
+    eth_sender::EthTxBlobSidecar,
     web3::{
-        contract::Options,
         ethabi,
         types::{
-            Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt,
-            H160, H256, U256, U64,
+            AccessList, Address, BlockId, BlockNumber, Filter, Log, Transaction,
+            TransactionCondition, TransactionReceipt, H160, H256, U256, U64,
         },
     },
     L1ChainId,
 };
 
 pub use crate::types::{
-    CallFunctionArgs, ContractCall, Error, ExecutedTxStatus, FailureInfo, RawTransactionBytes,
-    SignedCallResult,
+    encode_blob_tx_with_sidecar, Block, CallFunctionArgs, ContractCall, Error, ExecutedTxStatus,
+    FailureInfo, RawTransactionBytes, SignedCallResult,
 };
 
 pub mod clients;
 mod types;
+
+/// Contract Call/Query Options
+#[derive(Default, Debug, Clone, PartialEq)]
+pub struct Options {
+    /// Fixed gas limit
+    pub gas: Option<U256>,
+    /// Fixed gas price
+    pub gas_price: Option<U256>,
+    /// Value to transfer
+    pub value: Option<U256>,
+    /// Fixed transaction nonce
+    pub nonce: Option<U256>,
+    /// A condition to satisfy before including transaction.
+    pub condition: Option<TransactionCondition>,
+    /// Transaction type, Some(1) for AccessList transaction, None for Legacy
+    pub transaction_type: Option<U64>,
+    /// Access list
+    pub access_list: Option<AccessList>,
+    /// Max fee per gas
+    pub max_fee_per_gas: Option<U256>,
+    /// miner bribe
+    pub max_priority_fee_per_gas: Option<U256>,
+    /// Max fee per blob gas
+    pub max_fee_per_blob_gas: Option<U256>,
+    /// Blob versioned hashes
+    pub blob_versioned_hashes: Option<Vec<H256>>,
+    /// Blob sidecar
+    pub blob_tx_sidecar: Option<EthTxBlobSidecar>,
+}
+
+impl Options {
+    /// Create new default `Options` object with some modifications.
+    pub fn with<F>(func: F) -> Options
+    where
+        F: FnOnce(&mut Options),
+    {
+        let mut options = Options::default();
+        func(&mut options);
+        options
+    }
+}
 
 /// Common Web3 interface, as seen by the core applications.
 /// Encapsulates the raw Web3 interaction, providing a high-level interface.

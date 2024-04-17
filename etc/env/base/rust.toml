@@ -5,6 +5,7 @@
 # `RUST_LOG` environment variable for `env_logger`
 # Here we use TOML multiline strings: newlines will be trimmed.
 RUST_LOG="""\
+zksync_node_framework=info,\
 zksync_consensus_bft=info,\
 zksync_consensus_network=info,\
 zksync_consensus_storage=info,\
@@ -13,6 +14,7 @@ zksync_server=debug,\
 zksync_contract_verifier=debug,\
 zksync_dal=info,\
 zksync_eth_client=info,\
+zksync_eth_watch=debug,\
 zksync_storage=info,\
 zksync_db_manager=info,\
 zksync_merkle_tree=info,\
@@ -23,16 +25,16 @@ zksync_types=info,\
 zksync_mempool=debug,\
 loadnext=info,\
 vm=info,\
-block_sizes_test=info,\
 zksync_object_store=info,\
-en_playground=info,\
 zksync_external_node=info,\
 zksync_witness_generator=info,\
 zksync_prover_fri=info,\
 zksync_witness_vector_generator=info,\
+zksync_web3_decl=debug,\
 zksync_health_check=debug,\
 zksync_proof_fri_compressor=info,\
 vise_exporter=debug,\
+snapshots_creator=debug,\
 """
 
 # `RUST_BACKTRACE` variable

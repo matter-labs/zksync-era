@@ -1,13 +1,14 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
+use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
 
 use crate::house_keeper::periodic_job::PeriodicJob;
 
 #[derive(Debug)]
 pub struct FriProofCompressorJobRetryManager {
-    pool: ConnectionPool,
+    pool: ConnectionPool<Prover>,
     max_attempts: u32,
     processing_timeout: Duration,
     retry_interval_ms: u64,
@@ -18,7 +19,7 @@ impl FriProofCompressorJobRetryManager {
         max_attempts: u32,
         processing_timeout: Duration,
         retry_interval_ms: u64,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Prover>,
     ) -> Self {
         Self {
             max_attempts,
@@ -37,7 +38,7 @@ impl PeriodicJob for FriProofCompressorJobRetryManager {
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let stuck_jobs = self
             .pool
-            .access_storage()
+            .connection()
             .await
             .unwrap()
             .fri_proof_compressor_dal()

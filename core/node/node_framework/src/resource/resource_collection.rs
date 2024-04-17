@@ -6,7 +6,7 @@ use std::{
 use thiserror::Error;
 use tokio::sync::watch;
 
-use super::{Resource, ResourceId};
+use super::Resource;
 
 /// Collection of resources that can be extended during the initialization phase, and then resolved once
 /// the wiring is complete.
@@ -31,12 +31,12 @@ pub struct ResourceCollection<T> {
 }
 
 impl<T: Resource> Resource for ResourceCollection<T> {
-    fn resource_id() -> ResourceId {
-        ResourceId::new("collection") + T::resource_id()
-    }
-
     fn on_resource_wired(&mut self) {
         self.wiring_complete_sender.send(true).ok();
+    }
+
+    fn name() -> String {
+        format!("collection of {}", T::name())
     }
 }
 
@@ -90,6 +90,10 @@ impl<T: Resource + Clone> ResourceCollection<T> {
 
         let mut handle = self.resources.lock().unwrap();
         handle.push(resource);
+        tracing::info!(
+            "A new item has been added to the resource collection {}",
+            Self::name()
+        );
         Ok(())
     }
 
@@ -100,7 +104,69 @@ impl<T: Resource + Clone> ResourceCollection<T> {
         // some tasks would spawn something from the `IntoZkSyncTask` impl.
         self.wired.changed().await.expect("Sender can't be dropped");
 
+        tracing::info!("Resource collection {} has been resolved", Self::name());
+
         let handle = self.resources.lock().unwrap();
         (*handle).clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use assert_matches::assert_matches;
+    use futures::FutureExt;
+
+    use super::*;
+
+    #[derive(Debug, Clone, PartialEq)]
+    struct TestResource(Arc<u8>);
+
+    impl Resource for TestResource {
+        fn name() -> String {
+            "test_resource".into()
+        }
+    }
+
+    #[test]
+    fn test_push() {
+        let collection = ResourceCollection::<TestResource>::new();
+        let resource1 = TestResource(Arc::new(1));
+        collection.clone().push(resource1.clone()).unwrap();
+
+        let resource2 = TestResource(Arc::new(2));
+        collection.clone().push(resource2.clone()).unwrap();
+
+        assert_eq!(
+            *collection.resources.lock().unwrap(),
+            vec![resource1, resource2]
+        );
+    }
+
+    #[test]
+    fn test_already_wired() {
+        let mut collection = ResourceCollection::<TestResource>::new();
+        let resource = TestResource(Arc::new(1));
+
+        let rc_clone = collection.clone();
+
+        collection.on_resource_wired();
+
+        assert_matches!(
+            rc_clone.push(resource),
+            Err(ResourceCollectionError::AlreadyWired)
+        );
+    }
+
+    #[test]
+    fn test_resolve() {
+        let mut collection = ResourceCollection::<TestResource>::new();
+        let result = collection.clone().resolve().now_or_never();
+
+        assert!(result.is_none());
+
+        collection.on_resource_wired();
+
+        let resolved = collection.resolve().now_or_never();
+        assert_eq!(resolved.unwrap(), vec![]);
     }
 }

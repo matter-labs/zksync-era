@@ -1,6 +1,10 @@
 [fri_witness]
-generation_timeout_in_secs=900
-max_attempts=10
-dump_arguments_for_blocks="1"
-force_process_block=1
-shall_save_to_public_bucket=true
+generation_timeout_in_secs = 900
+basic_generation_timeout_in_secs = 900
+leaf_generation_timeout_in_secs = 900
+node_generation_timeout_in_secs = 900
+scheduler_generation_timeout_in_secs = 900
+max_attempts = 10
+dump_arguments_for_blocks = "1"
+force_process_block = 1
+shall_save_to_public_bucket = true

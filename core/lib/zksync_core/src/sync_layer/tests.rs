@@ -1,29 +1,30 @@
 //! High-level sync layer tests.
 
-use std::{
-    collections::{HashMap, VecDeque},
-    iter,
-    time::{Duration, Instant},
-};
+use std::{iter, sync::Arc, time::Duration};
 
+use test_casing::test_casing;
 use tokio::{sync::watch, task::JoinHandle};
-use zksync_config::configs::chain::NetworkConfig;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_contracts::BaseSystemContractsHashes;
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{
+    api,
+    block::MiniblockHasher,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
+    snapshots::SnapshotRecoveryStatus,
     Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
 };
 
-use super::{fetcher::FetcherCursor, sync_action::SyncAction, *};
+use super::{fetcher::FetchedTransaction, sync_action::SyncAction, *};
 use crate::{
-    api_server::web3::tests::spawn_http_server,
     consensus::testonly::MockMainNodeClient,
-    genesis::{ensure_genesis_state, GenesisParams},
+    genesis::{insert_genesis_batch, GenesisParams},
     state_keeper::{
-        seal_criteria::NoopSealer, tests::TestBatchExecutorBuilder, MiniblockSealer,
-        ZkSyncStateKeeper,
+        io::{L1BatchParams, MiniblockParams},
+        seal_criteria::NoopSealer,
+        tests::TestBatchExecutorBuilder,
+        OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
     },
-    utils::testonly::{create_l1_batch_metadata, create_l2_transaction},
+    utils::testonly::{create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot},
 };
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
@@ -32,14 +33,18 @@ pub(crate) const OPERATOR_ADDRESS: Address = Address::repeat_byte(1);
 
 fn open_l1_batch(number: u32, timestamp: u64, first_miniblock_number: u32) -> SyncAction {
     SyncAction::OpenBatch {
+        params: L1BatchParams {
+            protocol_version: ProtocolVersionId::latest(),
+            validation_computational_gas_limit: u32::MAX,
+            operator_address: OPERATOR_ADDRESS,
+            fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
+            first_miniblock: MiniblockParams {
+                timestamp,
+                virtual_blocks: 1,
+            },
+        },
         number: L1BatchNumber(number),
-        timestamp,
-        l1_gas_price: 2,
-        l2_fair_gas_price: 3,
-        fair_pubdata_price: Some(4),
-        operator_address: OPERATOR_ADDRESS,
-        protocol_version: ProtocolVersionId::latest(),
-        first_miniblock_info: (MiniblockNumber(first_miniblock_number), 1),
+        first_miniblock_number: MiniblockNumber(first_miniblock_number),
     }
 }
 
@@ -52,27 +57,30 @@ pub(super) struct StateKeeperHandles {
 
 impl StateKeeperHandles {
     /// `tx_hashes` are grouped by the L1 batch.
-    pub async fn new(pool: ConnectionPool, actions: ActionQueue, tx_hashes: &[&[H256]]) -> Self {
+    pub async fn new(
+        pool: ConnectionPool<Core>,
+        main_node_client: MockMainNodeClient,
+        actions: ActionQueue,
+        tx_hashes: &[&[H256]],
+    ) -> Self {
         assert!(!tx_hashes.is_empty());
         assert!(tx_hashes.iter().all(|tx_hashes| !tx_hashes.is_empty()));
 
-        ensure_genesis(&mut pool.access_storage().await.unwrap()).await;
+        let sync_state = SyncState::default();
+        let (persistence, miniblock_sealer) =
+            StateKeeperPersistence::new(pool.clone(), Address::repeat_byte(1), 5);
+        let output_handler = OutputHandler::new(Box::new(persistence.with_tx_insertion()))
+            .with_handler(Box::new(sync_state.clone()));
 
-        let sync_state = SyncState::new();
-        let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(pool.clone(), 5);
         tokio::spawn(miniblock_sealer.run());
-
         let io = ExternalIO::new(
-            miniblock_sealer_handle,
             pool,
             actions,
-            sync_state.clone(),
-            Box::<MockMainNodeClient>::default(),
-            Address::repeat_byte(1),
-            u32::MAX,
+            Box::new(main_node_client),
             L2ChainId::default(),
         )
-        .await;
+        .await
+        .unwrap();
 
         let (stop_sender, stop_receiver) = watch::channel(false);
         let mut batch_executor_base = TestBatchExecutorBuilder::default();
@@ -84,8 +92,10 @@ impl StateKeeperHandles {
             stop_receiver,
             Box::new(io),
             Box::new(batch_executor_base),
-            Box::new(NoopSealer),
+            output_handler,
+            Arc::new(NoopSealer),
         );
+
         Self {
             stop_sender,
             sync_state,
@@ -94,34 +104,29 @@ impl StateKeeperHandles {
     }
 
     /// Waits for the given condition.
-    pub async fn wait(self, mut condition: impl FnMut(&SyncState) -> bool) {
-        let started_at = Instant::now();
-        loop {
-            assert!(
-                started_at.elapsed() <= TEST_TIMEOUT,
-                "Timed out waiting for miniblock to be sealed"
-            );
-            if self.task.is_finished() {
-                match self.task.await {
-                    Err(err) => panic!("State keeper panicked: {}", err),
-                    Ok(Err(err)) => panic!("State keeper finished with an error: {}", err),
+    pub async fn wait_for_local_block(mut self, want: MiniblockNumber) {
+        tokio::select! {
+            task_result = &mut self.task => {
+                match task_result {
+                    Err(err) => panic!("State keeper panicked: {err}"),
+                    Ok(Err(err)) => panic!("State keeper finished with an error: {err:?}"),
                     Ok(Ok(())) => unreachable!(),
                 }
             }
-            if condition(&self.sync_state) {
-                break;
+            () = tokio::time::sleep(TEST_TIMEOUT) => {
+                panic!("Timed out waiting for miniblock to be sealed");
             }
-            tokio::time::sleep(POLL_INTERVAL).await;
+            () = self.sync_state.wait_for_local_block(want) => {
+                self.stop_sender.send_replace(true);
+                self.task.await.unwrap().unwrap();
+            }
         }
-
-        self.stop_sender.send_replace(true);
-        self.task.await.unwrap().unwrap();
     }
 }
 
-async fn ensure_genesis(storage: &mut StorageProcessor<'_>) {
+async fn ensure_genesis(storage: &mut Connection<'_, Core>) {
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
-        ensure_genesis_state(storage, L2ChainId::default(), &GenesisParams::mock())
+        insert_genesis_batch(storage, &GenesisParams::mock())
             .await
             .unwrap();
     }
@@ -140,33 +145,65 @@ fn extract_tx_hashes<'a>(actions: impl IntoIterator<Item = &'a SyncAction>) -> V
         .collect()
 }
 
+/// Returns a mock snapshot recovery status equivalent to "recovering" from the genesis block.
+fn genesis_snapshot_recovery_status() -> SnapshotRecoveryStatus {
+    SnapshotRecoveryStatus {
+        l1_batch_number: L1BatchNumber(0),
+        l1_batch_root_hash: H256::zero(), // unused
+        l1_batch_timestamp: 0,
+        miniblock_number: MiniblockNumber(0),
+        miniblock_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+        miniblock_timestamp: 0,
+        protocol_version: ProtocolVersionId::default(),
+        storage_logs_chunks_processed: vec![],
+    }
+}
+
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn external_io_basics() {
-    let pool = ConnectionPool::test_pool().await;
-    let open_l1_batch = open_l1_batch(1, 1, 1);
+async fn external_io_basics(snapshot_recovery: bool) {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    let snapshot = if snapshot_recovery {
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await
+    } else {
+        ensure_genesis(&mut storage).await;
+        genesis_snapshot_recovery_status()
+    };
+
+    let open_l1_batch = open_l1_batch(
+        snapshot.l1_batch_number.0 + 1,
+        snapshot.miniblock_timestamp + 1,
+        snapshot.miniblock_number.0 + 1,
+    );
     let tx = create_l2_transaction(10, 100);
     let tx_hash = tx.hash();
-    let tx = SyncAction::Tx(Box::new(tx.into()));
-    let actions = vec![open_l1_batch, tx, SyncAction::SealMiniblock];
+    let tx = FetchedTransaction::new(tx.into());
+    let actions = vec![open_l1_batch, tx.into(), SyncAction::SealMiniblock];
 
     let (actions_sender, action_queue) = ActionQueue::new();
-    let state_keeper =
-        StateKeeperHandles::new(pool.clone(), action_queue, &[&extract_tx_hashes(&actions)]).await;
+    let client = MockMainNodeClient::default();
+    let state_keeper = StateKeeperHandles::new(
+        pool.clone(),
+        client,
+        action_queue,
+        &[&extract_tx_hashes(&actions)],
+    )
+    .await;
     actions_sender.push_actions(actions).await;
     // Wait until the miniblock is sealed.
     state_keeper
-        .wait(|state| state.get_local_block() == MiniblockNumber(1))
+        .wait_for_local_block(snapshot.miniblock_number + 1)
         .await;
 
     // Check that the miniblock is persisted.
-    let mut storage = pool.access_storage().await.unwrap();
     let miniblock = storage
         .blocks_dal()
-        .get_miniblock_header(MiniblockNumber(1))
+        .get_miniblock_header(snapshot.miniblock_number + 1)
         .await
         .unwrap()
-        .expect("Miniblock #1 is not persisted");
-    assert_eq!(miniblock.timestamp, 1);
+        .expect("New miniblock is not persisted");
+    assert_eq!(miniblock.timestamp, snapshot.miniblock_timestamp + 1);
 
     let expected_fee_input =
         BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
@@ -187,15 +224,113 @@ async fn external_io_basics() {
         .get(0)
         .cloned()
         .expect("Transaction not persisted");
-    assert_eq!(tx_receipt.block_number, 1.into());
+    assert_eq!(
+        tx_receipt.block_number,
+        (snapshot.miniblock_number.0 + 1).into()
+    );
     assert_eq!(tx_receipt.transaction_index, 0.into());
 }
 
-pub(super) async fn run_state_keeper_with_multiple_miniblocks(pool: ConnectionPool) -> Vec<H256> {
-    let open_l1_batch = open_l1_batch(1, 1, 1);
+#[test_casing(2, [false, true])]
+#[tokio::test]
+async fn external_io_works_without_local_protocol_version(snapshot_recovery: bool) {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    let snapshot = if snapshot_recovery {
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await
+    } else {
+        ensure_genesis(&mut storage).await;
+        genesis_snapshot_recovery_status()
+    };
+
+    let mut open_l1_batch = open_l1_batch(
+        snapshot.l1_batch_number.0 + 1,
+        snapshot.miniblock_timestamp + 1,
+        snapshot.miniblock_number.0 + 1,
+    );
+    if let SyncAction::OpenBatch { params, .. } = &mut open_l1_batch {
+        params.protocol_version = ProtocolVersionId::next();
+    } else {
+        unreachable!();
+    };
+
+    let tx = create_l2_transaction(10, 100);
+    let tx = FetchedTransaction::new(tx.into());
+    let actions = vec![open_l1_batch, tx.into(), SyncAction::SealMiniblock];
+
+    let (actions_sender, action_queue) = ActionQueue::new();
+    let mut client = MockMainNodeClient::default();
+    let next_protocol_version = api::ProtocolVersion {
+        version_id: ProtocolVersionId::next() as u16,
+        timestamp: snapshot.miniblock_timestamp + 1,
+        base_system_contracts: BaseSystemContractsHashes {
+            bootloader: H256::repeat_byte(1),
+            default_aa: H256::repeat_byte(2),
+        },
+        ..api::ProtocolVersion::default()
+    };
+    client.insert_protocol_version(next_protocol_version.clone());
+
+    let state_keeper = StateKeeperHandles::new(
+        pool.clone(),
+        client,
+        action_queue,
+        &[&extract_tx_hashes(&actions)],
+    )
+    .await;
+    actions_sender.push_actions(actions).await;
+    // Wait until the miniblock is sealed.
+    state_keeper
+        .wait_for_local_block(snapshot.miniblock_number + 1)
+        .await;
+
+    // Check that the miniblock and the protocol version for it are persisted.
+    let persisted_protocol_version = storage
+        .protocol_versions_dal()
+        .get_protocol_version(ProtocolVersionId::next())
+        .await
+        .unwrap()
+        .expect("next protocol version not persisted");
+    assert_eq!(
+        persisted_protocol_version.timestamp,
+        next_protocol_version.timestamp
+    );
+    assert_eq!(
+        persisted_protocol_version.base_system_contracts_hashes,
+        next_protocol_version.base_system_contracts
+    );
+
+    let miniblock = storage
+        .blocks_dal()
+        .get_miniblock_header(snapshot.miniblock_number + 1)
+        .await
+        .unwrap()
+        .expect("New miniblock is not persisted");
+    assert_eq!(miniblock.timestamp, snapshot.miniblock_timestamp + 1);
+    assert_eq!(miniblock.protocol_version, Some(ProtocolVersionId::next()));
+}
+
+pub(super) async fn run_state_keeper_with_multiple_miniblocks(
+    pool: ConnectionPool<Core>,
+    snapshot_recovery: bool,
+) -> (SnapshotRecoveryStatus, Vec<H256>) {
+    let mut storage = pool.connection().await.unwrap();
+    let snapshot = if snapshot_recovery {
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await
+    } else {
+        ensure_genesis(&mut storage).await;
+        genesis_snapshot_recovery_status()
+    };
+    drop(storage);
+
+    let open_l1_batch = open_l1_batch(
+        snapshot.l1_batch_number.0 + 1,
+        snapshot.miniblock_timestamp + 1,
+        snapshot.miniblock_number.0 + 1,
+    );
     let txs = (0..5).map(|_| {
         let tx = create_l2_transaction(10, 100);
-        SyncAction::Tx(Box::new(tx.into()))
+        FetchedTransaction::new(tx.into()).into()
     });
     let first_miniblock_actions: Vec<_> = iter::once(open_l1_batch)
         .chain(txs)
@@ -203,13 +338,15 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(pool: ConnectionPo
         .collect();
 
     let open_miniblock = SyncAction::Miniblock {
-        number: MiniblockNumber(2),
-        timestamp: 2,
-        virtual_blocks: 1,
+        params: MiniblockParams {
+            timestamp: snapshot.miniblock_timestamp + 2,
+            virtual_blocks: 1,
+        },
+        number: snapshot.miniblock_number + 2,
     };
     let more_txs = (0..3).map(|_| {
         let tx = create_l2_transaction(10, 100);
-        SyncAction::Tx(Box::new(tx.into()))
+        FetchedTransaction::new(tx.into()).into()
     });
     let second_miniblock_actions: Vec<_> = iter::once(open_miniblock)
         .chain(more_txs)
@@ -222,41 +359,47 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(pool: ConnectionPo
             .chain(&second_miniblock_actions),
     );
     let (actions_sender, action_queue) = ActionQueue::new();
-    let state_keeper = StateKeeperHandles::new(pool, action_queue, &[&tx_hashes]).await;
+    let client = MockMainNodeClient::default();
+    let state_keeper = StateKeeperHandles::new(pool, client, action_queue, &[&tx_hashes]).await;
     actions_sender.push_actions(first_miniblock_actions).await;
     actions_sender.push_actions(second_miniblock_actions).await;
     // Wait until both miniblocks are sealed.
     state_keeper
-        .wait(|state| state.get_local_block() == MiniblockNumber(2))
+        .wait_for_local_block(snapshot.miniblock_number + 2)
         .await;
-    tx_hashes
+    (snapshot, tx_hashes)
 }
 
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn external_io_with_multiple_miniblocks() {
-    let pool = ConnectionPool::test_pool().await;
-    let tx_hashes = run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
+async fn external_io_with_multiple_miniblocks(snapshot_recovery: bool) {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let (snapshot, tx_hashes) =
+        run_state_keeper_with_multiple_miniblocks(pool.clone(), snapshot_recovery).await;
     assert_eq!(tx_hashes.len(), 8);
 
     // Check that both miniblocks are persisted.
-    let tx_hashes_by_miniblock = [(1, &tx_hashes[..5]), (2, &tx_hashes[5..])];
-    let mut storage = pool.access_storage().await.unwrap();
+    let tx_hashes_by_miniblock = [
+        (snapshot.miniblock_number + 1, &tx_hashes[..5]),
+        (snapshot.miniblock_number + 2, &tx_hashes[5..]),
+    ];
+    let mut storage = pool.connection().await.unwrap();
     for (number, expected_tx_hashes) in tx_hashes_by_miniblock {
         let miniblock = storage
             .blocks_dal()
-            .get_miniblock_header(MiniblockNumber(number))
+            .get_miniblock_header(number)
             .await
             .unwrap()
-            .unwrap_or_else(|| panic!("Miniblock #{} is not persisted", number));
+            .unwrap_or_else(|| panic!("Miniblock #{number} is not persisted"));
         assert_eq!(miniblock.l2_tx_count, expected_tx_hashes.len() as u16);
-        assert_eq!(miniblock.timestamp, u64::from(number));
+        assert_eq!(miniblock.timestamp, u64::from(number.0));
 
         let sync_block = storage
             .sync_dal()
-            .sync_block(MiniblockNumber(number), true)
+            .sync_block(number, true)
             .await
             .unwrap()
-            .unwrap_or_else(|| panic!("Sync block #{} is not persisted", number));
+            .unwrap_or_else(|| panic!("Sync block #{number} is not persisted"));
 
         let transactions = sync_block.transactions.unwrap();
         assert_eq!(transactions.len(), expected_tx_hashes.len());
@@ -265,48 +408,61 @@ async fn external_io_with_multiple_miniblocks() {
     }
     drop(storage);
 
-    test_external_io_recovery(pool, tx_hashes).await;
+    test_external_io_recovery(pool, &snapshot, tx_hashes).await;
 }
 
-async fn test_external_io_recovery(pool: ConnectionPool, mut tx_hashes: Vec<H256>) {
+async fn test_external_io_recovery(
+    pool: ConnectionPool<Core>,
+    snapshot: &SnapshotRecoveryStatus,
+    mut tx_hashes: Vec<H256>,
+) {
     let new_tx = create_l2_transaction(10, 100);
     tx_hashes.push(new_tx.hash());
-    let new_tx = SyncAction::Tx(Box::new(new_tx.into()));
+    let new_tx = FetchedTransaction::new(new_tx.into());
 
     let (actions_sender, action_queue) = ActionQueue::new();
-    let state_keeper = StateKeeperHandles::new(pool.clone(), action_queue, &[&tx_hashes]).await;
+    let client = if snapshot.l1_batch_number > L1BatchNumber(0) {
+        MockMainNodeClient::for_snapshot_recovery(snapshot)
+    } else {
+        MockMainNodeClient::default()
+    };
+
+    let state_keeper =
+        StateKeeperHandles::new(pool.clone(), client, action_queue, &[&tx_hashes]).await;
     // Check that the state keeper state is restored.
-    assert_eq!(
-        state_keeper.sync_state.get_local_block(),
-        MiniblockNumber(2)
-    );
+    state_keeper
+        .sync_state
+        .wait_for_local_block(snapshot.miniblock_number + 2)
+        .await;
 
     // Send new actions and wait until the new miniblock is sealed.
     let open_miniblock = SyncAction::Miniblock {
-        number: MiniblockNumber(3),
-        timestamp: 3,
-        virtual_blocks: 1,
+        params: MiniblockParams {
+            timestamp: snapshot.miniblock_timestamp + 3,
+            virtual_blocks: 1,
+        },
+        number: snapshot.miniblock_number + 3,
     };
-    let actions = vec![open_miniblock, new_tx, SyncAction::SealMiniblock];
+    let actions = vec![open_miniblock, new_tx.into(), SyncAction::SealMiniblock];
     actions_sender.push_actions(actions).await;
     state_keeper
-        .wait(|state| state.get_local_block() == MiniblockNumber(3))
+        .wait_for_local_block(snapshot.miniblock_number + 3)
         .await;
 
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     let miniblock = storage
         .blocks_dal()
-        .get_miniblock_header(MiniblockNumber(3))
+        .get_miniblock_header(snapshot.miniblock_number + 3)
         .await
         .unwrap()
-        .expect("Miniblock #3 is not persisted");
+        .expect("New miniblock is not persisted");
     assert_eq!(miniblock.l2_tx_count, 1);
-    assert_eq!(miniblock.timestamp, 3);
+    assert_eq!(miniblock.timestamp, snapshot.miniblock_timestamp + 3);
 }
 
-pub(super) async fn mock_l1_batch_hash_computation(pool: ConnectionPool, number: u32) {
+pub(super) async fn mock_l1_batch_hash_computation(pool: ConnectionPool<Core>, number: u32) {
     loop {
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         let last_l1_batch_number = storage
             .blocks_dal()
             .get_sealed_l1_batch_number()
@@ -320,7 +476,7 @@ pub(super) async fn mock_l1_batch_hash_computation(pool: ConnectionPool, number:
         let metadata = create_l1_batch_metadata(number);
         storage
             .blocks_dal()
-            .save_l1_batch_metadata(L1BatchNumber(number), &metadata, H256::zero(), false)
+            .save_l1_batch_tree_data(L1BatchNumber(number), &metadata.tree_data())
             .await
             .unwrap();
         break;
@@ -329,31 +485,51 @@ pub(super) async fn mock_l1_batch_hash_computation(pool: ConnectionPool, number:
 
 /// Returns tx hashes of all generated transactions, grouped by the L1 batch.
 pub(super) async fn run_state_keeper_with_multiple_l1_batches(
-    pool: ConnectionPool,
-) -> Vec<Vec<H256>> {
-    let l1_batch = open_l1_batch(1, 1, 1);
+    pool: ConnectionPool<Core>,
+    snapshot_recovery: bool,
+) -> (SnapshotRecoveryStatus, Vec<Vec<H256>>) {
+    let mut storage = pool.connection().await.unwrap();
+    let snapshot = if snapshot_recovery {
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await
+    } else {
+        ensure_genesis(&mut storage).await;
+        genesis_snapshot_recovery_status()
+    };
+    drop(storage);
+
+    let l1_batch = open_l1_batch(
+        snapshot.l1_batch_number.0 + 1,
+        snapshot.miniblock_timestamp + 1,
+        snapshot.miniblock_number.0 + 1,
+    );
     let first_tx = create_l2_transaction(10, 100);
     let first_tx_hash = first_tx.hash();
-    let first_tx = SyncAction::Tx(Box::new(first_tx.into()));
-    let first_l1_batch_actions = vec![l1_batch, first_tx, SyncAction::SealMiniblock];
+    let first_tx = FetchedTransaction::new(first_tx.into());
+    let first_l1_batch_actions = vec![l1_batch, first_tx.into(), SyncAction::SealMiniblock];
 
     let fictive_miniblock = SyncAction::Miniblock {
-        number: MiniblockNumber(2),
-        timestamp: 2,
-        virtual_blocks: 0,
+        params: MiniblockParams {
+            timestamp: snapshot.miniblock_timestamp + 2,
+            virtual_blocks: 0,
+        },
+        number: snapshot.miniblock_number + 2,
     };
-    let seal_l1_batch = SyncAction::SealBatch { virtual_blocks: 0 };
-    let fictive_miniblock_actions = vec![fictive_miniblock, seal_l1_batch];
+    let fictive_miniblock_actions = vec![fictive_miniblock, SyncAction::SealBatch];
 
-    let l1_batch = open_l1_batch(2, 3, 3);
+    let l1_batch = open_l1_batch(
+        snapshot.l1_batch_number.0 + 2,
+        snapshot.miniblock_timestamp + 3,
+        snapshot.miniblock_number.0 + 3,
+    );
     let second_tx = create_l2_transaction(10, 100);
     let second_tx_hash = second_tx.hash();
-    let second_tx = SyncAction::Tx(Box::new(second_tx.into()));
-    let second_l1_batch_actions = vec![l1_batch, second_tx, SyncAction::SealMiniblock];
+    let second_tx = FetchedTransaction::new(second_tx.into());
+    let second_l1_batch_actions = vec![l1_batch, second_tx.into(), SyncAction::SealMiniblock];
 
     let (actions_sender, action_queue) = ActionQueue::new();
     let state_keeper = StateKeeperHandles::new(
         pool.clone(),
+        MockMainNodeClient::default(),
         action_queue,
         &[&[first_tx_hash], &[second_tx_hash]],
     )
@@ -362,22 +538,25 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
     actions_sender.push_actions(fictive_miniblock_actions).await;
     actions_sender.push_actions(second_l1_batch_actions).await;
 
-    let hash_task = tokio::spawn(mock_l1_batch_hash_computation(pool.clone(), 1));
+    let hash_task = tokio::spawn(mock_l1_batch_hash_computation(
+        pool.clone(),
+        snapshot.l1_batch_number.0 + 1,
+    ));
     // Wait until the miniblocks are sealed.
     state_keeper
-        .wait(|state| state.get_local_block() == MiniblockNumber(3))
+        .wait_for_local_block(snapshot.miniblock_number + 3)
         .await;
     hash_task.await.unwrap();
 
-    vec![vec![first_tx_hash], vec![second_tx_hash]]
+    (snapshot, vec![vec![first_tx_hash], vec![second_tx_hash]])
 }
 
 #[tokio::test]
 async fn external_io_with_multiple_l1_batches() {
-    let pool = ConnectionPool::test_pool().await;
-    run_state_keeper_with_multiple_l1_batches(pool.clone()).await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    run_state_keeper_with_multiple_l1_batches(pool.clone(), false).await;
 
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     let l1_batch_header = storage
         .blocks_dal()
         .get_l1_batch_header(L1BatchNumber(1))
@@ -404,173 +583,4 @@ async fn external_io_with_multiple_l1_batches() {
         .expect("Fictive miniblock #2 is not persisted");
     assert_eq!(fictive_miniblock.timestamp, 2);
     assert_eq!(fictive_miniblock.l2_tx_count, 0);
-}
-
-#[tokio::test]
-async fn fetcher_basics() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis(&mut storage).await;
-    let fetcher_cursor = FetcherCursor::new(&mut storage).await.unwrap();
-    assert_eq!(fetcher_cursor.l1_batch, L1BatchNumber(0));
-    assert_eq!(fetcher_cursor.next_miniblock, MiniblockNumber(1));
-    drop(storage);
-
-    let mut mock_client = MockMainNodeClient::default();
-    mock_client.push_l1_batch(0);
-    // ^ The genesis L1 batch will not be queried, so we're OK with filling it with non-authentic data
-    let mut tx_hashes = VecDeque::from(mock_client.push_l1_batch(1));
-    tx_hashes.extend(mock_client.push_l1_batch(2));
-
-    let (actions_sender, mut actions) = ActionQueue::new();
-    let (stop_sender, stop_receiver) = watch::channel(false);
-    let sync_state = SyncState::default();
-    let fetcher = fetcher_cursor.into_fetcher(
-        Box::new(mock_client),
-        actions_sender,
-        sync_state.clone(),
-        stop_receiver,
-    );
-    let fetcher_task = tokio::spawn(fetcher.run());
-
-    // Check that `sync_state` is updated.
-    while sync_state.get_main_node_block() < MiniblockNumber(5) {
-        tokio::time::sleep(POLL_INTERVAL).await;
-    }
-
-    // Check generated actions. Some basic checks are performed by `ActionQueueSender`.
-    let mut current_l1_batch_number = L1BatchNumber(0);
-    let mut current_miniblock_number = MiniblockNumber(0);
-    let mut tx_count_in_miniblock = 0;
-    let started_at = Instant::now();
-    let deadline = started_at + TEST_TIMEOUT;
-    loop {
-        let action = tokio::time::timeout_at(deadline.into(), actions.recv_action())
-            .await
-            .unwrap();
-        match action {
-            SyncAction::OpenBatch { number, .. } => {
-                current_l1_batch_number += 1;
-                current_miniblock_number += 1; // First miniblock is implicitly opened
-                tx_count_in_miniblock = 0;
-                assert_eq!(number, current_l1_batch_number);
-            }
-            SyncAction::Miniblock { number, .. } => {
-                current_miniblock_number += 1;
-                tx_count_in_miniblock = 0;
-                assert_eq!(number, current_miniblock_number);
-            }
-            SyncAction::SealBatch { virtual_blocks, .. } => {
-                assert_eq!(virtual_blocks, 0);
-                assert_eq!(tx_count_in_miniblock, 0);
-                if current_miniblock_number == MiniblockNumber(5) {
-                    break;
-                }
-            }
-            SyncAction::Tx(tx) => {
-                assert_eq!(tx.hash(), tx_hashes.pop_front().unwrap());
-                tx_count_in_miniblock += 1;
-            }
-            SyncAction::SealMiniblock => {
-                assert_eq!(tx_count_in_miniblock, 1);
-            }
-        }
-    }
-
-    stop_sender.send_replace(true);
-    fetcher_task.await.unwrap().unwrap();
-}
-
-#[tokio::test]
-async fn fetcher_with_real_server() {
-    let pool = ConnectionPool::test_pool().await;
-    // Fill in transactions grouped in multiple miniblocks in the storage.
-    let tx_hashes = run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
-    let mut tx_hashes = VecDeque::from(tx_hashes);
-    let mut connection = pool.access_storage().await.unwrap();
-    let genesis_miniblock_hash = connection
-        .blocks_dal()
-        .get_miniblock_header(MiniblockNumber(0))
-        .await
-        .unwrap()
-        .expect("No genesis miniblock")
-        .hash;
-    drop(connection);
-
-    // Start the API server.
-    let network_config = NetworkConfig::for_tests();
-    let (stop_sender, stop_receiver) = watch::channel(false);
-    let server_handles = spawn_http_server(
-        &network_config,
-        pool.clone(),
-        Default::default(),
-        stop_receiver.clone(),
-    )
-    .await;
-    server_handles.wait_until_ready().await;
-    let server_addr = &server_handles.local_addr;
-
-    // Start the fetcher connected to the API server.
-    let sync_state = SyncState::default();
-    let (actions_sender, mut actions) = ActionQueue::new();
-    let client = <dyn MainNodeClient>::json_rpc(&format!("http://{server_addr}/")).unwrap();
-    let fetcher_cursor = FetcherCursor {
-        next_miniblock: MiniblockNumber(1),
-        prev_miniblock_hash: genesis_miniblock_hash,
-        l1_batch: L1BatchNumber(0),
-    };
-    let fetcher = fetcher_cursor.into_fetcher(
-        Box::new(client),
-        actions_sender,
-        sync_state.clone(),
-        stop_receiver,
-    );
-    let fetcher_task = tokio::spawn(fetcher.run());
-
-    // Check generated actions.
-    let mut current_miniblock_number = MiniblockNumber(0);
-    let mut tx_count_in_miniblock = 0;
-    let miniblock_number_to_tx_count = HashMap::from([(1, 5), (2, 3)]);
-    let started_at = Instant::now();
-    let deadline = started_at + TEST_TIMEOUT;
-    loop {
-        let action = tokio::time::timeout_at(deadline.into(), actions.recv_action())
-            .await
-            .unwrap();
-        match action {
-            SyncAction::OpenBatch {
-                number,
-                first_miniblock_info,
-                ..
-            } => {
-                assert_eq!(number, L1BatchNumber(1));
-                current_miniblock_number += 1; // First miniblock is implicitly opened
-                tx_count_in_miniblock = 0;
-                assert_eq!(first_miniblock_info.0, current_miniblock_number);
-            }
-            SyncAction::SealBatch { .. } => unreachable!("L1 batches are not sealed in test"),
-            SyncAction::Miniblock { number, .. } => {
-                current_miniblock_number += 1;
-                tx_count_in_miniblock = 0;
-                assert_eq!(number, current_miniblock_number);
-            }
-            SyncAction::Tx(tx) => {
-                assert_eq!(tx.hash(), tx_hashes.pop_front().unwrap());
-                tx_count_in_miniblock += 1;
-            }
-            SyncAction::SealMiniblock => {
-                assert_eq!(
-                    tx_count_in_miniblock,
-                    miniblock_number_to_tx_count[&current_miniblock_number]
-                );
-                if current_miniblock_number == MiniblockNumber(2) {
-                    break;
-                }
-            }
-        }
-    }
-
-    stop_sender.send_replace(true);
-    fetcher_task.await.unwrap().unwrap();
-    server_handles.shutdown().await;
 }

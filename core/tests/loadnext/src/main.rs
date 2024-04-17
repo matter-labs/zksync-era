@@ -18,12 +18,26 @@ use zksync_config::configs::api::PrometheusConfig;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let log_format = vlog::log_format_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let sentry_url = vlog::sentry_url_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let environment = vlog::environment_from_env();
+    // We don't want to introduce dependency on `zksync_env_config` in loadnext,
+    // but we historically rely on the environment variables for the observability configuration,
+    // so we load them directly here.
+    let log_format: vlog::LogFormat = std::env::var("MISC_LOG_FORMAT")
+        .ok()
+        .unwrap_or("plain".to_string())
+        .parse()?;
+    let sentry_url = std::env::var("MISC_SENTRY_URL")
+        .ok()
+        .filter(|s| s != "unset");
+    let environment = {
+        let l1_network = std::env::var("CHAIN_ETH_NETWORK").ok();
+        let l2_network = std::env::var("CHAIN_ETH_ZKSYNC_NETWORK").ok();
+        match (l1_network, l2_network) {
+            (Some(l1_network), Some(l2_network)) => {
+                Some(format!("{} - {}", l1_network, l2_network))
+            }
+            _ => None,
+        }
+    };
 
     let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
     if let Some(sentry_url) = sentry_url {

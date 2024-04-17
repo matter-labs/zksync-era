@@ -10,11 +10,10 @@
 #[cfg(all(not(feature = "server"), not(feature = "client")))]
 std::compile_error!(r#"At least on of features ["server", "client"] must be enabled"#);
 
+#[cfg(feature = "client")]
+pub mod client;
 pub mod error;
 pub mod namespaces;
 pub mod types;
 
 pub use jsonrpsee;
-use jsonrpsee::core::ClientError;
-
-pub type RpcResult<T> = Result<T, ClientError>;

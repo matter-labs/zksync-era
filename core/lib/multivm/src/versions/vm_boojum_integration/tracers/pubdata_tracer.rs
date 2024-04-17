@@ -1,10 +1,10 @@
 use std::marker::PhantomData;
 
+use circuit_sequencer_api_1_4_0::sort_storage_access::sort_storage_access_queries;
 use zk_evm_1_4_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
-use zkevm_test_harness_1_4_0::witness::sort_storage_access::sort_storage_access_queries;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     event::{

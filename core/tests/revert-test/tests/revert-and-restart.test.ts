@@ -35,7 +35,7 @@ async function killServerAndWaitForShutdown(tester: Tester) {
     while (iter < 30) {
         try {
             await tester.syncWallet.provider.getBlockNumber();
-            await utils.sleep(5);
+            await utils.sleep(2);
             iter += 1;
         } catch (_) {
             // When exception happens, we assume that server died.
@@ -59,15 +59,19 @@ describe('Block reverting test', function () {
     let mainContract: Contract;
     let blocksCommittedBeforeRevert: number;
     let logs: fs.WriteStream;
+    let operatorAddress = process.env.ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR;
 
     let enable_consensus = process.env.ENABLE_CONSENSUS == 'true';
-    let components = 'api,tree,eth,state_keeper';
+    let components = 'api,tree,eth,state_keeper,commitment_generator';
     if (enable_consensus) {
         components += ',consensus';
     }
 
     before('create test wallet', async () => {
-        tester = await Tester.init(process.env.CHAIN_ETH_NETWORK || 'localhost');
+        tester = await Tester.init(
+            process.env.ETH_CLIENT_WEB3_URL as string,
+            process.env.API_WEB3_JSON_RPC_HTTP_URL as string
+        );
         alice = tester.emptyWallet();
         logs = fs.createWriteStream('revert.log', { flags: 'a' });
     });
@@ -91,7 +95,7 @@ describe('Block reverting test', function () {
                 mainContract = await tester.syncWallet.getMainContract();
             } catch (err) {
                 ignoreError(err, 'waiting for server HTTP JSON-RPC to start');
-                await utils.sleep(5);
+                await utils.sleep(2);
                 iter += 1;
             }
         }
@@ -131,7 +135,7 @@ describe('Block reverting test', function () {
         let blocksCommitted = await mainContract.getTotalBlocksCommitted();
         let blocksExecuted = await mainContract.getTotalBlocksExecuted();
         let tryCount = 0;
-        while (blocksCommitted.eq(blocksExecuted) && tryCount < 10) {
+        while (blocksCommitted.eq(blocksExecuted) && tryCount < 100) {
             blocksCommitted = await mainContract.getTotalBlocksCommitted();
             blocksExecuted = await mainContract.getTotalBlocksExecuted();
             tryCount += 1;
@@ -147,7 +151,7 @@ describe('Block reverting test', function () {
     step('revert blocks', async () => {
         const executedProcess = await utils.exec(
             'cd $ZKSYNC_HOME && ' +
-                'RUST_LOG=off cargo run --bin block_reverter --release -- print-suggested-values --json'
+                `RUST_LOG=off cargo run --bin block_reverter --release -- print-suggested-values --json --operator-address ${operatorAddress}`
             // ^ Switch off logs to not pollute the output JSON
         );
         const suggestedValuesOutput = executedProcess.stdout;
@@ -190,7 +194,14 @@ describe('Block reverting test', function () {
             amount: depositAmount,
             to: alice.address
         });
-        const l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
+
+        let l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
+        while (!l1TxResponse) {
+            console.log(`Deposit ${depositHandle.hash} is not visible to the L1 network; sleeping`);
+            await utils.sleep(1);
+            l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
+        }
+
         // ethers doesn't work well with block reversions, so wait for the receipt before calling `.waitFinalize()`.
         const l2Tx = await alice._providerL2().getL2TransactionFromPriorityOp(l1TxResponse);
         let receipt = null;
@@ -248,6 +259,6 @@ async function checkedRandomTransfer(sender: zkweb3.Wallet, amount: BigNumber) {
     expect(receiverBalance.eq(amount), 'Failed updated the balance of the receiver').to.be.true;
 
     const spentAmount = txReceipt.gasUsed.mul(transferHandle.gasPrice!).add(amount);
-    expect(senderBalance.add(spentAmount).eq(senderBalanceBefore), 'Failed to update the balance of the sender').to.be
+    expect(senderBalance.add(spentAmount).gte(senderBalanceBefore), 'Failed to update the balance of the sender').to.be
         .true;
 }

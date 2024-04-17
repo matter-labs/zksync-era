@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    time::Duration,
+};
 
 use serde::Deserialize;
 
@@ -10,6 +13,9 @@ pub struct ContractVerifierConfig {
     pub polling_interval: Option<u64>,
     /// Port to which the Prometheus exporter server is listening.
     pub prometheus_port: u16,
+    pub threads_per_server: Option<u16>,
+    pub port: u16,
+    pub url: String,
 }
 
 impl ContractVerifierConfig {
@@ -19,5 +25,8 @@ impl ContractVerifierConfig {
 
     pub fn polling_interval(&self) -> Duration {
         Duration::from_millis(self.polling_interval.unwrap_or(1000))
+    }
+    pub fn bind_addr(&self) -> SocketAddr {
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), self.port)
     }
 }

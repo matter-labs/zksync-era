@@ -5,6 +5,8 @@
 [eth_sender.sender]
 # operator_private_key is defined in the `private.toml`
 # operator_commit_eth_addr is defined in the `private.toml`
+# operator_blobs_private_key is defined in the `private.toml`
+# operator_blobs_eth_addr is defined in the `private.toml`
 
 # Amount of confirmations required to consider L1 transaction committed.
 wait_confirmations=1
@@ -19,7 +21,7 @@ max_txs_in_flight=30 # Safe in the local environment, do not repeat on prod (rig
 proof_sending_mode="SkipEveryProof"
 
 # Max L2 blocks to commit in one L1 transaction
-max_aggregated_blocks_to_commit=10
+max_aggregated_blocks_to_commit=1
 # Max L2 blocks to execute in one L1 transaction
 max_aggregated_blocks_to_execute=10
 
@@ -45,6 +47,8 @@ max_single_tx_gas=6000000
 max_acceptable_priority_fee_in_gwei=100000000000
 
 proof_loading_mode="OldProofFromDb"
+
+pubdata_sending_mode="Blobs"
 
 [eth_sender.gas_adjuster]
 # Priority fee to be used by GasAdjuster (in wei).

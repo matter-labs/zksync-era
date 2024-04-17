@@ -1,8 +1,0 @@
-syntax = "proto3";
-
-package zksync.config;
-
-message SnapshotsCreator {
-  optional uint64 storage_logs_chunk_size = 1; // optional
-  optional uint32 concurrent_queries_count = 2; // optional
-}

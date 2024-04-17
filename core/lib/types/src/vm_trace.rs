@@ -74,7 +74,9 @@ pub enum CallType {
 
 #[derive(Clone, Serialize, Deserialize)]
 /// Represents a call in the VM trace.
-pub struct Call {
+/// This version of the call represents the call structure before the 1.5.0 protocol version, where
+/// all the gas-related fields were represented as `u32` instead of `u64`.
+pub struct LegacyCall {
     /// Type of the call.
     pub r#type: CallType,
     /// Address of the caller.
@@ -101,10 +103,91 @@ pub struct Call {
     pub calls: Vec<Call>,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+/// Represents a call in the VM trace.
+pub struct Call {
+    /// Type of the call.
+    pub r#type: CallType,
+    /// Address of the caller.
+    pub from: Address,
+    /// Address of the callee.
+    pub to: Address,
+    /// Gas from the parent call.
+    pub parent_gas: u64,
+    /// Gas provided for the call.
+    pub gas: u64,
+    /// Gas used by the call.
+    pub gas_used: u64,
+    /// Value transferred.
+    pub value: U256,
+    /// Input data.
+    pub input: Vec<u8>,
+    /// Output data.
+    pub output: Vec<u8>,
+    /// Error message provided by vm or some unexpected errors.
+    pub error: Option<String>,
+    /// Revert reason.
+    pub revert_reason: Option<String>,
+    /// Subcalls.
+    pub calls: Vec<Call>,
+}
+
+impl From<LegacyCall> for Call {
+    fn from(legacy_call: LegacyCall) -> Self {
+        Self {
+            r#type: legacy_call.r#type,
+            from: legacy_call.from,
+            to: legacy_call.to,
+            parent_gas: legacy_call.parent_gas as u64,
+            gas: legacy_call.gas as u64,
+            gas_used: legacy_call.gas_used as u64,
+            value: legacy_call.value,
+            input: legacy_call.input,
+            output: legacy_call.output,
+            error: legacy_call.error,
+            revert_reason: legacy_call.revert_reason,
+            calls: legacy_call.calls,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct LegacyCallConversionOverflowError;
+
+impl TryFrom<Call> for LegacyCall {
+    type Error = LegacyCallConversionOverflowError;
+
+    fn try_from(call: Call) -> Result<Self, LegacyCallConversionOverflowError> {
+        Ok(Self {
+            r#type: call.r#type,
+            from: call.from,
+            to: call.to,
+            parent_gas: call
+                .parent_gas
+                .try_into()
+                .map_err(|_| LegacyCallConversionOverflowError)?,
+            gas: call
+                .gas
+                .try_into()
+                .map_err(|_| LegacyCallConversionOverflowError)?,
+            gas_used: call
+                .gas_used
+                .try_into()
+                .map_err(|_| LegacyCallConversionOverflowError)?,
+            value: call.value,
+            input: call.input,
+            output: call.output,
+            error: call.error,
+            revert_reason: call.revert_reason,
+            calls: call.calls,
+        })
+    }
+}
+
 impl Call {
     pub fn new_high_level(
-        gas: u32,
-        gas_used: u32,
+        gas: u64,
+        gas_used: u64,
         value: U256,
         input: Vec<u8>,
         output: Vec<u8>,

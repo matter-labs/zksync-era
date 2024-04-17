@@ -20,6 +20,7 @@ tags
 # Yarn files
 .yarn/
 .yarnrc.yml
+.yarnrc
 
 zksync_pk.key
 dist
@@ -32,11 +33,16 @@ Cargo.lock
 
 /etc/env/*
 !/etc/env/base
+!/etc/env/file_based
+!/etc/env/dev.toml
+!/etc/env/dev_validium.toml
+!/etc/env/dev_validium_docker.toml
 !/etc/env/docker.toml
 !/etc/env/ext-node.toml
 !/etc/env/ext-node-docker.toml
-!/etc/env/consensus_config.json
-!/etc/env/en_consensus_config.json
+!/etc/env/ext-node-validium.toml
+!/etc/env/*.yaml
+!/etc/env/ext-node-validium-docker.toml
 /etc/tokens/localhost.json
 /etc/zksolc-bin/*
 /etc/zkvyper-bin/*

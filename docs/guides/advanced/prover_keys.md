@@ -124,4 +124,4 @@ friendly hash function (currently Poseidon2).
 [prover_setup_data]:
   https://github.com/matter-labs/zksync-era/blob/d2ca29bf20b4ec2d9ec9e327b4ba6b281d9793de/prover/vk_setup_data_generator_server_fri/src/lib.rs#L61
 [verifier_computation]:
-  https://github.com/matter-labs/era-contracts/blob/dev/l1-contracts/contracts/zksync/Verifier.sol#268
+  https://github.com/matter-labs/era-contracts/blob/d85a73a1eeb5557343b7b44c6543aaf391d8b984/l1-contracts/contracts/zksync/Verifier.sol#L267

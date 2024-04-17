@@ -1,29 +1,19 @@
 //! Configuration utilities for the consensus component.
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use anyhow::Context as _;
-use zksync_consensus_crypto::{read_required_text, Text, TextFmt};
+use zksync_concurrency::net;
+use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets, Host, NodePublicKey};
+use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::{node, validator};
-use zksync_protobuf::{required, ProtoFmt};
 
-use crate::consensus::proto;
+use crate::consensus::{fetcher::P2PConfig, MainNodeConfig};
 
-/// Decodes a proto message from json for arbitrary `ProtoFmt`.
-pub fn decode_json<T: ProtoFmt>(json: &str) -> anyhow::Result<T> {
-    let mut d = serde_json::Deserializer::from_str(json);
-    let p: T = zksync_protobuf::serde::deserialize(&mut d)?;
-    d.end()?;
-    Ok(p)
-}
-
-/// Decodes a secret of type T from an env var with name `var_name`.
-/// It makes sure that the error message doesn't contain the secret.
-pub fn read_secret<T: TextFmt>(var_name: &str) -> anyhow::Result<T> {
-    let raw = std::env::var(var_name).map_err(|_| anyhow::anyhow!("{var_name} not set"))?;
-    Text::new(&raw)
+fn read_secret_text<T: TextFmt>(text: Option<&String>) -> anyhow::Result<T> {
+    Text::new(text.context("missing")?)
         .decode()
-        .map_err(|_| anyhow::anyhow!("{var_name} has invalid format"))
+        .map_err(|_| anyhow::format_err!("invalid format"))
 }
 
 /// Config (shared between main node and external node).
@@ -34,7 +24,7 @@ pub struct Config {
     /// Public address of this node (should forward to `server_addr`)
     /// that will be advertised to peers, so that they can connect to this
     /// node.
-    pub public_addr: std::net::SocketAddr,
+    pub public_addr: net::Host,
 
     /// Validators participating in consensus.
     pub validators: validator::ValidatorSet,
@@ -49,101 +39,59 @@ pub struct Config {
     pub gossip_static_inbound: BTreeSet<node::PublicKey>,
     /// Outbound gossip connections that the node should actively try to
     /// establish and maintain.
-    pub gossip_static_outbound: BTreeMap<node::PublicKey, std::net::SocketAddr>,
+    pub gossip_static_outbound: BTreeMap<node::PublicKey, net::Host>,
 }
 
-impl Config {
-    pub fn executor_config(&self, node_key: node::SecretKey) -> executor::Config {
-        executor::Config {
-            server_addr: self.server_addr,
-            validators: self.validators.clone(),
-            max_payload_size: self.max_payload_size,
-            node_key,
-            gossip_dynamic_inbound_limit: self.gossip_dynamic_inbound_limit,
-            gossip_static_inbound: self.gossip_static_inbound.clone().into_iter().collect(),
-            gossip_static_outbound: self.gossip_static_outbound.clone().into_iter().collect(),
-        }
-    }
-
-    pub fn validator_config(
-        &self,
-        validator_key: validator::SecretKey,
-    ) -> executor::ValidatorConfig {
-        executor::ValidatorConfig {
-            public_addr: self.public_addr,
-            key: validator_key,
-        }
-    }
+fn validator_key(secrets: &ConsensusSecrets) -> anyhow::Result<validator::SecretKey> {
+    read_secret_text(secrets.validator_key.as_ref().map(|x| &x.0))
 }
 
-impl ProtoFmt for Config {
-    type Proto = proto::ConsensusConfig;
-    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
-        let validators = r
-            .validators
+fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<node::SecretKey> {
+    read_secret_text(secrets.node_key.as_ref().map(|x| &x.0))
+}
+
+/// Constructs a main node config from raw config.
+pub fn main_node(
+    cfg: &ConsensusConfig,
+    secrets: &ConsensusSecrets,
+) -> anyhow::Result<MainNodeConfig> {
+    Ok(MainNodeConfig {
+        executor: executor(cfg, secrets)?,
+        validator_key: validator_key(secrets).context("validator_key")?,
+    })
+}
+
+pub(super) fn p2p(cfg: &ConsensusConfig, secrets: &ConsensusSecrets) -> anyhow::Result<P2PConfig> {
+    executor(cfg, secrets)
+}
+
+fn executor(cfg: &ConsensusConfig, secrets: &ConsensusSecrets) -> anyhow::Result<executor::Config> {
+    let mut gossip_static_outbound = HashMap::new();
+    {
+        let mut append = |key: &NodePublicKey, addr: &Host| {
+            gossip_static_outbound.insert(
+                Text::new(&key.0).decode().context("key")?,
+                net::Host(addr.0.clone()),
+            );
+            anyhow::Ok(())
+        };
+        for (i, (k, v)) in cfg.gossip_static_outbound.iter().enumerate() {
+            append(k, v).with_context(|| format!("gossip_static_outbound[{i}]"))?;
+        }
+    }
+    Ok(executor::Config {
+        server_addr: cfg.server_addr,
+        public_addr: net::Host(cfg.public_addr.0.clone()),
+        max_payload_size: cfg.max_payload_size,
+        node_key: node_key(secrets).context("node_key")?,
+        gossip_dynamic_inbound_limit: cfg.gossip_dynamic_inbound_limit,
+        gossip_static_inbound: cfg
+            .gossip_static_inbound
             .iter()
             .enumerate()
-            .map(|(i, v)| {
-                Text::new(v)
-                    .decode()
-                    .with_context(|| format!("validators[{i}]"))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let validators = validator::ValidatorSet::new(validators).context("validators")?;
-
-        let mut gossip_static_inbound = BTreeSet::new();
-        for (i, v) in r.gossip_static_inbound.iter().enumerate() {
-            gossip_static_inbound.insert(
-                Text::new(v)
-                    .decode()
-                    .with_context(|| format!("gossip_static_inbound[{i}]"))?,
-            );
-        }
-        let mut gossip_static_outbound = BTreeMap::new();
-        for (i, e) in r.gossip_static_outbound.iter().enumerate() {
-            let key = read_required_text(&e.key)
-                .with_context(|| format!("gossip_static_outbound[{i}].key"))?;
-            let addr = read_required_text(&e.addr)
-                .with_context(|| format!("gossip_static_outbound[{i}].addr"))?;
-            gossip_static_outbound.insert(key, addr);
-        }
-        Ok(Self {
-            server_addr: read_required_text(&r.server_addr).context("server_addr")?,
-            public_addr: read_required_text(&r.public_addr).context("public_addr")?,
-            validators,
-            max_payload_size: required(&r.max_payload_size)
-                .and_then(|x| Ok((*x).try_into()?))
-                .context("max_payload_size")?,
-            gossip_dynamic_inbound_limit: required(&r.gossip_dynamic_inbound_limit)
-                .and_then(|x| Ok((*x).try_into()?))
-                .context("gossip_dynamic_inbound_limit")?,
-            gossip_static_inbound,
-            gossip_static_outbound,
-        })
-    }
-
-    fn build(&self) -> Self::Proto {
-        Self::Proto {
-            server_addr: Some(self.server_addr.encode()),
-            public_addr: Some(self.public_addr.encode()),
-            validators: self.validators.iter().map(TextFmt::encode).collect(),
-            max_payload_size: Some(self.max_payload_size.try_into().unwrap()),
-            gossip_static_inbound: self
-                .gossip_static_inbound
-                .iter()
-                .map(TextFmt::encode)
-                .collect(),
-            gossip_static_outbound: self
-                .gossip_static_outbound
-                .iter()
-                .map(|(key, addr)| proto::NodeAddr {
-                    key: Some(TextFmt::encode(key)),
-                    addr: Some(TextFmt::encode(addr)),
-                })
-                .collect(),
-            gossip_dynamic_inbound_limit: Some(
-                self.gossip_dynamic_inbound_limit.try_into().unwrap(),
-            ),
-        }
-    }
+            .map(|(i, x)| Text::new(&x.0).decode().context(i))
+            .collect::<Result<_, _>>()
+            .context("gossip_static_inbound")?,
+        gossip_static_outbound,
+    })
 }

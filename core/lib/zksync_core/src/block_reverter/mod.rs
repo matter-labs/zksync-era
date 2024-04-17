@@ -3,9 +3,9 @@ use std::{path::Path, time::Duration};
 use bitflags::bitflags;
 use serde::Serialize;
 use tokio::time::sleep;
-use zksync_config::{ContractsConfig, ETHSenderConfig};
+use zksync_config::{ContractsConfig, EthConfig};
 use zksync_contracts::zksync_contract;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_state::RocksdbStorage;
@@ -19,7 +19,7 @@ use zksync_types::{
         types::{BlockId, BlockNumber},
         Web3,
     },
-    L1BatchNumber, PackedEthSignature, H160, H256, U256,
+    Address, L1BatchNumber, H160, H256, U256,
 };
 
 bitflags! {
@@ -45,31 +45,42 @@ pub enum L1ExecutedBatchesRevert {
 #[derive(Debug)]
 pub struct BlockReverterEthConfig {
     eth_client_url: String,
-    reverter_private_key: H256,
-    reverter_address: H160,
+    reverter_private_key: Option<H256>,
+    reverter_address: Option<Address>,
     diamond_proxy_addr: H160,
     validator_timelock_addr: H160,
     default_priority_fee_per_gas: u64,
 }
 
 impl BlockReverterEthConfig {
-    pub fn new(eth_config: ETHSenderConfig, contract: ContractsConfig, web3_url: String) -> Self {
-        let pk = eth_config
-            .sender
-            .private_key()
-            .expect("Private key is required for block reversion");
-        let operator_address = PackedEthSignature::address_from_private_key(&pk)
-            .expect("Failed to get address from private key");
+    pub fn new(
+        eth_config: EthConfig,
+        contract: ContractsConfig,
+        reverter_address: Option<Address>,
+    ) -> Self {
+        #[allow(deprecated)]
+        // `BlockReverter` doesn't support non env configs yet
+        let pk = eth_config.sender.expect("eth_sender_config").private_key();
 
         Self {
-            eth_client_url: web3_url,
+            eth_client_url: eth_config.web3_url,
             reverter_private_key: pk,
-            reverter_address: operator_address,
+            reverter_address,
             diamond_proxy_addr: contract.diamond_proxy_addr,
             validator_timelock_addr: contract.validator_timelock_addr,
-            default_priority_fee_per_gas: eth_config.gas_adjuster.default_priority_fee_per_gas,
+            default_priority_fee_per_gas: eth_config
+                .gas_adjuster
+                .expect("gas adjuster")
+                .default_priority_fee_per_gas,
         }
     }
+}
+
+/// Role of the node.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum NodeRole {
+    Main,
+    External,
 }
 
 /// This struct is used to perform a rollback of the state.
@@ -87,22 +98,27 @@ impl BlockReverterEthConfig {
 /// - State of the Ethereum contract (if the block was committed)
 #[derive(Debug)]
 pub struct BlockReverter {
+    /// It affects the interactions with the consensus state.
+    /// This distinction will be removed once consensus genesis is moved to the L1 state.
+    node_role: NodeRole,
     state_keeper_cache_path: String,
     merkle_tree_path: String,
     eth_config: Option<BlockReverterEthConfig>,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Core>,
     executed_batches_revert_mode: L1ExecutedBatchesRevert,
 }
 
 impl BlockReverter {
     pub fn new(
+        node_role: NodeRole,
         state_keeper_cache_path: String,
         merkle_tree_path: String,
         eth_config: Option<BlockReverterEthConfig>,
-        connection_pool: ConnectionPool,
+        connection_pool: ConnectionPool<Core>,
         executed_batches_revert_mode: L1ExecutedBatchesRevert,
     ) -> Self {
         Self {
+            node_role,
             state_keeper_cache_path,
             merkle_tree_path,
             eth_config,
@@ -125,7 +141,7 @@ impl BlockReverter {
             self.executed_batches_revert_mode,
             L1ExecutedBatchesRevert::Disallowed
         ) {
-            let mut storage = self.connection_pool.access_storage().await.unwrap();
+            let mut storage = self.connection_pool.connection().await.unwrap();
             let last_executed_l1_batch = storage
                 .blocks_dal()
                 .get_number_of_last_l1_batch_executed_on_eth()
@@ -155,7 +171,7 @@ impl BlockReverter {
         if rollback_tree {
             let storage_root_hash = self
                 .connection_pool
-                .access_storage()
+                .connection()
                 .await
                 .unwrap()
                 .blocks_dal()
@@ -212,7 +228,7 @@ impl BlockReverter {
             .expect("Failed initializing state keeper cache");
 
         if sk_cache.l1_batch_number().await > Some(last_l1_batch_to_keep + 1) {
-            let mut storage = self.connection_pool.access_storage().await.unwrap();
+            let mut storage = self.connection_pool.connection().await.unwrap();
             tracing::info!("Rolling back state keeper cache...");
             sk_cache
                 .rollback(&mut storage, last_l1_batch_to_keep)
@@ -224,9 +240,10 @@ impl BlockReverter {
     }
 
     /// Reverts data in the Postgres database.
+    /// If `node_role` is `Main` a consensus hard-fork is performed.
     async fn rollback_postgres(&self, last_l1_batch_to_keep: L1BatchNumber) {
         tracing::info!("rolling back postgres data...");
-        let mut storage = self.connection_pool.access_storage().await.unwrap();
+        let mut storage = self.connection_pool.connection().await.unwrap();
         let mut transaction = storage.start_transaction().await.unwrap();
 
         let (_, last_miniblock_to_keep) = transaction
@@ -240,28 +257,34 @@ impl BlockReverter {
         transaction
             .transactions_dal()
             .reset_transactions_state(last_miniblock_to_keep)
-            .await;
+            .await
+            .expect("failed resetting transaction state");
         tracing::info!("rolling back events...");
         transaction
             .events_dal()
             .rollback_events(last_miniblock_to_keep)
-            .await;
+            .await
+            .expect("failed rolling back events");
         tracing::info!("rolling back l2 to l1 logs...");
         transaction
             .events_dal()
             .rollback_l2_to_l1_logs(last_miniblock_to_keep)
-            .await;
+            .await
+            .expect("failed rolling back L2-to-L1 logs");
         tracing::info!("rolling back created tokens...");
         transaction
             .tokens_dal()
             .rollback_tokens(last_miniblock_to_keep)
-            .await;
+            .await
+            .expect("failed rolling back created tokens");
         tracing::info!("rolling back factory deps....");
         transaction
-            .storage_dal()
+            .factory_deps_dal()
             .rollback_factory_deps(last_miniblock_to_keep)
-            .await;
+            .await
+            .expect("Failed rolling back factory dependencies");
         tracing::info!("rolling back storage...");
+        #[allow(deprecated)]
         transaction
             .storage_logs_dal()
             .rollback_storage(last_miniblock_to_keep)
@@ -271,7 +294,14 @@ impl BlockReverter {
         transaction
             .storage_logs_dal()
             .rollback_storage_logs(last_miniblock_to_keep)
-            .await;
+            .await
+            .unwrap();
+        tracing::info!("rolling back eth_txs...");
+        transaction
+            .eth_sender_dal()
+            .delete_eth_txs(last_l1_batch_to_keep)
+            .await
+            .unwrap();
         tracing::info!("rolling back l1 batches...");
         transaction
             .blocks_dal()
@@ -289,7 +319,10 @@ impl BlockReverter {
             .delete_miniblocks(last_miniblock_to_keep)
             .await
             .unwrap();
-
+        if self.node_role == NodeRole::Main {
+            tracing::info!("performing consensus hard fork");
+            transaction.consensus_dal().fork().await.unwrap();
+        }
         transaction.commit().await.unwrap();
     }
 
@@ -307,7 +340,11 @@ impl BlockReverter {
 
         let web3 = Web3::new(Http::new(&eth_config.eth_client_url).unwrap());
         let contract = zksync_contract();
-        let signer = PrivateKeySigner::new(eth_config.reverter_private_key);
+        let signer = PrivateKeySigner::new(
+            eth_config
+                .reverter_private_key
+                .expect("Private key is required to send revert transaction"),
+        );
         let chain_id = web3.eth().chain_id().await.unwrap().as_u64();
 
         let revert_function = contract
@@ -325,9 +362,19 @@ impl BlockReverter {
             .block(BlockId::Number(BlockNumber::Pending))
             .await
             .unwrap()
-            .unwrap()
-            .base_fee_per_gas
-            .unwrap();
+            .map(|block| block.base_fee_per_gas.unwrap());
+        let base_fee = if let Some(base_fee) = base_fee {
+            base_fee
+        } else {
+            // Pending block doesn't exist, use the latest one.
+            web3.eth()
+                .block(BlockId::Number(BlockNumber::Latest))
+                .await
+                .unwrap()
+                .unwrap()
+                .base_fee_per_gas
+                .unwrap()
+        };
 
         let tx = TransactionParameters {
             to: eth_config.validator_timelock_addr.into(),
@@ -411,7 +458,12 @@ impl BlockReverter {
         let web3 = Web3::new(Http::new(&eth_config.eth_client_url).unwrap());
         let nonce = web3
             .eth()
-            .transaction_count(eth_config.reverter_address, Some(BlockNumber::Pending))
+            .transaction_count(
+                eth_config
+                    .reverter_address
+                    .expect("Need to provide operator address to suggest revertion values"),
+                Some(BlockNumber::Pending),
+            )
             .await
             .unwrap()
             .as_u64();
@@ -427,7 +479,7 @@ impl BlockReverter {
     pub async fn clear_failed_l1_transactions(&self) {
         tracing::info!("clearing failed L1 transactions...");
         self.connection_pool
-            .access_storage()
+            .connection()
             .await
             .unwrap()
             .eth_sender_dal()

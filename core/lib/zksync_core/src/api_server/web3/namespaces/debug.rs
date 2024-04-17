@@ -1,10 +1,13 @@
 use std::sync::Arc;
 
-use multivm::{interface::ExecutionResult, vm_latest::constants::BLOCK_GAS_LIMIT};
+use anyhow::Context as _;
+use multivm::{interface::ExecutionResult, vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT};
 use once_cell::sync::OnceCell;
+use zksync_dal::{CoreDal, DalError};
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
+    debug_flat_call::{flatten_debug_calls, DebugCallFlat},
     fee_model::BatchFeeInput,
     l2::L2Tx,
     transaction_request::CallRequest,
@@ -16,11 +19,11 @@ use zksync_web3_decl::error::Web3Error;
 use crate::api_server::{
     execution_sandbox::{ApiTracer, TxSharedArgs},
     tx_sender::{ApiContracts, TxSenderConfig},
-    web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, state::RpcState},
+    web3::{backend_jsonrpsee::MethodTracer, state::RpcState},
 };
 
 #[derive(Debug, Clone)]
-pub struct DebugNamespace {
+pub(crate) struct DebugNamespace {
     batch_fee_input: BatchFeeInput,
     state: RpcState,
     api_contracts: ApiContracts,
@@ -49,33 +52,31 @@ impl DebugNamespace {
         &self.state.tx_sender.0.sender_config
     }
 
+    pub(crate) fn current_method(&self) -> &MethodTracer {
+        &self.state.current_method
+    }
+
     #[tracing::instrument(skip(self))]
     pub async fn debug_trace_block_impl(
         &self,
         block_id: BlockId,
         options: Option<TracerConfig>,
     ) -> Result<Vec<ResultDebugCall>, Web3Error> {
-        const METHOD_NAME: &str = "debug_trace_block";
+        self.current_method().set_block_id(block_id);
 
-        let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
-        let block_number = self
-            .state
-            .resolve_block(&mut connection, block_id, METHOD_NAME)
-            .await?;
+        let mut connection = self.state.acquire_connection().await?;
+        let block_number = self.state.resolve_block(&mut connection, block_id).await?;
+        self.current_method()
+            .set_block_diff(self.state.last_sealed_miniblock.diff(block_number));
+
         let call_traces = connection
             .blocks_web3_dal()
             .get_traces_for_miniblock(block_number)
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
+            .map_err(DalError::generalize)?;
         let call_trace = call_traces
             .into_iter()
             .map(|call_trace| {
@@ -86,10 +87,18 @@ impl DebugNamespace {
                 ResultDebugCall { result }
             })
             .collect();
-
-        let block_diff = self.state.last_sealed_miniblock.diff(block_number);
-        method_latency.observe(block_diff);
         Ok(call_trace)
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub async fn debug_trace_block_flat_impl(
+        &self,
+        block_id: BlockId,
+        options: Option<TracerConfig>,
+    ) -> Result<Vec<DebugCallFlat>, Web3Error> {
+        let call_trace = self.debug_trace_block_impl(block_id, options).await?;
+        let call_trace_flat = flatten_debug_calls(call_trace);
+        Ok(call_trace_flat)
     }
 
     #[tracing::instrument(skip(self))]
@@ -98,22 +107,15 @@ impl DebugNamespace {
         tx_hash: H256,
         options: Option<TracerConfig>,
     ) -> Result<Option<DebugCall>, Web3Error> {
-        const METHOD_NAME: &str = "debug_trace_transaction";
-
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
+        let mut connection = self.state.acquire_connection().await?;
         let call_trace = connection
             .transactions_dal()
             .get_call_trace(tx_hash)
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
+            .map_err(DalError::generalize)?;
         Ok(call_trace.map(|call_trace| {
             let mut result: DebugCall = call_trace.into();
             if only_top_call {
@@ -130,36 +132,35 @@ impl DebugNamespace {
         block_id: Option<BlockId>,
         options: Option<TracerConfig>,
     ) -> Result<DebugCall, Web3Error> {
-        const METHOD_NAME: &str = "debug_trace_call";
-
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
-        let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
+        self.current_method().set_block_id(block_id);
+
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
 
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
+        let mut connection = self.state.acquire_connection().await?;
         let block_args = self
             .state
-            .resolve_block_args(&mut connection, block_id, METHOD_NAME)
+            .resolve_block_args(&mut connection, block_id)
             .await?;
         drop(connection);
 
+        self.current_method().set_block_diff(
+            self.state
+                .last_sealed_miniblock
+                .diff_with_block_args(&block_args),
+        );
         let tx = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;
 
-        let shared_args = self.shared_args();
+        let shared_args = self.shared_args().await;
         let vm_permit = self
             .state
             .tx_sender
             .vm_concurrency_limiter()
             .acquire()
             .await;
-        let vm_permit = vm_permit.ok_or(Web3Error::InternalError)?;
+        let vm_permit = vm_permit.context("cannot acquire VM permit")?;
 
         // We don't need properly trace if we only need top call
         let call_tracer_result = Arc::new(OnceCell::default());
@@ -180,8 +181,7 @@ impl DebugNamespace {
                 self.sender_config().vm_execution_cache_misses_limit,
                 custom_tracers,
             )
-            .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
+            .await?;
 
         let (output, revert_reason) = match result.result {
             ExecutionResult::Success { output, .. } => (output, None),
@@ -200,7 +200,7 @@ impl DebugNamespace {
             .take()
             .unwrap_or_default();
         let call = Call::new_high_level(
-            tx.common_data.fee.gas_limit.as_u32(),
+            tx.common_data.fee.gas_limit.as_u64(),
             result.statistics.gas_used,
             tx.execute.value,
             tx.execute.calldata,
@@ -208,24 +208,23 @@ impl DebugNamespace {
             revert_reason,
             trace,
         );
-
-        let block_diff = self
-            .state
-            .last_sealed_miniblock
-            .diff_with_block_args(&block_args);
-        method_latency.observe(block_diff);
         Ok(call.into())
     }
 
-    fn shared_args(&self) -> TxSharedArgs {
+    async fn shared_args(&self) -> TxSharedArgs {
         let sender_config = self.sender_config();
         TxSharedArgs {
             operator_account: AccountTreeId::default(),
             fee_input: self.batch_fee_input,
             base_system_contracts: self.api_contracts.eth_call.clone(),
             caches: self.state.tx_sender.storage_caches().clone(),
-            validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+            validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             chain_id: sender_config.chain_id,
+            whitelisted_tokens_for_aa: self
+                .state
+                .tx_sender
+                .read_whitelisted_tokens_for_aa_cache()
+                .await,
         }
     }
 }

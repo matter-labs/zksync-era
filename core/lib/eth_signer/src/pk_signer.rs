@@ -1,7 +1,5 @@
 use secp256k1::SecretKey;
-use zksync_types::{
-    tx::primitives::PackedEthSignature, Address, EIP712TypedStructure, Eip712Domain, H256,
-};
+use zksync_types::{Address, EIP712TypedStructure, Eip712Domain, PackedEthSignature, H256};
 
 use crate::{
     raw_ethereum_tx::{Transaction, TransactionParameters},
@@ -31,14 +29,6 @@ impl EthereumSigner for PrivateKeySigner {
     async fn get_address(&self) -> Result<Address, SignerError> {
         PackedEthSignature::address_from_private_key(&self.private_key)
             .map_err(|_| SignerError::DefineAddress)
-    }
-
-    /// The sign method calculates an Ethereum specific signature with:
-    /// sign(keccak256("\x19Ethereum Signed Message:\n" + len(message) + message))).
-    async fn sign_message(&self, message: &[u8]) -> Result<PackedEthSignature, SignerError> {
-        let signature = PackedEthSignature::sign(&self.private_key, message)
-            .map_err(|err| SignerError::SigningFailed(err.to_string()))?;
-        Ok(signature)
     }
 
     /// Signs typed struct using Ethereum private key by EIP-712 signature standard.
@@ -77,6 +67,8 @@ impl EthereumSigner for PrivateKeySigner {
             transaction_type: raw_tx.transaction_type,
             access_list: raw_tx.access_list.unwrap_or_default(),
             max_priority_fee_per_gas,
+            max_fee_per_blob_gas: raw_tx.max_fee_per_blob_gas,
+            blob_versioned_hashes: raw_tx.blob_versioned_hashes,
         };
 
         let signed = tx.sign(&key, raw_tx.chain_id);
@@ -107,6 +99,8 @@ mod test {
             chain_id: 270,
             transaction_type: Some(U64::from(1u32)),
             access_list: None,
+            blob_versioned_hashes: None,
+            max_fee_per_blob_gas: None,
         };
         let raw_tx = signer
             .sign_transaction(raw_transaction.clone())

@@ -8,7 +8,7 @@ use multivm::{
     MultiVMTracer,
 };
 use tracing::{span, Level};
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_types::{
     fee::TransactionExecutionMetrics, l2::L2Tx, ExecuteTransactionCommon, Nonce,
     PackedEthSignature, Transaction, U256,
@@ -108,14 +108,14 @@ impl TransactionExecutor {
         // current L1 prices for gas or pubdata.
         adjust_pubdata_price: bool,
         execution_args: TxExecutionArgs,
-        connection_pool: ConnectionPool,
+        connection_pool: ConnectionPool<Core>,
         tx: Transaction,
         block_args: BlockArgs,
         custom_tracers: Vec<ApiTracer>,
     ) -> anyhow::Result<TransactionExecutionOutput> {
         #[cfg(test)]
         if let Self::Mock(mock_executor) = self {
-            return mock_executor.execute_tx(&tx);
+            return mock_executor.execute_tx(&tx, &block_args);
         }
 
         let total_factory_deps = tx
@@ -169,7 +169,7 @@ impl TransactionExecutor {
         &self,
         vm_permit: VmPermit,
         shared_args: TxSharedArgs,
-        connection_pool: ConnectionPool,
+        connection_pool: ConnectionPool<Core>,
         mut tx: L2Tx,
         block_args: BlockArgs,
         vm_execution_cache_misses_limit: Option<usize>,
