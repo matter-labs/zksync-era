@@ -20,15 +20,17 @@ namespace. If you want to clear some space and aren't using the `debug` namespac
 
 ## Infrastructure
 
-You need to set up a PostgreSQL server, however it is out of the scope of these docs, but the popular choice is to run it in Docker. There are many of guides on that, [here's one example](https://www.docker.com/blog/how-to-use-the-postgres-docker-official-image/). You can also refer to [configuration management blueprint](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/00_quick_start.md#advanced-setup).
+You need to set up a PostgreSQL server, however it is out of the scope of these docs, but the popular choice is to run it in Docker. There are many of guides on that, [here's one example](https://www.docker.com/blog/how-to-use-the-postgres-docker-official-image/).
 
-Note however that if you run Postgres as a stand-alone Docker image (e.g. not in Docker-compose with a network shared
+Note however that if you run PostgresSQL as a stand-alone Docker image (e.g. not in Docker-compose with a network shared
 between EN and Postgres), EN won't be able to access Postgres via `localhost` or `127.0.0.1` URLs. To make it work,
 you'll have to either run it with a `--network host` (on Linux) or use `host.docker.internal` instead of `localhost` in
 the EN configuration ([official docs][host_docker_internal]).
 
 Besides running Postgres, you are expected to have a DB dump from a corresponding env. You can restore it using
 `pg_restore -O -C <DUMP_PATH> --dbname=<DB_URL>`.
+
+You can also refer to [configuration management blueprint](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/00_quick_start.md#advanced-setup) for advanced DB instance configurations.
 
 [host_docker_internal](https://docs.docker.com/desktop/networking/#i-want-to-connect-from-a-container-to-a-service-on-the-host)
 
