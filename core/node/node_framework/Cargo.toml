@@ -30,6 +30,8 @@ zksync_circuit_breaker.workspace = true
 zksync_concurrency.workspace = true
 zksync_eth_watch.workspace = true
 zksync_proof_data_handler.workspace = true
+zksync_block_reverter.workspace = true
+zksync_commitment_generator.workspace = true
 
 tracing.workspace = true
 thiserror.workspace = true

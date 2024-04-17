@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use zksync_config::{
     configs::{wallets, ContractsConfig},
-    ETHConfig,
+    EthConfig,
 };
 use zksync_eth_client::clients::PKSigningClient;
 use zksync_types::L1ChainId;
@@ -15,7 +15,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct PKSigningEthClientLayer {
-    eth_sender_config: ETHConfig,
+    eth_sender_config: EthConfig,
     contracts_config: ContractsConfig,
     l1chain_id: L1ChainId,
     wallets: wallets::EthSender,
@@ -23,7 +23,7 @@ pub struct PKSigningEthClientLayer {
 
 impl PKSigningEthClientLayer {
     pub fn new(
-        eth_sender_config: ETHConfig,
+        eth_sender_config: EthConfig,
         contracts_config: ContractsConfig,
         l1chain_id: L1ChainId,
         wallets: wallets::EthSender,

@@ -317,10 +317,11 @@ impl StateKeeperIO for MempoolIO {
         version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
-        Ok(storage
+        storage
             .protocol_versions_dal()
             .get_protocol_upgrade_tx(version_id)
-            .await)
+            .await
+            .map_err(Into::into)
     }
 
     async fn load_batch_state_hash(

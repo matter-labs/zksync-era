@@ -21,6 +21,7 @@ use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker,
     CircuitBreakerChecker, CircuitBreakers,
 };
+use zksync_commitment_generator::CommitmentGenerator;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::{
     configs::{
@@ -35,23 +36,23 @@ use zksync_config::{
         wallets::Wallets,
         ContractsConfig, GeneralConfig,
     },
-    ApiConfig, DBConfig, GenesisConfig, PostgresConfig,
+    ApiConfig, DBConfig, EthWatchConfig, GenesisConfig, PostgresConfig,
 };
 use zksync_contracts::governance_contract;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
 use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},
-    BoundEthInterface,
+    BoundEthInterface, EthInterface,
 };
-use zksync_eth_watch::start_eth_watch;
+use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_proof_data_handler::run_server;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_shared_metrics::{InitStage, APP_METRICS};
 use zksync_state::PostgresStorageCaches;
-use zksync_types::{fee_model::FeeModelConfig, L2ChainId};
+use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
 
 use crate::{
     api_server::{
@@ -63,7 +64,6 @@ use crate::{
         web3::{self, mempool_cache::MempoolCache, state::InternalApiConfig, Namespace},
     },
     basic_witness_input_producer::BasicWitnessInputProducer,
-    commitment_generator::CommitmentGenerator,
     eth_sender::{
         l1_batch_commit_data_generator::{
             L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
@@ -99,8 +99,6 @@ use crate::{
 
 pub mod api_server;
 pub mod basic_witness_input_producer;
-pub mod block_reverter;
-pub mod commitment_generator;
 pub mod consensus;
 pub mod consistency_checker;
 pub mod db_pruner;
@@ -893,6 +891,33 @@ async fn add_state_keeper_to_task_futures(
     let mempool_fetcher_handle = tokio::spawn(mempool_fetcher.run(stop_receiver));
     task_futures.push(mempool_fetcher_handle);
     Ok(())
+}
+
+async fn start_eth_watch(
+    config: EthWatchConfig,
+    pool: ConnectionPool<Core>,
+    eth_gateway: Arc<dyn EthInterface>,
+    diamond_proxy_addr: Address,
+    governance: (Contract, Address),
+    stop_receiver: watch::Receiver<bool>,
+) -> anyhow::Result<JoinHandle<anyhow::Result<()>>> {
+    let eth_client = EthHttpQueryClient::new(
+        eth_gateway,
+        diamond_proxy_addr,
+        governance.1,
+        config.confirmations_for_eth_event,
+    );
+
+    let eth_watch = EthWatch::new(
+        diamond_proxy_addr,
+        &governance.0,
+        Box::new(eth_client),
+        pool,
+        config.poll_interval(),
+    )
+    .await?;
+
+    Ok(tokio::spawn(eth_watch.run(stop_receiver)))
 }
 
 async fn add_trees_to_task_futures(
