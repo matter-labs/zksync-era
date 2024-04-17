@@ -2215,21 +2215,104 @@ fn test_basic_create_vectors() {
                 hex::decode("6080604052348015600e575f80fd5b50603e80601a5f395ff3fe60806040525f").unwrap(),
                 // push0
                 hex::decode("5F").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
                 // push32
                 hex::decode("7F").unwrap(),
                 hex::decode("80fdfea264697066735822122070e77c564e632657f44e4b3cb2d5d4f74255fc").unwrap(),
                 // push1 32
                 hex::decode("60").unwrap(),
                 hex::decode("20").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
                 // push32
                 hex::decode("7F").unwrap(),
                 hex::decode("64ca5fae813eb74275609e61e364736f6c634300081900330000000000000000").unwrap(),
                 // push1 64
                 hex::decode("60").unwrap(),
                 hex::decode("40").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
                 // push1 88
                 hex::decode("60").unwrap(),
                 hex::decode("58").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // create
+                hex::decode("F0").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+    assert_ne!(
+        test_evm_vector(
+            vec![
+                // push32
+                hex::decode("7F").unwrap(),
+                hex::decode("6080604052348015600e575f80fd5b5060af80601a5f395ff3fe608060405234").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // push32
+                hex::decode("7F").unwrap(),
+                hex::decode("8015600e575f80fd5b50600436106026575f3560e01c80636d4ce63c14602a57").unwrap(),
+                // push1 32
+                hex::decode("60").unwrap(),
+                hex::decode("20").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // push32
+                hex::decode("7F").unwrap(),
+                hex::decode("5b5f80fd5b60306044565b604051603b91906062565b60405180910390f35b5f").unwrap(),
+                // push1 64
+                hex::decode("60").unwrap(),
+                hex::decode("40").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // push32
+                hex::decode("7F").unwrap(),
+                hex::decode("6007905090565b5f819050919050565b605c81604c565b82525050565b5f6020").unwrap(),
+                // push1 96
+                hex::decode("60").unwrap(),
+                hex::decode("60").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // push32
+                hex::decode("7F").unwrap(),
+                hex::decode("8201905060735f8301846055565b9291505056fea26469706673582212201357").unwrap(),
+                // push1 128
+                hex::decode("60").unwrap(),
+                hex::decode("80").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // push32
+                hex::decode("7F").unwrap(),
+                hex::decode("3db24498d07df7d6344f02fa1ccf8e15038b10c382a6d71537a002ad4e736473").unwrap(),
+                // push1 160
+                hex::decode("60").unwrap(),
+                hex::decode("A0").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // push32
+                hex::decode("7F").unwrap(),
+                hex::decode("6f6c634300081900330000000000000000000000000000000000000000000000").unwrap(),
+                // push1 192
+                hex::decode("60").unwrap(),
+                hex::decode("C0").unwrap(),
+                // mstore
+                hex::decode("52").unwrap(),
+                // push1 201
+                hex::decode("60").unwrap(),
+                hex::decode("C9").unwrap(),
                 // push0
                 hex::decode("5F").unwrap(),
                 // push0
