@@ -1,7 +1,5 @@
 //! Tying the Merkle tree implementation to the problem domain.
 
-use std::sync::atomic::{AtomicBool, Ordering};
-
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, StorageLogMetadata};
@@ -52,7 +50,7 @@ pub struct ZkSyncTree {
     tree: MerkleTree<Patched<RocksDBWrapper>>,
     thread_pool: Option<ThreadPool>,
     mode: TreeMode,
-    pruning_enabled: AtomicBool,
+    pruning_enabled: bool,
 }
 
 impl ZkSyncTree {
@@ -104,14 +102,23 @@ impl ZkSyncTree {
             tree: MerkleTree::new(Patched::new(db)),
             thread_pool: None,
             mode,
-            pruning_enabled: AtomicBool::new(false),
+            pruning_enabled: false,
         }
     }
 
-    /// Returns tree pruner and a handle to stop it
-    pub fn pruner(&self) -> (MerkleTreePruner<RocksDBWrapper>, MerkleTreePrunerHandle) {
+    /// Returns tree pruner and a handle to stop it.
+    ///
+    /// # Panics
+    ///
+    /// Panics if this method was already called for the tree instance; it's logically unsound to run
+    /// multiple pruners for the same tree concurrently.
+    pub fn pruner(&mut self) -> (MerkleTreePruner<RocksDBWrapper>, MerkleTreePrunerHandle) {
+        assert!(
+            !self.pruning_enabled,
+            "pruner was already obtained for the tree"
+        );
+        self.pruning_enabled = true;
         let db = self.tree.db.inner().clone();
-        self.pruning_enabled.compare_exchange(true, false, Ordering::Relaxed, Ordering::Relaxed).expect("attempted to construct multiple pruners for a single tree, pruner may only run as a singleton");
         MerkleTreePruner::new(db)
     }
 

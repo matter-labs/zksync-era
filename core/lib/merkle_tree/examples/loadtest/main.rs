@@ -156,7 +156,7 @@ impl Cli {
                 output.root_hash
             };
 
-            if let Some((ref pruner_handle, _)) = pruner_handles {
+            if let Some((pruner_handle, _)) = &pruner_handles {
                 pruner_handle.set_target_retained_version(version);
             }
 

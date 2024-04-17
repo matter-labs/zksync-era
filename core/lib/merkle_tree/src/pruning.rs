@@ -1,11 +1,10 @@
 //! Tree pruning logic.
 
 use std::{
-    cmp::min,
     fmt,
     sync::{
         atomic::{AtomicU64, Ordering},
-        mpsc, Arc, RwLock,
+        mpsc, Arc,
     },
     time::Duration,
 };
@@ -31,11 +30,11 @@ impl MerkleTreePrunerHandle {
         self.aborted_sender.send(()).ok();
     }
 
-    /// Sets the version of the tree the pruner should attempt to prune to
-    #[allow(clippy::missing_panics_doc)]
+    /// Sets the version of the tree the pruner should attempt to prune to. Calls should provide
+    /// monotonically increasing versions; call with a lesser version will have no effect.
     pub fn set_target_retained_version(&self, new_version: u64) {
         self.target_retained_version
-            .store(new_version, Ordering::Relaxed);
+            .fetch_max(new_version, Ordering::Relaxed);
     }
 }
 
@@ -57,7 +56,7 @@ pub struct MerkleTreePruner<DB> {
     target_pruned_key_count: usize,
     poll_interval: Duration,
     aborted_receiver: mpsc::Receiver<()>,
-    target_retained_version: Arc<RwLock<Option<u64>>>,
+    target_retained_version: Arc<AtomicU64>,
 }
 
 impl<DB> fmt::Debug for MerkleTreePruner<DB> {
@@ -66,6 +65,7 @@ impl<DB> fmt::Debug for MerkleTreePruner<DB> {
             .debug_struct("MerkleTreePruner")
             .field("target_pruned_key_count", &self.target_pruned_key_count)
             .field("poll_interval", &self.poll_interval)
+            .field("target_retained_version", &self.target_retained_version)
             .finish_non_exhaustive()
     }
 }
@@ -79,10 +79,10 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
     /// Returns the created pruner and a handle to it. The pruner can be stopped by calling abort on it's handle
     pub fn new(db: DB) -> (Self, MerkleTreePrunerHandle) {
         let (aborted_sender, aborted_receiver) = mpsc::channel();
-        let target_retained_version = Arc::new(RwLock::new(None));
+        let target_retained_version = Arc::new(AtomicU64::new(0));
         let handle = MerkleTreePrunerHandle {
             aborted_sender,
-            target_retained_version: Arc::new(AtomicU64::new(0)),
+            target_retained_version: target_retained_version.clone(),
         };
         let this = Self {
             db,
@@ -111,7 +111,8 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
         self.poll_interval = poll_interval;
     }
 
-    /// Returns max version number that can be safely pruned, so that after pruning there is at least one version present after pruning
+    /// Returns max version number that can be safely pruned, so that after pruning there is at least one version present after pruning.
+    #[doc(hidden)] // Used in integration tests; logically private
     pub fn last_prunable_version(&self) -> Option<u64> {
         let manifest = self.db.manifest()?;
         manifest.version_count.checked_sub(1)
@@ -122,14 +123,21 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
     pub fn prune_up_to(&mut self, target_retained_version: u64) -> Option<PruningStats> {
         let min_stale_key_version = self.db.min_stale_key_version()?;
 
-        //We must leave at least one version
+        // We must retain at least one tree version.
         let last_prunable_version = self.last_prunable_version();
         if last_prunable_version.is_none() {
             tracing::info!("Nothing to prune; skipping");
             return None;
         }
-        let target_retained_version = min(target_retained_version, last_prunable_version?);
+        let target_retained_version = last_prunable_version?.min(target_retained_version);
         let stale_key_new_versions = min_stale_key_version..=target_retained_version;
+        if stale_key_new_versions.is_empty() {
+            tracing::info!(
+                "No Merkle tree versions can be pruned; min stale key version is {min_stale_key_version}, \
+                 target retained version is {target_retained_version}"
+            );
+            return None;
+        }
         tracing::info!("Collecting stale keys with new versions in {stale_key_new_versions:?}");
 
         let load_stale_keys_latency = PRUNING_TIMINGS.load_stale_keys.start();
@@ -167,39 +175,41 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
     }
 
     fn wait_for_abort(&mut self, timeout: Duration) -> bool {
-        self.aborted_receiver.recv_timeout(timeout).is_ok()
+        match self.aborted_receiver.recv_timeout(timeout) {
+            Ok(()) => true, // Abort was requested
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                tracing::warn!("Pruner handle is dropped without calling `abort()`; exiting");
+                true
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                // The pruner handle is alive and wasn't used to abort the pruner.
+                false
+            }
+        }
     }
 
     /// Runs this pruner indefinitely until it is aborted by calling abort() on its handle.
-    #[allow(clippy::missing_panics_doc)]
     pub fn run(mut self) {
         tracing::info!("Started Merkle tree pruner {self:?}");
-        loop {
-            if self.wait_for_abort(Duration::ZERO) {
-                break;
-            }
 
-            let retained_version = *self
-                .target_retained_version
-                .read()
-                .expect("target_retained_version is poisoned");
-
-            if let Some(retained_version) = retained_version {
-                if let Some(stats) = self.prune_up_to(retained_version) {
-                    stats.report();
-                    if stats.has_more_work() {
-                        continue;
-                    }
+        let mut wait_interval = Duration::ZERO;
+        while !self.wait_for_abort(wait_interval) {
+            let retained_version = self.target_retained_version.load(Ordering::Relaxed);
+            if let Some(stats) = self.prune_up_to(retained_version) {
+                tracing::debug!(
+                    "Performed pruning for target retained version {retained_version}: {stats:?}"
+                );
+                stats.report();
+                if stats.has_more_work() {
+                    continue;
                 }
+            } else {
+                tracing::debug!(
+                    "Pruning was not performed; waiting {:?}",
+                    self.poll_interval
+                );
             }
-
-            tracing::debug!(
-                "Pruning was not performed; waiting {:?}",
-                self.poll_interval
-            );
-            if self.wait_for_abort(self.poll_interval) {
-                break;
-            }
+            wait_interval = self.poll_interval;
         }
     }
 }
