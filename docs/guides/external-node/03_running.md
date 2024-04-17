@@ -9,7 +9,7 @@ This section assumes that you have prepared a configuration file as described on
 
 [**Minimal system requirements**](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/00_quick_start.md#system-requirements)
 
-### A note about PostgreSQL storage
+## A note about PostgreSQL storage
 
 By far, the heaviest table to maintain is the `call_traces` table. This table is only required for the `debug`
 namespace. If you want to clear some space and aren't using the `debug` namespace, you can
