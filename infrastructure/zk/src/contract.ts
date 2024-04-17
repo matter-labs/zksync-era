@@ -88,15 +88,18 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean): Pr
     const baseCommandL2 = isLocalSetup ? `yarn --cwd /contracts/l2-contracts` : `yarn l2-contracts`;
 
     // Skip compilation for local setup, since we already copied artifacts into the container.
-    await utils.spawn(`${baseCommandL2} build`);
+    if (!isLocalSetup) {
+        await utils.spawn(`yarn l2-contracts build`);
+    }
+
 
     await utils.spawn(`${baseCommandL2} deploy-shared-bridge-on-l2 ${args.join(' ')} | tee deployL2.log`);
 
     if (includePaymaster) {
-        await utils.spawn(`${baseCommandL2} deploy-testnet-paymaster ${args.join(' ')} | tee -a deployL2.log`);
+        await utils.spawn(`yarn l2-contracts deploy-testnet-paymaster ${args.join(' ')} | tee -a deployL2.log`);
     }
 
-    await utils.spawn(`${baseCommandL2} deploy-force-deploy-upgrader ${args.join(' ')} | tee -a deployL2.log`);
+    await utils.spawn(`yarn l2-contracts deploy-force-deploy-upgrader ${args.join(' ')} | tee -a deployL2.log`);
 
     let l2DeployLog = fs.readFileSync('deployL2.log').toString();
     const l2DeploymentEnvVars = [
@@ -333,8 +336,11 @@ command
     .action(redeployL1);
 command.command('deploy [deploy-opts...]').allowUnknownOption(true).description('deploy contracts').action(deployL1);
 command.command('build').description('build contracts').action(build);
+
 command.command('verify').description('verify L1 contracts').action(verifyL1Contracts);
 command
     .command('upgrade-shared-bridge-era')
     .description('upgrade shared bridge with deployed era diamond proxy address')
     .action(upgradeSharedBridgeEra);
+command.command('deploy-l2 [deploy-opts...]').allowUnknownOption(true).description('deploy l2 contracts').action(deployL2);
+command.command('initialize-governance [gov-opts...]').allowUnknownOption(true).description('initialize governance').action(initializeGovernance);
