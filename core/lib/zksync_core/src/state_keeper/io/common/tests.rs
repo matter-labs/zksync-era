@@ -362,7 +362,7 @@ async fn store_pending_miniblocks(
         let tx = create_l2_transaction(10, 100);
         storage
             .transactions_dal()
-            .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         let mut new_miniblock = create_miniblock(miniblock_number);
@@ -376,7 +376,8 @@ async fn store_pending_miniblocks(
         storage
             .transactions_dal()
             .mark_txs_as_executed_in_miniblock(new_miniblock.number, &[tx_result], 1.into())
-            .await;
+            .await
+            .unwrap();
     }
 }
 
@@ -445,7 +446,7 @@ async fn getting_batch_version_with_genesis() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::load_genesis_params(GenesisConfig {
-        protocol_version: ProtocolVersionId::Version5 as u16,
+        protocol_version: Some(ProtocolVersionId::Version5 as u16),
         ..mock_genesis_config()
     })
     .unwrap();
@@ -469,8 +470,9 @@ async fn getting_batch_version_with_genesis() {
 
     storage
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion::default())
-        .await;
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
     let new_l1_batch = create_l1_batch(1);
     storage
         .blocks_dal()
@@ -511,11 +513,12 @@ async fn getting_batch_version_after_snapshot_recovery() {
 
     storage
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion {
+        .save_protocol_version_with_tx(&ProtocolVersion {
             id: ProtocolVersionId::next(),
             ..ProtocolVersion::default()
         })
-        .await;
+        .await
+        .unwrap();
     let mut new_l1_batch = create_l1_batch(snapshot_recovery.l1_batch_number.0 + 1);
     new_l1_batch.protocol_version = Some(ProtocolVersionId::next());
     storage

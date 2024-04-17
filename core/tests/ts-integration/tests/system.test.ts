@@ -7,7 +7,7 @@
 
 import { TestMaster } from '../src/index';
 import { shouldChangeTokenBalances } from '../src/modifiers/balance-checker';
-import { L2_ETH_PER_ACCOUNT } from '../src/context-owner';
+import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 
 import * as zksync from 'zksync-web3';
 import * as ethers from 'ethers';
@@ -223,7 +223,7 @@ describe('System behavior checks', () => {
         await alice.transfer({ amount, to: bob.address, token: l2Token }).then((tx) => tx.wait());
         testMaster.reporter.debug('Sent L2 token to Bob');
         await alice
-            .transfer({ amount: L2_ETH_PER_ACCOUNT.div(8), to: bob.address, token: zksync.utils.ETH_ADDRESS })
+            .transfer({ amount: L2_DEFAULT_ETH_PER_ACCOUNT.div(8), to: bob.address, token: zksync.utils.ETH_ADDRESS })
             .then((tx) => tx.wait());
         testMaster.reporter.debug('Sent ethereum on L2 to Bob');
 
@@ -377,7 +377,7 @@ describe('System behavior checks', () => {
 
     it('should reject transaction with huge gas limit', async () => {
         await expect(
-            alice.sendTransaction({ to: alice.address, gasLimit: ethers.BigNumber.from(2).pow(32) })
+            alice.sendTransaction({ to: alice.address, gasLimit: ethers.BigNumber.from(2).pow(51) })
         ).toBeRejected('exceeds block gas limit');
     });
 

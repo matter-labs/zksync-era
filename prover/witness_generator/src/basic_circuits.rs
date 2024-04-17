@@ -15,7 +15,8 @@ use circuit_definitions::{
     encodings::recursion_request::RecursionQueueSimulator,
     zkevm_circuits::fsm_input_output::ClosedFormInputCompactFormWitness,
 };
-use multivm::vm_latest::{
+// TODO: Switch to `vm_latest` once the prover supports v1.5.0
+use multivm::vm_1_4_2::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
 };
 use prover_dal::{
@@ -598,10 +599,11 @@ async fn generate_witness(
 
     let storage_refunds = connection
         .blocks_dal()
-        .get_storage_refunds(input.block_number)
+        .get_storage_oracle_info(input.block_number)
         .await
         .unwrap()
-        .unwrap();
+        .unwrap()
+        .storage_refunds;
 
     let mut used_bytecodes = connection
         .factory_deps_dal()

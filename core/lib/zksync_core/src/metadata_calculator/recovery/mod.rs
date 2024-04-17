@@ -28,6 +28,7 @@
 use std::{
     fmt, ops,
     sync::atomic::{AtomicU64, Ordering},
+    time::Instant,
 };
 
 use anyhow::Context as _;
@@ -213,6 +214,7 @@ impl AsyncTreeRecovery {
         pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<AsyncTree>> {
+        let start_time = Instant::now();
         let chunk_count = options.chunk_count;
         let chunks: Vec<_> = (0..chunk_count)
             .map(|chunk_id| uniform_hashed_keys_chunk(chunk_id, chunk_count))
@@ -261,9 +263,10 @@ impl AsyncTreeRecovery {
             snapshot.expected_root_hash
         );
         let tree = tree.finalize().await;
-        let finalize_latency = finalize_latency.observe();
+        finalize_latency.observe();
         tracing::info!(
-            "Finished tree recovery in {finalize_latency:?}; resuming normal tree operation"
+            "Tree recovery has finished, the recovery took {:?}! resuming normal tree operation",
+            start_time.elapsed()
         );
         Ok(Some(tree))
     }
@@ -280,8 +283,7 @@ impl AsyncTreeRecovery {
         let chunk_starts = storage
             .storage_logs_dal()
             .get_chunk_starts_for_miniblock(snapshot_miniblock, key_chunks)
-            .await
-            .context("Failed getting chunk starts")?;
+            .await?;
         let chunk_starts_latency = chunk_starts_latency.observe();
         tracing::debug!(
             "Loaded start entries for {} chunks in {chunk_starts_latency:?}",
@@ -335,10 +337,7 @@ impl AsyncTreeRecovery {
         let all_entries = storage
             .storage_logs_dal()
             .get_tree_entries_for_miniblock(snapshot_miniblock, key_chunk.clone())
-            .await
-            .with_context(|| {
-                format!("Failed getting entries for chunk {key_chunk:?} in snapshot for miniblock #{snapshot_miniblock}")
-            })?;
+            .await?;
         drop(storage);
         let entries_latency = entries_latency.observe();
         tracing::debug!(

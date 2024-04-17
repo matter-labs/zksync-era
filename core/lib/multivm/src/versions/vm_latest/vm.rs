@@ -1,4 +1,4 @@
-use circuit_sequencer_api_1_4_2::sort_storage_access::sort_storage_access_queries;
+use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     event::extract_l2tol1logs_from_l1_messenger,
@@ -29,7 +29,7 @@ use crate::{
 pub struct Vm<S: WriteStorage, H: HistoryMode> {
     pub(crate) bootloader_state: BootloaderState,
     // Current state and oracles of virtual machine
-    pub(crate) state: ZkSyncVmState<S, H::VmLatest>,
+    pub(crate) state: ZkSyncVmState<S, H::Vm1_5_0>,
     pub(crate) storage: StoragePtr<S>,
     pub(crate) system_env: SystemEnv,
     pub(crate) batch_env: L1BatchEnv,
@@ -39,7 +39,7 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
-    type TracerDispatcher = TracerDispatcher<S, H::VmLatest>;
+    type TracerDispatcher = TracerDispatcher<S, H::Vm1_5_0>;
 
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
@@ -106,7 +106,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             + self.state.storage.get_final_log_queries().len();
 
         let storage_log_queries = self.state.storage.get_final_log_queries();
-
         let deduped_storage_log_queries =
             sort_storage_access_queries(storage_log_queries.iter().map(|log| &log.log_query)).1;
 
@@ -132,7 +131,8 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                 .into_iter()
                 .map(GlueInto::glue_into)
                 .collect(),
-            storage_refunds: self.state.storage.returned_refunds.inner().clone(),
+            storage_refunds: self.state.storage.returned_io_refunds.inner().clone(),
+            pubdata_costs: self.state.storage.returned_pubdata_costs.inner().clone(),
         }
     }
 

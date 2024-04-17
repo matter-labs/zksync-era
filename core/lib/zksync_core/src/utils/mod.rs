@@ -68,6 +68,7 @@ pub(crate) async fn wait_for_l1_batch(
     poll_interval: Duration,
     stop_receiver: &mut watch::Receiver<bool>,
 ) -> anyhow::Result<Option<L1BatchNumber>> {
+    tracing::debug!("Waiting for at least one L1 batch in db in DB");
     loop {
         if *stop_receiver.borrow() {
             return Ok(None);
@@ -80,7 +81,6 @@ pub(crate) async fn wait_for_l1_batch(
         if let Some(number) = sealed_l1_batch_number {
             return Ok(Some(number));
         }
-        tracing::debug!("No L1 batches are present in DB; trying again in {poll_interval:?}");
 
         // We don't check the result: if a stop signal is received, we'll return at the start
         // of the next iteration.
@@ -131,8 +131,7 @@ pub(crate) async fn projected_first_l1_batch(
     let snapshot_recovery = storage
         .snapshot_recovery_dal()
         .get_applied_snapshot_status()
-        .await
-        .context("failed getting snapshot recovery status")?;
+        .await?;
     Ok(snapshot_recovery.map_or(L1BatchNumber(0), |recovery| recovery.l1_batch_number + 1))
 }
 
@@ -146,8 +145,7 @@ pub(crate) async fn pending_protocol_version(
     let last_miniblock = storage
         .blocks_dal()
         .get_last_sealed_miniblock_header()
-        .await
-        .context("failed getting last sealed miniblock")?;
+        .await?;
     if let Some(last_miniblock) = last_miniblock {
         return Ok(last_miniblock.protocol_version.unwrap_or_else(|| {
             // Protocol version should be set for the most recent miniblock even in cases it's not filled
@@ -163,15 +161,14 @@ pub(crate) async fn pending_protocol_version(
     let snapshot_recovery = storage
         .snapshot_recovery_dal()
         .get_applied_snapshot_status()
-        .await
-        .context("failed getting snapshot recovery status")?
+        .await?
         .context("storage contains neither miniblocks, nor snapshot recovery info")?;
     Ok(snapshot_recovery.protocol_version)
 }
 
 async fn get_pubdata_pricing_mode(
     diamond_proxy_address: Address,
-    eth_client: &impl EthInterface,
+    eth_client: &dyn EthInterface,
 ) -> Result<Vec<ethabi::Token>, EthClientError> {
     let args = CallFunctionArgs::new("getPubdataPricingMode", ())
         .for_contract(diamond_proxy_address, zksync_contracts::zksync_contract());
@@ -181,7 +178,7 @@ async fn get_pubdata_pricing_mode(
 pub async fn ensure_l1_batch_commit_data_generation_mode(
     selected_l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
     diamond_proxy_address: Address,
-    eth_client: &impl EthInterface,
+    eth_client: &dyn EthInterface,
 ) -> anyhow::Result<()> {
     match get_pubdata_pricing_mode(diamond_proxy_address, eth_client).await {
         // Getters contract support getPubdataPricingMode method

@@ -244,23 +244,30 @@ describe('web3 API compatibility tests', () => {
 
     test('Should test getFilterChanges for pending transactions', async () => {
         if (process.env.EN_MAIN_NODE_URL) {
-            // Pending transactions logic doesn't work on EN since we don't have proper mempool -
+            // Pending transactions logic doesn't work on EN since we don't have a proper mempool -
             // transactions only appear in the DB after they are included in the block.
             return;
         }
 
         // We will need to wait until the mempool cache on the server is updated.
         // The default update period is 50 ms, so we will wait for 75 ms to be sure.
-        const mempoolCacheWait = 50 + 25;
+        const MEMPOOL_CACHE_WAIT = 50 + 25;
 
-        let filterId = await alice.provider.send('eth_newPendingTransactionFilter', []);
-        let changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
+        const filterId = await alice.provider.send('eth_newPendingTransactionFilter', []);
+        let changes: string[] = await alice.provider.send('eth_getFilterChanges', [filterId]);
+
         const tx1 = await alice.sendTransaction({
             to: alice.address
         });
-        await zksync.utils.sleep(mempoolCacheWait);
-        changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
+        testMaster.reporter.debug(`Sent a transaction ${tx1.hash}`);
+
+        while (!changes.includes(tx1.hash)) {
+            await zksync.utils.sleep(MEMPOOL_CACHE_WAIT);
+            changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
+            testMaster.reporter.debug('Received filter changes', changes);
+        }
         expect(changes).toContain(tx1.hash);
+
         const tx2 = await alice.sendTransaction({
             to: alice.address
         });
@@ -270,12 +277,19 @@ describe('web3 API compatibility tests', () => {
         const tx4 = await alice.sendTransaction({
             to: alice.address
         });
-        await zksync.utils.sleep(mempoolCacheWait);
-        changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
-        expect(changes).not.toContain(tx1.hash);
-        expect(changes).toContain(tx2.hash);
-        expect(changes).toContain(tx3.hash);
-        expect(changes).toContain(tx4.hash);
+        const remainingHashes = new Set([tx2.hash, tx3.hash, tx4.hash]);
+        testMaster.reporter.debug('Sent new transactions with hashes', remainingHashes);
+
+        while (remainingHashes.size > 0) {
+            await zksync.utils.sleep(MEMPOOL_CACHE_WAIT);
+            changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
+            testMaster.reporter.debug('Received filter changes', changes);
+
+            expect(changes).not.toContain(tx1.hash);
+            for (const receivedHash of changes) {
+                remainingHashes.delete(receivedHash);
+            }
+        }
     });
 
     test('Should test pub-sub API: blocks', async () => {

@@ -4,8 +4,8 @@ use once_cell::sync::Lazy;
 use zksync_basic_types::{AccountTreeId, Address, U256};
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
 use zksync_system_constants::{
-    BOOTLOADER_UTILITIES_ADDRESS, COMPRESSOR_ADDRESS, EVENT_WRITER_ADDRESS,
-    PUBDATA_CHUNK_PUBLISHER_ADDRESS,
+    BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS, EVENT_WRITER_ADDRESS,
+    P256VERIFY_PRECOMPILE_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS,
 };
 
 use crate::{
@@ -25,7 +25,7 @@ use crate::{
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
 pub const DEPLOYMENT_NONCE_INCREMENT: U256 = U256([0, 0, 1, 0]); // 2^128
 
-static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 21] = [
+static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 23] = [
     (
         "",
         "AccountCodeStorage",
@@ -105,6 +105,18 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 21] = [
         ContractLanguage::Yul,
     ),
     (
+        "precompiles/",
+        "P256Verify",
+        P256VERIFY_PRECOMPILE_ADDRESS,
+        ContractLanguage::Yul,
+    ),
+    (
+        "precompiles/",
+        "CodeOracle",
+        CODE_ORACLE_ADDRESS,
+        ContractLanguage::Yul,
+    ),
+    (
         "",
         "SystemContext",
         SYSTEM_CONTEXT_ADDRESS,
@@ -156,7 +168,7 @@ static SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new(|| {
         .collect::<Vec<_>>()
 });
 
-/// Gets default set of system contracts, based on ZKSYNC_HOME environment variable.
+/// Gets default set of system contracts, based on Cargo workspace location.
 pub fn get_system_smart_contracts() -> Vec<DeployedContract> {
     SYSTEM_CONTRACTS.clone()
 }

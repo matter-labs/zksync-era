@@ -54,15 +54,6 @@ fn basic_workflow() {
 
     assert_eq!(metadata.root_hash, expected_root_hash);
     assert_eq!(metadata.rollup_last_leaf_index, 101);
-    assert_eq!(metadata.initial_writes.len(), logs.len());
-    for (write, log) in metadata.initial_writes.iter().zip(&logs) {
-        let expected_value = match log {
-            TreeInstruction::Write(entry) => entry.value,
-            TreeInstruction::Read(_) => unreachable!(),
-        };
-        assert_eq!(write.value, expected_value);
-    }
-    assert!(metadata.repeated_writes.is_empty());
 
     assert_eq!(
         expected_root_hash,
@@ -122,8 +113,6 @@ fn filtering_out_no_op_writes() {
     // All writes are no-op updates and thus must be filtered out.
     let new_metadata = tree.process_l1_batch(&logs);
     assert_eq!(new_metadata.root_hash, root_hash);
-    assert!(new_metadata.initial_writes.is_empty());
-    assert!(new_metadata.repeated_writes.is_empty());
     let merkle_paths = new_metadata.witness.unwrap().into_merkle_paths();
     assert_eq!(merkle_paths.len(), 0);
 
@@ -138,8 +127,6 @@ fn filtering_out_no_op_writes() {
     }
     let new_metadata = tree.process_l1_batch(&logs);
     assert_ne!(new_metadata.root_hash, root_hash);
-    assert!(new_metadata.initial_writes.is_empty());
-    assert_eq!(new_metadata.repeated_writes.len(), expected_writes_count);
     let merkle_paths = new_metadata.witness.unwrap().into_merkle_paths();
     assert_eq!(merkle_paths.len(), expected_writes_count);
     for merkle_path in merkle_paths {
@@ -179,7 +166,7 @@ fn revert_blocks() {
 
     let mirror_logs = logs.clone();
     let tree_metadata: Vec<_> = {
-        let mut tree = ZkSyncTree::new_lightweight(storage.into());
+        let mut tree = ZkSyncTree::new(storage.into());
         let metadata = logs.chunks(block_size).map(|chunk| {
             let metadata = tree.process_l1_batch(chunk);
             tree.save();
@@ -192,17 +179,20 @@ fn revert_blocks() {
     // 4 first blocks must contain only insert ops, while the last one must contain
     // only the update ops.
     for (i, metadata) in tree_metadata.iter().enumerate() {
+        let merkle_paths = metadata.witness.clone().unwrap().into_merkle_paths();
         let expected_leaf_index = if i == 4 {
-            assert!(metadata.initial_writes.is_empty());
-            assert_eq!(metadata.repeated_writes.len(), block_size);
-            for (write, idx) in metadata.repeated_writes.iter().zip(1_u64..) {
-                assert_eq!(write.index, idx);
-                assert_eq!(write.value, H256::from_low_u64_be(idx));
+            assert_eq!(merkle_paths.len(), block_size);
+            for (merkle_path, idx) in merkle_paths.into_iter().zip(1_u64..) {
+                assert!(!merkle_path.first_write);
+                assert_eq!(merkle_path.leaf_enumeration_index, idx);
+                assert_eq!(merkle_path.value_written, H256::from_low_u64_be(idx).0);
             }
             block_size * 4 + 1
         } else {
-            assert!(metadata.repeated_writes.is_empty());
-            assert_eq!(metadata.initial_writes.len(), block_size);
+            assert_eq!(merkle_paths.len(), block_size);
+            for merkle_path in merkle_paths {
+                assert!(merkle_path.first_write);
+            }
             block_size * (i + 1) + 1
         };
         assert_eq!(metadata.rollup_last_leaf_index, expected_leaf_index as u64);
@@ -381,12 +371,8 @@ fn process_block_idempotency_check() {
     let repeated_tree_metadata = tree.process_l1_batch(&logs);
     assert_eq!(repeated_tree_metadata.root_hash, tree_metadata.root_hash);
     assert_eq!(
-        repeated_tree_metadata.initial_writes,
-        tree_metadata.initial_writes
-    );
-    assert_eq!(
-        repeated_tree_metadata.repeated_writes,
-        tree_metadata.repeated_writes
+        repeated_tree_metadata.rollup_last_leaf_index,
+        tree_metadata.rollup_last_leaf_index
     );
 }
 

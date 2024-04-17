@@ -4,7 +4,7 @@ use std::{
     collections::{BTreeMap, HashSet},
     future,
     future::Future,
-    path::{Path, PathBuf},
+    path::Path,
     time::Duration,
 };
 
@@ -27,6 +27,7 @@ use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageKey, H256};
 use super::{
     metrics::{LoadChangesStage, TreeUpdateStage, METRICS},
     pruning::PruningHandles,
+    MetadataCalculatorConfig,
 };
 
 /// General information about the Merkle tree.
@@ -63,36 +64,28 @@ impl From<MerkleTreeInfo> for Health {
 }
 
 /// Creates a RocksDB wrapper with the specified params.
-pub(super) async fn create_db(
-    path: PathBuf,
-    block_cache_capacity: usize,
-    memtable_capacity: usize,
-    stalled_writes_timeout: Duration,
-    multi_get_chunk_size: usize,
-) -> anyhow::Result<RocksDBWrapper> {
-    tokio::task::spawn_blocking(move || {
-        create_db_sync(
-            &path,
-            block_cache_capacity,
-            memtable_capacity,
-            stalled_writes_timeout,
-            multi_get_chunk_size,
-        )
-    })
-    .await
-    .context("panicked creating Merkle tree RocksDB")?
+pub(super) async fn create_db(config: MetadataCalculatorConfig) -> anyhow::Result<RocksDBWrapper> {
+    tokio::task::spawn_blocking(move || create_db_sync(&config))
+        .await
+        .context("panicked creating Merkle tree RocksDB")?
 }
 
-fn create_db_sync(
-    path: &Path,
-    block_cache_capacity: usize,
-    memtable_capacity: usize,
-    stalled_writes_timeout: Duration,
-    multi_get_chunk_size: usize,
-) -> anyhow::Result<RocksDBWrapper> {
+fn create_db_sync(config: &MetadataCalculatorConfig) -> anyhow::Result<RocksDBWrapper> {
+    let path = Path::new(config.db_path.as_str());
+    let &MetadataCalculatorConfig {
+        max_open_files,
+        block_cache_capacity,
+        include_indices_and_filters_in_block_cache,
+        multi_get_chunk_size,
+        memtable_capacity,
+        stalled_writes_timeout,
+        ..
+    } = config;
+
     tracing::info!(
-        "Initializing Merkle tree database at `{path}` with {multi_get_chunk_size} multi-get chunk size, \
-         {block_cache_capacity}B block cache, {memtable_capacity}B memtable capacity, \
+        "Initializing Merkle tree database at `{path}` (max open files: {max_open_files:?}) with {multi_get_chunk_size} multi-get chunk size, \
+         {block_cache_capacity}B block cache (indices & filters included: {include_indices_and_filters_in_block_cache:?}), \
+         {memtable_capacity}B memtable capacity, \
          {stalled_writes_timeout:?} stalled writes timeout",
         path = path.display()
     );
@@ -101,9 +94,10 @@ fn create_db_sync(
         path,
         RocksDBOptions {
             block_cache_capacity: Some(block_cache_capacity),
+            include_indices_and_filters_in_block_cache,
             large_memtable_capacity: Some(memtable_capacity),
             stalled_writes_retries: StalledWritesRetries::new(stalled_writes_timeout),
-            max_open_files: None,
+            max_open_files,
         },
     )?;
     if cfg!(test) {
@@ -451,8 +445,7 @@ impl L1BatchWithLogs {
                 let protective_reads = storage
                     .storage_logs_dedup_dal()
                     .get_protective_reads_for_l1_batch(l1_batch_number)
-                    .await
-                    .context("cannot fetch protective reads")?;
+                    .await?;
                 if protective_reads.is_empty() {
                     tracing::warn!(
                         "Protective reads for L1 batch #{l1_batch_number} are empty. This is highly unlikely \
@@ -532,7 +525,9 @@ mod tests {
     use super::*;
     use crate::{
         genesis::{insert_genesis_batch, GenesisParams},
-        metadata_calculator::tests::{extend_db_state, gen_storage_logs, reset_db_state},
+        metadata_calculator::tests::{
+            extend_db_state, gen_storage_logs, mock_config, reset_db_state,
+        },
     };
 
     impl L1BatchWithLogs {
@@ -658,15 +653,7 @@ mod tests {
     }
 
     async fn create_tree(temp_dir: &TempDir) -> AsyncTree {
-        let db = create_db(
-            temp_dir.path().to_owned(),
-            0,
-            16 << 20,       // 16 MiB,
-            Duration::ZERO, // writes should never be stalled in tests
-            500,
-        )
-        .await
-        .unwrap();
+        let db = create_db(mock_config(temp_dir.path())).await.unwrap();
         AsyncTree::new(db, MerkleTreeMode::Full)
     }
 
@@ -723,9 +710,6 @@ mod tests {
             actual.rollup_last_leaf_index,
             expected.rollup_last_leaf_index
         );
-        assert_eq!(actual.initial_writes, expected.initial_writes);
-        assert_eq!(actual.initial_writes, expected.initial_writes);
-        assert_eq!(actual.repeated_writes, expected.repeated_writes);
     }
 
     fn assert_equivalent_witnesses(lhs: PrepareBasicCircuitsJob, rhs: PrepareBasicCircuitsJob) {

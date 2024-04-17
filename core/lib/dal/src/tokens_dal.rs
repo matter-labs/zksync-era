@@ -1,5 +1,10 @@
 use sqlx::types::chrono::Utc;
-use zksync_db_connection::{connection::Connection, write_str, writeln_str};
+use zksync_db_connection::{
+    connection::Connection,
+    error::DalResult,
+    instrument::{CopyStatement, InstrumentExt},
+    write_str, writeln_str,
+};
 use zksync_types::{tokens::TokenInfo, Address, MiniblockNumber};
 
 use crate::{Core, CoreDal};
@@ -10,15 +15,16 @@ pub struct TokensDal<'a, 'c> {
 }
 
 impl TokensDal<'_, '_> {
-    pub async fn add_tokens(&mut self, tokens: &[TokenInfo]) -> sqlx::Result<()> {
-        let mut copy = self
-            .storage
-            .conn()
-            .copy_in_raw(
-                "COPY tokens (l1_address, l2_address, name, symbol, decimals, well_known, created_at, updated_at)
-                FROM STDIN WITH (DELIMITER '|')",
-            )
-            .await?;
+    pub async fn add_tokens(&mut self, tokens: &[TokenInfo]) -> DalResult<()> {
+        let tokens_len = tokens.len();
+        let copy = CopyStatement::new(
+            "COPY tokens (l1_address, l2_address, name, symbol, decimals, well_known, created_at, updated_at)
+             FROM STDIN WITH (DELIMITER '|')",
+        )
+        .instrument("add_tokens")
+        .with_arg("tokens.len", &tokens_len)
+        .start(self.storage)
+        .await?;
 
         let mut buffer = String::new();
         let now = Utc::now().naive_utc().to_string();
@@ -37,12 +43,10 @@ impl TokensDal<'_, '_> {
                 token_info.metadata.decimals
             );
         }
-        copy.send(buffer.as_bytes()).await?;
-        copy.finish().await?;
-        Ok(())
+        copy.send(buffer.as_bytes()).await
     }
 
-    pub async fn mark_token_as_well_known(&mut self, l1_address: Address) -> sqlx::Result<()> {
+    pub async fn mark_token_as_well_known(&mut self, l1_address: Address) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE tokens
@@ -54,12 +58,14 @@ impl TokensDal<'_, '_> {
             "#,
             l1_address.as_bytes()
         )
-        .execute(self.storage.conn())
+        .instrument("mark_token_as_well_known")
+        .with_arg("l1_address", &l1_address)
+        .execute(self.storage)
         .await?;
         Ok(())
     }
 
-    pub async fn get_all_l2_token_addresses(&mut self) -> sqlx::Result<Vec<Address>> {
+    pub async fn get_all_l2_token_addresses(&mut self) -> DalResult<Vec<Address>> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -68,7 +74,9 @@ impl TokensDal<'_, '_> {
                 tokens
             "#
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_all_l2_token_addresses")
+        .report_latency()
+        .fetch_all(self.storage)
         .await?;
 
         Ok(rows
@@ -78,7 +86,7 @@ impl TokensDal<'_, '_> {
     }
 
     /// Removes token records that were deployed after `block_number`.
-    pub async fn rollback_tokens(&mut self, block_number: MiniblockNumber) -> sqlx::Result<()> {
+    pub async fn rollback_tokens(&mut self, block_number: MiniblockNumber) -> DalResult<()> {
         let all_token_addresses = self.get_all_l2_token_addresses().await?;
         let token_deployment_data = self
             .storage
@@ -97,7 +105,13 @@ impl TokensDal<'_, '_> {
             "#,
             &token_addresses_to_be_removed as &[_]
         )
-        .execute(self.storage.conn())
+        .instrument("rollback_tokens")
+        .with_arg("block_number", &block_number)
+        .with_arg(
+            "token_addresses_to_be_removed.len",
+            &token_addresses_to_be_removed.len(),
+        )
+        .execute(self.storage)
         .await?;
 
         Ok(())

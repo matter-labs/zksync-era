@@ -5,7 +5,7 @@ use zksync_concurrency::{ctx, error::Wrap as _, sync, time};
 use zksync_consensus_bft::PayloadManager;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{BlockStoreState, PersistentBlockStore, ReplicaState, ReplicaStore};
-use zksync_dal::{consensus_dal::Payload, ConnectionPool, Core, CoreDal};
+use zksync_dal::{consensus_dal::Payload, ConnectionPool, Core, CoreDal, DalError};
 use zksync_types::MiniblockNumber;
 
 #[cfg(test)]
@@ -45,7 +45,10 @@ impl<'a> Connection<'a> {
         &mut self,
         ctx: &ctx::Ctx,
     ) -> ctx::Result<std::ops::Range<validator::BlockNumber>> {
-        Ok(ctx.wait(self.0.consensus_dal().block_range()).await??)
+        Ok(ctx
+            .wait(self.0.consensus_dal().block_range())
+            .await?
+            .context("sqlx")?)
     }
 
     /// Wrapper for `consensus_dal().block_payload()`.
@@ -56,7 +59,8 @@ impl<'a> Connection<'a> {
     ) -> ctx::Result<Option<Payload>> {
         Ok(ctx
             .wait(self.0.consensus_dal().block_payload(number))
-            .await??)
+            .await?
+            .map_err(DalError::generalize)?)
     }
 
     /// Wrapper for `consensus_dal().first_certificate()`.
@@ -66,7 +70,8 @@ impl<'a> Connection<'a> {
     ) -> ctx::Result<Option<validator::CommitQC>> {
         Ok(ctx
             .wait(self.0.consensus_dal().first_certificate())
-            .await??)
+            .await?
+            .map_err(DalError::generalize)?)
     }
 
     /// Wrapper for `consensus_dal().last_certificate()`.
@@ -76,7 +81,8 @@ impl<'a> Connection<'a> {
     ) -> ctx::Result<Option<validator::CommitQC>> {
         Ok(ctx
             .wait(self.0.consensus_dal().last_certificate())
-            .await??)
+            .await?
+            .map_err(DalError::generalize)?)
     }
 
     /// Wrapper for `consensus_dal().certificate()`.
@@ -87,7 +93,8 @@ impl<'a> Connection<'a> {
     ) -> ctx::Result<Option<validator::CommitQC>> {
         Ok(ctx
             .wait(self.0.consensus_dal().certificate(number))
-            .await??)
+            .await?
+            .map_err(DalError::generalize)?)
     }
 
     /// Wrapper for `consensus_dal().insert_certificate()`.
@@ -103,7 +110,10 @@ impl<'a> Connection<'a> {
 
     /// Wrapper for `consensus_dal().replica_state()`.
     pub async fn replica_state(&mut self, ctx: &ctx::Ctx) -> ctx::Result<ReplicaState> {
-        Ok(ctx.wait(self.0.consensus_dal().replica_state()).await??)
+        Ok(ctx
+            .wait(self.0.consensus_dal().replica_state())
+            .await?
+            .map_err(DalError::generalize)?)
     }
 
     /// Wrapper for `consensus_dal().set_replica_state()`.
@@ -131,7 +141,10 @@ impl<'a> Connection<'a> {
     }
 
     pub async fn genesis(&mut self, ctx: &ctx::Ctx) -> ctx::Result<Option<validator::Genesis>> {
-        Ok(ctx.wait(self.0.consensus_dal().genesis()).await??)
+        Ok(ctx
+            .wait(self.0.consensus_dal().genesis())
+            .await?
+            .map_err(DalError::generalize)?)
     }
 
     pub async fn try_update_genesis(
@@ -199,7 +212,9 @@ impl Store {
     /// Wrapper for `connection_tagged()`.
     pub(super) async fn access<'a>(&'a self, ctx: &ctx::Ctx) -> ctx::Result<Connection<'a>> {
         Ok(Connection(
-            ctx.wait(self.0.connection_tagged("consensus")).await??,
+            ctx.wait(self.0.connection_tagged("consensus"))
+                .await?
+                .map_err(DalError::generalize)?,
         ))
     }
 

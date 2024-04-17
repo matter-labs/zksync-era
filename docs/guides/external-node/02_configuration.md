@@ -5,6 +5,9 @@ environment variables. To streamline this process, we provide prepared configs f
 [mainnet](prepared_configs/mainnet-config.env) and [testnet](prepared_configs/testnet-sepolia-config.env). You can use
 these files as a starting point and modify only the necessary sections.
 
+**You can also see directory docker-compose-examples if you want to run external-node on your machine with recommended
+default settings.**
+
 ## Database
 
 The EN uses two databases: PostgreSQL and RocksDB.

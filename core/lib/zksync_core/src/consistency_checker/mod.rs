@@ -8,6 +8,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{CallFunctionArgs, Error as L1ClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::i_executor::commit::kzg::ZK_SYNC_BYTES_PER_BLOB;
+use zksync_shared_metrics::{CheckerComponent, EN_METRICS};
 use zksync_types::{
     commitment::L1BatchWithMetadata,
     ethabi::Token,
@@ -18,7 +19,6 @@ use zksync_types::{
 
 use crate::{
     eth_sender::l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
-    metrics::{CheckerComponent, EN_METRICS},
     utils::wait_for_l1_batch_with_metadata,
 };
 
@@ -535,7 +535,13 @@ impl ConsistencyChecker {
         while let Err(err) = self.sanity_check_diamond_proxy_addr().await {
             if err.is_transient() {
                 tracing::warn!("Transient error checking diamond proxy contract; will retry after a delay: {err}");
-                tokio::time::sleep(self.sleep_interval).await;
+                if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
+                    .await
+                    .is_ok()
+                {
+                    tracing::info!("Stop signal received, consistency_checker is shutting down");
+                    return Ok(());
+                }
             } else {
                 return Err(anyhow::Error::from(err)
                     .context("failed sanity-checking diamond proxy contract"));
@@ -580,12 +586,7 @@ impl ConsistencyChecker {
             .set_first_batch_to_check(first_batch_to_check);
 
         let mut batch_number = first_batch_to_check;
-        loop {
-            if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, consistency_checker is shutting down");
-                break;
-            }
-
+        while !*stop_receiver.borrow_and_update() {
             let mut storage = self.pool.connection().await?;
             // The batch might be already committed but not yet processed by the external node's tree
             // OR the batch might be processed by the external node's tree but not yet committed.
@@ -597,7 +598,12 @@ impl ConsistencyChecker {
             )
             .await?
             else {
-                tokio::time::sleep(self.sleep_interval).await;
+                if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
+                    .await
+                    .is_ok()
+                {
+                    break;
+                }
                 continue;
             };
             drop(storage);
@@ -629,7 +635,12 @@ impl ConsistencyChecker {
                 }
                 Err(err) if err.is_transient() => {
                     tracing::warn!("Transient error while verifying L1 batch #{batch_number}; will retry after a delay: {err}");
-                    tokio::time::sleep(self.sleep_interval).await;
+                    if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
+                        .await
+                        .is_ok()
+                    {
+                        break;
+                    }
                 }
                 Err(other_err) => {
                     let context =
@@ -638,6 +649,8 @@ impl ConsistencyChecker {
                 }
             }
         }
+
+        tracing::info!("Stop signal received, consistency_checker is shutting down");
         Ok(())
     }
 }

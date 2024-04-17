@@ -2,6 +2,7 @@
 //! stores them in the DB.
 
 use std::{
+    num::NonZeroU32,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -20,6 +21,7 @@ pub(crate) use self::helpers::{AsyncTreeReader, L1BatchWithLogs, MerkleTreeInfo}
 pub use self::{helpers::LazyAsyncTreeReader, pruning::MerkleTreePruningTask};
 use self::{
     helpers::{create_db, Delayer, GenericAsyncTree, MerkleTreeHealth},
+    metrics::{ConfigLabels, METRICS},
     pruning::PruningHandles,
     updater::TreeUpdater,
 };
@@ -33,10 +35,13 @@ pub(crate) mod tests;
 mod updater;
 
 /// Configuration of [`MetadataCalculator`].
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MetadataCalculatorConfig {
     /// Filesystem path to the RocksDB instance that stores the tree.
     pub db_path: String,
+    /// Maximum number of files concurrently opened by RocksDB. Useful to fit into OS limits; can be used
+    /// as a rudimentary way to control RAM usage of the tree.
+    pub max_open_files: Option<NonZeroU32>,
     /// Configuration of the Merkle tree mode.
     pub mode: MerkleTreeMode,
     /// Interval between polling Postgres for updates if no progress was made by the tree.
@@ -48,6 +53,10 @@ pub struct MetadataCalculatorConfig {
     pub multi_get_chunk_size: usize,
     /// Capacity of RocksDB block cache in bytes. Reasonable values range from ~100 MiB to several GB.
     pub block_cache_capacity: usize,
+    /// If specified, RocksDB indices and Bloom filters will be managed by the block cache, rather than
+    /// being loaded entirely into RAM on the RocksDB initialization. The block cache capacity should be increased
+    /// correspondingly; otherwise, RocksDB performance can significantly degrade.
+    pub include_indices_and_filters_in_block_cache: bool,
     /// Capacity of RocksDB memtables. Can be set to a reasonably large value (order of 512 MiB)
     /// to mitigate write stalls.
     pub memtable_capacity: usize,
@@ -62,11 +71,13 @@ impl MetadataCalculatorConfig {
     ) -> Self {
         Self {
             db_path: merkle_tree_config.path.clone(),
+            max_open_files: None,
             mode: merkle_tree_config.mode,
             delay_interval: operation_config.delay_interval(),
             max_l1_batches_per_iter: merkle_tree_config.max_l1_batches_per_iter,
             multi_get_chunk_size: merkle_tree_config.multi_get_chunk_size,
             block_cache_capacity: merkle_tree_config.block_cache_size(),
+            include_indices_and_filters_in_block_cache: false,
             memtable_capacity: merkle_tree_config.memtable_capacity(),
             stalled_writes_timeout: merkle_tree_config.stalled_writes_timeout(),
         }
@@ -92,6 +103,14 @@ impl MetadataCalculator {
         object_store: Option<Arc<dyn ObjectStore>>,
         pool: ConnectionPool<Core>,
     ) -> anyhow::Result<Self> {
+        if let Err(err) = METRICS.info.set(ConfigLabels::new(&config)) {
+            tracing::warn!(
+                "Cannot set config {:?}; it's already set to {:?}",
+                err.into_inner(),
+                METRICS.info.get()
+            );
+        }
+
         anyhow::ensure!(
             config.max_l1_batches_per_iter > 0,
             "Maximum L1 batches per iteration is misconfigured to be 0; please update it to positive value"
@@ -139,15 +158,7 @@ impl MetadataCalculator {
             .update(MerkleTreeHealth::Initialization.into());
 
         let started_at = Instant::now();
-        let db = create_db(
-            self.config.db_path.clone().into(),
-            self.config.block_cache_capacity,
-            self.config.memtable_capacity,
-            self.config.stalled_writes_timeout,
-            self.config.multi_get_chunk_size,
-        )
-        .await
-        .with_context(|| {
+        let db = create_db(self.config.clone()).await.with_context(|| {
             format!(
                 "failed opening Merkle tree RocksDB with configuration {:?}",
                 self.config

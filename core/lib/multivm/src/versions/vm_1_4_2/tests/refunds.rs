@@ -61,8 +61,12 @@ fn test_predetermined_refunded_gas() {
     let tx: TransactionData = tx.into();
     // Overhead
     let overhead = tx.overhead_gas();
-    vm.vm
-        .push_raw_transaction(tx.clone(), overhead, result.refunds.gas_refunded, true);
+    vm.vm.push_raw_transaction(
+        tx.clone(),
+        overhead,
+        result.refunds.gas_refunded as u32,
+        true,
+    );
 
     let result_with_predefined_refunds = vm.vm.execute(VmExecutionMode::Batch);
     let mut current_state_with_predefined_refunds = vm.vm.get_current_execution_state();
@@ -113,7 +117,7 @@ fn test_predetermined_refunded_gas() {
 
     let changed_operator_suggested_refund = result.refunds.gas_refunded + 1000;
     vm.vm
-        .push_raw_transaction(tx, overhead, changed_operator_suggested_refund, true);
+        .push_raw_transaction(tx, overhead, changed_operator_suggested_refund as u32, true);
     let result = vm.vm.execute(VmExecutionMode::Batch);
     let mut current_state_with_changed_predefined_refunds = vm.vm.get_current_execution_state();
 

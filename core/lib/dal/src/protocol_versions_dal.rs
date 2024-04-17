@@ -2,7 +2,11 @@ use std::convert::TryInto;
 
 use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
-use zksync_db_connection::connection::Connection;
+use zksync_db_connection::{
+    connection::Connection,
+    error::DalResult,
+    instrument::{InstrumentExt, Instrumented},
+};
 use zksync_types::{
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolVersion},
     protocol_version::{L1VerifierConfig, VerifierParams},
@@ -10,7 +14,10 @@ use zksync_types::{
 };
 
 use crate::{
-    models::storage_protocol_version::{protocol_version_from_storage, StorageProtocolVersion},
+    models::{
+        parse_protocol_version,
+        storage_protocol_version::{protocol_version_from_storage, StorageProtocolVersion},
+    },
     Core, CoreDal,
 };
 
@@ -27,7 +34,7 @@ impl ProtocolVersionsDal<'_, '_> {
         l1_verifier_config: L1VerifierConfig,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         tx_hash: Option<H256>,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -67,20 +74,29 @@ impl ProtocolVersionsDal<'_, '_> {
             base_system_contracts_hashes.default_aa.as_bytes(),
             tx_hash.as_ref().map(H256::as_bytes),
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("save_protocol_version")
+        .with_arg("id", &id)
+        .with_arg(
+            "base_system_contracts_hashes",
+            &base_system_contracts_hashes,
+        )
+        .with_arg("tx_hash", &tx_hash)
+        .execute(self.storage)
+        .await?;
+        Ok(())
     }
 
-    pub async fn save_protocol_version_with_tx(&mut self, version: ProtocolVersion) {
+    pub async fn save_protocol_version_with_tx(
+        &mut self,
+        version: &ProtocolVersion,
+    ) -> DalResult<()> {
         let tx_hash = version.tx.as_ref().map(|tx| tx.common_data.hash());
-
-        let mut db_transaction = self.storage.start_transaction().await.unwrap();
-        if let Some(tx) = version.tx {
+        let mut db_transaction = self.storage.start_transaction().await?;
+        if let Some(tx) = &version.tx {
             db_transaction
                 .transactions_dal()
                 .insert_system_transaction(tx)
-                .await;
+                .await?;
         }
 
         db_transaction
@@ -92,12 +108,15 @@ impl ProtocolVersionsDal<'_, '_> {
                 version.base_system_contracts_hashes,
                 tx_hash,
             )
-            .await;
-
-        db_transaction.commit().await.unwrap();
+            .await?;
+        db_transaction.commit().await
     }
 
-    async fn save_genesis_upgrade_tx_hash(&mut self, id: ProtocolVersionId, tx_hash: Option<H256>) {
+    async fn save_genesis_upgrade_tx_hash(
+        &mut self,
+        id: ProtocolVersionId,
+        tx_hash: Option<H256>,
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE protocol_versions
@@ -109,9 +128,12 @@ impl ProtocolVersionsDal<'_, '_> {
             tx_hash.as_ref().map(H256::as_bytes),
             id as i32,
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("save_genesis_upgrade_tx_hash")
+        .with_arg("id", &id)
+        .with_arg("tx_hash", &tx_hash)
+        .execute(self.storage)
+        .await?;
+        Ok(())
     }
 
     /// Attaches a transaction used to set ChainId to the genesis protocol version.
@@ -119,23 +141,19 @@ impl ProtocolVersionsDal<'_, '_> {
     pub async fn save_genesis_upgrade_with_tx(
         &mut self,
         id: ProtocolVersionId,
-        tx: ProtocolUpgradeTx,
-    ) {
+        tx: &ProtocolUpgradeTx,
+    ) -> DalResult<()> {
         let tx_hash = Some(tx.common_data.hash());
-
-        let mut db_transaction = self.storage.start_transaction().await.unwrap();
-
+        let mut db_transaction = self.storage.start_transaction().await?;
         db_transaction
             .transactions_dal()
             .insert_system_transaction(tx)
-            .await;
-
+            .await?;
         db_transaction
             .protocol_versions_dal()
             .save_genesis_upgrade_tx_hash(id, tx_hash)
-            .await;
-
-        db_transaction.commit().await.unwrap();
+            .await?;
+        db_transaction.commit().await
     }
 
     pub async fn protocol_version_id_by_timestamp(
@@ -201,8 +219,8 @@ impl ProtocolVersionsDal<'_, '_> {
     pub async fn load_previous_version(
         &mut self,
         version_id: ProtocolVersionId,
-    ) -> Option<ProtocolVersion> {
-        let storage_protocol_version: StorageProtocolVersion = sqlx::query_as!(
+    ) -> DalResult<Option<ProtocolVersion>> {
+        let maybe_version = sqlx::query_as!(
             StorageProtocolVersion,
             r#"
             SELECT
@@ -218,21 +236,24 @@ impl ProtocolVersionsDal<'_, '_> {
             "#,
             version_id as i32
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()?;
-        let tx = self
-            .get_protocol_upgrade_tx((storage_protocol_version.id as u16).try_into().unwrap())
-            .await;
+        .try_map(|row| Ok((parse_protocol_version(row.id)?, row)))
+        .instrument("load_previous_version")
+        .with_arg("version_id", &version_id)
+        .fetch_optional(self.storage)
+        .await?;
 
-        Some(protocol_version_from_storage(storage_protocol_version, tx))
+        let Some((version_id, row)) = maybe_version else {
+            return Ok(None);
+        };
+        let tx = self.get_protocol_upgrade_tx(version_id).await?;
+        Ok(Some(protocol_version_from_storage(row, tx)))
     }
 
     pub async fn get_protocol_version(
         &mut self,
         version_id: ProtocolVersionId,
-    ) -> Option<ProtocolVersion> {
-        let storage_protocol_version: StorageProtocolVersion = sqlx::query_as!(
+    ) -> DalResult<Option<ProtocolVersion>> {
+        let maybe_row = sqlx::query_as!(
             StorageProtocolVersion,
             r#"
             SELECT
@@ -244,12 +265,17 @@ impl ProtocolVersionsDal<'_, '_> {
             "#,
             version_id as i32
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()?;
-        let tx = self.get_protocol_upgrade_tx(version_id).await;
+        .instrument("get_protocol_version")
+        .with_arg("version_id", &version_id)
+        .fetch_optional(self.storage)
+        .await?;
 
-        Some(protocol_version_from_storage(storage_protocol_version, tx))
+        let Some(row) = maybe_row else {
+            return Ok(None);
+        };
+        let tx = self.get_protocol_upgrade_tx(version_id).await?;
+
+        Ok(Some(protocol_version_from_storage(row, tx)))
     }
 
     pub async fn l1_verifier_config_for_version(
@@ -287,8 +313,8 @@ impl ProtocolVersionsDal<'_, '_> {
         })
     }
 
-    pub async fn last_version_id(&mut self) -> Option<ProtocolVersionId> {
-        let id = sqlx::query!(
+    pub async fn last_version_id(&mut self) -> DalResult<Option<ProtocolVersionId>> {
+        Ok(sqlx::query!(
             r#"
             SELECT
                 MAX(id) AS "max?"
@@ -296,11 +322,11 @@ impl ProtocolVersionsDal<'_, '_> {
                 protocol_versions
             "#
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()?
-        .max?;
-        Some((id as u16).try_into().unwrap())
+        .try_map(|row| row.max.map(parse_protocol_version).transpose())
+        .instrument("last_version_id")
+        .fetch_optional(self.storage)
+        .await?
+        .flatten())
     }
 
     pub async fn last_used_version_id(&mut self) -> Option<ProtocolVersionId> {
@@ -344,8 +370,10 @@ impl ProtocolVersionsDal<'_, '_> {
     pub async fn get_protocol_upgrade_tx(
         &mut self,
         protocol_version_id: ProtocolVersionId,
-    ) -> Option<ProtocolUpgradeTx> {
-        let row = sqlx::query!(
+    ) -> DalResult<Option<ProtocolUpgradeTx>> {
+        let instrumentation = Instrumented::new("get_protocol_upgrade_tx")
+            .with_arg("protocol_version_id", &protocol_version_id);
+        let query = sqlx::query!(
             r#"
             SELECT
                 upgrade_tx_hash
@@ -355,27 +383,34 @@ impl ProtocolVersionsDal<'_, '_> {
                 id = $1
             "#,
             protocol_version_id as i32
-        )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()?;
-        if let Some(hash) = row.upgrade_tx_hash {
-            Some(
-                self.storage
-                    .transactions_dal()
-                    .get_tx_by_hash(H256::from_slice(&hash))
-                    .await
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "Missing upgrade tx for protocol version {}",
-                            protocol_version_id as u16
-                        );
-                    })
-                    .try_into()
-                    .unwrap(),
-            )
-        } else {
-            None
-        }
+        );
+
+        let maybe_row = instrumentation
+            .with(query)
+            .fetch_optional(self.storage)
+            .await?;
+        let Some(upgrade_tx_hash) = maybe_row.and_then(|row| row.upgrade_tx_hash) else {
+            return Ok(None);
+        };
+        let upgrade_tx_hash = H256::from_slice(&upgrade_tx_hash);
+
+        let instrumentation = Instrumented::new("get_protocol_upgrade_tx#get_tx")
+            .with_arg("protocol_version_id", &protocol_version_id)
+            .with_arg("upgrade_tx_hash", &upgrade_tx_hash);
+        let tx = self
+            .storage
+            .transactions_dal()
+            .get_tx_by_hash(upgrade_tx_hash)
+            .await?
+            .ok_or_else(|| {
+                instrumentation.arg_error(
+                    "upgrade_tx_hash",
+                    anyhow::anyhow!("upgrade transaction is not present in storage"),
+                )
+            })?;
+        let tx = tx
+            .try_into()
+            .map_err(|err| instrumentation.arg_error("tx", anyhow::Error::msg(err)))?;
+        Ok(Some(tx))
     }
 }

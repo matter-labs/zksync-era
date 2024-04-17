@@ -30,7 +30,7 @@ use std::{
 use anyhow::Context as _;
 use itertools::{Either, Itertools};
 use tokio::sync::watch;
-use zksync_dal::{Connection, Core, CoreDal};
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_storage::{db::NamedColumnFamily, RocksDB};
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256, U256};
 use zksync_utils::{h256_to_u256, u256_to_h256};
@@ -257,7 +257,7 @@ impl RocksdbStorage {
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .context("failed fetching sealed L1 batch number")?
+            .map_err(DalError::generalize)?
         else {
             // No L1 batches are persisted in Postgres; update is not necessary.
             return Ok(());
@@ -284,9 +284,7 @@ impl RocksdbStorage {
                 .storage_logs_dal()
                 .get_touched_slots_for_l1_batch(current_l1_batch_number)
                 .await
-                .with_context(|| {
-                    format!("failed loading touched slots for L1 batch {current_l1_batch_number}")
-                })?;
+                .map_err(DalError::generalize)?;
             self.apply_storage_logs(storage_logs, storage).await?;
 
             tracing::debug!("Loading factory deps for L1 batch {current_l1_batch_number}");
@@ -294,9 +292,7 @@ impl RocksdbStorage {
                 .blocks_dal()
                 .get_l1_batch_factory_deps(current_l1_batch_number)
                 .await
-                .with_context(|| {
-                    format!("failed loading factory deps for L1 batch {current_l1_batch_number}")
-                })?;
+                .map_err(DalError::generalize)?;
             for (hash, bytecode) in factory_deps {
                 self.store_factory_dep(hash, bytecode);
             }
@@ -515,10 +511,7 @@ impl RocksdbStorage {
         let (_, last_miniblock_to_keep) = connection
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(last_l1_batch_to_keep)
-            .await
-            .with_context(|| {
-                format!("failed fetching miniblock range for L1 batch #{last_l1_batch_to_keep}")
-            })?
+            .await?
             .context("L1 batch should contain at least one miniblock")?;
         tracing::info!(
             "Got miniblock number {last_miniblock_to_keep}, took {:?}",
@@ -530,10 +523,7 @@ impl RocksdbStorage {
         let factory_deps = connection
             .factory_deps_dal()
             .get_factory_deps_for_revert(last_miniblock_to_keep)
-            .await
-            .with_context(|| {
-                format!("failed fetching factory deps for miniblock #{last_miniblock_to_keep}")
-            })?;
+            .await?;
         tracing::info!(
             "Got {} factory deps, took {:?}",
             factory_deps.len(),

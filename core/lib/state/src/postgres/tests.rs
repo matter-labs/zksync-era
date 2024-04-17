@@ -1,6 +1,6 @@
 //! Tests for `PostgresStorage`.
 
-use std::{collections::HashMap, mem};
+use std::{collections::HashMap, mem, time::Duration};
 
 use rand::{
     rngs::StdRng,
@@ -231,6 +231,18 @@ fn test_factory_deps_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
         )
         .unwrap();
 
+    let mut contracts = HashMap::new();
+    contracts.insert(H256::from_low_u64_be(1), vec![1, 2, 3, 4]);
+    storage
+        .rt_handle
+        .block_on(
+            storage
+                .connection
+                .factory_deps_dal()
+                .insert_factory_deps(MiniblockNumber(1), &contracts),
+        )
+        .unwrap();
+
     // Create the storage that should have the cache filled.
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
@@ -243,7 +255,40 @@ fn test_factory_deps_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     // Fill the cache
     let dep = storage.load_factory_dep(zero_addr);
     assert_eq!(dep, Some(vec![1, 2, 3]));
-    assert_eq!(caches.factory_deps.get(&zero_addr), Some(vec![1, 2, 3]));
+    assert_eq!(
+        caches.factory_deps.get(&zero_addr),
+        Some(TimestampedFactoryDep {
+            bytecode: vec![1, 2, 3],
+            inserted_at: MiniblockNumber(0)
+        })
+    );
+
+    let dep = storage.load_factory_dep(H256::from_low_u64_be(1));
+    assert_eq!(dep, Some(vec![1, 2, 3, 4]));
+    assert_eq!(
+        caches.factory_deps.get(&H256::from_low_u64_be(1)),
+        Some(TimestampedFactoryDep {
+            bytecode: vec![1, 2, 3, 4],
+            inserted_at: MiniblockNumber(1)
+        })
+    );
+
+    // Create storage with `MiniblockNumber(0)`.
+    let mut storage = PostgresStorage::new(
+        storage.rt_handle,
+        storage.connection,
+        MiniblockNumber(0),
+        true,
+    )
+    .with_caches(caches.clone());
+
+    // First bytecode was published at miniblock 0, so it should be visible.
+    let dep = storage.load_factory_dep(zero_addr);
+    assert_eq!(dep, Some(vec![1, 2, 3]));
+
+    // Second bytecode was published at miniblock 1, so it shouldn't be visible.
+    let dep = storage.load_factory_dep(H256::from_low_u64_be(1));
+    assert!(dep.is_none());
 }
 
 #[tokio::test]
@@ -384,11 +429,27 @@ impl ValuesCache {
     }
 }
 
+async fn wait_for_cache_update(values_cache: &ValuesCache, target_miniblock: MiniblockNumber) {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let valid_for = values_cache.0.read().unwrap().valid_for;
+            assert!(valid_for <= target_miniblock, "{valid_for:?}");
+            if valid_for == target_miniblock {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .expect("timed out waiting for cache update");
+}
+
 fn test_values_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     let mut caches = PostgresStorageCaches::new(1_024, 1_024);
-    let _ = caches.configure_storage_values_cache(1_024 * 1_024, pool.clone());
-    // We cannot use an update task since it requires having concurrent DB connections
-    // that don't work in tests. We'll update values cache manually instead.
+    let task = caches.configure_storage_values_cache(1_024 * 1_024, pool.clone());
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let update_task_handle = tokio::task::spawn(task.run(stop_receiver));
+
     let values_cache = caches.values.as_ref().unwrap().cache.clone();
     let old_miniblock_assertions = values_cache.assertions(MiniblockNumber(0));
     let new_miniblock_assertions = values_cache.assertions(MiniblockNumber(1));
@@ -451,15 +512,10 @@ fn test_values_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
         (non_existing_key, Some(H256::zero())),
     ]);
 
+    caches.schedule_values_update(MiniblockNumber(1));
     storage
         .rt_handle
-        .block_on(values_cache.update(
-            MiniblockNumber(0),
-            MiniblockNumber(1),
-            &mut storage.connection,
-        ))
-        .unwrap();
-    assert_eq!(values_cache.0.read().unwrap().valid_for, MiniblockNumber(1));
+        .block_on(wait_for_cache_update(&values_cache, MiniblockNumber(1)));
 
     assert_eq!(storage.read_value(&existing_key), H256::repeat_byte(1));
     assert_eq!(storage.read_value(&non_existing_key), H256::repeat_byte(2));
@@ -487,7 +543,7 @@ fn test_values_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
         MiniblockNumber(0),
         true,
     )
-    .with_caches(caches);
+    .with_caches(caches.clone());
 
     assert_eq!(storage.read_value(&existing_key), initial_value);
     assert_eq!(storage.read_value(&non_existing_key), StorageValue::zero());
@@ -495,6 +551,15 @@ fn test_values_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
 
     // None of the cache entries should be modified.
     assert_final_cache();
+
+    stop_sender.send_replace(true);
+    storage
+        .rt_handle
+        .block_on(update_task_handle)
+        .expect("update task panicked")
+        .unwrap();
+    // Check that `schedule_values_update()` doesn't panic after the update task is finished.
+    caches.schedule_values_update(MiniblockNumber(2));
 }
 
 #[tokio::test]

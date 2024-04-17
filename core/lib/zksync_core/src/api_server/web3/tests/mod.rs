@@ -284,7 +284,8 @@ async fn test_http_server(test: impl HttpTest) {
     let (stop_sender, stop_receiver) = watch::channel(false);
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
-    let mut api_config = InternalApiConfig::new(&network_config, &web3_config, &contracts_config);
+    let genesis = GenesisConfig::for_tests();
+    let mut api_config = InternalApiConfig::new(&web3_config, &contracts_config, &genesis);
     api_config.filters_disabled = test.filters_disabled();
     let mut server_handles = spawn_http_server(
         api_config,
@@ -351,7 +352,7 @@ async fn store_miniblock(
         let l2_tx = result.transaction.clone().try_into().unwrap();
         let tx_submission_result = storage
             .transactions_dal()
-            .insert_transaction_l2(l2_tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&l2_tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         assert_matches!(tx_submission_result, L2TxSubmissionResult::Added);
@@ -365,7 +366,7 @@ async fn store_miniblock(
     storage
         .transactions_dal()
         .mark_txs_as_executed_in_miniblock(new_miniblock.number, transaction_results, 1.into())
-        .await;
+        .await?;
     Ok(new_miniblock)
 }
 
@@ -446,7 +447,7 @@ async fn store_events(
             MiniblockNumber(miniblock_number),
             &[(tx_location, events.iter().collect())],
         )
-        .await;
+        .await?;
     Ok((tx_location, events))
 }
 
@@ -723,7 +724,7 @@ impl HttpTest for TransactionCountTest {
         pending_tx.common_data.nonce = Nonce(2);
         storage
             .transactions_dal()
-            .insert_transaction_l2(pending_tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&pending_tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
 
@@ -799,7 +800,7 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
         let mut storage = pool.connection().await?;
         storage
             .transactions_dal()
-            .insert_transaction_l2(pending_tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&pending_tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
 

@@ -17,6 +17,7 @@ zksync_contracts.workspace = true
 zksync_mini_merkle_tree.workspace = true
 zksync_config.workspace = true
 zksync_protobuf.workspace = true
+zksync_crypto_primitives.workspace = true
 
 anyhow.workspace = true
 chrono = { workspace = true, features = ["serde"] }
@@ -25,7 +26,6 @@ once_cell.workspace = true
 rlp.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-serde_with = { workspace = true, features = ["base64"] }
 strum = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
 num_enum.workspace = true
@@ -34,12 +34,11 @@ prost.workspace = true
 itertools.workspace = true
 
 # Crypto stuff
-secp256k1 = { workspace = true, features = ["recovery", "global-context"] }
+secp256k1.workspace = true
 blake2.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "macros"] }
-serde_with = { workspace = true, features = ["hex"] }
 
 [build-dependencies]
 zksync_protobuf_build.workspace = true

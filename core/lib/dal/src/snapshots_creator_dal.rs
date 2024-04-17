@@ -1,4 +1,4 @@
-use zksync_db_connection::{connection::Connection, instrument::InstrumentExt};
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{
     snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber, MiniblockNumber,
     StorageKey, H256,
@@ -15,7 +15,7 @@ impl SnapshotsCreatorDal<'_, '_> {
     pub async fn get_distinct_storage_logs_keys_count(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<u64> {
+    ) -> DalResult<u64> {
         let count = sqlx::query!(
             r#"
             SELECT
@@ -48,7 +48,7 @@ impl SnapshotsCreatorDal<'_, '_> {
         miniblock_number: MiniblockNumber,
         l1_batch_number: L1BatchNumber,
         hashed_keys_range: std::ops::RangeInclusive<H256>,
-    ) -> sqlx::Result<Vec<SnapshotStorageLog>> {
+    ) -> DalResult<Vec<SnapshotStorageLog>> {
         // We need to filter the returned logs by `l1_batch_number` in order to not return "phantom writes", i.e.,
         // logs that have deduplicated writes (e.g., a write to a non-zero value and back to zero in the same L1 batch)
         // which are actually written to in future L1 batches.
@@ -115,7 +115,7 @@ impl SnapshotsCreatorDal<'_, '_> {
     pub async fn get_all_factory_deps(
         &mut self,
         miniblock_number: MiniblockNumber,
-    ) -> sqlx::Result<Vec<(H256, Vec<u8>)>> {
+    ) -> DalResult<Vec<(H256, Vec<u8>)>> {
         let rows = sqlx::query!(
             r#"
             SELECT

@@ -1,23 +1,37 @@
-use std::{env, time::Duration};
+use std::{
+    env, fmt,
+    num::{NonZeroU32, NonZeroUsize},
+    str::FromStr,
+    time::Duration,
+};
 
 use anyhow::Context;
 use serde::Deserialize;
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
-use zksync_config::{configs::chain::L1BatchCommitDataGeneratorMode, ObjectStoreConfig};
+use zksync_config::{
+    configs::{
+        chain::L1BatchCommitDataGeneratorMode,
+        consensus::{ConsensusConfig, ConsensusSecrets},
+    },
+    ObjectStoreConfig,
+};
 use zksync_core::{
     api_server::{
         tx_sender::TxSenderConfig,
         web3::{state::InternalApiConfig, Namespace},
     },
-    consensus,
-    temp_config_store::decode_yaml,
+    temp_config_store::decode_yaml_repr,
 };
+#[cfg(test)]
+use zksync_dal::{ConnectionPool, Core};
+use zksync_protobuf_config::proto;
 use zksync_types::{api::BridgeAddresses, fee_model::FeeParams};
 use zksync_web3_decl::{
+    client::L2Client,
     error::ClientRpcContext,
-    jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
-    namespaces::{EthNamespaceClient, ZksNamespaceClient},
+    jsonrpsee::http_client::HttpClientBuilder,
+    namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
 
 pub(crate) mod observability;
@@ -28,8 +42,10 @@ const BYTES_IN_MEGABYTE: usize = 1_024 * 1_024;
 
 /// This part of the external node config is fetched directly from the main node.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct RemoteENConfig {
+pub(crate) struct RemoteENConfig {
     pub bridgehub_proxy_addr: Option<Address>,
+    pub state_transition_proxy_addr: Option<Address>,
+    pub transparent_proxy_admin_addr: Option<Address>,
     pub diamond_proxy_addr: Address,
     pub l1_erc20_bridge_proxy_addr: Address,
     pub l2_erc20_bridge_addr: Address,
@@ -39,10 +55,12 @@ pub struct RemoteENConfig {
     pub l2_chain_id: L2ChainId,
     pub l1_chain_id: L1ChainId,
     pub max_pubdata_per_batch: u64,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    pub dummy_verifier: bool,
 }
 
 impl RemoteENConfig {
-    pub async fn fetch(client: &HttpClient) -> anyhow::Result<Self> {
+    pub async fn fetch(client: &L2Client) -> anyhow::Result<Self> {
         let bridges = client
             .get_bridge_contracts()
             .rpc_context("get_bridge_contracts")
@@ -51,8 +69,8 @@ impl RemoteENConfig {
             .get_testnet_paymaster()
             .rpc_context("get_testnet_paymaster")
             .await?;
-        // In case EN is connected to the old server version without `get_bridgehub_contract` method.
-        let bridgehub_proxy_addr = client.get_bridgehub_contract().await.ok().flatten();
+        let genesis = client.genesis_config().rpc_context("genesis").await.ok();
+        let shared_bridge = genesis.as_ref().and_then(|a| a.shared_bridge.clone());
         let diamond_proxy_addr = client
             .get_main_contract()
             .rpc_context("get_main_contract")
@@ -77,7 +95,13 @@ impl RemoteENConfig {
         };
 
         Ok(Self {
-            bridgehub_proxy_addr,
+            bridgehub_proxy_addr: shared_bridge.as_ref().map(|a| a.bridgehub_proxy_addr),
+            state_transition_proxy_addr: shared_bridge
+                .as_ref()
+                .map(|a| a.state_transition_proxy_addr),
+            transparent_proxy_admin_addr: shared_bridge
+                .as_ref()
+                .map(|a| a.transparent_proxy_admin_addr),
             diamond_proxy_addr,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
@@ -87,12 +111,40 @@ impl RemoteENConfig {
             l2_chain_id,
             l1_chain_id,
             max_pubdata_per_batch,
+            l1_batch_commit_data_generator_mode: genesis
+                .as_ref()
+                .map(|a| a.l1_batch_commit_data_generator_mode)
+                .unwrap_or_default(),
+            dummy_verifier: genesis
+                .as_ref()
+                .map(|a| a.dummy_verifier)
+                .unwrap_or_default(),
         })
+    }
+
+    #[cfg(test)]
+    fn mock() -> Self {
+        Self {
+            bridgehub_proxy_addr: None,
+            state_transition_proxy_addr: None,
+            transparent_proxy_admin_addr: None,
+            diamond_proxy_addr: Address::repeat_byte(1),
+            l1_erc20_bridge_proxy_addr: Address::repeat_byte(2),
+            l2_erc20_bridge_addr: Address::repeat_byte(3),
+            l1_weth_bridge_proxy_addr: None,
+            l2_weth_bridge_addr: None,
+            l2_testnet_paymaster_addr: None,
+            l2_chain_id: L2ChainId::default(),
+            l1_chain_id: L1ChainId(9),
+            max_pubdata_per_batch: 1 << 17,
+            l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
+            dummy_verifier: true,
+        }
     }
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub enum BlockFetcher {
+pub(crate) enum BlockFetcher {
     ServerAPI,
     Consensus,
 }
@@ -101,7 +153,7 @@ pub enum BlockFetcher {
 /// It can tweak limits of the API, delay intervals of certain components, etc.
 /// If any of the fields are not provided, the default values will be used.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct OptionalENConfig {
+pub(crate) struct OptionalENConfig {
     // User-facing API limits
     /// Max possible limit of filters to be in the API state at once.
     #[serde(default = "OptionalENConfig::default_filters_limit")]
@@ -189,15 +241,6 @@ pub struct OptionalENConfig {
     /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
     #[serde(default = "OptionalENConfig::default_estimate_gas_acceptable_overestimation")]
     pub estimate_gas_acceptable_overestimation: u32,
-    /// Whether to use the compatibility mode for gas estimation for L1->L2 transactions.
-    /// During the migration to the 1.4.1 fee model, there will be a period, when the server
-    /// will already have the 1.4.1 fee model, while the L1 contracts will still expect the transactions
-    /// to use the previous fee model with much higher overhead.
-    ///
-    /// When set to `true`, the API will ensure to return gasLimit is high enough overhead for both the old
-    /// and the new fee model when estimating L1->L2 transactions.  
-    #[serde(default = "OptionalENConfig::default_l1_to_l2_transactions_compatibility_mode")]
-    pub l1_to_l2_transactions_compatibility_mode: bool,
     /// The multiplier to use when suggesting gas price. Should be higher than one,
     /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block
     #[serde(default = "OptionalENConfig::default_gas_price_scale_factor")]
@@ -212,6 +255,9 @@ pub struct OptionalENConfig {
         default = "OptionalENConfig::default_max_l1_batches_per_tree_iter"
     )]
     pub max_l1_batches_per_tree_iter: usize,
+    /// Maximum number of files concurrently opened by Merkle tree RocksDB. Useful to fit into OS limits; can be used
+    /// as a rudimentary way to control RAM usage of the tree.
+    pub merkle_tree_max_open_files: Option<NonZeroU32>,
     /// Chunk size for multi-get operations. Can speed up loading data for the Merkle tree on some environments,
     /// but the effects vary wildly depending on the setup (e.g., the filesystem used).
     #[serde(default = "OptionalENConfig::default_merkle_tree_multi_get_chunk_size")]
@@ -220,6 +266,11 @@ pub struct OptionalENConfig {
     /// The default value is 128 MiB.
     #[serde(default = "OptionalENConfig::default_merkle_tree_block_cache_size_mb")]
     merkle_tree_block_cache_size_mb: usize,
+    /// If specified, RocksDB indices and Bloom filters will be managed by the block cache, rather than
+    /// being loaded entirely into RAM on the RocksDB initialization. The block cache capacity should be increased
+    /// correspondingly; otherwise, RocksDB performance can significantly degrade.
+    #[serde(default)]
+    pub merkle_tree_include_indices_and_filters_in_block_cache: bool,
     /// Byte capacity of memtables (recent, non-persisted changes to RocksDB). Setting this to a reasonably
     /// large value (order of 512 MiB) is helpful for large DBs that experience write stalls.
     #[serde(default = "OptionalENConfig::default_merkle_tree_memtable_capacity_mb")]
@@ -256,9 +307,25 @@ pub struct OptionalENConfig {
     // This is intentionally not a part of `RemoteENConfig` because fetching this info from the main node would defeat
     // its purpose; the consistency checker assumes that the main node may provide false information.
     pub contracts_diamond_proxy_addr: Option<Address>,
+    /// Number of requests per second allocated for the main node HTTP client. Default is 100 requests.
+    #[serde(default = "OptionalENConfig::default_main_node_rate_limit_rps")]
+    pub main_node_rate_limit_rps: NonZeroUsize,
 
     #[serde(default = "OptionalENConfig::default_l1_batch_commit_data_generator_mode")]
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    /// Enables application-level snapshot recovery. Required to start a node that was recovered from a snapshot,
+    /// or to initialize a node from a snapshot. Has no effect if a node that was initialized from a Postgres dump
+    /// or was synced from genesis.
+    ///
+    /// This is an experimental and incomplete feature; do not use unless you know what you're doing.
+    #[serde(default)]
+    pub snapshots_recovery_enabled: bool,
+
+    #[serde(default = "OptionalENConfig::default_pruning_chunk_size")]
+    pub pruning_chunk_size: u32,
+
+    /// If set, l1 batches will be pruned after they are that long
+    pub pruning_data_retention_hours: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -301,10 +368,6 @@ impl OptionalENConfig {
 
     const fn default_estimate_gas_acceptable_overestimation() -> u32 {
         1_000
-    }
-
-    const fn default_l1_to_l2_transactions_compatibility_mode() -> bool {
-        true
     }
 
     const fn default_gas_price_scale_factor() -> f64 {
@@ -390,8 +453,16 @@ impl OptionalENConfig {
         10_000
     }
 
+    fn default_main_node_rate_limit_rps() -> NonZeroUsize {
+        NonZeroUsize::new(100).unwrap()
+    }
+
     const fn default_l1_batch_commit_data_generator_mode() -> L1BatchCommitDataGeneratorMode {
         L1BatchCommitDataGeneratorMode::Rollup
+    }
+
+    const fn default_pruning_chunk_size() -> u32 {
+        10
     }
 
     pub fn polling_interval(&self) -> Duration {
@@ -465,11 +536,17 @@ impl OptionalENConfig {
     pub fn mempool_cache_update_interval(&self) -> Duration {
         Duration::from_millis(self.mempool_cache_update_interval)
     }
+
+    #[cfg(test)]
+    fn mock() -> Self {
+        // Set all values to their defaults
+        serde_json::from_str("{}").unwrap()
+    }
 }
 
 /// This part of the external node config is required for its operation.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct RequiredENConfig {
+pub(crate) struct RequiredENConfig {
     /// Port on which the HTTP RPC server is listening.
     pub http_port: u16,
     /// Port on which the WebSocket RPC server is listening.
@@ -489,6 +566,24 @@ pub struct RequiredENConfig {
 }
 
 impl RequiredENConfig {
+    #[cfg(test)]
+    fn mock(temp_dir: &tempfile::TempDir) -> Self {
+        Self {
+            http_port: 0,
+            ws_port: 0,
+            healthcheck_port: 0,
+            eth_client_url: "unused".to_owned(), // L1 and L2 clients must be instantiated before accessing mocks
+            main_node_url: "unused".to_owned(),
+            state_cache_path: temp_dir
+                .path()
+                .join("state_keeper_cache")
+                .to_str()
+                .unwrap()
+                .to_owned(),
+            merkle_tree_path: temp_dir.path().join("tree").to_str().unwrap().to_owned(),
+        }
+    }
+
     pub fn main_node_url(&self) -> anyhow::Result<String> {
         Self::get_url(&self.main_node_url).context("Could not parse main node URL")
     }
@@ -508,7 +603,7 @@ impl RequiredENConfig {
 /// environment variables.
 /// Thus it is kept separately for backward compatibility and ease of deserialization.
 #[derive(Debug, Clone, Deserialize, PartialEq)]
-pub struct PostgresConfig {
+pub(crate) struct PostgresConfig {
     pub database_url: String,
     pub max_connections: u32,
 }
@@ -524,28 +619,40 @@ impl PostgresConfig {
                 .context("Unable to parse DATABASE_POOL_SIZE env variable")?,
         })
     }
+
+    #[cfg(test)]
+    fn mock(test_pool: &ConnectionPool<Core>) -> Self {
+        Self {
+            database_url: test_pool.database_url().to_owned(),
+            max_connections: test_pool.max_size(),
+        }
+    }
 }
 
-pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<consensus::Secrets>> {
+pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets>> {
     let Ok(path) = std::env::var("EN_CONSENSUS_SECRETS_PATH") else {
         return Ok(None);
     };
     let cfg = std::fs::read_to_string(&path).context(path)?;
-    Ok(Some(decode_yaml(&cfg).context("failed decoding YAML")?))
+    Ok(Some(
+        decode_yaml_repr::<proto::consensus::Secrets>(&cfg).context("failed decoding YAML")?,
+    ))
 }
 
-pub(crate) fn read_consensus_config() -> anyhow::Result<Option<consensus::Config>> {
+pub(crate) fn read_consensus_config() -> anyhow::Result<Option<ConsensusConfig>> {
     let Ok(path) = std::env::var("EN_CONSENSUS_CONFIG_PATH") else {
         return Ok(None);
     };
     let cfg = std::fs::read_to_string(&path).context(path)?;
-    Ok(Some(decode_yaml(&cfg).context("failed decoding YAML")?))
+    Ok(Some(
+        decode_yaml_repr::<proto::consensus::Config>(&cfg).context("failed decoding YAML")?,
+    ))
 }
 
 /// Configuration for snapshot recovery. Loaded optionally, only if the corresponding command-line argument
 /// is supplied to the EN binary.
 #[derive(Debug, Clone)]
-pub struct SnapshotsRecoveryConfig {
+pub(crate) struct SnapshotsRecoveryConfig {
     pub snapshots_object_store: ObjectStoreConfig,
 }
 
@@ -561,12 +668,12 @@ pub(crate) fn read_snapshots_recovery_config() -> anyhow::Result<SnapshotsRecove
 /// External Node Config contains all the configuration required for the EN operation.
 /// It is split into three parts: required, optional and remote for easier navigation.
 #[derive(Debug, Clone)]
-pub struct ExternalNodeConfig {
+pub(crate) struct ExternalNodeConfig {
     pub required: RequiredENConfig,
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
-    pub consensus: Option<consensus::Config>,
+    pub consensus: Option<ConsensusConfig>,
     pub api_component: ApiComponentConfig,
     pub tree_component: TreeComponentConfig,
 }
@@ -591,9 +698,9 @@ impl ExternalNodeConfig {
             .from_env::<TreeComponentConfig>()
             .context("could not load external node config")?;
 
-        let client = HttpClientBuilder::default()
-            .build(required.main_node_url()?)
-            .expect("Unable to build HTTP client for main node");
+        let client = L2Client::http(&required.main_node_url()?)
+            .context("Unable to build HTTP client for main node")?
+            .build();
         let remote = RemoteENConfig::fetch(&client)
             .await
             .context("Unable to fetch required config values from the main node")?;
@@ -606,8 +713,8 @@ impl ExternalNodeConfig {
             .await
             .context("Unable to check L1 chain ID through the configured L1 client")?;
 
-        let l2_chain_id: L2ChainId = env_var("EN_L2_CHAIN_ID");
-        let l1_chain_id: u64 = env_var("EN_L1_CHAIN_ID");
+        let l2_chain_id: L2ChainId = env_var("EN_L2_CHAIN_ID")?;
+        let l1_chain_id: u64 = env_var("EN_L1_CHAIN_ID")?;
         if l2_chain_id != remote.l2_chain_id {
             anyhow::bail!(
                 "Configured L2 chain id doesn't match the one from main node.
@@ -646,17 +753,30 @@ impl ExternalNodeConfig {
             api_component: api_component_config,
         })
     }
+
+    #[cfg(test)]
+    pub(crate) fn mock(temp_dir: &tempfile::TempDir, test_pool: &ConnectionPool<Core>) -> Self {
+        Self {
+            required: RequiredENConfig::mock(temp_dir),
+            postgres: PostgresConfig::mock(test_pool),
+            optional: OptionalENConfig::mock(),
+            remote: RemoteENConfig::mock(),
+            consensus: None,
+            api_component: ApiComponentConfig { tree_api_url: None },
+            tree_component: TreeComponentConfig { api_port: None },
+        }
+    }
 }
 
-fn env_var<T>(name: &str) -> T
+fn env_var<T>(name: &str) -> anyhow::Result<T>
 where
-    T: std::str::FromStr,
-    T::Err: std::fmt::Debug,
+    T: FromStr,
+    T::Err: fmt::Display,
 {
     env::var(name)
-        .unwrap_or_else(|_| panic!("{} env variable is not set", name))
+        .with_context(|| format!("`{name}` env variable is not set"))?
         .parse()
-        .unwrap_or_else(|_| panic!("unable to parse {} env variable", name))
+        .map_err(|err| anyhow::anyhow!("unable to parse `{name}` env variable: {err}"))
 }
 
 impl From<ExternalNodeConfig> for InternalApiConfig {
@@ -676,13 +796,15 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
                 l2_weth_bridge: config.remote.l2_weth_bridge_addr,
             },
             bridgehub_proxy_addr: config.remote.bridgehub_proxy_addr,
+            state_transition_proxy_addr: config.remote.state_transition_proxy_addr,
+            transparent_proxy_admin_addr: config.remote.transparent_proxy_admin_addr,
             diamond_proxy_addr: config.remote.diamond_proxy_addr,
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,
             fee_history_limit: config.optional.fee_history_limit,
             filters_disabled: config.optional.filters_disabled,
-            mempool_cache_update_interval: config.optional.mempool_cache_update_interval(),
-            mempool_cache_size: config.optional.mempool_cache_size,
+            dummy_verifier: config.remote.dummy_verifier,
+            l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
         }
     }
 }
@@ -700,13 +822,12 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
             vm_execution_cache_misses_limit: config.optional.vm_execution_cache_misses_limit,
             // We set these values to the maximum since we don't know the actual values
             // and they will be enforced by the main node anyway.
-            max_allowed_l2_tx_gas_limit: u32::MAX,
+            max_allowed_l2_tx_gas_limit: u64::MAX,
             validation_computational_gas_limit: u32::MAX,
             chain_id: config.remote.l2_chain_id,
-            l1_to_l2_transactions_compatibility_mode: config
-                .optional
-                .l1_to_l2_transactions_compatibility_mode,
             max_pubdata_per_batch: config.remote.max_pubdata_per_batch,
+            // Does not matter for EN.
+            whitelisted_tokens_for_aa: Default::default(),
         }
     }
 }

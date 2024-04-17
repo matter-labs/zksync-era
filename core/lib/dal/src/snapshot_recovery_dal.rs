@@ -1,4 +1,4 @@
-use zksync_db_connection::connection::Connection;
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{
     snapshots::SnapshotRecoveryStatus, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
 };
@@ -14,7 +14,7 @@ impl SnapshotRecoveryDal<'_, '_> {
     pub async fn insert_initial_recovery_status(
         &mut self,
         status: &SnapshotRecoveryStatus,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -42,15 +42,15 @@ impl SnapshotRecoveryDal<'_, '_> {
             status.protocol_version as i32,
             &status.storage_logs_chunks_processed,
         )
-        .execute(self.storage.conn())
+        .instrument("insert_initial_recovery_status")
+        .with_arg("status.l1_batch_number", &status.l1_batch_number)
+        .with_arg("status.miniblock_number", &status.miniblock_number)
+        .execute(self.storage)
         .await?;
         Ok(())
     }
 
-    pub async fn mark_storage_logs_chunk_as_processed(
-        &mut self,
-        chunk_id: u64,
-    ) -> sqlx::Result<()> {
+    pub async fn mark_storage_logs_chunk_as_processed(&mut self, chunk_id: u64) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE snapshot_recovery
@@ -60,7 +60,9 @@ impl SnapshotRecoveryDal<'_, '_> {
             "#,
             chunk_id as i32 + 1
         )
-        .execute(self.storage.conn())
+        .instrument("mark_storage_logs_chunk_as_processed")
+        .with_arg("chunk_id", &chunk_id)
+        .execute(self.storage)
         .await?;
 
         Ok(())
@@ -68,7 +70,7 @@ impl SnapshotRecoveryDal<'_, '_> {
 
     pub async fn get_applied_snapshot_status(
         &mut self,
-    ) -> sqlx::Result<Option<SnapshotRecoveryStatus>> {
+    ) -> DalResult<Option<SnapshotRecoveryStatus>> {
         let record = sqlx::query!(
             r#"
             SELECT
@@ -84,7 +86,8 @@ impl SnapshotRecoveryDal<'_, '_> {
                 snapshot_recovery
             "#,
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_applied_snapshot_status")
+        .fetch_optional(self.storage)
         .await?;
 
         Ok(record.map(|row| SnapshotRecoveryStatus {

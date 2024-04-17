@@ -1,0 +1,60 @@
+name: protobuf_compatibility
+
+on:
+  pull_request:
+    branches: [ "*" ]
+  push:
+    # protobuf compatibility is a transitive property,
+    # but it requires all the transitions to be checked.
+    # If we checked it just against the PR branches,
+    # we may end up with conflicting PRs getting merged
+    # (unless we improve our github setup).
+    # Therefore on post-merge we will execute the
+    # compatibility check as well (TODO: alerting).
+    branches: ["main"]
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  RUSTFLAGS: "-Dwarnings -C linker=clang -C link-arg=-fuse-ld=lld -C link-arg=-Wl,-z,nostart-stop-gc"
+  RUSTC_WRAPPER: "sccache"
+  SCCACHE_GHA_ENABLED: "true"
+  RUST_BACKTRACE: "1"
+  SQLX_OFFLINE: true,
+
+jobs:
+  compatibility:
+    runs-on: [ubuntu-22.04-github-hosted-16core]
+    steps:
+      # github.base_ref -> github.head_ref for pull_request
+      # github.event.before -> github.event.after for push
+      - uses: mozilla-actions/sccache-action@v0.0.3
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref || github.event.before }}
+          path: before
+      - name: compile before
+        run: cargo check --all-targets
+        working-directory: ./before/
+      - name: build before.binpb
+        run: >
+          perl -ne 'print "$1\n" if /PROTOBUF_DESCRIPTOR="(.*)"/'
+          `find ./before/target/debug/build/*/output`
+          | xargs cat > ./before.binpb
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.event.after }}
+          path: after
+      - name: compile after
+        run: cargo check --all-targets
+        working-directory: ./after
+      - name: build after.binpb
+        run: >
+          perl -ne 'print "$1\n" if /PROTOBUF_DESCRIPTOR="(.*)"/'
+          `find ./after/target/debug/build/*/output`
+          | xargs cat > ./after.binpb
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ github.token }}
+      - name: buf breaking
+        run: buf breaking './after.binpb' --against './before.binpb' --config '{"version":"v1","breaking":{"use":["WIRE_JSON"]}}' --error-format 'github-actions'

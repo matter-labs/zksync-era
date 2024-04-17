@@ -1,4 +1,4 @@
-use zk_evm_1_4_1::{
+use zk_evm_1_5_0::{
     tracing::{AfterExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{
         FarCallABI, FatPointer, Opcode, RetOpcode, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER,
@@ -16,7 +16,7 @@ use zksync_types::{
 use crate::{
     glue::GlueInto,
     interface::{
-        tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
+        tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_5_0::DynTracer,
         VmRevertReason,
     },
     tracers::call_tracer::CallTracer,
@@ -44,7 +44,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
                     .inner
                     .last()
                     .map(|call| call.ergs_remaining + current_ergs)
-                    .unwrap_or(current_ergs);
+                    .unwrap_or(current_ergs) as u64;
 
                 let mut current_call = Call {
                     r#type: CallType::Call(far_call.glue_into()),
@@ -128,7 +128,7 @@ impl CallTracer {
         current_call.from = current.msg_sender;
         current_call.to = current.this_address;
         current_call.value = U256::from(current.context_u128_value);
-        current_call.gas = current.ergs_remaining;
+        current_call.gas = current.ergs_remaining as u64;
     }
 
     fn save_output_latest<H: HistoryMode>(
@@ -194,7 +194,7 @@ impl CallTracer {
         current_call.farcall.gas_used = current_call
             .farcall
             .parent_gas
-            .saturating_sub(state.vm_local_state.callstack.current.ergs_remaining);
+            .saturating_sub(state.vm_local_state.callstack.current.ergs_remaining as u64);
 
         self.save_output_latest(state, memory, ret_opcode, &mut current_call.farcall);
 

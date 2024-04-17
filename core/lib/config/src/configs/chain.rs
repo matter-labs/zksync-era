@@ -1,6 +1,6 @@
 use std::{str::FromStr, time::Duration};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use zksync_basic_types::{
     network::Network,
     web3::{
@@ -52,7 +52,7 @@ impl Default for FeeModelVersion {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum L1BatchCommitDataGeneratorMode {
     #[default]
     Rollup,
@@ -104,7 +104,7 @@ pub struct StateKeeperConfig {
     /// The max number of gas to spend on an L1 tx before its batch should be sealed by the gas sealer.
     pub max_single_tx_gas: u32,
 
-    pub max_allowed_l2_tx_gas_limit: u32,
+    pub max_allowed_l2_tx_gas_limit: u64,
 
     /// Configuration option for tx to be rejected in case
     /// it takes more percentage of the block capacity than this value.
@@ -121,9 +121,9 @@ pub struct StateKeeperConfig {
     pub close_block_at_eth_params_percentage: f64,
     /// Denotes the percentage of L1 gas used in L2 block that triggers L2 block seal.
     pub close_block_at_gas_percentage: f64,
-
-    pub fee_account_addr: Address,
-
+    /// Fee account address. Value is deprecated and it's used only for generating wallets struct
+    #[deprecated(note = "Use Wallets::fee_account::address instead")]
+    pub fee_account_addr: Option<Address>,
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
     /// as potentially premium for congestion.
     pub minimal_l2_gas_price: u64,
@@ -149,17 +149,21 @@ pub struct StateKeeperConfig {
     pub validation_computational_gas_limit: u32,
     pub save_call_traces: bool,
 
-    pub virtual_blocks_interval: u32,
-    pub virtual_blocks_per_miniblock: u32,
-
     /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
     pub enum_index_migration_chunk_size: Option<usize>,
 
-    // Base system contract hash, required only for genesis file, it's temporary solution
-    // #PLA-811
-    pub bootloader_hash: Option<H256>,
-    pub default_aa_hash: Option<H256>,
+    /// The maximal number of circuits that a batch can support.
+    /// Note, that this number corresponds to the "base layer" circuits, i.e. it does not include
+    /// the recursion layers' circuits.
+    pub max_circuits_per_batch: usize,
 
+    // Base system contract hashes, required only for generating genesis config.
+    // #PLA-811
+    #[deprecated(note = "Use GenesisConfig::bootloader_hash instead")]
+    pub bootloader_hash: Option<H256>,
+    #[deprecated(note = "Use GenesisConfig::default_aa_hash instead")]
+    pub default_aa_hash: Option<H256>,
+    #[deprecated(note = "Use GenesisConfig::l1_batch_commit_data_generator_mode instead")]
     #[serde(default)]
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
@@ -168,6 +172,7 @@ impl StateKeeperConfig {
     /// Creates a config object suitable for use in unit tests.
     /// Values mostly repeat the values used in the localhost environment.
     pub fn for_tests() -> Self {
+        #[allow(deprecated)]
         Self {
             transaction_slots: 250,
             block_commit_deadline_ms: 2500,
@@ -181,8 +186,9 @@ impl StateKeeperConfig {
             close_block_at_geometry_percentage: 0.95,
             close_block_at_eth_params_percentage: 0.95,
             close_block_at_gas_percentage: 0.95,
-            fee_account_addr: Address::from_str("0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7")
-                .unwrap(),
+            fee_account_addr: Some(
+                Address::from_str("0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7").unwrap(),
+            ),
             compute_overhead_part: 0.0,
             pubdata_overhead_part: 1.0,
             batch_overhead_l1_gas: 800_000,
@@ -192,9 +198,8 @@ impl StateKeeperConfig {
             fee_model_version: FeeModelVersion::V2,
             validation_computational_gas_limit: 300000,
             save_call_traces: true,
-            virtual_blocks_interval: 1,
-            virtual_blocks_per_miniblock: 1,
             enum_index_migration_chunk_size: None,
+            max_circuits_per_batch: 24100,
             bootloader_hash: None,
             default_aa_hash: None,
             l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
@@ -233,6 +238,11 @@ impl CircuitBreakerConfig {
 
     pub fn http_req_retry_interval(&self) -> Duration {
         Duration::from_secs(self.http_req_retry_interval_sec as u64)
+    }
+
+    pub fn replication_lag_limit(&self) -> Option<Duration> {
+        self.replication_lag_limit_sec
+            .map(|limit| Duration::from_secs(limit.into()))
     }
 }
 

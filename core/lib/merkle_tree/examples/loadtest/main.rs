@@ -55,6 +55,10 @@ struct Cli {
     /// Block cache capacity for RocksDB in bytes.
     #[arg(long = "block-cache", conflicts_with = "in_memory")]
     block_cache: Option<usize>,
+    /// If specified, RocksDB indices and Bloom filters will be managed by the block cache rather than
+    /// being loaded entirely into RAM.
+    #[arg(long = "cache-indices", conflicts_with = "in_memory")]
+    cache_indices: bool,
     /// Chunk size for RocksDB multi-get operations.
     #[arg(long = "chunk-size", conflicts_with = "in_memory")]
     chunk_size: Option<usize>,
@@ -92,6 +96,7 @@ impl Cli {
             );
             let db_options = RocksDBOptions {
                 block_cache_capacity: self.block_cache,
+                include_indices_and_filters_in_block_cache: self.cache_indices,
                 ..RocksDBOptions::default()
             };
             let db = RocksDB::with_options(dir.path(), db_options).unwrap();

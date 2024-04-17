@@ -12,11 +12,11 @@ use anyhow::Context as _;
 use multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface},
     utils::adjust_pubdata_price_for_tx,
-    vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryDisabled},
+    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryDisabled},
     VmInstance,
 };
 use tokio::runtime::Handle;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_state::{PostgresStorage, ReadStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
@@ -237,7 +237,7 @@ impl<'a> Sandbox<'a> {
             version: resolved_block_info.protocol_version,
             base_system_smart_contracts: base_system_contracts
                 .get_by_protocol_version(resolved_block_info.protocol_version),
-            gas_limit: BLOCK_GAS_LIMIT,
+            bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             execution_mode: execution_args.execution_mode,
             default_validation_computational_gas_limit: validation_computational_gas_limit,
             chain_id,
@@ -278,6 +278,7 @@ impl<'a> Sandbox<'a> {
             storage_view.clone(),
             protocol_version.into_api_vm_version(),
         ));
+
         (vm, storage_view)
     }
 }
@@ -385,7 +386,7 @@ impl StoredL2BlockInfo {
                 .blocks_web3_dal()
                 .get_miniblock_hash(miniblock_number)
                 .await
-                .with_context(|| format!("failed getting hash for miniblock #{miniblock_number}"))?
+                .map_err(DalError::generalize)?
                 .with_context(|| format!("miniblock #{miniblock_number} not present in storage"))?
         };
 
@@ -435,14 +436,12 @@ impl BlockArgs {
             vm_l1_batch_number = connection
                 .blocks_dal()
                 .get_sealed_l1_batch_number()
-                .await
-                .context("failed getting sealed L1 batch number")?
+                .await?
                 .context("no L1 batches in storage")?;
             let sealed_miniblock_header = connection
                 .blocks_dal()
                 .get_last_sealed_miniblock_header()
-                .await
-                .context("failed getting sealed miniblock header")?
+                .await?
                 .context("no miniblocks in storage")?;
 
             state_l2_block_number = sealed_miniblock_header.number;
@@ -464,8 +463,7 @@ impl BlockArgs {
             connection
                 .blocks_dal()
                 .get_miniblock_header(self.resolved_block_number)
-                .await
-                .context("failed getting header of resolved miniblock")?
+                .await?
                 .context("resolved miniblock disappeared from storage")?
         };
 
@@ -473,8 +471,7 @@ impl BlockArgs {
             let miniblock_header = connection
                 .blocks_dal()
                 .get_miniblock_header(self.resolved_block_number)
-                .await
-                .context("failed getting resolved miniblock header")?
+                .await?
                 .context("resolved miniblock is not in storage")?;
             Some(miniblock_header.batch_fee_input)
         } else {

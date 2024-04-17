@@ -11,7 +11,7 @@ use multivm::{
         CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, Refunds,
         SystemEnv, TxExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics,
     },
-    vm_latest::{constants::BLOCK_GAS_LIMIT, VmExecutionLogs},
+    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, VmExecutionLogs},
 };
 use once_cell::sync::Lazy;
 use tokio::sync::watch;
@@ -59,9 +59,9 @@ pub(super) fn default_system_env() -> SystemEnv {
         zk_porter_available: ZKPORTER_IS_AVAILABLE,
         version: ProtocolVersionId::latest(),
         base_system_smart_contracts: BASE_SYSTEM_CONTRACTS.clone(),
-        gas_limit: BLOCK_GAS_LIMIT,
+        bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         execution_mode: TxExecutionMode::VerifyExecute,
-        default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+        default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         chain_id: L2ChainId::from(270),
     }
 }
@@ -110,6 +110,7 @@ pub(super) fn default_vm_batch_result() -> FinishedL1Batch {
             cycles_used: 0,
             deduplicated_events_logs: vec![],
             storage_refunds: Vec::new(),
+            pubdata_costs: Vec::new(),
         },
         final_bootloader_memory: Some(vec![]),
         pubdata_input: Some(vec![]),

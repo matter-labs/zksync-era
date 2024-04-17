@@ -224,7 +224,8 @@ async fn reject_tx() {
     assert_rejected(&res);
 }
 
-/// Checks that tx with too big gas limit is correctly rejected.
+/// Checks that tx with too big gas limit is correctly processed.
+/// When processed in the bootloader, no more than 80M gas can be used within the execution context.
 #[tokio::test]
 async fn too_big_gas_limit() {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -237,38 +238,9 @@ async fn too_big_gas_limit() {
         .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
-    let bad_tx = alice.execute_with_gas_limit(u32::MAX);
+    let big_gas_limit_tx = alice.execute_with_gas_limit(u32::MAX);
 
-    let res_old = executor.execute_tx(bad_tx.clone()).await;
-    assert_rejected(&res_old);
-
-    executor.rollback_last_tx().await;
-    let res_new = executor.execute_tx(bad_tx).await;
-    assert_rejected(&res_new);
-    executor.rollback_last_tx().await;
-
-    let (
-        TxExecutionResult::RejectedByVm {
-            reason: rejection_reason_old,
-            ..
-        },
-        TxExecutionResult::RejectedByVm {
-            reason: rejection_reason_new,
-            ..
-        },
-    ) = (res_old, res_new)
-    else {
-        unreachable!();
-    };
-    assert_eq!(
-        rejection_reason_old, rejection_reason_new,
-        "Rejection reasons must be the same"
-    );
-
-    // Ensure that now we can execute a valid tx.
-    alice.nonce -= 1; // Reset the nonce.
-
-    let res = executor.execute_tx(alice.execute()).await;
+    let res = executor.execute_tx(big_gas_limit_tx).await;
     assert_executed(&res);
     executor.finish_batch().await;
 }
@@ -457,7 +429,7 @@ async fn bootloader_tip_out_of_gas() {
             finished_batch
                 .block_tip_execution_result
                 .statistics
-                .gas_used
+                .computational_gas_used
                 - 10,
         ),
         validation_computational_gas_limit: u32::MAX,

@@ -8,7 +8,7 @@ use std::{
 };
 
 use zksync_node_framework::{
-    resource::{Resource, ResourceId},
+    resource::Resource,
     service::{ServiceContext, StopReceiver, ZkStackServiceBuilder},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
@@ -66,9 +66,9 @@ struct DatabaseResource(pub Arc<dyn Database>);
 ///
 /// Finally, there are other wrappers for resources as well, like `ResourceCollection` and `LazyResource`.
 impl Resource for DatabaseResource {
-    fn resource_id() -> ResourceId {
+    fn name() -> String {
         // The convention for resource names is `<scope>/<name>`. In this case, the scope is `common`, but
-        // for anything that is component-specific it could've been e.g. `state_keeper` or `api`.
+        // for anything that is component-specific it could have been e.g. `state_keeper` or `api`.
         "common/database".into()
     }
 }

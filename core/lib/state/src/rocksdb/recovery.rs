@@ -4,7 +4,7 @@ use std::ops;
 
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_dal::{storage_logs_dal::StorageRecoveryLogEntry, Connection, Core, CoreDal};
+use zksync_dal::{storage_logs_dal::StorageRecoveryLogEntry, Connection, Core, CoreDal, DalError};
 use zksync_types::{
     snapshots::{uniform_hashed_keys_chunk, SnapshotRecoveryStatus},
     L1BatchNumber, MiniblockNumber, H256,
@@ -43,7 +43,7 @@ impl RocksdbStorage {
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
             .await
-            .context("failed getting snapshot recovery info")?;
+            .map_err(DalError::generalize)?;
         Ok(if let Some(snapshot_recovery) = snapshot_recovery {
             self.recover_from_snapshot(
                 storage,
@@ -148,8 +148,7 @@ impl RocksdbStorage {
         let factory_deps = storage
             .snapshots_creator_dal()
             .get_all_factory_deps(snapshot_recovery.miniblock_number)
-            .await
-            .context("Failed getting factory dependencies")?;
+            .await?;
         let latency = latency.observe();
         tracing::info!(
             "Loaded {} factory dependencies from the snapshot in {latency:?}",
@@ -193,8 +192,7 @@ impl RocksdbStorage {
         let chunk_starts = storage
             .storage_logs_dal()
             .get_chunk_starts_for_miniblock(snapshot_miniblock, &key_chunks)
-            .await
-            .context("Failed getting chunk starts")?;
+            .await?;
         let latency = latency.observe();
         tracing::info!("Loaded {chunk_count} chunk starts in {latency:?}");
 
@@ -227,10 +225,7 @@ impl RocksdbStorage {
         let all_entries = storage
             .storage_logs_dal()
             .get_tree_entries_for_miniblock(snapshot_miniblock, key_chunk.clone())
-            .await
-            .with_context(|| {
-                format!("Failed getting entries for chunk {key_chunk:?} in snapshot for miniblock #{snapshot_miniblock}")
-            })?;
+            .await?;
         let latency = latency.observe();
         tracing::debug!(
             "Loaded {} log entries for chunk {key_chunk:?} in {latency:?}",

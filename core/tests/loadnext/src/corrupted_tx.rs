@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use zksync::signer::Signer;
 use zksync_eth_signer::{
     error::SignerError, raw_ethereum_tx::TransactionParameters, EthereumSigner,
 };
@@ -7,7 +6,7 @@ use zksync_types::{
     fee::Fee, l2::L2Tx, Address, EIP712TypedStructure, Eip712Domain, PackedEthSignature,
 };
 
-use crate::command::IncorrectnessModifier;
+use crate::{command::IncorrectnessModifier, sdk::signer::Signer};
 
 /// Trait that exists solely to extend the signed zkSync transaction interface, providing the ability
 /// to modify transaction in a way that will make it invalid.

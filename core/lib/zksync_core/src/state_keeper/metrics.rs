@@ -11,10 +11,10 @@ use vise::{
     Metrics,
 };
 use zksync_mempool::MempoolStore;
+use zksync_shared_metrics::InteractionType;
 use zksync_types::{tx::tx_execution_info::DeduplicatedWritesMetrics, ProtocolVersionId};
 
 use super::seal_criteria::SealResolution;
-use crate::metrics::InteractionType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]

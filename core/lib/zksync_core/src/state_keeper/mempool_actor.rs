@@ -73,11 +73,7 @@ impl MempoolFetcher {
                 .context("failed removing stuck transactions")?;
             tracing::info!("Number of stuck txs was removed: {removed_txs}");
         }
-        storage
-            .transactions_dal()
-            .reset_mempool()
-            .await
-            .context("failed resetting mempool")?;
+        storage.transactions_dal().reset_mempool().await?;
         drop(storage);
 
         loop {
@@ -217,7 +213,7 @@ mod tests {
 
     #[tokio::test]
     async fn syncing_mempool_basics() {
-        let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+        let pool = ConnectionPool::constrained_test_pool(1).await;
         let mut storage = pool.connection().await.unwrap();
         insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
@@ -247,7 +243,7 @@ mod tests {
         let mut storage = pool.connection().await.unwrap();
         storage
             .transactions_dal()
-            .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&transaction, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         drop(storage);
@@ -302,7 +298,7 @@ mod tests {
         let mut storage = pool.connection().await.unwrap();
         storage
             .transactions_dal()
-            .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&transaction, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         drop(storage);
@@ -354,7 +350,7 @@ mod tests {
             .unwrap();
         storage
             .transactions_dal()
-            .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&transaction, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         drop(storage);

@@ -186,7 +186,10 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
 
     let ergs_after = vm.vm.state.local_state.callstack.current.ergs_remaining;
 
-    assert_eq!(ergs_before - ergs_after, result.statistics.gas_used);
+    assert_eq!(
+        (ergs_before - ergs_after) as u64,
+        result.statistics.gas_used
+    );
 
     TestStatistics {
         max_used_gas: ergs_before - ergs_after,

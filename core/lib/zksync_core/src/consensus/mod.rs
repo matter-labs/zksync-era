@@ -2,6 +2,7 @@
 
 #![allow(clippy::redundant_locals)]
 #![allow(clippy::needless_pass_by_ref_mut)]
+
 use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
@@ -9,15 +10,14 @@ use zksync_consensus_storage::BlockStore;
 
 pub use self::{fetcher::*, storage::Store};
 
-mod config;
+pub mod config;
+pub mod era;
 mod fetcher;
 mod storage;
 #[cfg(test)]
 pub(crate) mod testonly;
 #[cfg(test)]
 mod tests;
-
-pub use config::{Config, Secrets};
 
 /// Main node consensus config.
 #[derive(Debug, Clone)]

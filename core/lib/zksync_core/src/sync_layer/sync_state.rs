@@ -7,13 +7,11 @@ use tokio::sync::watch;
 use zksync_concurrency::{ctx, sync};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{CheckHealth, Health, HealthStatus};
+use zksync_shared_metrics::EN_METRICS;
 use zksync_types::MiniblockNumber;
-use zksync_web3_decl::{jsonrpsee::http_client::HttpClient, namespaces::EthNamespaceClient};
+use zksync_web3_decl::{client::BoxedL2Client, namespaces::EthNamespaceClient};
 
-use crate::{
-    metrics::EN_METRICS,
-    state_keeper::{io::IoCursor, updates::UpdatesManager, StateKeeperOutputHandler},
-};
+use crate::state_keeper::{io::IoCursor, updates::UpdatesManager, StateKeeperOutputHandler};
 
 /// `SyncState` is a structure that holds the state of the syncing process.
 /// The intended use case is to signalize to Web3 API whether the node is fully synced.
@@ -81,7 +79,7 @@ impl SyncState {
     pub async fn run_updater(
         self,
         connection_pool: ConnectionPool<Core>,
-        main_node_client: HttpClient,
+        main_node_client: BoxedL2Client,
         mut stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         const UPDATE_INTERVAL: Duration = Duration::from_secs(10);

@@ -466,7 +466,7 @@ async fn checker_processes_pre_boojum_batches(
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::load_genesis_params(GenesisConfig {
-        protocol_version: PRE_BOOJUM_PROTOCOL_VERSION as u16,
+        protocol_version: Some(PRE_BOOJUM_PROTOCOL_VERSION as u16),
         ..mock_genesis_config()
     })
     .unwrap();
@@ -475,8 +475,9 @@ async fn checker_processes_pre_boojum_batches(
         .unwrap();
     storage
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion::default())
-        .await;
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
 
     let l1_batches: Vec<_> = (1..=5)
         .map(create_pre_boojum_l1_batch_with_metadata)
@@ -553,8 +554,9 @@ async fn checker_functions_after_snapshot_recovery(
     let mut storage = pool.connection().await.unwrap();
     storage
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion::default())
-        .await;
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
 
     let l1_batch = create_l1_batch_with_metadata(99);
 
@@ -774,8 +776,9 @@ async fn checker_detects_incorrect_tx_data(
     if snapshot_recovery {
         storage
             .protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
     } else {
         insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await

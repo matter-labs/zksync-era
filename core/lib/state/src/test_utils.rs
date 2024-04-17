@@ -13,8 +13,9 @@ use zksync_types::{
 pub(crate) async fn prepare_postgres(conn: &mut Connection<'_, Core>) {
     if conn.blocks_dal().is_genesis_needed().await.unwrap() {
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         // The created genesis block is likely to be invalid, but since it's not committed,
         // we don't really care.
         let genesis_storage_logs = gen_storage_logs(0..20);
@@ -85,6 +86,7 @@ pub(crate) async fn create_miniblock(
         base_system_contracts_hashes: Default::default(),
         protocol_version: Some(Default::default()),
         virtual_blocks: 0,
+        gas_limit: 0,
     };
 
     conn.blocks_dal()
@@ -126,8 +128,9 @@ pub(crate) async fn prepare_postgres_for_snapshot_recovery(
     conn: &mut Connection<'_, Core>,
 ) -> (SnapshotRecoveryStatus, Vec<StorageLog>) {
     conn.protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion::default())
-        .await;
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
 
     let snapshot_recovery = SnapshotRecoveryStatus {
         l1_batch_number: L1BatchNumber(23),

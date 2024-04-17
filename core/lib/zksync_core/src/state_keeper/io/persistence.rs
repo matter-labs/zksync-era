@@ -2,18 +2,17 @@
 
 use std::time::Instant;
 
+use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
 use zksync_dal::{ConnectionPool, Core};
+use zksync_shared_metrics::{BlockStage, APP_METRICS};
 use zksync_types::Address;
 
-use crate::{
-    metrics::{BlockStage, APP_METRICS},
-    state_keeper::{
-        io::StateKeeperOutputHandler,
-        metrics::{MiniblockQueueStage, MINIBLOCK_METRICS},
-        updates::{MiniblockSealCommand, UpdatesManager},
-    },
+use crate::state_keeper::{
+    io::StateKeeperOutputHandler,
+    metrics::{MiniblockQueueStage, MINIBLOCK_METRICS},
+    updates::{MiniblockSealCommand, UpdatesManager},
 };
 
 /// A command together with the return address allowing to track command processing completion.
@@ -162,14 +161,16 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
 
         let pool = self.pool.clone();
         let mut storage = pool.connection_tagged("state_keeper").await?;
+        let batch_number = updates_manager.l1_batch.number;
         updates_manager
             .seal_l1_batch(
                 &mut storage,
                 self.l2_erc20_bridge_addr,
                 self.insert_protective_reads,
             )
-            .await;
-        APP_METRICS.block_number[&BlockStage::Sealed].set(updates_manager.l1_batch.number.0.into());
+            .await
+            .with_context(|| format!("cannot persist L1 batch #{batch_number}"))?;
+        APP_METRICS.block_number[&BlockStage::Sealed].set(batch_number.0.into());
         Ok(())
     }
 }
@@ -204,7 +205,7 @@ impl MiniblockSealerTask {
         // an earlier one.
         while let Some(completable) = self.next_command().await {
             let mut storage = self.pool.connection_tagged("state_keeper").await?;
-            completable.command.seal(&mut storage).await;
+            completable.command.seal(&mut storage).await?;
             if let Some(delta) = miniblock_seal_delta {
                 MINIBLOCK_METRICS.seal_delta.observe(delta.elapsed());
             }

@@ -1,4 +1,4 @@
-use zk_evm_1_4_1::aux_structures::Timestamp;
+use zk_evm_1_5_0::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 use zksync_types::{l1::is_l1_tx_type, Transaction};
 
@@ -17,7 +17,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         &mut self,
         tx: TransactionData,
         predefined_overhead: u32,
-        predefined_refund: u32,
+        predefined_refund: u64,
         with_compression: bool,
     ) {
         let timestamp = Timestamp(self.state.local_state.timestamp);

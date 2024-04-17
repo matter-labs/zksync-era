@@ -1,9 +1,10 @@
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, error::Wrap as _, limiter, scope, time};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
 use zksync_types::MiniblockNumber;
+use zksync_web3_decl::client::BoxedL2Client;
 
 use crate::{
     consensus::{storage, Store},
@@ -18,9 +19,7 @@ pub type P2PConfig = executor::Config;
 pub struct Fetcher {
     pub store: Store,
     pub sync_state: SyncState,
-    pub client: Box<dyn MainNodeClient>,
-    /// Rate limiter for `client.fetch_l2_block` requests.
-    pub limiter: limiter::Limiter,
+    pub client: BoxedL2Client,
 }
 
 impl Fetcher {
@@ -149,10 +148,9 @@ impl Fetcher {
 
     /// Fetches (with retries) the given block from the main node.
     async fn fetch_block(&self, ctx: &ctx::Ctx, n: MiniblockNumber) -> ctx::Result<FetchedBlock> {
-        // TODO: consider removing sleep in favor to just relying on the rate limiter.
         const RETRY_INTERVAL: time::Duration = time::Duration::seconds(5);
+
         loop {
-            self.limiter.acquire(ctx, 1).await?;
             let res = ctx.wait(self.client.fetch_l2_block(n, true)).await?;
             match res {
                 Ok(Some(block)) => return Ok(block.try_into()?),

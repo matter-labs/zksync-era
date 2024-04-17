@@ -234,7 +234,7 @@ impl Tester {
     ) -> (L1BatchEnv, SystemEnv) {
         let mut system_params = default_system_env();
         if let Some(vm_gas_limit) = self.config.vm_gas_limit {
-            system_params.gas_limit = vm_gas_limit;
+            system_params.bootloader_gas_limit = vm_gas_limit;
         }
         system_params.default_validation_computational_gas_limit =
             self.config.validation_computational_gas_limit;
@@ -249,7 +249,6 @@ impl Tester {
         if storage.blocks_dal().is_genesis_needed().await.unwrap() {
             create_genesis_l1_batch(
                 &mut storage,
-                self.fee_account,
                 L2ChainId::from(CHAIN_ID),
                 ProtocolVersionId::latest(),
                 &BASE_SYSTEM_CONTRACTS,

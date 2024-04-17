@@ -1,12 +1,12 @@
-use anyhow::Context as _;
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_db_connection::error::SqlxContext;
 use zksync_types::{
     api::en, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction, H256,
 };
 
 use crate::{
     consensus_dal::Payload,
-    models::{parse_h160, parse_h256},
+    models::{parse_h160, parse_h256, parse_h256_opt, parse_protocol_version},
 };
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -44,50 +44,46 @@ pub(crate) struct SyncBlock {
 }
 
 impl TryFrom<StorageSyncBlock> for SyncBlock {
-    type Error = anyhow::Error;
-    fn try_from(block: StorageSyncBlock) -> anyhow::Result<Self> {
+    type Error = sqlx::Error;
+
+    fn try_from(block: StorageSyncBlock) -> Result<Self, Self::Error> {
         Ok(Self {
-            number: MiniblockNumber(block.number.try_into().context("number")?),
+            number: MiniblockNumber(block.number.try_into().decode_column("number")?),
             l1_batch_number: L1BatchNumber(
                 block
                     .l1_batch_number
                     .try_into()
-                    .context("l1_batch_number")?,
+                    .decode_column("l1_batch_number")?,
             ),
             last_in_batch: block.last_batch_miniblock == Some(block.number),
-            timestamp: block.timestamp.try_into().context("timestamp")?,
-            l1_gas_price: block.l1_gas_price.try_into().context("l1_gas_price")?,
+            timestamp: block.timestamp.try_into().decode_column("timestamp")?,
+            l1_gas_price: block
+                .l1_gas_price
+                .try_into()
+                .decode_column("l1_gas_price")?,
             l2_fair_gas_price: block
                 .l2_fair_gas_price
                 .try_into()
-                .context("l2_fair_gas_price")?,
+                .decode_column("l2_fair_gas_price")?,
             fair_pubdata_price: block
                 .fair_pubdata_price
-                .map(|v| v.try_into().context("fair_pubdata_price"))
+                .map(|v| v.try_into().decode_column("fair_pubdata_price"))
                 .transpose()?,
             // TODO (SMA-1635): Make these fields non optional in database
             base_system_contracts_hashes: BaseSystemContractsHashes {
-                bootloader: parse_h256(
-                    &block
-                        .bootloader_code_hash
-                        .context("bootloader_code_hash should not be none")?,
-                )
-                .context("bootloader_code_hash")?,
-                default_aa: parse_h256(
-                    &block
-                        .default_aa_code_hash
-                        .context("default_aa_code_hash should not be none")?,
-                )
-                .context("default_aa_code_hash")?,
+                bootloader: parse_h256_opt(block.bootloader_code_hash.as_deref())
+                    .decode_column("bootloader_code_hash")?,
+                default_aa: parse_h256_opt(block.default_aa_code_hash.as_deref())
+                    .decode_column("default_aa_code_hash")?,
             },
             fee_account_address: parse_h160(&block.fee_account_address)
-                .context("fee_account_address")?,
-            virtual_blocks: block.virtual_blocks.try_into().context("virtual_blocks")?,
-            hash: parse_h256(&block.hash).context("hash")?,
-            protocol_version: u16::try_from(block.protocol_version)
-                .context("protocol_version")?
+                .decode_column("fee_account_address")?,
+            virtual_blocks: block
+                .virtual_blocks
                 .try_into()
-                .context("protocol_version")?,
+                .decode_column("virtual_blocks")?,
+            hash: parse_h256(&block.hash).decode_column("hash")?,
+            protocol_version: parse_protocol_version(block.protocol_version)?,
         })
     }
 }

@@ -3,10 +3,7 @@
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, StorageLogMetadata};
-use zksync_types::{
-    writes::{InitialStorageWrite, RepeatedStorageWrite},
-    L1BatchNumber, StorageKey,
-};
+use zksync_types::{L1BatchNumber, StorageKey};
 
 use crate::{
     storage::{PatchSet, Patched, RocksDBWrapper},
@@ -24,11 +21,6 @@ pub struct TreeMetadata {
     pub root_hash: ValueHash,
     /// 1-based index of the next leaf to be inserted in the tree.
     pub rollup_last_leaf_index: u64,
-    /// Initial writes performed in the processed L1 batch in the order of provided `StorageLog`s.
-    pub initial_writes: Vec<InitialStorageWrite>,
-    /// Repeated writes performed in the processed L1 batch in the order of provided `StorageLog`s.
-    /// No-op writes (i.e., writing the same value as previously) will be omitted.
-    pub repeated_writes: Vec<RepeatedStorageWrite>,
     /// Witness information. As with `repeated_writes`, no-op updates will be omitted from Merkle paths.
     pub witness: Option<PrepareBasicCircuitsJob>,
 }
@@ -274,68 +266,18 @@ impl ZkSyncTree {
         }
 
         let root_hash = output.root_hash().unwrap_or(starting_root_hash);
-        let logs = output
-            .logs
-            .into_iter()
-            .filter_map(|log| (!log.base.is_read()).then_some(log.base));
-        let kvs = instructions
-            .iter()
-            .filter_map(|instruction| match instruction {
-                TreeInstruction::Write(entry) => Some(*entry),
-                TreeInstruction::Read(_) => None,
-            });
-        let (initial_writes, repeated_writes) = Self::extract_writes(logs, kvs);
 
         tracing::info!(
             "Processed batch #{l1_batch_number}; root hash is {root_hash}, \
-             {leaf_count} leaves in total, \
-             {initial_writes} initial writes, {repeated_writes} repeated writes",
+             {leaf_count} leaves in total",
             leaf_count = output.leaf_count,
-            initial_writes = initial_writes.len(),
-            repeated_writes = repeated_writes.len()
         );
 
         TreeMetadata {
             root_hash,
             rollup_last_leaf_index: output.leaf_count + 1,
-            initial_writes,
-            repeated_writes,
             witness: Some(witness),
         }
-    }
-
-    fn extract_writes(
-        logs: impl Iterator<Item = TreeLogEntry>,
-        entries: impl Iterator<Item = TreeEntry<StorageKey>>,
-    ) -> (Vec<InitialStorageWrite>, Vec<RepeatedStorageWrite>) {
-        let mut initial_writes = vec![];
-        let mut repeated_writes = vec![];
-        for (log_entry, input_entry) in logs.zip(entries) {
-            let key = &input_entry.key;
-            match log_entry {
-                TreeLogEntry::Inserted => {
-                    initial_writes.push(InitialStorageWrite {
-                        index: input_entry.leaf_index,
-                        key: key.hashed_key_u256(),
-                        value: input_entry.value,
-                    });
-                }
-                TreeLogEntry::Updated {
-                    previous_value: prev_value_hash,
-                    ..
-                } => {
-                    if prev_value_hash != input_entry.value {
-                        repeated_writes.push(RepeatedStorageWrite {
-                            index: input_entry.leaf_index,
-                            value: input_entry.value,
-                        });
-                    }
-                    // Else we have a no-op update that must be omitted from `repeated_writes`.
-                }
-                TreeLogEntry::Read { .. } | TreeLogEntry::ReadMissingKey => {}
-            }
-        }
-        (initial_writes, repeated_writes)
     }
 
     fn process_l1_batch_lightweight(
@@ -360,24 +302,17 @@ impl ZkSyncTree {
         } else {
             self.tree.extend(kvs_with_derived_key.clone())
         };
-        let (initial_writes, repeated_writes) =
-            Self::extract_writes(output.logs.into_iter(), kvs.into_iter());
 
         tracing::info!(
             "Processed batch #{l1_batch_number}; root hash is {root_hash}, \
-             {leaf_count} leaves in total, \
-             {initial_writes} initial writes, {repeated_writes} repeated writes",
+             {leaf_count} leaves in total",
             root_hash = output.root_hash,
             leaf_count = output.leaf_count,
-            initial_writes = initial_writes.len(),
-            repeated_writes = repeated_writes.len()
         );
 
         TreeMetadata {
             root_hash: output.root_hash,
             rollup_last_leaf_index: output.leaf_count + 1,
-            initial_writes,
-            repeated_writes,
             witness: None,
         }
     }

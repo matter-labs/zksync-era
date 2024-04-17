@@ -10,7 +10,7 @@ pub struct SystemEnv {
     pub zk_porter_available: bool,
     pub version: ProtocolVersionId,
     pub base_system_smart_contracts: BaseSystemContracts,
-    pub gas_limit: u32,
+    pub bootloader_gas_limit: u32,
     pub execution_mode: TxExecutionMode,
     pub default_validation_computational_gas_limit: u32,
     pub chain_id: L2ChainId,
@@ -25,7 +25,7 @@ impl Debug for SystemEnv {
                 "base_system_smart_contracts",
                 &self.base_system_smart_contracts.hashes(),
             )
-            .field("gas_limit", &self.gas_limit)
+            .field("gas_limit", &self.bootloader_gas_limit)
             .field(
                 "default_validation_computational_gas_limit",
                 &self.default_validation_computational_gas_limit,

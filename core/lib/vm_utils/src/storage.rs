@@ -3,11 +3,11 @@ use std::time::{Duration, Instant};
 use anyhow::Context;
 use multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode},
-    vm_latest::constants::BLOCK_GAS_LIMIT,
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
     zk_evm_latest::ethereum_types::H256,
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{Connection, Core, CoreDal};
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_types::{
     block::MiniblockHeader, fee_model::BatchFeeInput, snapshots::SnapshotRecoveryStatus, Address,
     L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, ZKPORTER_IS_AVAILABLE,
@@ -59,7 +59,7 @@ pub fn l1_batch_params(
             zk_porter_available: ZKPORTER_IS_AVAILABLE,
             version: protocol_version,
             base_system_smart_contracts: base_system_contracts,
-            gas_limit: BLOCK_GAS_LIMIT,
+            bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             execution_mode: TxExecutionMode::VerifyExecute,
             default_validation_computational_gas_limit: validation_computational_gas_limit,
             chain_id,
@@ -183,8 +183,7 @@ impl L1BatchParamsProvider {
             Some(number) => storage
                 .blocks_dal()
                 .get_miniblock_header(number)
-                .await
-                .context("failed getting miniblock header")?
+                .await?
                 .map(|header| FirstMiniblockInBatch {
                     header,
                     l1_batch_number,
@@ -219,10 +218,7 @@ impl L1BatchParamsProvider {
         let Some((_, last_miniblock_in_prev_l1_batch)) = storage
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(prev_l1_batch)
-            .await
-            .with_context(|| {
-                format!("failed getting miniblock range for L1 batch #{prev_l1_batch}")
-            })?
+            .await?
         else {
             return Ok(None);
         };
@@ -272,7 +268,7 @@ impl L1BatchParamsProvider {
                 .blocks_web3_dal()
                 .get_miniblock_hash(prev_miniblock_number)
                 .await
-                .context("failed getting hash for previous miniblock")?
+                .map_err(DalError::generalize)?
                 .context("previous miniblock disappeared from storage")?,
         };
         tracing::info!(

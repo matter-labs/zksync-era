@@ -12,7 +12,7 @@ members = [
     "witness_vector_generator",
     "prover_fri_gateway",
     "proof_fri_compressor",
-    "tools",
+    "prover_cli",
 ]
 
 resolver = "2"
@@ -66,7 +66,7 @@ tokio = "1"
 toml_edit = "0.14.4"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3" }
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "a5bb80c9ce7168663114ee30e794d6dc32159ee4" }
 vk_setup_data_generator_server_fri = { path = "vk_setup_data_generator_server_fri" }
 vlog = { path = "../core/lib/vlog" }
 zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.4.1" }

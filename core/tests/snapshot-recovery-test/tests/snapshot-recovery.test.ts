@@ -89,7 +89,8 @@ describe('snapshot recovery', () => {
     console.log('Using external node env profile', externalNodeEnvProfile);
     const externalNodeEnv = {
         ...process.env,
-        ZKSYNC_ENV: externalNodeEnvProfile
+        ZKSYNC_ENV: externalNodeEnvProfile,
+        EN_SNAPSHOTS_RECOVERY_ENABLED: 'true'
     };
 
     let snapshotMetadata: GetSnapshotResponse;
@@ -222,7 +223,7 @@ describe('snapshot recovery', () => {
         externalNodeLogs = await fs.open('snapshot-recovery.log', 'w');
 
         const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
-        let args = ['external-node', '--', '--enable-snapshots-recovery'];
+        let args = ['external-node', '--'];
         if (enableConsensus) {
             args.push('--enable-consensus');
         }
@@ -370,7 +371,10 @@ async function getExternalNodeHealth() {
         if (e instanceof FetchError && e.code === 'ECONNREFUSED') {
             displayedError = '(connection refused)'; // Don't spam logs with "connection refused" messages
         }
-        console.log('Request to EN health check server failed', displayedError);
+        console.log(
+            `Request to EN health check server failed ${displayedError}, in CI you can see more details 
+            in "Show snapshot-creator.log logs" and "Show contract_verifier.log logs" steps`
+        );
         return null;
     }
 }

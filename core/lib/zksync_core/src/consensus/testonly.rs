@@ -4,18 +4,18 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context as _;
 use rand::Rng;
-use zksync_concurrency::{ctx, error::Wrap as _, limiter, scope, sync, time};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, sync};
 use zksync_config::{configs, GenesisConfig};
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::CoreDal;
+use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
     api, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
     ProtocolVersionId, H256,
 };
 use zksync_web3_decl::{
+    client::{BoxedL2Client, L2Client},
     error::{EnrichedClientError, EnrichedClientResult},
-    jsonrpsee::http_client::HttpClient,
 };
 
 use crate::{
@@ -169,17 +169,6 @@ pub(super) struct StateKeeperRunner {
     addr: sync::watch::Sender<Option<std::net::SocketAddr>>,
 }
 
-// Limiter with infinite refresh rate.
-fn unbounded_limiter(ctx: &ctx::Ctx) -> limiter::Limiter {
-    limiter::Limiter::new(
-        ctx,
-        limiter::Rate {
-            burst: 1,
-            refresh: time::Duration::ZERO,
-        },
-    )
-}
-
 impl StateKeeper {
     /// Constructs and initializes a new `StateKeeper`.
     /// Caller has to run `StateKeeperRunner.run()` task in the background.
@@ -289,25 +278,26 @@ impl StateKeeper {
     }
 
     /// Connects to the json RPC endpoint exposed by the state keeper.
-    pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<HttpClient> {
-        let addr: std::net::SocketAddr =
-            sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some)
-                .await?
-                .unwrap();
-        Ok(<dyn MainNodeClient>::json_rpc(&format!("http://{addr}/")).context("json_rpc()")?)
+    pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<BoxedL2Client> {
+        let addr = sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some)
+            .await?
+            .unwrap();
+        let client = L2Client::http(&format!("http://{addr}/"))
+            .context("json_rpc()")?
+            .build();
+        Ok(BoxedL2Client::new(client))
     }
 
     /// Runs the centralized fetcher.
     pub async fn run_centralized_fetcher(
         self,
         ctx: &ctx::Ctx,
-        client: HttpClient,
+        client: BoxedL2Client,
     ) -> anyhow::Result<()> {
         Fetcher {
             store: self.store,
-            client: Box::new(client),
+            client,
             sync_state: SyncState::default(),
-            limiter: unbounded_limiter(ctx),
         }
         .run_centralized(ctx, self.actions_sender)
         .await
@@ -317,14 +307,13 @@ impl StateKeeper {
     pub async fn run_p2p_fetcher(
         self,
         ctx: &ctx::Ctx,
-        client: HttpClient,
+        client: BoxedL2Client,
         cfg: P2PConfig,
     ) -> anyhow::Result<()> {
         Fetcher {
             store: self.store,
-            client: Box::new(client),
+            client,
             sync_state: SyncState::default(),
-            limiter: unbounded_limiter(ctx),
         }
         .run_p2p(ctx, self.actions_sender, cfg)
         .await
@@ -336,20 +325,20 @@ async fn calculate_mock_metadata(ctx: &ctx::Ctx, store: &Store) -> ctx::Result<(
     let Some(last) = ctx
         .wait(conn.0.blocks_dal().get_sealed_l1_batch_number())
         .await?
-        .context("get_sealed_l1_batch_number()")?
+        .map_err(DalError::generalize)?
     else {
         return Ok(());
     };
     let prev = ctx
         .wait(conn.0.blocks_dal().get_last_l1_batch_number_with_metadata())
         .await?
-        .context("get_last_l1_batch_number_with_metadata()")?;
+        .map_err(DalError::generalize)?;
     let mut first = match prev {
         Some(prev) => prev + 1,
         None => ctx
             .wait(conn.0.blocks_dal().get_earliest_l1_batch_number())
             .await?
-            .context("get_earliest_l1_batch_number()")?
+            .map_err(DalError::generalize)?
             .context("batches disappeared")?,
     };
     while first <= last {
@@ -414,9 +403,9 @@ impl StateKeeperRunner {
             s.spawn_bg(async {
                 // Spawn HTTP server.
                 let cfg = InternalApiConfig::new(
-                    &configs::chain::NetworkConfig::for_tests(),
                     &configs::api::Web3JsonRpcConfig::for_tests(),
                     &configs::contracts::ContractsConfig::for_tests(),
+                    &configs::GenesisConfig::for_tests(),
                 );
                 let mut server = spawn_http_server(
                     cfg,

@@ -26,6 +26,7 @@ pub(crate) const STORAGE_WRITE_STORAGE_APPLICATION_CYCLES: u32 = 2;
 pub(crate) const FAR_CALL_RAM_CYCLES: u32 = 1;
 pub(crate) const FAR_CALL_STORAGE_SORTER_CYCLES: u32 = 1;
 pub(crate) const FAR_CALL_CODE_DECOMMITTER_SORTER_CYCLES: u32 = 1;
+pub(crate) const FAR_CALL_LOG_DEMUXER_CYCLES: u32 = 1;
 
 // 5 RAM permutations, because: 1 to read opcode + 2 reads + 2 writes.
 // 2 reads and 2 writes are needed because unaligned access is implemented with
@@ -63,5 +64,7 @@ pub(crate) fn circuit_statistic_from_cycles(cycles: CircuitCycleStatistic) -> Ci
         ecrecover: cycles.ecrecover_cycles as f32
             / GEOMETRY_CONFIG.cycles_per_ecrecover_circuit as f32,
         sha256: cycles.sha256_cycles as f32 / GEOMETRY_CONFIG.cycles_per_sha256_circuit as f32,
+        secp256k1_verify: 0.0,
+        transient_storage_checker: 0.0,
     }
 }

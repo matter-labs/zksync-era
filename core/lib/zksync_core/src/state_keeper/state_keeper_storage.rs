@@ -88,17 +88,12 @@ impl AsyncRocksdbCache {
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<Option<(MiniblockNumber, L1BatchNumber)>> {
         let mut dal = connection.blocks_dal();
-        let Some(l1_batch_number) = dal
-            .get_sealed_l1_batch_number()
-            .await
-            .context("Failed to load the latest sealed L1 batch number")?
-        else {
+        let Some(l1_batch_number) = dal.get_sealed_l1_batch_number().await? else {
             return Ok(None);
         };
         let (_, miniblock_number) = dal
             .get_miniblock_range_of_l1_batch(l1_batch_number)
-            .await
-            .context("Failed to load the miniblock range for the latest sealed L1 batch")?
+            .await?
             .context("The latest sealed L1 batch does not have a miniblock range")?;
         Ok(Some((miniblock_number, l1_batch_number)))
     }
@@ -117,8 +112,7 @@ impl AsyncRocksdbCache {
                     let snapshot_recovery = connection
                         .snapshot_recovery_dal()
                         .get_applied_snapshot_status()
-                        .await
-                        .context("Failed getting snapshot recovery info")?
+                        .await?
                         .context("Could not find snapshot, no state available")?;
                     (
                         snapshot_recovery.miniblock_number,

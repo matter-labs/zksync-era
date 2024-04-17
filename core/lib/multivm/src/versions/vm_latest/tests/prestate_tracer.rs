@@ -8,7 +8,7 @@ use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     tracers::PrestateTracer,
     vm_latest::{
-        constants::BLOCK_GAS_LIMIT,
+        constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
         tests::{tester::VmTesterBuilder, utils::read_simple_transfer_contract},
         HistoryEnabled, ToTracerPointer,
     },
@@ -20,7 +20,7 @@ fn test_prestate_tracer() {
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()
-        .with_gas_limit(BLOCK_GAS_LIMIT)
+        .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build();
 
@@ -56,7 +56,7 @@ fn test_prestate_tracer_diff_mode() {
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()
-        .with_gas_limit(BLOCK_GAS_LIMIT)
+        .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build();
     let contract = read_simple_transfer_contract();

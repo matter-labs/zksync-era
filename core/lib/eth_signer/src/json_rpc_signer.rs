@@ -1,8 +1,6 @@
 use jsonrpc_core::types::response::Output;
 use serde_json::Value;
-use zksync_types::{
-    tx::primitives::PackedEthSignature, Address, EIP712TypedStructure, Eip712Domain, H256,
-};
+use zksync_types::{Address, EIP712TypedStructure, Eip712Domain, PackedEthSignature, H256};
 
 use crate::{
     error::{RpcSignerError, SignerError},

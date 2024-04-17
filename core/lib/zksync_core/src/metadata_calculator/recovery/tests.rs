@@ -1,6 +1,6 @@
 //! Tests for metadata calculator snapshot recovery.
 
-use std::{path::PathBuf, time::Duration};
+use std::path::Path;
 
 use assert_matches::assert_matches;
 use tempfile::TempDir;
@@ -21,8 +21,8 @@ use crate::{
     metadata_calculator::{
         helpers::create_db,
         tests::{
-            extend_db_state, extend_db_state_from_l1_batch, gen_storage_logs, run_calculator,
-            setup_calculator,
+            extend_db_state, extend_db_state_from_l1_batch, gen_storage_logs, mock_config,
+            run_calculator, setup_calculator,
         },
         MetadataCalculator, MetadataCalculatorConfig,
     },
@@ -45,16 +45,8 @@ fn calculating_chunk_count() {
     assert_eq!(snapshot.chunk_count(), 1);
 }
 
-async fn create_tree_recovery(path: PathBuf, l1_batch: L1BatchNumber) -> AsyncTreeRecovery {
-    let db = create_db(
-        path,
-        0,
-        16 << 20,       // 16 MiB,
-        Duration::ZERO, // writes should never be stalled in tests
-        500,
-    )
-    .await
-    .unwrap();
+async fn create_tree_recovery(path: &Path, l1_batch: L1BatchNumber) -> AsyncTreeRecovery {
+    let db = create_db(mock_config(path)).await.unwrap();
     AsyncTreeRecovery::new(db, l1_batch.0.into(), MerkleTreeMode::Full)
 }
 
@@ -74,7 +66,7 @@ async fn basic_recovery_workflow() {
         println!("Recovering tree with {chunk_count} chunks");
 
         let tree_path = temp_dir.path().join(format!("recovery-{chunk_count}"));
-        let tree = create_tree_recovery(tree_path, L1BatchNumber(1)).await;
+        let tree = create_tree_recovery(&tree_path, L1BatchNumber(1)).await;
         let (health_check, health_updater) = ReactiveHealthCheck::new("tree");
         let recovery_options = RecoveryOptions {
             chunk_count,
@@ -178,7 +170,7 @@ async fn recovery_fault_tolerance(chunk_count: u64) {
     let snapshot_recovery = prepare_recovery_snapshot_with_genesis(pool.clone(), &temp_dir).await;
 
     let tree_path = temp_dir.path().join("recovery");
-    let tree = create_tree_recovery(tree_path.clone(), L1BatchNumber(1)).await;
+    let tree = create_tree_recovery(&tree_path, L1BatchNumber(1)).await;
     let (stop_sender, stop_receiver) = watch::channel(false);
     let recovery_options = RecoveryOptions {
         chunk_count,
@@ -195,7 +187,7 @@ async fn recovery_fault_tolerance(chunk_count: u64) {
         .is_none());
 
     // Emulate a restart and recover 2 more chunks.
-    let mut tree = create_tree_recovery(tree_path.clone(), L1BatchNumber(1)).await;
+    let mut tree = create_tree_recovery(&tree_path, L1BatchNumber(1)).await;
     assert_ne!(tree.root_hash().await, snapshot_recovery.l1_batch_root_hash);
     let (stop_sender, stop_receiver) = watch::channel(false);
     let recovery_options = RecoveryOptions {
@@ -210,7 +202,7 @@ async fn recovery_fault_tolerance(chunk_count: u64) {
         .is_none());
 
     // Emulate another restart and recover remaining chunks.
-    let mut tree = create_tree_recovery(tree_path.clone(), L1BatchNumber(1)).await;
+    let mut tree = create_tree_recovery(&tree_path, L1BatchNumber(1)).await;
     assert_ne!(tree.root_hash().await, snapshot_recovery.l1_batch_root_hash);
     let (stop_sender, stop_receiver) = watch::channel(false);
     let recovery_options = RecoveryOptions {

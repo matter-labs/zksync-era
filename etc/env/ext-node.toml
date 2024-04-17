@@ -22,7 +22,6 @@ state_cache_path = "./db/ext-node/state_keeper"
 merkle_tree_path = "./db/ext-node/lightweight"
 max_l1_batches_per_tree_iter = 20
 
-main_node_url = "http://127.0.0.1:3050"
 eth_client_url = "http://127.0.0.1:8545"
 
 api_namespaces = ["eth", "web3", "net", "pubsub", "zks", "en", "debug"]
@@ -48,6 +47,9 @@ mode = "FileBacked"
 file_backed_base_path = "artifacts"
 # ^ Intentionally set to coincide with main node's in order to read locally produced snapshots
 
+[en.main_node]
+url = "http://127.0.0.1:3050"
+
 [rust]
 # `RUST_LOG` environment variable for `env_logger`
 # Here we use TOML multiline strings: newlines will be trimmed.
@@ -65,6 +67,7 @@ zksync_merkle_tree=info,\
 zksync_state=debug,\
 zksync_utils=debug,\
 zksync_types=info,\
+zksync_web3_decl=debug,\
 loadnext=info,\
 vm=info,\
 zksync_external_node=info,\

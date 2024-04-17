@@ -561,6 +561,28 @@ impl StaleNodeKey {
     }
 }
 
+/// Profiled Merkle tree operation used in `Database::start_profiling()`.
+#[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
+pub enum ProfiledTreeOperation {
+    /// Loading ancestors for nodes inserted or updated in the tree.
+    LoadAncestors,
+    /// Getting entries from the tree without Merkle proofs.
+    GetEntries,
+    /// Getting entries from the tree with Merkle proofs.
+    GetEntriesWithProofs,
+}
+
+impl ProfiledTreeOperation {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::LoadAncestors => "load_ancestors",
+            Self::GetEntries => "get_entries",
+            Self::GetEntriesWithProofs => "get_entries_with_proofs",
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use zksync_types::U256;
