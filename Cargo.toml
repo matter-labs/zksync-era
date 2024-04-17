@@ -12,7 +12,6 @@ members = [
     "core/bin/genesis_generator",
     # Node services
     "core/node/node_framework",
-    "core/node/gas_tracker",
     "core/node/commitment_generator",
     # Libraries
     "core/lib/db_connection",
@@ -224,5 +223,4 @@ zksync_crypto_primitives = { path = "core/lib/crypto_primitives" }
 zksync_node_framework = { path = "core/node/node_framework" }
 zksync_eth_watch = { path = "core/node/eth_watch" }
 zksync_shared_metrics = { path = "core/node/shared_metrics" }
-zksync_gas_tracker = { path = "core/node/gas_tracker" }
 zksync_commitment_generator = { path = "core/node/commitment_generator" }

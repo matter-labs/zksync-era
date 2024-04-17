@@ -198,11 +198,10 @@ pub(crate) struct MiniblockSealCommand {
 
 #[cfg(test)]
 mod tests {
-    use zksync_gas_tracker::new_block_gas_count;
-
     use super::*;
-    use crate::state_keeper::tests::{
-        create_execution_result, create_transaction, create_updates_manager,
+    use crate::state_keeper::{
+        tests::{create_execution_result, create_transaction, create_updates_manager},
+        utils::new_block_gas_count,
     };
 
     #[test]

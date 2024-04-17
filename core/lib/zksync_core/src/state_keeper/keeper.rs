@@ -7,7 +7,6 @@ use std::{
 use anyhow::Context as _;
 use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use tokio::sync::watch;
-use zksync_gas_tracker::gas_count_from_writes;
 use zksync_types::{
     block::MiniblockExecutionData, l2::TransactionType, protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::ProtocolVersionId, storage_writes_deduplicator::StorageWritesDeduplicator,
@@ -22,6 +21,7 @@ use super::{
     seal_criteria::{ConditionalSealer, SealData, SealResolution},
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
+    utils::gas_count_from_writes,
 };
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,

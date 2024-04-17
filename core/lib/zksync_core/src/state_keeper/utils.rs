@@ -1,23 +1,13 @@
-//! This module predicts L1 gas cost for the Commit/PublishProof/Execute operations.
-
+use zksync_system_constants::{
+    EXECUTE_COMMIT_COST, EXECUTE_EXECUTE_COST, GAS_PER_BYTE, L1_BATCH_COMMIT_BASE_COST,
+    L1_BATCH_EXECUTE_BASE_COST, L1_BATCH_PROVE_BASE_COST, L1_OPERATION_EXECUTE_COST,
+};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::BlockGasCount,
-    tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics},
+    tx::{tx_execution_info::DeduplicatedWritesMetrics, ExecutionMetrics},
     ExecuteTransactionCommon, ProtocolVersionId, Transaction,
 };
-
-mod constants;
-
-use self::constants::*;
-
-pub fn agg_l1_batch_base_cost(op: AggregatedActionType) -> u32 {
-    match op {
-        AggregatedActionType::Commit => AGGR_L1_BATCH_COMMIT_BASE_COST,
-        AggregatedActionType::PublishProofOnchain => AGGR_L1_BATCH_PROVE_BASE_COST,
-        AggregatedActionType::Execute => AGGR_L1_BATCH_EXECUTE_BASE_COST,
-    }
-}
 
 pub fn l1_batch_base_cost(op: AggregatedActionType) -> u32 {
     match op {

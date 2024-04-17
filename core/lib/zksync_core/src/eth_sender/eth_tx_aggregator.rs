@@ -5,7 +5,6 @@ use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
-use zksync_gas_tracker::agg_l1_batch_base_cost;
 use zksync_l1_contract_interface::{
     i_executor::commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
     multicall3::{Multicall3Call, Multicall3Result},
@@ -28,6 +27,7 @@ use super::aggregated_operations::AggregatedOperation;
 use crate::eth_sender::{
     l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
     metrics::{PubdataKind, METRICS},
+    utils::agg_l1_batch_base_cost,
     zksync_functions::ZkSyncFunctions,
     Aggregator, ETHSenderError,
 };

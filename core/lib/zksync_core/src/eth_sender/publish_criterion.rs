@@ -3,14 +3,15 @@ use std::{fmt, sync::Arc};
 use async_trait::async_trait;
 use chrono::Utc;
 use zksync_dal::{Connection, Core, CoreDal};
-use zksync_gas_tracker::agg_l1_batch_base_cost;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, ethabi,
     pubdata_da::PubdataDA, L1BatchNumber,
 };
 
-use super::metrics::METRICS;
-use crate::eth_sender::l1_batch_commit_data_generator::L1BatchCommitDataGenerator;
+use super::{
+    l1_batch_commit_data_generator::L1BatchCommitDataGenerator, metrics::METRICS,
+    utils::agg_l1_batch_base_cost,
+};
 
 #[async_trait]
 pub trait L1BatchPublishCriterion: fmt::Debug + Send + Sync {
