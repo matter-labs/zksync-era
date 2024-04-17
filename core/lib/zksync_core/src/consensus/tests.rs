@@ -7,8 +7,6 @@ use zksync_consensus_executor as executor;
 use zksync_consensus_network as network;
 use zksync_consensus_network::testonly::{new_configs, new_fullnode};
 use zksync_consensus_roles::validator::testonly::Setup;
-use zksync_consensus_storage as storage;
-use zksync_consensus_storage::PersistentBlockStore as _;
 use zksync_types::{L1BatchNumber, MiniblockNumber};
 
 use super::*;
@@ -64,9 +62,23 @@ async fn test_validator_block_store() {
 
     // Insert blocks one by one and check the storage state.
     for (i, block) in want.iter().enumerate() {
-        let store = store.clone().into_block_store();
-        store.store_next_block(ctx, block).await.unwrap();
-        assert_eq!(want[..i + 1], storage::testonly::dump(ctx, &store).await);
+        scope::run!(ctx, |ctx, s| async {
+            let (block_store, runner) = store.clone().into_block_store(ctx, None).await.unwrap();
+            s.spawn_bg(runner.run(ctx));
+            block_store.queue_block(ctx, block.clone()).await.unwrap();
+            block_store
+                .wait_until_persisted(ctx, block.number())
+                .await
+                .unwrap();
+            let got = store
+                .wait_for_certificates(ctx, block.number())
+                .await
+                .unwrap();
+            assert_eq!(want[..=i], got);
+            Ok(())
+        })
+        .await
+        .unwrap();
     }
 }
 
