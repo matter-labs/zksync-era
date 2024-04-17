@@ -1,12 +1,8 @@
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
-        tests::{
-            tester::{DeployContractsTx, TxType, VmTesterBuilder},
-            utils::read_test_contract,
-        },
-        types::internals::TransactionData,
-        HistoryEnabled,
+    vm_fast::tests::{
+        tester::{DeployContractsTx, TxType, VmTesterBuilder},
+        utils::read_test_contract,
     },
 };
 
@@ -15,7 +11,7 @@ fn test_predetermined_refunded_gas() {
     // In this test, we compare the execution of the bootloader with the predefined
     // refunded gas and without them
 
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -52,18 +48,15 @@ fn test_predetermined_refunded_gas() {
     // We execute the whole block without refund tracer, because refund tracer will eventually override the provided refund.
     // But the overall result should be the same
 
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_l1_batch_env(l1_batch.clone())
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(vec![account.clone()])
         .build();
 
-    let tx: TransactionData = tx.into();
-    // Overhead
-    let overhead = tx.overhead_gas();
     vm.vm
-        .push_raw_transaction(tx.clone(), overhead, result.refunds.gas_refunded, true);
+        .push_transaction_inner(tx.clone(), result.refunds.gas_refunded);
 
     let result_with_predefined_refunds = vm.vm.execute(VmExecutionMode::Batch);
     let mut current_state_with_predefined_refunds = vm.vm.get_current_execution_state();
@@ -105,7 +98,7 @@ fn test_predetermined_refunded_gas() {
     // In this test we put the different refund from the operator.
     // We still can't use the refund tracer, because it will override the refund.
     // But we can check that the logs and events have changed.
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_l1_batch_env(l1_batch)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
@@ -114,7 +107,7 @@ fn test_predetermined_refunded_gas() {
 
     let changed_operator_suggested_refund = result.refunds.gas_refunded + 1000;
     vm.vm
-        .push_raw_transaction(tx, overhead, changed_operator_suggested_refund, true);
+        .push_transaction_inner(tx, changed_operator_suggested_refund);
     let result = vm.vm.execute(VmExecutionMode::Batch);
     let mut current_state_with_changed_predefined_refunds = vm.vm.get_current_execution_state();
 

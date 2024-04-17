@@ -3,11 +3,8 @@ use zksync_types::{Address, Execute};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
-        constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
-        tests::{tester::VmTesterBuilder, utils::read_precompiles_contract},
-        HistoryEnabled,
-    },
+    vm_fast::tests::{tester::VmTesterBuilder, utils::read_precompiles_contract},
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
 #[test]
@@ -15,7 +12,7 @@ fn test_keccak() {
     // Execute special transaction and check that at least 1000 keccak calls were made.
     let contract = read_precompiles_contract();
     let address = Address::random();
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()
@@ -59,7 +56,7 @@ fn test_sha256() {
     // Execute special transaction and check that at least 1000 `sha256` calls were made.
     let contract = read_precompiles_contract();
     let address = Address::random();
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()
@@ -101,7 +98,7 @@ fn test_sha256() {
 #[test]
 fn test_ecrecover() {
     // Execute simple transfer and check that exactly 1 `ecrecover` call was made (it's done during tx validation).
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()
