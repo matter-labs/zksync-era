@@ -578,7 +578,7 @@ impl L2BlockSealCommand {
 
             let location = IncludedTxLocation {
                 tx_hash,
-                tx_index_in_miniblock: tx_index - self.first_tx_index as u32,
+                tx_index_in_l2_block: tx_index - self.first_tx_index as u32,
                 tx_initiator_address,
             };
             (location, entries.collect())
