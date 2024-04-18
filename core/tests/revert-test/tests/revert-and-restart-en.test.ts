@@ -6,7 +6,7 @@
 // TODO: Migrate from zksync-web3 to zksync-ethers.
 import * as utils from 'zk/build/utils';
 import { Tester } from './tester';
-import * as zkweb3 from 'zksync-web3';
+import * as zkweb3 from 'zksync-ethers';
 import { BigNumber, ethers } from 'ethers';
 import { expect, assert } from 'chai';
 import fs from 'fs';
@@ -234,7 +234,7 @@ describe('Block reverting test', function () {
             'Finalize an L1 transaction to ensure at least 1 executed L1 batch and that all transactions are processed'
         );
         const h: zkweb3.types.PriorityOpResponse = await extNode.tester.syncWallet.deposit({
-            token: zkweb3.utils.ETH_ADDRESS,
+            token: zkweb3.utils.LEGACY_ETH_ADDRESS,
             amount: depositAmount,
             to: alice.address
         });
@@ -250,7 +250,7 @@ describe('Block reverting test', function () {
         // it gets updated with some batch logs only at the start of the next batch.
         const initialL1BatchNumber = (await main_contract.getTotalBlocksCommitted()).toNumber();
         const firstDepositHandle = await extNode.tester.syncWallet.deposit({
-            token: zkweb3.utils.ETH_ADDRESS,
+            token: zkweb3.utils.LEGACY_ETH_ADDRESS,
             amount: depositAmount,
             to: alice.address
         });
@@ -261,7 +261,7 @@ describe('Block reverting test', function () {
         }
 
         const secondDepositHandle = await extNode.tester.syncWallet.deposit({
-            token: zkweb3.utils.ETH_ADDRESS,
+            token: zkweb3.utils.LEGACY_ETH_ADDRESS,
             amount: depositAmount,
             to: alice.address
         });
@@ -330,7 +330,7 @@ describe('Block reverting test', function () {
 
         console.log('Execute an L1 transaction');
         const depositHandle = await extNode.tester.syncWallet.deposit({
-            token: zkweb3.utils.ETH_ADDRESS,
+            token: zkweb3.utils.LEGACY_ETH_ADDRESS,
             amount: depositAmount,
             to: alice.address
         });
