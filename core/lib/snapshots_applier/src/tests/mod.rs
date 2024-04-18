@@ -17,8 +17,8 @@ use zksync_types::{
 };
 
 use self::utils::{
-    mock_miniblock_header, mock_recovery_status, mock_snapshot_header, mock_tokens,
-    prepare_clients, random_storage_logs, MockMainNodeClient, ObjectStoreWithErrors,
+    mock_l2_block_header, mock_recovery_status, mock_snapshot_header, mock_tokens, prepare_clients,
+    random_storage_logs, MockMainNodeClient, ObjectStoreWithErrors,
 };
 use super::*;
 
@@ -102,7 +102,7 @@ async fn snapshots_creator_can_successfully_recover_db(
         assert_eq!(db_log.address, *expected_log.key.address());
         assert_eq!(db_log.key, *expected_log.key.key());
         assert_eq!(db_log.value, expected_log.value);
-        assert_eq!(db_log.miniblock_number, expected_status.miniblock_number);
+        assert_eq!(db_log.l2_block_number, expected_status.l2_block_number);
     }
 
     // Try recovering again.
@@ -121,10 +121,10 @@ async fn snapshots_creator_can_successfully_recover_db(
         .save_protocol_version_with_tx(&ProtocolVersion::default())
         .await
         .unwrap();
-    let miniblock = mock_miniblock_header(expected_status.miniblock_number + 1);
+    let l2_block = mock_l2_block_header(expected_status.l2_block_number + 1);
     storage
         .blocks_dal()
-        .insert_miniblock(&miniblock)
+        .insert_l2_block(&l2_block)
         .await
         .unwrap();
     drop(storage);
@@ -156,7 +156,7 @@ async fn health_status_immediately_after_task_start() {
 
         async fn fetch_l2_block_details(
             &self,
-            _number: MiniblockNumber,
+            _number: L2BlockNumber,
         ) -> EnrichedClientResult<Option<BlockDetails>> {
             self.0.wait().await;
             future::pending().await
@@ -169,7 +169,7 @@ async fn health_status_immediately_after_task_start() {
 
         async fn fetch_tokens(
             &self,
-            _at_miniblock: MiniblockNumber,
+            _at_l2_block: L2BlockNumber,
         ) -> EnrichedClientResult<Vec<TokenInfo>> {
             self.0.wait().await;
             future::pending().await
@@ -207,10 +207,10 @@ async fn applier_errors_after_genesis() {
         .save_protocol_version_with_tx(&ProtocolVersion::default())
         .await
         .unwrap();
-    let genesis_miniblock = mock_miniblock_header(MiniblockNumber(0));
+    let genesis_l2_block = mock_l2_block_header(L2BlockNumber(0));
     storage
         .blocks_dal()
-        .insert_miniblock(&genesis_miniblock)
+        .insert_l2_block(&genesis_l2_block)
         .await
         .unwrap();
     let genesis_l1_batch = L1BatchHeader::new(
@@ -226,7 +226,7 @@ async fn applier_errors_after_genesis() {
         .unwrap();
     storage
         .blocks_dal()
-        .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(0))
+        .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
         .await
         .unwrap();
     drop(storage);

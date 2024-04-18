@@ -41,7 +41,7 @@ use zksync_merkle_tree::TreeEntry;
 use zksync_shared_metrics::{SnapshotRecoveryStage, APP_METRICS};
 use zksync_types::{
     snapshots::{uniform_hashed_keys_chunk, SnapshotRecoveryStatus},
-    MiniblockNumber, H256,
+    L2BlockNumber, H256,
 };
 
 use super::{
@@ -112,7 +112,7 @@ impl HandleRecoveryEvent for RecoveryHealthUpdater<'_> {
 
 #[derive(Debug, Clone, Copy)]
 struct SnapshotParameters {
-    miniblock: MiniblockNumber,
+    miniblock: L2BlockNumber,
     expected_root_hash: H256,
     log_count: u64,
 }
@@ -126,7 +126,7 @@ impl SnapshotParameters {
         pool: &ConnectionPool<Core>,
         recovery: &SnapshotRecoveryStatus,
     ) -> anyhow::Result<Self> {
-        let miniblock = recovery.miniblock_number;
+        let miniblock = recovery.l2_block_number;
         let expected_root_hash = recovery.l1_batch_root_hash;
 
         let mut storage = pool.connection().await?;
@@ -290,14 +290,14 @@ impl AsyncTreeRecovery {
     async fn filter_chunks(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        snapshot_miniblock: MiniblockNumber,
+        snapshot_miniblock: L2BlockNumber,
         key_chunks: &[ops::RangeInclusive<H256>],
     ) -> anyhow::Result<Vec<ops::RangeInclusive<H256>>> {
         let chunk_starts_latency =
             RECOVERY_METRICS.latency[&RecoveryStage::LoadChunkStarts].start();
         let chunk_starts = storage
             .storage_logs_dal()
-            .get_chunk_starts_for_miniblock(snapshot_miniblock, key_chunks)
+            .get_chunk_starts_for_l2_block(snapshot_miniblock, key_chunks)
             .await?;
         let chunk_starts_latency = chunk_starts_latency.observe();
         tracing::debug!(
@@ -333,7 +333,7 @@ impl AsyncTreeRecovery {
 
     async fn recover_key_chunk(
         tree: &Mutex<AsyncTreeRecovery>,
-        snapshot_miniblock: MiniblockNumber,
+        snapshot_miniblock: L2BlockNumber,
         key_chunk: ops::RangeInclusive<H256>,
         pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
@@ -351,7 +351,7 @@ impl AsyncTreeRecovery {
             RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::LoadEntries].start();
         let all_entries = storage
             .storage_logs_dal()
-            .get_tree_entries_for_miniblock(snapshot_miniblock, key_chunk.clone())
+            .get_tree_entries_for_l2_block(snapshot_miniblock, key_chunk.clone())
             .await?;
         drop(storage);
         let entries_latency = entries_latency.observe();

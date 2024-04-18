@@ -7,7 +7,7 @@ use zksync_consensus_executor as executor;
 use zksync_consensus_network as network;
 use zksync_consensus_network::testonly::{new_configs, new_fullnode};
 use zksync_consensus_roles::validator::testonly::Setup;
-use zksync_types::{L1BatchNumber, MiniblockNumber};
+use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 use super::*;
 use crate::utils::testonly::Snapshot;
@@ -15,7 +15,7 @@ use crate::utils::testonly::Snapshot;
 async fn new_store(from_snapshot: bool) -> Store {
     match from_snapshot {
         true => {
-            Store::from_snapshot(Snapshot::make(L1BatchNumber(23), MiniblockNumber(87), &[])).await
+            Store::from_snapshot(Snapshot::make(L1BatchNumber(23), L2BlockNumber(87), &[])).await
         }
         false => Store::from_genesis().await,
     }

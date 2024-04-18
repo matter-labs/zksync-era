@@ -6,14 +6,14 @@ use async_trait::async_trait;
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreError, ObjectStoreFactory};
 use zksync_types::{
     api,
-    block::MiniblockHeader,
+    block::L2BlockHeader,
     snapshots::{
         SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotHeader,
         SnapshotRecoveryStatus, SnapshotStorageLog, SnapshotStorageLogsChunk,
         SnapshotStorageLogsChunkMetadata, SnapshotStorageLogsStorageKey, SnapshotVersion,
     },
     tokens::{TokenInfo, TokenMetadata},
-    AccountTreeId, Address, Bytes, L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey,
+    AccountTreeId, Address, Bytes, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
     StorageValue, H160, H256,
 };
 use zksync_web3_decl::error::EnrichedClientResult;
@@ -23,7 +23,7 @@ use crate::SnapshotsApplierMainNodeClient;
 #[derive(Debug, Clone, Default)]
 pub(super) struct MockMainNodeClient {
     pub fetch_l1_batch_responses: HashMap<L1BatchNumber, api::L1BatchDetails>,
-    pub fetch_l2_block_responses: HashMap<MiniblockNumber, api::BlockDetails>,
+    pub fetch_l2_block_responses: HashMap<L2BlockNumber, api::BlockDetails>,
     pub fetch_newest_snapshot_response: Option<SnapshotHeader>,
     pub tokens_response: Vec<TokenInfo>,
 }
@@ -39,7 +39,7 @@ impl SnapshotsApplierMainNodeClient for MockMainNodeClient {
 
     async fn fetch_l2_block_details(
         &self,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
     ) -> EnrichedClientResult<Option<api::BlockDetails>> {
         Ok(self.fetch_l2_block_responses.get(&number).cloned())
     }
@@ -50,7 +50,7 @@ impl SnapshotsApplierMainNodeClient for MockMainNodeClient {
 
     async fn fetch_tokens(
         &self,
-        _at_miniblock: MiniblockNumber,
+        _at_l2_block: L2BlockNumber,
     ) -> EnrichedClientResult<Vec<TokenInfo>> {
         Ok(self.tokens_response.clone())
     }
@@ -106,11 +106,11 @@ impl ObjectStore for ObjectStoreWithErrors {
     }
 }
 
-pub(super) fn mock_miniblock_header(miniblock_number: MiniblockNumber) -> MiniblockHeader {
-    MiniblockHeader {
-        number: miniblock_number,
+pub(super) fn mock_l2_block_header(l2_block_number: L2BlockNumber) -> L2BlockHeader {
+    L2BlockHeader {
+        number: l2_block_number,
         timestamp: 0,
-        hash: H256::from_low_u64_be(u64::from(miniblock_number.0)),
+        hash: H256::from_low_u64_be(u64::from(l2_block_number.0)),
         l1_tx_count: 0,
         l2_tx_count: 0,
         fee_account_address: Address::repeat_byte(1),
@@ -143,8 +143,8 @@ fn block_details_base(hash: H256) -> api::BlockDetailsBase {
     }
 }
 
-fn miniblock_details(
-    number: MiniblockNumber,
+fn l2_block_details(
+    number: L2BlockNumber,
     l1_batch_number: L1BatchNumber,
     hash: H256,
 ) -> api::BlockDetails {
@@ -186,9 +186,9 @@ pub(super) fn mock_recovery_status() -> SnapshotRecoveryStatus {
         l1_batch_number: L1BatchNumber(123),
         l1_batch_root_hash: H256::random(),
         l1_batch_timestamp: 0,
-        miniblock_number: MiniblockNumber(321),
-        miniblock_hash: H256::random(),
-        miniblock_timestamp: 0,
+        l2_block_number: L2BlockNumber(321),
+        l2_block_hash: H256::random(),
+        l2_block_timestamp: 0,
         protocol_version: ProtocolVersionId::default(),
         storage_logs_chunks_processed: vec![true, true],
     }
@@ -221,7 +221,7 @@ pub(super) fn mock_snapshot_header(status: &SnapshotRecoveryStatus) -> SnapshotH
     SnapshotHeader {
         version: SnapshotVersion::Version0.into(),
         l1_batch_number: status.l1_batch_number,
-        miniblock_number: status.miniblock_number,
+        l2_block_number: status.l2_block_number,
         storage_logs_chunks: vec![
             SnapshotStorageLogsChunkMetadata {
                 chunk_id: 0,
@@ -279,11 +279,11 @@ pub(super) async fn prepare_clients(
         l1_batch_details(status.l1_batch_number, status.l1_batch_root_hash),
     );
     client.fetch_l2_block_responses.insert(
-        status.miniblock_number,
-        miniblock_details(
-            status.miniblock_number,
+        status.l2_block_number,
+        l2_block_details(
+            status.l2_block_number,
             status.l1_batch_number,
-            status.miniblock_hash,
+            status.l2_block_hash,
         ),
     );
     (object_store, client)
