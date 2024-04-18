@@ -16,7 +16,7 @@ use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
 use zksync_types::{
-    block::L1BatchHeader, AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey,
+    block::L1BatchHeader, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, StorageKey,
     StorageLog, H256,
 };
 use zksync_utils::u32_to_h256;
@@ -459,12 +459,12 @@ pub(crate) async fn reset_db_state(pool: &ConnectionPool<Core>, num_batches: usi
     // Drops all L1 batches (except the L1 batch with number 0) and their storage logs.
     storage
         .storage_logs_dal()
-        .rollback_storage_logs(MiniblockNumber(0))
+        .rollback_storage_logs(L2BlockNumber(0))
         .await
         .unwrap();
     storage
         .blocks_dal()
-        .delete_miniblocks(MiniblockNumber(0))
+        .delete_l2_blocks(L2BlockNumber(0))
         .await
         .unwrap();
     storage
@@ -523,7 +523,7 @@ pub(super) async fn extend_db_state_from_l1_batch(
             .unwrap();
         storage
             .blocks_dal()
-            .insert_miniblock(&miniblock_header)
+            .insert_l2_block(&miniblock_header)
             .await
             .unwrap();
         storage
@@ -533,7 +533,7 @@ pub(super) async fn extend_db_state_from_l1_batch(
             .unwrap();
         storage
             .blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(batch_number)
+            .mark_l2_blocks_as_executed_in_l1_batch(batch_number)
             .await
             .unwrap();
         insert_initial_writes_for_batch(storage, batch_number).await;
