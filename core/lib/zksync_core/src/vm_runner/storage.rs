@@ -278,7 +278,8 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
                 tracing::info!("`StorageSyncTask` was interrupted");
                 return Ok(());
             }
-            // State guard lock also serves as a Mutex between `StorageSyncTask` and `VmRunnerStorage`
+            // It's important to hold a lock on `state` while we are updating RocksDB cache
+            // as otherwise `VmRunnerStorage` will have an inconsistent view on DB state.
             let mut state = self.state.write().await;
             let mut conn = self.pool.connection_tagged(L::name()).await?;
             let latest_processed_batch = self.loader.latest_processed_batch(&mut conn).await?;
@@ -296,6 +297,7 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
             state
                 .storage
                 .retain(|l1_batch_number, _| l1_batch_number > &latest_processed_batch);
+            drop(state);
             let max_present = state
                 .storage
                 .last_entry()
@@ -334,9 +336,11 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
                     factory_dep_diff,
                 };
 
+                let mut state = self.state.write().await;
                 state
                     .storage
                     .insert(l1_batch_number, BatchData { execute_data, diff });
+                drop(state);
             }
             drop(conn);
         }
