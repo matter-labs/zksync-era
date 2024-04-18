@@ -66,7 +66,7 @@ async fn getting_nonce_for_account() {
     let nonce = tx_sender.get_expected_nonce(test_address).await.unwrap();
     assert_eq!(nonce, Nonce(123));
 
-    // Insert another miniblock with a new nonce log.
+    // Insert another L2 block with a new nonce log.
     storage
         .blocks_dal()
         .insert_l2_block(&create_l2_block(1))
@@ -91,7 +91,7 @@ async fn getting_nonce_for_account() {
 
 #[tokio::test]
 async fn getting_nonce_for_account_after_snapshot_recovery() {
-    const SNAPSHOT_MINIBLOCK_NUMBER: L2BlockNumber = L2BlockNumber(42);
+    const SNAPSHOT_L2_BLOCK_NUMBER: L2BlockNumber = L2BlockNumber(42);
 
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
@@ -104,7 +104,7 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
     prepare_recovery_snapshot(
         &mut storage,
         L1BatchNumber(23),
-        SNAPSHOT_MINIBLOCK_NUMBER,
+        SNAPSHOT_L2_BLOCK_NUMBER,
         &nonce_logs,
     )
     .await;
@@ -115,7 +115,7 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
 
     storage
         .blocks_dal()
-        .insert_l2_block(&create_l2_block(SNAPSHOT_MINIBLOCK_NUMBER.0 + 1))
+        .insert_l2_block(&create_l2_block(SNAPSHOT_L2_BLOCK_NUMBER.0 + 1))
         .await
         .unwrap();
     let new_nonce_logs = vec![StorageLog::new_write_log(
@@ -125,7 +125,7 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
     storage
         .storage_logs_dal()
         .insert_storage_logs(
-            SNAPSHOT_MINIBLOCK_NUMBER + 1,
+            SNAPSHOT_L2_BLOCK_NUMBER + 1,
             &[(H256::default(), new_nonce_logs)],
         )
         .await

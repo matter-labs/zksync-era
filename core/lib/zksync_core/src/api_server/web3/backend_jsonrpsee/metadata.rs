@@ -77,7 +77,7 @@ impl MethodTracer {
         }
     }
 
-    /// Sets the difference between the latest sealed miniblock and the requested miniblock for the current JSON-RPC method call.
+    /// Sets the difference between the latest sealed L2 block and the requested L2 block for the current JSON-RPC method call.
     /// It will be used as a metric label for method latency etc.
     ///
     /// This should be called inside JSON-RPC method handlers; otherwise, this method is a no-op.
