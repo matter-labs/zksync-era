@@ -186,7 +186,7 @@ pub enum Component {
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
-    /// Component generating BFT consensus certificates for miniblocks.
+    /// Component generating BFT consensus certificates for L2 blocks.
     Consensus,
     /// Component generating commitment for L1 batches.
     CommitmentGenerator,
@@ -843,16 +843,16 @@ async fn add_state_keeper_to_task_futures(
         mempool
     };
 
-    let miniblock_sealer_pool = pool_builder
+    let l2_block_sealer_pool = pool_builder
         .build()
         .await
-        .context("failed to build miniblock_sealer_pool")?;
-    let (persistence, miniblock_sealer) = StateKeeperPersistence::new(
-        miniblock_sealer_pool,
+        .context("failed to build l2_block_sealer_pool")?;
+    let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
+        l2_block_sealer_pool,
         contracts_config.l2_erc20_bridge_addr,
         state_keeper_config.miniblock_seal_queue_capacity,
     );
-    task_futures.push(tokio::spawn(miniblock_sealer.run()));
+    task_futures.push(tokio::spawn(l2_block_sealer.run()));
 
     let (state_keeper, async_catchup_task) = create_state_keeper(
         state_keeper_config,
@@ -1297,7 +1297,7 @@ async fn run_http_api(
     let updaters_pool = ConnectionPool::<Core>::builder(postgres_config.replica_url()?, 2)
         .build()
         .await
-        .context("failed to build last_miniblock_pool")?;
+        .context("failed to build updaters_pool")?;
 
     let mut api_builder =
         web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
@@ -1352,10 +1352,10 @@ async fn run_ws_api(
         storage_caches,
     )
     .await;
-    let last_miniblock_pool = ConnectionPool::<Core>::singleton(postgres_config.replica_url()?)
+    let updaters_pool = ConnectionPool::<Core>::singleton(postgres_config.replica_url()?)
         .build()
         .await
-        .context("failed to build last_miniblock_pool")?;
+        .context("failed to build updaters_pool")?;
 
     let mut namespaces = Namespace::DEFAULT.to_vec();
     namespaces.push(Namespace::Snapshots);
@@ -1363,7 +1363,7 @@ async fn run_ws_api(
     let mut api_builder =
         web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
             .ws(api_config.web3_json_rpc.ws_port)
-            .with_updaters_pool(last_miniblock_pool)
+            .with_updaters_pool(updaters_pool)
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())
             .with_subscriptions_limit(api_config.web3_json_rpc.subscriptions_limit())
             .with_batch_request_size_limit(api_config.web3_json_rpc.max_batch_request_size())

@@ -489,7 +489,7 @@ pub(crate) async fn create_genesis_l1_batch(
         protocol_version,
     );
 
-    let genesis_miniblock_header = L2BlockHeader {
+    let genesis_l2_block_header = L2BlockHeader {
         number: L2BlockNumber(0),
         timestamp: 0,
         hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
@@ -524,7 +524,7 @@ pub(crate) async fn create_genesis_l1_batch(
         .await?;
     transaction
         .blocks_dal()
-        .insert_l2_block(&genesis_miniblock_header)
+        .insert_l2_block(&genesis_l2_block_header)
         .await?;
     transaction
         .blocks_dal()
