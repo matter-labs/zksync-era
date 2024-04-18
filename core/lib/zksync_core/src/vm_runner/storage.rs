@@ -87,6 +87,13 @@ struct State {
     storage: BTreeMap<L1BatchNumber, BatchData>,
 }
 
+impl State {
+    /// Whether this state can serve as a `ReadStorage` source for the given L1 batch.
+    fn can_be_used_for_l1_batch(&self, l1_batch_number: L1BatchNumber) -> bool {
+        l1_batch_number == self.l1_batch_number || self.storage.contains_key(&l1_batch_number)
+    }
+}
+
 impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
     /// Creates a new VM runner storage using provided Postgres pool and RocksDB path.
     pub async fn new(
@@ -140,8 +147,7 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
                     .context("Failed accessing Postgres storage")?,
             ));
         };
-        if l1_batch_number != state.l1_batch_number && !state.storage.contains_key(&l1_batch_number)
-        {
+        if !state.can_be_used_for_l1_batch(l1_batch_number) {
             tracing::debug!(
                 %l1_batch_number,
                 min_l1_batch = %state.l1_batch_number,
@@ -312,12 +318,12 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
             state
                 .storage
                 .retain(|l1_batch_number, _| l1_batch_number > &latest_processed_batch);
-            drop(state);
             let max_present = state
                 .storage
                 .last_entry()
                 .map(|e| *e.key())
                 .unwrap_or(latest_processed_batch);
+            drop(state);
             let max_desired = self.loader.last_ready_to_be_loaded_batch(&mut conn).await?;
             for l1_batch_number in max_present.0 + 1..=max_desired.0 {
                 let l1_batch_number = L1BatchNumber(l1_batch_number);
