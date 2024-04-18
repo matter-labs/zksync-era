@@ -92,6 +92,7 @@ async function hyperchainUpgrade3() {
 }
 
 async function preparePostUpgradeCalldata() {
+    console.log("Preparing post upgrade calldata", process.env.CONTRACTS_ERA_CHAIN_ID, process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR, process.env.CONTRACTS_STATE_TRANSITION_PROXY_ADDR, process.env.CONTRACTS_L1_SHARED_BRIDGE_PROXY_ADDR)
     let calldata = new ethers.utils.AbiCoder().encode(
         ['uint256', 'address', 'address', 'address'],
         [
@@ -124,9 +125,6 @@ async function deploySharedBridgeL2Implementation() {
 async function hyperchainFullUpgrade() {
     process.chdir(`${process.env.ZKSYNC_HOME}`);
 
-    await spawn(
-        'cd contracts && yarn l1 clean && yarn l2 clean && yarn sc clean && yarn l1 build && yarn l2 build && yarn sc build && cd ../'
-    );
     await spawn(
         'cp etc/env/.init.env etc/env/l1-inits/.init.env && rm ./etc/env/l2-inits/zksync_local.init.env && rm ./etc/env/target/zksync_local.env'
     );
@@ -211,7 +209,7 @@ command
             // this is the batch number that the last deposit is processed in ( this is tied to a tx, so commit vs executed is not relevant)
             // we will print the priority tx queue id as part of phase 2 script for local testing, and we can use that to find the batch number
             // for the mainnet upgrade we will have to manually check the priority queue at the given block, since governance is signing the txs
-        } else if (options.full) {
+        } else if (options.fullStart) {
             await hyperchainFullUpgrade();
         } else if (options.executeUpgrade) {
             await spawn(
