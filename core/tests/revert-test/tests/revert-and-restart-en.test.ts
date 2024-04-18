@@ -1,8 +1,8 @@
 // Test of the behaviour of the external node when L1 batches get reverted.
 //
 // NOTE:
-// main_contract.getTotalBlocksCommitted actually checks the number of batches committed.
-// main_contract.getTotalBlocksExecuted actually checks the number of batches executed.
+// main_contract.getTotalBatchesCommitted actually checks the number of batches committed.
+// main_contract.getTotalBatchesExecuted actually checks the number of batches executed.
 // TODO: Migrate from zksync-web3 to zksync-ethers.
 import * as utils from 'zk/build/utils';
 import { Tester } from './tester';
@@ -83,7 +83,10 @@ function fetchEnv(zksyncEnv: string): any {
 function runBlockReverter(args: string[]): string {
     let env = fetchEnv(mainEnv);
     env.RUST_LOG = 'off';
-    let res = run('./target/release/block_reverter', args, { cwd: env.ZKSYNC_HOME, env: env });
+    let res = run('./target/release/block_reverter', args, { cwd: env.ZKSYNC_HOME, env: {
+        ...env,
+        PATH: process.env.PATH
+ } });
     console.log(res.stderr.toString());
     return res.stdout.toString();
 }
@@ -183,7 +186,7 @@ class ExtNode {
             }
         });
         // Wait until the node starts responding.
-        let tester: Tester = await Tester.init(env.EN_ETH_CLIENT_URL, `http://localhost:${env.EN_HTTP_PORT}`);
+        let tester: Tester = await Tester.init(env.EN_ETH_CLIENT_URL, `http://127.0.0.1:${env.EN_HTTP_PORT}`);
         while (true) {
             try {
                 await tester.syncWallet.provider.getBlockNumber();
@@ -252,10 +255,10 @@ describe('Block reverting test', function () {
         mainNode = await MainNode.spawn(mainLogs, enableConsensus, false);
 
         console.log('Commit at least 2 L1 batches which are not executed');
-        const lastExecuted: BigNumber = await main_contract.getTotalBlocksExecuted();
+        const lastExecuted: BigNumber = await main_contract.getTotalBatchesExecuted();
         // One is not enough to test the reversion of sk cache because
         // it gets updated with some batch logs only at the start of the next batch.
-        const initialL1BatchNumber = (await main_contract.getTotalBlocksCommitted()).toNumber();
+        const initialL1BatchNumber = (await main_contract.getTotalBatchesCommitted()).toNumber();
         const firstDepositHandle = await extNode.tester.syncWallet.deposit({
             token: zkweb3.utils.LEGACY_ETH_ADDRESS,
             amount: depositAmount,
@@ -278,7 +281,7 @@ describe('Block reverting test', function () {
         }
 
         while (true) {
-            const lastCommitted: BigNumber = await main_contract.getTotalBlocksCommitted();
+            const lastCommitted: BigNumber = await main_contract.getTotalBatchesCommitted();
             console.log(`lastExecuted = ${lastExecuted}, lastCommitted = ${lastCommitted}`);
             if (lastCommitted.sub(lastExecuted).gte(2)) {
                 break;
@@ -294,7 +297,7 @@ describe('Block reverting test', function () {
             'print-suggested-values',
             '--json',
             '--operator-address',
-            '0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7'
+            '0x52312AD6f01657413b2eaE9287f6B9ADaD93D5FE'
         ]);
         console.log(`values = ${values_json}`);
         const values = parseSuggestedValues(values_json);
@@ -312,7 +315,7 @@ describe('Block reverting test', function () {
         ]);
 
         console.log('Check that batches are reverted on L1');
-        const lastCommitted2 = await main_contract.getTotalBlocksCommitted();
+        const lastCommitted2 = await main_contract.getTotalBatchesCommitted();
         console.log(`lastCommitted = ${lastCommitted2}, want ${lastExecuted}`);
         assert(lastCommitted2.eq(lastExecuted));
 
