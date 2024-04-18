@@ -6,12 +6,9 @@ use zksync_utils::u256_to_h256;
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
-        tests::{
-            tester::{get_empty_storage, VmTesterBuilder},
-            utils::get_balance,
-        },
-        HistoryEnabled,
+    vm_fast::tests::{
+        tester::{get_empty_storage, VmTesterBuilder},
+        utils::get_balance,
     },
 };
 
@@ -59,7 +56,7 @@ fn test_send_or_transfer(test_option: TestOptions) {
         u256_to_h256(value),
     );
 
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_storage(storage)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_deployer()
@@ -94,7 +91,7 @@ fn test_send_or_transfer(test_option: TestOptions) {
     let new_recipient_balance = get_balance(
         AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
         &recipient_address,
-        vm.vm.state.storage.storage.get_ptr(),
+        vm.vm.storage.clone(),
     );
 
     assert_eq!(new_recipient_balance, value);
@@ -150,7 +147,7 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
         ),
     };
 
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_deployer()
