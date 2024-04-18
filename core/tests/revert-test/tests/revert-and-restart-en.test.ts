@@ -123,7 +123,7 @@ class MainNode {
             stdio: [null, logs, logs],
             env: {
                 ...env,
-                PATH: process.env.PATH,
+                PATH: process.env.PATH
             }
         });
         // Wait until the main node starts responding.
@@ -179,7 +179,7 @@ class ExtNode {
             stdio: [null, logs, logs],
             env: {
                 ...env,
-                PATH: process.env.PATH,
+                PATH: process.env.PATH
             }
         });
         // Wait until the node starts responding.
