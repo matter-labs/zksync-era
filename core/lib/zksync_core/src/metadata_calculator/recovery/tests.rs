@@ -32,7 +32,7 @@ use crate::{
 #[test]
 fn calculating_chunk_count() {
     let mut snapshot = SnapshotParameters {
-        miniblock: L2BlockNumber(1),
+        l2_block: L2BlockNumber(1),
         log_count: 160_000_000,
         expected_root_hash: H256::zero(),
     };

@@ -111,7 +111,7 @@ impl HandleRecoveryEvent for RecoveryHealthUpdater<'_> {
 
 #[derive(Debug, Clone, Copy)]
 struct SnapshotParameters {
-    miniblock: L2BlockNumber,
+    l2_block: L2BlockNumber,
     expected_root_hash: H256,
     log_count: u64,
 }
@@ -125,18 +125,17 @@ impl SnapshotParameters {
         pool: &ConnectionPool<Core>,
         recovery: &SnapshotRecoveryStatus,
     ) -> anyhow::Result<Self> {
-        let miniblock = recovery.l2_block_number;
+        let l2_block = recovery.l2_block_number;
         let expected_root_hash = recovery.l1_batch_root_hash;
 
         let mut storage = pool.connection().await?;
         let log_count = storage
             .storage_logs_dal()
-            .get_storage_logs_row_count(miniblock)
-            .await
-            .with_context(|| format!("Failed getting number of logs for miniblock #{miniblock}"))?;
+            .get_storage_logs_row_count(l2_block)
+            .await?;
 
         Ok(Self {
-            miniblock,
+            l2_block,
             expected_root_hash,
             log_count,
         })
@@ -230,7 +229,7 @@ impl AsyncTreeRecovery {
 
         let mut storage = pool.connection().await?;
         let remaining_chunks = self
-            .filter_chunks(&mut storage, snapshot.miniblock, &chunks)
+            .filter_chunks(&mut storage, snapshot.l2_block, &chunks)
             .await?;
         drop(storage);
         options
@@ -249,7 +248,7 @@ impl AsyncTreeRecovery {
                 .await
                 .context("semaphore is never closed")?;
             options.events.chunk_started().await;
-            Self::recover_key_chunk(&tree, snapshot.miniblock, chunk, pool, stop_receiver).await?;
+            Self::recover_key_chunk(&tree, snapshot.l2_block, chunk, pool, stop_receiver).await?;
             options.events.chunk_recovered().await;
             anyhow::Ok(())
         });
@@ -280,14 +279,14 @@ impl AsyncTreeRecovery {
     async fn filter_chunks(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        snapshot_miniblock: L2BlockNumber,
+        snapshot_l2_block: L2BlockNumber,
         key_chunks: &[ops::RangeInclusive<H256>],
     ) -> anyhow::Result<Vec<ops::RangeInclusive<H256>>> {
         let chunk_starts_latency =
             RECOVERY_METRICS.latency[&RecoveryStage::LoadChunkStarts].start();
         let chunk_starts = storage
             .storage_logs_dal()
-            .get_chunk_starts_for_l2_block(snapshot_miniblock, key_chunks)
+            .get_chunk_starts_for_l2_block(snapshot_l2_block, key_chunks)
             .await?;
         let chunk_starts_latency = chunk_starts_latency.observe();
         tracing::debug!(
@@ -313,7 +312,7 @@ impl AsyncTreeRecovery {
             }
             anyhow::ensure!(
                 tree_entry.value == db_entry.value && tree_entry.leaf_index == db_entry.leaf_index,
-                "Mismatch between entry for key {:0>64x} in Postgres snapshot for miniblock #{snapshot_miniblock} \
+                "Mismatch between entry for key {:0>64x} in Postgres snapshot for L2 block #{snapshot_l2_block} \
                  ({db_entry:?}) and tree ({tree_entry:?}); the recovery procedure may be corrupted",
                 db_entry.key
             );
@@ -323,7 +322,7 @@ impl AsyncTreeRecovery {
 
     async fn recover_key_chunk(
         tree: &Mutex<AsyncTreeRecovery>,
-        snapshot_miniblock: L2BlockNumber,
+        snapshot_l2_block: L2BlockNumber,
         key_chunk: ops::RangeInclusive<H256>,
         pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
@@ -341,7 +340,7 @@ impl AsyncTreeRecovery {
             RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::LoadEntries].start();
         let all_entries = storage
             .storage_logs_dal()
-            .get_tree_entries_for_l2_block(snapshot_miniblock, key_chunk.clone())
+            .get_tree_entries_for_l2_block(snapshot_l2_block, key_chunk.clone())
             .await?;
         drop(storage);
         let entries_latency = entries_latency.observe();
