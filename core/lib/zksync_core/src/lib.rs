@@ -98,7 +98,6 @@ use crate::{
 
 pub mod api_server;
 pub mod basic_witness_input_producer;
-pub mod block_reverter;
 pub mod consensus;
 pub mod consistency_checker;
 pub mod db_pruner;

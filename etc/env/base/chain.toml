@@ -21,6 +21,7 @@ max_allowed_l2_tx_gas_limit = 1125899906842624
 block_commit_deadline_ms = 5000
 miniblock_commit_deadline_ms = 1000
 miniblock_seal_queue_capacity = 10
+miniblock_max_payload_size=1000000
 # Max gas that can used to include single block in aggregated operation
 max_single_tx_gas = 6000000
 

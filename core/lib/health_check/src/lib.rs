@@ -263,6 +263,16 @@ impl AppHealth {
     pub fn is_healthy(&self) -> bool {
         self.inner.status.is_healthy()
     }
+
+    /// Returns a reference to the overall health of the application.
+    pub fn inner(&self) -> &Health {
+        &self.inner
+    }
+
+    /// Returns a reference to the component information.
+    pub fn components(&self) -> &HashMap<&'static str, Health> {
+        &self.components
+    }
 }
 
 /// Interface to be used for health checks.
