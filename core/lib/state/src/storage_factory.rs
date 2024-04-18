@@ -145,7 +145,7 @@ impl ReadStorage for PgOrRocksdbStorage<'_> {
                 batch_diffs,
             }) => match batch_diffs.iter().rev().find_map(|b| b.state_diff.get(key)) {
                 None => rocksdb.read_value(key),
-                Some(value) => value.clone(),
+                Some(value) => *value,
             },
         }
     }

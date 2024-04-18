@@ -208,7 +208,7 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<BatchExecuteData>> {
-        if let Some(_) = self.rocksdb_cell.get() {
+        if self.rocksdb_cell.get().is_some() {
             loop {
                 let state = self.state.read().await;
                 let mut conn = self.pool.connection_tagged(L::name()).await?;
@@ -353,8 +353,8 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
                     .get_touched_slots_for_l1_batch(l1_batch_number)
                     .await?;
                 let touched_keys = state_diff
-                    .iter()
-                    .map(|(key, _)| key.hashed_key())
+                    .keys()
+                    .map(|k| k.hashed_key())
                     .collect::<Vec<_>>();
                 let mut enum_index_diff = conn
                     .storage_logs_dal()
@@ -368,7 +368,7 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
                     .filter_map(|k| {
                         enum_index_diff
                             .remove_entry(&k.hashed_key())
-                            .map(|(_, v)| (k.clone(), v))
+                            .map(|(_, v)| (*k, v))
                     })
                     .collect();
                 let factory_dep_diff = conn
@@ -411,7 +411,7 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
             .load_l1_batch_params(
                 conn,
                 &first_miniblock_in_batch,
-                // validation_computational_gas_limit is only relevant when rejecting txs, but we
+                // `validation_computational_gas_limit` is only relevant when rejecting txs, but we
                 // are re-executing so none of them should be rejected
                 u32::MAX,
                 chain_id,
