@@ -201,7 +201,7 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
                     max_l1_batch = %state.storage.last_key_value().map(|(k, _)| *k).unwrap_or(state.l1_batch_number),
                     "Trying to load an L1 batch that is not available"
                 );
-                return Ok(None);
+                Ok(None)
             }
             Some(batch_data) => Ok(Some(batch_data.execute_data.clone())),
         }
