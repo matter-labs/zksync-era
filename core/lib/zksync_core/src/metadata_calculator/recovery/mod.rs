@@ -38,6 +38,7 @@ use tokio::sync::{watch, Mutex, Semaphore};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::TreeEntry;
+use zksync_shared_metrics::{SnapshotRecoveryStage, APP_METRICS};
 use zksync_types::{
     snapshots::{uniform_hashed_keys_chunk, SnapshotRecoveryStatus},
     MiniblockNumber, H256,
@@ -168,6 +169,7 @@ impl GenericAsyncTree {
         stop_receiver: &watch::Receiver<bool>,
         health_updater: &HealthUpdater,
     ) -> anyhow::Result<Option<AsyncTree>> {
+        let started_at = Instant::now();
         let (tree, snapshot_recovery) = match self {
             Self::Ready(tree) => return Ok(Some(tree)),
             Self::Recovering(tree) => {
@@ -205,8 +207,16 @@ impl GenericAsyncTree {
             concurrency_limit: recovery_pool.max_size() as usize,
             events: Box::new(RecoveryHealthUpdater::new(health_updater)),
         };
-        tree.recover(snapshot, recovery_options, &recovery_pool, stop_receiver)
-            .await
+        let tree = tree
+            .recover(snapshot, recovery_options, &recovery_pool, stop_receiver)
+            .await?;
+        if tree.is_some() {
+            // Only report latency if recovery wasn't cancelled
+            let elapsed = started_at.elapsed();
+            APP_METRICS.snapshot_recovery_latency[&SnapshotRecoveryStage::Tree].set(elapsed);
+            tracing::info!("Recovered Merkle tree in {elapsed:?}");
+        }
+        Ok(tree)
     }
 }
 

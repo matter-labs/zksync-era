@@ -16,6 +16,13 @@ use super::{
 };
 
 #[derive(Debug)]
+pub(super) enum Strategy {
+    Complete,
+    Recovery,
+    Genesis,
+}
+
+#[derive(Debug)]
 struct KeyChunk {
     id: u64,
     key_range: ops::RangeInclusive<H256>,
@@ -33,9 +40,9 @@ impl RocksdbStorage {
         storage: &mut Connection<'_, Core>,
         desired_log_chunk_size: u64,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<L1BatchNumber, RocksdbSyncError> {
+    ) -> Result<(Strategy, L1BatchNumber), RocksdbSyncError> {
         if let Some(number) = self.l1_batch_number().await {
-            return Ok(number);
+            return Ok((Strategy::Complete, number));
         }
 
         // Check whether we need to perform a snapshot migration.
@@ -52,10 +59,10 @@ impl RocksdbStorage {
                 stop_receiver,
             )
             .await?;
-            snapshot_recovery.l1_batch_number + 1
+            (Strategy::Recovery, snapshot_recovery.l1_batch_number + 1)
         } else {
             // No recovery snapshot; we're initializing the cache from the genesis
-            L1BatchNumber(0)
+            (Strategy::Genesis, L1BatchNumber(0))
         })
     }
 
