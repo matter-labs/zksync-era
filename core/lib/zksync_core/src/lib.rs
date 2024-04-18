@@ -47,6 +47,19 @@ use zksync_eth_client::{
 };
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
+use zksync_house_keeper::{
+    blocks_state_reporter::L1BatchMetricsReporter, fri_gpu_prover_archiver::FriGpuProverArchiver,
+    fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
+    fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter,
+    fri_prover_job_retry_manager::FriProverJobRetryManager,
+    fri_prover_jobs_archiver::FriProverJobArchiver,
+    fri_prover_queue_monitor::FriProverStatsReporter,
+    fri_scheduler_circuit_queuer::SchedulerCircuitQueuer,
+    fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager,
+    fri_witness_generator_queue_monitor::FriWitnessGeneratorStatsReporter,
+    periodic_job::PeriodicJob,
+    waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
+};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_shared_metrics::{InitStage, APP_METRICS};
@@ -71,20 +84,6 @@ use crate::{
         Aggregator, EthTxAggregator, EthTxManager,
     },
     genesis::GenesisParams,
-    house_keeper::{
-        blocks_state_reporter::L1BatchMetricsReporter,
-        fri_gpu_prover_archiver::FriGpuProverArchiver,
-        fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
-        fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter,
-        fri_prover_job_retry_manager::FriProverJobRetryManager,
-        fri_prover_jobs_archiver::FriProverJobArchiver,
-        fri_prover_queue_monitor::FriProverStatsReporter,
-        fri_scheduler_circuit_queuer::SchedulerCircuitQueuer,
-        fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager,
-        fri_witness_generator_queue_monitor::FriWitnessGeneratorStatsReporter,
-        periodic_job::PeriodicJob,
-        waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
-    },
     l1_gas_price::{
         GasAdjusterSingleton, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
     },
@@ -98,7 +97,6 @@ use crate::{
 
 pub mod api_server;
 pub mod basic_witness_input_producer;
-pub mod block_reverter;
 pub mod consensus;
 pub mod consistency_checker;
 pub mod db_pruner;
@@ -106,7 +104,6 @@ pub mod eth_sender;
 pub mod fee_model;
 pub mod gas_tracker;
 pub mod genesis;
-pub mod house_keeper;
 pub mod l1_gas_price;
 pub mod metadata_calculator;
 pub mod proof_data_handler;

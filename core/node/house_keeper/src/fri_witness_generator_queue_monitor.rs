@@ -5,7 +5,7 @@ use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
 use zksync_types::{basic_fri_types::AggregationRound, prover_dal::JobCountStatistics};
 
-use crate::house_keeper::periodic_job::PeriodicJob;
+use crate::periodic_job::PeriodicJob;
 
 const FRI_WITNESS_GENERATOR_SERVICE_NAME: &str = "fri_witness_generator";
 

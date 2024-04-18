@@ -177,6 +177,23 @@ impl IoSealCriteria for TimeoutSealer {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(super) struct L2BlockMaxPayloadSizeSealer {
+    max_payload_size: usize,
+}
+
+impl L2BlockMaxPayloadSizeSealer {
+    pub fn new(config: &StateKeeperConfig) -> Self {
+        Self {
+            max_payload_size: config.miniblock_max_payload_size,
+        }
+    }
+
+    pub fn should_seal_l2_block(&mut self, manager: &UpdatesManager) -> bool {
+        manager.l2_block.payload_encoding_size >= self.max_payload_size
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use zksync_utils::time::seconds_since_epoch;
@@ -186,8 +203,7 @@ mod tests {
         create_execution_result, create_transaction, create_updates_manager,
     };
 
-    fn apply_tx_to_manager(manager: &mut UpdatesManager) {
-        let tx = create_transaction(10, 100);
+    fn apply_tx_to_manager(tx: Transaction, manager: &mut UpdatesManager) {
         manager.extend_from_executed_transaction(
             tx,
             create_execution_result(0, []),
@@ -215,7 +231,7 @@ mod tests {
         );
 
         // Non-empty L2 block should trigger.
-        apply_tx_to_manager(&mut manager);
+        apply_tx_to_manager(create_transaction(10, 100), &mut manager);
         assert!(
             timeout_l2_block_sealer.should_seal_l2_block(&manager),
             "Non-empty L2 block with old timestamp should be sealed"
@@ -228,6 +244,29 @@ mod tests {
         assert!(
             !timeout_l2_block_sealer.should_seal_l2_block(&manager),
             "Non-empty L2 block with too recent timestamp shouldn't be sealed"
+        );
+    }
+
+    #[test]
+    fn max_size_l2_block_sealer() {
+        let tx = create_transaction(10, 100);
+        let tx_encoding_size =
+            zksync_protobuf::repr::encode::<zksync_dal::consensus::proto::Transaction>(&tx).len();
+
+        let mut max_payload_sealer = L2BlockMaxPayloadSizeSealer {
+            max_payload_size: tx_encoding_size,
+        };
+
+        let mut manager = create_updates_manager();
+        assert!(
+            !max_payload_sealer.should_seal_l2_block(&manager),
+            "Empty L2 block shouldn't be sealed"
+        );
+
+        apply_tx_to_manager(tx, &mut manager);
+        assert!(
+            max_payload_sealer.should_seal_l2_block(&manager),
+            "L2 block with payload encoding size equal or greater than max payload size should be sealed"
         );
     }
 }

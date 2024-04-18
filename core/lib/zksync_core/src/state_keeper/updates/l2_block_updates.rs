@@ -26,6 +26,7 @@ pub struct L2BlockUpdates {
     pub l1_gas_count: BlockGasCount,
     pub block_execution_metrics: ExecutionMetrics,
     pub txs_encoding_size: usize,
+    pub payload_encoding_size: usize,
     pub timestamp: u64,
     pub number: L2BlockNumber,
     pub prev_block_hash: H256,
@@ -51,6 +52,7 @@ impl L2BlockUpdates {
             l1_gas_count: BlockGasCount::default(),
             block_execution_metrics: ExecutionMetrics::default(),
             txs_encoding_size: 0,
+            payload_encoding_size: 0,
             timestamp,
             number,
             prev_block_hash,
@@ -130,6 +132,8 @@ impl L2BlockUpdates {
         self.l1_gas_count += tx_l1_gas_this_tx;
         self.block_execution_metrics += execution_metrics;
         self.txs_encoding_size += tx.bootloader_encoding_size();
+        self.payload_encoding_size +=
+            zksync_protobuf::repr::encode::<zksync_dal::consensus::proto::Transaction>(&tx).len();
         self.storage_logs
             .extend(tx_execution_result.logs.storage_logs);
 
@@ -183,6 +187,9 @@ mod tests {
         );
         let tx = create_transaction(10, 100);
         let bootloader_encoding_size = tx.bootloader_encoding_size();
+        let payload_encoding_size =
+            zksync_protobuf::repr::encode::<zksync_dal::consensus::proto::Transaction>(&tx).len();
+
         accumulator.extend_from_executed_transaction(
             tx,
             create_execution_result(0, []),
@@ -201,5 +208,6 @@ mod tests {
         assert_eq!(accumulator.new_factory_deps.len(), 0);
         assert_eq!(accumulator.block_execution_metrics.l2_to_l1_logs, 0);
         assert_eq!(accumulator.txs_encoding_size, bootloader_encoding_size);
+        assert_eq!(accumulator.payload_encoding_size, payload_encoding_size);
     }
 }

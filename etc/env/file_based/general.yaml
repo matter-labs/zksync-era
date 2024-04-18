@@ -69,6 +69,7 @@ state_keeper:
   block_commit_deadline_ms: 2500
   miniblock_commit_deadline_ms: 1000
   miniblock_seal_queue_capacity: 10
+  miniblock_max_payload_size: 1000000
   max_single_tx_gas: 6000000
   close_block_at_geometry_percentage: 0.95
   close_block_at_eth_params_percentage: 0.95
