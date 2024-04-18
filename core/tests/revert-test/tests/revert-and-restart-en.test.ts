@@ -72,6 +72,7 @@ function fetchEnv(zksyncEnv: string): any {
     let res = run('./bin/zk', ['f', 'env'], {
         cwd: process.env.ZKSYNC_HOME,
         env: {
+            PATH: process.env.PATH,
             ZKSYNC_ENV: zksyncEnv,
             ZKSYNC_HOME: process.env.ZKSYNC_HOME
         }
@@ -93,7 +94,7 @@ class MainNode {
     // Terminates all main node processes running.
     public static async terminateAll() {
         try {
-            await utils.exec('killall -INT zksync_server --wait');
+            await utils.exec('pkill -INT zksync_server --wait');
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
@@ -120,7 +121,10 @@ class MainNode {
         let proc = spawn('./target/release/zksync_server', ['--components', components], {
             cwd: env.ZKSYNC_HOME,
             stdio: [null, logs, logs],
-            env: env
+            env: {
+                ...env,
+                PATH: process.env.PATH,
+            }
         });
         // Wait until the main node starts responding.
         let tester: Tester = await Tester.init(env.ETH_CLIENT_WEB3_URL, env.API_WEB3_JSON_RPC_HTTP_URL);
@@ -155,7 +159,7 @@ class ExtNode {
     // Terminates all main node processes running.
     public static async terminateAll() {
         try {
-            await utils.exec('killall -INT zksync_external_node --wait');
+            await utils.exec('pkill -INT zksync_external_node --wait');
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
@@ -173,7 +177,10 @@ class ExtNode {
         let proc = spawn('./target/release/zksync_external_node', args, {
             cwd: env.ZKSYNC_HOME,
             stdio: [null, logs, logs],
-            env: env
+            env: {
+                ...env,
+                PATH: process.env.PATH,
+            }
         });
         // Wait until the node starts responding.
         let tester: Tester = await Tester.init(env.EN_ETH_CLIENT_URL, `http://localhost:${env.EN_HTTP_PORT}`);
