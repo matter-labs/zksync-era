@@ -10,7 +10,7 @@ use zksync_types::{L2BlockNumber, StorageLog};
 
 use super::*;
 use crate::test_utils::{
-    create_l1_batch, create_miniblock, gen_storage_logs, prepare_postgres,
+    create_l1_batch, create_l2_block, gen_storage_logs, prepare_postgres,
     prepare_postgres_for_snapshot_recovery,
 };
 
@@ -94,7 +94,7 @@ async fn rocksdb_storage_syncing_with_postgres() {
     let mut conn = pool.connection().await.unwrap();
     prepare_postgres(&mut conn).await;
     let storage_logs = gen_storage_logs(20..40);
-    create_miniblock(&mut conn, L2BlockNumber(1), storage_logs.clone()).await;
+    create_l2_block(&mut conn, L2BlockNumber(1), storage_logs.clone()).await;
     create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
@@ -114,7 +114,7 @@ async fn rocksdb_storage_syncing_fault_tolerance() {
     let storage_logs = gen_storage_logs(100..200);
     for (i, block_logs) in storage_logs.chunks(20).enumerate() {
         let number = u32::try_from(i).unwrap() + 1;
-        create_miniblock(&mut conn, L2BlockNumber(number), block_logs.to_vec()).await;
+        create_l2_block(&mut conn, L2BlockNumber(number), block_logs.to_vec()).await;
         create_l1_batch(&mut conn, L1BatchNumber(number), block_logs).await;
     }
 
@@ -158,14 +158,14 @@ async fn rocksdb_storage_syncing_fault_tolerance() {
 
 async fn insert_factory_deps(
     conn: &mut Connection<'_, Core>,
-    miniblock_number: L2BlockNumber,
+    l2_block_number: L2BlockNumber,
     indices: impl Iterator<Item = u8>,
 ) {
     let factory_deps = indices
         .map(|i| (H256::repeat_byte(i), vec![i; 64]))
         .collect();
     conn.factory_deps_dal()
-        .insert_factory_deps(miniblock_number, &factory_deps)
+        .insert_factory_deps(l2_block_number, &factory_deps)
         .await
         .unwrap();
 }
@@ -176,9 +176,9 @@ async fn rocksdb_storage_revert() {
     let mut conn = pool.connection().await.unwrap();
     prepare_postgres(&mut conn).await;
     let storage_logs = gen_storage_logs(20..40);
-    create_miniblock(&mut conn, L2BlockNumber(1), storage_logs[..10].to_vec()).await;
+    create_l2_block(&mut conn, L2BlockNumber(1), storage_logs[..10].to_vec()).await;
     insert_factory_deps(&mut conn, L2BlockNumber(1), 0..1).await;
-    create_miniblock(&mut conn, L2BlockNumber(2), storage_logs[10..].to_vec()).await;
+    create_l2_block(&mut conn, L2BlockNumber(2), storage_logs[10..].to_vec()).await;
     insert_factory_deps(&mut conn, L2BlockNumber(2), 1..3).await;
     create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
 
@@ -194,7 +194,7 @@ async fn rocksdb_storage_revert() {
 
     let mut new_storage_logs = inserted_storage_logs.clone();
     new_storage_logs.extend_from_slice(&replaced_storage_logs);
-    create_miniblock(&mut conn, L2BlockNumber(3), new_storage_logs).await;
+    create_l2_block(&mut conn, L2BlockNumber(3), new_storage_logs).await;
     insert_factory_deps(&mut conn, L2BlockNumber(3), 3..5).await;
     create_l1_batch(&mut conn, L1BatchNumber(2), &inserted_storage_logs).await;
 
@@ -247,7 +247,7 @@ async fn rocksdb_enum_index_migration() {
     let mut conn = pool.connection().await.unwrap();
     prepare_postgres(&mut conn).await;
     let storage_logs = gen_storage_logs(20..40);
-    create_miniblock(&mut conn, L2BlockNumber(1), storage_logs.clone()).await;
+    create_l2_block(&mut conn, L2BlockNumber(1), storage_logs.clone()).await;
     create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
 
     let enum_indices: HashMap<_, _> = conn
@@ -394,7 +394,7 @@ async fn recovering_from_snapshot_and_following_logs() {
 
     // Add some more storage logs.
     let new_storage_logs = gen_storage_logs(500..600);
-    create_miniblock(
+    create_l2_block(
         &mut conn,
         snapshot_recovery.l2_block_number + 1,
         new_storage_logs.clone(),
@@ -416,7 +416,7 @@ async fn recovering_from_snapshot_and_following_logs() {
             log
         })
         .collect();
-    create_miniblock(
+    create_l2_block(
         &mut conn,
         snapshot_recovery.l2_block_number + 2,
         updated_storage_logs.clone(),

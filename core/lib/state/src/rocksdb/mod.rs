@@ -506,15 +506,15 @@ impl RocksdbStorage {
             .context("failed getting logs for rollback")?;
         tracing::info!("Got {} logs, took {:?}", logs.len(), stage_start.elapsed());
 
-        tracing::info!("Getting number of last miniblock for L1 batch #{last_l1_batch_to_keep}...");
+        tracing::info!("Getting number of last L2 block for L1 batch #{last_l1_batch_to_keep}...");
         let stage_start = Instant::now();
-        let (_, last_miniblock_to_keep) = connection
+        let (_, last_l2_block_to_keep) = connection
             .blocks_dal()
             .get_l2_block_range_of_l1_batch(last_l1_batch_to_keep)
             .await?
-            .context("L1 batch should contain at least one miniblock")?;
+            .context("L1 batch should contain at least one L2 block")?;
         tracing::info!(
-            "Got miniblock number {last_miniblock_to_keep}, took {:?}",
+            "Got L2 block number {last_l2_block_to_keep}, took {:?}",
             stage_start.elapsed()
         );
 
@@ -522,7 +522,7 @@ impl RocksdbStorage {
         let stage_start = Instant::now();
         let factory_deps = connection
             .factory_deps_dal()
-            .get_factory_deps_for_revert(last_miniblock_to_keep)
+            .get_factory_deps_for_revert(last_l2_block_to_keep)
             .await?;
         tracing::info!(
             "Got {} factory deps, took {:?}",

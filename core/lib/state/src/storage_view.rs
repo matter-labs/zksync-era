@@ -33,7 +33,7 @@ pub struct StorageViewMetrics {
 /// In order to commit transactions logs should be submitted to the underlying storage
 /// after a transaction is executed.
 ///
-/// When executing transactions as a part of miniblock / L1 batch creation,
+/// When executing transactions as a part of L2 block / L1 batch creation,
 /// a single `StorageView` is used for the entire L1 batch.
 /// One `StorageView` must not be used for multiple L1 batches;
 /// otherwise, [`Self::is_write_initial()`] will return incorrect values because of the caching.
