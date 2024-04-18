@@ -392,17 +392,6 @@ impl MiniblockSealCommand {
             .await?;
         progress.observe(write_log_count);
 
-        #[allow(deprecated)] // Will be removed shortly
-        {
-            let progress =
-                MINIBLOCK_METRICS.start(MiniblockSealStage::ApplyStorageLogs, is_fictive);
-            transaction
-                .storage_dal()
-                .apply_storage_logs(&write_logs)
-                .await;
-            progress.observe(write_log_count);
-        }
-
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::InsertFactoryDeps, is_fictive);
         let new_factory_deps = &self.miniblock.new_factory_deps;
         let new_factory_deps_count = new_factory_deps.len();

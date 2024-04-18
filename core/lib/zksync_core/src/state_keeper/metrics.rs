@@ -256,7 +256,6 @@ pub(super) enum MiniblockSealStage {
     InsertMiniblockHeader,
     MarkTransactionsInMiniblock,
     InsertStorageLogs,
-    ApplyStorageLogs,
     InsertFactoryDeps,
     ExtractAddedTokens,
     InsertTokens,
