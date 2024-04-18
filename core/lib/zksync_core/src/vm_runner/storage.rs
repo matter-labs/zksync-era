@@ -1,3 +1,4 @@
+use std::time::Duration;
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::Debug,
@@ -284,6 +285,20 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
             let mut conn = self.pool.connection_tagged(L::name()).await?;
             let latest_processed_batch = self.loader.latest_processed_batch(&mut conn).await?;
             let rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb.clone());
+            if rocksdb_builder.l1_batch_number().await == Some(latest_processed_batch) {
+                // RocksDB is already caught up, we might not need to do anything.
+                // Just need to check that the memory diff is up-to-date in case this is a fresh start.
+                if state
+                    .storage
+                    .contains_key(&self.loader.last_ready_to_be_loaded_batch(&mut conn).await?)
+                {
+                    // No need to do anything, killing time until last processed batch is updated.
+                    drop(conn);
+                    drop(state);
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    continue;
+                }
+            }
             let rocksdb = rocksdb_builder
                 .synchronize(&mut conn, &stop_receiver, Some(latest_processed_batch))
                 .await
