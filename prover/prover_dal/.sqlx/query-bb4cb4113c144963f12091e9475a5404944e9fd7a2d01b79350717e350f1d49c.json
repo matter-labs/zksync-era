@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE witness_inputs_fri\n            SET\n                status = 'queued',\n                updated_at = NOW(),\n                processing_started_at = NOW()\n            WHERE\n                (\n                    status = 'in_progress'\n                    AND processing_started_at <= NOW() - $1::INTERVAL\n                    AND attempts < $2\n                )\n            RETURNING\n                l1_batch_number,\n                status\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "status",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Interval",
+        "Int2"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "bb4cb4113c144963f12091e9475a5404944e9fd7a2d01b79350717e350f1d49c"
+}

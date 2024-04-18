@@ -1,12 +1,13 @@
 #![doc = include_str!("../doc/FriWitnessGeneratorDal.md")]
-use std::{collections::HashMap, convert::TryFrom, time::Duration};
+use std::{collections::HashMap, convert::TryFrom, str::FromStr, time::Duration};
 
 use sqlx::Row;
 use zksync_basic_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     protocol_version::ProtocolVersionId,
     prover_dal::{
-        JobCountStatistics, LeafAggregationJobMetadata, NodeAggregationJobMetadata, StuckJobs,
+        JobCountStatistics, JobPosition, LeafAggregationJobMetadata, NodeAggregationJobMetadata,
+        StuckJobs, WitnessJobInfo, WitnessJobStatus,
     },
     L1BatchNumber,
 };
@@ -291,6 +292,132 @@ impl FriWitnessGeneratorDal<'_, '_> {
             id: row.l1_batch_number as u64,
             status: row.status,
             attempts: row.attempts as u64,
+        })
+        .collect()
+    }
+
+    pub async fn requeue_failed_jobs(&mut self, max_attempts: u32) -> Vec<WitnessJobInfo> {
+        sqlx::query!(
+            r#"
+            UPDATE witness_inputs_fri
+            SET
+                status = 'queued',
+                updated_at = NOW(),
+                processing_started_at = NOW()
+            WHERE
+                (
+                    status = 'failed'
+                    AND attempts < $1
+                )
+            RETURNING
+                l1_batch_number,
+                status
+            "#,
+            max_attempts as i32,
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| WitnessJobInfo {
+            block_number: L1BatchNumber(row.l1_batch_number as u32),
+            created_at: Default::default(),
+            updated_at: Default::default(),
+            status: WitnessJobStatus::from_str(&row.status).unwrap_or_else(|_| {
+                panic!(
+                    "Unknown value '{}' in witness job status db record.",
+                    row.status
+                )
+            }),
+            position: JobPosition {
+                aggregation_round: AggregationRound::BasicCircuits,
+                sequence_number: 1, // Witness job 1:1 aggregation round, per block
+            },
+        })
+        .collect()
+    }
+
+    pub async fn requeue_in_progress_jobs(
+        &mut self,
+        processing_timeout: Duration,
+        max_attempts: u32,
+    ) -> Vec<WitnessJobInfo> {
+        let processing_timeout = pg_interval_from_duration(processing_timeout);
+        sqlx::query!(
+            r#"
+            UPDATE witness_inputs_fri
+            SET
+                status = 'queued',
+                updated_at = NOW(),
+                processing_started_at = NOW()
+            WHERE
+                (
+                    status = 'in_progress'
+                    AND processing_started_at <= NOW() - $1::INTERVAL
+                    AND attempts < $2
+                )
+            RETURNING
+                l1_batch_number,
+                status
+            "#,
+            &processing_timeout,
+            max_attempts as i32,
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| WitnessJobInfo {
+            block_number: L1BatchNumber(row.l1_batch_number as u32),
+            created_at: Default::default(),
+            updated_at: Default::default(),
+            status: WitnessJobStatus::from_str(&row.status).unwrap_or_else(|_| {
+                panic!(
+                    "Unknown value '{}' in witness job status db record.",
+                    row.status
+                )
+            }),
+            position: JobPosition {
+                aggregation_round: AggregationRound::BasicCircuits,
+                sequence_number: 1, // Witness job 1:1 aggregation round, per block
+            },
+        })
+        .collect()
+    }
+
+    pub async fn requeue_successful_jobs(&mut self) -> Vec<WitnessJobInfo> {
+        sqlx::query!(
+            r#"
+            UPDATE witness_inputs_fri
+            SET
+                status = 'queued',
+                updated_at = NOW(),
+                processing_started_at = NOW()
+            WHERE
+                status = 'successful'
+            RETURNING
+                l1_batch_number,
+                status
+            "#,
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| WitnessJobInfo {
+            block_number: L1BatchNumber(row.l1_batch_number as u32),
+            created_at: Default::default(),
+            updated_at: Default::default(),
+            status: WitnessJobStatus::from_str(&row.status).unwrap_or_else(|_| {
+                panic!(
+                    "Unknown value '{}' in witness job status db record.",
+                    row.status
+                )
+            }),
+            position: JobPosition {
+                aggregation_round: AggregationRound::BasicCircuits,
+                sequence_number: 1, // Witness job 1:1 aggregation round, per block
+            },
         })
         .collect()
     }
