@@ -97,14 +97,17 @@ impl FriProtocolVersionsDal<'_, '_> {
     pub async fn get_l1_verifier_config(&mut self) -> L1VerifierConfig {
         let result = sqlx::query!(
             r#"
-                SELECT
-                    recursion_scheduler_level_vk_hash,
-                    recursion_node_level_vk_hash,
-                    recursion_leaf_level_vk_hash,
-                    recursion_circuits_set_vks_hash
-                FROM
-                    prover_fri_protocol_versions
-                "#,
+            SELECT
+                recursion_scheduler_level_vk_hash,
+                recursion_node_level_vk_hash,
+                recursion_leaf_level_vk_hash,
+                recursion_circuits_set_vks_hash
+            FROM
+                prover_fri_protocol_versions
+            ORDER BY
+                id DESC
+            LIMIT 1
+            "#,
         )
         .fetch_one(self.storage.conn())
         .await
