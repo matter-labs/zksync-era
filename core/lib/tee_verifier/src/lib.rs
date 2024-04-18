@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use vm_utils::execute_tx;
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
-    BlockOutputWithProofs, TreeInstruction, TreeLogEntry, TreeLogEntryWithProof,
+    BlockOutputWithProofs, TreeInstruction, TreeLogEntry, TreeLogEntryWithProof, ValueHash,
 };
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, StorageLogMetadata};
@@ -64,6 +64,13 @@ impl TeeVerifierInput {
         })
     }
 
+    pub fn l1_batch_no(&self) -> Option<L1BatchNumber> {
+        match self {
+            TeeVerifierInput::V0 => None,
+            TeeVerifierInput::V1(v1) => Some(v1.l1_batch_env.number),
+        }
+    }
+
     /// Verify that the L1Batch produces the expected root hash
     /// by executing the VM and verifying the merkle paths of all
     /// touch storage slots.
@@ -72,7 +79,7 @@ impl TeeVerifierInput {
     ///
     /// Returns a verbose error of the failure, because any error is
     /// not actionable.
-    pub fn verify(self) -> anyhow::Result<()> {
+    pub fn verify(self) -> anyhow::Result<ValueHash> {
         let TeeVerifierInput::V1(V1TeeVerifierInput {
             prepare_basic_circuits_job,
             l2_blocks_execution_data,
@@ -116,7 +123,7 @@ impl TeeVerifierInput {
             .verify_proofs(&Blake2Hasher, old_root_hash, &instructions)
             .context("Failed to verify_proofs {l1_batch_number} correctly!")?;
 
-        Ok(())
+        Ok(block_output_with_proofs.root_hash().unwrap())
     }
 
     /// Sets the initial storage values and returns `BlockOutputWithProofs`

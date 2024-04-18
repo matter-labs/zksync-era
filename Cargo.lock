@@ -9321,6 +9321,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_tee_prover"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "k256 0.13.2",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "vlog",
+ "zksync_config",
+ "zksync_env_config",
+ "zksync_object_store",
+ "zksync_tee_verifier",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_tee_verifier"
 version = "0.1.0"
 dependencies = [
