@@ -1,6 +1,6 @@
 //! Logic for applying application-level snapshots to Postgres storage.
 
-use std::{collections::HashMap, fmt, time::Duration};
+use std::{collections::HashMap, fmt, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -21,7 +21,7 @@ use zksync_types::{
 };
 use zksync_utils::bytecode::hash_bytecode;
 use zksync_web3_decl::{
-    client::L2Client,
+    client::BoxedL2Client,
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     jsonrpsee::core::client,
     namespaces::{EnNamespaceClient, SnapshotsNamespaceClient, ZksNamespaceClient},
@@ -41,6 +41,32 @@ struct SnapshotsApplierHealthDetails {
     storage_logs_chunk_count: usize,
     storage_logs_chunks_left_to_process: usize,
     tokens_recovered: bool,
+}
+
+impl SnapshotsApplierHealthDetails {
+    fn done(status: &SnapshotRecoveryStatus) -> anyhow::Result<Self> {
+        if status.storage_logs_chunks_left_to_process() != 0 {
+            anyhow::bail!(
+                "Inconsistent Postgres state: there are miniblocks, but the snapshot recovery status \
+                 contains unprocessed storage log chunks: {status:?}"
+            );
+        }
+
+        Ok(Self {
+            snapshot_miniblock: status.miniblock_number,
+            snapshot_l1_batch: status.l1_batch_number,
+            factory_deps_recovered: true,
+            storage_logs_chunk_count: status.storage_logs_chunks_processed.len(),
+            storage_logs_chunks_left_to_process: 0,
+            tokens_recovered: true,
+        })
+    }
+
+    fn is_done(&self) -> bool {
+        self.factory_deps_recovered
+            && self.tokens_recovered
+            && self.storage_logs_chunks_left_to_process == 0
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -110,7 +136,7 @@ pub trait SnapshotsApplierMainNodeClient: fmt::Debug + Send + Sync {
 }
 
 #[async_trait]
-impl SnapshotsApplierMainNodeClient for L2Client {
+impl SnapshotsApplierMainNodeClient for BoxedL2Client {
     async fn fetch_l1_batch_details(
         &self,
         number: L1BatchNumber,
@@ -159,10 +185,16 @@ impl SnapshotsApplierMainNodeClient for L2Client {
 /// Snapshot applier configuration options.
 #[derive(Debug)]
 pub struct SnapshotsApplierConfig {
+    /// Number of retries for transient errors before giving up on recovery (i.e., returning an error
+    /// from [`Self::run()`]).
     pub retry_count: usize,
+    /// Initial back-off interval when retrying recovery on a transient error. Each subsequent retry interval
+    /// will be multiplied by [`Self.retry_backoff_multiplier`].
     pub initial_retry_backoff: Duration,
     pub retry_backoff_multiplier: f32,
-    health_updater: HealthUpdater,
+    /// Maximum concurrency factor when performing concurrent operations (for now, the only such operation
+    /// is recovering chunks of storage logs).
+    pub max_concurrency: NonZeroUsize,
 }
 
 impl Default for SnapshotsApplierConfig {
@@ -171,7 +203,7 @@ impl Default for SnapshotsApplierConfig {
             retry_count: 5,
             initial_retry_backoff: Duration::from_secs(2),
             retry_backoff_multiplier: 2.0,
-            health_updater: ReactiveHealthCheck::new("snapshot_recovery").1,
+            max_concurrency: NonZeroUsize::new(10).unwrap(),
         }
     }
 }
@@ -182,6 +214,32 @@ impl SnapshotsApplierConfig {
         Self {
             initial_retry_backoff: Duration::from_millis(5),
             ..Self::default()
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct SnapshotsApplierTask {
+    config: SnapshotsApplierConfig,
+    health_updater: HealthUpdater,
+    connection_pool: ConnectionPool<Core>,
+    main_node_client: Box<dyn SnapshotsApplierMainNodeClient>,
+    blob_store: Arc<dyn ObjectStore>,
+}
+
+impl SnapshotsApplierTask {
+    pub fn new(
+        config: SnapshotsApplierConfig,
+        connection_pool: ConnectionPool<Core>,
+        main_node_client: Box<dyn SnapshotsApplierMainNodeClient>,
+        blob_store: Arc<dyn ObjectStore>,
+    ) -> Self {
+        Self {
+            config,
+            health_updater: ReactiveHealthCheck::new("snapshot_recovery").1,
+            connection_pool,
+            main_node_client,
+            blob_store,
         }
     }
 
@@ -198,26 +256,26 @@ impl SnapshotsApplierConfig {
     /// or under any of the following conditions:
     ///
     /// - There are no snapshots on the main node
-    /// - Storage contains at least one L1 batch
-    pub async fn run(
-        self,
-        connection_pool: &ConnectionPool<Core>,
-        main_node_client: &dyn SnapshotsApplierMainNodeClient,
-        blob_store: &dyn ObjectStore,
-    ) -> anyhow::Result<()> {
-        let mut backoff = self.initial_retry_backoff;
+    pub async fn run(self) -> anyhow::Result<()> {
+        tracing::info!("Starting snapshot recovery with config: {:?}", self.config);
+
+        let mut backoff = self.config.initial_retry_backoff;
         let mut last_error = None;
-        for retry_id in 0..self.retry_count {
+        for retry_id in 0..self.config.retry_count {
             let result = SnapshotsApplier::load_snapshot(
-                connection_pool,
-                main_node_client,
-                blob_store,
+                &self.connection_pool,
+                self.main_node_client.as_ref(),
+                &self.blob_store,
                 &self.health_updater,
+                self.config.max_concurrency.get(),
             )
             .await;
 
             match result {
-                Ok(()) => {
+                Ok(final_status) => {
+                    let health_details = SnapshotsApplierHealthDetails::done(&final_status)?;
+                    self.health_updater
+                        .update(Health::from(HealthStatus::Ready).with_details(health_details));
                     // Freeze the health check in the "ready" status, so that the snapshot recovery isn't marked
                     // as "shut down", which would lead to the app considered unhealthy.
                     self.health_updater.freeze();
@@ -232,10 +290,10 @@ impl SnapshotsApplierConfig {
                     last_error = Some(err);
                     tracing::info!(
                         "Recovering from error; attempt {retry_id} / {}, retrying in {backoff:?}",
-                        self.retry_count
+                        self.config.retry_count
                     );
                     tokio::time::sleep(backoff).await;
-                    backoff = backoff.mul_f32(self.retry_backoff_multiplier);
+                    backoff = backoff.mul_f32(self.config.retry_backoff_multiplier);
                 }
             }
         }
@@ -246,37 +304,39 @@ impl SnapshotsApplierConfig {
     }
 }
 
-/// Applying application-level storage snapshots to the Postgres storage.
+/// Strategy determining how snapshot recovery should proceed.
 #[derive(Debug)]
-struct SnapshotsApplier<'a> {
-    connection_pool: &'a ConnectionPool<Core>,
-    main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
-    blob_store: &'a dyn ObjectStore,
-    applied_snapshot_status: SnapshotRecoveryStatus,
-    health_updater: &'a HealthUpdater,
-    factory_deps_recovered: bool,
-    tokens_recovered: bool,
+enum SnapshotRecoveryStrategy {
+    /// Snapshot recovery should proceed from scratch with the specified params.
+    New(SnapshotRecoveryStatus),
+    /// Snapshot recovery should continue with the specified params.
+    Resumed(SnapshotRecoveryStatus),
+    /// Snapshot recovery has already been completed.
+    Completed(SnapshotRecoveryStatus),
 }
 
-impl<'a> SnapshotsApplier<'a> {
-    /// Recovers [`SnapshotRecoveryStatus`] from the storage and the main node.
-    async fn prepare_applied_snapshot_status(
+impl SnapshotRecoveryStrategy {
+    async fn new(
         storage: &mut Connection<'_, Core>,
         main_node_client: &dyn SnapshotsApplierMainNodeClient,
-    ) -> Result<(SnapshotRecoveryStatus, bool), SnapshotsApplierError> {
+    ) -> Result<Self, SnapshotsApplierError> {
         let latency =
             METRICS.initial_stage_duration[&InitialStage::FetchMetadataFromMainNode].start();
-
         let applied_snapshot_status = storage
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
             .await?;
 
         if let Some(applied_snapshot_status) = applied_snapshot_status {
+            let sealed_miniblock_number =
+                storage.blocks_dal().get_sealed_miniblock_number().await?;
+            if sealed_miniblock_number.is_some() {
+                return Ok(Self::Completed(applied_snapshot_status));
+            }
+
             let latency = latency.observe();
             tracing::info!("Re-initialized snapshots applier after reset/failure in {latency:?}");
-
-            Ok((applied_snapshot_status, false))
+            Ok(Self::Resumed(applied_snapshot_status))
         } else {
             let is_genesis_needed = storage.blocks_dal().is_genesis_needed().await?;
             if !is_genesis_needed {
@@ -286,8 +346,7 @@ impl<'a> SnapshotsApplier<'a> {
                 return Err(SnapshotsApplierError::Fatal(err));
             }
 
-            let recovery_status =
-                SnapshotsApplier::create_fresh_recovery_status(main_node_client).await?;
+            let recovery_status = Self::create_fresh_recovery_status(main_node_client).await?;
 
             let storage_logs_count = storage
                 .storage_logs_dal()
@@ -304,95 +363,8 @@ impl<'a> SnapshotsApplier<'a> {
 
             let latency = latency.observe();
             tracing::info!("Initialized fresh snapshots applier in {latency:?}");
-            Ok((recovery_status, true))
+            Ok(Self::New(recovery_status))
         }
-    }
-
-    async fn load_snapshot(
-        connection_pool: &'a ConnectionPool<Core>,
-        main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
-        blob_store: &'a dyn ObjectStore,
-        health_updater: &'a HealthUpdater,
-    ) -> Result<(), SnapshotsApplierError> {
-        health_updater.update(HealthStatus::Ready.into());
-
-        let mut storage = connection_pool
-            .connection_tagged("snapshots_applier")
-            .await?;
-        let mut storage_transaction = storage.start_transaction().await?;
-
-        if storage_transaction
-            .snapshot_recovery_dal()
-            .get_applied_snapshot_status()
-            .await?
-            .is_some()
-            && storage_transaction
-                .blocks_dal()
-                .get_sealed_miniblock_number()
-                .await?
-                .is_some()
-        {
-            return Ok(());
-        }
-
-        let (applied_snapshot_status, created_from_scratch) =
-            Self::prepare_applied_snapshot_status(&mut storage_transaction, main_node_client)
-                .await?;
-
-        let mut this = Self {
-            connection_pool,
-            main_node_client,
-            blob_store,
-            applied_snapshot_status,
-            health_updater,
-            factory_deps_recovered: !created_from_scratch,
-            tokens_recovered: false,
-        };
-
-        METRICS.storage_logs_chunks_count.set(
-            this.applied_snapshot_status
-                .storage_logs_chunks_processed
-                .len(),
-        );
-        METRICS.storage_logs_chunks_left_to_process.set(
-            this.applied_snapshot_status
-                .storage_logs_chunks_left_to_process(),
-        );
-        this.update_health();
-
-        if created_from_scratch {
-            this.recover_factory_deps(&mut storage_transaction).await?;
-            storage_transaction
-                .snapshot_recovery_dal()
-                .insert_initial_recovery_status(&this.applied_snapshot_status)
-                .await?;
-            storage_transaction
-                .pruning_dal()
-                .soft_prune_batches_range(
-                    this.applied_snapshot_status.l1_batch_number,
-                    this.applied_snapshot_status.miniblock_number,
-                )
-                .await?;
-
-            storage_transaction
-                .pruning_dal()
-                .hard_prune_batches_range(
-                    this.applied_snapshot_status.l1_batch_number,
-                    this.applied_snapshot_status.miniblock_number,
-                )
-                .await?;
-        }
-        storage_transaction.commit().await?;
-        drop(storage);
-        this.factory_deps_recovered = true;
-        this.update_health();
-
-        this.recover_storage_logs().await?;
-        this.recover_tokens().await?;
-        this.tokens_recovered = true;
-        this.update_health();
-
-        Ok(())
     }
 
     async fn create_fresh_recovery_status(
@@ -405,9 +377,10 @@ impl<'a> SnapshotsApplier<'a> {
         let l1_batch_number = snapshot.l1_batch_number;
         let miniblock_number = snapshot.miniblock_number;
         tracing::info!(
-            "Found snapshot with data up to L1 batch #{l1_batch_number}, version {}, storage_logs are divided into {} chunk(s)",
-            snapshot.version,
-            snapshot.storage_logs_chunks.len()
+            "Found snapshot with data up to L1 batch #{l1_batch_number}, miniblock #{miniblock_number}, \
+            version {version}, storage logs are divided into {chunk_count} chunk(s)",
+            version = snapshot.version,
+            chunk_count = snapshot.storage_logs_chunks.len()
         );
         Self::check_snapshot_version(snapshot.version)?;
 
@@ -462,6 +435,111 @@ impl<'a> SnapshotsApplier<'a> {
         );
         Ok(())
     }
+}
+
+/// Applying application-level storage snapshots to the Postgres storage.
+#[derive(Debug)]
+struct SnapshotsApplier<'a> {
+    connection_pool: &'a ConnectionPool<Core>,
+    main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
+    blob_store: &'a dyn ObjectStore,
+    applied_snapshot_status: SnapshotRecoveryStatus,
+    health_updater: &'a HealthUpdater,
+    max_concurrency: usize,
+    factory_deps_recovered: bool,
+    tokens_recovered: bool,
+}
+
+impl<'a> SnapshotsApplier<'a> {
+    /// Returns final snapshot recovery status.
+    async fn load_snapshot(
+        connection_pool: &'a ConnectionPool<Core>,
+        main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
+        blob_store: &'a dyn ObjectStore,
+        health_updater: &'a HealthUpdater,
+        max_concurrency: usize,
+    ) -> Result<SnapshotRecoveryStatus, SnapshotsApplierError> {
+        // While the recovery is in progress, the node is healthy (no error has occurred),
+        // but is affected (its usual APIs don't work).
+        health_updater.update(HealthStatus::Affected.into());
+
+        let mut storage = connection_pool
+            .connection_tagged("snapshots_applier")
+            .await?;
+        let mut storage_transaction = storage.start_transaction().await?;
+
+        let strategy =
+            SnapshotRecoveryStrategy::new(&mut storage_transaction, main_node_client).await?;
+        tracing::info!("Chosen snapshot recovery strategy: {strategy:?}");
+        let (applied_snapshot_status, created_from_scratch) = match strategy {
+            SnapshotRecoveryStrategy::Completed(status) => {
+                return Ok(status);
+            }
+            SnapshotRecoveryStrategy::New(status) => (status, true),
+            SnapshotRecoveryStrategy::Resumed(status) => (status, false),
+        };
+
+        let mut this = Self {
+            connection_pool,
+            main_node_client,
+            blob_store,
+            applied_snapshot_status,
+            health_updater,
+            max_concurrency,
+            factory_deps_recovered: !created_from_scratch,
+            tokens_recovered: false,
+        };
+
+        METRICS.storage_logs_chunks_count.set(
+            this.applied_snapshot_status
+                .storage_logs_chunks_processed
+                .len(),
+        );
+        METRICS.storage_logs_chunks_left_to_process.set(
+            this.applied_snapshot_status
+                .storage_logs_chunks_left_to_process(),
+        );
+        this.update_health();
+
+        if created_from_scratch {
+            this.recover_factory_deps(&mut storage_transaction).await?;
+            storage_transaction
+                .snapshot_recovery_dal()
+                .insert_initial_recovery_status(&this.applied_snapshot_status)
+                .await?;
+
+            // Insert artificial entries into the pruning log so that it's guaranteed to match the snapshot recovery metadata.
+            // This allows to not deal with the corner cases when a node was recovered from a snapshot, but its pruning log is empty.
+            storage_transaction
+                .pruning_dal()
+                .soft_prune_batches_range(
+                    this.applied_snapshot_status.l1_batch_number,
+                    this.applied_snapshot_status.miniblock_number,
+                )
+                .await?;
+            storage_transaction
+                .pruning_dal()
+                .hard_prune_batches_range(
+                    this.applied_snapshot_status.l1_batch_number,
+                    this.applied_snapshot_status.miniblock_number,
+                )
+                .await?;
+        }
+        storage_transaction.commit().await?;
+        drop(storage);
+        this.factory_deps_recovered = true;
+        this.update_health();
+
+        this.recover_storage_logs().await?;
+        for is_chunk_processed in &mut this.applied_snapshot_status.storage_logs_chunks_processed {
+            *is_chunk_processed = true;
+        }
+
+        this.recover_tokens().await?;
+        this.tokens_recovered = true;
+        this.update_health();
+        Ok(this.applied_snapshot_status)
+    }
 
     fn update_health(&self) {
         let details = SnapshotsApplierHealthDetails {
@@ -476,8 +554,13 @@ impl<'a> SnapshotsApplier<'a> {
             // We don't use `self.applied_snapshot_status` here because it's not updated during recovery
             storage_logs_chunks_left_to_process: METRICS.storage_logs_chunks_left_to_process.get(),
         };
+        let status = if details.is_done() {
+            HealthStatus::Ready
+        } else {
+            HealthStatus::Affected
+        };
         self.health_updater
-            .update(Health::from(HealthStatus::Ready).with_details(details));
+            .update(Health::from(status).with_details(details));
     }
 
     async fn recover_factory_deps(
@@ -624,7 +707,13 @@ impl<'a> SnapshotsApplier<'a> {
     }
 
     async fn recover_storage_logs(&self) -> Result<(), SnapshotsApplierError> {
-        let semaphore = Semaphore::new(self.connection_pool.max_size() as usize);
+        let effective_concurrency =
+            (self.connection_pool.max_size() as usize).min(self.max_concurrency);
+        tracing::info!(
+            "Recovering storage log chunks with {effective_concurrency} max concurrency"
+        );
+        let semaphore = Semaphore::new(effective_concurrency);
+
         let tasks = self
             .applied_snapshot_status
             .storage_logs_chunks_processed

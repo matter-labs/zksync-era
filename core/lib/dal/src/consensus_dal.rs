@@ -10,7 +10,7 @@ use zksync_db_connection::{
 };
 use zksync_types::MiniblockNumber;
 
-pub use crate::models::consensus::Payload;
+pub use crate::consensus::Payload;
 use crate::{Core, CoreDal};
 
 /// Storage access methods for `zksync_core::consensus` module.

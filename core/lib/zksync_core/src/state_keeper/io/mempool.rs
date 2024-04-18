@@ -14,8 +14,8 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_types::{
-    protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
-    ProtocolVersionId, Transaction, H256, U256,
+    protocol_upgrade::ProtocolUpgradeTx, utils::display_timestamp, Address, L1BatchNumber,
+    L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256, U256,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::time::millis_since_epoch;
@@ -23,14 +23,13 @@ use zksync_utils::time::millis_since_epoch;
 use crate::{
     fee_model::BatchFeeModelInputProvider,
     state_keeper::{
-        extractors,
         io::{
             common::{load_pending_batch, poll_iters, IoCursor},
             L1BatchParams, MiniblockParams, PendingBatchData, StateKeeperIO,
         },
         mempool_actor::l2_tx_filter,
         metrics::KEEPER_METRICS,
-        seal_criteria::{IoSealCriteria, TimeoutSealer},
+        seal_criteria::{IoSealCriteria, MiniblockMaxPayloadSizeSealer, TimeoutSealer},
         updates::UpdatesManager,
         MempoolGuard,
     },
@@ -45,6 +44,7 @@ pub struct MempoolIO {
     mempool: MempoolGuard,
     pool: ConnectionPool<Core>,
     timeout_sealer: TimeoutSealer,
+    miniblock_max_payload_size_sealer: MiniblockMaxPayloadSizeSealer,
     filter: L2TxFilter,
     l1_batch_params_provider: L1BatchParamsProvider,
     fee_account: Address,
@@ -63,7 +63,11 @@ impl IoSealCriteria for MempoolIO {
     }
 
     fn should_seal_miniblock(&mut self, manager: &UpdatesManager) -> bool {
-        self.timeout_sealer.should_seal_miniblock(manager)
+        if self.timeout_sealer.should_seal_miniblock(manager) {
+            return true;
+        }
+        self.miniblock_max_payload_size_sealer
+            .should_seal_miniblock(manager)
     }
 }
 
@@ -358,7 +362,7 @@ async fn sleep_past(timestamp: u64, miniblock: MiniblockNumber) -> u64 {
             tracing::info!(
                 "Current timestamp {} for miniblock #{miniblock} is equal to previous miniblock timestamp; waiting until \
                  timestamp increases",
-                extractors::display_timestamp(current_timestamp)
+                display_timestamp(current_timestamp)
             );
         }
         cmp::Ordering::Greater => {
@@ -367,8 +371,8 @@ async fn sleep_past(timestamp: u64, miniblock: MiniblockNumber) -> u64 {
             // are expected to be generated frequently.
             tracing::error!(
                 "Previous miniblock timestamp {} is larger than the current timestamp {} for miniblock #{miniblock}",
-                extractors::display_timestamp(timestamp),
-                extractors::display_timestamp(current_timestamp)
+                display_timestamp(timestamp),
+                display_timestamp(current_timestamp)
             );
         }
     }
@@ -413,6 +417,7 @@ impl MempoolIO {
             mempool,
             pool,
             timeout_sealer: TimeoutSealer::new(config),
+            miniblock_max_payload_size_sealer: MiniblockMaxPayloadSizeSealer::new(config),
             filter: L2TxFilter::default(),
             // ^ Will be initialized properly on the first newly opened batch
             l1_batch_params_provider,

@@ -21,6 +21,7 @@ use zksync_types::{
         tx_execution_info::DeduplicatedWritesMetrics, IncludedTxLocation,
         TransactionExecutionResult,
     },
+    utils::display_timestamp,
     zk_evm_types::LogQuery,
     AccountTreeId, Address, ExecuteTransactionCommon, L1BlockNumber, ProtocolVersionId, StorageKey,
     StorageLog, StorageLogQuery, Transaction, VmEvent, H256,
@@ -86,10 +87,11 @@ impl UpdatesManager {
         );
 
         tracing::info!(
-            "Sealing L1 batch {current_l1_batch_number} with {total_tx_count} \
+            "Sealing L1 batch {current_l1_batch_number} with timestamp {ts}, {total_tx_count} \
              ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {l2_to_l1_log_count} l2_l1_logs, \
              {event_count} events, {reads_count} reads ({dedup_reads_count} deduped), \
              {writes_count} writes ({dedup_writes_count} deduped)",
+            ts = display_timestamp(self.batch_timestamp()),
             total_tx_count = l1_tx_count + l2_tx_count,
             l2_to_l1_log_count = finished_batch
                 .final_execution_state
@@ -334,9 +336,10 @@ impl MiniblockSealCommand {
         let (writes_count, reads_count) =
             storage_log_query_write_read_counts(&self.miniblock.storage_logs);
         tracing::info!(
-            "Sealing miniblock {miniblock_number} (L1 batch {l1_batch_number}) \
+            "Sealing miniblock {miniblock_number} with timestamp {ts} (L1 batch {l1_batch_number}) \
              with {total_tx_count} ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {event_count} events, \
              {reads_count} reads, {writes_count} writes",
+            ts = display_timestamp(self.miniblock.timestamp),
             total_tx_count = l1_tx_count + l2_tx_count,
             event_count = self.miniblock.events.len()
         );

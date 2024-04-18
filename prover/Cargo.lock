@@ -1577,6 +1577,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive_more"
+version = "1.0.0-beta.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7abbfc297053be59290e3152f8cbcd52c8642e0728b69ee187d991d4c1af08d"
+dependencies = [
+ "derive_more-impl",
+]
+
+[[package]]
+name = "derive_more-impl"
+version = "1.0.0-beta.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bba3e9872d7c58ce7ef0fcf1844fcc3e23ef2a58377b50df35dd98e42a5726e"
+dependencies = [
+ "proc-macro2 1.0.78",
+ "quote 1.0.35",
+ "syn 2.0.48",
+ "unicode-xid 0.2.4",
+]
+
+[[package]]
 name = "digest"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6843,7 +6864,7 @@ dependencies = [
  "arrayvec 0.7.4",
  "base64 0.21.7",
  "bytes",
- "derive_more",
+ "derive_more 0.99.17",
  "ethabi",
  "ethereum-types",
  "futures 0.3.30",
@@ -7501,7 +7522,7 @@ dependencies = [
 [[package]]
 name = "zksync_concurrency"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=c9935c0fa69cde357a3d6f5eca148962dd3313e1#c9935c0fa69cde357a3d6f5eca148962dd3313e1"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=1dcda70c1c25d0e4db6781ba8d2645d7e8966d49#1dcda70c1c25d0e4db6781ba8d2645d7e8966d49"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -7531,7 +7552,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=c9935c0fa69cde357a3d6f5eca148962dd3313e1#c9935c0fa69cde357a3d6f5eca148962dd3313e1"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=1dcda70c1c25d0e4db6781ba8d2645d7e8966d49#1dcda70c1c25d0e4db6781ba8d2645d7e8966d49"
 dependencies = [
  "anyhow",
  "blst",
@@ -7549,7 +7570,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_roles"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=c9935c0fa69cde357a3d6f5eca148962dd3313e1#c9935c0fa69cde357a3d6f5eca148962dd3313e1"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=1dcda70c1c25d0e4db6781ba8d2645d7e8966d49#1dcda70c1c25d0e4db6781ba8d2645d7e8966d49"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -7569,7 +7590,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_storage"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=c9935c0fa69cde357a3d6f5eca148962dd3313e1#c9935c0fa69cde357a3d6f5eca148962dd3313e1"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=1dcda70c1c25d0e4db6781ba8d2645d7e8966d49#1dcda70c1c25d0e4db6781ba8d2645d7e8966d49"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7587,7 +7608,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_utils"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=c9935c0fa69cde357a3d6f5eca148962dd3313e1#c9935c0fa69cde357a3d6f5eca148962dd3313e1"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=1dcda70c1c25d0e4db6781ba8d2645d7e8966d49#1dcda70c1c25d0e4db6781ba8d2645d7e8966d49"
 dependencies = [
  "rand 0.8.5",
  "thiserror",
@@ -7773,7 +7794,7 @@ dependencies = [
 [[package]]
 name = "zksync_protobuf"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=c9935c0fa69cde357a3d6f5eca148962dd3313e1#c9935c0fa69cde357a3d6f5eca148962dd3313e1"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=1dcda70c1c25d0e4db6781ba8d2645d7e8966d49#1dcda70c1c25d0e4db6781ba8d2645d7e8966d49"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -7793,7 +7814,7 @@ dependencies = [
 [[package]]
 name = "zksync_protobuf_build"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=c9935c0fa69cde357a3d6f5eca148962dd3313e1#c9935c0fa69cde357a3d6f5eca148962dd3313e1"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=1dcda70c1c25d0e4db6781ba8d2645d7e8966d49#1dcda70c1c25d0e4db6781ba8d2645d7e8966d49"
 dependencies = [
  "anyhow",
  "heck 0.5.0",
@@ -7962,6 +7983,7 @@ dependencies = [
  "anyhow",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono",
+ "derive_more 1.0.0-beta.6",
  "hex",
  "itertools 0.10.5",
  "num",
