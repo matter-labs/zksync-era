@@ -14,7 +14,7 @@ use zksync_state::{PgOrRocksdbStorage, PostgresStorage, ReadStorage, ReadStorage
 use zksync_types::{
     block::{BlockGasCount, L1BatchHeader},
     fee::TransactionExecutionMetrics,
-    AccountTreeId, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, StorageKey,
+    AccountTreeId, L1BatchNumber, L2ChainId, ProtocolVersionId, StorageKey,
 };
 
 use super::{BatchExecuteData, VmRunnerStorage, VmRunnerStorageLoader};
@@ -154,17 +154,25 @@ async fn store_miniblocks(
     contract_hashes: BaseSystemContractsHashes,
 ) -> Vec<L1BatchHeader> {
     let mut batches = Vec::new();
+    let mut miniblock_number = conn
+        .blocks_dal()
+        .get_last_sealed_miniblock_header()
+        .await
+        .unwrap()
+        .map(|m| m.number)
+        .unwrap_or_default()
+        + 1;
     for l1_batch_number in numbers {
-        // We use one miniblock per batch so the number coincides
-        let miniblock_number = l1_batch_number;
         let l1_batch_number = L1BatchNumber(l1_batch_number);
         let tx = create_l2_transaction(10, 100);
         conn.transactions_dal()
             .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
-        let mut new_miniblock = create_miniblock(miniblock_number);
+        let mut new_miniblock = create_miniblock(miniblock_number.0);
+        miniblock_number += 1;
         new_miniblock.base_system_contracts_hashes = contract_hashes;
+        new_miniblock.l2_tx_count = 1;
         conn.blocks_dal()
             .insert_miniblock(&new_miniblock)
             .await
@@ -174,10 +182,16 @@ async fn store_miniblocks(
             .mark_txs_as_executed_in_miniblock(new_miniblock.number, &[tx_result], 1.into())
             .await
             .unwrap();
+        let fictive_miniblock = create_miniblock(miniblock_number.0);
+        miniblock_number += 1;
+        conn.blocks_dal()
+            .insert_miniblock(&fictive_miniblock)
+            .await
+            .unwrap();
 
         let header = L1BatchHeader::new(
             l1_batch_number,
-            l1_batch_number.0 as u64,
+            miniblock_number.0 as u64 - 2, // Matches the first miniblock in the batch
             BaseSystemContractsHashes::default(),
             ProtocolVersionId::default(),
         );
@@ -252,14 +266,19 @@ async fn rerun_storage_on_existing_data() -> anyhow::Result<()> {
         );
         assert_eq!(batch_data.l1_batch_env.number, batch.number);
         assert_eq!(batch_data.l1_batch_env.timestamp, batch.timestamp);
+        let (first_miniblock_number, _) = conn
+            .blocks_dal()
+            .get_miniblock_range_of_l1_batch(batch.number)
+            .await?
+            .unwrap();
         let previous_miniblock_header = conn
             .blocks_dal()
-            .get_miniblock_header(MiniblockNumber(batch_data.l1_batch_env.number.0 - 1))
+            .get_miniblock_header(first_miniblock_number - 1)
             .await?
             .unwrap();
         let miniblock_header = conn
             .blocks_dal()
-            .get_miniblock_header(batch_data.l1_batch_env.number.0.into())
+            .get_miniblock_header(first_miniblock_number)
             .await?
             .unwrap();
         assert_eq!(
@@ -398,9 +417,15 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
         let vm_runner_storage =
             rt_handle.block_on(async { tester.create_storage(loader_mock.clone()).await.unwrap() });
         for i in 1..=10 {
-            let conn = rt_handle.block_on(connection_pool.connection()).unwrap();
+            let mut conn = rt_handle.block_on(connection_pool.connection()).unwrap();
+            let (_, last_miniblock_number) = rt_handle
+                .block_on(
+                    conn.blocks_dal()
+                        .get_miniblock_range_of_l1_batch(L1BatchNumber(i)),
+                )?
+                .unwrap();
             let mut pg_storage =
-                PostgresStorage::new(rt_handle.clone(), conn, MiniblockNumber(i), true);
+                PostgresStorage::new(rt_handle.clone(), conn, last_miniblock_number, true);
             let mut vm_storage = rt_handle.block_on(async {
                 vm_runner_storage
                     .access_storage_eventually(&receiver, L1BatchNumber(i))
