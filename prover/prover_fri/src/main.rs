@@ -26,7 +26,6 @@ use zksync_types::{
     ProtocolVersionId,
 };
 use zksync_utils::wait_for_tasks::ManagedTasks;
-use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
 mod gpu_prover_availability_checker;
 mod gpu_prover_job_processor;
@@ -194,15 +193,13 @@ async fn get_prover_tasks(
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
     _init_notifier: Arc<Notify>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
-    use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
-
     use crate::prover_job_processor::{load_setup_data_cache, Prover};
 
-    let vk_commitments = get_cached_commitments();
+    let protocol_version = ProtocolVersionId::latest_prover();
 
     tracing::info!(
-        "Starting CPU FRI proof generation for with vk_commitments: {:?}",
-        vk_commitments
+        "Starting CPU FRI proof generation for with protocol_version: {:?}",
+        protocol_version
     );
 
     let setup_load_mode =
@@ -214,7 +211,7 @@ async fn get_prover_tasks(
         pool,
         setup_load_mode,
         circuit_ids_for_round_to_be_proven,
-        vk_commitments,
+        protocol_version,
     );
     Ok(vec![tokio::spawn(prover.run(stop_receiver, None))])
 }

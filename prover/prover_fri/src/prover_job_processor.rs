@@ -24,9 +24,7 @@ use zksync_prover_fri_types::{
 };
 use zksync_prover_fri_utils::fetch_next_circuit;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
-use zksync_types::{
-    basic_fri_types::CircuitIdRoundTuple, protocol_version::L1VerifierConfig, ProtocolVersionId,
-};
+use zksync_types::{basic_fri_types::CircuitIdRoundTuple, ProtocolVersionId};
 use zksync_vk_setup_data_server_fri::{keystore::Keystore, GoldilocksProverSetupData};
 
 use crate::{
@@ -293,6 +291,7 @@ impl JobProcessor for Prover {
             self.public_blob_store.as_deref(),
             self.config.shall_save_to_public_bucket,
             &mut storage_processor,
+            self.protocol_version,
         )
         .await;
         Ok(())

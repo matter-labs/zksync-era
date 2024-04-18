@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
-use prover_dal::{ConnectionPool, ProverDal};
+use prover_dal::ConnectionPool;
 use structopt::StructOpt;
 use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{
@@ -17,7 +17,6 @@ use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetche
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::ProtocolVersionId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
-use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
 use crate::generator::WitnessVectorGenerator;
 
@@ -111,7 +110,7 @@ async fn main() -> anyhow::Result<()> {
     })
     .expect("Error setting Ctrl+C handler");
 
-    tracing::info!("Starting witness vector generation for group: {} with circuits: {:?} in zone: {} with vk_commitments: {:?}", specialized_group_id, circuit_ids_for_round_to_be_proven, zone, vk_commitments);
+    tracing::info!("Starting witness vector generation for group: {} with circuits: {:?} in zone: {} with protocol_version: {:?}", specialized_group_id, circuit_ids_for_round_to_be_proven, zone, protocol_version);
 
     let tasks = vec![
         tokio::spawn(exporter_config.run(stop_receiver.clone())),

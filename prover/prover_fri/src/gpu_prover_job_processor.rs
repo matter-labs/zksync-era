@@ -298,6 +298,7 @@ pub mod gpu_prover {
                 self.public_blob_store.as_deref(),
                 self.config.shall_save_to_public_bucket,
                 &mut storage_processor,
+                self.protocol_version,
             )
             .await;
             Ok(())

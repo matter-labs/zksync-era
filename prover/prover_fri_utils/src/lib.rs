@@ -15,7 +15,6 @@ use zksync_prover_fri_types::{
 };
 use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
-    protocol_version::L1VerifierConfig,
     ProtocolVersionId,
 };
 
