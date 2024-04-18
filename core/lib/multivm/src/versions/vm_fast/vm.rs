@@ -12,6 +12,7 @@ use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 use super::{
     bootloader_state::{BootloaderState, BootloaderStateSnapshot},
     bytecode::compress_bytecodes,
+    hook::Hook,
     initial_bootloader_memory::bootloader_initial_memory,
     transaction_data::TransactionData,
 };
@@ -70,64 +71,66 @@ impl<S: WriteStorage + 'static> Vm<S> {
                 }
             };
 
-            match hook {
-                0 => {
-                    // Account validation entered
-                    loop {
-                        match self.inner.resume_with_additional_gas_limit(
-                            self.suspended_at,
-                            self.gas_for_account_validation,
-                        ) {
-                            None => {
-                                // Used too much gas
-                                todo!()
-                            }
-                            Some((
-                                validation_gas_left,
-                                ExecutionEnd::SuspendedOnHook {
-                                    hook,
-                                    pc_to_resume_from,
-                                },
-                            )) => {
-                                self.suspended_at = pc_to_resume_from;
-                                self.gas_for_account_validation = validation_gas_left;
-
-                                if hook == 2 {
-                                    break;
-                                } else if hook == 5 {
-                                    // DebugLog is ok
-                                } else {
-                                    panic!("Should not hook while in account validation");
-                                }
-                            }
-                            _ => {
-                                // Exited normally without ending account validation, panicked or reverted.
-                                panic!("unexpected exit from account validation")
-                            }
-                        }
-                    }
-                }
-                1 => {} // PaymasterValidationEntered,
-                2 => {
-                    // Account validation exited
+            use Hook::*;
+            match Hook::from_u32(hook) {
+                AccountValidationEntered => self.run_account_validation(),
+                PaymasterValidationEntered => {}
+                AccountValidationExited => {
                     panic!("must enter account validation before exiting");
                 }
-                3 => {} // ValidationStepEnded,
-                4 => {
-                    // TxHasEnded
+                ValidationStepEnded => {}
+                TxHasEnded => {
                     if let VmExecutionMode::OneTx = execution_mode {
                         return ExecutionResult::Success { output: vec![] };
                     }
                 }
-                5 => {}  // DebugLog,
-                6 => {}  // DebugReturnData,
-                7 => {}  // NearCallCatch,
-                8 => {}  // AskOperatorForRefund,
-                9 => {}  // NotifyAboutRefund,
-                10 => {} // ExecutionResult,
-                11 => {} // FinalBatchInfo,
-                12 => {} // PubdataRequested,
-                _ => panic!("Unknown hook: {}", hook),
+                DebugLog => {}
+                DebugReturnData => {}
+                NearCallCatch => {}
+                AskOperatorForRefund => {}
+                NotifyAboutRefund => {}
+                PostResult => {}
+                FinalBatchInfo => {}
+                PubdataRequested => {}
+            }
+        }
+    }
+
+    fn run_account_validation(&mut self) {
+        loop {
+            match self.inner.resume_with_additional_gas_limit(
+                self.suspended_at,
+                self.gas_for_account_validation,
+            ) {
+                None => {
+                    // Used too much gas
+                    todo!()
+                }
+                Some((
+                    validation_gas_left,
+                    ExecutionEnd::SuspendedOnHook {
+                        hook,
+                        pc_to_resume_from,
+                    },
+                )) => {
+                    self.suspended_at = pc_to_resume_from;
+                    self.gas_for_account_validation = validation_gas_left;
+
+                    let hook = Hook::from_u32(hook);
+                    match hook {
+                        Hook::AccountValidationExited => {
+                            break;
+                        }
+                        Hook::DebugLog => {}
+                        _ => {
+                            panic!("Unexpected {:?} hook while in account validation", hook);
+                        }
+                    }
+                }
+                _ => {
+                    // Exited normally without ending account validation, panicked or reverted.
+                    panic!("unexpected exit from account validation")
+                }
             }
         }
     }
