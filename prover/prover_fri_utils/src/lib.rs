@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use prover_dal::{Connection, Prover, ProverDal};
+use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -17,12 +17,38 @@ use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     ProtocolVersionId,
 };
+use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
 use crate::metrics::{CircuitLabels, PROVER_FRI_UTILS_METRICS};
 
 pub mod metrics;
 pub mod region_fetcher;
 pub mod socket_utils;
+
+pub async fn assert_vk_correctness(
+    protocol_version: ProtocolVersionId,
+    pool: ConnectionPool<Prover>,
+) {
+    let vk_commitments = get_cached_commitments();
+    let database_vk_commitments = pool
+        .connection()
+        .await
+        .unwrap()
+        .fri_protocol_versions_dal()
+        .vk_commitments_for(protocol_version)
+        .await;
+
+    if let Some(db_commitments) = database_vk_commitments {
+        if db_commitments != vk_commitments {
+            assert_eq!(
+                db_commitments, vk_commitments,
+                "Commitments for version {protocol_version:?} didn't match, expected {db_commitments:?}, actual {vk_commitments:?}"
+            )
+        }
+    } else {
+        panic!("Commitments for version {protocol_version:?} were not found in database");
+    }
+}
 
 pub async fn fetch_next_circuit(
     storage: &mut Connection<'_, Prover>,

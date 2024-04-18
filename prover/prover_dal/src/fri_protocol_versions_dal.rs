@@ -1,6 +1,9 @@
 use std::convert::TryFrom;
 
-use zksync_basic_types::protocol_version::{L1VerifierConfig, ProtocolVersionId};
+use zksync_basic_types::{
+    protocol_version::{L1VerifierConfig, ProtocolVersionId, VerifierParams},
+    H256,
+};
 use zksync_db_connection::connection::Connection;
 
 use crate::Prover;
@@ -89,5 +92,40 @@ impl FriProtocolVersionsDal<'_, '_> {
         .into_iter()
         .map(|row| ProtocolVersionId::try_from(row.id as u16).unwrap())
         .collect()
+    }
+
+    pub async fn vk_commitments_for(
+        &mut self,
+        protocol_version: ProtocolVersionId,
+    ) -> Option<L1VerifierConfig> {
+        sqlx::query!(
+            r#"
+            SELECT
+                recursion_scheduler_level_vk_hash,
+                recursion_node_level_vk_hash,
+                recursion_leaf_level_vk_hash,
+                recursion_circuits_set_vks_hash
+            FROM
+                prover_fri_protocol_versions
+            WHERE
+                id = $1
+            "#,
+            protocol_version as i32
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| L1VerifierConfig {
+            params: VerifierParams {
+                recursion_node_level_vk_hash: H256::from_slice(&row.recursion_node_level_vk_hash),
+                recursion_leaf_level_vk_hash: H256::from_slice(&row.recursion_leaf_level_vk_hash),
+                recursion_circuits_set_vks_hash: H256::from_slice(
+                    &row.recursion_circuits_set_vks_hash,
+                ),
+            },
+            recursion_scheduler_level_vk_hash: H256::from_slice(
+                &row.recursion_scheduler_level_vk_hash,
+            ),
+        })
     }
 }
