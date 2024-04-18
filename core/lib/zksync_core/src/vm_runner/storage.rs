@@ -318,25 +318,12 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
                     .storage_logs_dal()
                     .get_touched_slots_for_l1_batch(l1_batch_number)
                     .await?;
-                let touched_keys = state_diff
-                    .keys()
-                    .map(|k| k.hashed_key())
-                    .collect::<Vec<_>>();
-                let mut enum_index_diff = conn
-                    .storage_logs_dal()
-                    .get_l1_batches_and_indices_for_initial_writes(&touched_keys)
+                let enum_index_diff = conn
+                    .storage_logs_dedup_dal()
+                    .initial_writes_for_batch(l1_batch_number)
                     .await?
                     .into_iter()
-                    .map(|(k, (_, v))| (k, v))
                     .collect::<HashMap<_, _>>();
-                let enum_index_diff = state_diff
-                    .keys()
-                    .filter_map(|k| {
-                        enum_index_diff
-                            .remove_entry(&k.hashed_key())
-                            .map(|(_, v)| (*k, v))
-                    })
-                    .collect();
                 let factory_dep_diff = conn
                     .blocks_dal()
                     .get_l1_batch_factory_deps(l1_batch_number)

@@ -32,7 +32,7 @@ pub struct BatchDiff {
     /// Storage slots touched by this batch along with new values there.
     pub state_diff: HashMap<StorageKey, H256>,
     /// Initial write indices introduced by this batch.
-    pub enum_index_diff: HashMap<StorageKey, u64>,
+    pub enum_index_diff: HashMap<H256, u64>,
     /// Factory dependencies introduced by this batch.
     pub factory_dep_diff: HashMap<H256, Vec<u8>>,
 }
@@ -156,7 +156,7 @@ impl ReadStorage for RocksdbWithMemory {
         match self
             .batch_diffs
             .iter()
-            .find_map(|b| b.enum_index_diff.get(key))
+            .find_map(|b| b.enum_index_diff.get(&key.hashed_key()))
         {
             None => self.rocksdb.is_write_initial(key),
             Some(_) => false,
@@ -178,7 +178,7 @@ impl ReadStorage for RocksdbWithMemory {
         match self
             .batch_diffs
             .iter()
-            .find_map(|b| b.enum_index_diff.get(key))
+            .find_map(|b| b.enum_index_diff.get(&key.hashed_key()))
         {
             None => self.rocksdb.get_enumeration_index(key),
             Some(value) => Some(*value),
