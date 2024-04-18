@@ -143,6 +143,7 @@ fn pretty_print_l1_status(
 }
 
 fn print_hash_comparison(name: &str, contract_hash: H256, db_hash: H256) {
+    println!(" ----------------------- ");
     if contract_hash != db_hash {
         println!("{name} hash in DB differs from the one in contract.");
         println!("Contract hash: {contract_hash:?}");
