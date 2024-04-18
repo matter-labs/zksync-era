@@ -230,7 +230,13 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
         );
 
         inner.state.current_frame.sp = 0;
-        // TODO: bootloader should not pay for memory growth but with how vm2 currently works that would allocate 4GB
+
+        // The bootloader shouldn't pay for growing memory and it writes results
+        // to the end of its heap, so it makes sense to preallocate it in its entirety.
+        const BOOTLOADER_MAX_MEMORY_SIZE: usize = 59000000;
+        inner.state.heaps[vm2::FIRST_HEAP].resize(BOOTLOADER_MAX_MEMORY_SIZE, 0);
+        inner.state.heaps[vm2::FIRST_HEAP + 1].resize(BOOTLOADER_MAX_MEMORY_SIZE, 0);
+
         inner.state.current_frame.exception_handler = INITIAL_FRAME_FORMAL_EH_LOCATION;
 
         let mut me = Self {
