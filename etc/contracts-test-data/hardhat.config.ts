@@ -5,7 +5,7 @@ export default {
         compilerSource: 'binary',
         settings: {
             compilerPath:
-                'https://github.com/matter-labs/era-compiler-solidity/releases/download/prerelease-e880101-test-features/zksolc-macosx-arm64',
+                'https://github.com/matter-labs/era-compiler-solidity/releases/download/prerelease-a167aa3-code4rena/zksolc-macosx-arm64-v1.5.0',
             isSystem: true
         }
     },
