@@ -991,9 +991,20 @@ async fn run_tree(
     tracing::info!("Initializing Merkle tree in {mode_str} mode");
 
     let config = MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_manager);
-    let metadata_calculator = MetadataCalculator::new(config, object_store)
+    let pool = ConnectionPool::singleton(postgres_config.master_url()?)
+        .build()
+        .await
+        .context("failed to build connection pool for Merkle tree")?;
+    // The number of connections in a recovery pool is based on the mainnet recovery runs. It doesn't need
+    // to be particularly accurate at this point, since the main node isn't expected to recover from a snapshot.
+    let recovery_pool = ConnectionPool::builder(postgres_config.replica_url()?, 10)
+        .build()
+        .await
+        .context("failed to build connection pool for Merkle tree recovery")?;
+    let metadata_calculator = MetadataCalculator::new(config, object_store, pool, recovery_pool)
         .await
         .context("failed initializing metadata_calculator")?;
+
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
         let tree_reader = metadata_calculator.tree_reader();
@@ -1009,11 +1020,8 @@ async fn run_tree(
 
     let tree_health_check = metadata_calculator.tree_health_check();
     app_health.insert_component(tree_health_check);
-    let pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
-        .build()
-        .await
-        .context("failed to build connection pool")?;
-    let tree_task = tokio::spawn(metadata_calculator.run(pool, stop_receiver));
+
+    let tree_task = tokio::spawn(metadata_calculator.run(stop_receiver));
     task_futures.push(tree_task);
 
     let elapsed = started_at.elapsed();
