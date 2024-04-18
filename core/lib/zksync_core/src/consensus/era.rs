@@ -4,14 +4,13 @@
 //! This module simply glues APIs that are already publicly exposed by the `consensus` module,
 //! so in case any custom behavior is needed, these APIs should be used directly.
 
-use std::sync::Arc;
-
 use zksync_concurrency::ctx;
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_dal::{ConnectionPool, Core};
+use zksync_web3_decl::client::BoxedL2Client;
 
 use super::{config, fetcher::Fetcher, storage::Store};
-use crate::sync_layer::{sync_action::ActionQueueSender, MainNodeClient, SyncState};
+use crate::sync_layer::{sync_action::ActionQueueSender, SyncState};
 
 /// Runs the consensus task in the main node mode.
 pub async fn run_main_node(
@@ -37,7 +36,7 @@ pub async fn run_fetcher(
     cfg: Option<(ConsensusConfig, ConsensusSecrets)>,
     pool: ConnectionPool<Core>,
     sync_state: SyncState,
-    main_node_client: Arc<dyn MainNodeClient>,
+    main_node_client: BoxedL2Client,
     actions: ActionQueueSender,
 ) -> anyhow::Result<()> {
     let fetcher = Fetcher {

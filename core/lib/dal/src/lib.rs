@@ -7,7 +7,7 @@ pub use sqlx::{types::BigDecimal, Error as SqlxError};
 use zksync_db_connection::connection::DbMarker;
 pub use zksync_db_connection::{
     connection::Connection,
-    connection_pool::ConnectionPool,
+    connection_pool::{ConnectionPool, ConnectionPoolBuilder},
     error::{DalError, DalResult},
 };
 
@@ -29,12 +29,14 @@ use crate::{
 pub mod basic_witness_input_producer_dal;
 pub mod blocks_dal;
 pub mod blocks_web3_dal;
+pub mod consensus;
 pub mod consensus_dal;
 pub mod contract_verification_dal;
 pub mod eth_sender_dal;
 pub mod events_dal;
 pub mod events_web3_dal;
 pub mod factory_deps_dal;
+pub mod metrics;
 mod models;
 pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
@@ -54,13 +56,8 @@ pub mod tokens_web3_dal;
 pub mod transactions_dal;
 pub mod transactions_web3_dal;
 
-pub mod metrics;
-
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-mod pruning_dal_tests;
 
 // This module is private and serves as a way to seal the trait.
 mod private {

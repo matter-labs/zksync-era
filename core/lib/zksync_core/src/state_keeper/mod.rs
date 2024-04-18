@@ -26,7 +26,6 @@ pub use self::{
 use crate::fee_model::BatchFeeModelInputProvider;
 
 mod batch_executor;
-pub(crate) mod extractors;
 pub(crate) mod io;
 mod keeper;
 mod mempool_actor;
