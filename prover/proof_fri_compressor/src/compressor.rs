@@ -40,7 +40,7 @@ pub struct ProofCompressor {
     compression_mode: u8,
     verify_wrapper_proof: bool,
     max_attempts: u32,
-    protocol_versions: Vec<ProtocolVersionId>,
+    protocol_version: ProtocolVersionId,
 }
 
 impl ProofCompressor {
@@ -50,7 +50,7 @@ impl ProofCompressor {
         compression_mode: u8,
         verify_wrapper_proof: bool,
         max_attempts: u32,
-        protocol_versions: Vec<ProtocolVersionId>,
+        protocol_version: ProtocolVersionId,
     ) -> Self {
         Self {
             blob_store,
@@ -58,7 +58,7 @@ impl ProofCompressor {
             compression_mode,
             verify_wrapper_proof,
             max_attempts,
-            protocol_versions,
+            protocol_version,
         }
     }
 
@@ -138,7 +138,7 @@ impl JobProcessor for ProofCompressor {
         let pod_name = get_current_pod_name();
         let Some(l1_batch_number) = conn
             .fri_proof_compressor_dal()
-            .get_next_proof_compression_job(&pod_name, self.protocol_versions)
+            .get_next_proof_compression_job(&pod_name, self.protocol_version)
             .await
         else {
             return Ok(None);

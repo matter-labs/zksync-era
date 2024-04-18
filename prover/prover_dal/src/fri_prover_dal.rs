@@ -52,10 +52,9 @@ impl FriProverDal<'_, '_> {
 
     pub async fn get_next_job(
         &mut self,
-        protocol_versions: &[ProtocolVersionId],
+        protocol_version: &ProtocolVersionId,
         picked_by: &str,
     ) -> Option<FriProverJobMetadata> {
-        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         sqlx::query!(
             r#"
             UPDATE prover_jobs_fri
@@ -73,7 +72,7 @@ impl FriProverDal<'_, '_> {
                         prover_jobs_fri
                     WHERE
                         status = 'queued'
-                        AND protocol_version = ANY ($1)
+                        AND protocol_version = $1
                     ORDER BY
                         aggregation_round DESC,
                         l1_batch_number ASC,
@@ -92,7 +91,7 @@ impl FriProverDal<'_, '_> {
                 prover_jobs_fri.depth,
                 prover_jobs_fri.is_node_final_proof
             "#,
-            &protocol_versions[..],
+            *protocol_version as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -113,14 +112,13 @@ impl FriProverDal<'_, '_> {
     pub async fn get_next_job_for_circuit_id_round(
         &mut self,
         circuits_to_pick: &[CircuitIdRoundTuple],
-        protocol_versions: &[ProtocolVersionId],
+        protocol_version: &ProtocolVersionId,
         picked_by: &str,
     ) -> Option<FriProverJobMetadata> {
         let circuit_ids: Vec<_> = circuits_to_pick
             .iter()
             .map(|tuple| i16::from(tuple.circuit_id))
             .collect();
-        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         let aggregation_rounds: Vec<_> = circuits_to_pick
             .iter()
             .map(|tuple| i16::from(tuple.aggregation_round))
@@ -152,7 +150,7 @@ impl FriProverDal<'_, '_> {
                                 prover_jobs_fri AS pj
                             WHERE
                                 pj.status = 'queued'
-                                AND pj.protocol_version = ANY ($3)
+                                AND pj.protocol_version = $3
                                 AND pj.circuit_id = tuple.circuit_id
                                 AND pj.aggregation_round = tuple.round
                             ORDER BY
@@ -181,7 +179,7 @@ impl FriProverDal<'_, '_> {
             "#,
             &circuit_ids[..],
             &aggregation_rounds[..],
-            &protocol_versions[..],
+            *protocol_version as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -604,7 +602,7 @@ impl FriProverDal<'_, '_> {
             "#,
             job_id as i32
         )
-        .fetch_one()
+        .fetch_one(self.storage.conn())
         .await
         .unwrap()
         .protocol_version

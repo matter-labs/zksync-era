@@ -78,7 +78,7 @@ impl FriProofCompressorDal<'_, '_> {
     pub async fn get_next_proof_compression_job(
         &mut self,
         picked_by: &str,
-        protocol_versions: &[ProtocolVersionId],
+        protocol_version: &ProtocolVersionId,
     ) -> Option<L1BatchNumber> {
         sqlx::query!(
             r#"
@@ -97,7 +97,7 @@ impl FriProofCompressorDal<'_, '_> {
                         proof_compression_jobs_fri
                     WHERE
                         status = $2
-                        AND protocol_version = ANY($4)
+                        AND protocol_version = $4
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
@@ -111,7 +111,7 @@ impl FriProofCompressorDal<'_, '_> {
             ProofCompressionJobStatus::InProgress.to_string(),
             ProofCompressionJobStatus::Queued.to_string(),
             picked_by,
-            protocol_versions as i32
+            *protocol_version as i32
         )
         .fetch_optional(self.storage.conn())
         .await

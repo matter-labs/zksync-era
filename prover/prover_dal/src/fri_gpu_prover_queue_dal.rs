@@ -19,7 +19,7 @@ impl FriGpuProverQueueDal<'_, '_> {
         processing_timeout: Duration,
         specialized_prover_group_id: u8,
         zone: String,
-        protocol_version_id: ProtocolVersionId,
+        protocol_version: ProtocolVersionId,
     ) -> Option<SocketAddress> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let result: Option<SocketAddress> = sqlx::query!(
@@ -38,7 +38,7 @@ impl FriGpuProverQueueDal<'_, '_> {
                     WHERE
                         specialized_prover_group_id = $2
                         AND zone = $3
-                        AND $4 = ANY(protocol_versions)
+                        AND protocol_version = $4
                         AND (
                             instance_status = 'available'
                             OR (
@@ -59,7 +59,7 @@ impl FriGpuProverQueueDal<'_, '_> {
             &processing_timeout,
             i16::from(specialized_prover_group_id),
             zone,
-            protocol_version
+            protocol_version as i32
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -77,7 +77,7 @@ impl FriGpuProverQueueDal<'_, '_> {
         address: SocketAddress,
         specialized_prover_group_id: u8,
         zone: String,
-        protocol_versions: Vec<ProtocolVersionId>,
+        protocol_version: ProtocolVersionId,
     ) {
         sqlx::query!(
             r#"
@@ -90,7 +90,7 @@ impl FriGpuProverQueueDal<'_, '_> {
                     zone,
                     created_at,
                     updated_at,
-                    protocol_versions
+                    protocol_version
                 )
             VALUES
                 (CAST($1::TEXT AS inet), $2, 'available', $3, $4, NOW(), NOW(), $5)
@@ -101,16 +101,13 @@ impl FriGpuProverQueueDal<'_, '_> {
                 specialized_prover_group_id = $3,
                 zone = $4,
                 updated_at = NOW(),
-                protocol_versions = $5
+                protocol_version = $5
             "#,
             address.host.to_string(),
             i32::from(address.port),
             i16::from(specialized_prover_group_id),
             zone,
-            &protocol_versions
-                .into_iter()
-                .map(|x| x as i32)
-                .collect::<Vec<i32>>()[..]
+            protocol_version as i32
         )
         .execute(self.storage.conn())
         .await
@@ -218,7 +215,7 @@ impl FriGpuProverQueueDal<'_, '_> {
                     updated_at,
                     processing_started_at,
                     NOW() as archived_at,
-                    protocol_versions
+                    protocol_version
             ),
             inserted_count AS (
                 INSERT INTO gpu_prover_queue_fri_archive

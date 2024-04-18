@@ -53,6 +53,10 @@ impl ProtocolVersionId {
         Self::Version23
     }
 
+    pub fn latest_prover() -> Self {
+        Self::Version23
+    }
+
     pub fn next() -> Self {
         Self::Version24
     }

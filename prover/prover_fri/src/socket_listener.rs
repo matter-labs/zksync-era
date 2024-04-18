@@ -27,7 +27,7 @@ pub mod gpu_socket_listener {
         pool: ConnectionPool<Prover>,
         specialized_prover_group_id: u8,
         zone: String,
-        protocol_versions: Vec<ProtocolVersionId>,
+        protocol_version: ProtocolVersionId,
     }
 
     impl SocketListener {
@@ -37,7 +37,7 @@ pub mod gpu_socket_listener {
             pool: ConnectionPool<Prover>,
             specialized_prover_group_id: u8,
             zone: String,
-            protocol_versions: Vec<ProtocolVersionId>,
+            protocol_version: ProtocolVersionId,
         ) -> Self {
             Self {
                 address,
@@ -45,7 +45,7 @@ pub mod gpu_socket_listener {
                 pool,
                 specialized_prover_group_id,
                 zone,
-                protocol_versions,
+                protocol_version,
             }
         }
         async fn init(&self, init_notifier: Arc<Notify>) -> anyhow::Result<TcpListener> {
@@ -69,7 +69,7 @@ pub mod gpu_socket_listener {
                     self.address.clone(),
                     self.specialized_prover_group_id,
                     self.zone.clone(),
-                    self.protocol_versions,
+                    self.protocol_version,
                 )
                 .await;
             init_notifier.notify_one();

@@ -26,8 +26,7 @@ use zksync_prover_fri_utils::{
 };
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
-    basic_fri_types::CircuitIdRoundTuple, protocol_version::L1VerifierConfig,
-    prover_dal::GpuProverInstanceStatus,
+    basic_fri_types::CircuitIdRoundTuple, prover_dal::GpuProverInstanceStatus, ProtocolVersionId,
 };
 use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
@@ -39,7 +38,7 @@ pub struct WitnessVectorGenerator {
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
     zone: String,
     config: FriWitnessVectorGeneratorConfig,
-    vk_commitments: L1VerifierConfig,
+    protocol_version: ProtocolVersionId,
     max_attempts: u32,
 }
 
@@ -50,7 +49,7 @@ impl WitnessVectorGenerator {
         circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
         zone: String,
         config: FriWitnessVectorGeneratorConfig,
-        vk_commitments: L1VerifierConfig,
+        protocol_version: ProtocolVersionId,
         max_attempts: u32,
     ) -> Self {
         Self {
@@ -59,7 +58,7 @@ impl WitnessVectorGenerator {
             circuit_ids_for_round_to_be_proven,
             zone,
             config,
-            vk_commitments,
+            protocol_version,
             max_attempts,
         }
     }
@@ -102,7 +101,7 @@ impl JobProcessor for WitnessVectorGenerator {
             &mut storage,
             &*self.blob_store,
             &self.circuit_ids_for_round_to_be_proven,
-            &self.vk_commitments,
+            &self.protocol_version,
         )
         .await
         else {

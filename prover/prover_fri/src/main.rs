@@ -23,6 +23,7 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::CircuitIdRoundTuple,
     prover_dal::{GpuProverInstanceStatus, SocketAddress},
+    ProtocolVersionId,
 };
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
@@ -249,14 +250,7 @@ async fn get_prover_tasks(
         port: prover_config.witness_vector_receiver_port,
     };
 
-    let vk_commitments = get_cached_commitments();
-    let protocol_version = pool
-        .connection()
-        .await
-        .unwrap()
-        .fri_protocol_versions_dal()
-        .protocol_versions_for(&vk_commitments)
-        .await;
+    let protocol_version = ProtocolVersionId::latest_prover();
 
     let prover = gpu_prover::Prover::new(
         store_factory.create_store().await,

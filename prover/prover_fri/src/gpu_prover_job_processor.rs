@@ -64,7 +64,7 @@ pub mod gpu_prover {
         prover_context: ProverContext,
         address: SocketAddress,
         zone: String,
-        protocol_versions: Vec<ProtocolVersionId>,
+        protocol_version: ProtocolVersionId,
     }
 
     impl Prover {
@@ -79,7 +79,7 @@ pub mod gpu_prover {
             witness_vector_queue: SharedWitnessVectorQueue,
             address: SocketAddress,
             zone: String,
-            protocol_versions: Vec<ProtocolVersionId>,
+            protocol_version: ProtocolVersionId,
         ) -> Self {
             Prover {
                 blob_store,
@@ -93,7 +93,7 @@ pub mod gpu_prover {
                     .expect("failed initializing gpu prover context"),
                 address,
                 zone,
-                protocol_versions,
+                protocol_version,
             }
         }
 
