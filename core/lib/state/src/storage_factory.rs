@@ -122,7 +122,11 @@ impl<'a> PgOrRocksdbStorage<'a> {
             tracing::info!("Synchronizing RocksDB interrupted");
             return Ok(None);
         };
-        let rocksdb_l1_batch_number = rocksdb.l1_batch_number().await.unwrap_or_default() - 1;
+        let rocksdb_l1_batch_number = rocksdb
+            .l1_batch_number()
+            .await
+            .ok_or_else(|| anyhow::anyhow!("No L1 batches available in Postgres"))?
+            - 1;
         if l1_batch_number != rocksdb_l1_batch_number {
             anyhow::bail!(
                 "RocksDB synchronized to L1 batch #{} while #{} was expected",
