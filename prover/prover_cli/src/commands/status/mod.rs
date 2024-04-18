@@ -1,9 +1,16 @@
-use super::StatusCommand;
+use clap::Subcommand;
 
-pub(crate) mod jobs;
+pub(crate) mod batch;
 
-pub(crate) async fn run(status_cmd: StatusCommand) -> anyhow::Result<()> {
-    match status_cmd {
-        StatusCommand::Jobs(args) => jobs::run(args).await,
+#[derive(Subcommand)]
+pub enum StatusCommand {
+    Batch(batch::Args),
+}
+
+impl StatusCommand {
+    pub(crate) async fn run(self) -> anyhow::Result<()> {
+        match self {
+            StatusCommand::Batch(args) => batch::run(args).await,
+        }
     }
 }

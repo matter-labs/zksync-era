@@ -1,6 +1,6 @@
 use clap::{command, Parser, Subcommand};
 
-use crate::commands::{self, get_file_info, status};
+use crate::commands::{self, get_file_info};
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
@@ -22,7 +22,7 @@ pub async fn start() -> anyhow::Result<()> {
     let ProverCLI { command } = ProverCLI::parse();
     match command {
         ProverCommand::FileInfo(args) => get_file_info::run(args).await?,
-        ProverCommand::Status(status_cmd) => status::run(status_cmd).await?,
+        ProverCommand::Status(cmd) => cmd.run().await?,
     };
 
     Ok(())

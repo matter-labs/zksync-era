@@ -1,4 +1,4 @@
-use anyhow::Context as _;
+use anyhow::{ensure, Context as _};
 use clap::Args as ClapArgs;
 use prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_basic_types::{prover_dal::JobCountStatistics, L1BatchNumber};
@@ -6,7 +6,7 @@ use zksync_config::PostgresConfig;
 use zksync_env_config::FromEnv;
 
 #[derive(ClapArgs)]
-pub(crate) struct Args {
+pub struct Args {
     #[clap(short, long, num_args = 0..)]
     batch: Vec<L1BatchNumber>,
     #[clap(short, long, default_value("false"))]
@@ -14,6 +14,10 @@ pub(crate) struct Args {
 }
 
 pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
+    ensure!(
+        !args.batch.is_empty(),
+        "At least one batch number should be provided"
+    );
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
 
     let prover_connection_pool = ConnectionPool::<Prover>::builder(
