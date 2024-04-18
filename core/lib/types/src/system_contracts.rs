@@ -178,7 +178,7 @@ static SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new(|| {
 static EVM_INTERPRETER_HASH: Lazy<H256> = Lazy::new(|| {
     hash_bytecode(&read_sys_contract_bytecode(
         "",
-        "EvmInterpreter",
+        "EvmInterpreterPreprocessed",
         // ContractLanguage::Sol,
         ContractLanguage::Yul,
     ))
