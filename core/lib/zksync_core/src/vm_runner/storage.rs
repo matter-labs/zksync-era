@@ -13,8 +13,8 @@ use tokio::sync::{watch, RwLock};
 use vm_utils::storage::L1BatchParamsProvider;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_state::{
-    AsyncCatchupTask, BatchDiff, PgOrRocksdbStorage, ReadStorageFactory, RocksdbStorageBuilder,
-    RocksdbWithMemory, StateKeeperColumnFamily,
+    AsyncCatchupTask, BatchDiff, PgOrRocksdbStorage, ReadStorageFactory, RocksdbStorage,
+    RocksdbStorageBuilder, RocksdbWithMemory, StateKeeperColumnFamily,
 };
 use zksync_storage::RocksDB;
 use zksync_types::{block::MiniblockExecutionData, L1BatchNumber, L2ChainId};
@@ -76,12 +76,12 @@ pub struct VmRunnerStorage<L: VmRunnerStorageLoader> {
     l1_batch_params_provider: L1BatchParamsProvider,
     chain_id: L2ChainId,
     state: Arc<RwLock<State>>,
-    rocksdb_cell: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
     loader: L,
 }
 
 #[derive(Debug)]
 struct State {
+    rocksdb: Option<RocksdbStorage>,
     l1_batch_number: L1BatchNumber,
     storage: BTreeMap<L1BatchNumber, BatchData>,
 }
@@ -100,8 +100,8 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
             .await
             .context("Failed initializing L1 batch params provider")?;
         drop(conn);
-        let rocksdb_cell = Arc::new(OnceCell::new());
         let state = Arc::new(RwLock::new(State {
+            rocksdb: None,
             l1_batch_number: L1BatchNumber(0),
             storage: BTreeMap::new(),
         }));
@@ -111,7 +111,6 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
             rocksdb_path,
             enum_index_migration_chunk_size,
             loader.clone(),
-            rocksdb_cell.clone(),
             state.clone(),
         )
         .await?;
@@ -121,7 +120,6 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
                 l1_batch_params_provider,
                 chain_id,
                 state,
-                rocksdb_cell,
                 loader,
             },
             task,
@@ -130,67 +128,57 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
 
     async fn access_storage_inner(
         &self,
-        stop_receiver: &watch::Receiver<bool>,
+        _stop_receiver: &watch::Receiver<bool>,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
-        if let Some(rocksdb) = self.rocksdb_cell.get() {
-            loop {
-                let state = self.state.read().await;
-                let mut conn = self
-                    .pool
-                    .connection_tagged(L::name())
-                    .await
-                    .context("Failed getting a Postgres connection")?;
-                let max_l1_batch = self.loader.last_ready_to_be_loaded_batch(&mut conn).await?;
-                if l1_batch_number < state.l1_batch_number || l1_batch_number > max_l1_batch {
-                    anyhow::bail!(
+        loop {
+            let state = self.state.read().await;
+            let Some(rocksdb) = &state.rocksdb else {
+                return Ok(Some(
+                    PgOrRocksdbStorage::access_storage_pg(&self.pool, l1_batch_number)
+                        .await
+                        .context("Failed accessing Postgres storage")?,
+                ));
+            };
+            let mut conn = self
+                .pool
+                .connection_tagged(L::name())
+                .await
+                .context("Failed getting a Postgres connection")?;
+            let max_l1_batch = self.loader.last_ready_to_be_loaded_batch(&mut conn).await?;
+            if l1_batch_number < state.l1_batch_number || l1_batch_number > max_l1_batch {
+                anyhow::bail!(
                         "Trying to access VM runner storage with L1 batch #{} while only [#{}; #{}] are available",
                         l1_batch_number,
                         state.l1_batch_number,
                         max_l1_batch
                     );
-                }
-                if l1_batch_number != state.l1_batch_number
-                    && !state.storage.contains_key(&l1_batch_number)
-                {
-                    drop(state);
-                    drop(conn);
-                    tokio::time::sleep(Duration::from_millis(100)).await;
-                    continue;
-                }
-                let rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb.clone());
-                let rocksdb = rocksdb_builder
-                    .synchronize(&mut conn, stop_receiver, Some(state.l1_batch_number))
-                    .await
-                    .context("Failed to catch up RocksDB storage to Postgres")?;
-                let Some(rocksdb) = rocksdb else {
-                    tracing::info!("Synchronizing RocksDB interrupted");
-                    return Ok(None);
-                };
-                let batch_diffs = state
-                    .storage
-                    .iter()
-                    .filter_map(|(x, y)| {
-                        if x <= &l1_batch_number {
-                            Some(y.diff.clone())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<Vec<_>>();
-                return Ok(Some(PgOrRocksdbStorage::RocksdbWithMemory(
-                    RocksdbWithMemory {
-                        rocksdb,
-                        batch_diffs,
-                    },
-                )));
             }
-        } else {
-            Ok(Some(
-                PgOrRocksdbStorage::access_storage_pg(&self.pool, l1_batch_number)
-                    .await
-                    .context("Failed accessing Postgres storage")?,
-            ))
+            if l1_batch_number != state.l1_batch_number
+                && !state.storage.contains_key(&l1_batch_number)
+            {
+                drop(state);
+                drop(conn);
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                continue;
+            }
+            let batch_diffs = state
+                .storage
+                .iter()
+                .filter_map(|(x, y)| {
+                    if x <= &l1_batch_number {
+                        Some(y.diff.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            return Ok(Some(PgOrRocksdbStorage::RocksdbWithMemory(
+                RocksdbWithMemory {
+                    rocksdb: rocksdb.clone(),
+                    batch_diffs,
+                },
+            )));
         }
     }
 
@@ -208,37 +196,35 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<BatchExecuteData>> {
-        if self.rocksdb_cell.get().is_some() {
-            loop {
-                let state = self.state.read().await;
-                let mut conn = self.pool.connection_tagged(L::name()).await?;
-                let max_l1_batch = self.loader.last_ready_to_be_loaded_batch(&mut conn).await?;
-                drop(conn);
-                if l1_batch_number <= state.l1_batch_number || l1_batch_number > max_l1_batch {
-                    tracing::debug!(
-                        %l1_batch_number,
-                        min_l1_batch = %(state.l1_batch_number + 1),
-                        %max_l1_batch,
-                        "Trying to load an L1 batch that is not available"
-                    );
-                    return Ok(None);
-                }
-                let Some(storage_data) = state.storage.get(&l1_batch_number) else {
-                    drop(state);
-                    tokio::time::sleep(Duration::from_millis(100)).await;
-                    continue;
-                };
-                return Ok(Some(storage_data.execute_data.clone()));
-            }
-        } else {
+        loop {
+            let state = self.state.read().await;
             let mut conn = self.pool.connection_tagged(L::name()).await?;
-            StorageSyncTask::<L>::load_batch_execute_data(
-                &mut conn,
-                l1_batch_number,
-                &self.l1_batch_params_provider,
-                self.chain_id,
-            )
-            .await
+            if state.rocksdb.is_none() {
+                return StorageSyncTask::<L>::load_batch_execute_data(
+                    &mut conn,
+                    l1_batch_number,
+                    &self.l1_batch_params_provider,
+                    self.chain_id,
+                )
+                .await;
+            }
+            let max_l1_batch = self.loader.last_ready_to_be_loaded_batch(&mut conn).await?;
+            drop(conn);
+            if l1_batch_number <= state.l1_batch_number || l1_batch_number > max_l1_batch {
+                tracing::debug!(
+                    %l1_batch_number,
+                    min_l1_batch = %(state.l1_batch_number + 1),
+                    %max_l1_batch,
+                    "Trying to load an L1 batch that is not available"
+                );
+                return Ok(None);
+            }
+            let Some(storage_data) = state.storage.get(&l1_batch_number) else {
+                drop(state);
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                continue;
+            };
+            return Ok(Some(storage_data.execute_data.clone()));
         }
     }
 }
@@ -277,13 +263,13 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
         rocksdb_path: String,
         enum_index_migration_chunk_size: usize,
         loader: L,
-        rocksdb_cell: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
         state: Arc<RwLock<State>>,
     ) -> anyhow::Result<Self> {
         let mut conn = pool.connection_tagged(L::name()).await?;
         let l1_batch_params_provider = L1BatchParamsProvider::new(&mut conn)
             .await
             .context("Failed initializing L1 batch params provider")?;
+        let rocksdb_cell = Arc::new(OnceCell::new());
         let catchup_task = AsyncCatchupTask::new(
             pool.clone(),
             rocksdb_path,
@@ -322,10 +308,11 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
                 .synchronize(&mut conn, &stop_receiver, Some(latest_processed_batch))
                 .await
                 .context("Failed to catch up state keeper RocksDB storage to Postgres")?;
-            let Some(_) = rocksdb else {
+            let Some(rocksdb) = rocksdb else {
                 tracing::info!("`StorageSyncTask` was interrupted during RocksDB synchronization");
                 return Ok(());
             };
+            state.rocksdb = Some(rocksdb);
             state.l1_batch_number = latest_processed_batch;
             state
                 .storage

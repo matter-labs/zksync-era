@@ -1,10 +1,11 @@
 //! Tests for [`RocksdbStorage`].
 
-use std::fmt;
+use std::{fmt, sync::Arc};
 
 use assert_matches::assert_matches;
 use tempfile::TempDir;
 use test_casing::test_casing;
+use tokio::sync::RwLock;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_types::{MiniblockNumber, StorageLog};
 
@@ -14,11 +15,12 @@ use crate::test_utils::{
     prepare_postgres_for_snapshot_recovery,
 };
 
+#[derive(Clone)]
 pub(super) struct RocksdbStorageEventListener {
     /// Called when an L1 batch is synced.
-    pub on_l1_batch_synced: Box<dyn FnMut(L1BatchNumber) + Send + Sync>,
+    pub on_l1_batch_synced: Arc<RwLock<dyn FnMut(L1BatchNumber) + Send + Sync>>,
     /// Called when an storage logs chunk is recovered from a snapshot.
-    pub on_logs_chunk_recovered: Box<dyn FnMut(u64) + Send + Sync>,
+    pub on_logs_chunk_recovered: Arc<RwLock<dyn FnMut(u64) + Send + Sync>>,
 }
 
 impl fmt::Debug for RocksdbStorageEventListener {
@@ -32,8 +34,8 @@ impl fmt::Debug for RocksdbStorageEventListener {
 impl Default for RocksdbStorageEventListener {
     fn default() -> Self {
         Self {
-            on_l1_batch_synced: Box::new(|_| { /* do nothing */ }),
-            on_logs_chunk_recovered: Box::new(|_| { /* do nothing */ }),
+            on_l1_batch_synced: Arc::new(RwLock::new(|_| { /* do nothing */ })),
+            on_logs_chunk_recovered: Arc::new(RwLock::new(|_| { /* do nothing */ })),
         }
     }
 }
@@ -124,13 +126,13 @@ async fn rocksdb_storage_syncing_fault_tolerance() {
         .await
         .expect("Failed initializing RocksDB");
     let mut expected_l1_batch_number = L1BatchNumber(0);
-    storage.0.listener.on_l1_batch_synced = Box::new(move |number| {
+    storage.0.listener.on_l1_batch_synced = Arc::new(RwLock::new(move |number| {
         assert_eq!(number, expected_l1_batch_number);
         expected_l1_batch_number += 1;
         if number == L1BatchNumber(2) {
             stop_sender.send_replace(true);
         }
-    });
+    }));
     let storage = storage
         .synchronize(&mut conn, &stop_receiver, None)
         .await
@@ -463,13 +465,13 @@ async fn recovery_fault_tolerance() {
     let mut storage = RocksdbStorage::new(dir.path().into()).await.unwrap();
     let (stop_sender, stop_receiver) = watch::channel(false);
     let mut synced_chunk_count = 0_u64;
-    storage.listener.on_logs_chunk_recovered = Box::new(move |chunk_id| {
+    storage.listener.on_logs_chunk_recovered = Arc::new(RwLock::new(move |chunk_id| {
         assert_eq!(chunk_id, synced_chunk_count);
         synced_chunk_count += 1;
         if synced_chunk_count == 2 {
             stop_sender.send_replace(true);
         }
-    });
+    }));
 
     let err = storage
         .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
@@ -481,9 +483,9 @@ async fn recovery_fault_tolerance() {
     // Resume recovery and check that no chunks are recovered twice.
     let (_stop_sender, stop_receiver) = watch::channel(false);
     let mut storage = RocksdbStorage::new(dir.path().into()).await.unwrap();
-    storage.listener.on_logs_chunk_recovered = Box::new(|chunk_id| {
+    storage.listener.on_logs_chunk_recovered = Arc::new(RwLock::new(|chunk_id| {
         assert!(chunk_id >= 2);
-    });
+    }));
     storage
         .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
         .await
