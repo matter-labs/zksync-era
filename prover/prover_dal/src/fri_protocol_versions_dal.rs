@@ -94,7 +94,7 @@ impl FriProtocolVersionsDal<'_, '_> {
         .collect()
     }
 
-    pub async fn get_l1_verifier_config(&mut self) -> L1VerifierConfig {
+    pub async fn get_l1_verifier_config(&mut self) -> Result<L1VerifierConfig, sqlx::Error> {
         let result = sqlx::query!(
             r#"
             SELECT
@@ -110,8 +110,7 @@ impl FriProtocolVersionsDal<'_, '_> {
             "#,
         )
         .fetch_one(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
 
         let params = VerifierParams {
             recursion_node_level_vk_hash: H256::from_slice(&result.recursion_node_level_vk_hash),
@@ -121,11 +120,11 @@ impl FriProtocolVersionsDal<'_, '_> {
             ),
         };
 
-        L1VerifierConfig {
+        Ok(L1VerifierConfig {
             params,
             recursion_scheduler_level_vk_hash: H256::from_slice(
                 &result.recursion_scheduler_level_vk_hash,
             ),
-        }
+        })
     }
 }
