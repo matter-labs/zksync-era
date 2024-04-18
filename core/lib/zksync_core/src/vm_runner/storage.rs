@@ -1,8 +1,8 @@
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::Debug,
+    marker::PhantomData,
     sync::Arc,
-    time::Duration,
 };
 
 use anyhow::Context as _;
@@ -39,7 +39,7 @@ struct BatchData {
 /// Functionality to fetch data about processed/unprocessed batches for a particular VM runner
 /// instance.
 #[async_trait]
-pub trait VmRunnerStorageLoader: Debug + Send + Sync + Clone + 'static {
+pub trait VmRunnerStorageLoader: Debug + Send + Sync + 'static {
     /// Unique name of the VM runner instance.
     fn name() -> &'static str;
 
@@ -76,7 +76,7 @@ pub struct VmRunnerStorage<L: VmRunnerStorageLoader> {
     l1_batch_params_provider: L1BatchParamsProvider,
     chain_id: L2ChainId,
     state: Arc<RwLock<State>>,
-    loader: L,
+    _marker: PhantomData<L>,
 }
 
 #[derive(Debug)]
@@ -110,7 +110,7 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
             chain_id,
             rocksdb_path,
             enum_index_migration_chunk_size,
-            loader.clone(),
+            loader,
             state.clone(),
         )
         .await?;
@@ -120,7 +120,7 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
                 l1_batch_params_provider,
                 chain_id,
                 state,
-                loader,
+                _marker: PhantomData,
             },
             task,
         ))
@@ -131,55 +131,41 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
         _stop_receiver: &watch::Receiver<bool>,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
-        loop {
-            let state = self.state.read().await;
-            let Some(rocksdb) = &state.rocksdb else {
-                return Ok(Some(
-                    PgOrRocksdbStorage::access_storage_pg(&self.pool, l1_batch_number)
-                        .await
-                        .context("Failed accessing Postgres storage")?,
-                ));
-            };
-            let mut conn = self
-                .pool
-                .connection_tagged(L::name())
-                .await
-                .context("Failed getting a Postgres connection")?;
-            let max_l1_batch = self.loader.last_ready_to_be_loaded_batch(&mut conn).await?;
-            if l1_batch_number < state.l1_batch_number || l1_batch_number > max_l1_batch {
-                anyhow::bail!(
-                        "Trying to access VM runner storage with L1 batch #{} while only [#{}; #{}] are available",
-                        l1_batch_number,
-                        state.l1_batch_number,
-                        max_l1_batch
-                    );
-            }
-            if l1_batch_number != state.l1_batch_number
-                && !state.storage.contains_key(&l1_batch_number)
-            {
-                drop(state);
-                drop(conn);
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                continue;
-            }
-            let batch_diffs = state
-                .storage
-                .iter()
-                .filter_map(|(x, y)| {
-                    if x <= &l1_batch_number {
-                        Some(y.diff.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>();
-            return Ok(Some(PgOrRocksdbStorage::RocksdbWithMemory(
-                RocksdbWithMemory {
-                    rocksdb: rocksdb.clone(),
-                    batch_diffs,
-                },
-            )));
+        let state = self.state.read().await;
+        let Some(rocksdb) = &state.rocksdb else {
+            return Ok(Some(
+                PgOrRocksdbStorage::access_storage_pg(&self.pool, l1_batch_number)
+                    .await
+                    .context("Failed accessing Postgres storage")?,
+            ));
+        };
+        if l1_batch_number != state.l1_batch_number && !state.storage.contains_key(&l1_batch_number)
+        {
+            tracing::debug!(
+                %l1_batch_number,
+                min_l1_batch = %state.l1_batch_number,
+                max_l1_batch = %state.storage.last_key_value().map(|(k, _)| *k).unwrap_or(state.l1_batch_number),
+                "Trying to access VM runner storage with L1 batch that is not available",
+            );
+            return Ok(None);
         }
+        let batch_diffs = state
+            .storage
+            .iter()
+            .filter_map(|(x, y)| {
+                if x <= &l1_batch_number {
+                    Some(y.diff.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        Ok(Some(PgOrRocksdbStorage::RocksdbWithMemory(
+            RocksdbWithMemory {
+                rocksdb: rocksdb.clone(),
+                batch_diffs,
+            },
+        )))
     }
 
     /// Loads next unprocessed L1 batch along with all transactions that VM runner needs to
@@ -196,35 +182,28 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<BatchExecuteData>> {
-        loop {
-            let state = self.state.read().await;
+        let state = self.state.read().await;
+        if state.rocksdb.is_none() {
             let mut conn = self.pool.connection_tagged(L::name()).await?;
-            if state.rocksdb.is_none() {
-                return StorageSyncTask::<L>::load_batch_execute_data(
-                    &mut conn,
-                    l1_batch_number,
-                    &self.l1_batch_params_provider,
-                    self.chain_id,
-                )
-                .await;
-            }
-            let max_l1_batch = self.loader.last_ready_to_be_loaded_batch(&mut conn).await?;
-            drop(conn);
-            if l1_batch_number <= state.l1_batch_number || l1_batch_number > max_l1_batch {
+            return StorageSyncTask::<L>::load_batch_execute_data(
+                &mut conn,
+                l1_batch_number,
+                &self.l1_batch_params_provider,
+                self.chain_id,
+            )
+            .await;
+        }
+        match state.storage.get(&l1_batch_number) {
+            None => {
                 tracing::debug!(
                     %l1_batch_number,
                     min_l1_batch = %(state.l1_batch_number + 1),
-                    %max_l1_batch,
+                    max_l1_batch = %state.storage.last_key_value().map(|(k, _)| *k).unwrap_or(state.l1_batch_number),
                     "Trying to load an L1 batch that is not available"
                 );
                 return Ok(None);
             }
-            let Some(storage_data) = state.storage.get(&l1_batch_number) else {
-                drop(state);
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                continue;
-            };
-            return Ok(Some(storage_data.execute_data.clone()));
+            Some(batch_data) => Ok(Some(batch_data.execute_data.clone())),
         }
     }
 }

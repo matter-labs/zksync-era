@@ -1,6 +1,7 @@
 use std::{ops, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
+use backon::{ConstantBuilder, ExponentialBuilder, Retryable};
 use tempfile::TempDir;
 use tokio::{
     runtime::Handle,
@@ -9,14 +10,14 @@ use tokio::{
 };
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_state::{PostgresStorage, ReadStorage, ReadStorageFactory};
+use zksync_state::{PgOrRocksdbStorage, PostgresStorage, ReadStorage, ReadStorageFactory};
 use zksync_types::{
     block::{BlockGasCount, L1BatchHeader},
     fee::TransactionExecutionMetrics,
     AccountTreeId, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, StorageKey,
 };
 
-use super::{VmRunnerStorage, VmRunnerStorageLoader};
+use super::{BatchExecuteData, VmRunnerStorage, VmRunnerStorageLoader};
 use crate::{
     genesis::{insert_genesis_batch, GenesisParams},
     utils::testonly::{
@@ -86,6 +87,64 @@ impl VmRunnerTester {
         });
         self.tasks.push(handle);
         Ok(vm_runner_storage)
+    }
+}
+
+impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
+    async fn load_batch_eventually(
+        &self,
+        number: L1BatchNumber,
+    ) -> anyhow::Result<BatchExecuteData> {
+        (|| async {
+            self.load_batch(number)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("Batch #{} is not available yet", number))
+        })
+        .retry(&ExponentialBuilder::default())
+        .await
+    }
+
+    async fn access_storage_eventually(
+        &self,
+        stop_receiver: &watch::Receiver<bool>,
+        number: L1BatchNumber,
+    ) -> anyhow::Result<PgOrRocksdbStorage<'_>> {
+        (|| async {
+            self.access_storage(stop_receiver, number)
+                .await?
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Storage for batch #{} is not available yet", number)
+                })
+        })
+        .retry(&ExponentialBuilder::default())
+        .await
+    }
+
+    async fn ensure_batch_unloads_eventually(&self, number: L1BatchNumber) -> anyhow::Result<()> {
+        (|| async {
+            Ok(anyhow::ensure!(
+                self.load_batch(number).await?.is_none(),
+                "Batch #{} is still available",
+                number
+            ))
+        })
+        .retry(&ExponentialBuilder::default())
+        .await
+    }
+
+    async fn batch_stays_unloaded(&self, number: L1BatchNumber) -> bool {
+        (|| async {
+            self.load_batch(number)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("Batch #{} is not available yet", number))
+        })
+        .retry(
+            &ConstantBuilder::default()
+                .with_delay(Duration::from_millis(100))
+                .with_max_times(3),
+        )
+        .await
+        .is_err()
     }
 }
 
@@ -180,7 +239,7 @@ async fn rerun_storage_on_existing_data() -> anyhow::Result<()> {
     let storage = tester.create_storage(loader_mock.clone()).await?;
     // Check that existing batches are returned in the exact same order with the exact same data
     for batch in &batches {
-        let batch_data = storage.load_batch(batch.number).await?.unwrap();
+        let batch_data = storage.load_batch_eventually(batch.number).await?;
         let mut conn = connection_pool.connection().await.unwrap();
         let (previous_batch_hash, _) = conn
             .blocks_dal()
@@ -225,12 +284,11 @@ async fn rerun_storage_on_existing_data() -> anyhow::Result<()> {
     // "Mark" these batches as processed
     loader_mock.write().await.current += batches.len() as u32;
 
-    // Sleep to give VM runner storage time to get rid of old batches
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
     // All old batches should no longer be loadable
     for batch in batches {
-        assert!(storage.load_batch(batch.number).await?.is_none());
+        storage
+            .ensure_batch_unloads_eventually(batch.number)
+            .await?;
     }
 
     Ok(())
@@ -262,11 +320,18 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
     loader_mock.write().await.max += 1;
 
     // Load batch and mark it as processed
-    assert!(storage.load_batch(L1BatchNumber(1)).await?.is_some());
+    assert_eq!(
+        storage
+            .load_batch_eventually(L1BatchNumber(1))
+            .await?
+            .l1_batch_env
+            .number,
+        L1BatchNumber(1)
+    );
     loader_mock.write().await.current += 1;
 
     // No more batches after that
-    assert!(storage.load_batch(L1BatchNumber(2)).await?.is_none());
+    assert!(storage.batch_stays_unloaded(L1BatchNumber(2)).await);
 
     // Generate one more batch and persist it in Postgres
     store_miniblocks(
@@ -278,11 +343,19 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
     loader_mock.write().await.max += 1;
 
     // Load batch and mark it as processed
-    assert!(storage.load_batch(L1BatchNumber(2)).await?.is_some());
+
+    assert_eq!(
+        storage
+            .load_batch_eventually(L1BatchNumber(2))
+            .await?
+            .l1_batch_env
+            .number,
+        L1BatchNumber(2)
+    );
     loader_mock.write().await.current += 1;
 
     // No more batches after that
-    assert!(storage.load_batch(L1BatchNumber(3)).await?.is_none());
+    assert!(storage.batch_stays_unloaded(L1BatchNumber(3)).await);
 
     Ok(())
 }
@@ -330,11 +403,9 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
                 PostgresStorage::new(rt_handle.clone(), conn, MiniblockNumber(i), true);
             let mut vm_storage = rt_handle.block_on(async {
                 vm_runner_storage
-                    .access_storage(&receiver, L1BatchNumber(i))
+                    .access_storage_eventually(&receiver, L1BatchNumber(i))
                     .await
-                    .unwrap()
-                    .unwrap()
-            });
+            })?;
             // Check that both storages have identical key-value pairs written in them
             for storage_log in &storage_logs {
                 let storage_key =
