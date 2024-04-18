@@ -24,7 +24,7 @@ use zksync_utils::u32_to_h256;
 use super::{GenericAsyncTree, L1BatchWithLogs, MetadataCalculator, MetadataCalculatorConfig};
 use crate::{
     genesis::{insert_genesis_batch, GenesisParams},
-    utils::testonly::{create_l1_batch, create_miniblock},
+    utils::testonly::{create_l1_batch, create_l2_block},
 };
 
 const RUN_TIMEOUT: Duration = Duration::from_secs(30);
@@ -513,7 +513,7 @@ pub(super) async fn extend_db_state_from_l1_batch(
         let header = create_l1_batch(idx);
         let batch_number = header.number;
         // Assumes that L1 batch consists of only one L2 block.
-        let l2_block_header = create_miniblock(idx);
+        let l2_block_header = create_l2_block(idx);
         let l2_block_number = l2_block_header.number;
 
         storage

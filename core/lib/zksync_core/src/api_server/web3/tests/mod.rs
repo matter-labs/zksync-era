@@ -49,7 +49,7 @@ use crate::{
     },
     genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams},
     utils::testonly::{
-        create_l1_batch, create_l1_batch_metadata, create_l2_transaction, create_miniblock,
+        create_l1_batch, create_l1_batch_metadata, create_l2_block, create_l2_transaction,
         l1_batch_metadata_to_commitment_artifacts, prepare_recovery_snapshot,
     },
 };
@@ -358,7 +358,7 @@ async fn store_miniblock(
         assert_matches!(tx_submission_result, L2TxSubmissionResult::Added);
     }
 
-    let new_miniblock = create_miniblock(number.0);
+    let new_miniblock = create_l2_block(number.0);
     storage.blocks_dal().insert_l2_block(&new_miniblock).await?;
     storage
         .transactions_dal()
@@ -397,7 +397,7 @@ async fn store_events(
     miniblock_number: u32,
     start_idx: u32,
 ) -> anyhow::Result<(IncludedTxLocation, Vec<VmEvent>)> {
-    let new_miniblock = create_miniblock(miniblock_number);
+    let new_miniblock = create_l2_block(miniblock_number);
     let l1_batch_number = L1BatchNumber(miniblock_number);
     storage.blocks_dal().insert_l2_block(&new_miniblock).await?;
     let tx_location = IncludedTxLocation {

@@ -7,7 +7,7 @@ use super::*;
 use crate::{
     api_server::execution_sandbox::{testonly::MockTransactionExecutor, VmConcurrencyBarrier},
     genesis::{insert_genesis_batch, GenesisParams},
-    utils::testonly::{create_miniblock, prepare_recovery_snapshot, MockBatchFeeParamsProvider},
+    utils::testonly::{create_l2_block, prepare_recovery_snapshot, MockBatchFeeParamsProvider},
 };
 
 pub(crate) async fn create_test_tx_sender(
@@ -69,7 +69,7 @@ async fn getting_nonce_for_account() {
     // Insert another miniblock with a new nonce log.
     storage
         .blocks_dal()
-        .insert_l2_block(&create_miniblock(1))
+        .insert_l2_block(&create_l2_block(1))
         .await
         .unwrap();
     let nonce_log = StorageLog {
@@ -115,7 +115,7 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
 
     storage
         .blocks_dal()
-        .insert_l2_block(&create_miniblock(SNAPSHOT_MINIBLOCK_NUMBER.0 + 1))
+        .insert_l2_block(&create_l2_block(SNAPSHOT_MINIBLOCK_NUMBER.0 + 1))
         .await
         .unwrap();
     let new_nonce_logs = vec![StorageLog::new_write_log(

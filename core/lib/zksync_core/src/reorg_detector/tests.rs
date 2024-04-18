@@ -18,13 +18,13 @@ use zksync_web3_decl::jsonrpsee::core::ClientError as RpcError;
 use super::*;
 use crate::{
     genesis::{insert_genesis_batch, GenesisParams},
-    utils::testonly::{create_l1_batch, create_miniblock},
+    utils::testonly::{create_l1_batch, create_l2_block},
 };
 
 async fn store_l2_block(storage: &mut Connection<'_, Core>, number: u32, hash: H256) {
     let header = L2BlockHeader {
         hash,
-        ..create_miniblock(number)
+        ..create_l2_block(number)
     };
     storage.blocks_dal().insert_l2_block(&header).await.unwrap();
 }

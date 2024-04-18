@@ -7,7 +7,7 @@ use super::*;
 use crate::{
     api_server::{execution_sandbox::apply::apply_vm_in_sandbox, tx_sender::ApiContracts},
     genesis::{insert_genesis_batch, GenesisParams},
-    utils::testonly::{create_l2_transaction, create_miniblock, prepare_recovery_snapshot},
+    utils::testonly::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot},
 };
 
 #[tokio::test]
@@ -17,7 +17,7 @@ async fn creating_block_args() {
     insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
-    let miniblock = create_miniblock(1);
+    let miniblock = create_l2_block(1);
     storage
         .blocks_dal()
         .insert_l2_block(&miniblock)
@@ -127,7 +127,7 @@ async fn creating_block_args_after_snapshot_recovery() {
         assert_matches!(err, BlockArgsError::Missing);
     }
 
-    let miniblock = create_miniblock(snapshot_recovery.l2_block_number.0 + 1);
+    let miniblock = create_l2_block(snapshot_recovery.l2_block_number.0 + 1);
     storage
         .blocks_dal()
         .insert_l2_block(&miniblock)

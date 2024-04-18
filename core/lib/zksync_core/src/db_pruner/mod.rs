@@ -283,7 +283,7 @@ mod tests {
     use zksync_types::{L2BlockNumber, ProtocolVersion};
 
     use super::*;
-    use crate::utils::testonly::create_miniblock;
+    use crate::utils::testonly::create_l2_block;
 
     #[derive(Debug)]
     struct ConditionMock {
@@ -377,7 +377,7 @@ mod tests {
         for l1_batch_number in 0..l1_batches_count {
             for l2_block_index in 0..l2_blocks_per_batch {
                 let l2_block_number = l1_batch_number * l2_blocks_per_batch + l2_block_index;
-                let l2_block_header = create_miniblock(l2_block_number);
+                let l2_block_header = create_l2_block(l2_block_number);
 
                 conn.blocks_dal()
                     .insert_l2_block(&l2_block_header)
