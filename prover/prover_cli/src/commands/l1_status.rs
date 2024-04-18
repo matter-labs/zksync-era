@@ -1,15 +1,118 @@
 use anyhow::Context as _;
 use prover_dal::{Prover, ProverDal};
 use zksync_basic_types::{
-    ethabi::Token,
+    ethabi::{Contract, Token},
     protocol_version::{L1VerifierConfig, VerifierParams},
     web3::contract::tokens::Detokenize,
-    L1BatchNumber, H256, U256,
+    Address, L1BatchNumber, H256, U256,
 };
 use zksync_config::{ContractsConfig, EthConfig, PostgresConfig};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_eth_client::{clients::QueryClient, CallFunctionArgs, EthInterface};
+use zksync_types::web3::contract;
+
+pub(crate) async fn run() -> anyhow::Result<()> {
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
+    let contracts_config = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
+    let eth_config = EthConfig::from_env()?;
+    let query_client = QueryClient::new(&eth_config.web3_url).unwrap();
+
+    let total_batches_committed_tokens = contract_call(
+        "getTotalBatchesCommitted",
+        contracts_config.diamond_proxy_addr,
+        zksync_contracts::zksync_contract(),
+        &query_client,
+    )
+    .await?;
+
+    let mut total_batches_committed: U256 = U256::zero();
+    if let Some(Token::Uint(value)) = total_batches_committed_tokens.first() {
+        total_batches_committed = value.into();
+    }
+
+    let total_batches_verified_tokens = contract_call(
+        "getTotalBatchesVerified",
+        contracts_config.diamond_proxy_addr,
+        zksync_contracts::zksync_contract(),
+        &query_client,
+    )
+    .await?;
+
+    let mut total_batches_verified: U256 = U256::zero();
+    if let Some(Token::Uint(value)) = total_batches_verified_tokens.first() {
+        total_batches_verified = value.into();
+    }
+
+    let connection_pool = ConnectionPool::<Core>::builder(
+        postgres_config.replica_url()?,
+        postgres_config.max_connections()?,
+    )
+    .build()
+    .await?;
+    let mut conn = connection_pool.connection().await?;
+
+    // Using unwrap() safely as there will always be at least one block.
+    let first_state_keeper_l1_batch = conn
+        .blocks_dal()
+        .get_earliest_l1_batch_number()
+        .await
+        .context("get_earliest_l1_batch_number")?
+        .unwrap();
+    let last_state_keeper_l1_batch = conn
+        .blocks_dal()
+        .get_sealed_l1_batch_number()
+        .await
+        .context("last_state_keeper_l1_batch")?
+        .unwrap();
+
+    pretty_print_l1_status(
+        total_batches_committed,
+        total_batches_verified,
+        first_state_keeper_l1_batch,
+        last_state_keeper_l1_batch,
+    );
+
+    let node_verification_key_hash_tokens = contract_call(
+        "verificationKeyHash",
+        contracts_config.verifier_addr,
+        zksync_contracts::verifier_contract(),
+        &query_client,
+    )
+    .await?;
+
+    let node_verifier_params_tokens = contract_call(
+        "getVerifierParams",
+        contracts_config.diamond_proxy_addr,
+        zksync_contracts::zksync_contract(),
+        &query_client,
+    )
+    .await?;
+
+    let node_l1_verifier_config = L1VerifierConfig {
+        params: VerifierParams::from_tokens(node_verifier_params_tokens)?,
+        recursion_scheduler_level_vk_hash: H256::from_tokens(node_verification_key_hash_tokens)?,
+    };
+
+    let prover_connection_pool = ConnectionPool::<Prover>::builder(
+        postgres_config.prover_url()?,
+        postgres_config.max_connections()?,
+    )
+    .build()
+    .await
+    .context("failed to build a prover_connection_pool")?;
+
+    let mut conn = prover_connection_pool.connection().await.unwrap();
+
+    let db_l1_verifier_config = conn
+        .fri_protocol_versions_dal()
+        .get_l1_verifier_config()
+        .await;
+
+    pretty_print_l1_verifier_config(node_l1_verifier_config, db_l1_verifier_config);
+
+    Ok(())
+}
 
 fn pretty_print_l1_status(
     total_batches_committed: U256,
@@ -76,110 +179,16 @@ fn pretty_print_l1_verifier_config(
     );
 }
 
-pub(crate) async fn run() -> anyhow::Result<()> {
-    let contracts_config = ContractsConfig::from_env()?;
-    let eth_config = EthConfig::from_env()?;
-    let query_client = QueryClient::new(&eth_config.web3_url).unwrap();
-
+async fn contract_call(
+    method: &str,
+    address: Address,
+    contract: Contract,
+    query_client: &QueryClient,
+) -> anyhow::Result<Vec<Token>> {
     let args_for_total_batches_committed: zksync_eth_client::ContractCall =
-        CallFunctionArgs::new("getTotalBatchesCommitted", ()).for_contract(
-            contracts_config.diamond_proxy_addr,
-            zksync_contracts::zksync_contract(),
-        );
-    let total_batches_committed_tokens = query_client
+        CallFunctionArgs::new(method, ()).for_contract(address, contract);
+    query_client
         .call_contract_function(args_for_total_batches_committed)
-        .await?;
-
-    let mut total_batches_committed: U256 = U256::zero();
-    if let Some(Token::Uint(value)) = total_batches_committed_tokens.first() {
-        total_batches_committed = value.into();
-    }
-
-    let args_for_total_batches_verified: zksync_eth_client::ContractCall =
-        CallFunctionArgs::new("getTotalBatchesVerified", ()).for_contract(
-            contracts_config.diamond_proxy_addr,
-            zksync_contracts::zksync_contract(),
-        );
-
-    let total_batches_verified_tokens = query_client
-        .call_contract_function(args_for_total_batches_verified)
-        .await?;
-
-    let mut total_batches_verified: U256 = U256::zero();
-    if let Some(Token::Uint(value)) = total_batches_verified_tokens.first() {
-        total_batches_verified = value.into();
-    }
-
-    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-
-    let connection_pool = ConnectionPool::<Core>::builder(
-        postgres_config.replica_url()?,
-        postgres_config.max_connections()?,
-    )
-    .build()
-    .await?;
-
-    let mut conn = connection_pool.connection().await?;
-
-    // Using unwrap() safely as there will always be at least one block.
-    let first_state_keeper_l1_batch = conn
-        .blocks_dal()
-        .get_earliest_l1_batch_number()
         .await
-        .context("get_earliest_l1_batch_number")?
-        .unwrap();
-    let last_state_keeper_l1_batch = conn
-        .blocks_dal()
-        .get_sealed_l1_batch_number()
-        .await
-        .context("last_state_keeper_l1_batch")?
-        .unwrap();
-
-    pretty_print_l1_status(
-        total_batches_committed,
-        total_batches_verified,
-        first_state_keeper_l1_batch,
-        last_state_keeper_l1_batch,
-    );
-
-    let args_for_node_verification_key_hash: zksync_eth_client::ContractCall =
-        CallFunctionArgs::new("verificationKeyHash", ()).for_contract(
-            contracts_config.verifier_addr,
-            zksync_contracts::verifier_contract(),
-        );
-    let node_verification_key_hash_bytes = query_client
-        .call_contract_function(args_for_node_verification_key_hash)
-        .await?;
-
-    let args_for_node_verifier_params: zksync_eth_client::ContractCall =
-        CallFunctionArgs::new("getVerifierParams", ()).for_contract(
-            contracts_config.diamond_proxy_addr,
-            zksync_contracts::zksync_contract(),
-        );
-    let node_verifier_params = query_client
-        .call_contract_function(args_for_node_verifier_params)
-        .await?;
-
-    let node_l1_verifier_config = L1VerifierConfig {
-        params: VerifierParams::from_tokens(node_verifier_params)?,
-        recursion_scheduler_level_vk_hash: H256::from_tokens(node_verification_key_hash_bytes)?,
-    };
-
-    let prover_connection_pool = ConnectionPool::<Prover>::builder(
-        postgres_config.prover_url()?,
-        postgres_config.max_connections()?,
-    )
-    .build()
-    .await
-    .context("failed to build a prover_connection_pool")?;
-
-    let mut conn = prover_connection_pool.connection().await.unwrap();
-    let db_l1_verifier_config = conn
-        .fri_protocol_versions_dal()
-        .get_l1_verifier_config()
-        .await;
-
-    pretty_print_l1_verifier_config(node_l1_verifier_config, db_l1_verifier_config);
-
-    Ok(())
+        .context("call_contract_function()")
 }
