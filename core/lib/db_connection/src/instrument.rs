@@ -481,7 +481,7 @@ mod tests {
         sqlx::query("WHAT")
             .map(drop)
             .instrument("erroneous")
-            .with_arg("miniblock", &L2BlockNumber(1))
+            .with_arg("l2_block", &L2BlockNumber(1))
             .with_arg("hash", &H256::zero())
             .fetch_optional(&mut conn)
             .await
@@ -497,7 +497,7 @@ mod tests {
         sqlx::query("SELECT pg_sleep(1.5)")
             .map(drop)
             .instrument("slow")
-            .with_arg("miniblock", &L2BlockNumber(1))
+            .with_arg("l2_block", &L2BlockNumber(1))
             .with_arg("hash", &H256::zero())
             .fetch_optional(&mut conn)
             .await

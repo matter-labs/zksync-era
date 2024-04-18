@@ -143,7 +143,7 @@ impl EventsDal<'_, '_> {
 
         let mut buffer = String::new();
         let now = Utc::now().naive_utc().to_string();
-        let mut log_index_in_miniblock = 0u32;
+        let mut log_index_in_l2_block = 0u32;
         for (tx_location, logs) in all_block_l2_to_l1_logs {
             let IncludedTxLocation {
                 tx_hash,
@@ -163,7 +163,7 @@ impl EventsDal<'_, '_> {
 
                 write_str!(
                     &mut buffer,
-                    r"{block_number}|{log_index_in_miniblock}|{log_index_in_tx}|\\x{tx_hash:x}|"
+                    r"{block_number}|{log_index_in_l2_block}|{log_index_in_tx}|\\x{tx_hash:x}|"
                 );
                 write_str!(
                     &mut buffer,
@@ -174,7 +174,7 @@ impl EventsDal<'_, '_> {
                     r"\\x{sender:x}|\\x{key:x}|\\x{value:x}|{now}|{now}"
                 );
 
-                log_index_in_miniblock += 1;
+                log_index_in_l2_block += 1;
             }
         }
 
