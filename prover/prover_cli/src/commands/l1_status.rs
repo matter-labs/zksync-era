@@ -13,6 +13,7 @@ use zksync_eth_client::{clients::QueryClient, CallFunctionArgs, EthInterface};
 use zksync_types::web3::contract;
 
 pub(crate) async fn run() -> anyhow::Result<()> {
+    println!("== L1 Status ==");
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
     let contracts_config = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
     let eth_config = EthConfig::from_env()?;
@@ -143,11 +144,11 @@ fn pretty_print_l1_status(
 
 fn print_hash_comparison(name: &str, contract_hash: H256, db_hash: H256) {
     if contract_hash != db_hash {
-        println!("{} hash in DB differs from the one in contract.", name);
-        println!("Contract hash: {}", contract_hash);
-        println!("DB hash: {}", db_hash);
+        println!("{name} hash in DB differs from the one in contract.");
+        println!("Contract hash: {contract_hash:?}");
+        println!("DB hash: {db_hash:?}");
     } else {
-        println!("{} hash matches: {}", name, contract_hash);
+        println!("{name} hash matches: {contract_hash}");
     }
 }
 
