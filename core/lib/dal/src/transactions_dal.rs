@@ -1162,47 +1162,48 @@ impl TransactionsDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_last_processed_l1_block(&mut self) -> Option<L1BlockNumber> {
-        {
-            sqlx::query!(
-                r#"
-                SELECT
-                    l1_block_number
-                FROM
-                    transactions
-                WHERE
-                    priority_op_id IS NOT NULL
-                ORDER BY
-                    priority_op_id DESC
-                LIMIT
-                    1
-                "#
-            )
-            .fetch_optional(self.storage.conn())
-            .await
-            .unwrap()
-            .and_then(|x| x.l1_block_number.map(|block| L1BlockNumber(block as u32)))
-        }
+    pub async fn get_last_processed_l1_block(&mut self) -> DalResult<Option<L1BlockNumber>> {
+        let maybe_row = sqlx::query!(
+            r#"
+            SELECT
+                l1_block_number
+            FROM
+                transactions
+            WHERE
+                priority_op_id IS NOT NULL
+            ORDER BY
+                priority_op_id DESC
+            LIMIT
+                1
+            "#
+        )
+        .instrument("get_last_processed_l1_block")
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(maybe_row
+            .and_then(|row| row.l1_block_number)
+            .map(|number| L1BlockNumber(number as u32)))
     }
 
-    pub async fn last_priority_id(&mut self) -> Option<PriorityOpId> {
-        {
-            let op_id = sqlx::query!(
-                r#"
-                SELECT
-                    MAX(priority_op_id) AS "op_id"
-                FROM
-                    transactions
-                WHERE
-                    is_priority = TRUE
-                "#
-            )
-            .fetch_optional(self.storage.conn())
-            .await
-            .unwrap()?
-            .op_id?;
-            Some(PriorityOpId(op_id as u64))
-        }
+    pub async fn last_priority_id(&mut self) -> DalResult<Option<PriorityOpId>> {
+        let maybe_row = sqlx::query!(
+            r#"
+            SELECT
+                MAX(priority_op_id) AS "op_id"
+            FROM
+                transactions
+            WHERE
+                is_priority = TRUE
+            "#
+        )
+        .instrument("last_priority_id")
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(maybe_row
+            .and_then(|row| row.op_id)
+            .map(|op_id| PriorityOpId(op_id as u64)))
     }
 
     pub async fn next_priority_id(&mut self) -> PriorityOpId {
@@ -1472,7 +1473,7 @@ impl TransactionsDal<'_, '_> {
         .map(|call_trace| call_trace.into_call(protocol_version)))
     }
 
-    pub(crate) async fn get_tx_by_hash(&mut self, hash: H256) -> Option<Transaction> {
+    pub(crate) async fn get_tx_by_hash(&mut self, hash: H256) -> DalResult<Option<Transaction>> {
         sqlx::query_as!(
             StorageTransaction,
             r#"
@@ -1485,10 +1486,11 @@ impl TransactionsDal<'_, '_> {
             "#,
             hash.as_bytes()
         )
-        .fetch_optional(self.storage.conn())
+        .map(Into::into)
+        .instrument("get_tx_by_hash")
+        .with_arg("hash", &hash)
+        .fetch_optional(self.storage)
         .await
-        .unwrap()
-        .map(|tx| tx.into())
     }
 }
 

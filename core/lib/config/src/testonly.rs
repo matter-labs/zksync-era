@@ -151,6 +151,7 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             block_commit_deadline_ms: self.sample(rng),
             miniblock_commit_deadline_ms: self.sample(rng),
             miniblock_seal_queue_capacity: self.sample(rng),
+            miniblock_max_payload_size: self.sample(rng),
             max_single_tx_gas: self.sample(rng),
             max_allowed_l2_tx_gas_limit: self.sample(rng),
             reject_tx_at_geometry_percentage: self.sample(rng),
@@ -293,9 +294,9 @@ impl Distribution<configs::database::PostgresConfig> for EncodeDist {
     }
 }
 
-impl Distribution<configs::ETHConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ETHConfig {
-        configs::ETHConfig {
+impl Distribution<configs::EthConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::EthConfig {
+        configs::EthConfig {
             sender: self.sample(rng),
             gas_adjuster: self.sample(rng),
             watcher: self.sample(rng),
@@ -379,9 +380,9 @@ impl Distribution<configs::eth_sender::GasAdjusterConfig> for EncodeDist {
     }
 }
 
-impl Distribution<configs::ETHWatchConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ETHWatchConfig {
-        configs::ETHWatchConfig {
+impl Distribution<configs::EthWatchConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::EthWatchConfig {
+        configs::EthWatchConfig {
             confirmations_for_eth_event: self.sample(rng),
             eth_node_poll_interval: self.sample(rng),
         }
