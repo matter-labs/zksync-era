@@ -14,8 +14,8 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_types::{
-    protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
-    ProtocolVersionId, Transaction, H256, U256,
+    protocol_upgrade::ProtocolUpgradeTx, utils::display_timestamp, Address, L1BatchNumber,
+    L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::time::millis_since_epoch;
@@ -23,14 +23,13 @@ use zksync_utils::time::millis_since_epoch;
 use crate::{
     fee_model::BatchFeeModelInputProvider,
     state_keeper::{
-        extractors,
         io::{
             common::{load_pending_batch, poll_iters, IoCursor},
-            L1BatchParams, MiniblockParams, PendingBatchData, StateKeeperIO,
+            L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
         },
         mempool_actor::l2_tx_filter,
         metrics::KEEPER_METRICS,
-        seal_criteria::{IoSealCriteria, TimeoutSealer},
+        seal_criteria::{IoSealCriteria, L2BlockMaxPayloadSizeSealer, TimeoutSealer},
         updates::UpdatesManager,
         MempoolGuard,
     },
@@ -45,6 +44,7 @@ pub struct MempoolIO {
     mempool: MempoolGuard,
     pool: ConnectionPool<Core>,
     timeout_sealer: TimeoutSealer,
+    miniblock_max_payload_size_sealer: L2BlockMaxPayloadSizeSealer,
     filter: L2TxFilter,
     l1_batch_params_provider: L1BatchParamsProvider,
     fee_account: Address,
@@ -62,8 +62,12 @@ impl IoSealCriteria for MempoolIO {
             .should_seal_l1_batch_unconditionally(manager)
     }
 
-    fn should_seal_miniblock(&mut self, manager: &UpdatesManager) -> bool {
-        self.timeout_sealer.should_seal_miniblock(manager)
+    fn should_seal_l2_block(&mut self, manager: &UpdatesManager) -> bool {
+        if self.timeout_sealer.should_seal_l2_block(manager) {
+            return true;
+        }
+        self.miniblock_max_payload_size_sealer
+            .should_seal_l2_block(manager)
     }
 }
 
@@ -77,17 +81,17 @@ impl StateKeeperIO for MempoolIO {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
         let cursor = IoCursor::new(&mut storage).await?;
 
-        let pending_miniblock_header = self
+        let pending_l2_block_header = self
             .l1_batch_params_provider
-            .load_first_miniblock_in_batch(&mut storage, cursor.l1_batch)
+            .load_first_l2_block_in_batch(&mut storage, cursor.l1_batch)
             .await
             .with_context(|| {
                 format!(
-                    "failed loading first miniblock for L1 batch #{}",
+                    "failed loading first L2 block for L1 batch #{}",
                     cursor.l1_batch
                 )
             })?;
-        let Some(pending_miniblock_header) = pending_miniblock_header else {
+        let Some(pending_l2_block_header) = pending_l2_block_header else {
             return Ok((cursor, None));
         };
 
@@ -95,7 +99,7 @@ impl StateKeeperIO for MempoolIO {
             .l1_batch_params_provider
             .load_l1_batch_params(
                 &mut storage,
-                &pending_miniblock_header,
+                &pending_l2_block_header,
                 self.validation_computational_gas_limit,
                 self.chain_id,
             )
@@ -113,7 +117,7 @@ impl StateKeeperIO for MempoolIO {
         let PendingBatchData {
             l1_batch_env,
             system_env,
-            pending_miniblocks,
+            pending_l2_blocks,
         } = pending_batch_data;
         // Initialize the filter for the transactions that come after the pending batch.
         // We use values from the pending block to match the filter with one used before the restart.
@@ -130,7 +134,7 @@ impl StateKeeperIO for MempoolIO {
             Some(PendingBatchData {
                 l1_batch_env,
                 system_env,
-                pending_miniblocks,
+                pending_l2_blocks,
             }),
         ))
     }
@@ -145,12 +149,12 @@ impl StateKeeperIO for MempoolIO {
         // Block until at least one transaction in the mempool can match the filter (or timeout happens).
         // This is needed to ensure that block timestamp is not too old.
         for _ in 0..poll_iters(self.delay_interval, max_wait) {
-            // We cannot create two L1 batches or miniblocks with the same timestamp (forbidden by the bootloader).
-            // Hence, we wait until the current timestamp is larger than the timestamp of the previous miniblock.
+            // We cannot create two L1 batches or L2 blocks with the same timestamp (forbidden by the bootloader).
+            // Hence, we wait until the current timestamp is larger than the timestamp of the previous L2 block.
             // We can use `timeout_at` since `sleep_past` is cancel-safe; it only uses `sleep()` async calls.
             let timestamp = tokio::time::timeout_at(
                 deadline.into(),
-                sleep_past(cursor.prev_miniblock_timestamp, cursor.next_miniblock),
+                sleep_past(cursor.prev_l2_block_timestamp, cursor.next_l2_block),
             );
             let Some(timestamp) = timestamp.await.ok() else {
                 return Ok(None);
@@ -186,7 +190,7 @@ impl StateKeeperIO for MempoolIO {
                 validation_computational_gas_limit: self.validation_computational_gas_limit,
                 operator_address: self.fee_account,
                 fee_input: self.filter.fee_input,
-                first_miniblock: MiniblockParams {
+                first_l2_block: L2BlockParams {
                     timestamp,
                     // This value is effectively ignored by the protocol.
                     virtual_blocks: 1,
@@ -196,23 +200,23 @@ impl StateKeeperIO for MempoolIO {
         Ok(None)
     }
 
-    async fn wait_for_new_miniblock_params(
+    async fn wait_for_new_l2_block_params(
         &mut self,
         cursor: &IoCursor,
         max_wait: Duration,
-    ) -> anyhow::Result<Option<MiniblockParams>> {
-        // We must provide different timestamps for each miniblock.
-        // If miniblock sealing interval is greater than 1 second then `sleep_past` won't actually sleep.
+    ) -> anyhow::Result<Option<L2BlockParams>> {
+        // We must provide different timestamps for each L2 block.
+        // If L2 block sealing interval is greater than 1 second then `sleep_past` won't actually sleep.
         let timeout_result = tokio::time::timeout(
             max_wait,
-            sleep_past(cursor.prev_miniblock_timestamp, cursor.next_miniblock),
+            sleep_past(cursor.prev_l2_block_timestamp, cursor.next_l2_block),
         )
         .await;
         let Ok(timestamp) = timeout_result else {
             return Ok(None);
         };
 
-        Ok(Some(MiniblockParams {
+        Ok(Some(L2BlockParams {
             timestamp,
             // This value is effectively ignored by the protocol.
             virtual_blocks: 1,
@@ -271,7 +275,7 @@ impl StateKeeperIO for MempoolIO {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
         KEEPER_METRICS.rejected_transactions.inc();
         tracing::warn!(
-            "transaction {} is rejected with error: {error}",
+            "Transaction {} is rejected with error: {error}",
             rejected.hash()
         );
         storage
@@ -349,16 +353,16 @@ impl StateKeeperIO for MempoolIO {
 /// Sleeps until the current timestamp is larger than the provided `timestamp`.
 ///
 /// Returns the current timestamp after the sleep. It is guaranteed to be larger than `timestamp`.
-async fn sleep_past(timestamp: u64, miniblock: MiniblockNumber) -> u64 {
+async fn sleep_past(timestamp: u64, l2_block: L2BlockNumber) -> u64 {
     let mut current_timestamp_millis = millis_since_epoch();
     let mut current_timestamp = (current_timestamp_millis / 1_000) as u64;
     match timestamp.cmp(&current_timestamp) {
         cmp::Ordering::Less => return current_timestamp,
         cmp::Ordering::Equal => {
             tracing::info!(
-                "Current timestamp {} for miniblock #{miniblock} is equal to previous miniblock timestamp; waiting until \
+                "Current timestamp {} for L2 block #{l2_block} is equal to previous L2 block timestamp; waiting until \
                  timestamp increases",
-                extractors::display_timestamp(current_timestamp)
+                display_timestamp(current_timestamp)
             );
         }
         cmp::Ordering::Greater => {
@@ -366,9 +370,9 @@ async fn sleep_past(timestamp: u64, miniblock: MiniblockNumber) -> u64 {
             // system time, or if it is buggy. Thus, a one-time error could require no actions if L1 batches
             // are expected to be generated frequently.
             tracing::error!(
-                "Previous miniblock timestamp {} is larger than the current timestamp {} for miniblock #{miniblock}",
-                extractors::display_timestamp(timestamp),
-                extractors::display_timestamp(current_timestamp)
+                "Previous L2 block timestamp {} is larger than the current timestamp {} for L2 block #{l2_block}",
+                display_timestamp(timestamp),
+                display_timestamp(current_timestamp)
             );
         }
     }
@@ -413,6 +417,7 @@ impl MempoolIO {
             mempool,
             pool,
             timeout_sealer: TimeoutSealer::new(config),
+            miniblock_max_payload_size_sealer: L2BlockMaxPayloadSizeSealer::new(config),
             filter: L2TxFilter::default(),
             // ^ Will be initialized properly on the first newly opened batch
             l1_batch_params_provider,
@@ -447,7 +452,7 @@ mod tests {
         let past_timestamps = [0, 1_000, 1_000_000_000, seconds_since_epoch() - 10];
         for timestamp in past_timestamps {
             let deadline = Instant::now() + Duration::from_secs(1);
-            timeout_at(deadline.into(), sleep_past(timestamp, MiniblockNumber(1)))
+            timeout_at(deadline.into(), sleep_past(timestamp, L2BlockNumber(1)))
                 .await
                 .unwrap();
         }
@@ -456,7 +461,7 @@ mod tests {
         let deadline = Instant::now() + Duration::from_secs(2);
         let ts = timeout_at(
             deadline.into(),
-            sleep_past(current_timestamp, MiniblockNumber(1)),
+            sleep_past(current_timestamp, L2BlockNumber(1)),
         )
         .await
         .unwrap();
@@ -466,7 +471,7 @@ mod tests {
         let deadline = Instant::now() + Duration::from_secs(3);
         let ts = timeout_at(
             deadline.into(),
-            sleep_past(future_timestamp, MiniblockNumber(1)),
+            sleep_past(future_timestamp, L2BlockNumber(1)),
         )
         .await
         .unwrap();
@@ -477,7 +482,7 @@ mod tests {
         // ^ This deadline is too small (we need at least 1_000ms)
         let result = timeout_at(
             deadline.into(),
-            sleep_past(future_timestamp, MiniblockNumber(1)),
+            sleep_past(future_timestamp, L2BlockNumber(1)),
         )
         .await;
         assert!(result.is_err());

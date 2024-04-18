@@ -11,5 +11,11 @@ async fn main() {
         .filter_level(log::LevelFilter::Debug)
         .init();
 
-    cli::start().await.unwrap();
+    match cli::start().await {
+        Ok(_) => {}
+        Err(err) => {
+            log::error!("{err:?}");
+            std::process::exit(1);
+        }
+    }
 }

@@ -1,11 +1,11 @@
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
+use zksync_block_reverter::{
+    BlockReverter, BlockReverterEthConfig, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole,
+};
 use zksync_config::{
     configs::ObservabilityConfig, ContractsConfig, DBConfig, EthConfig, PostgresConfig,
-};
-use zksync_core::block_reverter::{
-    BlockReverter, BlockReverterEthConfig, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole,
 };
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::FromEnv;

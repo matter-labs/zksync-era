@@ -10,11 +10,11 @@ use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
-    api, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
+    api, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersionId, H256,
 };
 use zksync_web3_decl::{
-    client::L2Client,
+    client::{BoxedL2Client, L2Client},
     error::{EnrichedClientError, EnrichedClientResult},
 };
 
@@ -23,7 +23,7 @@ use crate::{
     consensus::{fetcher::P2PConfig, Fetcher, Store},
     genesis::{mock_genesis_config, GenesisParams},
     state_keeper::{
-        io::{IoCursor, L1BatchParams, MiniblockParams},
+        io::{IoCursor, L1BatchParams, L2BlockParams},
         seal_criteria::NoopSealer,
         tests::MockBatchExecutor,
         OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
@@ -48,10 +48,10 @@ impl MockMainNodeClient {
     pub fn for_snapshot_recovery(snapshot: &SnapshotRecoveryStatus) -> Self {
         // This block may be requested during node initialization
         let last_miniblock_in_snapshot_batch = api::en::SyncBlock {
-            number: snapshot.miniblock_number,
+            number: snapshot.l2_block_number,
             l1_batch_number: snapshot.l1_batch_number,
             last_in_batch: true,
-            timestamp: snapshot.miniblock_timestamp,
+            timestamp: snapshot.l2_block_timestamp,
             l1_gas_price: 2,
             l2_fair_gas_price: 3,
             fair_pubdata_price: Some(24),
@@ -59,13 +59,13 @@ impl MockMainNodeClient {
             operator_address: Address::repeat_byte(2),
             transactions: Some(vec![]),
             virtual_blocks: Some(0),
-            hash: Some(snapshot.miniblock_hash),
+            hash: Some(snapshot.l2_block_hash),
             protocol_version: ProtocolVersionId::latest(),
         };
 
         Self {
             l2_blocks: vec![last_miniblock_in_snapshot_batch],
-            block_number_offset: snapshot.miniblock_number.0,
+            block_number_offset: snapshot.l2_block_number.0,
             ..Self::default()
         }
     }
@@ -106,9 +106,9 @@ impl MainNodeClient for MockMainNodeClient {
         Ok(self.protocol_versions.get(&protocol_version).cloned())
     }
 
-    async fn fetch_l2_block_number(&self) -> EnrichedClientResult<MiniblockNumber> {
+    async fn fetch_l2_block_number(&self) -> EnrichedClientResult<L2BlockNumber> {
         if let Some(number) = self.l2_blocks.len().checked_sub(1) {
-            Ok(MiniblockNumber(number as u32))
+            Ok(L2BlockNumber(number as u32))
         } else {
             Err(EnrichedClientError::custom(
                 "not implemented",
@@ -119,7 +119,7 @@ impl MainNodeClient for MockMainNodeClient {
 
     async fn fetch_l2_block(
         &self,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
         with_transactions: bool,
     ) -> EnrichedClientResult<Option<api::en::SyncBlock>> {
         let Some(block_index) = number.0.checked_sub(self.block_number_offset) else {
@@ -149,7 +149,7 @@ impl MainNodeClient for MockMainNodeClient {
 pub(super) struct StateKeeper {
     // Batch of the `last_block`.
     last_batch: L1BatchNumber,
-    last_block: MiniblockNumber,
+    last_block: L2BlockNumber,
     // timestamp of the last block.
     last_timestamp: u64,
     batch_sealed: bool,
@@ -187,8 +187,8 @@ impl StateKeeper {
         Ok((
             Self {
                 last_batch: cursor.l1_batch,
-                last_block: cursor.next_miniblock - 1,
-                last_timestamp: cursor.prev_miniblock_timestamp,
+                last_block: cursor.next_l2_block - 1,
+                last_timestamp: cursor.prev_l2_block_timestamp,
                 batch_sealed: !pending_batch,
                 fee_per_gas: 10,
                 gas_per_pubdata: 100,
@@ -216,7 +216,7 @@ impl StateKeeper {
                     validation_computational_gas_limit: u32::MAX,
                     operator_address: GenesisParams::mock().config().fee_account,
                     fee_input: Default::default(),
-                    first_miniblock: MiniblockParams {
+                    first_l2_block: L2BlockParams {
                         timestamp: self.last_timestamp,
                         virtual_blocks: 1,
                     },
@@ -228,7 +228,7 @@ impl StateKeeper {
             self.last_block += 1;
             self.last_timestamp += 2;
             SyncAction::Miniblock {
-                params: MiniblockParams {
+                params: L2BlockParams {
                     timestamp: self.last_timestamp,
                     virtual_blocks: 0,
                 },
@@ -278,24 +278,25 @@ impl StateKeeper {
     }
 
     /// Connects to the json RPC endpoint exposed by the state keeper.
-    pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<L2Client> {
+    pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<BoxedL2Client> {
         let addr = sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some)
             .await?
             .unwrap();
-        Ok(L2Client::http(&format!("http://{addr}/"))
+        let client = L2Client::http(&format!("http://{addr}/"))
             .context("json_rpc()")?
-            .build())
+            .build();
+        Ok(BoxedL2Client::new(client))
     }
 
     /// Runs the centralized fetcher.
     pub async fn run_centralized_fetcher(
         self,
         ctx: &ctx::Ctx,
-        client: L2Client,
+        client: BoxedL2Client,
     ) -> anyhow::Result<()> {
         Fetcher {
             store: self.store,
-            client: Arc::new(client),
+            client,
             sync_state: SyncState::default(),
         }
         .run_centralized(ctx, self.actions_sender)
@@ -306,12 +307,12 @@ impl StateKeeper {
     pub async fn run_p2p_fetcher(
         self,
         ctx: &ctx::Ctx,
-        client: L2Client,
+        client: BoxedL2Client,
         cfg: P2PConfig,
     ) -> anyhow::Result<()> {
         Fetcher {
             store: self.store,
-            client: Arc::new(client),
+            client,
             sync_state: SyncState::default(),
         }
         .run_p2p(ctx, self.actions_sender, cfg)

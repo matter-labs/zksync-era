@@ -37,6 +37,9 @@ impl ProtoRepr for proto::StateKeeper {
             miniblock_seal_queue_capacity: required(&self.miniblock_seal_queue_capacity)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("miniblock_seal_queue_capacity")?,
+            miniblock_max_payload_size: required(&self.miniblock_max_payload_size)
+                .and_then(|x| Ok((*x).try_into()?))
+                .context("miniblock_max_payload_size")?,
             max_single_tx_gas: *required(&self.max_single_tx_gas).context("max_single_tx_gas")?,
             max_allowed_l2_tx_gas_limit: *required(&self.max_allowed_l2_tx_gas_limit)
                 .context("max_allowed_l2_tx_gas_limit")?,
@@ -98,6 +101,7 @@ impl ProtoRepr for proto::StateKeeper {
             miniblock_seal_queue_capacity: Some(
                 this.miniblock_seal_queue_capacity.try_into().unwrap(),
             ),
+            miniblock_max_payload_size: Some(this.miniblock_max_payload_size.try_into().unwrap()),
             max_single_tx_gas: Some(this.max_single_tx_gas),
             max_allowed_l2_tx_gas_limit: Some(this.max_allowed_l2_tx_gas_limit),
             reject_tx_at_geometry_percentage: Some(this.reject_tx_at_geometry_percentage),
