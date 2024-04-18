@@ -258,18 +258,25 @@ impl RocksdbStorage {
             .await?;
 
         let latency = METRICS.update.start();
+        let Some(latest_l1_batch_number) = storage
+            .blocks_dal()
+            .get_sealed_l1_batch_number()
+            .await
+            .map_err(DalError::generalize)?
+        else {
+            // No L1 batches are persisted in Postgres; update is not necessary.
+            return Ok(());
+        };
         let to_l1_batch_number = if let Some(to_l1_batch_number) = to_l1_batch_number {
+            if to_l1_batch_number > latest_l1_batch_number {
+                let err = anyhow::anyhow!(
+                    "Requested to update RocksDB to L1 batch number ({current_l1_batch_number}) that \
+                     is greater than the last sealed L1 batch number in Postgres ({latest_l1_batch_number})"
+                );
+                return Err(err.into());
+            }
             to_l1_batch_number
         } else {
-            let Some(latest_l1_batch_number) = storage
-                .blocks_dal()
-                .get_sealed_l1_batch_number()
-                .await
-                .map_err(DalError::generalize)?
-            else {
-                // No L1 batches are persisted in Postgres; update is not necessary.
-                return Ok(());
-            };
             latest_l1_batch_number
         };
         tracing::debug!("Loading storage for l1 batch number {to_l1_batch_number}");
@@ -277,7 +284,7 @@ impl RocksdbStorage {
         if current_l1_batch_number > to_l1_batch_number + 1 {
             let err = anyhow::anyhow!(
                 "L1 batch number in state keeper cache ({current_l1_batch_number}) is greater than \
-                 the last sealed L1 batch number in Postgres ({to_l1_batch_number})"
+                 the requested batch number ({to_l1_batch_number})"
             );
             return Err(err.into());
         }
