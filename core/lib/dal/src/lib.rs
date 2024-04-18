@@ -29,6 +29,7 @@ use crate::{
 pub mod basic_witness_input_producer_dal;
 pub mod blocks_dal;
 pub mod blocks_web3_dal;
+pub mod consensus;
 pub mod consensus_dal;
 pub mod contract_verification_dal;
 pub mod eth_sender_dal;

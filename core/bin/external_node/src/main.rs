@@ -8,6 +8,7 @@ use tokio::{
     sync::{oneshot, watch, RwLock},
     task::{self, JoinHandle},
 };
+use zksync_block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole};
 use zksync_commitment_generator::CommitmentGenerator;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{
@@ -21,7 +22,6 @@ use zksync_core::{
         tx_sender::{proxy::TxProxy, ApiContracts, TxSenderBuilder},
         web3::{mempool_cache::MempoolCache, ApiBuilder, Namespace},
     },
-    block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole},
     consensus,
     consistency_checker::ConsistencyChecker,
     db_pruner::{DbPruner, DbPrunerConfig},
