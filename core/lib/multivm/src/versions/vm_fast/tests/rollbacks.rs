@@ -9,19 +9,15 @@ use crate::{
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled,
     },
-    vm_latest::{
-        tests::{
-            tester::{DeployContractsTx, TransactionTestInfo, TxModifier, TxType, VmTesterBuilder},
-            utils::read_test_contract,
-        },
-        types::internals::ZkSyncVmState,
-        BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, VmTracer,
+    vm_fast::tests::{
+        tester::{DeployContractsTx, TransactionTestInfo, TxModifier, TxType, VmTesterBuilder},
+        utils::read_test_contract,
     },
 };
 
 #[test]
 fn test_vm_rollbacks() {
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -70,7 +66,7 @@ fn test_vm_rollbacks() {
 
 #[test]
 fn test_vm_loadnext_rollbacks() {
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -156,7 +152,7 @@ fn test_vm_loadnext_rollbacks() {
 struct MaxRecursionTracer {
     max_recursion_depth: usize,
 }
-
+/* TODO needs tracer support
 /// Tracer responsible for calculating the number of storage invocations and
 /// stopping the VM execution if the limit is reached.
 impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for MaxRecursionTracer {}
@@ -182,7 +178,7 @@ fn test_layered_rollback() {
     // This test checks that the layered rollbacks work correctly, i.e.
     // the rollback by the operator will always revert all the changes
 
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -261,3 +257,4 @@ fn test_layered_rollback() {
     let result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "transaction must not fail");
 }
+*/

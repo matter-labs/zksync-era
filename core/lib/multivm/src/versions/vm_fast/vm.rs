@@ -30,7 +30,7 @@ pub struct Vm<S: WriteStorage> {
     gas_for_account_validation: u32,
 
     bootloader_state: BootloaderState,
-    storage: StoragePtr<S>,
+    pub(crate) storage: StoragePtr<S>,
     program_cache: Rc<RefCell<HashMap<U256, Program>>>,
 
     // these two are only needed for tests so far
