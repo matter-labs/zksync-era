@@ -109,7 +109,7 @@ pub(crate) async fn ensure_storage_initialized(
                 let latency = recovery_started_at.elapsed();
                 APP_METRICS.snapshot_recovery_latency[&SnapshotRecoveryStage::Postgres]
                     .set(latency);
-                tracing::info!("Snapshot recovery is complete in {latency:?}");
+                tracing::info!("Recovered Postgres from snapshot in {latency:?}");
             }
         }
     }

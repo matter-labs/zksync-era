@@ -211,10 +211,10 @@ impl GenericAsyncTree {
             .recover(snapshot, recovery_options, &recovery_pool, stop_receiver)
             .await?;
         if tree.is_some() {
-            // Only report latency if recovery wasn't cancelled
+            // Only report latency if recovery wasn't canceled
             let elapsed = started_at.elapsed();
             APP_METRICS.snapshot_recovery_latency[&SnapshotRecoveryStage::Tree].set(elapsed);
-            tracing::info!("Recovered Merkle tree in {elapsed:?}");
+            tracing::info!("Recovered Merkle tree from snapshot in {elapsed:?}");
         }
         Ok(tree)
     }
