@@ -147,9 +147,27 @@ async fn run_tree(
         memtable_capacity: config.optional.merkle_tree_memtable_capacity(),
         stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
     };
-    let metadata_calculator = MetadataCalculator::new(metadata_calculator_config, None)
-        .await
-        .context("failed initializing metadata calculator")?;
+
+    let max_concurrency = config
+        .optional
+        .snapshots_recovery_postgres_max_concurrency
+        .get();
+    let max_concurrency = u32::try_from(max_concurrency).with_context(|| {
+        format!("snapshot recovery max concurrency ({max_concurrency}) is too large")
+    })?;
+    let recovery_pool = ConnectionPool::builder(
+        tree_pool.database_url(),
+        max_concurrency.min(config.postgres.max_connections),
+    )
+    .build()
+    .await
+    .context("failed creating DB pool for Merkle tree recovery")?;
+
+    let metadata_calculator =
+        MetadataCalculator::new(metadata_calculator_config, None, tree_pool, recovery_pool)
+            .await
+            .context("failed initializing metadata calculator")?;
+
     let tree_reader = Arc::new(metadata_calculator.tree_reader());
     app_health.insert_component(metadata_calculator.tree_health_check());
 
@@ -166,7 +184,7 @@ async fn run_tree(
         }));
     }
 
-    let tree_handle = task::spawn(metadata_calculator.run(tree_pool, stop_receiver));
+    let tree_handle = task::spawn(metadata_calculator.run(stop_receiver));
 
     task_futures.push(tree_handle);
     Ok(tree_reader)
@@ -909,7 +927,7 @@ async fn run_node(
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(
-        &connection_pool,
+        connection_pool.clone(),
         main_node_client.clone(),
         &app_health,
         config.remote.l2_chain_id,
