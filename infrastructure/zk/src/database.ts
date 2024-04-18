@@ -8,7 +8,7 @@ export async function reset(opts: DbOpts) {
     await setup(opts);
 }
 
-enum DalPath {
+export enum DalPath {
     CoreDal = 'core/lib/dal',
     ProverDal = 'prover/prover_dal'
 }

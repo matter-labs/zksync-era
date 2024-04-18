@@ -5,6 +5,7 @@ import { ethers } from 'ethers';
 
 import { updateContractsEnv } from 'zk/build/contract';
 import * as env from 'zk/build/env';
+import { setupForDal, DalPath } from 'zk/build/database';
 import { getFacetsFileName, getCryptoFileName } from './utils';
 import { getPostUpgradeCalldataFileName } from './utils';
 
@@ -92,7 +93,13 @@ async function hyperchainUpgrade3() {
 }
 
 async function preparePostUpgradeCalldata() {
-    console.log("Preparing post upgrade calldata", process.env.CONTRACTS_ERA_CHAIN_ID, process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR, process.env.CONTRACTS_STATE_TRANSITION_PROXY_ADDR, process.env.CONTRACTS_L1_SHARED_BRIDGE_PROXY_ADDR)
+    console.log(
+        'Preparing post upgrade calldata',
+        process.env.CONTRACTS_ERA_CHAIN_ID,
+        process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR,
+        process.env.CONTRACTS_STATE_TRANSITION_PROXY_ADDR,
+        process.env.CONTRACTS_L1_SHARED_BRIDGE_PROXY_ADDR
+    );
     let calldata = new ethers.utils.AbiCoder().encode(
         ['uint256', 'address', 'address', 'address'],
         [
@@ -108,7 +115,6 @@ async function preparePostUpgradeCalldata() {
 }
 
 async function deploySharedBridgeL2Implementation() {
-
     const cwd = process.cwd();
     process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/`);
 
@@ -167,6 +173,12 @@ async function hyperchainFullUpgrade() {
     // await hyperchainUpgrade3();
 }
 
+async function postPropose() {
+    // we need to set up the prover dal
+    await setupForDal(DalPath.ProverDal, process.env.DATABASE_PROVER_URL);
+    await 'zk db migrate';
+}
+
 export const command = new Command('hyperchain-upgrade').description('create and publish custom l2 upgrade');
 
 command
@@ -179,6 +191,7 @@ command
     .option('--phase2')
     .option('--phase3')
     .option('--full-start')
+    .option('--post-propose')
     .option('--execute-upgrade')
     // .option('--get-diamond-upgrade-batch-number-for-eth-withdrawals')
     // .option('--get-erc20-bridge-upgrade-batch-number-for-token-withdrawals')
@@ -211,6 +224,8 @@ command
             // for the mainnet upgrade we will have to manually check the priority queue at the given block, since governance is signing the txs
         } else if (options.fullStart) {
             await hyperchainFullUpgrade();
+        } else if (options.postPropose) {
+            await postPropose();
         } else if (options.executeUpgrade) {
             await spawn(
                 `zk f yarn  workspace protocol-upgrade-tool start transactions execute-upgrade --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --new-governance ${process.env.CONTRACTS_GOVERNANCE_ADDR}`
