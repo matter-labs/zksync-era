@@ -103,6 +103,8 @@ describe('Block reverting test', function () {
             throw new Error('Server did not start');
         }
 
+        await tester.fundSyncWallet();
+
         const chainId = (await alice._providerL2().getNetwork()).chainId;
         const factory = new ValidatorTimelockFactory(tester.hyperchainAdmin);
         const deployedContract = factory.attach(process.env.CONTRACTS_VALIDATOR_TIMELOCK_ADDR!);

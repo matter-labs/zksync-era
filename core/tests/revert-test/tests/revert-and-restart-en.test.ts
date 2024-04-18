@@ -240,6 +240,10 @@ describe('Block reverting test', function () {
         let mainNode = await MainNode.spawn(mainLogs, enableConsensus, true);
         console.log('Start ext node');
         let extNode = await ExtNode.spawn(extLogs, enableConsensus);
+
+        await mainNode.tester.fundSyncWallet();
+        await extNode.tester.fundSyncWallet();
+
         const main_contract = await mainNode.tester.syncWallet.getMainContract();
         const alice: zkweb3.Wallet = extNode.tester.emptyWallet();
 

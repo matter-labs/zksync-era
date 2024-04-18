@@ -4,6 +4,8 @@ import * as zkweb3 from 'zksync-ethers';
 import * as fs from 'fs';
 import * as path from 'path';
 
+const BASE_ERC20_TO_MINT = ethers.utils.parseEther('100');
+
 export class Tester {
     public runningFee: Map<zkweb3.types.Address, ethers.BigNumber>;
     constructor(
@@ -61,6 +63,18 @@ export class Tester {
         const isETHBasedChain = baseTokenAddress == zkweb3.utils.ETH_ADDRESS_IN_CONTRACTS;
 
         return new Tester(ethProvider, ethWallet, syncWallet, web3Provider, hyperchainAdmin, isETHBasedChain, baseTokenAddress);
+    }
+
+    /// Ensures that the main wallet has enough base token.
+    /// This can not be done inside the `init` function becasue `init` function can be called before the
+    /// L2 RPC is active, but we need the L2 RPC to get the base token address.
+    async fundSyncWallet() {
+        const baseTokenAddress = await this.syncWallet.provider.getBaseTokenContractAddress();
+        if (!zkweb3.utils.isAddressEq(baseTokenAddress, zkweb3.utils.ETH_ADDRESS_IN_CONTRACTS)) {
+            const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
+            const l1Erc20Contract = new ethers.Contract(baseTokenAddress, l1Erc20ABI, this.ethWallet);
+            await (await l1Erc20Contract.mint(this.ethWallet.address, BASE_ERC20_TO_MINT)).wait();
+        }
     }
 
     async fundedWallet(
