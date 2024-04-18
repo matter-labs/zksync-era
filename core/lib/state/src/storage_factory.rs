@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_storage::RocksDB;
-use zksync_types::{L1BatchNumber, StorageKey, H256};
+use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
 
 use crate::{
     PostgresStorage, ReadStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily,
@@ -139,18 +139,59 @@ impl<'a> PgOrRocksdbStorage<'a> {
     }
 }
 
+impl ReadStorage for RocksdbWithMemory {
+    fn read_value(&mut self, key: &StorageKey) -> StorageValue {
+        match self
+            .batch_diffs
+            .iter()
+            .rev()
+            .find_map(|b| b.state_diff.get(key))
+        {
+            None => self.rocksdb.read_value(key),
+            Some(value) => *value,
+        }
+    }
+
+    fn is_write_initial(&mut self, key: &StorageKey) -> bool {
+        match self
+            .batch_diffs
+            .iter()
+            .find_map(|b| b.enum_index_diff.get(key))
+        {
+            None => self.rocksdb.is_write_initial(key),
+            Some(_) => false,
+        }
+    }
+
+    fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
+        match self
+            .batch_diffs
+            .iter()
+            .find_map(|b| b.factory_dep_diff.get(&hash))
+        {
+            None => self.rocksdb.load_factory_dep(hash),
+            Some(value) => Some(value.clone()),
+        }
+    }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        match self
+            .batch_diffs
+            .iter()
+            .find_map(|b| b.enum_index_diff.get(key))
+        {
+            None => self.rocksdb.get_enumeration_index(key),
+            Some(value) => Some(*value),
+        }
+    }
+}
+
 impl ReadStorage for PgOrRocksdbStorage<'_> {
     fn read_value(&mut self, key: &StorageKey) -> zksync_types::StorageValue {
         match self {
             Self::Postgres(postgres) => postgres.read_value(key),
             Self::Rocksdb(rocksdb) => rocksdb.read_value(key),
-            Self::RocksdbWithMemory(RocksdbWithMemory {
-                rocksdb,
-                batch_diffs,
-            }) => match batch_diffs.iter().rev().find_map(|b| b.state_diff.get(key)) {
-                None => rocksdb.read_value(key),
-                Some(value) => *value,
-            },
+            Self::RocksdbWithMemory(rocksdb_mem) => rocksdb_mem.read_value(key),
         }
     }
 
@@ -158,13 +199,7 @@ impl ReadStorage for PgOrRocksdbStorage<'_> {
         match self {
             Self::Postgres(postgres) => postgres.is_write_initial(key),
             Self::Rocksdb(rocksdb) => rocksdb.is_write_initial(key),
-            Self::RocksdbWithMemory(RocksdbWithMemory {
-                rocksdb,
-                batch_diffs,
-            }) => match batch_diffs.iter().rev().find_map(|b| b.state_diff.get(key)) {
-                None => rocksdb.is_write_initial(key),
-                Some(_) => false,
-            },
+            Self::RocksdbWithMemory(rocksdb_mem) => rocksdb_mem.is_write_initial(key),
         }
     }
 
@@ -172,17 +207,7 @@ impl ReadStorage for PgOrRocksdbStorage<'_> {
         match self {
             Self::Postgres(postgres) => postgres.load_factory_dep(hash),
             Self::Rocksdb(rocksdb) => rocksdb.load_factory_dep(hash),
-            Self::RocksdbWithMemory(RocksdbWithMemory {
-                rocksdb,
-                batch_diffs,
-            }) => match batch_diffs
-                .iter()
-                .rev()
-                .find_map(|b| b.factory_dep_diff.get(&hash))
-            {
-                None => rocksdb.load_factory_dep(hash),
-                Some(value) => Some(value.clone()),
-            },
+            Self::RocksdbWithMemory(rocksdb_mem) => rocksdb_mem.load_factory_dep(hash),
         }
     }
 
@@ -190,17 +215,7 @@ impl ReadStorage for PgOrRocksdbStorage<'_> {
         match self {
             Self::Postgres(postgres) => postgres.get_enumeration_index(key),
             Self::Rocksdb(rocksdb) => rocksdb.get_enumeration_index(key),
-            Self::RocksdbWithMemory(RocksdbWithMemory {
-                rocksdb,
-                batch_diffs,
-            }) => match batch_diffs
-                .iter()
-                .rev()
-                .find_map(|b| b.enum_index_diff.get(key))
-            {
-                None => rocksdb.get_enumeration_index(key),
-                Some(value) => Some(*value),
-            },
+            Self::RocksdbWithMemory(rocksdb_mem) => rocksdb_mem.get_enumeration_index(key),
         }
     }
 }
