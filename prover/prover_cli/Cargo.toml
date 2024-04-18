@@ -13,7 +13,9 @@ categories.workspace = true
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 env_logger = "0.10"
 log = "0.4"
+thiserror = "1.0.58"
 
+sqlx = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }

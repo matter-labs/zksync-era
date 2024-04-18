@@ -1,5 +1,7 @@
 use clap::Subcommand;
 
+use crate::errors::CLIErrors;
+
 pub(crate) mod batch;
 pub(crate) mod l1;
 
@@ -10,9 +12,10 @@ pub enum StatusCommand {
 }
 
 impl StatusCommand {
-    pub(crate) async fn run(self) -> anyhow::Result<()> {
+    pub(crate) async fn run(self) -> Result<(), CLIErrors> {
         match self {
-            StatusCommand::Batch(args) => batch::run(args).await,
+            // TODO: Improve error handeling for batch
+            StatusCommand::Batch(args) => batch::run(args).await.map_err(CLIErrors::AnyHowError),
             StatusCommand::L1 => l1::run().await,
         }
     }
