@@ -83,10 +83,13 @@ function fetchEnv(zksyncEnv: string): any {
 function runBlockReverter(args: string[]): string {
     let env = fetchEnv(mainEnv);
     env.RUST_LOG = 'off';
-    let res = run('./target/release/block_reverter', args, { cwd: env.ZKSYNC_HOME, env: {
-        ...env,
-        PATH: process.env.PATH
- } });
+    let res = run('./target/release/block_reverter', args, {
+        cwd: env.ZKSYNC_HOME,
+        env: {
+            ...env,
+            PATH: process.env.PATH
+        }
+    });
     console.log(res.stderr.toString());
     return res.stdout.toString();
 }
