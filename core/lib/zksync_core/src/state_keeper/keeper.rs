@@ -10,12 +10,11 @@ use tokio::sync::watch;
 use zksync_types::{
     block::L2BlockExecutionData, l2::TransactionType, protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::ProtocolVersionId, storage_writes_deduplicator::StorageWritesDeduplicator,
-    L1BatchNumber, Transaction,
+    utils::display_timestamp, L1BatchNumber, Transaction,
 };
 
 use super::{
     batch_executor::{BatchExecutor, BatchExecutorHandle, TxExecutionResult},
-    extractors,
     io::{IoCursor, L2BlockParams, OutputHandler, PendingBatchData, StateKeeperIO},
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
     seal_criteria::{ConditionalSealer, SealData, SealResolution},
@@ -475,7 +474,7 @@ impl ZkSyncStateKeeper {
                     "Initialized new L2 block #{} (L1 batch #{}) with timestamp {}",
                     updates_manager.l2_block.number,
                     updates_manager.l1_batch.number,
-                    extractors::display_timestamp(new_l2_block_params.timestamp)
+                    display_timestamp(new_l2_block_params.timestamp)
                 );
                 Self::start_next_l2_block(new_l2_block_params, updates_manager, batch_executor)
                     .await;

@@ -60,9 +60,9 @@ async fn genesis_creation() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
 
-    let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
-    run_calculator(calculator, pool.clone()).await;
-    let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
+    let (calculator, _) = setup_calculator(temp_dir.path(), pool.clone()).await;
+    run_calculator(calculator).await;
+    let (calculator, _) = setup_calculator(temp_dir.path(), pool).await;
 
     let tree = calculator.create_tree().await.unwrap();
     let GenericAsyncTree::Ready(tree) = tree else {
@@ -77,9 +77,9 @@ async fn basic_workflow() {
 
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
 
-    let (calculator, object_store) = setup_calculator(temp_dir.path(), &pool).await;
+    let (calculator, object_store) = setup_calculator(temp_dir.path(), pool.clone()).await;
     reset_db_state(&pool, 1).await;
-    let merkle_tree_hash = run_calculator(calculator, pool.clone()).await;
+    let merkle_tree_hash = run_calculator(calculator).await;
 
     // Check the hash against the reference.
     let expected_tree_hash = expected_tree_hash(&pool).await;
@@ -92,7 +92,7 @@ async fn basic_workflow() {
     // ^ The exact values depend on ops in genesis block
     assert!(merkle_paths.iter().all(|log| log.is_write));
 
-    let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
+    let (calculator, _) = setup_calculator(temp_dir.path(), pool).await;
     let tree = calculator.create_tree().await.unwrap();
     let GenericAsyncTree::Ready(tree) = tree else {
         panic!("Unexpected tree state: {tree:?}");
@@ -125,7 +125,7 @@ async fn status_receiver_has_correct_states() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
 
-    let (mut calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
+    let (mut calculator, _) = setup_calculator(temp_dir.path(), pool.clone()).await;
     let tree_health_check = calculator.tree_health_check();
     assert_eq!(tree_health_check.name(), "tree");
     let health = tree_health_check.check_health().await;
@@ -141,7 +141,7 @@ async fn status_receiver_has_correct_states() {
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
     calculator.delayer.delay_notifier = delay_sx;
 
-    let calculator_handle = tokio::spawn(calculator.run(pool, stop_rx));
+    let calculator_handle = tokio::spawn(calculator.run(stop_rx));
     delay_rx.recv().await.unwrap();
     assert_eq!(
         tree_health_check.check_health().await.status(),
@@ -174,15 +174,15 @@ async fn multi_l1_batch_workflow() {
 
     // Collect all storage logs in a single L1 batch
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
+    let (calculator, _) = setup_calculator(temp_dir.path(), pool.clone()).await;
     reset_db_state(&pool, 1).await;
-    let root_hash = run_calculator(calculator, pool.clone()).await;
+    let root_hash = run_calculator(calculator).await;
 
     // Collect the same logs in multiple L1 batches
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let (calculator, object_store) = setup_calculator(temp_dir.path(), &pool).await;
+    let (calculator, object_store) = setup_calculator(temp_dir.path(), pool.clone()).await;
     reset_db_state(&pool, 10).await;
-    let multi_block_root_hash = run_calculator(calculator, pool).await;
+    let multi_block_root_hash = run_calculator(calculator).await;
     assert_eq!(multi_block_root_hash, root_hash);
 
     let mut prev_index = None;
@@ -209,16 +209,16 @@ async fn running_metadata_calculator_with_additional_blocks() {
     let pool = ConnectionPool::<Core>::test_pool().await;
 
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let calculator = setup_lightweight_calculator(temp_dir.path(), &pool).await;
+    let calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
     reset_db_state(&pool, 5).await;
-    run_calculator(calculator, pool.clone()).await;
+    run_calculator(calculator).await;
 
-    let mut calculator = setup_lightweight_calculator(temp_dir.path(), &pool).await;
+    let mut calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
     let (stop_sx, stop_rx) = watch::channel(false);
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
     calculator.delayer.delay_notifier = delay_sx;
 
-    let calculator_handle = tokio::spawn(calculator.run(pool.clone(), stop_rx));
+    let calculator_handle = tokio::spawn(calculator.run(stop_rx));
     // Wait until the calculator has processed initial L1 batches.
     let (next_l1_batch, _) = tokio::time::timeout(RUN_TIMEOUT, delay_rx.recv())
         .await
@@ -249,8 +249,8 @@ async fn running_metadata_calculator_with_additional_blocks() {
         .unwrap();
 
     // Switch to the full tree. It should pick up from the same spot and result in the same tree root hash.
-    let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
-    let root_hash_for_full_tree = run_calculator(calculator, pool).await;
+    let (calculator, _) = setup_calculator(temp_dir.path(), pool).await;
+    let root_hash_for_full_tree = run_calculator(calculator).await;
     assert_eq!(root_hash_for_full_tree, updated_root_hash);
 }
 
@@ -263,12 +263,13 @@ async fn shutting_down_calculator() {
     operation_config.delay_interval = 30_000; // ms; chosen to be larger than `RUN_TIMEOUT`
 
     let calculator =
-        setup_calculator_with_options(&merkle_tree_config, &operation_config, &pool, None).await;
+        setup_calculator_with_options(&merkle_tree_config, &operation_config, pool.clone(), None)
+            .await;
 
     reset_db_state(&pool, 5).await;
 
     let (stop_sx, stop_rx) = watch::channel(false);
-    let calculator_task = tokio::spawn(calculator.run(pool, stop_rx));
+    let calculator_task = tokio::spawn(calculator.run(stop_rx));
     tokio::time::sleep(Duration::from_millis(100)).await;
     stop_sx.send_replace(true);
     run_with_timeout(RUN_TIMEOUT, calculator_task)
@@ -283,9 +284,9 @@ async fn test_postgres_backup_recovery(
 ) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let calculator = setup_lightweight_calculator(temp_dir.path(), &pool).await;
+    let calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
     reset_db_state(&pool, 5).await;
-    run_calculator(calculator, pool.clone()).await;
+    run_calculator(calculator).await;
 
     // Simulate recovery from a DB snapshot in which some newer L1 batches are erased.
     let last_batch_after_recovery = L1BatchNumber(3);
@@ -308,12 +309,12 @@ async fn test_postgres_backup_recovery(
     }
     drop(storage);
 
-    let mut calculator = setup_lightweight_calculator(temp_dir.path(), &pool).await;
+    let mut calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
     let (stop_sx, stop_rx) = watch::channel(false);
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
     calculator.delayer.delay_notifier = delay_sx;
 
-    let calculator_handle = tokio::spawn(calculator.run(pool.clone(), stop_rx));
+    let calculator_handle = tokio::spawn(calculator.run(stop_rx));
     // Wait until the calculator has processed initial L1 batches.
     let (next_l1_batch, _) = tokio::time::timeout(RUN_TIMEOUT, delay_rx.recv())
         .await
@@ -372,7 +373,7 @@ async fn postgres_backup_recovery_with_excluded_metadata() {
 
 pub(crate) async fn setup_calculator(
     db_path: &Path,
-    pool: &ConnectionPool<Core>,
+    pool: ConnectionPool<Core>,
 ) -> (MetadataCalculator, Arc<dyn ObjectStore>) {
     let store_factory = ObjectStoreFactory::mock();
     let store = store_factory.create_store().await;
@@ -385,7 +386,7 @@ pub(crate) async fn setup_calculator(
 
 async fn setup_lightweight_calculator(
     db_path: &Path,
-    pool: &ConnectionPool<Core>,
+    pool: ConnectionPool<Core>,
 ) -> MetadataCalculator {
     let (db_config, operation_config) = create_config(db_path, MerkleTreeMode::Lightweight);
     setup_calculator_with_options(&db_config, &operation_config, pool, None).await
@@ -410,32 +411,29 @@ fn create_config(
 async fn setup_calculator_with_options(
     merkle_tree_config: &MerkleTreeConfig,
     operation_config: &OperationsManagerConfig,
-    pool: &ConnectionPool<Core>,
+    pool: ConnectionPool<Core>,
     object_store: Option<Arc<dyn ObjectStore>>,
 ) -> MetadataCalculator {
-    let calculator_config =
-        MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_config);
-    let metadata_calculator = MetadataCalculator::new(calculator_config, object_store)
-        .await
-        .unwrap();
-
     let mut storage = pool.connection().await.unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
         insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
     }
-    metadata_calculator
+    drop(storage);
+
+    let calculator_config =
+        MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_config);
+    MetadataCalculator::new(calculator_config, object_store, pool.clone(), pool)
+        .await
+        .unwrap()
 }
 
 fn path_to_string(path: &Path) -> String {
     path.to_str().unwrap().to_owned()
 }
 
-pub(crate) async fn run_calculator(
-    mut calculator: MetadataCalculator,
-    pool: ConnectionPool<Core>,
-) -> H256 {
+pub(crate) async fn run_calculator(mut calculator: MetadataCalculator) -> H256 {
     let (stop_sx, stop_rx) = watch::channel(false);
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
     calculator.delayer.delay_notifier = delay_sx;
@@ -450,7 +448,7 @@ pub(crate) async fn run_calculator(
         root_hash
     });
 
-    run_with_timeout(RUN_TIMEOUT, calculator.run(pool, stop_rx))
+    run_with_timeout(RUN_TIMEOUT, calculator.run(stop_rx))
         .await
         .unwrap();
     delayer_handle.await.unwrap()

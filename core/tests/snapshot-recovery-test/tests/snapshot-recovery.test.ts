@@ -63,7 +63,7 @@ interface ReorgDetectorDetails {
 }
 
 interface HealthCheckResponse {
-    components: {
+    readonly components: {
         snapshot_recovery?: Health<SnapshotRecoveryDetails>;
         consistency_checker?: Health<ConsistencyCheckerDetails>;
         reorg_detector?: Health<ReorgDetectorDetails>;
@@ -247,7 +247,7 @@ describe('snapshot recovery', () => {
 
             if (!recoveryFinished) {
                 const status = health.components.snapshot_recovery?.status;
-                expect(status).to.be.oneOf([undefined, 'ready']);
+                expect(status).to.be.oneOf([undefined, 'affected', 'ready']);
                 const details = health.components.snapshot_recovery?.details;
                 if (details !== undefined) {
                     console.log('Received snapshot recovery health details', details);

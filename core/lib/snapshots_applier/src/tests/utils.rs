@@ -19,7 +19,7 @@ use zksync_web3_decl::error::EnrichedClientResult;
 
 use crate::SnapshotsApplierMainNodeClient;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub(super) struct MockMainNodeClient {
     pub fetch_l1_batch_responses: HashMap<L1BatchNumber, api::L1BatchDetails>,
     pub fetch_l2_block_responses: HashMap<L2BlockNumber, api::BlockDetails>,

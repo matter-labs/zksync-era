@@ -18,6 +18,7 @@ use zksync_types::{
     block::BlockGasCount,
     fee::TransactionExecutionMetrics,
     tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics},
+    utils::display_timestamp,
     ProtocolVersionId, Transaction,
 };
 use zksync_utils::time::millis_since;
@@ -26,7 +27,7 @@ mod conditional_sealer;
 pub(super) mod criteria;
 
 pub use self::conditional_sealer::{ConditionalSealer, NoopSealer, SequencerSealer};
-use super::{extractors, metrics::AGGREGATION_METRICS, updates::UpdatesManager};
+use super::{metrics::AGGREGATION_METRICS, updates::UpdatesManager};
 use crate::gas_tracker::{gas_count_from_tx_and_metrics, gas_count_from_writes};
 
 /// Reported decision regarding block sealing.
@@ -165,7 +166,7 @@ impl IoSealCriteria for TimeoutSealer {
             tracing::debug!(
                 "Decided to seal L1 batch using rule `{RULE_NAME}`; batch timestamp: {}, \
                  commit deadline: {block_commit_deadline_ms}ms",
-                extractors::display_timestamp(manager.batch_timestamp())
+                display_timestamp(manager.batch_timestamp())
             );
         }
         should_seal_timeout

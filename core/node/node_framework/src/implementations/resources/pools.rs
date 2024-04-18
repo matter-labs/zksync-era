@@ -111,7 +111,7 @@ impl ReplicaPoolResource {
             let old_count = self.connections_count.fetch_add(size, Ordering::Relaxed);
             let total_connections = old_count + size;
             tracing::info!(
-                "Created a new replica pool. Master pool total connections count: {total_connections}"
+                "Created a new replica pool. Replica pool total connections count: {total_connections}"
             );
         }
 
