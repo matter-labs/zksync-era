@@ -32,12 +32,12 @@ impl ProtoRepr for proto::StateKeeper {
                 .context("transaction_slots")?,
             block_commit_deadline_ms: *required(&self.block_commit_deadline_ms)
                 .context("block_commit_deadline_ms")?,
-            miniblock_commit_deadline_ms: *required(&self.miniblock_commit_deadline_ms)
+            l2_block_commit_deadline_ms: *required(&self.miniblock_commit_deadline_ms)
                 .context("miniblock_commit_deadline_ms")?,
-            miniblock_seal_queue_capacity: required(&self.miniblock_seal_queue_capacity)
+            l2_block_seal_queue_capacity: required(&self.miniblock_seal_queue_capacity)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("miniblock_seal_queue_capacity")?,
-            miniblock_max_payload_size: required(&self.miniblock_max_payload_size)
+            l2_block_max_payload_size: required(&self.miniblock_max_payload_size)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("miniblock_max_payload_size")?,
             max_single_tx_gas: *required(&self.max_single_tx_gas).context("max_single_tx_gas")?,
@@ -97,11 +97,11 @@ impl ProtoRepr for proto::StateKeeper {
         Self {
             transaction_slots: Some(this.transaction_slots.try_into().unwrap()),
             block_commit_deadline_ms: Some(this.block_commit_deadline_ms),
-            miniblock_commit_deadline_ms: Some(this.miniblock_commit_deadline_ms),
+            miniblock_commit_deadline_ms: Some(this.l2_block_commit_deadline_ms),
             miniblock_seal_queue_capacity: Some(
-                this.miniblock_seal_queue_capacity.try_into().unwrap(),
+                this.l2_block_seal_queue_capacity.try_into().unwrap(),
             ),
-            miniblock_max_payload_size: Some(this.miniblock_max_payload_size.try_into().unwrap()),
+            miniblock_max_payload_size: Some(this.l2_block_max_payload_size.try_into().unwrap()),
             max_single_tx_gas: Some(this.max_single_tx_gas),
             max_allowed_l2_tx_gas_limit: Some(this.max_allowed_l2_tx_gas_limit),
             reject_tx_at_geometry_percentage: Some(this.reject_tx_at_geometry_percentage),

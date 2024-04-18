@@ -149,9 +149,9 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
         configs::chain::StateKeeperConfig {
             transaction_slots: self.sample(rng),
             block_commit_deadline_ms: self.sample(rng),
-            miniblock_commit_deadline_ms: self.sample(rng),
-            miniblock_seal_queue_capacity: self.sample(rng),
-            miniblock_max_payload_size: self.sample(rng),
+            l2_block_commit_deadline_ms: self.sample(rng),
+            l2_block_seal_queue_capacity: self.sample(rng),
+            l2_block_max_payload_size: self.sample(rng),
             max_single_tx_gas: self.sample(rng),
             max_allowed_l2_tx_gas_limit: self.sample(rng),
             reject_tx_at_geometry_percentage: self.sample(rng),
