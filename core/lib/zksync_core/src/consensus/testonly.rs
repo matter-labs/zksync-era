@@ -222,12 +222,12 @@ impl StateKeeper {
                     },
                 },
                 number: self.last_batch,
-                first_miniblock_number: self.last_block,
+                first_l2_block_number: self.last_block,
             }
         } else {
             self.last_block += 1;
             self.last_timestamp += 2;
-            SyncAction::Miniblock {
+            SyncAction::L2Block {
                 params: L2BlockParams {
                     timestamp: self.last_timestamp,
                     virtual_blocks: 0,
@@ -245,7 +245,7 @@ impl StateKeeper {
             let tx = create_l2_transaction(self.fee_per_gas, self.gas_per_pubdata);
             actions.push(FetchedTransaction::new(tx.into()).into());
         }
-        actions.push(SyncAction::SealMiniblock);
+        actions.push(SyncAction::SealL2Block);
         self.actions_sender.push_actions(actions).await;
     }
 

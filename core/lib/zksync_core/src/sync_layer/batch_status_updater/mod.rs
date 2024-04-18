@@ -92,7 +92,7 @@ impl MainNodeClient for BoxedL2Client {
         &self,
         number: L1BatchNumber,
     ) -> EnrichedClientResult<Option<L2BlockNumber>> {
-        let request_latency = FETCHER_METRICS.requests[&FetchStage::GetMiniblockRange].start();
+        let request_latency = FETCHER_METRICS.requests[&FetchStage::GetL2BlockRange].start();
         let number = self
             .get_miniblock_range(number)
             .rpc_context("resolve_l1_batch_to_l2_block")
