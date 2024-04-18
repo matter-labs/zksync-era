@@ -87,6 +87,8 @@ pub struct MetadataCalculator {
     config: MetadataCalculatorConfig,
     tree_reader: watch::Sender<Option<AsyncTreeReader>>,
     object_store: Option<Arc<dyn ObjectStore>>,
+    pool: ConnectionPool<Core>,
+    recovery_pool: ConnectionPool<Core>,
     delayer: Delayer,
     health_updater: HealthUpdater,
     max_l1_batches_per_iter: usize,
@@ -94,9 +96,17 @@ pub struct MetadataCalculator {
 
 impl MetadataCalculator {
     /// Creates a calculator with the specified `config`.
+    ///
+    /// # Arguments
+    ///
+    /// - `pool` can have a single connection.
+    /// - `recovery_pool` will only be used in case of snapshot recovery. It should have multiple connections (e.g., 10)
+    ///   to speed up recovery.
     pub async fn new(
         config: MetadataCalculatorConfig,
         object_store: Option<Arc<dyn ObjectStore>>,
+        pool: ConnectionPool<Core>,
+        recovery_pool: ConnectionPool<Core>,
     ) -> anyhow::Result<Self> {
         if let Err(err) = METRICS.info.set(ConfigLabels::new(&config)) {
             tracing::warn!(
@@ -120,6 +130,8 @@ impl MetadataCalculator {
         Ok(Self {
             tree_reader: watch::channel(None).0,
             object_store,
+            pool,
+            recovery_pool,
             delayer: Delayer::new(config.delay_interval),
             health_updater,
             max_l1_batches_per_iter: config.max_l1_batches_per_iter,
@@ -157,14 +169,15 @@ impl MetadataCalculator {
         Ok(GenericAsyncTree::new(db, self.config.mode).await)
     }
 
-    pub async fn run(
-        self,
-        pool: ConnectionPool<Core>,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
+    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let tree = self.create_tree().await?;
         let tree = tree
-            .ensure_ready(&pool, &stop_receiver, &self.health_updater)
+            .ensure_ready(
+                &self.pool,
+                self.recovery_pool,
+                &stop_receiver,
+                &self.health_updater,
+            )
             .await?;
         let Some(tree) = tree else {
             return Ok(()); // recovery was aborted because a stop signal was received
@@ -178,7 +191,7 @@ impl MetadataCalculator {
 
         let updater = TreeUpdater::new(tree, self.max_l1_batches_per_iter, self.object_store);
         updater
-            .loop_updating_tree(self.delayer, &pool, stop_receiver, self.health_updater)
+            .loop_updating_tree(self.delayer, &self.pool, stop_receiver, self.health_updater)
             .await
     }
 }
