@@ -1,9 +1,9 @@
-use std::time::Duration;
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::Debug,
     marker::PhantomData,
     sync::Arc,
+    time::Duration,
 };
 
 use anyhow::Context as _;
