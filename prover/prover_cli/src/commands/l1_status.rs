@@ -10,10 +10,10 @@ use zksync_config::{ContractsConfig, EthConfig, PostgresConfig};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_eth_client::{clients::QueryClient, CallFunctionArgs, EthInterface};
-use zksync_types::web3::contract;
 
 pub(crate) async fn run() -> anyhow::Result<()> {
-    println!("== L1 Status ==");
+    println!(" ----------------------- ");
+    println!(" ====== L1 Status ====== ");
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
     let contracts_config = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
     let eth_config = EthConfig::from_env()?;
