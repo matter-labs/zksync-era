@@ -3,4 +3,4 @@ mod storage;
 #[cfg(test)]
 mod tests;
 
-pub use storage::{BatchData, VmRunnerStorage, VmRunnerStorageLoader};
+pub use storage::{BatchExecuteData, VmRunnerStorage, VmRunnerStorageLoader};

@@ -8,8 +8,7 @@ use zksync_storage::RocksDB;
 use zksync_types::{L1BatchNumber, StorageKey, H256};
 
 use crate::{
-    rocksdb::StateValue, PostgresStorage, ReadStorage, RocksdbStorage, RocksdbStorageBuilder,
-    StateKeeperColumnFamily,
+    PostgresStorage, ReadStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily,
 };
 
 /// Factory that can produce a [`ReadStorage`] implementation on demand.
@@ -27,6 +26,27 @@ pub trait ReadStorageFactory: Debug + Send + Sync + 'static {
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>>;
 }
 
+/// DB difference introduced by one batch.
+#[derive(Debug, Clone)]
+pub struct BatchDiff {
+    /// Storage slots touched by this batch along with new values there.
+    pub state_diff: HashMap<StorageKey, H256>,
+    /// Initial write indices introduced by this batch.
+    pub enum_index_diff: HashMap<StorageKey, u64>,
+    /// Factory dependencies introduced by this batch.
+    pub factory_dep_diff: HashMap<H256, Vec<u8>>,
+}
+
+/// A RocksDB cache instance with in-memory DB diffs that gives access to DB state at batches `N` to
+/// `N + K`, where `K` is the number of diffs.
+#[derive(Debug)]
+pub struct RocksdbWithMemory {
+    /// RocksDB cache instance caught up to batch `N`.
+    pub rocksdb: RocksdbStorage,
+    /// Diffs for batches `N + 1` to `N + K`.
+    pub batch_diffs: Vec<BatchDiff>,
+}
+
 /// A [`ReadStorage`] implementation that uses either [`PostgresStorage`] or [`RocksdbStorage`]
 /// underneath.
 #[derive(Debug)]
@@ -35,12 +55,8 @@ pub enum PgOrRocksdbStorage<'a> {
     Postgres(PostgresStorage<'a>),
     /// Implementation over a RocksDB cache instance.
     Rocksdb(RocksdbStorage),
-    /// Implementation over a RocksDB cache instance with in-memory state diffs.
-    RocksdbWithMemory(
-        RocksdbStorage,
-        Vec<HashMap<StorageKey, StateValue>>,
-        Vec<HashMap<H256, Vec<u8>>>,
-    ),
+    /// Implementation over a RocksDB cache instance with in-memory DB diffs.
+    RocksdbWithMemory(RocksdbWithMemory),
 }
 
 impl<'a> PgOrRocksdbStorage<'a> {
@@ -124,12 +140,13 @@ impl ReadStorage for PgOrRocksdbStorage<'_> {
         match self {
             Self::Postgres(postgres) => postgres.read_value(key),
             Self::Rocksdb(rocksdb) => rocksdb.read_value(key),
-            Self::RocksdbWithMemory(rocksdb, diffs, _) => {
-                match diffs.iter().rev().find_map(|x| x.get(key)) {
-                    None => rocksdb.read_value(key),
-                    Some(value) => value.value.clone(),
-                }
-            }
+            Self::RocksdbWithMemory(RocksdbWithMemory {
+                rocksdb,
+                batch_diffs,
+            }) => match batch_diffs.iter().rev().find_map(|b| b.state_diff.get(key)) {
+                None => rocksdb.read_value(key),
+                Some(value) => value.clone(),
+            },
         }
     }
 
@@ -137,12 +154,13 @@ impl ReadStorage for PgOrRocksdbStorage<'_> {
         match self {
             Self::Postgres(postgres) => postgres.is_write_initial(key),
             Self::Rocksdb(rocksdb) => rocksdb.is_write_initial(key),
-            Self::RocksdbWithMemory(rocksdb, diffs, _) => {
-                match diffs.iter().rev().find_map(|x| x.get(key)) {
-                    None => rocksdb.is_write_initial(key),
-                    Some(_) => false,
-                }
-            }
+            Self::RocksdbWithMemory(RocksdbWithMemory {
+                rocksdb,
+                batch_diffs,
+            }) => match batch_diffs.iter().rev().find_map(|b| b.state_diff.get(key)) {
+                None => rocksdb.is_write_initial(key),
+                Some(_) => false,
+            },
         }
     }
 
@@ -150,12 +168,17 @@ impl ReadStorage for PgOrRocksdbStorage<'_> {
         match self {
             Self::Postgres(postgres) => postgres.load_factory_dep(hash),
             Self::Rocksdb(rocksdb) => rocksdb.load_factory_dep(hash),
-            Self::RocksdbWithMemory(rocksdb, _, new_factory_deps) => {
-                match new_factory_deps.iter().rev().find_map(|x| x.get(&hash)) {
-                    None => rocksdb.load_factory_dep(hash),
-                    Some(value) => Some(value.clone()),
-                }
-            }
+            Self::RocksdbWithMemory(RocksdbWithMemory {
+                rocksdb,
+                batch_diffs,
+            }) => match batch_diffs
+                .iter()
+                .rev()
+                .find_map(|b| b.factory_dep_diff.get(&hash))
+            {
+                None => rocksdb.load_factory_dep(hash),
+                Some(value) => Some(value.clone()),
+            },
         }
     }
 
@@ -163,12 +186,17 @@ impl ReadStorage for PgOrRocksdbStorage<'_> {
         match self {
             Self::Postgres(postgres) => postgres.get_enumeration_index(key),
             Self::Rocksdb(rocksdb) => rocksdb.get_enumeration_index(key),
-            Self::RocksdbWithMemory(rocksdb, diffs, _) => {
-                match diffs.iter().find_map(|x| x.get(key)) {
-                    None => rocksdb.get_enumeration_index(key),
-                    Some(value) => value.enum_index,
-                }
-            }
+            Self::RocksdbWithMemory(RocksdbWithMemory {
+                rocksdb,
+                batch_diffs,
+            }) => match batch_diffs
+                .iter()
+                .rev()
+                .find_map(|b| b.enum_index_diff.get(key))
+            {
+                None => rocksdb.get_enumeration_index(key),
+                Some(value) => Some(*value),
+            },
         }
     }
 }

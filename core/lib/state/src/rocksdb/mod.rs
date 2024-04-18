@@ -79,7 +79,7 @@ impl NamedColumnFamily for StateKeeperColumnFamily {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct StateValue {
+struct StateValue {
     pub value: H256,
     pub enum_index: Option<u64>,
 }

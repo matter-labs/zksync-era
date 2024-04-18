@@ -7,21 +7,21 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use multivm::{interface::L1BatchEnv, vm_1_4_2::SystemEnv, zk_evm_latest::ethereum_types::H256};
+use multivm::{interface::L1BatchEnv, vm_1_4_2::SystemEnv};
 use once_cell::sync::OnceCell;
 use tokio::sync::{watch, RwLock};
 use vm_utils::storage::L1BatchParamsProvider;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_state::{
-    AsyncCatchupTask, PgOrRocksdbStorage, ReadStorageFactory, RocksdbStorageBuilder,
-    StateKeeperColumnFamily, StateValue,
+    AsyncCatchupTask, BatchDiff, PgOrRocksdbStorage, ReadStorageFactory, RocksdbStorageBuilder,
+    RocksdbWithMemory, StateKeeperColumnFamily,
 };
 use zksync_storage::RocksDB;
-use zksync_types::{block::MiniblockExecutionData, L1BatchNumber, L2ChainId, StorageKey};
+use zksync_types::{block::MiniblockExecutionData, L1BatchNumber, L2ChainId};
 
-/// Data needed to re-execute an L1 batch.
+/// Data needed to execute an L1 batch.
 #[derive(Debug, Clone)]
-pub struct BatchData {
+pub struct BatchExecuteData {
     /// Parameters for L1 batch this data belongs to.
     pub l1_batch_env: L1BatchEnv,
     /// Execution process parameters.
@@ -31,10 +31,9 @@ pub struct BatchData {
 }
 
 #[derive(Debug, Clone)]
-struct StorageData {
-    batch_data: BatchData,
-    storage_diffs: HashMap<StorageKey, StateValue>,
-    factory_deps: HashMap<H256, Vec<u8>>,
+struct BatchData {
+    execute_data: BatchExecuteData,
+    diff: BatchDiff,
 }
 
 /// Functionality to fetch data about processed/unprocessed batches for a particular VM runner
@@ -84,7 +83,7 @@ pub struct VmRunnerStorage<L: VmRunnerStorageLoader> {
 #[derive(Debug)]
 struct State {
     l1_batch_number: L1BatchNumber,
-    storage: BTreeMap<L1BatchNumber, StorageData>,
+    storage: BTreeMap<L1BatchNumber, BatchData>,
 }
 
 impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
@@ -168,32 +167,22 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
                     tracing::info!("Synchronizing RocksDB interrupted");
                     return Ok(None);
                 };
-                let storage_diffs = state
+                let batch_diffs = state
                     .storage
                     .iter()
                     .filter_map(|(x, y)| {
                         if x <= &l1_batch_number {
-                            Some(y.storage_diffs.clone())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<Vec<_>>();
-                let factory_deps = state
-                    .storage
-                    .iter()
-                    .filter_map(|(x, y)| {
-                        if x <= &l1_batch_number {
-                            Some(y.factory_deps.clone())
+                            Some(y.diff.clone())
                         } else {
                             None
                         }
                     })
                     .collect::<Vec<_>>();
                 return Ok(Some(PgOrRocksdbStorage::RocksdbWithMemory(
-                    rocksdb,
-                    storage_diffs,
-                    factory_deps,
+                    RocksdbWithMemory {
+                        rocksdb,
+                        batch_diffs,
+                    },
                 )));
             }
         } else {
@@ -218,7 +207,7 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
     pub async fn load_batch(
         &self,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<BatchData>> {
+    ) -> anyhow::Result<Option<BatchExecuteData>> {
         if let Some(_) = self.rocksdb_cell.get() {
             loop {
                 let state = self.state.read().await;
@@ -239,11 +228,11 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
                     tokio::time::sleep(Duration::from_millis(100)).await;
                     continue;
                 };
-                return Ok(Some(storage_data.batch_data.clone()));
+                return Ok(Some(storage_data.execute_data.clone()));
             }
         } else {
             let mut conn = self.pool.connection_tagged(L::name()).await?;
-            StorageSyncTask::<L>::load_batch_data(
+            StorageSyncTask::<L>::load_batch_execute_data(
                 &mut conn,
                 l1_batch_number,
                 &self.l1_batch_params_provider,
@@ -349,7 +338,7 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
             let max_desired = self.loader.last_ready_to_be_loaded_batch(&mut conn).await?;
             for l1_batch_number in max_present.0 + 1..=max_desired.0 {
                 let l1_batch_number = L1BatchNumber(l1_batch_number);
-                let Some(batch_data) = Self::load_batch_data(
+                let Some(execute_data) = Self::load_batch_execute_data(
                     &mut conn,
                     l1_batch_number,
                     &self.l1_batch_params_provider,
@@ -359,54 +348,53 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
                 else {
                     break;
                 };
-                let touched_slots = conn
+                let state_diff = conn
                     .storage_logs_dal()
                     .get_touched_slots_for_l1_batch(l1_batch_number)
                     .await?;
-                let keys_with_unknown_indices = touched_slots
+                let touched_keys = state_diff
                     .iter()
                     .map(|(key, _)| key.hashed_key())
                     .collect::<Vec<_>>();
-                let enum_indices_and_batches = conn
+                let mut enum_index_diff = conn
                     .storage_logs_dal()
-                    .get_l1_batches_and_indices_for_initial_writes(&keys_with_unknown_indices)
-                    .await?;
-                let storage_diffs = touched_slots
+                    .get_l1_batches_and_indices_for_initial_writes(&touched_keys)
+                    .await?
                     .into_iter()
-                    .map(|(key, value)| {
-                        (
-                            key,
-                            StateValue {
-                                value,
-                                enum_index: Some(enum_indices_and_batches[&key.hashed_key()].1),
-                            },
-                        )
+                    .map(|(k, (_, v))| (k, v))
+                    .collect::<HashMap<_, _>>();
+                let enum_index_diff = state_diff
+                    .keys()
+                    .filter_map(|k| {
+                        enum_index_diff
+                            .remove_entry(&k.hashed_key())
+                            .map(|(_, v)| (k.clone(), v))
                     })
                     .collect();
-
-                let factory_deps = conn
+                let factory_dep_diff = conn
                     .blocks_dal()
                     .get_l1_batch_factory_deps(l1_batch_number)
                     .await?;
-                state.storage.insert(
-                    batch_data.l1_batch_env.number,
-                    StorageData {
-                        batch_data,
-                        storage_diffs,
-                        factory_deps,
-                    },
-                );
+                let diff = BatchDiff {
+                    state_diff,
+                    enum_index_diff,
+                    factory_dep_diff,
+                };
+
+                state
+                    .storage
+                    .insert(l1_batch_number, BatchData { execute_data, diff });
             }
             drop(conn);
         }
     }
 
-    async fn load_batch_data(
+    async fn load_batch_execute_data(
         conn: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
         l1_batch_params_provider: &L1BatchParamsProvider,
         chain_id: L2ChainId,
-    ) -> anyhow::Result<Option<BatchData>> {
+    ) -> anyhow::Result<Option<BatchExecuteData>> {
         let first_miniblock_in_batch = l1_batch_params_provider
             .load_first_miniblock_in_batch(conn, l1_batch_number)
             .await
@@ -434,7 +422,7 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
             .transactions_dal()
             .get_miniblocks_to_execute_for_l1_batch(l1_batch_number)
             .await?;
-        Ok(Some(BatchData {
+        Ok(Some(BatchExecuteData {
             l1_batch_env,
             system_env,
             miniblocks,
