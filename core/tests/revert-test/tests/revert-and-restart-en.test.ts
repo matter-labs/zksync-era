@@ -94,13 +94,31 @@ function runBlockReverter(args: string[]): string {
     return res.stdout.toString();
 }
 
+async function killServerAndWaitForShutdown(tester: Tester, server: string) {
+    await utils.exec(`pkill -9 ${server}`);
+    // Wait until it's really stopped.
+    let iter = 0;
+    while (iter < 30) {
+        try {
+            await tester.syncWallet.provider.getBlockNumber();
+            await utils.sleep(2);
+            iter += 1;
+        } catch (_) {
+            // When exception happens, we assume that server died.
+            return;
+        }
+    }
+    // It's going to panic anyway, since the server is a singleton entity, so better to exit early.
+    throw new Error("Server didn't stop after a kill request");
+}
+
 class MainNode {
     constructor(public tester: Tester, private proc: child_process.ChildProcess) {}
 
     // Terminates all main node processes running.
     public static async terminateAll() {
         try {
-            await utils.exec('pkill -INT zksync_server');
+            await utils.exec('pkill -INT zksync_server --wait');
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
@@ -165,7 +183,7 @@ class ExtNode {
     // Terminates all main node processes running.
     public static async terminateAll() {
         try {
-            await utils.exec('pkill -INT zksync_external_node');
+            await utils.exec('pkill -INT zksync_external_node --wait');
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
@@ -262,7 +280,8 @@ describe('Block reverting test', function () {
         await h.waitFinalize();
 
         console.log('Restart the main node with L1 batch execution disabled.');
-        await mainNode.terminate();
+        await killServerAndWaitForShutdown(mainNode.tester, 'zksync_server');
+        // await mainNode.terminate();
         mainNode = await MainNode.spawn(mainLogs, enableConsensus, false);
 
         console.log('Commit at least 2 L1 batches which are not executed');
@@ -305,7 +324,8 @@ describe('Block reverting test', function () {
         }
         const alice2 = await alice.getBalance();
         console.log('Terminate the main node');
-        await mainNode.terminate();
+        await killServerAndWaitForShutdown(mainNode.tester, 'zksync_server');
+        // await mainNode.terminate();
 
         console.log('Ask block_reverter to suggest to which L1 batch we should revert');
         const values_json = runBlockReverter([
