@@ -116,7 +116,7 @@ impl BlocksDal<'_, '_> {
                 miniblocks
             "#
         )
-        .instrument("get_sealed_miniblock_number")
+        .instrument("get_sealed_l2_block_number")
         .report_latency()
         .fetch_one(self.storage)
         .await?;
