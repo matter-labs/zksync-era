@@ -174,7 +174,7 @@ class ExtNode {
     // Terminates all main node processes running.
     public static async terminateAll() {
         try {
-            await utils.exec('killall -INT -f zksync_external_node');
+            await utils.exec('killall -INT zksync_external_node');
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
