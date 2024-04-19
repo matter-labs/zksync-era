@@ -111,7 +111,7 @@ jobs:
           ci_run sleep 30
 
       - name: Deploy legacy era contracts
-        run: zk contract upgrade-shared-bridge-era
+        run: ci_run zk contract upgrade-shared-bridge-era
 
       - name: Perform loadtest
         run: ci_run zk run loadtest
