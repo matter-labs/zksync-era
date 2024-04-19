@@ -9,11 +9,16 @@ use zksync_contracts::zksync_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
 use zksync_merkle_tree::domain::ZkSyncTree;
+use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_state::RocksdbStorage;
 use zksync_storage::RocksDB;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     ethabi::Token,
+    snapshots::{
+        SnapshotFactoryDependencies, SnapshotMetadata, SnapshotStorageLogsChunk,
+        SnapshotStorageLogsStorageKey,
+    },
     web3::{
         contract::{Contract, Options},
         transports::Http,
@@ -125,11 +130,13 @@ impl BlockReverter {
         self.allow_reverting_executed_batches = true;
     }
 
-    /// Rolls back DBs (Postgres + RocksDB) to a previous state.
+    /// Rolls back DBs (Postgres + RocksDB) to a previous state. If Postgres is rolled back and `snapshots_object_store`
+    /// is specified, snapshot files will be deleted as well.
     pub async fn rollback_db(
         &self,
         last_l1_batch_to_keep: L1BatchNumber,
         flags: BlockReverterFlags,
+        snapshots_object_store: Option<&dyn ObjectStore>,
     ) -> anyhow::Result<()> {
         let rollback_tree = flags.contains(BlockReverterFlags::TREE);
         let rollback_postgres = flags.contains(BlockReverterFlags::POSTGRES);
@@ -150,9 +157,20 @@ impl BlockReverter {
         // Tree needs to be reverted first to keep state recoverable
         self.rollback_rocks_dbs(last_l1_batch_to_keep, rollback_tree, rollback_sk_cache)
             .await?;
-        if rollback_postgres {
-            self.rollback_postgres(last_l1_batch_to_keep).await?;
+        let deleted_snapshots = if rollback_postgres {
+            self.rollback_postgres(last_l1_batch_to_keep).await?
+        } else {
+            vec![]
+        };
+        if let Some(object_store) = snapshots_object_store {
+            Self::delete_snapshot_files(object_store, &deleted_snapshots).await?;
+        } else if !deleted_snapshots.is_empty() {
+            tracing::info!(
+                "Did not remove snapshot files in object store since it was not provided; \
+                 metadata for deleted snapshots: {deleted_snapshots:?}"
+            );
         }
+
         Ok(())
     }
 
@@ -273,7 +291,10 @@ impl BlockReverter {
 
     /// Reverts data in the Postgres database.
     /// If `node_role` is `Main` a consensus hard-fork is performed.
-    async fn rollback_postgres(&self, last_l1_batch_to_keep: L1BatchNumber) -> anyhow::Result<()> {
+    async fn rollback_postgres(
+        &self,
+        last_l1_batch_to_keep: L1BatchNumber,
+    ) -> anyhow::Result<Vec<SnapshotMetadata>> {
         tracing::info!("Rolling back postgres data");
         let mut storage = self.connection_pool.connection().await?;
         let mut transaction = storage.start_transaction().await?;
@@ -327,6 +348,14 @@ impl BlockReverter {
             .eth_sender_dal()
             .delete_eth_txs(last_l1_batch_to_keep)
             .await?;
+
+        tracing::info!("Rolling back snapshots");
+        let deleted_snapshots = transaction
+            .snapshots_dal()
+            .delete_snapshots_after(last_l1_batch_to_keep)
+            .await?;
+
+        // Remove data from main tables (L2 blocks and L1 batches).
         tracing::info!("Rolling back L1 batches");
         transaction
             .blocks_dal()
@@ -348,7 +377,68 @@ impl BlockReverter {
         }
 
         transaction.commit().await?;
-        Ok(())
+        Ok(deleted_snapshots)
+    }
+
+    async fn delete_snapshot_files(
+        object_store: &dyn ObjectStore,
+        deleted_snapshots: &[SnapshotMetadata],
+    ) -> anyhow::Result<()> {
+        fn ignore_not_found_errors(err: ObjectStoreError) -> Result<(), ObjectStoreError> {
+            match err {
+                ObjectStoreError::KeyNotFound(err) => {
+                    tracing::debug!("Ignoring 'not found' object store error: {err}");
+                    Ok(())
+                }
+                _ => Err(err),
+            }
+        }
+
+        fn combine_results(output: &mut anyhow::Result<()>, result: anyhow::Result<()>) {
+            if let Err(err) = result {
+                tracing::warn!("{err:?}");
+                *output = Err(err);
+            }
+        }
+
+        if deleted_snapshots.is_empty() {
+            return Ok(());
+        }
+
+        let mut overall_result = Ok(());
+        for snapshot in deleted_snapshots {
+            tracing::info!(
+                "Removing factory deps for snapshot for L1 batch #{}",
+                snapshot.l1_batch_number
+            );
+            let result = object_store
+                .remove::<SnapshotFactoryDependencies>(snapshot.l1_batch_number)
+                .await
+                .or_else(ignore_not_found_errors)
+                .with_context(|| {
+                    format!(
+                        "failed removing factory deps for snapshot for L1 batch #{}",
+                        snapshot.l1_batch_number
+                    )
+                });
+            combine_results(&mut overall_result, result);
+
+            for chunk_id in 0..snapshot.storage_logs_filepaths.len() as u64 {
+                let key = SnapshotStorageLogsStorageKey {
+                    l1_batch_number: snapshot.l1_batch_number,
+                    chunk_id,
+                };
+                tracing::info!("Removing storage logs chunk {key:?}");
+
+                let result = object_store
+                    .remove::<SnapshotStorageLogsChunk>(key)
+                    .await
+                    .or_else(ignore_not_found_errors)
+                    .with_context(|| format!("failed removing storage logs chunk {key:?}"));
+                combine_results(&mut overall_result, result);
+            }
+        }
+        overall_result
     }
 
     /// Sends a revert transaction to L1.

@@ -6,7 +6,8 @@ use zksync_config::{
     configs::ObservabilityConfig, ContractsConfig, DBConfig, EthConfig, PostgresConfig,
 };
 use zksync_dal::{ConnectionPool, Core};
-use zksync_env_config::FromEnv;
+use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
+use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{Address, L1BatchNumber, U256};
 
 #[derive(Debug, Parser)]
@@ -182,9 +183,17 @@ async fn main() -> anyhow::Result<()> {
                 block_reverter.allow_reverting_executed_batches();
             }
 
+            let mut object_store = None;
             let mut flags = BlockReverterFlags::empty();
             if rollback_postgres {
                 flags |= BlockReverterFlags::POSTGRES;
+                let object_store_config = SnapshotsObjectStoreConfig::from_env()
+                    .context("SnapshotsObjectStoreConfig::from_env()")?;
+                object_store = Some(
+                    ObjectStoreFactory::new(object_store_config.0)
+                        .create_store()
+                        .await,
+                );
             }
             if rollback_tree {
                 flags |= BlockReverterFlags::TREE;
@@ -194,7 +203,11 @@ async fn main() -> anyhow::Result<()> {
             }
 
             block_reverter
-                .rollback_db(L1BatchNumber(l1_batch_number), flags)
+                .rollback_db(
+                    L1BatchNumber(l1_batch_number),
+                    flags,
+                    object_store.as_deref(),
+                )
                 .await?;
         }
         Command::ClearFailedL1Transactions => {

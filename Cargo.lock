@@ -661,6 +661,7 @@ dependencies = [
  "zksync_config",
  "zksync_dal",
  "zksync_env_config",
+ "zksync_object_store",
  "zksync_types",
 ]
 
@@ -8142,6 +8143,7 @@ dependencies = [
  "zksync_dal",
  "zksync_eth_signer",
  "zksync_merkle_tree",
+ "zksync_object_store",
  "zksync_state",
  "zksync_storage",
  "zksync_types",
