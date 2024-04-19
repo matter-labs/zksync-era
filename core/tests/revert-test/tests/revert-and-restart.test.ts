@@ -4,7 +4,6 @@ import * as zkweb3 from 'zksync-ethers';
 import { BigNumber, Contract, ethers } from 'ethers';
 import { expect } from 'chai';
 import fs from 'fs';
-import { ValidatorTimelockFactory } from '../../../../contracts/l1-contracts/typechain/ValidatorTimelockFactory';
 
 // Parses output of "print-suggested-values" command of the revert block tool.
 function parseSuggestedValues(suggestedValuesString: string) {

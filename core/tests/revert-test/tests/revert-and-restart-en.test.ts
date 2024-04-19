@@ -12,7 +12,6 @@ import { expect, assert } from 'chai';
 import fs from 'fs';
 import * as child_process from 'child_process';
 import * as dotenv from 'dotenv';
-import { ValidatorTimelockFactory } from '../../../../contracts/l1-contracts/typechain/ValidatorTimelockFactory';
 
 let mainEnv: string;
 let extEnv: string;
