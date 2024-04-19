@@ -521,6 +521,7 @@ async fn run_api(
                 .with_vm_barrier(vm_barrier.clone())
                 .with_sync_state(sync_state.clone())
                 .with_mempool_cache(mempool_cache.clone())
+                .with_extended_tracing(config.optional.extended_rpc_tracing)
                 .enable_api_namespaces(config.optional.api_namespaces());
         if let Some(tree_reader) = &tree_reader {
             builder = builder.with_tree_api(tree_reader.clone());
@@ -549,6 +550,7 @@ async fn run_api(
                 .with_vm_barrier(vm_barrier)
                 .with_sync_state(sync_state)
                 .with_mempool_cache(mempool_cache)
+                .with_extended_tracing(config.optional.extended_rpc_tracing)
                 .enable_api_namespaces(config.optional.api_namespaces());
         if let Some(tree_reader) = tree_reader {
             builder = builder.with_tree_api(tree_reader);

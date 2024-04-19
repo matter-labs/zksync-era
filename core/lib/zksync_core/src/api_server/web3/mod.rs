@@ -558,7 +558,11 @@ impl ApiServer {
         let vm_barrier = self.optional.vm_barrier.clone();
         let health_updater = self.health_updater.clone();
         let method_tracer = self.method_tracer.clone();
+
         let extended_tracing = self.optional.extended_tracing;
+        if extended_tracing {
+            tracing::info!("Enabled extended call tracing for {transport_str} API server; this might negatively affect performance");
+        }
 
         let rpc = self
             .build_rpc_module(pub_sub, last_sealed_miniblock)
