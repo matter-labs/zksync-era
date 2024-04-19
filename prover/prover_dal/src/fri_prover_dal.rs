@@ -598,13 +598,14 @@ impl FriProverDal<'_, '_> {
     pub async fn get_prover_jobs_stats_for_batch(
         &mut self,
         l1_batches_numbers: Vec<L1BatchNumber>,
-    ) -> HashMap<L1BatchNumber, JobCountStatistics> {
+    ) -> HashMap<(L1BatchNumber, u8), JobCountStatistics> {
         {
             sqlx::query!(
                 r#"
                 SELECT
                     COUNT(*) AS "count!",
                     l1_batch_number AS "l1_batch_number!",
+                    aggregation_round AS "aggregation_round!",
                     status AS "status!"
                 FROM
                     prover_jobs_fri
@@ -612,6 +613,7 @@ impl FriProverDal<'_, '_> {
                     l1_batch_number = ANY ($1)
                 GROUP BY
                     l1_batch_number,
+                    aggregation_round,
                     status
                 "#,
                 &l1_batches_numbers
@@ -623,18 +625,28 @@ impl FriProverDal<'_, '_> {
             .await
             .unwrap()
             .into_iter()
-            .map(|row| (row.l1_batch_number, row.status, row.count as usize))
+            .map(|row| {
+                (
+                    row.l1_batch_number,
+                    row.aggregation_round,
+                    row.status,
+                    row.count as usize,
+                )
+            })
             .fold(
                 HashMap::new(),
-                |mut acc, (l1_batch_number, status, value)| {
-                    let stats = acc.entry(L1BatchNumber(l1_batch_number as u32)).or_insert(
-                        JobCountStatistics {
+                |mut acc, (l1_batch_number, aggregation_round, status, value)| {
+                    let stats = acc
+                        .entry((
+                            L1BatchNumber(l1_batch_number as u32),
+                            aggregation_round as u8,
+                        ))
+                        .or_insert(JobCountStatistics {
                             queued: 0,
                             in_progress: 0,
                             failed: 0,
                             successful: 0,
-                        },
-                    );
+                        });
                     match status.as_ref() {
                         "queued" => stats.queued = value,
                         "in_progress" => stats.in_progress = value,
