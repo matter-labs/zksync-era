@@ -1,6 +1,5 @@
 use std::time::Instant;
 
-use crate::metrics::{CircuitLabels, PROVER_FRI_UTILS_METRICS};
 use prover_dal::{Connection, Prover, ProverDal};
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
@@ -18,6 +17,8 @@ use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     ProtocolVersionId,
 };
+
+use crate::metrics::{CircuitLabels, PROVER_FRI_UTILS_METRICS};
 
 pub mod metrics;
 pub mod region_fetcher;
