@@ -306,6 +306,16 @@ command
     .description('upgrade shared bridge with deployed era diamond proxy address')
     .action(upgradeSharedBridgeEra);
 command
+    .command('initialize-validator [init-opts...]')
+    .allowUnknownOption(true)
+    .description('initialize validator')
+    .action(initializeValidator);
+command
+    .command('deploy-l2 [deploy-opts...]')
+    .allowUnknownOption(true)
+    .description('deploy l2 contracts')
+    .action(deployL2);
+command
     .command('initialize-governance [gov-opts...]')
     .allowUnknownOption(true)
     .description('initialize governance')

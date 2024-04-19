@@ -78,6 +78,7 @@ else
     ## init bridgehub state transition
     zk contract deploy # (deploy L1)
     zk contract initialize-governance
+    zk contract initialize-validator
 
     ## init hyperchain
     zk contract register-hyperchain
