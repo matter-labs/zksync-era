@@ -12,6 +12,7 @@ import { expect, assert } from 'chai';
 import fs from 'fs';
 import * as child_process from 'child_process';
 import * as dotenv from 'dotenv';
+import { ValidatorTimelockFactory } from '../../../../contracts/l1-contracts/typechain/ValidatorTimelockFactory';
 
 let mainEnv: string;
 let extEnv: string;
@@ -252,6 +253,16 @@ describe('Block reverting test', function () {
         const isETHBasedChain = baseTokenAddress == zkweb3.utils.ETH_ADDRESS_IN_CONTRACTS;
         const alice: zkweb3.Wallet = extNode.tester.emptyWallet();
 
+        // const chainId = (await alice._providerL2().getNetwork()).chainId;
+        // const factory = new ValidatorTimelockFactory(mainNode.tester.hyperchainAdmin);
+        // const deployedContract = factory.attach(process.env.CONTRACTS_VALIDATOR_TIMELOCK_ADDR!);
+
+        // // If hyperchain admin is not a validator -> add
+        // if (!(await deployedContract['validators(uint256,address)'](chainId, mainNode.tester.hyperchainAdmin.address))) {
+        //     const addValidatorTx = await deployedContract.addValidator(chainId, mainNode.tester.hyperchainAdmin.address);
+        //     await addValidatorTx.wait();
+        // }
+
         console.log(
             'Finalize an L1 transaction to ensure at least 1 executed L1 batch and that all transactions are processed'
         );
@@ -315,7 +326,7 @@ describe('Block reverting test', function () {
             'print-suggested-values',
             '--json',
             '--operator-address',
-            '0x52312AD6f01657413b2eaE9287f6B9ADaD93D5FE'
+            '0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7'
         ]);
         console.log(`values = ${values_json}`);
         const values = parseSuggestedValues(values_json);

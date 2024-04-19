@@ -60,6 +60,7 @@ describe('Block reverting test', function () {
     let mainContract: Contract;
     let blocksCommittedBeforeRevert: number;
     let logs: fs.WriteStream;
+    let operatorAddress = process.env.ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR;
 
     let enable_consensus = process.env.ENABLE_CONSENSUS == 'true';
     let components = 'api,tree,eth,state_keeper,commitment_generator';
@@ -104,16 +105,6 @@ describe('Block reverting test', function () {
         }
 
         await tester.fundSyncWallet();
-
-        const chainId = (await alice._providerL2().getNetwork()).chainId;
-        const factory = new ValidatorTimelockFactory(tester.hyperchainAdmin);
-        const deployedContract = factory.attach(process.env.CONTRACTS_VALIDATOR_TIMELOCK_ADDR!);
-
-        // If hyperchain admin is not a validator -> add
-        if (!(await deployedContract['validators(uint256,address)'](chainId, tester.hyperchainAdmin.address))) {
-            const addValidatorTx = await deployedContract.addValidator(chainId, tester.hyperchainAdmin.address);
-            await addValidatorTx.wait();
-        }
 
         // Seal 2 L1 batches.
         // One is not enough to test the reversion of sk cache because
@@ -165,7 +156,7 @@ describe('Block reverting test', function () {
     step('revert blocks', async () => {
         const executedProcess = await utils.exec(
             'cd $ZKSYNC_HOME && ' +
-                `RUST_LOG=off cargo run --bin block_reverter --release -- print-suggested-values --json --operator-address ${tester.hyperchainAdmin.address}`
+                `RUST_LOG=off cargo run --bin block_reverter --release -- print-suggested-values --json --operator-address ${operatorAddress}`
             // ^ Switch off logs to not pollute the output JSON
         );
         const suggestedValuesOutput = executedProcess.stdout;

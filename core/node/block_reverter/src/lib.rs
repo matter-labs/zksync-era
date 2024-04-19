@@ -60,10 +60,7 @@ impl BlockReverterEthConfig {
     ) -> Self {
         #[allow(deprecated)]
         // `BlockReverter` doesn't support non env configs yet
-        let pk = eth_config
-            .sender
-            .expect("eth_sender_config")
-            .reverter_private_key();
+        let pk = eth_config.sender.expect("eth_sender_config").private_key();
 
         Self {
             eth_client_url: eth_config.web3_url,
