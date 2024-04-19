@@ -7,7 +7,7 @@ import { hashBytecode } from 'zksync-web3/build/src/utils';
 import fs from 'fs';
 import { TransactionResponse } from 'zksync-web3/build/src/types';
 import { BytesLike } from '@ethersproject/bytes';
-import { isAddressEq } from 'zksync-ethers/build/src/utils';
+import { isAddressEq } from 'zksync-ethers/build/utils';
 
 const L1_CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/contracts/l1-contracts/artifacts/contracts`;
 const L1_DEFAULT_UPGRADE_ABI = new ethers.utils.Interface(

@@ -10,7 +10,7 @@ import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 import { checkReceipt } from '../src/modifiers/receipt-check';
 import { extractFee } from '../src/modifiers/balance-checker';
 import { TestMessage } from '../src/matchers/matcher-helpers';
-import { Address } from 'zksync-ethers/build/src/types';
+import { Address } from 'zksync-ethers/build/types';
 import * as hre from 'hardhat';
 import { Deployer } from '@matterlabs/hardhat-zksync-deploy';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-deploy/dist/types';

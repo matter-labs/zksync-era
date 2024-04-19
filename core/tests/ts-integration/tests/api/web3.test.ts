@@ -9,7 +9,8 @@ import { serialize } from '@ethersproject/transactions';
 import { deployContract, getTestContract, waitForNewL1Batch, anyTransaction } from '../../src/helpers';
 import { shouldOnlyTakeFee } from '../../src/modifiers/balance-checker';
 import fetch, { RequestInit } from 'node-fetch';
-import { EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE } from 'zksync-ethers/build/src/utils';
+import { EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE } from 'zksync-ethers/build/utils';
+
 // Regular expression to match variable-length hex number.
 const HEX_VALUE_REGEX = /^0x[\da-fA-F]*$/;
 const DATE_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6})?/;
