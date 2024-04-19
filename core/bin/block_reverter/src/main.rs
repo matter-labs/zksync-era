@@ -104,11 +104,11 @@ async fn main() -> anyhow::Result<()> {
         operator_address, ..
     } = &command
     {
-        Some(operator_address)
+        Some(*operator_address)
     } else {
         None
     };
-    let config = BlockReverterEthConfig::new(eth_sender, contracts, operator_address.copied());
+    let config = BlockReverterEthConfig::new(eth_sender, contracts, operator_address)?;
 
     let connection_pool = ConnectionPool::<Core>::builder(
         postgres_config.master_url()?,
@@ -128,9 +128,9 @@ async fn main() -> anyhow::Result<()> {
 
     match command {
         Command::Display { json, .. } => {
-            let suggested_values = block_reverter.suggested_values().await;
+            let suggested_values = block_reverter.suggested_values().await?;
             if json {
-                println!("{}", serde_json::to_string(&suggested_values).unwrap());
+                println!("{}", serde_json::to_string(&suggested_values)?);
             } else {
                 println!("Suggested values for rollback: {:#?}", suggested_values);
             }
@@ -148,7 +148,7 @@ async fn main() -> anyhow::Result<()> {
                     priority_fee_per_gas,
                     nonce,
                 )
-                .await
+                .await?;
         }
         Command::RollbackDB {
             l1_batch_number,
@@ -200,9 +200,11 @@ async fn main() -> anyhow::Result<()> {
 
             block_reverter
                 .rollback_db(L1BatchNumber(l1_batch_number), flags)
-                .await
+                .await?;
         }
-        Command::ClearFailedL1Transactions => block_reverter.clear_failed_l1_transactions().await,
+        Command::ClearFailedL1Transactions => {
+            block_reverter.clear_failed_l1_transactions().await?;
+        }
     }
     Ok(())
 }

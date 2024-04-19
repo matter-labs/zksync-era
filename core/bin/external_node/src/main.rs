@@ -954,7 +954,7 @@ async fn run_node(
             tracing::info!("Rolling back to l1 batch number {last_correct_l1_batch}");
             reverter
                 .rollback_db(last_correct_l1_batch, BlockReverterFlags::all())
-                .await;
+                .await?;
             tracing::info!("Rollback successfully completed");
         }
         Err(err) => return Err(err).context("reorg_detector.check_consistency()"),
@@ -974,7 +974,7 @@ async fn run_node(
         tracing::info!("Rolling back to l1 batch number {sealed_l1_batch_number}");
         reverter
             .rollback_db(sealed_l1_batch_number, BlockReverterFlags::all())
-            .await;
+            .await?;
         tracing::info!("Rollback successfully completed");
     }
 

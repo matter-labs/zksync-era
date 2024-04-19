@@ -19,7 +19,8 @@ zksync_eth_signer.workspace = true
 zksync_state.workspace = true
 zksync_merkle_tree.workspace = true
 
-tokio = { workspace = true, features = ["time"] }
+anyhow.workspace = true
+tokio = { workspace = true, features = ["time", "fs"] }
 bitflags.workspace = true
 serde.workspace = true
 tracing.workspace = true
