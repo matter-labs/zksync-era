@@ -3,7 +3,7 @@ use prover_dal::{Prover, ProverDal};
 use zksync_config::configs::fri_witness_generator::WitnessGenerationTimeouts;
 use zksync_dal::ConnectionPool;
 
-use crate::house_keeper::periodic_job::PeriodicJob;
+use crate::periodic_job::PeriodicJob;
 
 #[derive(Debug)]
 pub struct FriWitnessGeneratorJobRetryManager {

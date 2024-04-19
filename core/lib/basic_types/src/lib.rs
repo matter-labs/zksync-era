@@ -174,7 +174,7 @@ impl From<u32> for L2ChainId {
 
 basic_type!(
     /// zkSync network block sequential index.
-    MiniblockNumber,
+    L2BlockNumber,
     u32
 );
 
@@ -209,7 +209,7 @@ basic_type!(
 );
 
 #[allow(clippy::derivable_impls)]
-impl Default for MiniblockNumber {
+impl Default for L2BlockNumber {
     fn default() -> Self {
         Self(0)
     }

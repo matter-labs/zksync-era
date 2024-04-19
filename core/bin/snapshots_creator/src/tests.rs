@@ -13,13 +13,13 @@ use rand::{thread_rng, Rng};
 use zksync_dal::{Connection, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_types::{
-    block::{L1BatchHeader, L1BatchTreeData, MiniblockHeader},
+    block::{L1BatchHeader, L1BatchTreeData, L2BlockHeader},
     snapshots::{
         SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotStorageLog,
         SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
     },
-    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersion, StorageKey,
-    StorageLog, H256,
+    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersion, StorageKey, StorageLog,
+    H256,
 };
 
 use super::*;
@@ -133,15 +133,15 @@ struct ExpectedOutputs {
     storage_logs: HashSet<SnapshotStorageLog>,
 }
 
-async fn create_miniblock(
+async fn create_l2_block(
     conn: &mut Connection<'_, Core>,
-    miniblock_number: MiniblockNumber,
+    l2_block_number: L2BlockNumber,
     block_logs: Vec<StorageLog>,
 ) {
-    let miniblock_header = MiniblockHeader {
-        number: miniblock_number,
+    let l2_block_header = L2BlockHeader {
+        number: l2_block_number,
         timestamp: 0,
-        hash: H256::from_low_u64_be(u64::from(miniblock_number.0)),
+        hash: H256::from_low_u64_be(u64::from(l2_block_number.0)),
         l1_tx_count: 0,
         l2_tx_count: 0,
         fee_account_address: Address::repeat_byte(1),
@@ -155,11 +155,11 @@ async fn create_miniblock(
     };
 
     conn.blocks_dal()
-        .insert_miniblock(&miniblock_header)
+        .insert_l2_block(&l2_block_header)
         .await
         .unwrap();
     conn.storage_logs_dal()
-        .insert_storage_logs(miniblock_number, &[(H256::zero(), block_logs)])
+        .insert_storage_logs(l2_block_number, &[(H256::zero(), block_logs)])
         .await
         .unwrap();
 }
@@ -175,7 +175,7 @@ async fn create_l1_batch(
         .await
         .unwrap();
     conn.blocks_dal()
-        .mark_miniblocks_as_executed_in_l1_batch(l1_batch_number)
+        .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
         .await
         .unwrap();
 
@@ -210,11 +210,11 @@ async fn prepare_postgres(
     let mut outputs = ExpectedOutputs::default();
     for block_number in 0..block_count {
         let logs = gen_storage_logs(rng, 100);
-        create_miniblock(conn, MiniblockNumber(block_number), logs.clone()).await;
+        create_l2_block(conn, L2BlockNumber(block_number), logs.clone()).await;
 
         let factory_deps = gen_factory_deps(rng, 10);
         conn.factory_deps_dal()
-            .insert_factory_deps(MiniblockNumber(block_number), &factory_deps)
+            .insert_factory_deps(L2BlockNumber(block_number), &factory_deps)
             .await
             .unwrap();
 

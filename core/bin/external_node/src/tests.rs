@@ -5,7 +5,7 @@ use test_casing::test_casing;
 use zksync_basic_types::protocol_version::ProtocolVersionId;
 use zksync_core::genesis::{insert_genesis_batch, GenesisParams};
 use zksync_eth_client::clients::MockEthereum;
-use zksync_types::{api, ethabi, fee_model::FeeParams, L1BatchNumber, MiniblockNumber, H256};
+use zksync_types::{api, ethabi, fee_model::FeeParams, L1BatchNumber, L2BlockNumber, H256};
 use zksync_web3_decl::client::{BoxedL2Client, MockL2Client};
 
 use super::*;
@@ -101,7 +101,7 @@ async fn external_node_basics(components_str: &'static str) {
     let _guard = vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
     let temp_dir = tempfile::TempDir::new().unwrap();
 
-    // Simplest case to mock: the EN already has a genesis L1 batch / miniblock, and it's the only L1 batch / miniblock
+    // Simplest case to mock: the EN already has a genesis L1 batch / L2 block, and it's the only L1 batch / L2 block
     // in the network.
     let connection_pool = ConnectionPool::test_pool().await;
     let singleton_pool_builder = ConnectionPool::singleton(connection_pool.database_url());
@@ -109,12 +109,12 @@ async fn external_node_basics(components_str: &'static str) {
     let genesis_params = insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
-    let genesis_miniblock = storage
+    let genesis_l2_block = storage
         .blocks_dal()
-        .get_miniblock_header(MiniblockNumber(0))
+        .get_l2_block_header(L2BlockNumber(0))
         .await
         .unwrap()
-        .expect("No genesis miniblock");
+        .expect("No genesis L2 block");
     drop(storage);
 
     let components: ComponentsToRun = components_str.parse().unwrap();
@@ -149,7 +149,7 @@ async fn external_node_basics(components_str: &'static str) {
                 assert_eq!(number, api::BlockNumber::Number(0.into()));
                 Ok(serde_json::to_value(
                     api::Block::<api::TransactionVariant> {
-                        hash: genesis_miniblock.hash,
+                        hash: genesis_l2_block.hash,
                         ..api::Block::default()
                     },
                 )?)
