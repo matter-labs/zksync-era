@@ -119,7 +119,6 @@ describe('Block reverting test', function () {
         // One is not enough to test the reversion of sk cache because
         // it gets updated with some batch logs only at the start of the next batch.
         const initialL1BatchNumber = await tester.web3Provider.getL1BatchNumber();
-
         const firstDepositHandle = await tester.syncWallet.deposit({
             token: tester.isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : tester.baseTokenAddress,
             amount: depositAmount,
@@ -131,7 +130,6 @@ describe('Block reverting test', function () {
         while ((await tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber) {
             await utils.sleep(1);
         }
-
         const secondDepositHandle = await tester.syncWallet.deposit({
             token: tester.isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : tester.baseTokenAddress,
             amount: depositAmount,
