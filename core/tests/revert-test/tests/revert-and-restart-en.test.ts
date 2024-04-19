@@ -245,15 +245,19 @@ describe('Block reverting test', function () {
         await extNode.tester.fundSyncWallet();
 
         const main_contract = await mainNode.tester.syncWallet.getMainContract();
+        const baseTokenAddress = await mainNode.tester.syncWallet.getBaseToken();
+        const isETHBasedChain = baseTokenAddress == zkweb3.utils.ETH_ADDRESS_IN_CONTRACTS;
         const alice: zkweb3.Wallet = extNode.tester.emptyWallet();
 
         console.log(
             'Finalize an L1 transaction to ensure at least 1 executed L1 batch and that all transactions are processed'
         );
         const h: zkweb3.types.PriorityOpResponse = await extNode.tester.syncWallet.deposit({
-            token: zkweb3.utils.LEGACY_ETH_ADDRESS,
+            token: isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
             amount: depositAmount,
-            to: alice.address
+            to: alice.address,
+            approveBaseERC20: true,
+            approveERC20: true
         });
         await h.waitFinalize();
 
@@ -267,9 +271,11 @@ describe('Block reverting test', function () {
         // it gets updated with some batch logs only at the start of the next batch.
         const initialL1BatchNumber = (await main_contract.getTotalBatchesCommitted()).toNumber();
         const firstDepositHandle = await extNode.tester.syncWallet.deposit({
-            token: zkweb3.utils.LEGACY_ETH_ADDRESS,
+            token: isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
             amount: depositAmount,
-            to: alice.address
+            to: alice.address,
+            approveBaseERC20: true,
+            approveERC20: true
         });
 
         await firstDepositHandle.wait();
@@ -278,9 +284,11 @@ describe('Block reverting test', function () {
         }
 
         const secondDepositHandle = await extNode.tester.syncWallet.deposit({
-            token: zkweb3.utils.LEGACY_ETH_ADDRESS,
+            token: isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
             amount: depositAmount,
-            to: alice.address
+            to: alice.address,
+            approveBaseERC20: true,
+            approveERC20: true
         });
         await secondDepositHandle.wait();
         while ((await extNode.tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber + 1) {

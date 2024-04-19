@@ -7,7 +7,6 @@ import { hashBytecode } from 'zksync-web3/build/src/utils';
 import fs from 'fs';
 import { TransactionResponse } from 'zksync-web3/build/src/types';
 import { BytesLike } from '@ethersproject/bytes';
-import { isAddressEq } from 'zksync-ethers/build/src/utils';
 
 const L1_CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/contracts/l1-contracts/artifacts/contracts`;
 const L1_DEFAULT_UPGRADE_ABI = new ethers.utils.Interface(
@@ -99,7 +98,7 @@ describe('Upgrade test', function () {
 
         const baseToken = await tester.syncWallet.provider.getBaseTokenContractAddress();
 
-        if (!isAddressEq(baseToken, zkweb3.utils.ETH_ADDRESS_IN_CONTRACTS)) {
+        if (!(baseToken === zkweb3.utils.ETH_ADDRESS_IN_CONTRACTS)) {
             await (await tester.syncWallet.approveERC20(baseToken, ethers.constants.MaxUint256)).wait();
             await mintToWallet(baseToken, tester.syncWallet, depositAmount.mul(10));
         }

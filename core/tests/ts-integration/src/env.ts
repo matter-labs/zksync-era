@@ -85,9 +85,7 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
         token = tokens[0];
     }
     const weth = tokens.find((token: { symbol: string }) => token.symbol == 'WETH')!;
-    const baseToken = tokens.find((token: { address: string }) =>
-        zksync.utils.isAddressEq(token.address, baseTokenAddress)
-    )!;
+    const baseToken = tokens.find((token: { address: string }) => token.address === baseTokenAddress)!;
 
     // `waitForServer` is expected to be executed. Otherwise this call may throw.
     const l2TokenAddress = await new zksync.Wallet(
