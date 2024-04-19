@@ -8,7 +8,7 @@ use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthChe
 use zksync_shared_metrics::{CheckerComponent, EN_METRICS};
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::{
-    client::L2Client,
+    client::BoxedL2Client,
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
@@ -91,7 +91,7 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
 }
 
 #[async_trait]
-impl MainNodeClient for L2Client {
+impl MainNodeClient for BoxedL2Client {
     async fn sealed_miniblock_number(&self) -> EnrichedClientResult<MiniblockNumber> {
         let number = self
             .get_block_number()
@@ -221,7 +221,7 @@ pub struct ReorgDetector {
 impl ReorgDetector {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(client: L2Client, pool: ConnectionPool<Core>) -> Self {
+    pub fn new(client: BoxedL2Client, pool: ConnectionPool<Core>) -> Self {
         let (health_check, health_updater) = ReactiveHealthCheck::new("reorg_detector");
         Self {
             client: Box::new(client.for_component("reorg_detector")),
@@ -396,10 +396,15 @@ impl ReorgDetector {
                 Err(err) => return Err(err),
                 Ok(()) => {}
             }
-            // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
-            tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
+
+            if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
                 .await
-                .ok();
+                .is_ok()
+            {
+                // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
+                // OTOH, an Ok(_) value always signals task termination.
+                break;
+            }
         }
         self.event_handler.start_shutting_down();
         tracing::info!("Shutting down reorg detector");
