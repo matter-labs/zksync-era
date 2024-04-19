@@ -42,7 +42,6 @@ describe('ETH token checks', () => {
             l1ToL2: true
         });
         const gasPerPubdataByte = zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
-        const isBaseToken = isETHBasedChain;
 
         const l2GasLimit = await zksync.utils.estimateDefaultBridgeDepositL2Gas(
             alice.providerL1!,
@@ -51,8 +50,7 @@ describe('ETH token checks', () => {
             amount,
             alice.address,
             alice.address,
-            gasPerPubdataByte,
-            isBaseToken
+            gasPerPubdataByte
         );
         const expectedL2Costs = await alice.getBaseCost({
             gasLimit: l2GasLimit,
