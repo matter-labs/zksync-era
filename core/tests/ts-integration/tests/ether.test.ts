@@ -252,9 +252,9 @@ describe('ETH token checks', () => {
         const overrides: Overrides = depositFee.gasPrice
             ? { gasPrice: depositFee.gasPrice }
             : {
-                maxFeePerGas: depositFee.maxFeePerGas,
-                maxPriorityFeePerGas: depositFee.maxPriorityFeePerGas
-            };
+                  maxFeePerGas: depositFee.maxFeePerGas,
+                  maxPriorityFeePerGas: depositFee.maxPriorityFeePerGas
+              };
         overrides.gasLimit = depositFee.l1GasLimit;
 
         const depositOp = await alice.deposit({
