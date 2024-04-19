@@ -102,13 +102,13 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run zk
-          ci_run zk init # --chain-id-hack
+          ci_run zk init --chain-id-hack
 
-      # `sleep 30` because we need to wait until server added all the tokens
+      # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
         run: |
           ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper,commitment_generator &>server.log &
-          ci_run sleep 30
+          ci_run sleep 60
 
       - name: Deploy legacy era contracts
         run: ci_run zk contract upgrade-shared-bridge-era

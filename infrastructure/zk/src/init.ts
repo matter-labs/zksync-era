@@ -116,6 +116,7 @@ type InitDevCmdActionOptions = InitSetupOptions & {
     skipTestTokenDeployment?: boolean;
     testTokenOptions?: DeployTestTokensOptions;
     baseTokenName?: string;
+    chainIdHack?: boolean;
 };
 export const initDevCmdAction = async ({
     skipEnvSetup,
@@ -124,7 +125,8 @@ export const initDevCmdAction = async ({
     testTokenOptions,
     baseTokenName,
     runObservability,
-    validiumMode
+    validiumMode,
+    chainIdHack
 }: InitDevCmdActionOptions): Promise<void> => {
     await initSetup({ skipEnvSetup, skipSubmodulesCheckout, runObservability, validiumMode });
     await initDatabase({ skipVerifierDeployment: false });
@@ -134,7 +136,7 @@ export const initDevCmdAction = async ({
     await initBridgehubStateTransition();
     await initDatabase({ skipVerifierDeployment: true });
     // FIXME propagate chain id hack properly
-    await initHyperchain({ includePaymaster: true, baseTokenName, chainIdHack: true });
+    await initHyperchain({ includePaymaster: true, baseTokenName, chainIdHack });
 };
 
 const lightweightInitCmdAction = async (): Promise<void> => {
@@ -188,6 +190,7 @@ export const initCommand = new Command('init')
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--validium-mode', 'deploy contracts in Validium mode')
     .option('--run-observability', 'run observability suite')
+    .option('--chain-id-hack', 'force-deploy L2TokenBeaconProxy even if chain id is ERA_CHAIN_ID')
     .description('Deploys the shared bridge and registers a hyperchain locally, as quickly as possible.')
     .action(initDevCmdAction);
 

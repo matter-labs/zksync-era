@@ -33,7 +33,7 @@ use crate::sdk::{
 
 const IERC20_INTERFACE: &str = include_str!("../abi/IERC20.json");
 const HYPERCHAIN_INTERFACE: &str = include_str!("../abi/IZkSyncHyperchain.json");
-const L1_DEFAULT_BRIDGE_INTERFACE: &str = include_str!("../abi/IL1SharedBridge.json");
+const _L1_DEFAULT_BRIDGE_INTERFACE: &str = include_str!("../abi/IL1SharedBridge.json");
 const L1_ERC20_BRIDGE_INTERFACE: &str = include_str!("../abi/IL1ERC20Bridge.json");
 const RAW_ERC20_DEPOSIT_GAS_LIMIT: &str = include_str!("DepositERC20GasLimit.json");
 
@@ -52,8 +52,8 @@ pub fn ierc20_contract() -> ethabi::Contract {
 }
 
 /// Returns `ethabi::Contract` object for L1 Bridge smart contract interface.
-pub fn l1_bridge_contract() -> ethabi::Contract {
-    load_contract(L1_DEFAULT_BRIDGE_INTERFACE)
+pub fn _l1_bridge_contract() -> ethabi::Contract {
+    load_contract(_L1_DEFAULT_BRIDGE_INTERFACE)
 }
 
 pub fn l1_erc20_bridge_contract() -> ethabi::Contract {
