@@ -10882,7 +10882,6 @@ synckit@^0.8.6:
     preprocess "^3.2.0"
     prettier "^3.0.3"
     prettier-plugin-solidity "^1.1.3"
-    zksync-ethers "https://github.com/zksync-sdk/zksync-ethers#ethers-v5-feat/bridgehub"
 
 table-layout@^1.0.2:
   version "1.0.2"
@@ -11794,12 +11793,6 @@ zksync-ethers@5.8.0-beta.4:
   version "5.8.0-beta.4"
   resolved "https://registry.yarnpkg.com/zksync-ethers/-/zksync-ethers-5.8.0-beta.4.tgz#1a49b3ec770b32c8b3642b354ceed571a21de5c2"
   integrity sha512-GHOQ4PsbjXp8EiKaKvYFqkyOrr7ETB2gAlWCUxZOYHfRiXZvIeGzUS6jScin/qCypMKX+sjl4lprt7V89U46pw==
-  dependencies:
-    ethers "~5.7.0"
-
-"zksync-ethers@https://github.com/zksync-sdk/zksync-ethers#sb-old-sdk":
-  version "5.1.0"
-  resolved "https://github.com/zksync-sdk/zksync-ethers#7e5e8edc57c848aabdb4b018de8270addc82aa6e"
   dependencies:
     ethers "~5.7.0"
 
