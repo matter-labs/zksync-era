@@ -3,7 +3,7 @@ use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
 use zksync_types::prover_dal::JobCountStatistics;
 
-use crate::house_keeper::periodic_job::PeriodicJob;
+use crate::periodic_job::PeriodicJob;
 
 const PROOF_COMPRESSOR_SERVICE_NAME: &str = "proof_compressor";
 

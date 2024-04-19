@@ -34,7 +34,8 @@ async function depositWithRichAccounts() {
         const contract = new ethers.Contract(process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR, utils.BRIDGEHUB_ABI, wallet);
 
         const overrides = {
-            value: AMOUNT_TO_DEPOSIT.add(expectedCost)
+            // TODO(EVM-565): expected cost calculation seems to be off, understand why and then remove the second add.
+            value: AMOUNT_TO_DEPOSIT.add(expectedCost).add(expectedCost)
         };
 
         const balance = await wallet.getBalance();

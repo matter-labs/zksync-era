@@ -7,7 +7,7 @@ pub use sqlx::{types::BigDecimal, Error as SqlxError};
 use zksync_db_connection::connection::DbMarker;
 pub use zksync_db_connection::{
     connection::Connection,
-    connection_pool::ConnectionPool,
+    connection_pool::{ConnectionPool, ConnectionPoolBuilder},
     error::{DalError, DalResult},
 };
 
