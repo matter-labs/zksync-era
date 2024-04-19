@@ -17,7 +17,7 @@ use zksync_types::{
     },
     tokens::TokenInfo,
     web3::futures,
-    L1BatchNumber, MiniblockNumber, H256,
+    L1BatchNumber, L2BlockNumber, H256,
 };
 use zksync_utils::bytecode::hash_bytecode;
 use zksync_web3_decl::{
@@ -35,7 +35,7 @@ mod tests;
 
 #[derive(Debug, Serialize)]
 struct SnapshotsApplierHealthDetails {
-    snapshot_miniblock: MiniblockNumber,
+    snapshot_l2_block: L2BlockNumber,
     snapshot_l1_batch: L1BatchNumber,
     factory_deps_recovered: bool,
     storage_logs_chunk_count: usize,
@@ -53,7 +53,7 @@ impl SnapshotsApplierHealthDetails {
         }
 
         Ok(Self {
-            snapshot_miniblock: status.miniblock_number,
+            snapshot_l2_block: status.l2_block_number,
             snapshot_l1_batch: status.l1_batch_number,
             factory_deps_recovered: true,
             storage_logs_chunk_count: status.storage_logs_chunks_processed.len(),
@@ -124,14 +124,14 @@ pub trait SnapshotsApplierMainNodeClient: fmt::Debug + Send + Sync {
 
     async fn fetch_l2_block_details(
         &self,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
     ) -> EnrichedClientResult<Option<api::BlockDetails>>;
 
     async fn fetch_newest_snapshot(&self) -> EnrichedClientResult<Option<SnapshotHeader>>;
 
     async fn fetch_tokens(
         &self,
-        at_miniblock: MiniblockNumber,
+        at_l2_block: L2BlockNumber,
     ) -> EnrichedClientResult<Vec<TokenInfo>>;
 }
 
@@ -149,7 +149,7 @@ impl SnapshotsApplierMainNodeClient for BoxedL2Client {
 
     async fn fetch_l2_block_details(
         &self,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
     ) -> EnrichedClientResult<Option<api::BlockDetails>> {
         self.get_block_details(number)
             .rpc_context("get_block_details")
@@ -173,11 +173,11 @@ impl SnapshotsApplierMainNodeClient for BoxedL2Client {
 
     async fn fetch_tokens(
         &self,
-        at_miniblock: MiniblockNumber,
+        at_l2_block: L2BlockNumber,
     ) -> EnrichedClientResult<Vec<TokenInfo>> {
-        self.sync_tokens(Some(at_miniblock))
+        self.sync_tokens(Some(at_l2_block))
             .rpc_context("sync_tokens")
-            .with_arg("miniblock_number", &at_miniblock)
+            .with_arg("l2_block_number", &at_l2_block)
             .await
     }
 }
@@ -328,8 +328,7 @@ impl SnapshotRecoveryStrategy {
             .await?;
 
         if let Some(applied_snapshot_status) = applied_snapshot_status {
-            let sealed_miniblock_number =
-                storage.blocks_dal().get_sealed_miniblock_number().await?;
+            let sealed_miniblock_number = storage.blocks_dal().get_sealed_l2_block_number().await?;
             if sealed_miniblock_number.is_some() {
                 return Ok(Self::Completed(applied_snapshot_status));
             }
@@ -350,13 +349,13 @@ impl SnapshotRecoveryStrategy {
 
             let storage_logs_count = storage
                 .storage_logs_dal()
-                .get_storage_logs_row_count(recovery_status.miniblock_number)
+                .get_storage_logs_row_count(recovery_status.l2_block_number)
                 .await?;
             if storage_logs_count > 0 {
                 let err = anyhow::anyhow!(
-                    "storage_logs table has {storage_logs_count} rows at or before the snapshot miniblock #{}; \
+                    "storage_logs table has {storage_logs_count} rows at or before the snapshot L2 block #{}; \
                      snapshot recovery is unsafe",
-                    recovery_status.miniblock_number
+                    recovery_status.l2_block_number
                 );
                 return Err(SnapshotsApplierError::Fatal(err));
             }
@@ -375,9 +374,9 @@ impl SnapshotRecoveryStrategy {
         let snapshot = snapshot_response
             .context("no snapshots on main node; snapshot recovery is impossible")?;
         let l1_batch_number = snapshot.l1_batch_number;
-        let miniblock_number = snapshot.miniblock_number;
+        let l2_block_number = snapshot.l2_block_number;
         tracing::info!(
-            "Found snapshot with data up to L1 batch #{l1_batch_number}, miniblock #{miniblock_number}, \
+            "Found snapshot with data up to L1 batch #{l1_batch_number}, miniblock #{l2_block_number}, \
             version {version}, storage logs are divided into {chunk_count} chunk(s)",
             version = snapshot.version,
             chunk_count = snapshot.storage_logs_chunks.len()
@@ -392,20 +391,20 @@ impl SnapshotRecoveryStrategy {
             .base
             .root_hash
             .context("snapshot L1 batch fetched from main node doesn't have root hash set")?;
-        let miniblock = main_node_client
-            .fetch_l2_block_details(miniblock_number)
+        let l2_block = main_node_client
+            .fetch_l2_block_details(l2_block_number)
             .await?
-            .with_context(|| format!("miniblock #{miniblock_number} is missing on main node"))?;
-        let miniblock_hash = miniblock
+            .with_context(|| format!("L2 block #{l2_block_number} is missing on main node"))?;
+        let l2_block_hash = l2_block
             .base
             .root_hash
-            .context("snapshot miniblock fetched from main node doesn't have hash set")?;
-        let protocol_version = miniblock.protocol_version.context(
-            "snapshot miniblock fetched from main node doesn't have protocol version set",
+            .context("snapshot L2 block fetched from main node doesn't have hash set")?;
+        let protocol_version = l2_block.protocol_version.context(
+            "snapshot L2 block fetched from main node doesn't have protocol version set",
         )?;
-        if miniblock.l1_batch_number != l1_batch_number {
+        if l2_block.l1_batch_number != l1_batch_number {
             let err = anyhow::anyhow!(
-                "snapshot miniblock returned by main node doesn't belong to expected L1 batch #{l1_batch_number}: {miniblock:?}"
+                "snapshot L2 block returned by main node doesn't belong to expected L1 batch #{l1_batch_number}: {l2_block:?}"
             );
             return Err(err.into());
         }
@@ -414,9 +413,9 @@ impl SnapshotRecoveryStrategy {
             l1_batch_number,
             l1_batch_timestamp: l1_batch.base.timestamp,
             l1_batch_root_hash,
-            miniblock_number: snapshot.miniblock_number,
-            miniblock_timestamp: miniblock.base.timestamp,
-            miniblock_hash,
+            l2_block_number: snapshot.l2_block_number,
+            l2_block_timestamp: l2_block.base.timestamp,
+            l2_block_hash,
             protocol_version,
             storage_logs_chunks_processed: vec![false; snapshot.storage_logs_chunks.len()],
         })
@@ -514,14 +513,14 @@ impl<'a> SnapshotsApplier<'a> {
                 .pruning_dal()
                 .soft_prune_batches_range(
                     this.applied_snapshot_status.l1_batch_number,
-                    this.applied_snapshot_status.miniblock_number,
+                    this.applied_snapshot_status.l2_block_number,
                 )
                 .await?;
             storage_transaction
                 .pruning_dal()
                 .hard_prune_batches_range(
                     this.applied_snapshot_status.l1_batch_number,
-                    this.applied_snapshot_status.miniblock_number,
+                    this.applied_snapshot_status.l2_block_number,
                 )
                 .await?;
         }
@@ -543,7 +542,7 @@ impl<'a> SnapshotsApplier<'a> {
 
     fn update_health(&self) {
         let details = SnapshotsApplierHealthDetails {
-            snapshot_miniblock: self.applied_snapshot_status.miniblock_number,
+            snapshot_l2_block: self.applied_snapshot_status.l2_block_number,
             snapshot_l1_batch: self.applied_snapshot_status.l1_batch_number,
             factory_deps_recovered: self.factory_deps_recovered,
             tokens_recovered: self.tokens_recovered,
@@ -591,7 +590,7 @@ impl<'a> SnapshotsApplier<'a> {
         storage
             .factory_deps_dal()
             .insert_factory_deps(
-                self.applied_snapshot_status.miniblock_number,
+                self.applied_snapshot_status.l2_block_number,
                 &all_deps_hashmap,
             )
             .await?;
@@ -622,7 +621,7 @@ impl<'a> SnapshotsApplier<'a> {
         storage
             .storage_logs_dal()
             .insert_storage_logs_from_snapshot(
-                self.applied_snapshot_status.miniblock_number,
+                self.applied_snapshot_status.l2_block_number,
                 storage_logs,
             )
             .await?;
@@ -732,7 +731,7 @@ impl<'a> SnapshotsApplier<'a> {
         // This DB query is slow, but this is fine for verification purposes.
         let total_log_count = storage
             .storage_logs_dal()
-            .get_storage_logs_row_count(self.applied_snapshot_status.miniblock_number)
+            .get_storage_logs_row_count(self.applied_snapshot_status.l2_block_number)
             .await?;
         tracing::info!(
             "Recovered {total_log_count} storage logs in total; checking overall consistency..."
@@ -770,10 +769,10 @@ impl<'a> SnapshotsApplier<'a> {
         }
         drop(storage);
 
-        let snapshot_miniblock_number = self.applied_snapshot_status.miniblock_number;
+        let snapshot_l2_block_number = self.applied_snapshot_status.l2_block_number;
         let tokens = self
             .main_node_client
-            .fetch_tokens(snapshot_miniblock_number)
+            .fetch_tokens(snapshot_l2_block_number)
             .await?;
         tracing::info!("Retrieved {} tokens from main node", tokens.len());
 
@@ -785,7 +784,7 @@ impl<'a> SnapshotsApplier<'a> {
             .await?;
         let filtered_addresses = storage
             .storage_logs_dal()
-            .filter_deployed_contracts(l2_addresses, Some(snapshot_miniblock_number))
+            .filter_deployed_contracts(l2_addresses, Some(snapshot_l2_block_number))
             .await?;
 
         let bogus_tokens = tokens.iter().filter(|token| {

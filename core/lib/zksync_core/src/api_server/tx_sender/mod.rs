@@ -528,9 +528,9 @@ impl TxSender {
         let mut storage = self.acquire_replica_connection().await?;
         let latest_block_number = storage
             .blocks_dal()
-            .get_sealed_miniblock_number()
+            .get_sealed_l2_block_number()
             .await?
-            .context("no miniblocks in storage")?;
+            .context("no L2 blocks in storage")?;
 
         let nonce = storage
             .storage_web3_dal()

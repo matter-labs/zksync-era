@@ -5,7 +5,7 @@ use zksync_db_connection::{
     instrument::{CopyStatement, InstrumentExt},
     write_str, writeln_str,
 };
-use zksync_types::{tokens::TokenInfo, Address, MiniblockNumber};
+use zksync_types::{tokens::TokenInfo, Address, L2BlockNumber};
 
 use crate::{Core, CoreDal};
 
@@ -86,7 +86,7 @@ impl TokensDal<'_, '_> {
     }
 
     /// Removes token records that were deployed after `block_number`.
-    pub async fn rollback_tokens(&mut self, block_number: MiniblockNumber) -> DalResult<()> {
+    pub async fn rollback_tokens(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         let all_token_addresses = self.get_all_l2_token_addresses().await?;
         let token_deployment_data = self
             .storage
@@ -210,7 +210,7 @@ mod tests {
         storage
             .storage_logs_dal()
             .insert_storage_logs(
-                MiniblockNumber(0),
+                L2BlockNumber(0),
                 &[(H256::zero(), vec![eth_deployment_log])],
             )
             .await
@@ -227,7 +227,7 @@ mod tests {
         storage
             .storage_logs_dal()
             .insert_storage_logs(
-                MiniblockNumber(2),
+                L2BlockNumber(2),
                 &[(H256::zero(), vec![test_deployment_log])],
             )
             .await
@@ -242,7 +242,7 @@ mod tests {
 
         storage
             .tokens_dal()
-            .rollback_tokens(MiniblockNumber(2))
+            .rollback_tokens(L2BlockNumber(2))
             .await
             .unwrap();
         // Should be a no-op.
@@ -257,7 +257,7 @@ mod tests {
 
         storage
             .tokens_dal()
-            .rollback_tokens(MiniblockNumber(1))
+            .rollback_tokens(L2BlockNumber(1))
             .await
             .unwrap();
         // The custom token should be removed; Ether shouldn't.
@@ -272,7 +272,7 @@ mod tests {
     }
 
     async fn test_getting_all_tokens(storage: &mut Connection<'_, Core>) {
-        for at_miniblock in [None, Some(MiniblockNumber(2)), Some(MiniblockNumber(100))] {
+        for at_miniblock in [None, Some(L2BlockNumber(2)), Some(L2BlockNumber(100))] {
             let all_tokens = storage
                 .tokens_web3_dal()
                 .get_all_tokens(at_miniblock)
@@ -283,7 +283,7 @@ mod tests {
             assert!(all_tokens.contains(&test_token_info()));
         }
 
-        for at_miniblock in [MiniblockNumber(0), MiniblockNumber(1)] {
+        for at_miniblock in [L2BlockNumber(0), L2BlockNumber(1)] {
             let all_tokens = storage
                 .tokens_web3_dal()
                 .get_all_tokens(Some(at_miniblock))
@@ -308,7 +308,7 @@ mod tests {
         storage
             .storage_logs_dal()
             .insert_storage_logs(
-                MiniblockNumber(1),
+                L2BlockNumber(1),
                 &[(H256::zero(), vec![failed_deployment_log])],
             )
             .await
@@ -319,7 +319,7 @@ mod tests {
         storage
             .storage_logs_dal()
             .insert_storage_logs(
-                MiniblockNumber(100),
+                L2BlockNumber(100),
                 &[(H256::zero(), vec![test_deployment_log])],
             )
             .await
@@ -342,7 +342,7 @@ mod tests {
 
         storage
             .tokens_dal()
-            .rollback_tokens(MiniblockNumber(99))
+            .rollback_tokens(L2BlockNumber(99))
             .await
             .unwrap();
         // Token must be removed despite it's failed deployment being earlier than the last retained miniblock.

@@ -12,7 +12,7 @@ use zksync_health_check::CheckHealth;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
     api::{BlockDetails, L1BatchDetails},
-    block::{L1BatchHeader, MiniblockHeader},
+    block::{L1BatchHeader, L2BlockHeader},
     get_code_key, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
 };
 
@@ -101,7 +101,7 @@ async fn snapshots_creator_can_successfully_recover_db(
         assert_eq!(db_log.address, *expected_log.key.address());
         assert_eq!(db_log.key, *expected_log.key.key());
         assert_eq!(db_log.value, expected_log.value);
-        assert_eq!(db_log.miniblock_number, expected_status.miniblock_number);
+        assert_eq!(db_log.l2_block_number, expected_status.l2_block_number);
     }
     drop(storage);
 
@@ -132,7 +132,7 @@ async fn health_status_immediately_after_task_start() {
 
         async fn fetch_l2_block_details(
             &self,
-            _number: MiniblockNumber,
+            _number: L2BlockNumber,
         ) -> EnrichedClientResult<Option<BlockDetails>> {
             self.0.wait().await;
             future::pending().await
@@ -145,7 +145,7 @@ async fn health_status_immediately_after_task_start() {
 
         async fn fetch_tokens(
             &self,
-            _at_miniblock: MiniblockNumber,
+            _at_miniblock: L2BlockNumber,
         ) -> EnrichedClientResult<Vec<TokenInfo>> {
             self.0.wait().await;
             future::pending().await
@@ -183,8 +183,8 @@ async fn applier_errors_after_genesis() {
         .save_protocol_version_with_tx(&ProtocolVersion::default())
         .await
         .unwrap();
-    let genesis_miniblock = MiniblockHeader {
-        number: MiniblockNumber(0),
+    let genesis_l2_block = L2BlockHeader {
+        number: L2BlockNumber(0),
         timestamp: 0,
         hash: H256::zero(),
         l1_tx_count: 0,
@@ -200,7 +200,7 @@ async fn applier_errors_after_genesis() {
     };
     storage
         .blocks_dal()
-        .insert_miniblock(&genesis_miniblock)
+        .insert_l2_block(&genesis_l2_block)
         .await
         .unwrap();
     let genesis_l1_batch = L1BatchHeader::new(
@@ -216,7 +216,7 @@ async fn applier_errors_after_genesis() {
         .unwrap();
     storage
         .blocks_dal()
-        .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(0))
+        .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
         .await
         .unwrap();
     drop(storage);
