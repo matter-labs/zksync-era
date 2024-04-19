@@ -252,16 +252,6 @@ describe('Block reverting test', function () {
         const isETHBasedChain = baseTokenAddress == zkweb3.utils.ETH_ADDRESS_IN_CONTRACTS;
         const alice: zkweb3.Wallet = extNode.tester.emptyWallet();
 
-        // const chainId = (await alice._providerL2().getNetwork()).chainId;
-        // const factory = new ValidatorTimelockFactory(mainNode.tester.hyperchainAdmin);
-        // const deployedContract = factory.attach(process.env.CONTRACTS_VALIDATOR_TIMELOCK_ADDR!);
-
-        // // If hyperchain admin is not a validator -> add
-        // if (!(await deployedContract['validators(uint256,address)'](chainId, mainNode.tester.hyperchainAdmin.address))) {
-        //     const addValidatorTx = await deployedContract.addValidator(chainId, mainNode.tester.hyperchainAdmin.address);
-        //     await addValidatorTx.wait();
-        // }
-
         console.log(
             'Finalize an L1 transaction to ensure at least 1 executed L1 batch and that all transactions are processed'
         );
