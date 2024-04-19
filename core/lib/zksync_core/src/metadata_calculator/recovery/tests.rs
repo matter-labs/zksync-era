@@ -32,7 +32,7 @@ use crate::{
 #[test]
 fn calculating_chunk_count() {
     let mut snapshot = SnapshotParameters {
-        miniblock: MiniblockNumber(1),
+        miniblock: L2BlockNumber(1),
         log_count: 160_000_000,
         expected_root_hash: H256::zero(),
     };
@@ -81,7 +81,7 @@ async fn basic_recovery_workflow() {
 
         assert_eq!(tree.root_hash(), snapshot_recovery.l1_batch_root_hash);
         let health = health_check.check_health().await;
-        assert_matches!(health.status(), HealthStatus::Ready);
+        assert_matches!(health.status(), HealthStatus::Affected);
     }
 }
 
@@ -116,9 +116,9 @@ async fn prepare_recovery_snapshot_with_genesis(
         l1_batch_number: L1BatchNumber(1),
         l1_batch_timestamp: 1,
         l1_batch_root_hash,
-        miniblock_number: MiniblockNumber(1),
-        miniblock_timestamp: 1,
-        miniblock_hash: H256::zero(), // not used
+        l2_block_number: L2BlockNumber(1),
+        l2_block_timestamp: 1,
+        l2_block_hash: H256::zero(), // not used
         protocol_version: ProtocolVersionId::latest(),
         storage_logs_chunks_processed: vec![],
     }
@@ -238,7 +238,7 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
     let snapshot_recovery = prepare_recovery_snapshot(
         &mut storage,
         L1BatchNumber(23),
-        MiniblockNumber(42),
+        L2BlockNumber(42),
         &snapshot_logs,
     )
     .await;
@@ -252,9 +252,10 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
         &merkle_tree_config,
         &OperationsManagerConfig { delay_interval: 50 },
     );
-    let mut calculator = MetadataCalculator::new(calculator_config, None, pool.clone())
-        .await
-        .unwrap();
+    let mut calculator =
+        MetadataCalculator::new(calculator_config, None, pool.clone(), pool.clone())
+            .await
+            .unwrap();
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
     calculator.delayer.delay_notifier = delay_sx;
 

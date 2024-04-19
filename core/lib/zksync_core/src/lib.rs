@@ -988,13 +988,20 @@ async fn run_tree(
     tracing::info!("Initializing Merkle tree in {mode_str} mode");
 
     let config = MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_manager);
-    let pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
+    let pool = ConnectionPool::singleton(postgres_config.master_url()?)
         .build()
         .await
-        .context("failed to build connection pool")?;
-    let metadata_calculator = MetadataCalculator::new(config, object_store, pool)
+        .context("failed to build connection pool for Merkle tree")?;
+    // The number of connections in a recovery pool is based on the mainnet recovery runs. It doesn't need
+    // to be particularly accurate at this point, since the main node isn't expected to recover from a snapshot.
+    let recovery_pool = ConnectionPool::builder(postgres_config.replica_url()?, 10)
+        .build()
+        .await
+        .context("failed to build connection pool for Merkle tree recovery")?;
+    let metadata_calculator = MetadataCalculator::new(config, object_store, pool, recovery_pool)
         .await
         .context("failed initializing metadata_calculator")?;
+
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
         let tree_reader = metadata_calculator.tree_reader();

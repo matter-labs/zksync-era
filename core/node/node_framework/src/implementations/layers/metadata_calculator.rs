@@ -4,8 +4,9 @@ use zksync_storage::RocksDB;
 
 use crate::{
     implementations::resources::{
-        healthcheck::AppHealthCheckResource, object_store::ObjectStoreResource,
-        pools::MasterPoolResource,
+        healthcheck::AppHealthCheckResource,
+        object_store::ObjectStoreResource,
+        pools::{MasterPoolResource, ReplicaPoolResource},
     },
     service::{ServiceContext, StopReceiver},
     task::Task,
@@ -37,16 +38,28 @@ impl WiringLayer for MetadataCalculatorLayer {
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let pool = context.get_resource::<MasterPoolResource>().await?;
         let main_pool = pool.get().await?;
-        let object_store = context.get_resource::<ObjectStoreResource>().await.ok(); // OK to be None.
+        // The number of connections in a recovery pool is based on the mainnet recovery runs. It doesn't need
+        // to be particularly accurate at this point, since the main node isn't expected to recover from a snapshot.
+        let recovery_pool = context
+            .get_resource::<ReplicaPoolResource>()
+            .await?
+            .get_custom(10)
+            .await?;
 
+        let object_store = context.get_resource::<ObjectStoreResource>().await.ok(); // OK to be None.
         if object_store.is_none() {
             tracing::info!(
                 "Object store is not provided, metadata calculator will run without it."
             );
         }
 
-        let metadata_calculator =
-            MetadataCalculator::new(self.0, object_store.map(|os| os.0), main_pool).await?;
+        let metadata_calculator = MetadataCalculator::new(
+            self.0,
+            object_store.map(|store_resource| store_resource.0),
+            main_pool,
+            recovery_pool,
+        )
+        .await?;
 
         let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
         app_health.insert_component(metadata_calculator.tree_health_check());

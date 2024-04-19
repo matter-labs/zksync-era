@@ -14,7 +14,7 @@ use zksync_types::L2ChainId;
 pub use self::{
     batch_executor::{main_executor::MainBatchExecutor, BatchExecutor},
     io::{
-        mempool::MempoolIO, MiniblockSealerTask, OutputHandler, StateKeeperIO,
+        mempool::MempoolIO, L2BlockSealerTask, OutputHandler, StateKeeperIO,
         StateKeeperOutputHandler, StateKeeperPersistence,
     },
     keeper::ZkSyncStateKeeper,
@@ -26,7 +26,6 @@ pub use self::{
 use crate::fee_model::BatchFeeModelInputProvider;
 
 mod batch_executor;
-pub(crate) mod extractors;
 pub(crate) mod io;
 mod keeper;
 mod mempool_actor;
@@ -51,11 +50,8 @@ pub(crate) async fn create_state_keeper(
     output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
 ) -> (ZkSyncStateKeeper, AsyncCatchupTask) {
-    let (storage_factory, task) = AsyncRocksdbCache::new(
-        pool.clone(),
-        db_config.state_keeper_db_path.clone(),
-        state_keeper_config.enum_index_migration_chunk_size(),
-    );
+    let (storage_factory, task) =
+        AsyncRocksdbCache::new(pool.clone(), db_config.state_keeper_db_path.clone());
     let batch_executor_base = MainBatchExecutor::new(
         Arc::new(storage_factory),
         state_keeper_config.save_call_traces,

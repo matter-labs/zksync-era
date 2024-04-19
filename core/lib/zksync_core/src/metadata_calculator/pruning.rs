@@ -87,7 +87,7 @@ impl MerkleTreePruningTask {
 #[cfg(test)]
 mod tests {
     use tempfile::TempDir;
-    use zksync_types::{L1BatchNumber, MiniblockNumber};
+    use zksync_types::{L1BatchNumber, L2BlockNumber};
 
     use super::*;
     use crate::{
@@ -112,7 +112,7 @@ mod tests {
             .unwrap();
         reset_db_state(&pool, 5).await;
 
-        let mut calculator = MetadataCalculator::new(config, None, pool.clone())
+        let mut calculator = MetadataCalculator::new(config, None, pool.clone(), pool.clone())
             .await
             .unwrap();
         let reader = calculator.tree_reader();
@@ -130,7 +130,7 @@ mod tests {
         // Add a pruning log to force pruning.
         storage
             .pruning_dal()
-            .hard_prune_batches_range(L1BatchNumber(3), MiniblockNumber(3))
+            .hard_prune_batches_range(L1BatchNumber(3), L2BlockNumber(3))
             .await
             .unwrap();
 
@@ -153,7 +153,7 @@ mod tests {
         let snapshot_recovery = prepare_recovery_snapshot(
             &mut storage,
             L1BatchNumber(23),
-            MiniblockNumber(23),
+            L2BlockNumber(23),
             &snapshot_logs,
         )
         .await;
@@ -161,7 +161,7 @@ mod tests {
         let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
         let config = mock_config(temp_dir.path());
 
-        let mut calculator = MetadataCalculator::new(config, None, pool.clone())
+        let mut calculator = MetadataCalculator::new(config, None, pool.clone(), pool.clone())
             .await
             .unwrap();
         let reader = calculator.tree_reader();
@@ -213,7 +213,7 @@ mod tests {
             .pruning_dal()
             .hard_prune_batches_range(
                 snapshot_recovery.l1_batch_number + 3,
-                snapshot_recovery.miniblock_number + 3,
+                snapshot_recovery.l2_block_number + 3,
             )
             .await
             .unwrap();

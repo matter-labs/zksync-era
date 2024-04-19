@@ -116,7 +116,7 @@ impl BatchFeeModelInputProvider for ApiFeeInputProvider {
             .await
             .unwrap()
             .blocks_dal()
-            .get_last_sealed_miniblock_header()
+            .get_last_sealed_l2_block_header()
             .await
             .unwrap();
 

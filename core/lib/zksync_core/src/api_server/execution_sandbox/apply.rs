@@ -24,12 +24,12 @@ use zksync_system_constants::{
 };
 use zksync_types::{
     api,
-    block::{pack_block_info, unpack_block_info, MiniblockHasher},
+    block::{pack_block_info, unpack_block_info, L2BlockHasher},
     fee_model::BatchFeeInput,
     get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
-    AccountTreeId, L1BatchNumber, MiniblockNumber, Nonce, ProtocolVersionId, StorageKey,
-    Transaction, H256, U256,
+    AccountTreeId, L1BatchNumber, L2BlockNumber, Nonce, ProtocolVersionId, StorageKey, Transaction,
+    H256, U256,
 };
 use zksync_utils::{h256_to_u256, time::seconds_since_epoch, u256_to_h256};
 
@@ -138,7 +138,7 @@ impl<'a> Sandbox<'a> {
             L2BlockEnv {
                 number: 1,
                 timestamp: 0,
-                prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+                prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
                 max_virtual_blocks_to_create: 1,
             }
         } else {
@@ -355,7 +355,7 @@ impl StoredL2BlockInfo {
     /// If `miniblock_hash` is `None`, it needs to be fetched from the storage.
     async fn new(
         connection: &mut Connection<'_, Core>,
-        miniblock_number: MiniblockNumber,
+        miniblock_number: L2BlockNumber,
         miniblock_hash: Option<H256>,
     ) -> anyhow::Result<Self> {
         let l2_block_info_key = StorageKey::new(
@@ -384,7 +384,7 @@ impl StoredL2BlockInfo {
         } else {
             connection
                 .blocks_web3_dal()
-                .get_miniblock_hash(miniblock_number)
+                .get_l2_block_hash(miniblock_number)
                 .await
                 .map_err(DalError::generalize)?
                 .with_context(|| format!("miniblock #{miniblock_number} not present in storage"))?
@@ -401,7 +401,7 @@ impl StoredL2BlockInfo {
 
 #[derive(Debug)]
 struct ResolvedBlockInfo {
-    state_l2_block_number: MiniblockNumber,
+    state_l2_block_number: L2BlockNumber,
     state_l2_block_hash: H256,
     vm_l1_batch_number: L1BatchNumber,
     l1_batch_timestamp: u64,
@@ -440,7 +440,7 @@ impl BlockArgs {
                 .context("no L1 batches in storage")?;
             let sealed_miniblock_header = connection
                 .blocks_dal()
-                .get_last_sealed_miniblock_header()
+                .get_last_sealed_l2_block_header()
                 .await?
                 .context("no miniblocks in storage")?;
 
@@ -451,7 +451,7 @@ impl BlockArgs {
         } else {
             vm_l1_batch_number = connection
                 .storage_web3_dal()
-                .resolve_l1_batch_number_of_miniblock(self.resolved_block_number)
+                .resolve_l1_batch_number_of_l2_block(self.resolved_block_number)
                 .await
                 .context("failed resolving L1 batch for miniblock")?
                 .expected_l1_batch();
@@ -462,7 +462,7 @@ impl BlockArgs {
 
             connection
                 .blocks_dal()
-                .get_miniblock_header(self.resolved_block_number)
+                .get_l2_block_header(self.resolved_block_number)
                 .await?
                 .context("resolved miniblock disappeared from storage")?
         };
@@ -470,7 +470,7 @@ impl BlockArgs {
         let historical_fee_input = if !self.is_estimate_like() {
             let miniblock_header = connection
                 .blocks_dal()
-                .get_miniblock_header(self.resolved_block_number)
+                .get_l2_block_header(self.resolved_block_number)
                 .await?
                 .context("resolved miniblock is not in storage")?;
             Some(miniblock_header.batch_fee_input)

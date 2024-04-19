@@ -54,7 +54,13 @@ pub(super) enum MerkleTreeHealth {
 
 impl From<MerkleTreeHealth> for Health {
     fn from(details: MerkleTreeHealth) -> Self {
-        Self::from(HealthStatus::Ready).with_details(details)
+        let status = match &details {
+            MerkleTreeHealth::Initialization | MerkleTreeHealth::Recovery { .. } => {
+                HealthStatus::Affected
+            }
+            MerkleTreeHealth::MainLoop(_) => HealthStatus::Ready,
+        };
+        Self::from(status).with_details(details)
     }
 }
 

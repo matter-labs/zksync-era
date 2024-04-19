@@ -40,7 +40,7 @@ use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::TreeEntry;
 use zksync_types::{
     snapshots::{uniform_hashed_keys_chunk, SnapshotRecoveryStatus},
-    MiniblockNumber, H256,
+    L2BlockNumber, H256,
 };
 
 use super::{
@@ -111,7 +111,7 @@ impl HandleRecoveryEvent for RecoveryHealthUpdater<'_> {
 
 #[derive(Debug, Clone, Copy)]
 struct SnapshotParameters {
-    miniblock: MiniblockNumber,
+    miniblock: L2BlockNumber,
     expected_root_hash: H256,
     log_count: u64,
 }
@@ -125,7 +125,7 @@ impl SnapshotParameters {
         pool: &ConnectionPool<Core>,
         recovery: &SnapshotRecoveryStatus,
     ) -> anyhow::Result<Self> {
-        let miniblock = recovery.miniblock_number;
+        let miniblock = recovery.l2_block_number;
         let expected_root_hash = recovery.l1_batch_root_hash;
 
         let mut storage = pool.connection().await?;
@@ -158,16 +158,20 @@ struct RecoveryOptions<'a> {
 impl GenericAsyncTree {
     /// Ensures that the tree is ready for the normal operation, recovering it from a Postgres snapshot
     /// if necessary.
+    ///
+    /// `recovery_pool` is taken by value to free up its connection after recovery (provided that it's not shared
+    /// with other components).
     pub async fn ensure_ready(
         self,
-        pool: &ConnectionPool<Core>,
+        main_pool: &ConnectionPool<Core>,
+        recovery_pool: ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
         health_updater: &HealthUpdater,
     ) -> anyhow::Result<Option<AsyncTree>> {
         let (tree, snapshot_recovery) = match self {
             Self::Ready(tree) => return Ok(Some(tree)),
             Self::Recovering(tree) => {
-                let snapshot_recovery = get_snapshot_recovery(pool).await?.context(
+                let snapshot_recovery = get_snapshot_recovery(main_pool).await?.context(
                     "Merkle tree is recovering, but Postgres doesn't contain snapshot recovery information",
                 )?;
                 let recovered_version = tree.recovered_version();
@@ -180,7 +184,7 @@ impl GenericAsyncTree {
                 (tree, snapshot_recovery)
             }
             Self::Empty { db, mode } => {
-                if let Some(snapshot_recovery) = get_snapshot_recovery(pool).await? {
+                if let Some(snapshot_recovery) = get_snapshot_recovery(main_pool).await? {
                     tracing::info!(
                         "Starting Merkle tree recovery with status {snapshot_recovery:?}"
                     );
@@ -194,14 +198,14 @@ impl GenericAsyncTree {
             }
         };
 
-        let snapshot = SnapshotParameters::new(pool, &snapshot_recovery).await?;
+        let snapshot = SnapshotParameters::new(main_pool, &snapshot_recovery).await?;
         tracing::debug!("Obtained snapshot parameters: {snapshot:?}");
         let recovery_options = RecoveryOptions {
             chunk_count: snapshot.chunk_count(),
-            concurrency_limit: pool.max_size() as usize,
+            concurrency_limit: recovery_pool.max_size() as usize,
             events: Box::new(RecoveryHealthUpdater::new(health_updater)),
         };
-        tree.recover(snapshot, recovery_options, pool, stop_receiver)
+        tree.recover(snapshot, recovery_options, &recovery_pool, stop_receiver)
             .await
     }
 }
@@ -220,7 +224,8 @@ impl AsyncTreeRecovery {
             .map(|chunk_id| uniform_hashed_keys_chunk(chunk_id, chunk_count))
             .collect();
         tracing::info!(
-            "Recovering Merkle tree from Postgres snapshot in {chunk_count} concurrent chunks"
+            "Recovering Merkle tree from Postgres snapshot in {chunk_count} chunks with max concurrency {}",
+            options.concurrency_limit
         );
 
         let mut storage = pool.connection().await?;
@@ -275,14 +280,14 @@ impl AsyncTreeRecovery {
     async fn filter_chunks(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        snapshot_miniblock: MiniblockNumber,
+        snapshot_miniblock: L2BlockNumber,
         key_chunks: &[ops::RangeInclusive<H256>],
     ) -> anyhow::Result<Vec<ops::RangeInclusive<H256>>> {
         let chunk_starts_latency =
             RECOVERY_METRICS.latency[&RecoveryStage::LoadChunkStarts].start();
         let chunk_starts = storage
             .storage_logs_dal()
-            .get_chunk_starts_for_miniblock(snapshot_miniblock, key_chunks)
+            .get_chunk_starts_for_l2_block(snapshot_miniblock, key_chunks)
             .await?;
         let chunk_starts_latency = chunk_starts_latency.observe();
         tracing::debug!(
@@ -318,7 +323,7 @@ impl AsyncTreeRecovery {
 
     async fn recover_key_chunk(
         tree: &Mutex<AsyncTreeRecovery>,
-        snapshot_miniblock: MiniblockNumber,
+        snapshot_miniblock: L2BlockNumber,
         key_chunk: ops::RangeInclusive<H256>,
         pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
@@ -336,7 +341,7 @@ impl AsyncTreeRecovery {
             RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::LoadEntries].start();
         let all_entries = storage
             .storage_logs_dal()
-            .get_tree_entries_for_miniblock(snapshot_miniblock, key_chunk.clone())
+            .get_tree_entries_for_l2_block(snapshot_miniblock, key_chunk.clone())
             .await?;
         drop(storage);
         let entries_latency = entries_latency.observe();

@@ -100,7 +100,7 @@ pub struct LegacyCall {
     /// Revert reason.
     pub revert_reason: Option<String>,
     /// Subcalls.
-    pub calls: Vec<Call>,
+    pub calls: Vec<LegacyCall>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -146,7 +146,7 @@ impl From<LegacyCall> for Call {
             output: legacy_call.output,
             error: legacy_call.error,
             revert_reason: legacy_call.revert_reason,
-            calls: legacy_call.calls,
+            calls: legacy_call.calls.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -158,6 +158,8 @@ impl TryFrom<Call> for LegacyCall {
     type Error = LegacyCallConversionOverflowError;
 
     fn try_from(call: Call) -> Result<Self, LegacyCallConversionOverflowError> {
+        let calls: Result<Vec<LegacyCall>, LegacyCallConversionOverflowError> =
+            call.calls.into_iter().map(LegacyCall::try_from).collect();
         Ok(Self {
             r#type: call.r#type,
             from: call.from,
@@ -179,7 +181,7 @@ impl TryFrom<Call> for LegacyCall {
             output: call.output,
             error: call.error,
             revert_reason: call.revert_reason,
-            calls: call.calls,
+            calls: calls?,
         })
     }
 }
@@ -283,6 +285,25 @@ impl fmt::Debug for Call {
     }
 }
 
+impl fmt::Debug for LegacyCall {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("LegacyCall")
+            .field("type", &self.r#type)
+            .field("to", &self.to)
+            .field("from", &self.from)
+            .field("parent_gas", &self.parent_gas)
+            .field("gas_used", &self.gas_used)
+            .field("gas", &self.gas)
+            .field("value", &self.value)
+            .field("input", &format_args!("{:?}", self.input))
+            .field("output", &format_args!("{:?}", self.output))
+            .field("error", &self.error)
+            .field("revert_reason", &format_args!("{:?}", self.revert_reason))
+            .field("call_traces", &self.calls)
+            .finish()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum ViolatedValidationRule {
     TouchedUnallowedStorageSlots(Address, U256),
@@ -314,5 +335,22 @@ impl Display for ViolatedValidationRule {
                 )
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_call_deserialization() {
+        let b = hex::decode("00000000002a000000000000003078303030303030303030303030303030303030303030303030303030303030303030303030303030302a00000000000000307830303030303030303030303030303030303030303030303030303030303030303030303038303031fa590600fa59060057ed03000f00000000000000307833386437656134633638303030000000000000000000000000000000000000010000000000000000000000002a000000000000003078303030303030303030303030303030303030303030303030303030303030303030303030383030312a00000000000000307830303030303030303030303030303030303030303030303030303030303030303030303038303062bae978fbda058bf7510f00000300000000000000307830040000000000000030e5ccbd000000000000000000000000000000000000").unwrap();
+        let _: LegacyCall = bincode::deserialize(&b).unwrap();
+    }
+
+    #[test]
+    fn call_deserialization() {
+        let b = hex::decode("00000000002a000000000000003078303030303030303030303030303030303030303030303030303030303030303030303030303030302a00000000000000307830303030303030303030303030303030303030303030303030303030303030303030303038303031fa59060000000000fa5906000000000057ed0300000000000f00000000000000307833386437656134633638303030000000000000000000000000000000000000010000000000000000000000002a000000000000003078303030303030303030303030303030303030303030303030303030303030303030303030383030312a00000000000000307830303030303030303030303030303030303030303030303030303030303030303030303038303062bae978fb00000000da058bf700000000510f0000000000000300000000000000307830040000000000000030e5ccbd000000000000000000000000000000000000").unwrap();
+        let _: Call = bincode::deserialize(&b).unwrap();
     }
 }

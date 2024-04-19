@@ -29,8 +29,7 @@ pub fn create_vm(
         .context("failed initializing L1 batch params provider")?;
     let first_miniblock_in_batch = rt_handle
         .block_on(
-            l1_batch_params_provider
-                .load_first_miniblock_in_batch(&mut connection, l1_batch_number),
+            l1_batch_params_provider.load_first_l2_block_in_batch(&mut connection, l1_batch_number),
         )
         .with_context(|| format!("failed loading first miniblock in L1 batch #{l1_batch_number}"))?
         .with_context(|| format!("no miniblocks persisted for L1 batch #{l1_batch_number}"))?;

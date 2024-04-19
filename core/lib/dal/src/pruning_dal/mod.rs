@@ -1,7 +1,7 @@
 use std::ops;
 
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_types::{L1BatchNumber, MiniblockNumber};
+use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 use crate::Core;
 
@@ -17,16 +17,16 @@ pub struct PruningDal<'a, 'c> {
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct PruningInfo {
     pub last_soft_pruned_l1_batch: Option<L1BatchNumber>,
-    pub last_soft_pruned_miniblock: Option<MiniblockNumber>,
+    pub last_soft_pruned_l2_block: Option<L2BlockNumber>,
     pub last_hard_pruned_l1_batch: Option<L1BatchNumber>,
-    pub last_hard_pruned_miniblock: Option<MiniblockNumber>,
+    pub last_hard_pruned_l2_block: Option<L2BlockNumber>,
 }
 
 /// Statistics about a single hard pruning iteration.
 #[derive(Debug, Default)]
 pub struct HardPruningStats {
     pub deleted_l1_batches: u64,
-    pub deleted_miniblocks: u64,
+    pub deleted_l2_blocks: u64,
     pub deleted_storage_logs_from_past_batches: u64,
     pub deleted_storage_logs_from_pruned_batches: u64,
     pub deleted_events: u64,
@@ -86,15 +86,15 @@ impl PruningDal<'_, '_> {
             last_soft_pruned_l1_batch: row
                 .last_soft_pruned_l1_batch
                 .map(|num| L1BatchNumber(num as u32)),
-            last_soft_pruned_miniblock: row
+            last_soft_pruned_l2_block: row
                 .last_soft_pruned_miniblock
-                .map(|num| MiniblockNumber(num as u32)),
+                .map(|num| L2BlockNumber(num as u32)),
             last_hard_pruned_l1_batch: row
                 .last_hard_pruned_l1_batch
                 .map(|num| L1BatchNumber(num as u32)),
-            last_hard_pruned_miniblock: row
+            last_hard_pruned_l2_block: row
                 .last_hard_pruned_miniblock
-                .map(|num| MiniblockNumber(num as u32)),
+                .map(|num| L2BlockNumber(num as u32)),
         })
         .instrument("get_last_soft_pruned_batch")
         .report_latency()
@@ -106,7 +106,7 @@ impl PruningDal<'_, '_> {
     pub async fn soft_prune_batches_range(
         &mut self,
         last_l1_batch_to_prune: L1BatchNumber,
-        last_miniblock_to_prune: MiniblockNumber,
+        last_l2_block_to_prune: L2BlockNumber,
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
@@ -122,12 +122,12 @@ impl PruningDal<'_, '_> {
                 ($1, $2, $3, NOW(), NOW())
             "#,
             i64::from(last_l1_batch_to_prune.0),
-            i64::from(last_miniblock_to_prune.0),
+            i64::from(last_l2_block_to_prune.0),
             PruneType::Soft as PruneType,
         )
         .instrument("soft_prune_batches_range#insert_pruning_log")
         .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
-        .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
+        .with_arg("last_l2_block_to_prune", &last_l2_block_to_prune)
         .with_arg("prune_type", &PruneType::Soft)
         .report_latency()
         .execute(self.storage)
@@ -139,7 +139,7 @@ impl PruningDal<'_, '_> {
     pub async fn hard_prune_batches_range(
         &mut self,
         last_l1_batch_to_prune: L1BatchNumber,
-        last_miniblock_to_prune: MiniblockNumber,
+        last_l2_block_to_prune: L2BlockNumber,
     ) -> DalResult<HardPruningStats> {
         let row = sqlx::query!(
             r#"
@@ -158,39 +158,39 @@ impl PruningDal<'_, '_> {
         .fetch_one(self.storage)
         .await?;
 
-        // we don't have any miniblocks available when recovering from a snapshot
-        let stats = if let Some(first_miniblock_to_prune) = row.first_miniblock_to_prune {
-            let first_miniblock_to_prune = MiniblockNumber(first_miniblock_to_prune as u32);
+        // We don't have any L2 blocks available when recovering from a snapshot
+        let stats = if let Some(first_l2_block_to_prune) = row.first_miniblock_to_prune {
+            let first_l2_block_to_prune = L2BlockNumber(first_l2_block_to_prune as u32);
 
             let deleted_events = self
-                .delete_events(first_miniblock_to_prune..=last_miniblock_to_prune)
+                .delete_events(first_l2_block_to_prune..=last_l2_block_to_prune)
                 .await?;
             let deleted_l2_to_l1_logs = self
-                .delete_l2_to_l1_logs(first_miniblock_to_prune..=last_miniblock_to_prune)
+                .delete_l2_to_l1_logs(first_l2_block_to_prune..=last_l2_block_to_prune)
                 .await?;
             let deleted_call_traces = self
-                .delete_call_traces(first_miniblock_to_prune..=last_miniblock_to_prune)
+                .delete_call_traces(first_l2_block_to_prune..=last_l2_block_to_prune)
                 .await?;
-            self.clear_transaction_fields(first_miniblock_to_prune..=last_miniblock_to_prune)
+            self.clear_transaction_fields(first_l2_block_to_prune..=last_l2_block_to_prune)
                 .await?;
 
             // The deleting of logs is split into two queries to make it faster,
             // only the first query has to go through all previous logs
             // and the query optimizer should be happy with it
             let deleted_storage_logs_from_past_batches = self
-                .prune_storage_logs_from_past_miniblocks(
-                    first_miniblock_to_prune..=last_miniblock_to_prune,
+                .prune_storage_logs_from_past_l2_blocks(
+                    first_l2_block_to_prune..=last_l2_block_to_prune,
                 )
                 .await?;
             let deleted_storage_logs_from_pruned_batches = self
-                .prune_storage_logs_in_range(first_miniblock_to_prune..=last_miniblock_to_prune)
+                .prune_storage_logs_in_range(first_l2_block_to_prune..=last_l2_block_to_prune)
                 .await?;
             let deleted_l1_batches = self.delete_l1_batches(last_l1_batch_to_prune).await?;
-            let deleted_miniblocks = self.delete_miniblocks(last_miniblock_to_prune).await?;
+            let deleted_l2_blocks = self.delete_l2_blocks(last_l2_block_to_prune).await?;
 
             HardPruningStats {
                 deleted_l1_batches,
-                deleted_miniblocks,
+                deleted_l2_blocks,
                 deleted_events,
                 deleted_l2_to_l1_logs,
                 deleted_call_traces,
@@ -201,14 +201,14 @@ impl PruningDal<'_, '_> {
             HardPruningStats::default()
         };
 
-        self.insert_hard_pruning_log(last_l1_batch_to_prune, last_miniblock_to_prune)
+        self.insert_hard_pruning_log(last_l1_batch_to_prune, last_l2_block_to_prune)
             .await?;
         Ok(stats)
     }
 
     async fn delete_events(
         &mut self,
-        miniblocks_to_prune: ops::RangeInclusive<MiniblockNumber>,
+        l2_blocks_to_prune: ops::RangeInclusive<L2BlockNumber>,
     ) -> DalResult<u64> {
         let execution_result = sqlx::query!(
             r#"
@@ -216,11 +216,11 @@ impl PruningDal<'_, '_> {
             WHERE
                 miniblock_number BETWEEN $1 AND $2
             "#,
-            i64::from(miniblocks_to_prune.start().0),
-            i64::from(miniblocks_to_prune.end().0)
+            i64::from(l2_blocks_to_prune.start().0),
+            i64::from(l2_blocks_to_prune.end().0)
         )
         .instrument("hard_prune_batches_range#delete_events")
-        .with_arg("miniblocks_to_prune", &miniblocks_to_prune)
+        .with_arg("l2_blocks_to_prune", &l2_blocks_to_prune)
         .report_latency()
         .execute(self.storage)
         .await?;
@@ -229,7 +229,7 @@ impl PruningDal<'_, '_> {
 
     async fn delete_l2_to_l1_logs(
         &mut self,
-        miniblocks_to_prune: ops::RangeInclusive<MiniblockNumber>,
+        l2_blocks_to_prune: ops::RangeInclusive<L2BlockNumber>,
     ) -> DalResult<u64> {
         let execution_result = sqlx::query!(
             r#"
@@ -237,11 +237,11 @@ impl PruningDal<'_, '_> {
             WHERE
                 miniblock_number BETWEEN $1 AND $2
             "#,
-            i64::from(miniblocks_to_prune.start().0),
-            i64::from(miniblocks_to_prune.end().0)
+            i64::from(l2_blocks_to_prune.start().0),
+            i64::from(l2_blocks_to_prune.end().0)
         )
         .instrument("hard_prune_batches_range#delete_l2_to_l1_logs")
-        .with_arg("miniblocks_to_prune", &miniblocks_to_prune)
+        .with_arg("l2_blocks_to_prune", &l2_blocks_to_prune)
         .report_latency()
         .execute(self.storage)
         .await?;
@@ -249,11 +249,11 @@ impl PruningDal<'_, '_> {
     }
 
     // Call traces are returned via `TransactionsDal::get_call_trace()`, which is used by the `debug_traceTransaction` RPC method.
-    // It should be acceptable to return `None` for transactions in pruned miniblocks; this would make them indistinguishable
+    // It should be acceptable to return `None` for transactions in pruned L2 blocks; this would make them indistinguishable
     // from traces for non-existing transactions.
     async fn delete_call_traces(
         &mut self,
-        miniblocks_to_prune: ops::RangeInclusive<MiniblockNumber>,
+        l2_blocks_to_prune: ops::RangeInclusive<L2BlockNumber>,
     ) -> DalResult<u64> {
         let execution_result = sqlx::query!(
             r#"
@@ -268,11 +268,11 @@ impl PruningDal<'_, '_> {
                         miniblock_number BETWEEN $1 AND $2
                 )
             "#,
-            i64::from(miniblocks_to_prune.start().0),
-            i64::from(miniblocks_to_prune.end().0)
+            i64::from(l2_blocks_to_prune.start().0),
+            i64::from(l2_blocks_to_prune.end().0)
         )
         .instrument("hard_prune_batches_range#delete_call_traces")
-        .with_arg("miniblocks_to_prune", &miniblocks_to_prune)
+        .with_arg("l2_blocks_to_prune", &l2_blocks_to_prune)
         .report_latency()
         .execute(self.storage)
         .await?;
@@ -281,15 +281,15 @@ impl PruningDal<'_, '_> {
 
     // The pruned fields are accessed as follows:
     //
-    // - `input`: is a part of `StorageTransaction`, read via `TransactionsDal` (`get_miniblocks_to_reexecute`,
-    //   `get_miniblocks_to_execute_for_l1_batch`, and `get_tx_by_hash`) and `TransactionsWeb3Dal::get_raw_miniblock_transactions()`.
+    // - `input`: is a part of `StorageTransaction`, read via `TransactionsDal` (`get_l2_blocks_to_reexecute`,
+    //   `get_l2_blocks_to_execute_for_l1_batch`, and `get_tx_by_hash`) and `TransactionsWeb3Dal::get_raw_l2_block_transactions()`.
     //   `get_tx_by_hash()` is only called on upgrade transactions, which are not pruned. The remaining methods tie transactions
-    //   to a certain L1 batch / miniblock, and thus do naturally check pruning.
+    //   to a certain L1 batch / L2 block, and thus do naturally check pruning.
     // - `data`: used by `TransactionsWeb3Dal` queries, which explicitly check whether it was pruned.
     // - `execution_info`: not used in queries.
     async fn clear_transaction_fields(
         &mut self,
-        miniblocks_to_prune: ops::RangeInclusive<MiniblockNumber>,
+        l2_blocks_to_prune: ops::RangeInclusive<L2BlockNumber>,
     ) -> DalResult<u64> {
         let execution_result = sqlx::query!(
             r#"
@@ -303,20 +303,20 @@ impl PruningDal<'_, '_> {
                 miniblock_number BETWEEN $1 AND $2
                 AND upgrade_id IS NULL
             "#,
-            i64::from(miniblocks_to_prune.start().0),
-            i64::from(miniblocks_to_prune.end().0)
+            i64::from(l2_blocks_to_prune.start().0),
+            i64::from(l2_blocks_to_prune.end().0)
         )
         .instrument("hard_prune_batches_range#clear_transaction_fields")
-        .with_arg("miniblocks_to_prune", &miniblocks_to_prune)
+        .with_arg("l2_blocks_to_prune", &l2_blocks_to_prune)
         .report_latency()
         .execute(self.storage)
         .await?;
         Ok(execution_result.rows_affected())
     }
 
-    async fn prune_storage_logs_from_past_miniblocks(
+    async fn prune_storage_logs_from_past_l2_blocks(
         &mut self,
-        miniblocks_to_prune: ops::RangeInclusive<MiniblockNumber>,
+        l2_blocks_to_prune: ops::RangeInclusive<L2BlockNumber>,
     ) -> DalResult<u64> {
         let execution_result = sqlx::query!(
             r#"
@@ -332,11 +332,11 @@ impl PruningDal<'_, '_> {
                 storage_logs.miniblock_number < $1
                 AND batches_to_prune.hashed_key = storage_logs.hashed_key
             "#,
-            i64::from(miniblocks_to_prune.start().0),
-            i64::from(miniblocks_to_prune.end().0)
+            i64::from(l2_blocks_to_prune.start().0),
+            i64::from(l2_blocks_to_prune.end().0)
         )
-        .instrument("hard_prune_batches_range#prune_storage_logs_from_past_miniblocks")
-        .with_arg("miniblocks_to_prune", &miniblocks_to_prune)
+        .instrument("hard_prune_batches_range#prune_storage_logs_from_past_l2_blocks")
+        .with_arg("l2_blocks_to_prune", &l2_blocks_to_prune)
         .report_latency()
         .execute(self.storage)
         .await?;
@@ -345,7 +345,7 @@ impl PruningDal<'_, '_> {
 
     async fn prune_storage_logs_in_range(
         &mut self,
-        miniblocks_to_prune: ops::RangeInclusive<MiniblockNumber>,
+        l2_blocks_to_prune: ops::RangeInclusive<L2BlockNumber>,
     ) -> DalResult<u64> {
         let execution_result = sqlx::query!(
             r#"
@@ -368,11 +368,11 @@ impl PruningDal<'_, '_> {
                     OR storage_logs.operation_number != last_storage_logs.op[2]
                 )
             "#,
-            i64::from(miniblocks_to_prune.start().0),
-            i64::from(miniblocks_to_prune.end().0)
+            i64::from(l2_blocks_to_prune.start().0),
+            i64::from(l2_blocks_to_prune.end().0)
         )
         .instrument("hard_prune_batches_range#prune_storage_logs_in_range")
-        .with_arg("miniblocks_to_prune", &miniblocks_to_prune)
+        .with_arg("l2_blocks_to_prune", &l2_blocks_to_prune)
         .report_latency()
         .execute(self.storage)
         .await?;
@@ -396,20 +396,17 @@ impl PruningDal<'_, '_> {
         Ok(execution_result.rows_affected())
     }
 
-    async fn delete_miniblocks(
-        &mut self,
-        last_miniblock_to_prune: MiniblockNumber,
-    ) -> DalResult<u64> {
+    async fn delete_l2_blocks(&mut self, last_l2_block_to_prune: L2BlockNumber) -> DalResult<u64> {
         let execution_result = sqlx::query!(
             r#"
             DELETE FROM miniblocks
             WHERE
                 number <= $1
             "#,
-            i64::from(last_miniblock_to_prune.0),
+            i64::from(last_l2_block_to_prune.0),
         )
-        .instrument("hard_prune_batches_range#delete_miniblocks")
-        .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
+        .instrument("hard_prune_batches_range#delete_l2_blocks")
+        .with_arg("last_l2_block_to_prune", &last_l2_block_to_prune)
         .report_latency()
         .execute(self.storage)
         .await?;
@@ -419,7 +416,7 @@ impl PruningDal<'_, '_> {
     async fn insert_hard_pruning_log(
         &mut self,
         last_l1_batch_to_prune: L1BatchNumber,
-        last_miniblock_to_prune: MiniblockNumber,
+        last_l2_block_to_prune: L2BlockNumber,
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
@@ -435,12 +432,12 @@ impl PruningDal<'_, '_> {
                 ($1, $2, $3, NOW(), NOW())
             "#,
             i64::from(last_l1_batch_to_prune.0),
-            i64::from(last_miniblock_to_prune.0),
+            i64::from(last_l2_block_to_prune.0),
             PruneType::Hard as PruneType
         )
         .instrument("hard_prune_batches_range#insert_pruning_log")
         .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
-        .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
+        .with_arg("last_l2_block_to_prune", &last_l2_block_to_prune)
         .report_latency()
         .execute(self.storage)
         .await?;
