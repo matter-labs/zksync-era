@@ -47,7 +47,7 @@ impl ProtoRepr for proto::Contracts {
                 .as_ref()
                 .map(|x| parse_h160(x))
                 .transpose()
-                .context("l1_shared_bridge_addr")?,
+                .context("l1_shared_bridge_proxy_addr")?,
             l2_shared_bridge_addr: shared
                 .l2_address
                 .as_ref()
