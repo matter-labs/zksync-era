@@ -5,7 +5,7 @@ import { BigNumberish } from 'ethers';
 import { TestContext, TestEnvironment, TestWallets } from './types';
 import { lookupPrerequisites } from './prerequisites';
 import { Reporter } from './reporter';
-import { additionalMultiplier, scaledGasPrice } from './helpers';
+import { scaledGasPrice } from './helpers';
 import { RetryProvider } from './retry-provider';
 
 // These amounts of ETH would be provided to each test suite through its "main" account.
@@ -137,11 +137,11 @@ export class TestContextOwner {
         this.reporter.debug(`Latest nonce is ${latestNonce}, pending nonce is ${pendingNonce}`);
         // For each transaction to override it, we need to provide greater fee.
         // We would manually provide a value high enough (for a testnet) to be both valid
-        // and higher than the previous one. It's OK as we'll only be charged for the bass fee
+        // and higher than the previous one. It's OK as we'll only be charged for the base fee
         // anyways. We will also set the miner's tip to 5 gwei, which is also much higher than the normal one.
         // Scaled gas price to be used to prevent transactions from being stuck.
-        const maxPriorityFeePerGas = ethers.utils.parseEther('0.000000005').mul(additionalMultiplier); // 5 gwei
-        const maxFeePerGas = ethers.utils.parseEther('0.00000025').mul(additionalMultiplier); // 250 gwei
+        const maxPriorityFeePerGas = ethers.utils.parseEther('0.000000005'); // 5 gwei
+        const maxFeePerGas = ethers.utils.parseEther('0.00000025'); // 250 gwei
         this.reporter.debug(`Max nonce is ${latestNonce}, pending nonce is ${pendingNonce}`);
 
         const cancellationTxs = [];
@@ -149,9 +149,7 @@ export class TestContextOwner {
             cancellationTxs.push(
                 ethWallet
                     .sendTransaction({ to: ethWallet.address, nonce, maxFeePerGas, maxPriorityFeePerGas })
-                    .then((tx) => {
-                        return tx.wait();
-                    })
+                    .then((tx) => tx.wait())
             );
         }
         if (cancellationTxs.length > 0) {
@@ -168,7 +166,6 @@ export class TestContextOwner {
         this.reporter.startAction(`Cancelling allowances transactions`);
         // Since some tx may be pending on stage, we don't want to get stuck because of it.
         // In order to not get stuck transactions, we manually cancel all the pending txs.
-        // const ethWallet = this.mainEthersWallet;
         const chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
 
         const bridgehub = await this.mainSyncWallet.getBridgehubContract();
