@@ -96,7 +96,6 @@ mod tests {
             fee_model_version: FeeModelVersion::V2,
             validation_computational_gas_limit: 10_000_000,
             save_call_traces: false,
-            enum_index_migration_chunk_size: Some(2_000),
             bootloader_hash: Some(hash(
                 "0x010007ede999d096c84553fb514d3d6ca76fbf39789dda76bfeda9f3ae06236e",
             )),
@@ -134,7 +133,6 @@ mod tests {
             CHAIN_STATE_KEEPER_FEE_MODEL_VERSION="V2"
             CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT="10000000"
             CHAIN_STATE_KEEPER_SAVE_CALL_TRACES="false"
-            CHAIN_STATE_KEEPER_ENUM_INDEX_MIGRATION_CHUNK_SIZE="2000"
             CHAIN_STATE_KEEPER_BOOTLOADER_HASH=0x010007ede999d096c84553fb514d3d6ca76fbf39789dda76bfeda9f3ae06236e
             CHAIN_STATE_KEEPER_DEFAULT_AA_HASH=0x0100055b041eb28aff6e3a6e0f37c31fd053fc9ef142683b05e5f0aee6934066
             CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE="{l1_batch_commit_data_generator_mode}"

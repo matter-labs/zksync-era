@@ -102,11 +102,8 @@ impl Tester {
         match storage_type {
             StorageType::AsyncRocksdbCache => {
                 let (l1_batch_env, system_env) = self.default_batch_params();
-                let (state_keeper_storage, task) = AsyncRocksdbCache::new(
-                    self.pool(),
-                    self.state_keeper_db_path(),
-                    self.enum_index_migration_chunk_size(),
-                );
+                let (state_keeper_storage, task) =
+                    AsyncRocksdbCache::new(self.pool(), self.state_keeper_db_path());
                 let handle = tokio::task::spawn(async move {
                     let (_stop_sender, stop_receiver) = watch::channel(false);
                     task.run(stop_receiver).await.unwrap()
@@ -124,7 +121,6 @@ impl Tester {
                     Arc::new(RocksdbFactory::new(
                         self.pool(),
                         self.state_keeper_db_path(),
-                        self.enum_index_migration_chunk_size(),
                     )),
                     l1_batch_env,
                     system_env,
@@ -161,11 +157,8 @@ impl Tester {
         &mut self,
         snapshot: &SnapshotRecoveryStatus,
     ) -> BatchExecutorHandle {
-        let (storage_factory, task) = AsyncRocksdbCache::new(
-            self.pool(),
-            self.state_keeper_db_path(),
-            self.enum_index_migration_chunk_size(),
-        );
+        let (storage_factory, task) =
+            AsyncRocksdbCache::new(self.pool(), self.state_keeper_db_path());
         let (_, stop_receiver) = watch::channel(false);
         let handle = tokio::task::spawn(async move { task.run(stop_receiver).await.unwrap() });
         self.tasks.push(handle);
@@ -185,7 +178,6 @@ impl Tester {
                     Arc::new(RocksdbFactory::new(
                         self.pool(),
                         self.state_keeper_db_path(),
-                        self.enum_index_migration_chunk_size(),
                     )),
                     snapshot,
                 )
@@ -308,10 +300,6 @@ impl Tester {
 
     pub(super) fn state_keeper_db_path(&self) -> String {
         self.db_dir.path().to_str().unwrap().to_owned()
-    }
-
-    pub(super) fn enum_index_migration_chunk_size(&self) -> usize {
-        100
     }
 }
 

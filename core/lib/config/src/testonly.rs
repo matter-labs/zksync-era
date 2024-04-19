@@ -169,7 +169,6 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             fee_model_version: self.sample(rng),
             validation_computational_gas_limit: self.sample(rng),
             save_call_traces: self.sample(rng),
-            enum_index_migration_chunk_size: self.sample(rng),
             max_circuits_per_batch: self.sample(rng),
             // These values are not involved into files serialization skip them
             fee_account_addr: None,
