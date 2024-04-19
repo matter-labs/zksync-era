@@ -3,7 +3,7 @@ use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
 use sqlx::Row;
 use zksync_basic_types::{
-    basic_fri_types::{AggregationRound, Eip4844Blobs},
+    basic_fri_types::{AggregationRound, Eip4844BlobsWrapper},
     protocol_version::ProtocolVersionId,
     prover_dal::{
         JobCountStatistics, LeafAggregationJobMetadata, NodeAggregationJobMetadata, StuckJobs,
@@ -39,9 +39,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         object_key: &str,
         protocol_version_id: ProtocolVersionId,
-        eip_4844_blobs: Eip4844Blobs,
+        eip_4844_blobs: Eip4844BlobsWrapper,
     ) {
-        let blobs_raw: Vec<u8> = eip_4844_blobs.into();
+        let blobs_raw = eip_4844_blobs.encode();
         sqlx::query!(
             r#"
             INSERT INTO
@@ -75,7 +75,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         last_l1_batch_to_process: u32,
         protocol_versions: &[ProtocolVersionId],
         picked_by: &str,
-    ) -> Option<(L1BatchNumber, Eip4844Blobs)> {
+    ) -> Option<(L1BatchNumber, Eip4844BlobsWrapper)> {
         let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         sqlx::query!(
             r#"
@@ -116,9 +116,10 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .map(|row| {
             (
                 L1BatchNumber(row.l1_batch_number as u32),
-                row.eip_4844_blobs
-                    .expect("missing eip 4844 blobs from the database")
-                    .into(),
+                Eip4844BlobsWrapper::decode(
+                    row.eip_4844_blobs
+                        .expect("missing eip 4844 blobs from the database"),
+                ),
             )
         })
     }
@@ -1125,6 +1126,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             AggregationRound::BasicCircuits => "witness_inputs_fri",
             AggregationRound::LeafAggregation => "leaf_aggregation_witness_jobs_fri",
             AggregationRound::NodeAggregation => "node_aggregation_witness_jobs_fri",
+            AggregationRound::RecursionTip => "recursion_tip_witness_jobs_fri",
             AggregationRound::Scheduler => "scheduler_witness_jobs_fri",
         }
     }

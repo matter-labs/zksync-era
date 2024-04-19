@@ -2,39 +2,48 @@
 
 // TODO (PLA-773): Should be moved to the prover workspace.
 
-use std::{convert::TryFrom, str::FromStr};
+use std::{convert::TryFrom, iter::repeat_with, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
 const BLOB_CHUNK_SIZE: usize = 31;
 const ELEMENTS_PER_4844_BLOCK: usize = 4096;
-pub const MAX_4844_BLOBS_PER_BLOCK: usize = 2;
+pub const MAX_4844_BLOBS_PER_BLOCK: usize = 16;
 
 pub const EIP_4844_BLOB_SIZE: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
 
 /// Wrapper struct over Vec<u8>, represents 1 EIP4844 Blob
 pub type Blob = Vec<u8>;
 
-/// Wrapper struct, containing EIP 4844 blobs and enforcing their invariants.
+/// EIP4844 blobs, represents all blobs in a block.
+/// A block may have between 1 and 16 blobs. The absence is marked as a None.
+/// This structure is not meant to be constructed directly, but through `Eip4844BlobsWrapper`.
+type Eip4844Blobs = [Option<Blob>; MAX_4844_BLOBS_PER_BLOCK];
+
+/// Wrapper struct, containing EIP 4844 blobs and enforcing invariants.
 /// Current invariants:
-///   - there are between [1, 2] blobs
+///   - there are between [1, 16] blobs
 ///   - all blobs are of the same size [`EIP_4844_BLOB_SIZE`]
 /// Creating a structure violating these constraints will panic.
 ///
 /// Note: blobs are padded to fit the correct size.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Eip4844Blobs {
-    blobs: Vec<Blob>,
+pub struct Eip4844BlobsWrapper {
+    blobs: Eip4844Blobs,
 }
 
-impl Eip4844Blobs {
-    pub fn blobs(self) -> Vec<Blob> {
+impl Eip4844BlobsWrapper {
+    pub fn blobs(self) -> Eip4844Blobs {
         self.blobs
     }
 }
 
-impl From<Vec<u8>> for Eip4844Blobs {
-    fn from(blobs: Vec<u8>) -> Self {
+impl Eip4844BlobsWrapper {
+    pub fn encode(self) -> Vec<u8> {
+        self.blobs().into_iter().flatten().flatten().collect()
+    }
+
+    pub fn decode(blobs: Vec<u8>) -> Self {
         let mut chunks: Vec<Blob> = blobs
             .chunks(EIP_4844_BLOB_SIZE)
             .map(|chunk| chunk.into())
@@ -51,13 +60,15 @@ impl From<Vec<u8>> for Eip4844Blobs {
             "cannot create Eip4844Blobs, received too many blobs"
         );
 
-        Self { blobs: chunks }
-    }
-}
-
-impl From<Eip4844Blobs> for Vec<u8> {
-    fn from(eip_4844_blobs: Eip4844Blobs) -> Self {
-        eip_4844_blobs.blobs.iter().flatten().copied().collect()
+        let blobs = chunks
+            .into_iter()
+            .map(Some)
+            .chain(repeat_with(|| None))
+            .take(MAX_4844_BLOBS_PER_BLOCK)
+            .collect::<Vec<Option<Blob>>>()
+            .try_into()
+            .expect("must always be able to take 16 elements");
+        Self { blobs }
     }
 }
 
@@ -172,70 +183,99 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn test_eip_4844_blobs_empty_pubdata() {
+    fn test_eip_4844_blobs_wrapper_empty_pubdata() {
         let payload = vec![];
-        let _eip_4844_blobs: Eip4844Blobs = payload.into();
-    }
-
-    #[test]
-    fn test_eip_4844_blobs_less_than_a_blob() {
-        // blob size (126976) - 1
-        let payload = vec![1; 126975];
-        let eip_4844_blobs: Eip4844Blobs = payload.into();
-        let blobs = eip_4844_blobs.blobs();
-        assert_eq!(blobs.len(), 1);
-        let blob = &blobs[0];
-        assert_eq!(blob[blob.len() - 1], 0);
-        assert_eq!(blob[0], 1);
-    }
-
-    #[test]
-    fn test_eip_4844_blobs_exactly_a_blob() {
-        // blob size (126976)
-        let payload = vec![1; 126976];
-        let eip_4844_blobs: Eip4844Blobs = payload.into();
-        let blobs = eip_4844_blobs.blobs();
-        assert_eq!(blobs.len(), 1);
-        let blob = &blobs[0];
-        assert_eq!(blob[blob.len() - 1], 1);
-        assert_eq!(blob[0], 1);
-    }
-
-    #[test]
-    fn test_eip_4844_blobs_less_than_two_blobs() {
-        // blob size (126976) * 2 (max number of blobs) - 1
-        let payload = vec![1; 253951];
-        let eip_4844_blobs: Eip4844Blobs = payload.into();
-        let blobs = eip_4844_blobs.blobs();
-        assert_eq!(blobs.len(), 2);
-        let first_blob = &blobs[0];
-        assert_eq!(first_blob[first_blob.len() - 1], 1);
-        assert_eq!(first_blob[0], 1);
-        let second_blob = &blobs[1];
-        assert_eq!(second_blob[second_blob.len() - 1], 0);
-        assert_eq!(second_blob[0], 1);
-    }
-
-    #[test]
-    fn test_eip_4844_blobs_exactly_two_blobs() {
-        // blob size (126976) * 2 (max number of blobs)
-        let payload = vec![1; 253952];
-        let eip_4844_blobs: Eip4844Blobs = payload.into();
-        let blobs = eip_4844_blobs.blobs();
-        assert_eq!(blobs.len(), 2);
-        let first_blob = &blobs[0];
-        assert_eq!(first_blob[first_blob.len() - 1], 1);
-        assert_eq!(first_blob[0], 1);
-        let second_blob = &blobs[1];
-        assert_eq!(second_blob[second_blob.len() - 1], 1);
-        assert_eq!(second_blob[0], 1);
+        let _eip_4844_blobs_wrapper = Eip4844BlobsWrapper::decode(payload);
     }
 
     #[test]
     #[should_panic]
-    fn test_eip_4844_blobs_more_than_two_blobs() {
-        // blob size (126976) * 2 (max number of blobs) + 1
-        let payload = vec![1; 253953];
-        let _eip_4844_blobs: Eip4844Blobs = payload.into();
+    fn test_eip_4844_blobs_wrapper_too_much_pubdata() {
+        // blob size (126976) * 16 (max number of blobs) + 1
+        let payload = vec![1; 2031617];
+        let _eip_4844_blobs_wrapper = Eip4844BlobsWrapper::decode(payload);
+    }
+
+    // General test.
+    // It first creates wrappers of all possible size [1..16], missing only 1 byte for a full last blob.
+    // Then it checks that all blobs are filled, but the last one.
+    // Additional sanity check at the end ensures that the rest of the structure contains Nones, if no blobs were provided.
+    #[test]
+    fn test_eip_4844_blobs_wrapper_needs_padding() {
+        for no_blobs in 1..=16 {
+            let payload = vec![1; no_blobs * 126976 - 1];
+            let eip_4844_blobs_wrapper = Eip4844BlobsWrapper::decode(payload);
+            let blobs = eip_4844_blobs_wrapper.blobs();
+            assert_eq!(blobs.len(), 16, "expecting 16 blobs, got {}", blobs.len());
+            for index in 0..no_blobs - 1 {
+                let blob = blobs[index]
+                    .clone()
+                    .expect("blob missing, although payload was provided");
+                assert_eq!(
+                    blob[blob.len() - 1],
+                    1,
+                    "blob[{}] was padded whilst it was not expecting any padding",
+                    index
+                );
+                assert_eq!(blob[0], 1, "blob[{}]'s first byte got overwritten", index);
+            }
+            let blob = blobs[no_blobs - 1]
+                .clone()
+                .expect("last blob missing, although payload was provided");
+            assert_eq!(
+                blob[blob.len() - 1],
+                0,
+                "last blob was not padded whilst it was expecting padding"
+            );
+            for index in no_blobs..16 {
+                assert!(blobs[index].is_none(), "blob[{}] was not None", index);
+            }
+        }
+    }
+
+    // General test.
+    // It first creates wrappers of all possible size [1..16], filled to the last blob.
+    // Then it checks that all blobs are filled as expected.
+    // Additional sanity check at the end ensures that the rest of the structure contains Nones, if no blobs were provided.
+    // The only difference from the previous test is that the last blob is filled.
+    #[test]
+    fn test_eip_4844_blobs_wrapper_needs_no_padding() {
+        for no_blobs in 1..=16 {
+            let payload = vec![1; no_blobs * 126976];
+            let eip_4844_blobs_wrapper = Eip4844BlobsWrapper::decode(payload);
+            let blobs = eip_4844_blobs_wrapper.blobs();
+            assert_eq!(blobs.len(), 16, "expecting 16 blobs, got {}", blobs.len());
+            for index in 0..no_blobs {
+                let blob = blobs[index]
+                    .clone()
+                    .expect("blob missing, although payload was provided");
+                assert_eq!(
+                    blob[blob.len() - 1],
+                    1,
+                    "blob[{}] was padded whilst it was not expecting any padding",
+                    index
+                );
+                assert_eq!(blob[0], 1, "blob[{}]'s first byte got overwritten", index);
+            }
+
+            for index in no_blobs..16 {
+                assert!(blobs[index].is_none(), "blob[{}] was not None", index);
+            }
+        }
+    }
+
+    #[test]
+    fn test_eip_4844_blobs_wrapper_encode_happy_path() {
+        let initial_len = 126970;
+        let blob_padded_size = EIP_4844_BLOB_SIZE;
+        let payload = vec![1; initial_len];
+        let eip_4844_blobs_wrapper = Eip4844BlobsWrapper::decode(payload);
+        let raw = eip_4844_blobs_wrapper.encode();
+        assert_ne!(raw.len(), initial_len);
+        assert_eq!(raw.len(), 126976);
+        for byte in raw.iter().rev().take(blob_padded_size - initial_len) {
+            assert_eq!(*byte, 0);
+        }
+        assert_eq!(raw[0], 1);
     }
 }
