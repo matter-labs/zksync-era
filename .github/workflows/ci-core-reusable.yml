@@ -107,7 +107,7 @@ jobs:
           ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper &>server.log &
           ci_run sleep 30
 
-      - name: Perform loadtest
+      - name: Perform loadtest - DISABLED (EVM-541)
         run: ls
         # ci_run zk run loadtest
 
