@@ -101,7 +101,13 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean): Pr
 }
 
 // for testnet and development purposes it is ok to deploy contracts form L1.
-export async function deployL2ThroughL1({ includePaymaster, chainIdHack }: { includePaymaster: boolean, chainIdHack?: boolean }): Promise<void> {
+export async function deployL2ThroughL1({
+    includePaymaster,
+    chainIdHack
+}: {
+    includePaymaster: boolean;
+    chainIdHack?: boolean;
+}): Promise<void> {
     await utils.confirmAction();
 
     const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
@@ -114,7 +120,11 @@ export async function deployL2ThroughL1({ includePaymaster, chainIdHack }: { inc
         await utils.spawn(`yarn l2-contracts build`);
     }
 
-    await utils.spawn(`yarn l2-contracts deploy-shared-bridge-on-l2-through-l1 ${args.join(' ')} ${chainIdHack ? '--chain-id-hack' : ''} | tee deployL2.log`);
+    await utils.spawn(
+        `yarn l2-contracts deploy-shared-bridge-on-l2-through-l1 ${args.join(' ')} ${
+            chainIdHack ? '--chain-id-hack' : ''
+        } | tee deployL2.log`
+    );
 
     if (includePaymaster) {
         await utils.spawn(

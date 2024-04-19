@@ -99,8 +99,12 @@ const initBridgehubStateTransition = async () => {
 };
 
 // Registers a hyperchain and deploys L2 contracts through L1
-type InitHyperchainOptions = { includePaymaster: boolean; baseTokenName?: string, chainIdHack?: boolean };
-const initHyperchain = async ({ includePaymaster, baseTokenName, chainIdHack }: InitHyperchainOptions): Promise<void> => {
+type InitHyperchainOptions = { includePaymaster: boolean; baseTokenName?: string; chainIdHack?: boolean };
+const initHyperchain = async ({
+    includePaymaster,
+    baseTokenName,
+    chainIdHack
+}: InitHyperchainOptions): Promise<void> => {
     await announced('Registering Hyperchain', contract.registerHyperchain({ baseTokenName }));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
