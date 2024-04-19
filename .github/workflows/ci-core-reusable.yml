@@ -107,7 +107,7 @@ jobs:
           ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper &>server.log &
           ci_run sleep 30
 
-      - name: Perform loadtest - DISABLED (EVM-541)
+      - name: Perform loadtest
         run: ls
         # ci_run zk run loadtest
 
@@ -318,7 +318,7 @@ jobs:
       - name: Integration tests
         run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|snapshots-creator'
 
-      - name: Run revert test - DISABLED (EVM-539)
+      - name: Run revert test
         run: |
           ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=Rollup PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert-en
           # test terminates the nodes, so we restart them.
