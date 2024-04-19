@@ -106,7 +106,9 @@ fn test_tree_after_recovery<DB: Database>(
         } else {
             let instructions = convert_to_writes(chunk);
             let output = tree.extend_with_proofs(instructions.clone());
-            output.verify_proofs(&Blake2Hasher, prev_root_hash, &instructions);
+            output
+                .verify_proofs(&Blake2Hasher, prev_root_hash, &instructions)
+                .unwrap();
             output.root_hash().unwrap()
         };
 

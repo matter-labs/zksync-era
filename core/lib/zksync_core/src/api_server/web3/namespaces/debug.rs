@@ -74,7 +74,7 @@ impl DebugNamespace {
 
         let call_traces = connection
             .blocks_web3_dal()
-            .get_traces_for_miniblock(block_number)
+            .get_traces_for_l2_block(block_number)
             .await
             .map_err(DalError::generalize)?;
         let call_trace = call_traces

@@ -7,6 +7,7 @@
 !etc/env/target/dev.env.example
 !etc/env/target/docker.env
 !etc/env/base
+!etc/env/configs
 !etc/tokens
 !etc/ERC20
 !artifacts
@@ -39,3 +40,8 @@ contracts/.git
 !bellman-cuda
 !prover/vk_setup_data_generator_server_fri/data/
 !.github/release-please/manifest.json
+
+!etc/env/file_based
+!etc/env/dev.toml
+!etc/env/consensus_secrets.yaml
+!etc/env/consensus_config.yaml

@@ -33,25 +33,18 @@ export function updateContractsEnv(initEnv: string, deployLog: String, envVars: 
     return updatedContracts;
 }
 
+export async function initializeValidator(args: any[]): Promise<void> {
+    await utils.confirmAction();
+    await utils.spawn(`yarn l1-contracts initialize-validator ${args.join(' ')} | tee initializeValidator.log`);
+}
+
 export async function initializeGovernance(): Promise<void> {
     await utils.confirmAction();
 
     const privateKey = process.env.GOVERNANCE_PRIVATE_KEY;
     const args = [privateKey ? `--private-key ${privateKey}` : ''];
 
-    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/l1-contracts` : `yarn l1-contracts`;
-
-    await utils.spawn(`${baseCommandL1} initialize-governance ${args.join(' ')} | tee initializeGovernance.log`);
-}
-
-export async function initializeL1AllowList(args: any[] = []) {
-    await utils.confirmAction();
-
-    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
-
-    await utils.spawn(`${baseCommandL1} initialize-allow-list ${args.join(' ')} | tee initializeL1AllowList.log`);
+    await utils.spawn(`yarn l1-contracts initialize-governance ${args.join(' ')} | tee initializeGovernance.log`);
 }
 
 export async function deployWeth(
@@ -83,20 +76,18 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean): Pr
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
 
-    // In the localhost setup scenario we don't have the workspace,
-    // so we have to `--cwd` into the required directory.
-    const baseCommandL2 = isLocalSetup ? `yarn --cwd /contracts/l2-contracts` : `yarn l2-contracts`;
-
     // Skip compilation for local setup, since we already copied artifacts into the container.
-    await utils.spawn(`${baseCommandL2} build`);
-
-    await utils.spawn(`${baseCommandL2} deploy-shared-bridge-on-l2 ${args.join(' ')} | tee deployL2.log`);
-
-    if (includePaymaster) {
-        await utils.spawn(`${baseCommandL2} deploy-testnet-paymaster ${args.join(' ')} | tee -a deployL2.log`);
+    if (!isLocalSetup) {
+        await utils.spawn(`yarn l2-contracts build`);
     }
 
-    await utils.spawn(`${baseCommandL2} deploy-force-deploy-upgrader ${args.join(' ')} | tee -a deployL2.log`);
+    await utils.spawn(`yarn l2-contracts deploy-shared-bridge-on-l2 ${args.join(' ')} | tee deployL2.log`);
+
+    if (includePaymaster) {
+        await utils.spawn(`yarn l2-contracts deploy-testnet-paymaster ${args.join(' ')} | tee -a deployL2.log`);
+    }
+
+    await utils.spawn(`yarn l2-contracts deploy-force-deploy-upgrader ${args.join(' ')} | tee -a deployL2.log`);
 
     let l2DeployLog = fs.readFileSync('deployL2.log').toString();
     const l2DeploymentEnvVars = [
@@ -118,23 +109,21 @@ export async function deployL2ThroughL1({ includePaymaster }: { includePaymaster
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
 
-    // In the localhost setup scenario we don't have the workspace,
-    // so we have to `--cwd` into the required directory.
-    const baseCommandL2 = isLocalSetup ? `yarn --cwd /contracts/l2-contracts` : `yarn l2-contracts`;
-
     // Skip compilation for local setup, since we already copied artifacts into the container.
-    await utils.spawn(`${baseCommandL2} build`);
+    if (!isLocalSetup) {
+        await utils.spawn(`yarn l2-contracts build`);
+    }
 
-    await utils.spawn(`${baseCommandL2} deploy-shared-bridge-on-l2-through-l1 ${args.join(' ')} | tee deployL2.log`);
+    await utils.spawn(`yarn l2-contracts deploy-shared-bridge-on-l2-through-l1 ${args.join(' ')} | tee deployL2.log`);
 
     if (includePaymaster) {
         await utils.spawn(
-            `${baseCommandL2} deploy-testnet-paymaster-through-l1 ${args.join(' ')} | tee -a deployL2.log`
+            `yarn l2-contracts deploy-testnet-paymaster-through-l1 ${args.join(' ')} | tee -a deployL2.log`
         );
     }
 
     await utils.spawn(
-        `${baseCommandL2} deploy-force-deploy-upgrader-through-l1 ${args.join(' ')} | tee -a deployL2.log`
+        `yarn l2-contracts deploy-force-deploy-upgrader-through-l1 ${args.join(' ')} | tee -a deployL2.log`
     );
 
     let l2DeployLog = fs.readFileSync('deployL2.log').toString();
@@ -167,9 +156,8 @@ async function _deployL1(onlyVerifier: boolean, deploymentMode: DeploymentMode):
 
     // In the localhost setup scenario we don't have the workspace,
     // so we have to `--cwd` into the required directory.
-    const baseCommand = process.env.ZKSYNC_LOCAL_SETUP ? `yarn --cwd /contracts/l1-contracts` : `yarn l1-contracts`;
 
-    await utils.spawn(`${baseCommand} deploy-no-build ${args.join(' ')} | tee deployL1.log`);
+    await utils.spawn(`yarn l1-contracts deploy-no-build ${args.join(' ')} | tee deployL1.log`);
     const deployLog = fs.readFileSync('deployL1.log').toString();
     const l1EnvVars = [
         'CONTRACTS_CREATE2_FACTORY_ADDR',
@@ -233,26 +221,12 @@ export async function redeployL1(verifierOnly: boolean, deploymentMode: Deployme
 
 export async function wethBridgeFinish(args: any[] = []): Promise<void> {
     await utils.confirmAction();
-
-    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-
-    // In the localhost setup scenario we don't have the workspace,
-    // so we have to `--cwd` into the required directory.
-    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
-
-    await utils.spawn(`${baseCommandL1} weth-finish-deployment-on-chain ${args.join(' ')} | tee -a deployL2.log`);
+    await utils.spawn(`yarn l1-contracts weth-finish-deployment-on-chain ${args.join(' ')} | tee -a deployL2.log`);
 }
 
 export async function erc20BridgeFinish(args: any[] = []): Promise<void> {
     await utils.confirmAction();
-
-    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-
-    // In the localhost setup scenario we don't have the workspace,
-    // so we have to `--cwd` into the required directory.
-    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
-
-    await utils.spawn(`${baseCommandL1} erc20-finish-deployment-on-chain ${args.join(' ')} | tee -a deployL2.log`);
+    await utils.spawn(`yarn l1-contracts erc20-finish-deployment-on-chain ${args.join(' ')} | tee -a deployL2.log`);
 }
 
 export async function registerHyperchain({ baseTokenName }: { baseTokenName?: string }): Promise<void> {
@@ -264,11 +238,7 @@ export async function registerHyperchain({ baseTokenName }: { baseTokenName?: st
         baseTokenName ? `--base-token-name ${baseTokenName}` : ''
     ];
 
-    // In the localhost setup scenario we don't have the workspace,
-    // so we have to `--cwd` into the required directory.
-    const baseCommand = process.env.ZKSYNC_LOCAL_SETUP ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
-
-    await utils.spawn(`${baseCommand} register-hyperchain ${args.join(' ')} | tee registerHyperchain.log`);
+    await utils.spawn(`yarn l1-contracts register-hyperchain ${args.join(' ')} | tee registerHyperchain.log`);
     const deployLog = fs.readFileSync('registerHyperchain.log').toString();
 
     const l2EnvVars = ['CHAIN_ETH_ZKSYNC_NETWORK_ID', 'CONTRACTS_DIAMOND_PROXY_ADDR', 'CONTRACTS_BASE_TOKEN_ADDR'];
@@ -310,11 +280,7 @@ async function upgradeSharedBridgeEra(): Promise<void> {
     const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const args = [privateKey ? `--private-key ${privateKey}` : ''];
 
-    // In the localhost setup scenario we don't have the workspace,
-    // so we have to `--cwd` into the required directory.
-    const baseCommand = process.env.ZKSYNC_LOCAL_SETUP ? `yarn --cwd /contracts/l1-contracts` : `yarn l1-contracts`;
-
-    await utils.spawn(`${baseCommand} upgrade-shared-bridge-era ${args.join(' ')} | tee upgradeSharedBridgeEra.log`);
+    await utils.spawn(`yarn l1-contracts upgrade-shared-bridge-era ${args.join(' ')} | tee upgradeSharedBridgeEra.log`);
 
     const deployLog = fs.readFileSync('upgradeSharedBridgeEra.log').toString();
     const l1EnvVars = ['CONTRACTS_L1_SHARED_BRIDGE_IMPL_ADDR'];
@@ -340,8 +306,37 @@ command
     .action(redeployL1);
 command.command('deploy [deploy-opts...]').allowUnknownOption(true).description('deploy contracts').action(deployL1);
 command.command('build').description('build contracts').action(build);
+
 command.command('verify').description('verify L1 contracts').action(verifyL1Contracts);
 command
     .command('upgrade-shared-bridge-era')
     .description('upgrade shared bridge with deployed era diamond proxy address')
     .action(upgradeSharedBridgeEra);
+command
+    .command('initialize-validator [init-opts...]')
+    .allowUnknownOption(true)
+    .description('initialize validator')
+    .action(initializeValidator);
+command
+    .command('deploy-l2 [deploy-opts...]')
+    .allowUnknownOption(true)
+    .description('deploy l2 contracts')
+    .action(deployL2);
+command
+    .command('initialize-governance [gov-opts...]')
+    .allowUnknownOption(true)
+    .description('initialize governance')
+    .action(initializeGovernance);
+command
+    .command('register-hyperchain')
+    .description('register hyperchain')
+    .action(() => {
+        registerHyperchain({});
+    });
+command
+    .command('deploy-l2-through-l1')
+    .description('deploy l2 through l1')
+    .action(() => {
+        deployL2ThroughL1({ includePaymaster: true });
+    });
+command.command('deploy-verifier').description('deploy verifier to l1').action(deployVerifier);
