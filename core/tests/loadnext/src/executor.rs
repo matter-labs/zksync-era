@@ -440,6 +440,8 @@ impl Executor {
                 .nonce(nonce);
 
             let paymaster_params = get_approval_based_paymaster_input_for_estimation(
+                paymaster_address,
+                self.l2_main_token,
                 MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE.into(),
             );
 
@@ -455,7 +457,7 @@ impl Executor {
             builder = builder.fee(fee);
             builder = builder.paymaster_params(paymaster_params);
 
-            let handle_erc20 = dbg!(builder.send().await)?;
+            let handle_erc20 = builder.send().await?;
             handles.push(handle_erc20);
 
             *nonce += 1;
