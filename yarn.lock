@@ -11790,10 +11790,10 @@ yocto-queue@^1.0.0:
   resolved "https://registry.yarnpkg.com/yocto-queue/-/yocto-queue-1.0.0.tgz#7f816433fb2cbc511ec8bf7d263c3b58a1a3c251"
   integrity sha512-9bnSc/HEW2uRy67wc+T8UwauLuPJVn28jb+GtJY16iiKWyvmYJRXVT4UamsAEGQfPohgr2q4Tq0sQbQlxTfi1g==
 
-zksync-ethers@5.8.0-beta.3:
-  version "5.8.0-beta.3"
-  resolved "https://registry.yarnpkg.com/zksync-ethers/-/zksync-ethers-5.8.0-beta.3.tgz#38cfc0f8a3028fe9e30d92bd3b465638c03f4b0b"
-  integrity sha512-3PT5f32EDsKXNE4TIKrFQMRMx/lqdY3Aa0+lqC9lUa28PmpBusl1O8+Lg3xJ6wchVNuwhB1nHquzMqIXPwB9Vg==
+zksync-ethers@5.8.0-beta.4:
+  version "5.8.0-beta.4"
+  resolved "https://registry.yarnpkg.com/zksync-ethers/-/zksync-ethers-5.8.0-beta.4.tgz#1a49b3ec770b32c8b3642b354ceed571a21de5c2"
+  integrity sha512-GHOQ4PsbjXp8EiKaKvYFqkyOrr7ETB2gAlWCUxZOYHfRiXZvIeGzUS6jScin/qCypMKX+sjl4lprt7V89U46pw==
   dependencies:
     ethers "~5.7.0"
 
