@@ -41,8 +41,6 @@ pub struct EthHttpQueryClient {
     client: Arc<dyn EthInterface>,
     topics: Vec<H256>,
     diamond_proxy_addr: Address,
-    /// Address of the `Governance` contract. It's optional because it is present only for post-boojum chains.
-    /// If address is some then client will listen to events coming from it.
     governance_address: Address,
     // Only present for post-shared bridge chains.
     state_transition_manager_address: Option<Address>,
