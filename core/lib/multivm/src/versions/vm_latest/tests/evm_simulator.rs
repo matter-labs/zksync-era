@@ -2836,8 +2836,9 @@ fn test_basic_call_with_create_vectors() {
             // push1 17
             hex::decode("60").unwrap(),
             hex::decode("11").unwrap(),
-            // push0
-            hex::decode("5F").unwrap(),
+            // push1 15
+            hex::decode("60").unwrap(),
+            hex::decode("0F").unwrap(),
             // push0
             hex::decode("5F").unwrap(),
             // create
@@ -2869,8 +2870,16 @@ fn test_basic_call_with_create_vectors() {
         .into_iter()
         .concat(),
     );
-    // TODO check test
-    //assert_eq!(evm_output, 1u32.into());
+    // TODO this test is an edge case, taking as example the following code:
+    // https://www.evm.codes/playground?fork=shanghai&unit=Wei&codeType=Mnemonic&code='vreate%20ajontracbthatjreates%20a_exceptio_if%20firsbword%20ofjalldata%20isyq17yx67k035k757FE5Bk052k86018F3gzMSTORE~17~15gzCREATEzzvall%20with%20no%20parameters%2C%20returnygg~32ggzDUP6q2yxFFFFzCALL'~q1%20z%5Cny%200v%2F%2F%20CqzPUSHk600j%20cg~0bt%20_n%20%01_bgjkqvyz~_
+    //
+    // It seems to be an imposed limitation inherited from the implementation, the above code
+    // tries to perform a call, since the no return was expected, executes
+    // the 0th case of the switch statement of function _saveReturnDataAfterEVMCall()
+    //
+    // It has to be checked if the error comes from the call operation without parameters
+    // or if it is a special case
+    // assert_eq!(evm_output, 1u32.into());
 
     // The following contract is used to test a CALL after a CREATE
     // more rigourously
@@ -2980,7 +2989,7 @@ fn test_basic_call_with_create_vectors() {
             hex::decode("04").unwrap(),
             // push1 argOff 4bytes
             hex::decode("60").unwrap(),
-            hex::decode("04").unwrap(),
+            hex::decode("1C").unwrap(),
             // push0 value
             hex::decode("5F").unwrap(),
             // dup6 address of created contract
@@ -3003,7 +3012,6 @@ fn test_basic_call_with_create_vectors() {
         .into_iter()
         .concat(),
     );
-    println!("{:?}", evm_output);
     assert_eq!(evm_output, 7u32.into());
 }
 
