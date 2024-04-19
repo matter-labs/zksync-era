@@ -28,8 +28,8 @@ describe('ETH token checks', () => {
         console.log(`Starting checks for base token: ${baseTokenAddress} isEthBasedChain: ${isETHBasedChain}`);
     });
 
-    test('Can perform a deposit XX', async () => {
-        if (isETHBasedChain) {
+    test('Can perform a deposit', async () => {
+        if (!isETHBasedChain) {
             // TODO(EVM-555): Currently this test is not working for non-eth based chains.
             return;
         }
@@ -252,9 +252,9 @@ describe('ETH token checks', () => {
         const overrides: Overrides = depositFee.gasPrice
             ? { gasPrice: depositFee.gasPrice }
             : {
-                  maxFeePerGas: depositFee.maxFeePerGas,
-                  maxPriorityFeePerGas: depositFee.maxPriorityFeePerGas
-              };
+                maxFeePerGas: depositFee.maxFeePerGas,
+                maxPriorityFeePerGas: depositFee.maxPriorityFeePerGas
+            };
         overrides.gasLimit = depositFee.l1GasLimit;
 
         const depositOp = await alice.deposit({
