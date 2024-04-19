@@ -42,11 +42,17 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("l1_erc20_bridge_impl_addr")?,
-            l1_shared_bridge_proxy_addr: required(&shared.l1_address)
-                .and_then(|x| parse_h160(x))
+            l1_shared_bridge_proxy_addr: shared
+                .l1_address
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
                 .context("l1_shared_bridge_addr")?,
-            l2_shared_bridge_addr: required(&shared.l2_address)
-                .and_then(|x| parse_h160(x))
+            l2_shared_bridge_addr: shared
+                .l2_address
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
                 .context("l2_shared_bridge_proxy_addr")?,
             l1_weth_bridge_proxy_addr: weth_bridge
                 .l1_address
