@@ -19,6 +19,7 @@ use once_cell::sync::OnceCell;
 use pin_project_lite::pin_project;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use tokio::sync::watch;
+use tracing::instrument::{Instrument, Instrumented};
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, GaugeGuard, Histogram, Metrics,
 };
@@ -112,27 +113,13 @@ where
 ///
 /// As an example, a method handler can set the requested block ID, which would then be used in relevant metric labels.
 #[derive(Debug)]
-pub(crate) struct MetadataMiddleware<S> {
+pub(crate) struct MetadataMiddleware<S, const TRACE_PARAMS: bool> {
     inner: S,
     registered_method_names: Arc<HashSet<&'static str>>,
     method_tracer: Arc<MethodTracer>,
 }
 
-impl<S> MetadataMiddleware<S> {
-    pub fn new(
-        inner: S,
-        registered_method_names: Arc<HashSet<&'static str>>,
-        method_tracer: Arc<MethodTracer>,
-    ) -> Self {
-        Self {
-            inner,
-            registered_method_names,
-            method_tracer,
-        }
-    }
-}
-
-impl<'a, S> RpcServiceT<'a> for MetadataMiddleware<S>
+impl<'a, S, const TRACE_PARAMS: bool> RpcServiceT<'a> for MetadataMiddleware<S, TRACE_PARAMS>
 where
     S: Send + Sync + RpcServiceT<'a>,
 {
@@ -147,7 +134,11 @@ where
             .copied()
             .unwrap_or("");
 
-        let observed_params = ObservedRpcParams::new(request.params.as_ref());
+        let observed_params = if TRACE_PARAMS {
+            ObservedRpcParams::new(request.params.as_ref())
+        } else {
+            ObservedRpcParams::Unknown
+        };
         let call = self.method_tracer.new_call(method_name, observed_params);
         WithMethodCall::new(self.inner.call(request), call)
     }
@@ -159,21 +150,12 @@ pin_project! {
         #[pin]
         inner: F,
         call: MethodCall<'a>,
-        call_span: tracing::Span,
     }
 }
 
 impl<'a, F> WithMethodCall<'a, F> {
     fn new(inner: F, call: MethodCall<'a>) -> Self {
-        // Wrap a call into a span with unique correlation ID, so that events occurring in the span can be easily filtered.
-        // This works as a cheap alternative to Open Telemetry tracing with its trace / span IDs.
-        let call_span =
-            tracing::debug_span!("rpc_call", correlation_id = generate_correlation_id());
-        Self {
-            inner,
-            call,
-            call_span,
-        }
+        Self { inner, call }
     }
 }
 
@@ -182,7 +164,6 @@ impl<F: Future<Output = MethodResponse>> Future for WithMethodCall<'_, F> {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let projection = self.project();
-        let _span_guard = projection.call_span.enter();
         let guard = projection.call.set_as_current();
         match projection.inner.poll(cx) {
             Poll::Pending => Poll::Pending,
@@ -192,6 +173,75 @@ impl<F: Future<Output = MethodResponse>> Future for WithMethodCall<'_, F> {
                 Poll::Ready(response)
             }
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct MetadataLayer<const TRACE_PARAMS: bool> {
+    registered_method_names: Arc<HashSet<&'static str>>,
+    method_tracer: Arc<MethodTracer>,
+}
+
+impl MetadataLayer<false> {
+    pub fn new(
+        registered_method_names: Arc<HashSet<&'static str>>,
+        method_tracer: Arc<MethodTracer>,
+    ) -> Self {
+        Self {
+            registered_method_names,
+            method_tracer,
+        }
+    }
+
+    pub fn with_param_tracing(self) -> MetadataLayer<true> {
+        MetadataLayer {
+            registered_method_names: self.registered_method_names,
+            method_tracer: self.method_tracer,
+        }
+    }
+}
+
+impl<Svc, const TRACE_PARAMS: bool> tower::Layer<Svc> for MetadataLayer<TRACE_PARAMS> {
+    type Service = MetadataMiddleware<Svc, TRACE_PARAMS>;
+
+    fn layer(&self, inner: Svc) -> Self::Service {
+        MetadataMiddleware {
+            inner,
+            registered_method_names: self.registered_method_names.clone(),
+            method_tracer: self.method_tracer.clone(),
+        }
+    }
+}
+
+/// Middleware that adds tracing spans to each RPC call, so that logs belonging to the same call
+/// can be easily filtered.
+#[derive(Debug)]
+pub(crate) struct CorrelationMiddleware<S> {
+    inner: S,
+}
+
+impl<S> CorrelationMiddleware<S> {
+    pub fn new(inner: S) -> Self {
+        Self { inner }
+    }
+}
+
+impl<'a, S> RpcServiceT<'a> for CorrelationMiddleware<S>
+where
+    S: RpcServiceT<'a>,
+{
+    type Future = Instrumented<S::Future>;
+
+    fn call(&self, request: Request<'a>) -> Self::Future {
+        thread_local! {
+            static CORRELATION_ID_RNG: RefCell<SmallRng> = RefCell::new(SmallRng::from_entropy());
+        }
+
+        // Wrap a call into a span with unique correlation ID, so that events occurring in the span can be easily filtered.
+        // This works as a cheap alternative to Open Telemetry tracing with its trace / span IDs.
+        let correlation_id = CORRELATION_ID_RNG.with(|rng| rng.borrow_mut().next_u64());
+        let call_span = tracing::debug_span!("rpc_call", correlation_id);
+        self.inner.call(request).instrument(call_span)
     }
 }
 
@@ -265,13 +315,6 @@ where
         self.traffic_tracker.reset();
         self.inner.call(request)
     }
-}
-
-fn generate_correlation_id() -> u64 {
-    thread_local! {
-        static CORRELATION_ID_RNG: RefCell<SmallRng> = RefCell::new(SmallRng::from_entropy());
-    }
-    CORRELATION_ID_RNG.with(|rng| rng.borrow_mut().next_u64())
 }
 
 #[cfg(test)]
