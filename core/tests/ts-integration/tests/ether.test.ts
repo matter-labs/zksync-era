@@ -54,8 +54,9 @@ describe('ETH token checks', () => {
               })
             : await shouldChangeTokenBalances(l2EthTokenAddress, [{ wallet: alice, change: amount }]);
 
+        // Variables used only for base token implementation
         const l1BaseTokenBalanceBefore = await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR!);
-        const l2BaseTokenBalanceBefore = await alice.getBalance();
+        const l2BaseTokenBalanceBefore = await alice.getBalance(); // Base token balance on L2
 
         const gasPerPubdataByte = zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
         const isBaseToken = isETHBasedChain;
