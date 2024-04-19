@@ -7905,7 +7905,6 @@ dependencies = [
  "serde",
  "tracing",
  "vise",
- "vk_setup_data_generator_server_fri",
  "zksync_config",
  "zksync_object_store",
  "zksync_prover_fri_types",

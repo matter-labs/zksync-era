@@ -15,7 +15,9 @@ use zksync_config::{
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{basic_fri_types::AggregationRound, web3::futures::StreamExt};
+use zksync_types::{
+    basic_fri_types::AggregationRound, web3::futures::StreamExt, ProtocolVersionId,
+};
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
@@ -119,25 +121,23 @@ async fn main() -> anyhow::Result<()> {
         .context("failed to build a prover_connection_pool")?;
     let (stop_sender, stop_receiver) = watch::channel(false);
 
-    let vk_commitments = get_cached_commitments();
-    let protocol_versions = prover_connection_pool
+    let protocol_version = ProtocolVersionId::latest_prover();
+    let db_commitments = match prover_connection_pool
         .connection()
         .await
         .unwrap()
         .fri_protocol_versions_dal()
-        .protocol_versions_for(&vk_commitments)
-        .await;
-
-    // If `batch_size` is none, it means that the job is 'looping forever' (this is the usual setup in local network).
-    // At the same time, we're reading the `protocol_version` only once at startup - so if there is no protocol version
-    // read (this is often due to the fact, that the gateway was started too late, and it didn't put the updated protocol
-    // versions into the database) - then the job will simply 'hang forever' and not pick any tasks.
-    if opt.batch_size.is_none() && protocol_versions.is_empty() {
-        panic!(
-            "Could not find a protocol version for my commitments. Is gateway running?  Maybe you started this job before gateway updated the database? Commitments: {:?}",
-            vk_commitments
-        );
-    }
+        .vk_commitments_for(protocol_version)
+        .await
+    {
+        Some(commitments) => commitments,
+        None => {
+            panic!(
+                "Could not find commitments for a protocol version in database. Is gateway running?  Maybe you started this job before gateway updated the database? Protocol version: {:?}",
+                protocol_version
+            );
+        }
+    };
 
     let rounds = match (opt.round, opt.all_rounds) {
         (Some(round), false) => vec![round],
@@ -163,10 +163,10 @@ async fn main() -> anyhow::Result<()> {
 
     for (i, round) in rounds.iter().enumerate() {
         tracing::info!(
-            "initializing the {:?} witness generator, batch size: {:?} with protocol_versions: {:?}",
+            "initializing the {:?} witness generator, batch size: {:?} with protocol_version: {:?}",
             round,
             opt.batch_size,
-            &protocol_versions
+            &protocol_version
         );
 
         let prometheus_config = if use_push_gateway {
@@ -182,6 +182,13 @@ async fn main() -> anyhow::Result<()> {
 
         let witness_generator_task = match round {
             AggregationRound::BasicCircuits => {
+                let vk_commitments = get_cached_commitments();
+                assert_eq!(
+                    vk_commitments,
+                    db_commitments,
+                    "VK commitments didn't match commitments from DB for protocol version {protocol_version:?}. Cached commitments: {vk_commitments:?}, commitments in database: {db_commitments:?}"
+                );
+
                 let public_blob_store = match config.shall_save_to_public_bucket {
                     false => None,
                     true => Some(
@@ -199,7 +206,7 @@ async fn main() -> anyhow::Result<()> {
                     public_blob_store,
                     connection_pool.clone(),
                     prover_connection_pool.clone(),
-                    protocol_versions.clone(),
+                    protocol_version,
                 )
                 .await;
                 generator.run(stop_receiver.clone(), opt.batch_size)
@@ -209,7 +216,7 @@ async fn main() -> anyhow::Result<()> {
                     config.clone(),
                     &store_factory,
                     prover_connection_pool.clone(),
-                    protocol_versions.clone(),
+                    protocol_version,
                 )
                 .await;
                 generator.run(stop_receiver.clone(), opt.batch_size)
@@ -219,7 +226,7 @@ async fn main() -> anyhow::Result<()> {
                     config.clone(),
                     &store_factory,
                     prover_connection_pool.clone(),
-                    protocol_versions.clone(),
+                    protocol_version,
                 )
                 .await;
                 generator.run(stop_receiver.clone(), opt.batch_size)
@@ -229,7 +236,7 @@ async fn main() -> anyhow::Result<()> {
                     config.clone(),
                     &store_factory,
                     prover_connection_pool.clone(),
-                    protocol_versions.clone(),
+                    protocol_version,
                 )
                 .await;
                 generator.run(stop_receiver.clone(), opt.batch_size)

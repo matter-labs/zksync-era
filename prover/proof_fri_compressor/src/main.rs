@@ -2,7 +2,7 @@ use std::{env, time::Duration};
 
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
-use prover_dal::{ConnectionPool, Prover, ProverDal};
+use prover_dal::{ConnectionPool, Prover};
 use structopt::StructOpt;
 use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{FriProofCompressorConfig, ObservabilityConfig, PostgresConfig};
@@ -11,7 +11,6 @@ use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::ProtocolVersionId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
-use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
 use crate::{
     compressor::ProofCompressor, initial_setup_keys::download_initial_setup_keys_if_not_present,

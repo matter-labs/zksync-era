@@ -109,7 +109,7 @@ pub struct BasicWitnessGenerator {
     public_blob_store: Option<Arc<dyn ObjectStore>>,
     connection_pool: ConnectionPool<Core>,
     prover_connection_pool: ConnectionPool<Prover>,
-    protocol_versions: Vec<ProtocolVersionId>,
+    protocol_version: ProtocolVersionId,
 }
 
 impl BasicWitnessGenerator {
@@ -119,7 +119,7 @@ impl BasicWitnessGenerator {
         public_blob_store: Option<Arc<dyn ObjectStore>>,
         connection_pool: ConnectionPool<Core>,
         prover_connection_pool: ConnectionPool<Prover>,
-        protocol_versions: Vec<ProtocolVersionId>,
+        protocol_version: ProtocolVersionId,
     ) -> Self {
         Self {
             config: Arc::new(config),
@@ -127,7 +127,7 @@ impl BasicWitnessGenerator {
             public_blob_store,
             connection_pool,
             prover_connection_pool,
-            protocol_versions,
+            protocol_version,
         }
     }
 
@@ -215,7 +215,7 @@ impl JobProcessor for BasicWitnessGenerator {
             .fri_witness_generator_dal()
             .get_next_basic_circuit_witness_job(
                 last_l1_batch_to_process,
-                &self.protocol_versions,
+                self.protocol_version,
                 &pod_name,
             )
             .await
