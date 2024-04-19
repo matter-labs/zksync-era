@@ -54,13 +54,11 @@ impl AsyncRocksdbCache {
     pub fn new(
         pool: ConnectionPool<Core>,
         state_keeper_db_path: String,
-        enum_index_migration_chunk_size: usize,
     ) -> (Self, AsyncCatchupTask) {
         let rocksdb_cell = Arc::new(OnceCell::new());
         let task = AsyncCatchupTask::new(
             pool.clone(),
             state_keeper_db_path,
-            enum_index_migration_chunk_size,
             rocksdb_cell.clone(),
             None,
         );

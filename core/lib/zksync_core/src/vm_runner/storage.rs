@@ -100,7 +100,6 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
         pool: ConnectionPool<Core>,
         rocksdb_path: String,
         loader: L,
-        enum_index_migration_chunk_size: usize, // TODO: Remove
         chain_id: L2ChainId,
     ) -> anyhow::Result<(Self, StorageSyncTask<L>)> {
         let mut conn = pool.connection_tagged(L::name()).await?;
@@ -113,15 +112,9 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
             l1_batch_number: L1BatchNumber(0),
             storage: BTreeMap::new(),
         }));
-        let task = StorageSyncTask::new(
-            pool.clone(),
-            chain_id,
-            rocksdb_path,
-            enum_index_migration_chunk_size,
-            loader,
-            state.clone(),
-        )
-        .await?;
+        let task =
+            StorageSyncTask::new(pool.clone(), chain_id, rocksdb_path, loader, state.clone())
+                .await?;
         Ok((
             Self {
                 pool,
@@ -247,7 +240,6 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
         pool: ConnectionPool<Core>,
         chain_id: L2ChainId,
         rocksdb_path: String,
-        enum_index_migration_chunk_size: usize,
         loader: L,
         state: Arc<RwLock<State>>,
     ) -> anyhow::Result<Self> {
@@ -259,7 +251,6 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
         let catchup_task = AsyncCatchupTask::new(
             pool.clone(),
             rocksdb_path,
-            enum_index_migration_chunk_size,
             rocksdb_cell.clone(),
             Some(loader.latest_processed_batch(&mut conn).await?),
         );
