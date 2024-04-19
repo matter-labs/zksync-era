@@ -43,15 +43,17 @@ describe('ETH token checks', () => {
         const amount = 1; // 1 wei is enough.
         const gasPrice = scaledGasPrice(alice);
 
+        // Used only for base token implementation
+        const l2EthTokenAddress = await alice.l2TokenAddress(zksync.utils.ETH_ADDRESS_IN_CONTRACTS);
+
         // Unfortunately, since fee is taken in ETH, we must calculate the L1 ETH balance diff explicitly.
         const l1EthBalanceBefore = await alice.getBalanceL1();
-        const l2ethBalanceChange = await shouldChangeETHBalances([{ wallet: alice, change: amount }], {
-            l1ToL2: true
-        });
+        const l2ethBalanceChange = isETHBasedChain
+            ? await shouldChangeETHBalances([{ wallet: alice, change: amount }], {
+                  l1ToL2: true
+              })
+            : await shouldChangeTokenBalances(l2EthTokenAddress, [{ wallet: alice, change: amount }]);
 
-        // Variables used only for base token checks
-        const l2EthTokenAddress = await alice.l2TokenAddress(zksync.utils.ETH_ADDRESS_IN_CONTRACTS);
-        const l2EthBalanceBefore = await alice.getBalance(l2EthTokenAddress);
         const l1BaseTokenBalanceBefore = await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR!);
         const l2BaseTokenBalanceBefore = await alice.getBalance();
 
@@ -88,7 +90,7 @@ describe('ETH token checks', () => {
                 gasPrice
             }
         });
-        await expect(depositOp).toBeAccepted(isETHBasedChain ? [l2ethBalanceChange] : []);
+        await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
 
         const depositFee = await depositOp
             .then((op) => op.waitL1Commit())
@@ -105,9 +107,6 @@ describe('ETH token checks', () => {
             expect(l1EthBalanceBefore.sub(depositFee).sub(l1EthBalanceAfter)).bnToBeEq(amount);
         } else {
             // Base token checks
-            const l2EthBalanceAfter = await alice.getBalance(l2EthTokenAddress);
-            expect(l2EthBalanceBefore).bnToBeEq(l2EthBalanceAfter.sub(amount));
-
             const l1BaseTokenBalanceAfter = await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR!);
             expect(l1BaseTokenBalanceBefore).bnToBeEq(l1BaseTokenBalanceAfter.add(expectedL2Costs));
 
