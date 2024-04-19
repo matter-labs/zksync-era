@@ -31,18 +31,6 @@ bitflags! {
     }
 }
 
-/// Flag determining whether the reverter is allowed to revert the state
-/// past the last batch finalized on L1. If this flag is set to `Disallowed`,
-/// block reverter will error upon such an attempt.
-///
-/// Main use case for the `Allowed` flag is the external node, where may obtain an
-/// incorrect state even for a block that was marked as executed. On the EN, this mode is not destructive.
-#[derive(Debug)]
-pub enum L1ExecutedBatchesRevert {
-    Allowed,
-    Disallowed,
-}
-
 #[derive(Debug)]
 pub struct BlockReverterEthConfig {
     eth_client_url: String,
@@ -95,10 +83,11 @@ pub enum NodeRole {
 /// It is also used to automatically perform a rollback on the external node
 /// after it is detected on the main node.
 ///
-/// There are a few state components that we can roll back
+/// There are a few state components that we can roll back:
+///
 /// - State of the Postgres database
-/// - State of the merkle tree
-/// - State of the state_keeper cache
+/// - State of the Merkle tree
+/// - State of the state keeper cache
 /// - State of the Ethereum contract (if the block was committed)
 #[derive(Debug)]
 pub struct BlockReverter {
@@ -107,9 +96,8 @@ pub struct BlockReverter {
     node_role: NodeRole,
     state_keeper_cache_path: String,
     merkle_tree_path: String,
-    eth_config: Option<BlockReverterEthConfig>,
     connection_pool: ConnectionPool<Core>,
-    executed_batches_revert_mode: L1ExecutedBatchesRevert,
+    allow_reverting_executed_batches: bool,
 }
 
 impl BlockReverter {
@@ -117,18 +105,24 @@ impl BlockReverter {
         node_role: NodeRole,
         state_keeper_cache_path: String,
         merkle_tree_path: String,
-        eth_config: Option<BlockReverterEthConfig>,
         connection_pool: ConnectionPool<Core>,
-        executed_batches_revert_mode: L1ExecutedBatchesRevert,
     ) -> Self {
         Self {
             node_role,
             state_keeper_cache_path,
             merkle_tree_path,
-            eth_config,
             connection_pool,
-            executed_batches_revert_mode,
+            allow_reverting_executed_batches: false,
         }
+    }
+
+    /// Allows reverting the state past the last batch finalized on L1. If this is disallowed (which is the default),
+    /// block reverter will error upon such an attempt.
+    ///
+    /// Main use case for the setting this flag is the external node, where may obtain an
+    /// incorrect state even for a block that was marked as executed. On the EN, this mode is not destructive.
+    pub fn allow_reverting_executed_batches(&mut self) {
+        self.allow_reverting_executed_batches = true;
     }
 
     /// Rolls back DBs (Postgres + RocksDB) to a previous state.
@@ -141,11 +135,8 @@ impl BlockReverter {
         let rollback_postgres = flags.contains(BlockReverterFlags::POSTGRES);
         let rollback_sk_cache = flags.contains(BlockReverterFlags::SK_CACHE);
 
-        if matches!(
-            self.executed_batches_revert_mode,
-            L1ExecutedBatchesRevert::Disallowed
-        ) {
-            let mut storage = self.connection_pool.connection().await.unwrap();
+        if !self.allow_reverting_executed_batches {
+            let mut storage = self.connection_pool.connection().await?;
             let last_executed_l1_batch = storage
                 .blocks_dal()
                 .get_number_of_last_l1_batch_executed_on_eth()
@@ -363,15 +354,11 @@ impl BlockReverter {
     /// Sends a revert transaction to L1.
     pub async fn send_ethereum_revert_transaction(
         &self,
+        eth_config: &BlockReverterEthConfig,
         last_l1_batch_to_keep: L1BatchNumber,
         priority_fee_per_gas: U256,
         nonce: u64,
     ) -> anyhow::Result<()> {
-        let eth_config = self
-            .eth_config
-            .as_ref()
-            .context("eth_config is not provided")?;
-
         let web3 =
             Web3::new(Http::new(&eth_config.eth_client_url).context("cannot create L1 client")?);
         let contract = zksync_contract();
@@ -395,7 +382,7 @@ impl BlockReverter {
             )?;
         let data = revert_function
             .encode_input(&[Token::Uint(last_l1_batch_to_keep.0.into())])
-            .unwrap();
+            .context("failed encoding revert function input")?;
 
         let base_fee = web3
             .eth()
@@ -487,11 +474,10 @@ impl BlockReverter {
     }
 
     /// Returns suggested values for rollback.
-    pub async fn suggested_values(&self) -> anyhow::Result<SuggestedRollbackValues> {
-        let eth_config = self
-            .eth_config
-            .as_ref()
-            .context("eth_config is not provided")?;
+    pub async fn suggested_values(
+        &self,
+        eth_config: &BlockReverterEthConfig,
+    ) -> anyhow::Result<SuggestedRollbackValues> {
         let web3 =
             Web3::new(Http::new(&eth_config.eth_client_url).context("cannot create L1 client")?);
         let contract_address = eth_config.diamond_proxy_addr;
@@ -542,13 +528,6 @@ impl BlockReverter {
             .clear_failed_transactions()
             .await?;
         Ok(())
-    }
-
-    pub fn change_rollback_executed_l1_batches_allowance(
-        &mut self,
-        revert_executed_batches: L1ExecutedBatchesRevert,
-    ) {
-        self.executed_batches_revert_mode = revert_executed_batches
     }
 }
 

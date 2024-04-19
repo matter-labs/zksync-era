@@ -8,7 +8,7 @@ use tokio::{
     sync::{oneshot, watch, RwLock},
     task::{self, JoinHandle},
 };
-use zksync_block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole};
+use zksync_block_reverter::{BlockReverter, BlockReverterFlags, NodeRole};
 use zksync_commitment_generator::CommitmentGenerator;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{
@@ -934,14 +934,14 @@ async fn run_node(
     let sigint_receiver = env.setup_sigint_handler();
 
     // Revert the storage if needed.
-    let reverter = BlockReverter::new(
+    let mut reverter = BlockReverter::new(
         NodeRole::External,
         config.required.state_cache_path.clone(),
         config.required.merkle_tree_path.clone(),
-        None,
         connection_pool.clone(),
-        L1ExecutedBatchesRevert::Allowed,
     );
+    // Reverting executed batches is more-or-less safe for external nodes.
+    reverter.allow_reverting_executed_batches();
 
     let mut reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
     // We're checking for the reorg in the beginning because we expect that if reorg is detected during

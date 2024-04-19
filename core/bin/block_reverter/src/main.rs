@@ -1,9 +1,7 @@
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
-use zksync_block_reverter::{
-    BlockReverter, BlockReverterEthConfig, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole,
-};
+use zksync_block_reverter::{BlockReverter, BlockReverterEthConfig, BlockReverterFlags, NodeRole};
 use zksync_config::{
     configs::ObservabilityConfig, ContractsConfig, DBConfig, EthConfig, PostgresConfig,
 };
@@ -121,14 +119,12 @@ async fn main() -> anyhow::Result<()> {
         NodeRole::Main,
         db_config.state_keeper_db_path,
         db_config.merkle_tree.path,
-        Some(config),
         connection_pool,
-        L1ExecutedBatchesRevert::Disallowed,
     );
 
     match command {
         Command::Display { json, .. } => {
-            let suggested_values = block_reverter.suggested_values().await?;
+            let suggested_values = block_reverter.suggested_values(&config).await?;
             if json {
                 println!("{}", serde_json::to_string(&suggested_values)?);
             } else {
@@ -144,6 +140,7 @@ async fn main() -> anyhow::Result<()> {
                 priority_fee_per_gas.map_or(default_priority_fee_per_gas, U256::from);
             block_reverter
                 .send_ethereum_revert_transaction(
+                    &config,
                     L1BatchNumber(l1_batch_number),
                     priority_fee_per_gas,
                     nonce,
@@ -182,9 +179,7 @@ async fn main() -> anyhow::Result<()> {
                 if input[0] != b'y' && input[0] != b'Y' {
                     std::process::exit(0);
                 }
-                block_reverter.change_rollback_executed_l1_batches_allowance(
-                    L1ExecutedBatchesRevert::Allowed,
-                );
+                block_reverter.allow_reverting_executed_batches();
             }
 
             let mut flags = BlockReverterFlags::empty();
