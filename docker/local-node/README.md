@@ -3,7 +3,7 @@
 This docker container is used for 'local-node' - the fast way to bring up the fully working system (similar to what you
 get by running `zk init`).
 
-You can find more instructions (and docker compose files) in [https://github.com/matter-labs/local-setup]
+You can find more instructions (and docker compose files) [here](https://github.com/matter-labs/local-setup)
 
 This directory is more focused on 'creating' the image rather than using it.
 

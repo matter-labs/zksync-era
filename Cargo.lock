@@ -8742,6 +8742,7 @@ dependencies = [
 name = "zksync_merkle_tree"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "assert_matches",
  "clap 4.4.6",
  "insta",
@@ -9035,6 +9036,7 @@ name = "zksync_types"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bincode",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono",
  "derive_more 1.0.0-beta.6",
