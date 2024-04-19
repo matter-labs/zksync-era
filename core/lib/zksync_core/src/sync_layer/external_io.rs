@@ -6,7 +6,7 @@ use vm_utils::storage::L1BatchParamsProvider;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
-    protocol_upgrade::ProtocolUpgradeTx, L1BatchNumber, L2ChainId, MiniblockNumber,
+    protocol_upgrade::ProtocolUpgradeTx, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersionId, Transaction, H256,
 };
 use zksync_utils::bytes_to_be_words;
@@ -18,7 +18,7 @@ use super::{
 use crate::state_keeper::{
     io::{
         common::{load_pending_batch, IoCursor},
-        L1BatchParams, MiniblockParams, PendingBatchData, StateKeeperIO,
+        L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
     },
     metrics::KEEPER_METRICS,
     seal_criteria::IoSealCriteria,
@@ -65,7 +65,7 @@ impl ExternalIO {
     async fn get_base_system_contract(
         &self,
         hash: H256,
-        current_miniblock_number: MiniblockNumber,
+        current_miniblock_number: L2BlockNumber,
     ) -> anyhow::Result<SystemContractCode> {
         let bytecode = self
             .pool
@@ -119,7 +119,7 @@ impl IoSealCriteria for ExternalIO {
         true
     }
 
-    fn should_seal_miniblock(&mut self, _manager: &UpdatesManager) -> bool {
+    fn should_seal_l2_block(&mut self, _manager: &UpdatesManager) -> bool {
         if !matches!(self.actions.peek_action(), Some(SyncAction::SealMiniblock)) {
             return false;
         }
@@ -140,12 +140,12 @@ impl StateKeeperIO for ExternalIO {
         tracing::info!(
             "Initialized the ExternalIO: current L1 batch number {}, current miniblock number {}",
             cursor.l1_batch,
-            cursor.next_miniblock,
+            cursor.next_l2_block,
         );
 
         let pending_miniblock_header = self
             .l1_batch_params_provider
-            .load_first_miniblock_in_batch(&mut storage, cursor.l1_batch)
+            .load_first_l2_block_in_batch(&mut storage, cursor.l1_batch)
             .await
             .with_context(|| {
                 format!(
@@ -179,7 +179,7 @@ impl StateKeeperIO for ExternalIO {
             storage = self.pool.connection_tagged("sync_layer").await?;
             storage
                 .blocks_dal()
-                .set_protocol_version_for_pending_miniblocks(protocol_version)
+                .set_protocol_version_for_pending_l2_blocks(protocol_version)
                 .await
                 .context("failed setting protocol version for pending miniblocks")?;
             pending_miniblock_header.set_protocol_version(protocol_version);
@@ -232,9 +232,9 @@ impl StateKeeperIO for ExternalIO {
                     cursor.l1_batch
                 );
                 anyhow::ensure!(
-                    first_miniblock_number == cursor.next_miniblock,
+                    first_miniblock_number == cursor.next_l2_block,
                     "Miniblock number mismatch: expected {}, got {first_miniblock_number}",
-                    cursor.next_miniblock
+                    cursor.next_l2_block
                 );
                 return Ok(Some(params));
             }
@@ -244,11 +244,11 @@ impl StateKeeperIO for ExternalIO {
         }
     }
 
-    async fn wait_for_new_miniblock_params(
+    async fn wait_for_new_l2_block_params(
         &mut self,
         cursor: &IoCursor,
         max_wait: Duration,
-    ) -> anyhow::Result<Option<MiniblockParams>> {
+    ) -> anyhow::Result<Option<L2BlockParams>> {
         // Wait for the next miniblock to appear in the queue.
         let Some(action) = self.actions.recv_action(max_wait).await else {
             return Ok(None);
@@ -256,9 +256,9 @@ impl StateKeeperIO for ExternalIO {
         match action {
             SyncAction::Miniblock { params, number } => {
                 anyhow::ensure!(
-                    number == cursor.next_miniblock,
+                    number == cursor.next_l2_block,
                     "Miniblock number mismatch: expected {}, got {number}",
-                    cursor.next_miniblock
+                    cursor.next_l2_block
                 );
                 return Ok(Some(params));
             }
@@ -358,11 +358,11 @@ impl StateKeeperIO for ExternalIO {
             default_aa,
         } = protocol_version.base_system_contracts;
         let bootloader = self
-            .get_base_system_contract(bootloader, cursor.next_miniblock)
+            .get_base_system_contract(bootloader, cursor.next_l2_block)
             .await
             .with_context(|| format!("cannot fetch bootloader code for {protocol_version:?}"))?;
         let default_aa = self
-            .get_base_system_contract(default_aa, cursor.next_miniblock)
+            .get_base_system_contract(default_aa, cursor.next_l2_block)
             .await
             .with_context(|| format!("cannot fetch default AA code for {protocol_version:?}"))?;
         Ok(BaseSystemContracts {

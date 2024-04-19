@@ -624,7 +624,7 @@ async fn generate_witness(
     // Probably, we should make it work with L1 batch numbers too.
     let (_, last_miniblock_number) = connection
         .blocks_dal()
-        .get_miniblock_range_of_l1_batch(input.block_number - 1)
+        .get_l2_block_range_of_l1_batch(input.block_number - 1)
         .await
         .unwrap()
         .expect("L1 batch should contain at least one miniblock");

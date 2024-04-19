@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use zksync_types::{MiniblockNumber, H256};
+use zksync_types::{L2BlockNumber, H256};
 use zksync_utils::concat_and_hash;
 
 use crate::{
@@ -45,7 +45,7 @@ impl BootloaderL2Block {
 
     pub(crate) fn get_hash(&self) -> H256 {
         l2_block_hash(
-            MiniblockNumber(self.number),
+            L2BlockNumber(self.number),
             self.timestamp,
             self.prev_block_hash,
             self.txs_rolling_hash,

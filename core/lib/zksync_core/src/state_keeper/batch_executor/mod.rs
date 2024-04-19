@@ -113,16 +113,16 @@ impl BatchExecutorHandle {
         res
     }
 
-    pub(super) async fn start_next_miniblock(&self, miniblock_info: L2BlockEnv) {
+    pub(super) async fn start_next_l2_block(&self, env: L2BlockEnv) {
         // While we don't get anything from the channel, it's useful to have it as a confirmation that the operation
         // indeed has been processed.
         let (response_sender, response_receiver) = oneshot::channel();
         self.commands
-            .send(Command::StartNextMiniblock(miniblock_info, response_sender))
+            .send(Command::StartNextL2Block(env, response_sender))
             .await
             .unwrap();
         let latency = EXECUTOR_METRICS.batch_executor_command_response_time
-            [&ExecutorCommand::StartNextMiniblock]
+            [&ExecutorCommand::StartNextL2Block]
             .start();
         response_receiver.await.unwrap();
         latency.observe();
@@ -162,7 +162,7 @@ impl BatchExecutorHandle {
 #[derive(Debug)]
 pub(super) enum Command {
     ExecuteTx(Box<Transaction>, oneshot::Sender<TxExecutionResult>),
-    StartNextMiniblock(L2BlockEnv, oneshot::Sender<()>),
+    StartNextL2Block(L2BlockEnv, oneshot::Sender<()>),
     RollbackLastTx(oneshot::Sender<()>),
     FinishBatch(oneshot::Sender<FinishedL1Batch>),
 }
