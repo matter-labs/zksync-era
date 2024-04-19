@@ -206,20 +206,6 @@ command
             await deploySharedBridgeL2Implementation();
         } else if (options.phase3) {
             await hyperchainUpgrade3();
-        } else if (options.getDiamondUpgradeBatchNumberForEthWithdrawals) {
-            // What we care about for withdrawals is the executed batch number at the moment of the diamond upgrade,
-            // since we are storing isWithdrawalFinalized flag, for some valid executed txs.
-            // this is printed out as part of the execute upgrade script for local testing
-            // for the mainnet upgrade we will have to manually check executedBatchNumber after the upgrade, since governance is signing the txs
-        } else if (options.getErc20BridgeUpgradeBatchNumberForTokenWithdrawals) {
-            // this is the first batchNumber after the L1ERC20Bridge has been upgraded
-            // What we care about for withdrawals is the executed batch number, since we are storing isWithdrawalFinalized flag, for some valid executed txs.
-            // this is printed out as part of the phase 2 script for local testing
-            // for the mainnet upgrade we will have to manually check the priority queue at the given block, since governance is signing the txs
-        } else if (options.getLastDepositBatchNumberForFailedDeposits) {
-            // this is the batch number that the last deposit is processed in ( this is tied to a tx, so commit vs executed is not relevant)
-            // we will print the priority tx queue id as part of phase 2 script for local testing, and we can use that to find the batch number
-            // for the mainnet upgrade we will have to manually check the priority queue at the given block, since governance is signing the txs
         } else if (options.fullStart) {
             await hyperchainFullUpgrade();
         } else if (options.postPropose) {
@@ -233,5 +219,23 @@ command
             await spawn(
                 `zk f yarn workspace protocol-upgrade-tool start transactions execute-upgrade --zksync-address ${process.env.CONTRACTS_DIAMOND_PROXY_ADDR} --new-governance ${process.env.CONTRACTS_GOVERNANCE_ADDR}`
             );
+            // note we have to set 3 variables manually
+
+            // setEraPostDiamondUpgradeFirstBatch
+            // What we care about for withdrawals is the executed batch number at the moment of the diamond upgrade,
+            // since we are storing isWithdrawalFinalized flag, for some valid executed txs.
+            // this is printed out as part of the execute upgrade script for local testing
+            // for the mainnet upgrade we will have to manually check executedBatchNumber after the upgrade, since governance is signing the txs
+
+            // setEraPostLegacyBridgeUpgradeFirstBatch
+            // this is the first batchNumber after the L1ERC20Bridge has been upgraded
+            // What we care about for withdrawals is the executed batch number, since we are storing isWithdrawalFinalized flag, for some valid executed txs.
+            // this is printed out as part of the phase 2 script for local testing
+
+            // setEraLegacyBridgeLastDepositTime
+            // for the mainnet upgrade we will have to manually check the priority queue at the given block, since governance is signing the txs
+            // this is the batch number that the last deposit is processed in ( this is tied to a tx, so commit vs executed is not relevant)
+            // we will print the priority tx queue id as part of phase 2 script for local testing, and we can use that to find the batch number
+            // for the mainnet upgrade we will have to manually check the priority queue at the given block, since governance is signing the txs
         }
     });
