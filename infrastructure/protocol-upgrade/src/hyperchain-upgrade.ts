@@ -118,7 +118,7 @@ async function deploySharedBridgeL2Implementation() {
     const cwd = process.cwd();
     process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/`);
 
-    await spawn(`yarn deploy-shared-bridge-l2-implementation  | tee deployL1.log`);
+    await spawn(`yarn deploy-shared-bridge-l2-implementation | tee deployL1.log`);
     process.chdir(cwd);
 
     const deployLog = fs.readFileSync(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/deployL1.log`).toString();
