@@ -9,8 +9,7 @@ use tokio::runtime::Handle;
 use zksync_dal::{pruning_dal::PruningInfo, Connection, Core, CoreDal, DalError};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
-    api, fee_model::BatchFeeInput, AccountTreeId, Address, L1BatchNumber, L2ChainId,
-    MiniblockNumber,
+    api, fee_model::BatchFeeInput, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
 };
 
 use self::vm_metrics::SandboxStage;
@@ -153,7 +152,7 @@ impl VmConcurrencyLimiter {
 
 async fn get_pending_state(
     connection: &mut Connection<'_, Core>,
-) -> anyhow::Result<(api::BlockId, MiniblockNumber)> {
+) -> anyhow::Result<(api::BlockId, L2BlockNumber)> {
     let block_id = api::BlockId::Number(api::BlockNumber::Pending);
     let resolved_block_number = connection
         .blocks_web3_dal()
@@ -279,13 +278,13 @@ impl BlockStartInfo {
     pub async fn first_miniblock(
         &self,
         storage: &mut Connection<'_, Core>,
-    ) -> anyhow::Result<MiniblockNumber> {
+    ) -> anyhow::Result<L2BlockNumber> {
         let cached_pruning_info = self.get_pruning_info(storage).await?;
-        let last_block = cached_pruning_info.last_soft_pruned_miniblock;
-        if let Some(MiniblockNumber(last_block)) = last_block {
-            return Ok(MiniblockNumber(last_block + 1));
+        let last_block = cached_pruning_info.last_soft_pruned_l2_block;
+        if let Some(L2BlockNumber(last_block)) = last_block {
+            return Ok(L2BlockNumber(last_block + 1));
         }
-        Ok(MiniblockNumber(0))
+        Ok(L2BlockNumber(0))
     }
 
     pub async fn first_l1_batch(
@@ -318,7 +317,7 @@ impl BlockStartInfo {
                 Err(BlockArgsError::Pruned(first_miniblock))
             }
             api::BlockId::Number(api::BlockNumber::Earliest)
-                if first_miniblock > MiniblockNumber(0) =>
+                if first_miniblock > L2BlockNumber(0) =>
             {
                 Err(BlockArgsError::Pruned(first_miniblock))
             }
@@ -330,7 +329,7 @@ impl BlockStartInfo {
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum BlockArgsError {
     #[error("Block is pruned; first retained block is {0}")]
-    Pruned(MiniblockNumber),
+    Pruned(L2BlockNumber),
     #[error("Block is missing, but can appear in the future")]
     Missing,
     #[error("Database error")]
@@ -341,7 +340,7 @@ pub(crate) enum BlockArgsError {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct BlockArgs {
     block_id: api::BlockId,
-    resolved_block_number: MiniblockNumber,
+    resolved_block_number: L2BlockNumber,
     l1_batch_timestamp_s: Option<u64>,
 }
 
@@ -383,7 +382,7 @@ impl BlockArgs {
 
         let l1_batch = connection
             .storage_web3_dal()
-            .resolve_l1_batch_number_of_miniblock(resolved_block_number)
+            .resolve_l1_batch_number_of_l2_block(resolved_block_number)
             .await
             .with_context(|| {
                 format!("failed resolving L1 batch number of miniblock #{resolved_block_number}")
@@ -401,7 +400,7 @@ impl BlockArgs {
         })
     }
 
-    pub fn resolved_block_number(&self) -> MiniblockNumber {
+    pub fn resolved_block_number(&self) -> L2BlockNumber {
         self.resolved_block_number
     }
 

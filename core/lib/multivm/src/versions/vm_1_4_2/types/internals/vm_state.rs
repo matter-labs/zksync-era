@@ -12,7 +12,7 @@ use zk_evm_1_4_1::{
 };
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::BOOTLOADER_ADDRESS;
-use zksync_types::{block::MiniblockHasher, Address, MiniblockNumber};
+use zksync_types::{block::L2BlockHasher, Address, L2BlockNumber};
 use zksync_utils::h256_to_u256;
 
 use crate::{
@@ -71,9 +71,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         L2Block {
             number: l1_batch_env.first_l2_block.number.saturating_sub(1),
             timestamp: 0,
-            hash: MiniblockHasher::legacy_hash(
-                MiniblockNumber(l1_batch_env.first_l2_block.number) - 1,
-            ),
+            hash: L2BlockHasher::legacy_hash(L2BlockNumber(l1_batch_env.first_l2_block.number) - 1),
         }
     };
 

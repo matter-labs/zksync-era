@@ -6,11 +6,11 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_types::{
-    block::{BlockGasCount, MiniblockHasher},
+    block::{BlockGasCount, L2BlockHasher},
     fee::TransactionExecutionMetrics,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     tx::ExecutionMetrics,
-    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersion,
+    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
     ProtocolVersionId, StorageKey, VmEvent, H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
@@ -21,7 +21,7 @@ use crate::{
         io::StateKeeperIO,
         mempool_actor::l2_tx_filter,
         tests::{create_execution_result, create_transaction, Query, BASE_SYSTEM_CONTRACTS},
-        updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
+        updates::{L2BlockSealCommand, L2BlockUpdates, UpdatesManager},
         StateKeeperOutputHandler, StateKeeperPersistence,
     },
     utils::testonly::{prepare_recovery_snapshot, DeploymentMode},
@@ -55,13 +55,13 @@ async fn test_filter_with_pending_batch(deployment_mode: DeploymentMode) {
     // These gas values are random and don't matter for filter calculation as there will be a
     // pending batch the filter will be based off of.
     let tx_result = tester
-        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
+        .insert_l2_block(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
     tester
         .insert_sealed_batch(&connection_pool, 1, &[tx_result])
         .await;
 
-    // Inserting a pending miniblock that isn't included in a sealed batch means there is a pending batch.
+    // Inserting a pending L2 block that isn't included in a sealed batch means there is a pending batch.
     // The gas values are randomly chosen but so affect filter values calculation.
 
     let fee_input = BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
@@ -71,7 +71,7 @@ async fn test_filter_with_pending_batch(deployment_mode: DeploymentMode) {
     });
     tester.set_timestamp(2);
     tester
-        .insert_miniblock(&connection_pool, 2, 10, fee_input)
+        .insert_l2_block(&connection_pool, 2, 10, fee_input)
         .await;
 
     let (mut mempool, _) = tester.create_test_mempool_io(connection_pool).await;
@@ -100,7 +100,7 @@ async fn test_filter_with_no_pending_batch(deployment_mode: DeploymentMode) {
     // Insert a sealed batch so there will be a `prev_l1_batch_state_root`.
     // These gas values are random and don't matter for filter calculation.
     let tx_result = tester
-        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
+        .insert_l2_block(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
     tester
         .insert_sealed_batch(&connection_pool, 1, &[tx_result])
@@ -136,18 +136,18 @@ async fn test_filter_with_no_pending_batch(deployment_mode: DeploymentMode) {
 
 async fn test_timestamps_are_distinct(
     connection_pool: ConnectionPool<Core>,
-    prev_miniblock_timestamp: u64,
-    delay_prev_miniblock_compared_to_batch: bool,
+    prev_l2_block_timestamp: u64,
+    delay_prev_l2_block_compared_to_batch: bool,
     mut tester: Tester,
 ) {
     tester.genesis(&connection_pool).await;
 
-    tester.set_timestamp(prev_miniblock_timestamp);
+    tester.set_timestamp(prev_l2_block_timestamp);
     let tx_result = tester
-        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
+        .insert_l2_block(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
-    if delay_prev_miniblock_compared_to_batch {
-        tester.set_timestamp(prev_miniblock_timestamp - 1);
+    if delay_prev_l2_block_compared_to_batch {
+        tester.set_timestamp(prev_l2_block_timestamp - 1);
     }
     tester
         .insert_sealed_batch(&connection_pool, 1, &[tx_result])
@@ -168,7 +168,7 @@ async fn test_timestamps_are_distinct(
         .await
         .unwrap()
         .expect("No batch params in the test mempool");
-    assert!(l1_batch_params.first_miniblock.timestamp > prev_miniblock_timestamp);
+    assert!(l1_batch_params.first_l2_block.timestamp > prev_l2_block_timestamp);
 }
 
 #[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
@@ -191,7 +191,7 @@ async fn l1_batch_timestamp_with_clock_skew(deployment_mode: DeploymentMode) {
 
 #[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn l1_batch_timestamp_respects_prev_miniblock(deployment_mode: DeploymentMode) {
+async fn l1_batch_timestamp_respects_prev_l2_block(deployment_mode: DeploymentMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tester = Tester::new(&deployment_mode);
     let current_timestamp = seconds_since_epoch();
@@ -200,7 +200,7 @@ async fn l1_batch_timestamp_respects_prev_miniblock(deployment_mode: DeploymentM
 
 #[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn l1_batch_timestamp_respects_prev_miniblock_with_clock_skew(
+async fn l1_batch_timestamp_respects_prev_l2_block_with_clock_skew(
     deployment_mode: DeploymentMode,
 ) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -210,11 +210,11 @@ async fn l1_batch_timestamp_respects_prev_miniblock_with_clock_skew(
 }
 
 #[tokio::test]
-async fn processing_storage_logs_when_sealing_miniblock() {
+async fn processing_storage_logs_when_sealing_l2_block() {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let mut miniblock = MiniblockUpdates::new(
+    let mut l2_block = L2BlockUpdates::new(
         0,
-        MiniblockNumber(3),
+        L2BlockNumber(3),
         H256::zero(),
         1,
         ProtocolVersionId::latest(),
@@ -234,7 +234,7 @@ async fn processing_storage_logs_when_sealing_miniblock() {
         ),
     ];
     let execution_result = create_execution_result(0, storage_logs);
-    miniblock.extend_from_executed_transaction(
+    l2_block.extend_from_executed_transaction(
         tx,
         execution_result,
         BlockGasCount::default(),
@@ -252,7 +252,7 @@ async fn processing_storage_logs_when_sealing_miniblock() {
         ),
     ];
     let execution_result = create_execution_result(1, storage_logs);
-    miniblock.extend_from_executed_transaction(
+    l2_block.extend_from_executed_transaction(
         tx,
         execution_result,
         BlockGasCount::default(),
@@ -262,9 +262,9 @@ async fn processing_storage_logs_when_sealing_miniblock() {
     );
 
     let l1_batch_number = L1BatchNumber(2);
-    let seal_command = MiniblockSealCommand {
+    let seal_command = L2BlockSealCommand {
         l1_batch_number,
-        miniblock,
+        l2_block,
         first_tx_index: 0,
         fee_account_address: Address::repeat_byte(0x23),
         fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
@@ -285,9 +285,9 @@ async fn processing_storage_logs_when_sealing_miniblock() {
         .unwrap();
     seal_command.seal(&mut conn).await.unwrap();
 
-    // Manually mark the miniblock as executed so that getting touched slots from it works
+    // Manually mark the L2 block as executed so that getting touched slots from it works
     conn.blocks_dal()
-        .mark_miniblocks_as_executed_in_l1_batch(l1_batch_number)
+        .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
         .await
         .unwrap();
     let touched_slots = conn
@@ -313,12 +313,12 @@ async fn processing_storage_logs_when_sealing_miniblock() {
 }
 
 #[tokio::test]
-async fn processing_events_when_sealing_miniblock() {
+async fn processing_events_when_sealing_l2_block() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let l1_batch_number = L1BatchNumber(2);
-    let mut miniblock = MiniblockUpdates::new(
+    let mut l2_block = L2BlockUpdates::new(
         0,
-        MiniblockNumber(3),
+        L2BlockNumber(3),
         H256::zero(),
         1,
         ProtocolVersionId::latest(),
@@ -335,7 +335,7 @@ async fn processing_events_when_sealing_miniblock() {
         let tx = create_transaction(10, 100);
         let mut execution_result = create_execution_result(i as u16, []);
         execution_result.logs.events = events_chunk.to_vec();
-        miniblock.extend_from_executed_transaction(
+        l2_block.extend_from_executed_transaction(
             tx,
             execution_result,
             BlockGasCount::default(),
@@ -345,9 +345,9 @@ async fn processing_events_when_sealing_miniblock() {
         );
     }
 
-    let seal_command = MiniblockSealCommand {
+    let seal_command = L2BlockSealCommand {
         l1_batch_number,
-        miniblock,
+        l2_block,
         first_tx_index: 0,
         fee_account_address: Address::repeat_byte(0x23),
         fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
@@ -370,7 +370,7 @@ async fn processing_events_when_sealing_miniblock() {
 
     let logs = conn
         .events_web3_dal()
-        .get_all_logs(seal_command.miniblock.number - 1)
+        .get_all_logs(seal_command.l2_block.number - 1)
         .await
         .unwrap();
 
@@ -383,20 +383,17 @@ async fn processing_events_when_sealing_miniblock() {
 
 #[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn miniblock_processing_after_snapshot_recovery(deployment_mode: DeploymentMode) {
+async fn l2_block_processing_after_snapshot_recovery(deployment_mode: DeploymentMode) {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     let tester = Tester::new(&deployment_mode);
     let mut storage = connection_pool.connection().await.unwrap();
     let snapshot_recovery =
-        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
 
     let (mut mempool, mut mempool_guard) =
         tester.create_test_mempool_io(connection_pool.clone()).await;
     let (cursor, maybe_pending_batch) = mempool.initialize().await.unwrap();
-    assert_eq!(
-        cursor.next_miniblock,
-        snapshot_recovery.miniblock_number + 1
-    );
+    assert_eq!(cursor.next_l2_block, snapshot_recovery.l2_block_number + 1);
     assert_eq!(cursor.l1_batch, snapshot_recovery.l1_batch_number + 1);
     assert!(maybe_pending_batch.is_none());
 
@@ -446,50 +443,47 @@ async fn miniblock_processing_after_snapshot_recovery(deployment_mode: Deploymen
         vec![],
     );
 
-    let (mut persistence, miniblock_sealer) =
+    let (mut persistence, l2_block_sealer) =
         StateKeeperPersistence::new(connection_pool.clone(), Address::default(), 0);
-    tokio::spawn(miniblock_sealer.run());
-    persistence.handle_miniblock(&updates).await.unwrap();
+    tokio::spawn(l2_block_sealer.run());
+    persistence.handle_l2_block(&updates).await.unwrap();
 
-    // Check that the miniblock is persisted and has correct data.
-    let persisted_miniblock = storage
+    // Check that the L2 block is persisted and has correct data.
+    let persisted_l2_block = storage
         .blocks_dal()
-        .get_miniblock_header(snapshot_recovery.miniblock_number + 1)
+        .get_l2_block_header(snapshot_recovery.l2_block_number + 1)
         .await
         .unwrap()
-        .expect("no miniblock persisted");
+        .expect("no L2 block persisted");
     assert_eq!(
-        persisted_miniblock.number,
-        snapshot_recovery.miniblock_number + 1
+        persisted_l2_block.number,
+        snapshot_recovery.l2_block_number + 1
     );
-    assert_eq!(persisted_miniblock.l2_tx_count, 1);
+    assert_eq!(persisted_l2_block.l2_tx_count, 1);
 
-    let mut miniblock_hasher = MiniblockHasher::new(
-        persisted_miniblock.number,
-        persisted_miniblock.timestamp,
-        snapshot_recovery.miniblock_hash,
+    let mut l2_block_hasher = L2BlockHasher::new(
+        persisted_l2_block.number,
+        persisted_l2_block.timestamp,
+        snapshot_recovery.l2_block_hash,
     );
-    miniblock_hasher.push_tx_hash(tx_hash);
+    l2_block_hasher.push_tx_hash(tx_hash);
     assert_eq!(
-        persisted_miniblock.hash,
-        miniblock_hasher.finalize(ProtocolVersionId::latest())
+        persisted_l2_block.hash,
+        l2_block_hasher.finalize(ProtocolVersionId::latest())
     );
 
-    let miniblock_transactions = storage
+    let l2_block_transactions = storage
         .transactions_web3_dal()
-        .get_raw_miniblock_transactions(persisted_miniblock.number)
+        .get_raw_l2_block_transactions(persisted_l2_block.number)
         .await
         .unwrap();
-    assert_eq!(miniblock_transactions.len(), 1);
-    assert_eq!(miniblock_transactions[0].hash(), tx_hash);
+    assert_eq!(l2_block_transactions.len(), 1);
+    assert_eq!(l2_block_transactions[0].hash(), tx_hash);
 
     // Emulate node restart.
     let (mut mempool, _) = tester.create_test_mempool_io(connection_pool.clone()).await;
     let (cursor, maybe_pending_batch) = mempool.initialize().await.unwrap();
-    assert_eq!(
-        cursor.next_miniblock,
-        snapshot_recovery.miniblock_number + 2
-    );
+    assert_eq!(cursor.next_l2_block, snapshot_recovery.l2_block_number + 2);
     assert_eq!(cursor.l1_batch, snapshot_recovery.l1_batch_number + 1);
 
     let pending_batch = maybe_pending_batch.expect("no pending batch");
@@ -503,25 +497,25 @@ async fn miniblock_processing_after_snapshot_recovery(deployment_mode: Deploymen
     );
     assert_eq!(
         pending_batch.l1_batch_env.first_l2_block.prev_block_hash,
-        snapshot_recovery.miniblock_hash
+        snapshot_recovery.l2_block_hash
     );
-    assert_eq!(pending_batch.pending_miniblocks.len(), 1);
+    assert_eq!(pending_batch.pending_l2_blocks.len(), 1);
     assert_eq!(
-        pending_batch.pending_miniblocks[0].number,
-        snapshot_recovery.miniblock_number + 1
+        pending_batch.pending_l2_blocks[0].number,
+        snapshot_recovery.l2_block_number + 1
     );
     assert_eq!(
-        pending_batch.pending_miniblocks[0].prev_block_hash,
-        snapshot_recovery.miniblock_hash
+        pending_batch.pending_l2_blocks[0].prev_block_hash,
+        snapshot_recovery.l2_block_hash
     );
-    assert_eq!(pending_batch.pending_miniblocks[0].txs.len(), 1);
-    assert_eq!(pending_batch.pending_miniblocks[0].txs[0].hash(), tx_hash);
+    assert_eq!(pending_batch.pending_l2_blocks[0].txs.len(), 1);
+    assert_eq!(pending_batch.pending_l2_blocks[0].txs[0].hash(), tx_hash);
 }
 
-/// Ensure that subsequent miniblocks that belong to the same L1 batch have different timestamps
+/// Ensure that subsequent L2 blocks that belong to the same L1 batch have different timestamps
 #[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn different_timestamp_for_miniblocks_in_same_batch(deployment_mode: DeploymentMode) {
+async fn different_timestamp_for_l2_blocks_in_same_batch(deployment_mode: DeploymentMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tester = Tester::new(&deployment_mode);
 
@@ -530,12 +524,12 @@ async fn different_timestamp_for_miniblocks_in_same_batch(deployment_mode: Deplo
     let (mut mempool, _) = tester.create_test_mempool_io(connection_pool).await;
     let (mut io_cursor, _) = mempool.initialize().await.unwrap();
     let current_timestamp = seconds_since_epoch();
-    io_cursor.prev_miniblock_timestamp = current_timestamp;
+    io_cursor.prev_l2_block_timestamp = current_timestamp;
 
-    let miniblock_params = mempool
-        .wait_for_new_miniblock_params(&io_cursor, Duration::from_secs(10))
+    let l2_block_params = mempool
+        .wait_for_new_l2_block_params(&io_cursor, Duration::from_secs(10))
         .await
         .unwrap()
-        .expect("no new miniblock params");
-    assert!(miniblock_params.timestamp > current_timestamp);
+        .expect("no new L2 block params");
+    assert!(l2_block_params.timestamp > current_timestamp);
 }

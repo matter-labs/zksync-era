@@ -4,7 +4,8 @@ use zksync_config::configs::{
     fri_prover_group::FriProverGroupConfig, house_keeper::HouseKeeperConfig,
     FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig,
 };
-use zksync_core::house_keeper::{
+use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core};
+use zksync_house_keeper::{
     blocks_state_reporter::L1BatchMetricsReporter, fri_gpu_prover_archiver::FriGpuProverArchiver,
     fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
     fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter,
@@ -17,7 +18,6 @@ use zksync_core::house_keeper::{
     periodic_job::PeriodicJob,
     waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
 };
-use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core};
 
 use crate::{
     implementations::resources::pools::{ProverPoolResource, ReplicaPoolResource},

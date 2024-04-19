@@ -8,7 +8,7 @@ use tokio::{
     time::{interval, Duration},
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_types::{MiniblockNumber, H128, H256};
+use zksync_types::{L2BlockNumber, H128, H256};
 use zksync_web3_decl::{
     jsonrpsee::{
         core::{server::SubscriptionMessage, SubscriptionResult},
@@ -43,7 +43,7 @@ impl IdProvider for EthSubscriptionIdProvider {
 pub(super) enum PubSubEvent {
     Subscribed(SubscriptionType),
     NotifyIterationFinished(SubscriptionType),
-    MiniblockAdvanced(SubscriptionType, MiniblockNumber),
+    MiniblockAdvanced(SubscriptionType, L2BlockNumber),
 }
 
 /// Manager of notifications for a certain type of subscriptions.
@@ -61,11 +61,11 @@ impl PubSubNotifier {
     async fn get_starting_miniblock_number(
         &self,
         stop_receiver: &mut watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<MiniblockNumber>> {
+    ) -> anyhow::Result<Option<L2BlockNumber>> {
         while !*stop_receiver.borrow_and_update() {
             let mut storage = self.connection_pool.connection_tagged("api").await?;
             if let Some(miniblock_number) =
-                storage.blocks_dal().get_sealed_miniblock_number().await?
+                storage.blocks_dal().get_sealed_l2_block_number().await?
             {
                 return Ok(Some(miniblock_number));
             }
@@ -111,7 +111,7 @@ impl PubSubNotifier {
             db_latency.observe();
 
             if let Some(last_block) = new_blocks.last() {
-                last_block_number = MiniblockNumber(last_block.number.unwrap().as_u32());
+                last_block_number = L2BlockNumber(last_block.number.unwrap().as_u32());
                 let new_blocks = new_blocks.into_iter().map(PubSubResult::Header).collect();
                 self.send_pub_sub_results(new_blocks, SubscriptionType::Blocks);
                 self.emit_event(PubSubEvent::MiniblockAdvanced(
@@ -134,7 +134,7 @@ impl PubSubNotifier {
 
     async fn new_blocks(
         &self,
-        last_block_number: MiniblockNumber,
+        last_block_number: L2BlockNumber,
     ) -> anyhow::Result<Vec<BlockHeader>> {
         self.connection_pool
             .connection_tagged("api")
@@ -207,7 +207,7 @@ impl PubSubNotifier {
             db_latency.observe();
 
             if let Some(last_log) = new_logs.last() {
-                last_block_number = MiniblockNumber(last_log.block_number.unwrap().as_u32());
+                last_block_number = L2BlockNumber(last_log.block_number.unwrap().as_u32());
                 let new_logs = new_logs.into_iter().map(PubSubResult::Log).collect();
                 self.send_pub_sub_results(new_logs, SubscriptionType::Logs);
                 self.emit_event(PubSubEvent::MiniblockAdvanced(
@@ -220,7 +220,7 @@ impl PubSubNotifier {
         Ok(())
     }
 
-    async fn new_logs(&self, last_block_number: MiniblockNumber) -> anyhow::Result<Vec<Log>> {
+    async fn new_logs(&self, last_block_number: L2BlockNumber) -> anyhow::Result<Vec<Log>> {
         self.connection_pool
             .connection_tagged("api")
             .await?
