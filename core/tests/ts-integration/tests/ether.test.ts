@@ -22,6 +22,7 @@ describe('ETH token checks', () => {
     let alice: zksync.Wallet;
     let bob: zksync.Wallet;
     let isETHBasedChain: boolean;
+    let l2EthTokenAddressNonBase: string; // Used only for base token implementation
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
@@ -31,6 +32,7 @@ describe('ETH token checks', () => {
         const baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
         isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
         console.log(`Starting checks for base token: ${baseTokenAddress} isEthBasedChain: ${isETHBasedChain}`);
+        l2EthTokenAddressNonBase = await alice.l2TokenAddress(zksync.utils.ETH_ADDRESS_IN_CONTRACTS);
     });
 
     test('Can perform a deposit', async () => {
@@ -43,16 +45,13 @@ describe('ETH token checks', () => {
         const amount = 1; // 1 wei is enough.
         const gasPrice = scaledGasPrice(alice);
 
-        // Used only for base token implementation
-        const l2EthTokenAddress = await alice.l2TokenAddress(zksync.utils.ETH_ADDRESS_IN_CONTRACTS);
-
         // Unfortunately, since fee is taken in ETH, we must calculate the L1 ETH balance diff explicitly.
         const l1EthBalanceBefore = await alice.getBalanceL1();
         const l2ethBalanceChange = isETHBasedChain
             ? await shouldChangeETHBalances([{ wallet: alice, change: amount }], {
                   l1ToL2: true
               })
-            : await shouldChangeTokenBalances(l2EthTokenAddress, [{ wallet: alice, change: amount }]);
+            : await shouldChangeTokenBalances(l2EthTokenAddressNonBase, [{ wallet: alice, change: amount }]);
 
         // Variables used only for base token implementation
         const l1BaseTokenBalanceBefore = await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR!);
@@ -248,12 +247,9 @@ describe('ETH token checks', () => {
         }
         const amount = 1;
 
-        // Used only for base token implementation
-        const l2EthTokenAddress = await alice.l2TokenAddress(zksync.utils.ETH_ADDRESS_IN_CONTRACTS);
-
         const l2ethBalanceChange = isETHBasedChain
             ? await shouldChangeETHBalances([{ wallet: alice, change: -amount }])
-            : await shouldChangeTokenBalances(l2EthTokenAddress, [{ wallet: alice, change: -amount }]);
+            : await shouldChangeTokenBalances(l2EthTokenAddressNonBase, [{ wallet: alice, change: -amount }]);
 
         const withdrawalPromise = alice.withdraw({
             token: isETHBasedChain ? ETH_ADDRESS : await alice.l2TokenAddress(zksync.utils.ETH_ADDRESS_IN_CONTRACTS),
@@ -287,13 +283,11 @@ describe('ETH token checks', () => {
             : (await alice.getBalanceL1()).sub(l1Fee); // l2Fee is paid in base token
 
         // Approving the needed allowance to ensure that the user has enough funds.
-        const l2ethBalanceChange = await shouldChangeETHBalances([{ wallet: alice, change: maxAmount }], {
-            l1ToL2: true
-        });
-
-        // Used only for base token implementation
-        const l2EthTokenAddress = await alice.l2TokenAddress(zksync.utils.ETH_ADDRESS_IN_CONTRACTS);
-        const l2ethBalanceBefore = await alice.getBalance(l2EthTokenAddress);
+        const l2ethBalanceChange = isETHBasedChain
+            ? await shouldChangeETHBalances([{ wallet: alice, change: maxAmount }], {
+                  l1ToL2: true
+              })
+            : await shouldChangeTokenBalances(l2EthTokenAddressNonBase, [{ wallet: alice, change: maxAmount }]);
 
         const overrides: Overrides = depositFee.gasPrice
             ? { gasPrice: depositFee.gasPrice }
@@ -312,15 +306,7 @@ describe('ETH token checks', () => {
             overrides
         });
 
-        if (isETHBasedChain) {
-            await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
-        } else {
-            // Base token checks
-            await expect(depositOp).toBeAccepted([]);
-
-            const l2EthBalanceAfter = await alice.getBalance(l2EthTokenAddress);
-            expect(l2ethBalanceBefore).bnToBeEq(l2EthBalanceAfter.sub(maxAmount));
-        }
+        await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
     });
 
     afterAll(async () => {
