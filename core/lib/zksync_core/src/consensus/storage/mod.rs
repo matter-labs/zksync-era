@@ -8,7 +8,7 @@ use zksync_consensus_bft::PayloadManager;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage as storage;
 use zksync_dal::{consensus_dal::Payload, ConnectionPool, Core, CoreDal, DalError};
-use zksync_types::MiniblockNumber;
+use zksync_types::L2BlockNumber;
 
 #[cfg(test)]
 mod testonly;
@@ -168,14 +168,14 @@ pub(super) struct PayloadQueue {
 
 impl PayloadQueue {
     pub(super) fn next(&self) -> validator::BlockNumber {
-        validator::BlockNumber(self.inner.next_miniblock.0.into())
+        validator::BlockNumber(self.inner.next_l2_block.0.into())
     }
 
     /// Converts the block into actions and pushes them to the actions queue.
     /// Does nothing and returns Ok() if the block has been already processed.
     /// Returns an error if a block with an earlier block number was expected.
     pub(super) async fn send(&mut self, block: FetchedBlock) -> anyhow::Result<()> {
-        let want = self.inner.next_miniblock;
+        let want = self.inner.next_l2_block;
         // Some blocks are missing.
         if block.number > want {
             anyhow::bail!("expected {want:?}, got {:?}", block.number);
@@ -445,7 +445,7 @@ impl storage::PersistentBlockStore for BlockStore {
     ) -> ctx::Result<()> {
         if let Some(payloads) = &self.payloads {
             let mut payloads = sync::lock(ctx, payloads).await?.into_async();
-            let number = MiniblockNumber(
+            let number = L2BlockNumber(
                 block
                     .number()
                     .0

@@ -33,6 +33,11 @@ export function updateContractsEnv(initEnv: string, deployLog: String, envVars: 
     return updatedContracts;
 }
 
+export async function initializeValidator(args: any[]): Promise<void> {
+    await utils.confirmAction();
+    await utils.spawn(`yarn l1-contracts initialize-validator ${args.join(' ')} | tee initializeValidator.log`);
+}
+
 export async function initializeGovernance(): Promise<void> {
     await utils.confirmAction();
 
@@ -40,11 +45,6 @@ export async function initializeGovernance(): Promise<void> {
     const args = [privateKey ? `--private-key ${privateKey}` : ''];
 
     await utils.spawn(`yarn l1-contracts initialize-governance ${args.join(' ')} | tee initializeGovernance.log`);
-}
-
-export async function initializeL1AllowList(args: any[] = []) {
-    await utils.confirmAction();
-    await utils.spawn(`yarn l1-contracts initialize-allow-list ${args.join(' ')} | tee initializeL1AllowList.log`);
 }
 
 export async function deployWeth(
@@ -75,6 +75,7 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean): Pr
     await utils.confirmAction();
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
+
     // Skip compilation for local setup, since we already copied artifacts into the container.
     if (!isLocalSetup) {
         await utils.spawn(`yarn l2-contracts build`);

@@ -248,7 +248,7 @@ impl BlockReverter {
 
         let (_, last_miniblock_to_keep) = transaction
             .blocks_dal()
-            .get_miniblock_range_of_l1_batch(last_l1_batch_to_keep)
+            .get_l2_block_range_of_l1_batch(last_l1_batch_to_keep)
             .await
             .unwrap()
             .expect("L1 batch should contain at least one miniblock");
@@ -316,7 +316,7 @@ impl BlockReverter {
         tracing::info!("rolling back miniblocks...");
         transaction
             .blocks_dal()
-            .delete_miniblocks(last_miniblock_to_keep)
+            .delete_l2_blocks(last_miniblock_to_keep)
             .await
             .unwrap();
         if self.node_role == NodeRole::Main {
