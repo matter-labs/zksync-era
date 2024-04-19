@@ -1,4 +1,4 @@
-import { utils } from 'zksync-web3';
+import { utils } from 'zksync-ethers';
 import { ethers } from 'ethers';
 import { getEthersProvider, getWalletKeys } from './utils';
 
@@ -46,6 +46,7 @@ async function depositWithRichAccounts() {
         handles.push(
             // We have to implement the deposit manually because we run this script before running the server,
             // deposit method from wallet requires a running server
+            // TODO(EVM-566): this is broken - as BRIDGEHUB no longer exposes 'requestL2transaction'
             contract.requestL2Transaction(
                 chainId,
                 wallet.address,
