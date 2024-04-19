@@ -100,8 +100,8 @@ impl ProtoRepr for proto::Contracts {
             }),
             bridges: Some(proto::Bridges {
                 shared: Some(proto::Bridge {
-                    l1_address: Some(format!("{:?}", this.l1_shared_bridge_proxy_addr)),
-                    l2_address: Some(format!("{:?}", this.l2_shared_bridge_addr)),
+                    l1_address: this.l1_shared_bridge_proxy_addr.map(|a| format!("{:?}", a)),
+                    l2_address: this.l2_shared_bridge_addr.map(|a| format!("{:?}", a)),
                 }),
                 erc20: Some(proto::Bridge {
                     l1_address: this.l1_erc20_bridge_proxy_addr.map(|a| format!("{:?}", a)),
