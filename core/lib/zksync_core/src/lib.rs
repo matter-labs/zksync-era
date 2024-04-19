@@ -855,7 +855,7 @@ async fn add_state_keeper_to_task_futures(
     let (persistence, miniblock_sealer) = StateKeeperPersistence::new(
         miniblock_sealer_pool,
         contracts_config.l2_shared_bridge_addr,
-        state_keeper_config.miniblock_seal_queue_capacity,
+        state_keeper_config.l2_block_seal_queue_capacity,
     );
     task_futures.push(tokio::spawn(miniblock_sealer.run()));
 

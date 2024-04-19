@@ -19,7 +19,7 @@ pub(crate) async fn prepare_postgres(conn: &mut Connection<'_, Core>) {
         // The created genesis block is likely to be invalid, but since it's not committed,
         // we don't really care.
         let genesis_storage_logs = gen_storage_logs(0..20);
-        create_miniblock(conn, L2BlockNumber(0), genesis_storage_logs.clone()).await;
+        create_l2_block(conn, L2BlockNumber(0), genesis_storage_logs.clone()).await;
         create_l1_batch(conn, L1BatchNumber(0), &genesis_storage_logs).await;
     }
 
@@ -68,15 +68,15 @@ pub(crate) fn gen_storage_logs(indices: ops::Range<u64>) -> Vec<StorageLog> {
 
 #[allow(clippy::default_trait_access)]
 // ^ `BaseSystemContractsHashes::default()` would require a new direct dependency
-pub(crate) async fn create_miniblock(
+pub(crate) async fn create_l2_block(
     conn: &mut Connection<'_, Core>,
-    miniblock_number: L2BlockNumber,
+    l2_block_number: L2BlockNumber,
     block_logs: Vec<StorageLog>,
 ) {
-    let miniblock_header = L2BlockHeader {
-        number: miniblock_number,
+    let l2_block_header = L2BlockHeader {
+        number: l2_block_number,
         timestamp: 0,
-        hash: H256::from_low_u64_be(u64::from(miniblock_number.0)),
+        hash: H256::from_low_u64_be(u64::from(l2_block_number.0)),
         l1_tx_count: 0,
         l2_tx_count: 0,
         fee_account_address: Address::default(),
@@ -90,11 +90,11 @@ pub(crate) async fn create_miniblock(
     };
 
     conn.blocks_dal()
-        .insert_l2_block(&miniblock_header)
+        .insert_l2_block(&l2_block_header)
         .await
         .unwrap();
     conn.storage_logs_dal()
-        .insert_storage_logs(miniblock_number, &[(H256::zero(), block_logs)])
+        .insert_storage_logs(l2_block_number, &[(H256::zero(), block_logs)])
         .await
         .unwrap();
 }
