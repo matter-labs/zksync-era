@@ -176,13 +176,11 @@ impl AsyncRocksdbCache {
     pub fn new(
         pool: ConnectionPool<Core>,
         state_keeper_db_path: String,
-        enum_index_migration_chunk_size: usize,
     ) -> (Self, AsyncCatchupTask) {
         let rocksdb_cell = Arc::new(OnceCell::new());
         let task = AsyncCatchupTask {
             pool: pool.clone(),
             state_keeper_db_path,
-            enum_index_migration_chunk_size,
             rocksdb_cell: rocksdb_cell.clone(),
         };
         (Self { pool, rocksdb_cell }, task)
@@ -203,18 +201,16 @@ impl ReadStorageFactory for AsyncRocksdbCache {
 pub struct AsyncCatchupTask {
     pool: ConnectionPool<Core>,
     state_keeper_db_path: String,
-    enum_index_migration_chunk_size: usize,
     rocksdb_cell: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
 }
 
 impl AsyncCatchupTask {
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         tracing::debug!("Catching up RocksDB asynchronously");
-        let mut rocksdb_builder: RocksdbStorageBuilder =
+        let rocksdb_builder: RocksdbStorageBuilder =
             RocksdbStorage::builder(self.state_keeper_db_path.as_ref())
                 .await
                 .context("Failed initializing RocksDB storage")?;
-        rocksdb_builder.enable_enum_index_migration(self.enum_index_migration_chunk_size);
         let mut connection = self
             .pool
             .connection()
