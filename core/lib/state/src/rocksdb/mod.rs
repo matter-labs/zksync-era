@@ -527,7 +527,7 @@ impl RocksdbStorage {
         let stage_start = Instant::now();
         let (_, last_miniblock_to_keep) = connection
             .blocks_dal()
-            .get_miniblock_range_of_l1_batch(last_l1_batch_to_keep)
+            .get_l2_block_range_of_l1_batch(last_l1_batch_to_keep)
             .await?
             .context("L1 batch should contain at least one miniblock")?;
         tracing::info!(

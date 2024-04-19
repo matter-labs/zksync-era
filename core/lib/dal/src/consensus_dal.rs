@@ -8,7 +8,7 @@ use zksync_db_connection::{
     error::{DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
-use zksync_types::MiniblockNumber;
+use zksync_types::L2BlockNumber;
 
 pub use crate::consensus::Payload;
 use crate::{Core, CoreDal};
@@ -111,17 +111,17 @@ impl ConsensusDal<'_, '_> {
         // `snapshot.miniblock_number` indicates the last block processed.
         // This block is NOT present in storage. Therefore, the first block
         // that will appear in storage is `snapshot.miniblock_number+1`.
-        let start = validator::BlockNumber(snapshot.map_or(0, |s| s.miniblock_number.0 + 1).into());
+        let start = validator::BlockNumber(snapshot.map_or(0, |s| s.l2_block_number.0 + 1).into());
         let end = txn
             .blocks_dal()
-            .get_sealed_miniblock_number()
+            .get_sealed_l2_block_number()
             .await?
             .map_or(start, |last| validator::BlockNumber(last.0.into()).next());
         Ok(start..end)
     }
 
     /// [Main node only] creates a new consensus fork starting at
-    /// the last sealed miniblock. Resets the state of the consensus
+    /// the last sealed L2 block. Resets the state of the consensus
     /// by calling `try_update_genesis()`.
     pub async fn fork(&mut self) -> anyhow::Result<()> {
         let mut txn = self
@@ -190,7 +190,7 @@ impl ConsensusDal<'_, '_> {
     }
 
     /// Fetches the first consensus certificate.
-    /// It might NOT be the certificate for the first miniblock:
+    /// It might NOT be the certificate for the first L2 block:
     /// see `validator::Genesis.first_block`.
     pub async fn first_certificate(&mut self) -> DalResult<Option<validator::CommitQC>> {
         sqlx::query!(
@@ -214,8 +214,8 @@ impl ConsensusDal<'_, '_> {
     }
 
     /// Fetches the last consensus certificate.
-    /// Currently, certificates are NOT generated synchronously with miniblocks,
-    /// so it might NOT be the certificate for the last miniblock.
+    /// Currently, certificates are NOT generated synchronously with L2 blocks,
+    /// so it might NOT be the certificate for the last L2 block.
     pub async fn last_certificate(&mut self) -> DalResult<Option<validator::CommitQC>> {
         sqlx::query!(
             r#"
@@ -237,7 +237,7 @@ impl ConsensusDal<'_, '_> {
         .await
     }
 
-    /// Fetches the consensus certificate for the miniblock with the given `block_number`.
+    /// Fetches the consensus certificate for the L2 block with the given `block_number`.
     pub async fn certificate(
         &mut self,
         block_number: validator::BlockNumber,
@@ -266,8 +266,8 @@ impl ConsensusDal<'_, '_> {
             .await
     }
 
-    /// Converts the miniblock `block_number` into consensus payload. `Payload` is an
-    /// opaque format for the miniblock that consensus understands and generates a
+    /// Converts the L2 block `block_number` into consensus payload. `Payload` is an
+    /// opaque format for the L2 block that consensus understands and generates a
     /// certificate for it.
     pub async fn block_payload(
         &mut self,
@@ -277,7 +277,7 @@ impl ConsensusDal<'_, '_> {
             Instrumented::new("block_payload").with_arg("block_number", &block_number);
         let block_number = u32::try_from(block_number.0)
             .map_err(|err| instrumentation.arg_error("block_number", err))?;
-        let block_number = MiniblockNumber(block_number);
+        let block_number = L2BlockNumber(block_number);
 
         let Some(block) = self
             .storage
@@ -290,7 +290,7 @@ impl ConsensusDal<'_, '_> {
         let transactions = self
             .storage
             .transactions_web3_dal()
-            .get_raw_miniblock_transactions(block_number)
+            .get_raw_l2_block_transactions(block_number)
             .await?;
         Ok(Some(block.into_payload(transactions)))
     }

@@ -148,15 +148,15 @@ impl<L: VmRunnerStorageLoader> VmRunnerStorage<L> {
     }
 }
 
-async fn store_miniblocks(
+async fn store_l2_blocks(
     conn: &mut Connection<'_, Core>,
     numbers: ops::RangeInclusive<u32>,
     contract_hashes: BaseSystemContractsHashes,
 ) -> Vec<L1BatchHeader> {
     let mut batches = Vec::new();
-    let mut miniblock_number = conn
+    let mut l2_block_number = conn
         .blocks_dal()
-        .get_last_sealed_miniblock_header()
+        .get_last_sealed_l2_block_header()
         .await
         .unwrap()
         .map(|m| m.number)
@@ -169,29 +169,29 @@ async fn store_miniblocks(
             .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
-        let mut new_miniblock = create_miniblock(miniblock_number.0);
-        miniblock_number += 1;
-        new_miniblock.base_system_contracts_hashes = contract_hashes;
-        new_miniblock.l2_tx_count = 1;
+        let mut new_l2_block = create_miniblock(l2_block_number.0);
+        l2_block_number += 1;
+        new_l2_block.base_system_contracts_hashes = contract_hashes;
+        new_l2_block.l2_tx_count = 1;
         conn.blocks_dal()
-            .insert_miniblock(&new_miniblock)
+            .insert_l2_block(&new_l2_block)
             .await
             .unwrap();
         let tx_result = execute_l2_transaction(tx);
         conn.transactions_dal()
-            .mark_txs_as_executed_in_miniblock(new_miniblock.number, &[tx_result], 1.into())
+            .mark_txs_as_executed_in_l2_block(new_l2_block.number, &[tx_result], 1.into())
             .await
             .unwrap();
-        let fictive_miniblock = create_miniblock(miniblock_number.0);
-        miniblock_number += 1;
+        let fictive_l2_block = create_miniblock(l2_block_number.0);
+        l2_block_number += 1;
         conn.blocks_dal()
-            .insert_miniblock(&fictive_miniblock)
+            .insert_l2_block(&fictive_l2_block)
             .await
             .unwrap();
 
         let header = L1BatchHeader::new(
             l1_batch_number,
-            miniblock_number.0 as u64 - 2, // Matches the first miniblock in the batch
+            l2_block_number.0 as u64 - 2, // Matches the first L2 block in the batch
             BaseSystemContractsHashes::default(),
             ProtocolVersionId::default(),
         );
@@ -205,7 +205,7 @@ async fn store_miniblocks(
             .await
             .unwrap();
         conn.blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(l1_batch_number)
+            .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
             .await
             .unwrap();
 
@@ -238,7 +238,7 @@ async fn rerun_storage_on_existing_data() -> anyhow::Result<()> {
     drop(conn);
 
     // Generate 10 batches worth of data and persist it in Postgres
-    let batches = store_miniblocks(
+    let batches = store_l2_blocks(
         &mut connection_pool.connection().await?,
         1u32..=10u32,
         genesis_params.base_system_contracts().hashes(),
@@ -266,38 +266,38 @@ async fn rerun_storage_on_existing_data() -> anyhow::Result<()> {
         );
         assert_eq!(batch_data.l1_batch_env.number, batch.number);
         assert_eq!(batch_data.l1_batch_env.timestamp, batch.timestamp);
-        let (first_miniblock_number, _) = conn
+        let (first_l2_block_number, _) = conn
             .blocks_dal()
-            .get_miniblock_range_of_l1_batch(batch.number)
+            .get_l2_block_range_of_l1_batch(batch.number)
             .await?
             .unwrap();
-        let previous_miniblock_header = conn
+        let previous_l2_block_header = conn
             .blocks_dal()
-            .get_miniblock_header(first_miniblock_number - 1)
+            .get_l2_block_header(first_l2_block_number - 1)
             .await?
             .unwrap();
-        let miniblock_header = conn
+        let l2_block_header = conn
             .blocks_dal()
-            .get_miniblock_header(first_miniblock_number)
+            .get_l2_block_header(first_l2_block_number)
             .await?
             .unwrap();
         assert_eq!(
             batch_data.l1_batch_env.first_l2_block.number,
-            miniblock_header.number.0
+            l2_block_header.number.0
         );
         assert_eq!(
             batch_data.l1_batch_env.first_l2_block.timestamp,
-            miniblock_header.timestamp
+            l2_block_header.timestamp
         );
         assert_eq!(
             batch_data.l1_batch_env.first_l2_block.prev_block_hash,
-            previous_miniblock_header.hash
+            previous_l2_block_header.hash
         );
-        let miniblocks = conn
+        let l2_blocks = conn
             .transactions_dal()
-            .get_miniblocks_to_execute_for_l1_batch(batch_data.l1_batch_env.number)
+            .get_l2_blocks_to_execute_for_l1_batch(batch_data.l1_batch_env.number)
             .await?;
-        assert_eq!(batch_data.miniblocks, miniblocks);
+        assert_eq!(batch_data.l2_blocks, l2_blocks);
     }
 
     // "Mark" these batches as processed
@@ -330,7 +330,7 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
     assert!(storage.load_batch(L1BatchNumber(1)).await?.is_none());
 
     // Generate one batch and persist it in Postgres
-    store_miniblocks(
+    store_l2_blocks(
         &mut connection_pool.connection().await?,
         1u32..=1u32,
         genesis_params.base_system_contracts().hashes(),
@@ -353,7 +353,7 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
     assert!(storage.batch_stays_unloaded(L1BatchNumber(2)).await);
 
     // Generate one more batch and persist it in Postgres
-    store_miniblocks(
+    store_l2_blocks(
         &mut connection_pool.connection().await?,
         2u32..=2u32,
         genesis_params.base_system_contracts().hashes(),
@@ -391,7 +391,7 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
 
     // Generate 10 batches worth of data and persist it in Postgres
     let batch_range = 1u32..=10u32;
-    store_miniblocks(
+    store_l2_blocks(
         &mut connection_pool.connection().await?,
         batch_range,
         genesis_params.base_system_contracts().hashes(),
@@ -418,14 +418,14 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
             rt_handle.block_on(async { tester.create_storage(loader_mock.clone()).await.unwrap() });
         for i in 1..=10 {
             let mut conn = rt_handle.block_on(connection_pool.connection()).unwrap();
-            let (_, last_miniblock_number) = rt_handle
+            let (_, last_l2_block_number) = rt_handle
                 .block_on(
                     conn.blocks_dal()
-                        .get_miniblock_range_of_l1_batch(L1BatchNumber(i)),
+                        .get_l2_block_range_of_l1_batch(L1BatchNumber(i)),
                 )?
                 .unwrap();
             let mut pg_storage =
-                PostgresStorage::new(rt_handle.clone(), conn, last_miniblock_number, true);
+                PostgresStorage::new(rt_handle.clone(), conn, last_l2_block_number, true);
             let mut vm_storage = rt_handle.block_on(async {
                 vm_runner_storage
                     .access_storage_eventually(&receiver, L1BatchNumber(i))

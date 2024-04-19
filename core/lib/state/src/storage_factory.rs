@@ -70,14 +70,14 @@ impl<'a> PgOrRocksdbStorage<'a> {
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<PgOrRocksdbStorage<'a>> {
         let mut connection = pool.connection().await?;
-        let miniblock_number = if let Some((_, miniblock_number)) = connection
+        let l2_block_number = if let Some((_, l2_block_number)) = connection
             .blocks_dal()
-            .get_miniblock_range_of_l1_batch(l1_batch_number)
+            .get_l2_block_range_of_l1_batch(l1_batch_number)
             .await?
         {
-            miniblock_number
+            l2_block_number
         } else {
-            tracing::info!("Could not find latest sealed miniblock, loading from snapshot");
+            tracing::info!("Could not find latest sealed L2 block, loading from snapshot");
             let snapshot_recovery = connection
                 .snapshot_recovery_dal()
                 .get_applied_snapshot_status()
@@ -90,11 +90,11 @@ impl<'a> PgOrRocksdbStorage<'a> {
                     l1_batch_number
                 );
             }
-            snapshot_recovery.miniblock_number
+            snapshot_recovery.l2_block_number
         };
-        tracing::debug!(%l1_batch_number, %miniblock_number, "Using Postgres-based storage");
+        tracing::debug!(%l1_batch_number, %l2_block_number, "Using Postgres-based storage");
         Ok(
-            PostgresStorage::new_async(Handle::current(), connection, miniblock_number, true)
+            PostgresStorage::new_async(Handle::current(), connection, l2_block_number, true)
                 .await?
                 .into(),
         )

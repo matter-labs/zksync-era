@@ -1716,6 +1716,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive_more"
+version = "1.0.0-beta.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7abbfc297053be59290e3152f8cbcd52c8642e0728b69ee187d991d4c1af08d"
+dependencies = [
+ "derive_more-impl",
+]
+
+[[package]]
+name = "derive_more-impl"
+version = "1.0.0-beta.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bba3e9872d7c58ce7ef0fcf1844fcc3e23ef2a58377b50df35dd98e42a5726e"
+dependencies = [
+ "proc-macro2 1.0.69",
+ "quote 1.0.33",
+ "syn 2.0.38",
+ "unicode-xid 0.2.4",
+]
+
+[[package]]
 name = "diff"
 version = "0.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7533,7 +7554,7 @@ dependencies = [
  "arrayvec 0.7.4",
  "base64 0.21.5",
  "bytes",
- "derive_more",
+ "derive_more 0.99.17",
  "ethabi",
  "ethereum-types",
  "futures 0.3.28",
@@ -8733,6 +8754,7 @@ dependencies = [
 name = "zksync_merkle_tree"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "assert_matches",
  "clap 4.4.6",
  "insta",
@@ -8948,6 +8970,7 @@ name = "zksync_snapshots_applier"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "serde",
  "test-casing",
@@ -9029,6 +9052,7 @@ dependencies = [
  "anyhow",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono",
+ "derive_more 1.0.0-beta.6",
  "hex",
  "itertools 0.10.5",
  "num",

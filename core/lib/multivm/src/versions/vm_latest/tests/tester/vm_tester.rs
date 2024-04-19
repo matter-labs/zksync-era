@@ -3,12 +3,12 @@ use std::marker::PhantomData;
 use zksync_contracts::BaseSystemContracts;
 use zksync_state::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{
-    block::MiniblockHasher,
+    block::L2BlockHasher,
     fee_model::BatchFeeInput,
     get_code_key, get_is_account_key,
     helpers::unix_timestamp_ms,
     utils::{deployed_address_create, storage_key_for_eth_balance},
-    Address, L1BatchNumber, L2ChainId, MiniblockNumber, Nonce, ProtocolVersionId, U256,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
@@ -85,7 +85,7 @@ impl<H: HistoryMode> VmTester<H> {
             let last_l2_block = load_last_l2_block(self.storage.clone()).unwrap_or(L2Block {
                 number: 0,
                 timestamp: 0,
-                hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+                hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
             });
             l1_batch.first_l2_block = L2BlockEnv {
                 number: last_l2_block.number + 1,
@@ -261,7 +261,7 @@ pub(crate) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
         first_l2_block: L2BlockEnv {
             number: 1,
             timestamp,
-            prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+            prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
             max_virtual_blocks_to_create: 100,
         },
     }

@@ -11,7 +11,7 @@ use tokio::{
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_types::MiniblockNumber;
+use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
     jsonrpsee::{
         server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder},
@@ -71,9 +71,9 @@ const SHUTDOWN_INTERVAL_WITHOUT_REQUESTS: Duration = Duration::from_millis(500);
 #[derive(Debug, Clone)]
 pub(crate) enum TypedFilter {
     // Events from some block with additional filters
-    Events(Filter, MiniblockNumber),
+    Events(Filter, L2BlockNumber),
     // Blocks from some block
-    Blocks(MiniblockNumber),
+    Blocks(L2BlockNumber),
     // Pending transactions from some timestamp
     PendingTransactions(NaiveDateTime),
 }

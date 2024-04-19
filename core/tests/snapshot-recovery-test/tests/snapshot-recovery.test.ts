@@ -46,7 +46,7 @@ interface Health<T> {
 
 interface SnapshotRecoveryDetails {
     readonly snapshot_l1_batch: number;
-    readonly snapshot_miniblock: number;
+    readonly snapshot_l2_block: number;
     readonly factory_deps_recovered: boolean;
     readonly tokens_recovered: boolean;
     readonly storage_logs_chunks_left_to_process: number;
@@ -63,7 +63,7 @@ interface ReorgDetectorDetails {
 }
 
 interface HealthCheckResponse {
-    components: {
+    readonly components: {
         snapshot_recovery?: Health<SnapshotRecoveryDetails>;
         consistency_checker?: Health<ConsistencyCheckerDetails>;
         reorg_detector?: Health<ReorgDetectorDetails>;
@@ -247,12 +247,12 @@ describe('snapshot recovery', () => {
 
             if (!recoveryFinished) {
                 const status = health.components.snapshot_recovery?.status;
-                expect(status).to.be.oneOf([undefined, 'ready']);
+                expect(status).to.be.oneOf([undefined, 'affected', 'ready']);
                 const details = health.components.snapshot_recovery?.details;
                 if (details !== undefined) {
                     console.log('Received snapshot recovery health details', details);
                     expect(details.snapshot_l1_batch).to.equal(snapshotMetadata.l1BatchNumber);
-                    expect(details.snapshot_miniblock).to.equal(snapshotMetadata.miniblockNumber);
+                    expect(details.snapshot_l2_block).to.equal(snapshotMetadata.miniblockNumber);
 
                     if (
                         details.factory_deps_recovered &&
