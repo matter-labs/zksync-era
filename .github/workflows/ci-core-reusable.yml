@@ -85,6 +85,9 @@ jobs:
           echo FAIL_FAST=true >> .env
           echo IN_DOCKER=1 >> .env
           echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
+          # Chain id of our hyperchain must be same as ERA's
+          echo CHAIN_ETH_ZKSYNC_NETWORK_ID=270 >> .env
+          echo CONTRACTS_ERA_CHAIN_ID=270 >> .env
 
       - name: Start services
         run: |
@@ -99,17 +102,19 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run zk
-          ci_run zk init
+          ci_run zk init # --chain-id-hack
 
       # `sleep 30` because we need to wait until server added all the tokens
       - name: Run server
         run: |
-          ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper &>server.log &
+          ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper,commitment_generator &>server.log &
           ci_run sleep 30
 
-      - name: Perform loadtest - DISABLED (EVM-541)
-        run: ls
-        # ci_run zk run loadtest
+      - name: Deploy legacy era contracts
+        run: zk contract upgrade-shared-bridge-era
+
+      - name: Perform loadtest
+        run: ci_run zk run loadtest
 
       - name: Show server.log logs
         if: always()
