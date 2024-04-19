@@ -75,6 +75,8 @@ pub enum SubmitTxError {
     /// Catch-all internal error (e.g., database error) that should not be exposed to the caller.
     #[error("internal error")]
     Internal(#[from] anyhow::Error),
+    #[error("sender is in deny list")]
+    SenderInDenyList,
 }
 
 impl SubmitTxError {
@@ -108,6 +110,7 @@ impl SubmitTxError {
             Self::ProxyError(_) => "proxy-error",
             Self::FailedToPublishCompressedBytecodes => "failed-to-publish-compressed-bytecodes",
             Self::Internal(_) => "internal",
+            Self::SenderInDenyList => "sender-in-deny-list",
         }
     }
 
