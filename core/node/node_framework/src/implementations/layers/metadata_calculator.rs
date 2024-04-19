@@ -57,9 +57,9 @@ impl WiringLayer for MetadataCalculatorLayer {
             self.0,
             object_store.map(|store_resource| store_resource.0),
             main_pool,
-            recovery_pool,
         )
-        .await?;
+        .await?
+        .with_recovery_pool(recovery_pool);
 
         let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
         app_health.insert_component(metadata_calculator.tree_health_check());

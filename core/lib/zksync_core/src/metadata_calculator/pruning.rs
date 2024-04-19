@@ -112,7 +112,7 @@ mod tests {
             .unwrap();
         reset_db_state(&pool, 5).await;
 
-        let mut calculator = MetadataCalculator::new(config, None, pool.clone(), pool.clone())
+        let mut calculator = MetadataCalculator::new(config, None, pool.clone())
             .await
             .unwrap();
         let reader = calculator.tree_reader();
@@ -161,7 +161,7 @@ mod tests {
         let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
         let config = mock_config(temp_dir.path());
 
-        let mut calculator = MetadataCalculator::new(config, None, pool.clone(), pool.clone())
+        let mut calculator = MetadataCalculator::new(config, None, pool.clone())
             .await
             .unwrap();
         let reader = calculator.tree_reader();

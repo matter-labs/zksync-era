@@ -102,14 +102,11 @@ impl MetadataCalculator {
     ///
     /// # Arguments
     ///
-    /// - `pool` can have a single connection.
-    /// - `recovery_pool` will only be used in case of snapshot recovery. It should have multiple connections (e.g., 10)
-    ///   to speed up recovery.
+    /// - `pool` can have a single connection (but then you should set a separate recovery pool).
     pub async fn new(
         config: MetadataCalculatorConfig,
         object_store: Option<Arc<dyn ObjectStore>>,
         pool: ConnectionPool<Core>,
-        recovery_pool: ConnectionPool<Core>,
     ) -> anyhow::Result<Self> {
         if let Err(err) = METRICS.info.set(ConfigLabels::new(&config)) {
             tracing::warn!(
@@ -134,13 +131,20 @@ impl MetadataCalculator {
             tree_reader: watch::channel(None).0,
             pruning_handles_sender: oneshot::channel().0,
             object_store,
+            recovery_pool: pool.clone(),
             pool,
-            recovery_pool,
             delayer: Delayer::new(config.delay_interval),
             health_updater,
             max_l1_batches_per_iter: config.max_l1_batches_per_iter,
             config,
         })
+    }
+
+    /// Sets a separate pool that will be used in case of snapshot recovery. It should have multiple connections
+    /// (e.g., 10) to speed up recovery.
+    pub fn with_recovery_pool(mut self, recovery_pool: ConnectionPool<Core>) -> Self {
+        self.recovery_pool = recovery_pool;
+        self
     }
 
     /// Returns a health check for this calculator.

@@ -998,9 +998,10 @@ async fn run_tree(
         .build()
         .await
         .context("failed to build connection pool for Merkle tree recovery")?;
-    let metadata_calculator = MetadataCalculator::new(config, object_store, pool, recovery_pool)
+    let metadata_calculator = MetadataCalculator::new(config, object_store, pool)
         .await
-        .context("failed initializing metadata_calculator")?;
+        .context("failed initializing metadata_calculator")?
+        .with_recovery_pool(recovery_pool);
 
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
