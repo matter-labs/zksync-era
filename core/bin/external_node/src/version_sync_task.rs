@@ -1,16 +1,16 @@
 use std::cmp::Ordering;
 
 use anyhow::Context;
-use zksync_basic_types::{L1BatchNumber, MiniblockNumber};
+use zksync_basic_types::{L1BatchNumber, L2BlockNumber};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::ProtocolVersionId;
 use zksync_web3_decl::{
-    client::L2Client,
+    client::BoxedL2Client,
     namespaces::{EnNamespaceClient, ZksNamespaceClient},
 };
 
 pub async fn get_l1_batch_remote_protocol_version(
-    main_node_client: &L2Client,
+    main_node_client: &BoxedL2Client,
     l1_batch_number: L1BatchNumber,
 ) -> anyhow::Result<Option<ProtocolVersionId>> {
     let Some((miniblock, _)) = main_node_client
@@ -20,7 +20,7 @@ pub async fn get_l1_batch_remote_protocol_version(
         return Ok(None);
     };
     let sync_block = main_node_client
-        .sync_l2_block(MiniblockNumber(miniblock.as_u32()), false)
+        .sync_l2_block(L2BlockNumber(miniblock.as_u32()), false)
         .await?;
     Ok(sync_block.map(|b| b.protocol_version))
 }
@@ -28,7 +28,7 @@ pub async fn get_l1_batch_remote_protocol_version(
 // Synchronizes protocol version in `l1_batches` and `miniblocks` tables between EN and main node.
 pub async fn sync_versions(
     connection_pool: ConnectionPool<Core>,
-    main_node_client: L2Client,
+    main_node_client: BoxedL2Client,
 ) -> anyhow::Result<()> {
     tracing::info!("Starting syncing protocol version of blocks");
 
@@ -66,7 +66,7 @@ pub async fn sync_versions(
         let mid_batch = L1BatchNumber((left_bound.0 + right_bound.0) / 2);
         let (mid_miniblock, _) = connection
             .blocks_dal()
-            .get_miniblock_range_of_l1_batch(mid_batch)
+            .get_l2_block_range_of_l1_batch(mid_batch)
             .await?
             .with_context(|| {
                 format!("Postgres is inconsistent: missing miniblocks for L1 batch #{mid_batch}")
@@ -93,7 +93,7 @@ pub async fn sync_versions(
     let remote_first_v22_l1_batch = left_bound;
     let (remote_first_v22_miniblock, _) = connection
         .blocks_dal()
-        .get_miniblock_range_of_l1_batch(remote_first_v22_l1_batch)
+        .get_l2_block_range_of_l1_batch(remote_first_v22_l1_batch)
         .await?
         .with_context(|| {
             format!("Postgres is inconsistent: missing miniblocks for L1 batch #{remote_first_v22_l1_batch}")
@@ -114,7 +114,7 @@ pub async fn sync_versions(
 
     let (local_first_v22_miniblock, _) = transaction
         .blocks_dal()
-        .get_miniblock_range_of_l1_batch(local_first_v22_l1_batch)
+        .get_l2_block_range_of_l1_batch(local_first_v22_l1_batch)
         .await?
         .with_context(|| {
             format!("Postgres is inconsistent: missing miniblocks for L1 batch #{local_first_v22_l1_batch}")
@@ -123,7 +123,7 @@ pub async fn sync_versions(
     tracing::info!("Setting version 22 for miniblocks {remote_first_v22_miniblock}..={local_first_v22_miniblock}");
     transaction
         .blocks_dal()
-        .reset_protocol_version_for_miniblocks(
+        .reset_protocol_version_for_l2_blocks(
             remote_first_v22_miniblock..=local_first_v22_miniblock,
             ProtocolVersionId::Version22,
         )

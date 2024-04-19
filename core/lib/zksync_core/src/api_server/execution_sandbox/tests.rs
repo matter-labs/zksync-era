@@ -20,7 +20,7 @@ async fn creating_block_args() {
     let miniblock = create_miniblock(1);
     storage
         .blocks_dal()
-        .insert_miniblock(&miniblock)
+        .insert_l2_block(&miniblock)
         .await
         .unwrap();
 
@@ -29,13 +29,13 @@ async fn creating_block_args() {
         pending_block_args.block_id,
         api::BlockId::Number(api::BlockNumber::Pending)
     );
-    assert_eq!(pending_block_args.resolved_block_number, MiniblockNumber(2));
+    assert_eq!(pending_block_args.resolved_block_number, L2BlockNumber(2));
     assert_eq!(pending_block_args.l1_batch_timestamp_s, None);
 
     let start_info = BlockStartInfo::new(&mut storage).await.unwrap();
     assert_eq!(
         start_info.first_miniblock(&mut storage).await.unwrap(),
-        MiniblockNumber(0)
+        L2BlockNumber(0)
     );
     assert_eq!(
         start_info.first_l1_batch(&mut storage).await.unwrap(),
@@ -47,7 +47,7 @@ async fn creating_block_args() {
         .await
         .unwrap();
     assert_eq!(latest_block_args.block_id, latest_block);
-    assert_eq!(latest_block_args.resolved_block_number, MiniblockNumber(1));
+    assert_eq!(latest_block_args.resolved_block_number, L2BlockNumber(1));
     assert_eq!(
         latest_block_args.l1_batch_timestamp_s,
         Some(miniblock.timestamp)
@@ -58,10 +58,7 @@ async fn creating_block_args() {
         .await
         .unwrap();
     assert_eq!(earliest_block_args.block_id, earliest_block);
-    assert_eq!(
-        earliest_block_args.resolved_block_number,
-        MiniblockNumber(0)
-    );
+    assert_eq!(earliest_block_args.resolved_block_number, L2BlockNumber(0));
     assert_eq!(earliest_block_args.l1_batch_timestamp_s, Some(0));
 
     let missing_block = api::BlockId::Number(100.into());
@@ -76,7 +73,7 @@ async fn creating_block_args_after_snapshot_recovery() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
     let snapshot_recovery =
-        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
 
     let pending_block_args = BlockArgs::pending(&mut storage).await.unwrap();
     assert_eq!(
@@ -85,14 +82,14 @@ async fn creating_block_args_after_snapshot_recovery() {
     );
     assert_eq!(
         pending_block_args.resolved_block_number,
-        snapshot_recovery.miniblock_number + 1
+        snapshot_recovery.l2_block_number + 1
     );
     assert_eq!(pending_block_args.l1_batch_timestamp_s, None);
 
     let start_info = BlockStartInfo::new(&mut storage).await.unwrap();
     assert_eq!(
         start_info.first_miniblock(&mut storage).await.unwrap(),
-        snapshot_recovery.miniblock_number + 1
+        snapshot_recovery.l2_block_number + 1
     );
     assert_eq!(
         start_info.first_l1_batch(&mut storage).await.unwrap(),
@@ -108,7 +105,7 @@ async fn creating_block_args_after_snapshot_recovery() {
     let pruned_blocks = [
         api::BlockNumber::Earliest,
         0.into(),
-        snapshot_recovery.miniblock_number.0.into(),
+        snapshot_recovery.l2_block_number.0.into(),
     ];
     for pruned_block in pruned_blocks {
         let pruned_block = api::BlockId::Number(pruned_block);
@@ -119,7 +116,7 @@ async fn creating_block_args_after_snapshot_recovery() {
     }
 
     let missing_blocks = [
-        api::BlockNumber::from(snapshot_recovery.miniblock_number.0 + 2),
+        api::BlockNumber::from(snapshot_recovery.l2_block_number.0 + 2),
         100.into(),
     ];
     for missing_block in missing_blocks {
@@ -130,10 +127,10 @@ async fn creating_block_args_after_snapshot_recovery() {
         assert_matches!(err, BlockArgsError::Missing);
     }
 
-    let miniblock = create_miniblock(snapshot_recovery.miniblock_number.0 + 1);
+    let miniblock = create_miniblock(snapshot_recovery.l2_block_number.0 + 1);
     storage
         .blocks_dal()
-        .insert_miniblock(&miniblock)
+        .insert_l2_block(&miniblock)
         .await
         .unwrap();
 

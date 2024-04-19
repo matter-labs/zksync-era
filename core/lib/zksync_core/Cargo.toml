@@ -24,7 +24,6 @@ zksync_protobuf_config.workspace = true
 zksync_utils.workspace = true
 zksync_contracts.workspace = true
 zksync_system_constants.workspace = true
-zksync_commitment_utils.workspace = true
 zksync_eth_client.workspace = true
 zksync_eth_signer.workspace = true
 zksync_l1_contract_interface.workspace = true
@@ -45,6 +44,8 @@ zksync_health_check.workspace = true
 vlog.workspace = true
 zksync_eth_watch.workspace = true
 zksync_shared_metrics.workspace = true
+zksync_commitment_generator.workspace = true
+zksync_house_keeper.workspace = true
 
 multivm.workspace = true
 

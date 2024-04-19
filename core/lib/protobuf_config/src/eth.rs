@@ -61,7 +61,8 @@ impl proto::PubdataSendingMode {
 }
 
 impl ProtoRepr for proto::Eth {
-    type Type = configs::eth_sender::ETHConfig;
+    type Type = configs::eth_sender::EthConfig;
+
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             sender: read_optional_repr(&self.sender).context("sender")?,
@@ -222,7 +223,8 @@ impl ProtoRepr for proto::GasAdjuster {
 }
 
 impl ProtoRepr for proto::EthWatch {
-    type Type = configs::ETHWatchConfig;
+    type Type = configs::EthWatchConfig;
+
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             confirmations_for_eth_event: self.confirmations_for_eth_event,
