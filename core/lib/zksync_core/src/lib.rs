@@ -72,7 +72,7 @@ use crate::{
         execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
         healthcheck::HealthCheckHandle,
         tree::TreeApiHttpClient,
-        tx_sender::{ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
+        tx_sender::{tx_sink, ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
         web3::{self, mempool_cache::MempoolCache, state::InternalApiConfig, Namespace},
     },
     basic_witness_input_producer::BasicWitnessInputProducer,
@@ -190,6 +190,8 @@ pub enum Component {
     Consensus,
     /// Component generating commitment for L1 batches.
     CommitmentGenerator,
+    /// Component for filtering L2 transacions by denylist
+    TxSinkDenyList,
 }
 
 #[derive(Debug)]
@@ -226,6 +228,7 @@ impl FromStr for Components {
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
             "consensus" => Ok(Components(vec![Component::Consensus])),
             "commitment_generator" => Ok(Components(vec![Component::CommitmentGenerator])),
+            "txsink_denylist" => Ok(Components(vec![Component::TxSinkDenyList])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }

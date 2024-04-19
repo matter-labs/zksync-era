@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package zksync.config.tx_sink;
+
+message TxSink {
+  optional string deny_list = 1; // optional
+}

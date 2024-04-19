@@ -24,6 +24,7 @@ mod snapshots_creator;
 pub mod testonly;
 #[cfg(test)]
 mod tests;
+mod tx_sink;
 mod utils;
 mod wallets;
 
