@@ -166,15 +166,6 @@ class MainNode {
         }
         return new MainNode(tester, proc);
     }
-
-    // Sends SIGINT to the main node process and waits for it to exit.
-    public async terminate(): Promise<void> {
-        this.proc.kill('SIGINT');
-        while (this.proc.exitCode === null) {
-            await utils.sleep(1);
-        }
-        expect(this.proc.exitCode).to.equal(0);
-    }
 }
 
 class ExtNode {
@@ -183,7 +174,7 @@ class ExtNode {
     // Terminates all main node processes running.
     public static async terminateAll() {
         try {
-            await utils.exec('pkill -INT zksync_external_node');
+            await utils.exec('pkill -INT -f zksync_external_node');
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
@@ -221,12 +212,6 @@ class ExtNode {
             }
         }
         return new ExtNode(tester, proc);
-    }
-
-    // Sends SIGINT to the node process and waits for it to exit.
-    public async terminate(): Promise<void> {
-        this.proc.kill('SIGINT');
-        expect(await this.waitForExit()).to.equal(0);
     }
 
     // Waits for the node process to exit.
@@ -281,7 +266,6 @@ describe('Block reverting test', function () {
 
         console.log('Restart the main node with L1 batch execution disabled.');
         await killServerAndWaitForShutdown(mainNode.tester, 'zksync_server');
-        // await mainNode.terminate();
         mainNode = await MainNode.spawn(mainLogs, enableConsensus, false);
 
         console.log('Commit at least 2 L1 batches which are not executed');
@@ -325,7 +309,6 @@ describe('Block reverting test', function () {
         const alice2 = await alice.getBalance();
         console.log('Terminate the main node');
         await killServerAndWaitForShutdown(mainNode.tester, 'zksync_server');
-        // await mainNode.terminate();
 
         console.log('Ask block_reverter to suggest to which L1 batch we should revert');
         const values_json = runBlockReverter([
