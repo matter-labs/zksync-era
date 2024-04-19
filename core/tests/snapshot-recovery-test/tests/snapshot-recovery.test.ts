@@ -59,7 +59,7 @@ interface ConsistencyCheckerDetails {
 
 interface ReorgDetectorDetails {
     readonly last_correct_l1_batch?: number;
-    readonly last_correct_miniblock?: number;
+    readonly last_correct_l2_block?: number;
 }
 
 interface HealthCheckResponse {
@@ -153,7 +153,7 @@ describe('snapshot recovery', () => {
         const l1BatchNumber = Math.max(...newBatchNumbers);
         snapshotMetadata = await getSnapshot(l1BatchNumber);
         console.log('Obtained latest snapshot', snapshotMetadata);
-        const miniblockNumber = snapshotMetadata.miniblockNumber;
+        const l2BlockNumber = snapshotMetadata.miniblockNumber;
 
         const protoPath = path.join(homeDir, 'core/lib/types/src/proto/mod.proto');
         const root = await protobuf.load(protoPath);
@@ -182,7 +182,7 @@ describe('snapshot recovery', () => {
                 const valueOnBlockchain = await mainNode.getStorageAt(
                     snapshotAccountAddress,
                     snapshotKey,
-                    miniblockNumber
+                    l2BlockNumber
                 );
                 expect(snapshotValue).to.equal(valueOnBlockchain);
                 expect(snapshotL1BatchNumber).to.be.lessThanOrEqual(l1BatchNumber);
@@ -285,9 +285,9 @@ describe('snapshot recovery', () => {
                 const details = health.components.reorg_detector?.details;
                 if (details !== undefined) {
                     console.log('Received reorg detector health details', details);
-                    if (details.last_correct_l1_batch !== undefined && details.last_correct_miniblock !== undefined) {
+                    if (details.last_correct_l1_batch !== undefined && details.last_correct_l2_block !== undefined) {
                         expect(details.last_correct_l1_batch).to.be.greaterThan(snapshotMetadata.l1BatchNumber);
-                        expect(details.last_correct_miniblock).to.be.greaterThan(snapshotMetadata.miniblockNumber);
+                        expect(details.last_correct_l2_block).to.be.greaterThan(snapshotMetadata.miniblockNumber);
                         reorgDetectorSucceeded = true;
                     }
                 }
