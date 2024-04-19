@@ -30,7 +30,7 @@ function parseSuggestedValues(suggestedValuesString: string) {
 }
 
 async function killServerAndWaitForShutdown(tester: Tester) {
-    await utils.exec('pkill -9 zksync_server');
+    await utils.exec('killall -9 zksync_server');
     // Wait until it's really stopped.
     let iter = 0;
     while (iter < 30) {
@@ -250,7 +250,7 @@ describe('Block reverting test', function () {
     });
 
     after('Try killing server', async () => {
-        await utils.exec('pkill zksync_server').catch(ignoreError);
+        await utils.exec('killall zksync_server').catch(ignoreError);
     });
 });
 

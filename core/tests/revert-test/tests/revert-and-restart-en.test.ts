@@ -95,7 +95,7 @@ function runBlockReverter(args: string[]): string {
 }
 
 async function killServerAndWaitForShutdown(tester: Tester, server: string) {
-    await utils.exec(`pkill -9 ${server}`);
+    await utils.exec(`killall -9 ${server}`);
     // Wait until it's really stopped.
     let iter = 0;
     while (iter < 30) {
@@ -118,7 +118,7 @@ class MainNode {
     // Terminates all main node processes running.
     public static async terminateAll() {
         try {
-            await utils.exec('pkill -INT zksync_server');
+            await utils.exec('killall -INT zksync_server');
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
@@ -174,7 +174,7 @@ class ExtNode {
     // Terminates all main node processes running.
     public static async terminateAll() {
         try {
-            await utils.exec('pkill -INT -f zksync_external_node');
+            await utils.exec('killall -INT -f zksync_external_node');
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
