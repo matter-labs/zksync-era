@@ -151,9 +151,6 @@ pub struct StateKeeperConfig {
     pub validation_computational_gas_limit: u32,
     pub save_call_traces: bool,
 
-    /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
-    pub enum_index_migration_chunk_size: Option<usize>,
-
     /// The maximal number of circuits that a batch can support.
     /// Note, that this number corresponds to the "base layer" circuits, i.e. it does not include
     /// the recursion layers' circuits.
@@ -201,16 +198,11 @@ impl StateKeeperConfig {
             fee_model_version: FeeModelVersion::V2,
             validation_computational_gas_limit: 300000,
             save_call_traces: true,
-            enum_index_migration_chunk_size: None,
             max_circuits_per_batch: 24100,
             bootloader_hash: None,
             default_aa_hash: None,
             l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
         }
-    }
-
-    pub fn enum_index_migration_chunk_size(&self) -> usize {
-        self.enum_index_migration_chunk_size.unwrap_or(1_000)
     }
 }
 

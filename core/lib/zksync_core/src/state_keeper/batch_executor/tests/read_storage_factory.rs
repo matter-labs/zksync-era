@@ -36,7 +36,6 @@ impl PostgresFactory {
 pub struct RocksdbFactory {
     pool: ConnectionPool<Core>,
     state_keeper_db_path: String,
-    enum_index_migration_chunk_size: usize,
 }
 
 #[async_trait]
@@ -45,10 +44,9 @@ impl ReadStorageFactory for RocksdbFactory {
         &self,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
-        let mut builder = RocksdbStorage::builder(self.state_keeper_db_path.as_ref())
+        let builder = RocksdbStorage::builder(self.state_keeper_db_path.as_ref())
             .await
             .context("Failed opening state keeper RocksDB")?;
-        builder.enable_enum_index_migration(self.enum_index_migration_chunk_size);
         let mut conn = self
             .pool
             .connection_tagged("state_keeper")
@@ -66,15 +64,10 @@ impl ReadStorageFactory for RocksdbFactory {
 }
 
 impl RocksdbFactory {
-    pub fn new(
-        pool: ConnectionPool<Core>,
-        state_keeper_db_path: String,
-        enum_index_migration_chunk_size: usize,
-    ) -> Self {
+    pub fn new(pool: ConnectionPool<Core>, state_keeper_db_path: String) -> Self {
         Self {
             pool,
             state_keeper_db_path,
-            enum_index_migration_chunk_size,
         }
     }
 }
