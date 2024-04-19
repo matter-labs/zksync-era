@@ -184,7 +184,7 @@ fn print_hash_comparison(name: &str, contract_hash: H256, db_hash: H256) {
         println!("Contract hash: {contract_hash:?}");
         println!("DB hash: {db_hash:?}");
     } else {
-        println!("{name} hash matches: {contract_hash}");
+        println!("{name} hash matches: {contract_hash:}");
     }
 }
 

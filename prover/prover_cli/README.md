@@ -1,16 +1,14 @@
-# CLI to better understand and debug provers
-
 ## Usage
 
-> Note: For now, its necesary to use the 'zk f' tool to set up the environment. The main command will later be changed
-> to `pli`.
+> Note: For now, its necesary to use the 'zk f' tool to set up the enviroment. The main command will later be changed to
+> `pli`.
 
 ```bash
 Usage: zk f cargo run --release -- <COMMAND>
 
 Commands:
   file-info
-  status-jobs
+  status
   help       Print this message or the help of the given subcommand(s)
 
 Options:
@@ -18,23 +16,25 @@ Options:
   -V, --version  Print version
 ```
 
-### Status-jobs
+## Status
 
-You can get the progress for some batch proof, for a bunch of batches the `status-jobs` command:
+### Status batch
+
+You can get the progress for some batch proof, for a bunch of batches the `status batch` command:
 
 ```bash
 # Displays the proof progress of the batch 1
- zk f cargo run -- status-jobs --batch 1
+ zk f cargo run --release -- status batch --batch 1
 # Displays the proof progress of the batches 1 and 2
- zk f cargo run -- status-jobs --batch 1 2
+ zk f cargo run --release -- status batch --batch 1 2
 # Displays the proof progress of the batch 3, with additional information
- zk f cargo run -- status-jobs --batch 3 --verbose
+ zk f cargo run --release -- status batch --batch 3 --verbose
 ```
 
 Example:
 
 ```bash
-$ zk f cargo run -- status-jobs --batch 1 --verbose
+$ zk f cargo run --release -- status batch --batch 1 --verbose
 
 Batch number: 1
 Progress: 34.88% (45/129)
@@ -44,9 +44,39 @@ Successful: 45
 Failed: 0
 ```
 
-### File-Info
+### Status l1
 
-Displays the information about a given file:
+Retrieve information about the state of the batches sent to L1 and compare the contract hashes in L1 with those stored
+in the prover database.
+
+Example:
+
+```bash
+$ zk f run --release -- status l1
+
+====== L1 Status ======
+State keeper: First batch: 0, recent batch: 10
+L1 state: block verified: 7, block committed: 9
+Eth sender is 1 behind. Last block committed: 9. Most recent sealed state keeper batch: 10.
+ -----------------------
+Verifier key hash matches: 0x063c9c1e9d39fc0b1633c78a49f1905s65ee0982ad96d97ef7fe3d4f1f1a72c7
+ -----------------------
+Verification node hash in DB differs from the one in contract.
+Contract hash: 0x1186ec268d49f1905f8d9c1e9d39fc33e98c74f91d91a21b8f7ef78bd09a8db8
+DB hash: 0x5a3ef282b21e12fe1f4438e5bb158fc5060b160559c5158c6389d62d9fe3d080
+ -----------------------
+Verification leaf hash in DB differs from the one in contract.
+Contract hash: 0x101e08b00193e529145ee09823378ef51a3bc8966504064f1f6ba3f1ba863210
+DB hash: 0x400a4b532c6f072c00d1806ef299300d4c104f4ac55bd8698ade78894fcadc0a
+ -----------------------
+Verification circuits hash in DB differs from the one in contract.
+Contract hash: 0x18c1639094f58177409186e8c48d9f577c9410901d2f1d486b3e7d6cf553ae4c
+DB hash: 0x0000000000000000000000000000000000000000000000000000000000000000
+```
+
+## File-Info
+
+Displays de infomration about a given file:
 
 ```bash
 cargo run -- file-info --file-path /zksync-era/prover/artifacts/proofs_fri/l1_batch_proof_1.bin
