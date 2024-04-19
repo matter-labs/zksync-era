@@ -59,6 +59,7 @@ pub struct GpuProverJob {
     pub witness_vector_artifacts: WitnessVectorArtifacts,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn save_proof(
     job_id: u32,
     started_at: Instant,
