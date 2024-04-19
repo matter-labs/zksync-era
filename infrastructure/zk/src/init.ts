@@ -99,12 +99,12 @@ const initBridgehubStateTransition = async () => {
 };
 
 // Registers a hyperchain and deploys L2 contracts through L1
-type InitHyperchainOptions = { includePaymaster: boolean; baseTokenName?: string };
-const initHyperchain = async ({ includePaymaster, baseTokenName }: InitHyperchainOptions): Promise<void> => {
+type InitHyperchainOptions = { includePaymaster: boolean; baseTokenName?: string, chainIdHack?: boolean };
+const initHyperchain = async ({ includePaymaster, baseTokenName, chainIdHack }: InitHyperchainOptions): Promise<void> => {
     await announced('Registering Hyperchain', contract.registerHyperchain({ baseTokenName }));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
-    await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster }));
+    await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster, chainIdHack }));
 };
 
 // ########################### Command Actions ###########################
@@ -129,7 +129,8 @@ export const initDevCmdAction = async ({
     }
     await initBridgehubStateTransition();
     await initDatabase({ skipVerifierDeployment: true });
-    await initHyperchain({ includePaymaster: true, baseTokenName });
+    // FIXME propagate chain id hack properly
+    await initHyperchain({ includePaymaster: true, baseTokenName, chainIdHack: true });
 };
 
 const lightweightInitCmdAction = async (): Promise<void> => {
