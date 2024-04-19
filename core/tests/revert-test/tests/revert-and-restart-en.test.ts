@@ -375,9 +375,11 @@ describe('Block reverting test', function () {
 
         console.log('Execute an L1 transaction');
         const depositHandle = await extNode.tester.syncWallet.deposit({
-            token: zkweb3.utils.LEGACY_ETH_ADDRESS,
+            token: isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
             amount: depositAmount,
-            to: alice.address
+            to: alice.address,
+            approveBaseERC20: true,
+            approveERC20: true
         });
 
         let l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
