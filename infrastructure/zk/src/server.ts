@@ -63,9 +63,10 @@ async function create_genesis(cmd: string) {
     fs.copyFileSync('genesis.log', `logs/${label}/genesis.log`);
 }
 
-export async function genesisFromSources() {
+export async function genesisFromSources(options?: { setChainId: boolean }) {
+    const args = [options?.setChainId ? '--set-chain-id' : ''];
     // we fix chainId as we need all chains to have the same chainId at genesis
-    await create_genesis('cargo run --bin zksync_server --release -- --genesis');
+    await create_genesis('cargo run --bin zksync_server --release -- --genesis ' + args.join(' '));
 }
 
 export async function genesisFromBinary() {

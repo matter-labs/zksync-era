@@ -42,22 +42,29 @@ type InitSetupOptions = {
     skipEnvSetup: boolean;
     skipSubmodulesCheckout: boolean;
     runObservability: boolean;
-    validiumMode: boolean;
+    deploymentMode: DeploymentMode;
 };
 const initSetup = async ({
     skipSubmodulesCheckout,
     skipEnvSetup,
-    runObservability
+    runObservability,
+    deploymentMode
 }: InitSetupOptions): Promise<void> => {
-    if (!skipSubmodulesCheckout) {
-        await announced('Checkout submodules', submoduleUpdate());
-    }
+    await announced(
+        `Initializing in ${deploymentMode == contract.DeploymentMode.Validium ? 'Validium mode' : 'Roll-up mode'}`
+    );
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
         await announced('Checking environment', checkEnv());
         await announced('Checking git hooks', env.gitHooks());
         await announced('Create volumes', createVolumes());
         await announced('Setting up containers', up(runObservability));
+    }
+    if (!skipSubmodulesCheckout) {
+        await announced('Checkout submodules', submoduleUpdate());
+    }
+    if (deploymentMode == DeploymentMode.Validium) {
+        await announced('Checkout era-contracts for Validium mode', validiumSubmoduleCheckout());
     }
 
     await announced('Compiling JS packages', run.yarn());
@@ -91,8 +98,15 @@ const deployTestTokens = async (options?: DeployTestTokensOptions) => {
 };
 
 // Deploys and verifies L1 contracts and initializes governance
-const initBridgehubStateTransition = async () => {
-    await announced('Deploying L1 contracts', contract.deployL1(['']));
+const initBridgehubStateTransition = async (deploymentMode: DeploymentMode) => {
+    await announced('Running server genesis setup', server.genesisFromSources({ setChainId: false }));
+    if (deploymentMode == DeploymentMode.Validium) {
+        await announced('Deploying L1 contracts', contract.deployL1(['--validium-mode']));
+    } else if (deploymentMode == DeploymentMode.Rollup) {
+        await announced('Deploying L1 contracts', contract.deployL1(['']));
+    } else {
+        throw new Error('Invalid deployment mode');
+    }
     await announced('Verifying L1 contracts', contract.verifyL1Contracts());
     await announced('Initializing governance', contract.initializeGovernance());
     await announced('Reloading env', env.reload());
@@ -112,6 +126,7 @@ type InitDevCmdActionOptions = InitSetupOptions & {
     skipTestTokenDeployment?: boolean;
     testTokenOptions?: DeployTestTokensOptions;
     baseTokenName?: string;
+    validiumMode?: boolean;
 };
 export const initDevCmdAction = async ({
     skipEnvSetup,
@@ -122,12 +137,13 @@ export const initDevCmdAction = async ({
     runObservability,
     validiumMode
 }: InitDevCmdActionOptions): Promise<void> => {
-    await initSetup({ skipEnvSetup, skipSubmodulesCheckout, runObservability, validiumMode });
+    let deploymentMode = validiumMode !== undefined ? contract.DeploymentMode.Validium : contract.DeploymentMode.Rollup;
+    await initSetup({ skipEnvSetup, skipSubmodulesCheckout, runObservability, deploymentMode });
     await initDatabase({ skipVerifierDeployment: false });
     if (!skipTestTokenDeployment) {
         await deployTestTokens(testTokenOptions);
     }
-    await initBridgehubStateTransition();
+    await initBridgehubStateTransition(deploymentMode);
     await initDatabase({ skipVerifierDeployment: true });
     await initHyperchain({ includePaymaster: true, baseTokenName });
 };
@@ -145,11 +161,15 @@ const lightweightInitCmdAction = async (): Promise<void> => {
     await announced('Initializing governance', contract.initializeGovernance());
 };
 
+export async function validiumSubmoduleCheckout() {
+    await utils.exec(`cd contracts && git checkout origin/kl/without-1.5.0-merge-dev`);
+}
+
 type InitSharedBridgeCmdActionOptions = InitSetupOptions;
 const initSharedBridgeCmdAction = async (options: InitSharedBridgeCmdActionOptions): Promise<void> => {
     await initSetup(options);
     await initDatabase({ skipVerifierDeployment: false });
-    await initBridgehubStateTransition();
+    await initBridgehubStateTransition(options.deploymentMode);
 };
 
 type InitHyperCmdActionOptions = {
@@ -157,20 +177,20 @@ type InitHyperCmdActionOptions = {
     bumpChainId: boolean;
     baseTokenName?: string;
     runObservability: boolean;
-    validiumMode: boolean;
+    deploymentMode: DeploymentMode;
 };
 export const initHyperCmdAction = async ({
     skipSetupCompletely,
     bumpChainId,
     baseTokenName,
     runObservability,
-    validiumMode
+    deploymentMode
 }: InitHyperCmdActionOptions): Promise<void> => {
     if (bumpChainId) {
         config.bumpChainId();
     }
     if (!skipSetupCompletely) {
-        await initSetup({ skipEnvSetup: false, skipSubmodulesCheckout: false, runObservability, validiumMode });
+        await initSetup({ skipEnvSetup: false, skipSubmodulesCheckout: false, runObservability, deploymentMode });
     }
     await initDatabase({ skipVerifierDeployment: true });
     await initHyperchain({ includePaymaster: true, baseTokenName });

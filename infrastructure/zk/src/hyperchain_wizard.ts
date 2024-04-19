@@ -15,6 +15,7 @@ import * as Handlebars from 'handlebars';
 import { ProverType, setupProver } from './prover_setup';
 // import { DeploymentMode } from './contract';
 import { announced } from './utils';
+import { DeploymentMode } from './contract';
 
 const title = chalk.blueBright;
 const warning = chalk.yellowBright;
@@ -51,7 +52,8 @@ let isLocalhost = false;
 // An init command that allows configuring and spinning up a new hyperchain network.
 async function initHyperchain(envName: string, runObservability: boolean, validiumMode: boolean) {
     await announced('Initializing hyperchain creation', setupConfiguration(envName, runObservability));
-    await init.initHyperCmdAction({ skipSetupCompletely: false, bumpChainId: true, runObservability, validiumMode });
+    let deploymentMode = validiumMode !== undefined ? DeploymentMode.Validium : DeploymentMode.Rollup;
+    await init.initHyperCmdAction({ skipSetupCompletely: false, bumpChainId: true, runObservability, deploymentMode });
 
     // if we used matterlabs/geth network, we need custom ENV file for hyperchain compose parts
     // This breaks `zk status prover` command, but neccessary for working in isolated docker-network
@@ -769,7 +771,7 @@ async function configDemoHyperchain(cmd: Command) {
         testTokenOptions: { envFile: process.env.CHAIN_ETH_NETWORK! },
         // TODO set the proper values
         runObservability: false,
-        validiumMode: false
+        deploymentMode: DeploymentMode.Rollup
     });
 
     env.mergeInitToEnv();
