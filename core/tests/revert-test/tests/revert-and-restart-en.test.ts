@@ -118,7 +118,7 @@ class MainNode {
     // Terminates all main node processes running.
     public static async terminateAll() {
         try {
-            await utils.exec('pkill -INT zksync_server --wait');
+            await utils.exec('pkill -INT zksync_server');
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
@@ -183,7 +183,7 @@ class ExtNode {
     // Terminates all main node processes running.
     public static async terminateAll() {
         try {
-            await utils.exec('pkill -INT zksync_external_node --wait');
+            await utils.exec('pkill -INT zksync_external_node');
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
