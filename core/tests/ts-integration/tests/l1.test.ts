@@ -31,7 +31,6 @@ const DEFAULT_L2_GAS_LIMIT = 5000000;
 describe('Tests for L1 behavior', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
-    // let chainId: ethers.BigNumberish;
 
     let counterContract: zksync.Contract;
     let contextContract: zksync.Contract;
@@ -43,7 +42,6 @@ describe('Tests for L1 behavior', () => {
     beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
-        // chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
     });
 
     test('Should deploy required contracts', async () => {

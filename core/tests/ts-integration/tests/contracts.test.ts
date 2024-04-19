@@ -62,26 +62,14 @@ describe('Smart contract behavior checks', () => {
 
     test('Should deploy contract with create', async () => {
         const contractFactory = new zksync.ContractFactory(contracts.create.abi, contracts.create.bytecode, alice);
-        // const nonce = await alice.getNonce();
         const contract = await contractFactory.deploy({
-            // maxFeePerGas: 5000000,
-            //     maxPriorityFeePerGas: 5000000,
-            // type:113,
-            // nonce: nonce,
             customData: {
                 factoryDeps: [contracts.create.factoryDep]
-                // gasPerPubdata: 50000,
             }
-            // gasLimit: 5111111
         });
         await contract.deployed();
         await expect(contract.getFooName()).resolves.toBe('Foo');
     });
-    // "data":"0x9c4d535b000000000000000000000000000000000000000000000000000000000000000001000061957eea0e14c331
-    // 8b8d0c8028069794e47491ae6aea0a2f1e41e242d2000000000000000000000000000000000000000000000000000000000000006000
-    // 00000000000000000000000000000000000000000000000000000000000000","to":{},
-    // "type":113,"from":"0x6f2847B201b83A406F46B2F824f5289ceBE73A70","nonce":{},"gasLimit":{},
-    // "chainId":{}}, code=UNPREDICTABLE_GAS_LIMIT, version=abstract-signer/5.7.0)
 
     test('Should perform "expensive" contract calls', async () => {
         const expensiveContract = await deployContract(alice, contracts.expensive, []);

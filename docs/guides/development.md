@@ -162,7 +162,7 @@ By default, the chosen prover is a "dummy" one, meaning that it doesn't actually
 avoid expensive computations in the development environment.
 
 To switch dummy prover to real prover, one must change `dummy_verifier` to `false` in `contracts.toml` for your env
-(most likely, (kl to do, no such file:) `etc/env/dev/contracts.toml`) and run `zk init` to redeploy smart contracts.
+(most likely, `etc/env/base/contracts.toml`) and run `zk init` to redeploy smart contracts.
 
 ## Testing
 

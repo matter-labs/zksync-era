@@ -70,6 +70,7 @@ where
                     .get_bridge_contracts()
                     .await
                     .map_err(|err| ClientError::NetworkError(err.to_string()))?;
+                // Note, that this is safe, but only for Era
                 default_bridges.l2_erc20_default_bridge.unwrap()
             };
 
