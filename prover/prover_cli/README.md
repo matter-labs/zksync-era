@@ -1,6 +1,6 @@
 ## Usage
 
-> Note: For now, its necesary to use the 'zk f' tool to set up the enviroment. The main command will later be changed to
+> Note: For now, its necessary to use the 'zk f' tool to set up the environment. The main command will later be changed to
 > `pli`.
 
 ```bash
@@ -76,7 +76,7 @@ DB hash: 0x0000000000000000000000000000000000000000000000000000000000000000
 
 ## File-Info
 
-Displays de infomration about a given file:
+Displays de information about a given file:
 
 ```bash
 cargo run -- file-info --file-path /zksync-era/prover/artifacts/proofs_fri/l1_batch_proof_1.bin
