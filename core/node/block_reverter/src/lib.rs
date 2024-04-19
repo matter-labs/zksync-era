@@ -346,15 +346,18 @@ impl BlockReverter {
                 .expect("Private key is required to send revert transaction"),
         );
         let chain_id = web3.eth().chain_id().await.unwrap().as_u64();
-
-        let revert_function = contract
-            .function("revertBlocks")
-            .or_else(|_| contract.function("revertBatches"))
-            .expect(
-                "Either `revertBlocks` or `revertBatches` function must be present in contract",
-            );
+        let zksync_chain_id = std::env::var("CHAIN_ETH_ZKSYNC_NETWORK_ID")
+            .ok()
+            .and_then(|val| val.parse::<u128>().ok())
+            .expect("Hyperchain chain id has to be set in config");
+        let revert_function = contract.function("revertBatchesSharedBridge").expect(
+            "Either `revertBlocks` or `revertBatches` function must be present in contract",
+        );
         let data = revert_function
-            .encode_input(&[Token::Uint(last_l1_batch_to_keep.0.into())])
+            .encode_input(&[
+                Token::Uint(zksync_chain_id.into()),
+                Token::Uint(last_l1_batch_to_keep.0.into()),
+            ])
             .unwrap();
 
         let base_fee = web3

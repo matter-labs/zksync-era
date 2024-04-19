@@ -1,9 +1,10 @@
 import * as utils from 'zk/build/utils';
 import { Tester } from './tester';
-import * as zkweb3 from 'zksync-web3';
+import * as zkweb3 from 'zksync-ethers';
 import { BigNumber, Contract, ethers } from 'ethers';
 import { expect } from 'chai';
 import fs from 'fs';
+import { ValidatorTimelockFactory } from '../../../../contracts/l1-contracts/typechain/ValidatorTimelockFactory';
 
 // Parses output of "print-suggested-values" command of the revert block tool.
 function parseSuggestedValues(suggestedValuesString: string) {
@@ -29,7 +30,7 @@ function parseSuggestedValues(suggestedValuesString: string) {
 }
 
 async function killServerAndWaitForShutdown(tester: Tester) {
-    await utils.exec('pkill -9 zksync_server');
+    await utils.exec('killall -9 zksync_server');
     // Wait until it's really stopped.
     let iter = 0;
     while (iter < 30) {
@@ -59,7 +60,6 @@ describe('Block reverting test', function () {
     let mainContract: Contract;
     let blocksCommittedBeforeRevert: number;
     let logs: fs.WriteStream;
-    let operatorAddress = process.env.ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR;
 
     let enable_consensus = process.env.ENABLE_CONSENSUS == 'true';
     let components = 'api,tree,eth,state_keeper,commitment_generator';
@@ -103,15 +103,29 @@ describe('Block reverting test', function () {
             throw new Error('Server did not start');
         }
 
+        await tester.fundSyncWallet();
+
+        const chainId = (await alice._providerL2().getNetwork()).chainId;
+        const factory = new ValidatorTimelockFactory(tester.hyperchainAdmin);
+        const deployedContract = factory.attach(process.env.CONTRACTS_VALIDATOR_TIMELOCK_ADDR!);
+
+        // If hyperchain admin is not a validator -> add
+        if (!(await deployedContract['validators(uint256,address)'](chainId, tester.hyperchainAdmin.address))) {
+            const addValidatorTx = await deployedContract.addValidator(chainId, tester.hyperchainAdmin.address);
+            await addValidatorTx.wait();
+        }
+
         // Seal 2 L1 batches.
         // One is not enough to test the reversion of sk cache because
         // it gets updated with some batch logs only at the start of the next batch.
         const initialL1BatchNumber = await tester.web3Provider.getL1BatchNumber();
 
         const firstDepositHandle = await tester.syncWallet.deposit({
-            token: zkweb3.utils.ETH_ADDRESS,
+            token: tester.isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : tester.baseTokenAddress,
             amount: depositAmount,
-            to: alice.address
+            to: alice.address,
+            approveBaseERC20: true,
+            approveERC20: true
         });
         await firstDepositHandle.wait();
         while ((await tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber) {
@@ -119,9 +133,11 @@ describe('Block reverting test', function () {
         }
 
         const secondDepositHandle = await tester.syncWallet.deposit({
-            token: zkweb3.utils.ETH_ADDRESS,
+            token: tester.isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : tester.baseTokenAddress,
             amount: depositAmount,
-            to: alice.address
+            to: alice.address,
+            approveBaseERC20: true,
+            approveERC20: true
         });
         await secondDepositHandle.wait();
         while ((await tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber + 1) {
@@ -132,12 +148,12 @@ describe('Block reverting test', function () {
         expect(balance.eq(depositAmount.mul(2)), 'Incorrect balance after deposits').to.be.true;
 
         // Check L1 committed and executed blocks.
-        let blocksCommitted = await mainContract.getTotalBlocksCommitted();
-        let blocksExecuted = await mainContract.getTotalBlocksExecuted();
+        let blocksCommitted = await mainContract.getTotalBatchesCommitted();
+        let blocksExecuted = await mainContract.getTotalBatchesExecuted();
         let tryCount = 0;
         while (blocksCommitted.eq(blocksExecuted) && tryCount < 100) {
-            blocksCommitted = await mainContract.getTotalBlocksCommitted();
-            blocksExecuted = await mainContract.getTotalBlocksExecuted();
+            blocksCommitted = await mainContract.getTotalBatchesCommitted();
+            blocksExecuted = await mainContract.getTotalBatchesExecuted();
             tryCount += 1;
             await utils.sleep(1);
         }
@@ -151,7 +167,7 @@ describe('Block reverting test', function () {
     step('revert blocks', async () => {
         const executedProcess = await utils.exec(
             'cd $ZKSYNC_HOME && ' +
-                `RUST_LOG=off cargo run --bin block_reverter --release -- print-suggested-values --json --operator-address ${operatorAddress}`
+                `RUST_LOG=off cargo run --bin block_reverter --release -- print-suggested-values --json --operator-address ${tester.hyperchainAdmin.address}`
             // ^ Switch off logs to not pollute the output JSON
         );
         const suggestedValuesOutput = executedProcess.stdout;
@@ -173,7 +189,7 @@ describe('Block reverting test', function () {
             `cd $ZKSYNC_HOME && cargo run --bin block_reverter --release -- rollback-db --l1-batch-number ${lastL1BatchNumber} --rollback-postgres --rollback-tree --rollback-sk-cache`
         );
 
-        let blocksCommitted = await mainContract.getTotalBlocksCommitted();
+        let blocksCommitted = await mainContract.getTotalBatchesCommitted();
         expect(blocksCommitted.eq(lastL1BatchNumber), 'Revert on contract was unsuccessful').to.be.true;
     });
 
@@ -190,9 +206,11 @@ describe('Block reverting test', function () {
 
         // Execute a transaction
         const depositHandle = await tester.syncWallet.deposit({
-            token: zkweb3.utils.ETH_ADDRESS,
+            token: tester.isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : tester.baseTokenAddress,
             amount: depositAmount,
-            to: alice.address
+            to: alice.address,
+            approveBaseERC20: true,
+            approveERC20: true
         });
 
         let l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
@@ -234,7 +252,7 @@ describe('Block reverting test', function () {
     });
 
     after('Try killing server', async () => {
-        await utils.exec('pkill zksync_server').catch(ignoreError);
+        await utils.exec('killall zksync_server').catch(ignoreError);
     });
 });
 
