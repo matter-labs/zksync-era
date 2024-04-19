@@ -3,12 +3,17 @@
  */
 
 import { TestMaster } from '../src/index';
-import { shouldChangeETHBalances, shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
+import {
+    shouldChangeETHBalances,
+    shouldChangeTokenBalances,
+    shouldOnlyTakeFee
+} from '../src/modifiers/balance-checker';
 import { checkReceipt } from '../src/modifiers/receipt-check';
 
 import * as zksync from 'zksync-ethers';
 import { BigNumber, Overrides } from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
+import { ETH_ADDRESS_IN_CONTRACTS } from 'zksync-ethers/build/src/utils';
 
 const ETH_ADDRESS = zksync.utils.ETH_ADDRESS;
 
@@ -30,8 +35,10 @@ describe('ETH token checks', () => {
 
     test('Can perform a deposit', async () => {
         if (!isETHBasedChain) {
-            // TODO(EVM-555): Currently this test is not working for non-eth based chains.
-            return;
+            // Approving the needed allowance previously so we don't do it inside of the deposit.
+            // This prevents the deposit fee from being miscalculated.
+            const l1MaxBaseTokenBalance = await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR!);
+            await (await alice.approveERC20(process.env.CONTRACTS_BASE_TOKEN_ADDR!, l1MaxBaseTokenBalance)).wait();
         }
         const amount = 1; // 1 wei is enough.
         const gasPrice = scaledGasPrice(alice);
@@ -41,13 +48,20 @@ describe('ETH token checks', () => {
         const l2ethBalanceChange = await shouldChangeETHBalances([{ wallet: alice, change: amount }], {
             l1ToL2: true
         });
+
+        // Variables used only for base token checks
+        const l2EthTokenAddress = await alice.l2TokenAddress(zksync.utils.ETH_ADDRESS_IN_CONTRACTS);
+        const l2EthBalanceBefore = await alice.getBalance(l2EthTokenAddress);
+        const l1BaseTokenBalanceBefore = await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR!);
+        const l2BaseTokenBalanceBefore = await alice.getBalance();
+
         const gasPerPubdataByte = zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
         const isBaseToken = isETHBasedChain;
 
         const l2GasLimit = await zksync.utils.estimateDefaultBridgeDepositL2Gas(
             alice.providerL1!,
             alice.provider,
-            ETH_ADDRESS,
+            isETHBasedChain ? ETH_ADDRESS : ETH_ADDRESS_IN_CONTRACTS, // ToDo: fix sdk so if it receives ETH_ADDRESS it should use ETH_ADDRESS_IN_CONTRACTS
             amount,
             alice.address,
             alice.address,
@@ -65,8 +79,8 @@ describe('ETH token checks', () => {
             amount,
             gasPerPubdataByte,
             l2GasLimit,
-            approveBaseERC20: true,
-            approveERC20: true,
+            approveBaseERC20: isETHBasedChain ? true : false,
+            approveERC20: isETHBasedChain ? true : false,
             approveBaseOverrides: {
                 gasPrice
             },
@@ -74,16 +88,39 @@ describe('ETH token checks', () => {
                 gasPrice
             }
         });
-        await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
+        await expect(depositOp).toBeAccepted(isETHBasedChain ? [l2ethBalanceChange] : []);
 
         const depositFee = await depositOp
             .then((op) => op.waitL1Commit())
             .then(async (receipt) => {
                 const l1GasFee = receipt.gasUsed.mul(receipt.effectiveGasPrice);
+                if (!isETHBasedChain) {
+                    return l1GasFee;
+                }
                 return l1GasFee.add(expectedL2Costs);
             });
+
         const l1EthBalanceAfter = await alice.getBalanceL1();
-        expect(l1EthBalanceBefore.sub(depositFee).sub(l1EthBalanceAfter)).bnToBeEq(amount);
+        if (isETHBasedChain) {
+            expect(l1EthBalanceBefore.sub(depositFee).sub(l1EthBalanceAfter)).bnToBeEq(amount);
+        } else {
+            // Base token checks
+            const l2EthBalanceAfter = await alice.getBalance(l2EthTokenAddress);
+            expect(l2EthBalanceBefore).bnToBeEq(l2EthBalanceAfter.sub(amount));
+
+            const l1BaseTokenBalanceAfter = await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR!);
+            expect(l1BaseTokenBalanceBefore).bnToBeEq(l1BaseTokenBalanceAfter.add(expectedL2Costs));
+
+            const l2BaseTokenBalanceAfter = await alice.getBalance();
+            expect(l1EthBalanceBefore).bnToBeEq(l1EthBalanceAfter.add(depositFee).add(amount));
+
+            // L2 balance for the base token increases do to some "overminting" of the base token
+            // We verify that the amount reduced on L1 is greater than the amount increased on L2
+            // so that we are not generating tokens out of thin air
+            const l1BaseTokenBalanceDiff = l1BaseTokenBalanceBefore.sub(l1BaseTokenBalanceAfter);
+            const l2BaseTokenBalanceDiff = l2BaseTokenBalanceAfter.sub(l2BaseTokenBalanceBefore);
+            expect(l1BaseTokenBalanceDiff).bnToBeGt(l2BaseTokenBalanceDiff);
+        }
     });
 
     test('Can perform a transfer (legacy pre EIP-155)', async () => {
