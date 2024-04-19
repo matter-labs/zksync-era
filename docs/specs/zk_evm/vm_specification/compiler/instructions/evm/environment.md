@@ -12,7 +12,7 @@ is common for Yul and EVMLA representations.
 ### System Contract
 
 This information is requested a System Contract called
-[L2BaseToken](https://github.com/code-423n4/2023-10-zksync/blob/main/code/system-contracts/contracts/L2BaseToken.sol).
+[L2EthToken](https://github.com/code-423n4/2023-10-zksync/blob/main/code/system-contracts/contracts/L2EthToken.sol).
 
 On how the System Contract is called, see
 [this section](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/VM%20Section/How%20compiler%20works/system_contracts.md).
