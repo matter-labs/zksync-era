@@ -100,7 +100,7 @@ impl ProtocolVersionId {
     }
 
     pub fn is_pre_shared_bridge(&self) -> bool {
-        Self <= &Self::Version22
+        self <= &Self::Version22
     }
 
     pub fn is_1_4_0(&self) -> bool {
