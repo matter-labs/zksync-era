@@ -301,21 +301,13 @@ impl Keystore {
     /// Keys are loaded from the default 'base path' files.
     pub fn load_keys_to_data_source(&self) -> anyhow::Result<InMemoryDataSource> {
         let mut data_source = InMemoryDataSource::new();
-        for base_circuit_type in (BaseLayerCircuitType::VM as u8
-            ..=BaseLayerCircuitType::Secp256r1Verify as u8)
-            .chain(once(BaseLayerCircuitType::EIP4844Repack as u8))
-        {
+        for base_circuit_type in BaseLayerCircuitType::as_iter_u8() {
             data_source
                 .set_base_layer_vk(self.load_base_layer_verification_key(base_circuit_type)?)
                 .unwrap();
         }
 
-        for circuit_type in (ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8
-            ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForEIP4844Repack as u8)
-            .chain(once(
-                ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
-            ))
-        {
+        for circuit_type in ZkSyncRecursionLayerStorageType::as_iter_u8() {
             data_source
                 .set_recursion_layer_vk(self.load_recursive_layer_verification_key(circuit_type)?)
                 .unwrap();
@@ -337,10 +329,7 @@ impl Keystore {
 
     pub fn save_keys_from_data_source(&self, source: &dyn SetupDataSource) -> anyhow::Result<()> {
         // Base circuits
-        for base_circuit_type in (BaseLayerCircuitType::VM as u8
-            ..=BaseLayerCircuitType::Secp256r1Verify as u8)
-            .chain(once(BaseLayerCircuitType::EIP4844Repack as u8))
-        {
+        for base_circuit_type in BaseLayerCircuitType::as_iter_u8() {
             let vk = source.get_base_layer_vk(base_circuit_type).map_err(|err| {
                 anyhow::anyhow!("No vk exist for circuit type: {base_circuit_type}: {err}")
             })?;
@@ -360,9 +349,7 @@ impl Keystore {
                 .context("save_finalization_hints()")?;
         }
         // Leaf circuits
-        for leaf_circuit_type in (ZkSyncRecursionLayerStorageType::LeafLayerCircuitForMainVM as u8)
-            ..=(ZkSyncRecursionLayerStorageType::LeafLayerCircuitForEIP4844Repack as u8)
-        {
+        for leaf_circuit_type in ZkSyncRecursionLayerStorageType::leafs_as_iter_u8() {
             let vk = source
                 .get_recursion_layer_vk(leaf_circuit_type)
                 .map_err(|err| {
