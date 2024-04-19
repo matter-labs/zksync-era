@@ -440,15 +440,11 @@ impl Executor {
                 .nonce(nonce);
 
             let paymaster_params = get_approval_based_paymaster_input_for_estimation(
-                dbg!(paymaster_address),
-                dbg!(self.l2_main_token),
                 MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE.into(),
             );
 
-            dbg!(&paymaster_params);
             let fee = builder.estimate_fee(Some(paymaster_params)).await?;
             builder = builder.fee(fee.clone());
-            dbg!(&fee);
 
             let paymaster_params = get_approval_based_paymaster_input(
                 paymaster_address,
@@ -456,8 +452,6 @@ impl Executor {
                 fee.max_total_fee(),
                 Vec::new(),
             );
-            dbg!(&paymaster_params);
-            dbg!(&fee);
             builder = builder.fee(fee);
             builder = builder.paymaster_params(paymaster_params);
 
