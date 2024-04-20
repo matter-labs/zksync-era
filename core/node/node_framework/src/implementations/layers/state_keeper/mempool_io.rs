@@ -86,7 +86,9 @@ impl WiringLayer for MempoolIOLayer {
                 .get_singleton()
                 .await
                 .context("Get master pool")?,
-            self.contracts_config.l2_shared_bridge_addr,
+            self.contracts_config
+                .l2_shared_bridge_addr
+                .unwrap_or_else(|| self.contracts_config.l2_erc20_bridge_addr.unwrap()),
             self.state_keeper_config.miniblock_seal_queue_capacity,
         );
         let output_handler = OutputHandler::new(Box::new(persistence));
