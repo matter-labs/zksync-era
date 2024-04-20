@@ -857,7 +857,7 @@ async fn add_state_keeper_to_task_futures(
         contracts_config
             .l2_shared_bridge_addr
             .unwrap_or_else(|| contracts_config.l2_erc20_bridge_addr.unwrap()),
-        state_keeper_config.miniblock_seal_queue_capacity,
+        state_keeper_config.l2_block_seal_queue_capacity,
     );
     task_futures.push(tokio::spawn(miniblock_sealer.run()));
 
