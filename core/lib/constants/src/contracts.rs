@@ -131,10 +131,10 @@ pub const MINT_AND_BURN_ADDRESS: H160 = H160::zero();
 // The `storage_log.value` database value for a contract that was deployed in a failed transaction.
 pub const FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH: H256 = H256::zero();
 
-pub const ETHEREUM_SHARED_BRIDGE_ADDRESS: Address = H160([
+pub const SHARED_BRIDGE_ETHER_TOKEN_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x01,
 ]);
-// Default `ERA_CHAIN_ID`.  All hyperchains starts with this chain id and later on
-// it will be changed to proper one
+// Default `ERA_CHAIN_ID`.  All hyperchains start with this chain id and later on
+// it is changed to the proper one
 pub const DEFAULT_ERA_CHAIN_ID: u32 = 270;

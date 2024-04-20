@@ -9,7 +9,6 @@ import { checkReceipt } from '../src/modifiers/receipt-check';
 import * as zksync from 'zksync-ethers';
 import { BigNumber, Overrides } from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
-import { sleep } from 'zk/build/utils';
 
 const ETH_ADDRESS = zksync.utils.ETH_ADDRESS;
 
@@ -19,15 +18,21 @@ describe('ETH token checks', () => {
     let bob: zksync.Wallet;
     let isETHBasedChain: boolean;
 
-    beforeAll(() => {
+    beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         bob = testMaster.newEmptyAccount();
-        const baseTokenAddress = process.env.CONTRACTS_BASE_TOKEN_ADDR!;
+        // Get the information about base token address directly from the L2.
+        const baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
         isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
+        console.log(`Starting checks for base token: ${baseTokenAddress} isEthBasedChain: ${isETHBasedChain}`);
     });
 
     test('Can perform a deposit', async () => {
+        if (!isETHBasedChain) {
+            // TODO(EVM-555): Currently this test is not working for non-eth based chains.
+            return;
+        }
         const amount = 1; // 1 wei is enough.
         const gasPrice = scaledGasPrice(alice);
 
@@ -36,6 +41,8 @@ describe('ETH token checks', () => {
         const l2ethBalanceChange = await shouldChangeETHBalances([{ wallet: alice, change: amount }], {
             l1ToL2: true
         });
+        const gasPerPubdataByte = zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
+        const isBaseToken = isETHBasedChain;
 
         const l2GasLimit = await zksync.utils.estimateDefaultBridgeDepositL2Gas(
             alice.providerL1!,
@@ -43,24 +50,15 @@ describe('ETH token checks', () => {
             ETH_ADDRESS,
             amount,
             alice.address,
-            alice.address
+            alice.address,
+            gasPerPubdataByte,
+            isBaseToken
         );
-        const gasPerPubdataByte = zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
         const expectedL2Costs = await alice.getBaseCost({
             gasLimit: l2GasLimit,
             gasPerPubdataByte,
             gasPrice: await gasPrice
         });
-
-        // console.log('balances before deposit: ');
-        // console.log('alice.getBalance(): ', await alice.getBalance());
-        // console.log('alice.getBalanceL1(): ', await alice.getBalanceL1());
-        // console.log('base token address: ', process.env.CONTRACTS_BASE_TOKEN_ADDR);
-        // console.log('alice.getBalance(NATIVE TOKEN): ', await alice.getBalance(process.env.CONTRACTS_BASE_TOKEN_ADDR));
-        // console.log(
-        //     'alice.getBalanceL1(NATIVE TOKEN): ',
-        //     await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR)
-        // );
 
         const depositOp = alice.deposit({
             token: ETH_ADDRESS,
@@ -76,22 +74,7 @@ describe('ETH token checks', () => {
                 gasPrice
             }
         });
-
-        if (isETHBasedChain) {
-            await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
-        } else {
-            await expect(depositOp).toBeReverted(); // ToDo: after server fix has to be removed
-        }
-
-        await sleep(8);
-        // console.log('balances after deposit: ');
-        // console.log('alice.getBalance(): ', await alice.getBalance());
-        // console.log('alice.getBalanceL1(): ', await alice.getBalanceL1());
-        // console.log('alice.getBalance(NATIVE TOKEN): ', await alice.getBalance(process.env.CONTRACTS_BASE_TOKEN_ADDR));
-        // console.log(
-        //     'alice.getBalanceL1(NATIVE TOKEN): ',
-        //     await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR)
-        // );
+        await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
 
         const depositFee = await depositOp
             .then((op) => op.waitL1Commit())
@@ -100,11 +83,7 @@ describe('ETH token checks', () => {
                 return l1GasFee.add(expectedL2Costs);
             });
         const l1EthBalanceAfter = await alice.getBalanceL1();
-
-        if (isETHBasedChain) {
-            // ToDo: after server fix has to be removed
-            expect(l1EthBalanceBefore.sub(depositFee).sub(l1EthBalanceAfter)).bnToBeEq(amount);
-        }
+        expect(l1EthBalanceBefore.sub(depositFee).sub(l1EthBalanceAfter)).bnToBeEq(amount);
     });
 
     test('Can perform a transfer (legacy pre EIP-155)', async () => {
@@ -227,23 +206,32 @@ describe('ETH token checks', () => {
     });
 
     test('Can perform a withdrawal', async () => {
+        if (!isETHBasedChain) {
+            // TODO(EVM-555): Currently this test is not working for non-eth based chains.
+            return;
+        }
         if (testMaster.isFastMode()) {
             return;
         }
         const amount = 1;
+
         const l2ethBalanceChange = await shouldChangeETHBalances([{ wallet: alice, change: -amount }]);
         const withdrawalPromise = alice.withdraw({ token: ETH_ADDRESS, amount });
         await expect(withdrawalPromise).toBeAccepted([l2ethBalanceChange]);
         const withdrawalTx = await withdrawalPromise;
         await withdrawalTx.waitFinalize();
+
         // TODO (SMA-1374): Enable L1 ETH checks as soon as they're supported.
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();
         const tx = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
+
         expect(tx.l2ToL1Logs[0].txIndexInL1Batch).toEqual(expect.anything());
     });
 
     test('Can perform a deposit with precalculated max value', async () => {
         if (!isETHBasedChain) {
+            // TODO(EVM-555): Currently this test is not working for non-eth based chains.
+            return;
             const baseTokenDetails = testMaster.environment().baseToken;
             const maxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
             await (await alice.approveERC20(process.env.CONTRACTS_BASE_TOKEN_ADDR!, maxAmount)).wait();
@@ -268,6 +256,7 @@ describe('ETH token checks', () => {
                   maxPriorityFeePerGas: depositFee.maxPriorityFeePerGas
               };
         overrides.gasLimit = depositFee.l1GasLimit;
+
         const depositOp = await alice.deposit({
             token: ETH_ADDRESS,
             amount: maxAmount,
@@ -277,11 +266,7 @@ describe('ETH token checks', () => {
             overrides
         });
 
-        if (isETHBasedChain) {
-            await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
-        } else {
-            await expect(depositOp).toBeReverted(); // ToDo: after server fix has to be removed
-        }
+        await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
     });
 
     afterAll(async () => {

@@ -25,7 +25,7 @@ impl FromEnv for ContractsConfig {
 #[cfg(test)]
 mod tests {
     use zksync_config::configs::EcosystemContracts;
-    use zksync_system_constants::ETHEREUM_SHARED_BRIDGE_ADDRESS;
+    use zksync_system_constants::SHARED_BRIDGE_ETHER_TOKEN_ADDRESS;
 
     use super::*;
     use crate::test_utils::{addr, EnvMutex};
@@ -43,8 +43,8 @@ mod tests {
             l2_erc20_bridge_addr: Some(addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
             l1_weth_bridge_proxy_addr: Some(addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
             l2_weth_bridge_addr: Some(addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
-            l1_shared_bridge_proxy_addr: addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888"),
-            l2_shared_bridge_addr: addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888"),
+            l1_shared_bridge_proxy_addr: Some(addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
+            l2_shared_bridge_addr: Some(addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
             l2_testnet_paymaster_addr: Some(addr("FC073319977e314F251EAE6ae6bE76B0B3BAeeCF")),
             l1_multicall3_addr: addr("0xcA11bde05977b3631167028862bE2a173976CA11"),
             ecosystem_contracts: Some(EcosystemContracts {
@@ -52,7 +52,7 @@ mod tests {
                 state_transition_proxy_addr: addr("0xd90f1c081c6117241624e97cb6147257c3cb2097"),
                 transparent_proxy_admin_addr: addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"),
             }),
-            base_token_addr: Some(ETHEREUM_SHARED_BRIDGE_ADDRESS),
+            base_token_addr: Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS),
         }
     }
 

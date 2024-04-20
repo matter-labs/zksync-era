@@ -30,7 +30,7 @@ fn execute_l2_transaction_with_traces(index_in_block: u8) -> TransactionExecutio
 }
 
 #[derive(Debug)]
-struct TraceBlockTest(MiniblockNumber);
+struct TraceBlockTest(L2BlockNumber);
 
 #[async_trait]
 impl HttpTest for TraceBlockTest {
@@ -89,11 +89,11 @@ impl HttpTest for TraceBlockTest {
 
 #[tokio::test]
 async fn tracing_block() {
-    test_http_server(TraceBlockTest(MiniblockNumber(1))).await;
+    test_http_server(TraceBlockTest(L2BlockNumber(1))).await;
 }
 
 #[derive(Debug)]
-struct TraceBlockFlatTest(MiniblockNumber);
+struct TraceBlockFlatTest(L2BlockNumber);
 
 #[async_trait]
 impl HttpTest for TraceBlockFlatTest {
@@ -165,7 +165,7 @@ impl HttpTest for TraceBlockFlatTest {
 
 #[tokio::test]
 async fn tracing_block_flat() {
-    test_http_server(TraceBlockFlatTest(MiniblockNumber(1))).await;
+    test_http_server(TraceBlockFlatTest(L2BlockNumber(1))).await;
 }
 
 #[derive(Debug)]
@@ -176,7 +176,7 @@ impl HttpTest for TraceTransactionTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let tx_results = [execute_l2_transaction_with_traces(0)];
         let mut storage = pool.connection().await?;
-        store_miniblock(&mut storage, MiniblockNumber(1), &tx_results).await?;
+        store_miniblock(&mut storage, L2BlockNumber(1), &tx_results).await?;
         drop(storage);
 
         let expected_calls: Vec<_> = tx_results[0]
@@ -215,7 +215,7 @@ impl HttpTest for TraceBlockTestWithSnapshotRecovery {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let snapshot_miniblock_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK;
         let missing_miniblock_numbers = [
-            MiniblockNumber(0),
+            L2BlockNumber(0),
             snapshot_miniblock_number - 1,
             snapshot_miniblock_number,
         ];

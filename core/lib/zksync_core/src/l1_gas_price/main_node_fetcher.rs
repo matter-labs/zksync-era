@@ -5,7 +5,9 @@ use std::{
 
 use tokio::sync::watch::Receiver;
 use zksync_types::fee_model::FeeParams;
-use zksync_web3_decl::{client::L2Client, error::ClientRpcContext, namespaces::ZksNamespaceClient};
+use zksync_web3_decl::{
+    client::BoxedL2Client, error::ClientRpcContext, namespaces::ZksNamespaceClient,
+};
 
 use crate::fee_model::BatchFeeModelInputProvider;
 
@@ -19,25 +21,20 @@ const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 /// since it relies on the configuration, which may change.
 #[derive(Debug)]
 pub struct MainNodeFeeParamsFetcher {
-    client: L2Client,
+    client: BoxedL2Client,
     main_node_fee_params: RwLock<FeeParams>,
 }
 
 impl MainNodeFeeParamsFetcher {
-    pub fn new(client: L2Client) -> Self {
+    pub fn new(client: BoxedL2Client) -> Self {
         Self {
             client: client.for_component("fee_params_fetcher"),
             main_node_fee_params: RwLock::new(FeeParams::sensible_v1_default()),
         }
     }
 
-    pub async fn run(self: Arc<Self>, stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
-        loop {
-            if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, MainNodeFeeParamsFetcher is shutting down");
-                break;
-            }
-
+    pub async fn run(self: Arc<Self>, mut stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
+        while !*stop_receiver.borrow_and_update() {
             let fetch_result = self
                 .client
                 .get_fee_params()
@@ -48,14 +45,26 @@ impl MainNodeFeeParamsFetcher {
                 Err(err) => {
                     tracing::warn!("Unable to get the gas price: {}", err);
                     // A delay to avoid spamming the main node with requests.
-                    tokio::time::sleep(SLEEP_INTERVAL).await;
+                    if tokio::time::timeout(SLEEP_INTERVAL, stop_receiver.changed())
+                        .await
+                        .is_ok()
+                    {
+                        break;
+                    }
                     continue;
                 }
             };
             *self.main_node_fee_params.write().unwrap() = main_node_fee_params;
 
-            tokio::time::sleep(SLEEP_INTERVAL).await;
+            if tokio::time::timeout(SLEEP_INTERVAL, stop_receiver.changed())
+                .await
+                .is_ok()
+            {
+                break;
+            }
         }
+
+        tracing::info!("Stop signal received, MainNodeFeeParamsFetcher is shutting down");
         Ok(())
     }
 }

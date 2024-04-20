@@ -9,7 +9,7 @@ use zksync_state::{
     PostgresStorage, ReadStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily,
 };
 use zksync_storage::RocksDB;
-use zksync_types::{L1BatchNumber, MiniblockNumber};
+use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 /// Factory that can produce a [`ReadStorage`] implementation on demand.
 #[async_trait]
@@ -82,20 +82,20 @@ pub struct AsyncRocksdbCache {
 }
 
 impl AsyncRocksdbCache {
-    /// Load latest sealed miniblock from the latest sealed L1 batch (ignores sealed miniblocks
+    /// Load latest sealed L2 block from the latest sealed L1 batch (ignores sealed L2 blocks
     /// from unsealed batches).
-    async fn load_latest_sealed_miniblock(
+    async fn load_latest_sealed_l2_block(
         connection: &mut Connection<'_, Core>,
-    ) -> anyhow::Result<Option<(MiniblockNumber, L1BatchNumber)>> {
+    ) -> anyhow::Result<Option<(L2BlockNumber, L1BatchNumber)>> {
         let mut dal = connection.blocks_dal();
         let Some(l1_batch_number) = dal.get_sealed_l1_batch_number().await? else {
             return Ok(None);
         };
-        let (_, miniblock_number) = dal
-            .get_miniblock_range_of_l1_batch(l1_batch_number)
+        let (_, l2_block_number) = dal
+            .get_l2_block_range_of_l1_batch(l1_batch_number)
             .await?
-            .context("The latest sealed L1 batch does not have a miniblock range")?;
-        Ok(Some((miniblock_number, l1_batch_number)))
+            .context("The latest sealed L1 batch does not have a L2 block range")?;
+        Ok(Some((l2_block_number, l1_batch_number)))
     }
 
     /// Returns a [`ReadStorage`] implementation backed by Postgres
@@ -104,26 +104,26 @@ impl AsyncRocksdbCache {
     ) -> anyhow::Result<PgOrRocksdbStorage<'_>> {
         let mut connection = pool.connection().await?;
 
-        let (miniblock_number, l1_batch_number) =
-            match Self::load_latest_sealed_miniblock(&mut connection).await? {
-                Some((miniblock_number, l1_batch_number)) => (miniblock_number, l1_batch_number),
+        let (l2_block_number, l1_batch_number) =
+            match Self::load_latest_sealed_l2_block(&mut connection).await? {
+                Some((l2_block_number, l1_batch_number)) => (l2_block_number, l1_batch_number),
                 None => {
-                    tracing::info!("Could not find latest sealed miniblock, loading from snapshot");
+                    tracing::info!("Could not find latest sealed L2 block, loading from snapshot");
                     let snapshot_recovery = connection
                         .snapshot_recovery_dal()
                         .get_applied_snapshot_status()
                         .await?
                         .context("Could not find snapshot, no state available")?;
                     (
-                        snapshot_recovery.miniblock_number,
+                        snapshot_recovery.l2_block_number,
                         snapshot_recovery.l1_batch_number,
                     )
                 }
             };
 
-        tracing::debug!(%l1_batch_number, %miniblock_number, "Using Postgres-based storage");
+        tracing::debug!(%l1_batch_number, %l2_block_number, "Using Postgres-based storage");
         Ok(
-            PostgresStorage::new_async(Handle::current(), connection, miniblock_number, true)
+            PostgresStorage::new_async(Handle::current(), connection, l2_block_number, true)
                 .await?
                 .into(),
         )
@@ -176,13 +176,11 @@ impl AsyncRocksdbCache {
     pub fn new(
         pool: ConnectionPool<Core>,
         state_keeper_db_path: String,
-        enum_index_migration_chunk_size: usize,
     ) -> (Self, AsyncCatchupTask) {
         let rocksdb_cell = Arc::new(OnceCell::new());
         let task = AsyncCatchupTask {
             pool: pool.clone(),
             state_keeper_db_path,
-            enum_index_migration_chunk_size,
             rocksdb_cell: rocksdb_cell.clone(),
         };
         (Self { pool, rocksdb_cell }, task)
@@ -203,18 +201,16 @@ impl ReadStorageFactory for AsyncRocksdbCache {
 pub struct AsyncCatchupTask {
     pool: ConnectionPool<Core>,
     state_keeper_db_path: String,
-    enum_index_migration_chunk_size: usize,
     rocksdb_cell: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
 }
 
 impl AsyncCatchupTask {
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         tracing::debug!("Catching up RocksDB asynchronously");
-        let mut rocksdb_builder: RocksdbStorageBuilder =
+        let rocksdb_builder: RocksdbStorageBuilder =
             RocksdbStorage::builder(self.state_keeper_db_path.as_ref())
                 .await
                 .context("Failed initializing RocksDB storage")?;
-        rocksdb_builder.enable_enum_index_migration(self.enum_index_migration_chunk_size);
         let mut connection = self
             .pool
             .connection()

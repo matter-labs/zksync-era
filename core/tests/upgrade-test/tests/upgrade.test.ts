@@ -7,6 +7,7 @@ import { hashBytecode } from 'zksync-web3/build/src/utils';
 import fs from 'fs';
 import { TransactionResponse } from 'zksync-web3/build/src/types';
 import { BytesLike } from '@ethersproject/bytes';
+import { isAddressEq } from 'zksync-ethers/build/src/utils';
 
 const L1_CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/contracts/l1-contracts/artifacts/contracts`;
 const L1_DEFAULT_UPGRADE_ABI = new ethers.utils.Interface(
@@ -19,7 +20,7 @@ const ADMIN_FACET_ABI = new ethers.utils.Interface(
     require(`${L1_CONTRACTS_FOLDER}/state-transition/chain-interfaces/IAdmin.sol/IAdmin.json`).abi
 );
 const L2_FORCE_DEPLOY_UPGRADER_ABI = new ethers.utils.Interface(
-    require(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
+    require(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/artifacts-zk/contracts/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
 );
 const COMPLEX_UPGRADER_ABI = new ethers.utils.Interface(
     require(`${process.env.ZKSYNC_HOME}/contracts/system-contracts/artifacts-zk/contracts-preprocessed/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
@@ -87,6 +88,7 @@ describe('Upgrade test', function () {
         if (!mainContract) {
             throw new Error('Server did not start');
         }
+
         const stmAddr = await mainContract.getStateTransitionManager();
         const stmContract = new ethers.Contract(stmAddr, STATE_TRANSITON_MANAGER, tester.syncWallet.providerL1);
         const governanceAddr = await stmContract.owner();
@@ -95,8 +97,15 @@ describe('Upgrade test', function () {
 
         const initialL1BatchNumber = await tester.web3Provider.getL1BatchNumber();
 
+        const baseToken = await tester.syncWallet.provider.getBaseTokenContractAddress();
+
+        if (!isAddressEq(baseToken, zkweb3.utils.ETH_ADDRESS_IN_CONTRACTS)) {
+            await (await tester.syncWallet.approveERC20(baseToken, ethers.constants.MaxUint256)).wait();
+            await mintToWallet(baseToken, tester.syncWallet, depositAmount.mul(10));
+        }
+
         const firstDepositHandle = await tester.syncWallet.deposit({
-            token: zkweb3.utils.ETH_ADDRESS,
+            token: baseToken,
             amount: depositAmount,
             to: alice.address
         });
@@ -106,7 +115,7 @@ describe('Upgrade test', function () {
         }
 
         const secondDepositHandle = await tester.syncWallet.deposit({
-            token: zkweb3.utils.ETH_ADDRESS,
+            token: baseToken,
             amount: depositAmount,
             to: alice.address
         });
@@ -129,7 +138,7 @@ describe('Upgrade test', function () {
         // Wait for at least one new committed block
         let newBlocksCommitted = await mainContract.getTotalBatchesCommitted();
         let tryCount = 0;
-        while (blocksCommitted.eq(newBlocksCommitted) && tryCount < 10) {
+        while (blocksCommitted.eq(newBlocksCommitted) && tryCount < 30) {
             newBlocksCommitted = await mainContract.getTotalBatchesCommitted();
             tryCount += 1;
             await utils.sleep(1);
@@ -225,7 +234,7 @@ describe('Upgrade test', function () {
 
         let lastBatchExecuted = await mainContract.getTotalBatchesExecuted();
         let tryCount = 0;
-        while (lastBatchExecuted < l1BatchNumber && tryCount < 10) {
+        while (lastBatchExecuted < l1BatchNumber && tryCount < 40) {
             lastBatchExecuted = await mainContract.getTotalBatchesExecuted();
             tryCount += 1;
             await utils.sleep(2);
@@ -272,7 +281,7 @@ describe('Upgrade test', function () {
 
         // Run again.
         utils.background(
-            'cd $ZKSYNC_HOME && cargo run --bin zksync_server --release -- --components=api,tree,eth,state_keeper,commitment_generator &> upgrade.log',
+            'cd $ZKSYNC_HOME && zk f cargo run --bin zksync_server --release -- --components=api,tree,eth,state_keeper,commitment_generator &> upgrade.log',
             [null, logs, logs]
         );
         await utils.sleep(5);
@@ -416,6 +425,8 @@ async function prepareUpgradeCalldata(
     const stmUpgradeCalldata = STATE_TRANSITON_MANAGER.encodeFunctionData('setNewVersionUpgrade', [
         upgradeParam,
         oldProtocolVersion,
+        // The protocol version will not have any deadline in this upgrade
+        ethers.constants.MaxUint256,
         newProtocolVersion
     ]);
 
@@ -450,4 +461,14 @@ async function prepareUpgradeCalldata(
         executeOperation,
         finalizeOperation
     };
+}
+
+async function mintToWallet(
+    baseTokenAddress: zkweb3.types.Address,
+    ethersWallet: ethers.Wallet,
+    amountToMint: ethers.BigNumber
+) {
+    const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
+    const l1Erc20Contract = new ethers.Contract(baseTokenAddress, l1Erc20ABI, ethersWallet);
+    await (await l1Erc20Contract.mint(ethersWallet.address, amountToMint)).wait();
 }

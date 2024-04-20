@@ -50,7 +50,7 @@ pub enum ProtocolVersionId {
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
-        Self::Version24
+        Self::Version23
     }
 
     pub fn next() -> Self {

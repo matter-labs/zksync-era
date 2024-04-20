@@ -1,12 +1,14 @@
 //! Storage implementation based on DAL.
 
+use std::sync::Arc;
+
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, error::Wrap as _, sync, time};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_bft::PayloadManager;
 use zksync_consensus_roles::validator;
-use zksync_consensus_storage::{BlockStoreState, PersistentBlockStore, ReplicaState, ReplicaStore};
+use zksync_consensus_storage as storage;
 use zksync_dal::{consensus_dal::Payload, ConnectionPool, Core, CoreDal, DalError};
-use zksync_types::MiniblockNumber;
+use zksync_types::L2BlockNumber;
 
 #[cfg(test)]
 mod testonly;
@@ -109,7 +111,7 @@ impl<'a> Connection<'a> {
     }
 
     /// Wrapper for `consensus_dal().replica_state()`.
-    pub async fn replica_state(&mut self, ctx: &ctx::Ctx) -> ctx::Result<ReplicaState> {
+    pub async fn replica_state(&mut self, ctx: &ctx::Ctx) -> ctx::Result<storage::ReplicaState> {
         Ok(ctx
             .wait(self.0.consensus_dal().replica_state())
             .await?
@@ -120,7 +122,7 @@ impl<'a> Connection<'a> {
     pub async fn set_replica_state(
         &mut self,
         ctx: &ctx::Ctx,
-        state: &ReplicaState,
+        state: &storage::ReplicaState,
     ) -> ctx::Result<()> {
         Ok(ctx
             .wait(self.0.consensus_dal().set_replica_state(state))
@@ -129,12 +131,12 @@ impl<'a> Connection<'a> {
     }
 
     /// Wrapper for `FetcherCursor::new()`.
-    pub async fn new_fetcher_cursor(
+    pub async fn new_payload_queue(
         &mut self,
         ctx: &ctx::Ctx,
         actions: ActionQueueSender,
-    ) -> ctx::Result<Cursor> {
-        Ok(Cursor {
+    ) -> ctx::Result<PayloadQueue> {
+        Ok(PayloadQueue {
             inner: ctx.wait(IoCursor::for_fetcher(&mut self.0)).await??,
             actions,
         })
@@ -159,22 +161,21 @@ impl<'a> Connection<'a> {
 }
 
 #[derive(Debug)]
-pub(super) struct Cursor {
+pub(super) struct PayloadQueue {
     inner: IoCursor,
     actions: ActionQueueSender,
 }
 
-impl Cursor {
+impl PayloadQueue {
     pub(super) fn next(&self) -> validator::BlockNumber {
-        validator::BlockNumber(self.inner.next_miniblock.0.into())
+        validator::BlockNumber(self.inner.next_l2_block.0.into())
     }
 
-    /// Advances the cursor by converting the block into actions and pushing them
-    /// to the actions queue.
+    /// Converts the block into actions and pushes them to the actions queue.
     /// Does nothing and returns Ok() if the block has been already processed.
     /// Returns an error if a block with an earlier block number was expected.
-    pub(super) async fn advance(&mut self, block: FetchedBlock) -> anyhow::Result<()> {
-        let want = self.inner.next_miniblock;
+    pub(super) async fn send(&mut self, block: FetchedBlock) -> anyhow::Result<()> {
+        let want = self.inner.next_l2_block;
         // Some blocks are missing.
         if block.number > want {
             anyhow::bail!("expected {want:?}, got {:?}", block.number);
@@ -192,23 +193,7 @@ impl Cursor {
 #[derive(Clone, Debug)]
 pub struct Store(pub ConnectionPool<Core>);
 
-/// Wrapper of `ConnectionPool` implementing `PersistentBlockStore`.
-#[derive(Debug)]
-pub(super) struct BlockStore {
-    inner: Store,
-    /// Mutex preventing concurrent execution of `store_next_block` calls.
-    store_next_block_mutex: sync::Mutex<Option<Cursor>>,
-}
-
 impl Store {
-    /// Converts `Store` into a `BlockStore`.
-    pub(super) fn into_block_store(self) -> BlockStore {
-        BlockStore {
-            inner: self,
-            store_next_block_mutex: sync::Mutex::new(None),
-        }
-    }
-
     /// Wrapper for `connection_tagged()`.
     pub(super) async fn access<'a>(&'a self, ctx: &ctx::Ctx) -> ctx::Result<Connection<'a>> {
         Ok(Connection(
@@ -239,52 +224,9 @@ impl Store {
             ctx.sleep(POLL_INTERVAL).await?;
         }
     }
-}
 
-impl BlockStore {
-    /// Initializes consensus genesis (with 1 validator) to start at the last miniblock in storage.
-    /// No-op if db already contains a genesis.
-    pub async fn try_init_genesis(
-        &mut self,
-        ctx: &ctx::Ctx,
-        validator_key: &validator::PublicKey,
-    ) -> ctx::Result<()> {
-        let mut conn = self.inner.access(ctx).await.wrap("access()")?;
-        let block_range = conn.block_range(ctx).await.wrap("block_range()")?;
-        let mut txn = conn
-            .start_transaction(ctx)
-            .await
-            .wrap("start_transaction()")?;
-        if txn.genesis(ctx).await.wrap("genesis()")?.is_some() {
-            return Ok(());
-        }
-        let genesis = validator::Genesis {
-            // `ValidatorSet::new()` with a single validator should never fail.
-            validators: validator::ValidatorSet::new([validator_key.clone()]).unwrap(),
-            fork: validator::Fork {
-                number: validator::ForkNumber(0),
-                first_block: block_range.end,
-            },
-        };
-        txn.try_update_genesis(ctx, &genesis)
-            .await
-            .wrap("try_update_genesis()")?;
-        txn.commit(ctx).await.wrap("commit()")?;
-        Ok(())
-    }
-
-    /// Sets a `Cursor` in the `BlockStore`. See `store_next_block()` for details.
-    pub fn set_cursor(&mut self, cursor: Cursor) -> anyhow::Result<()> {
-        *self.store_next_block_mutex.try_lock()? = Some(cursor);
-        Ok(())
-    }
-}
-
-#[async_trait::async_trait]
-impl PersistentBlockStore for BlockStore {
-    async fn genesis(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::Genesis> {
+    pub(super) async fn genesis(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::Genesis> {
         Ok(self
-            .inner
             .access(ctx)
             .await
             .wrap("access()")?
@@ -294,8 +236,9 @@ impl PersistentBlockStore for BlockStore {
             .context("genesis is missing")?)
     }
 
-    async fn state(&self, ctx: &ctx::Ctx) -> ctx::Result<BlockStoreState> {
-        let mut conn = self.inner.access(ctx).await.wrap("access()")?;
+    /// Fetches and verifies consistency of certificates in storage.
+    async fn certificates_range(&self, ctx: &ctx::Ctx) -> ctx::Result<storage::BlockStoreState> {
+        let mut conn = self.access(ctx).await.wrap("access()")?;
 
         // Fetch the range of miniblocks in storage.
         let block_range = conn.block_range(ctx).await.context("block_range")?;
@@ -328,16 +271,155 @@ impl PersistentBlockStore for BlockStore {
                 ).into());
             }
         }
+
         // Check that the node has all the blocks before the next expected certificate, because
         // the node needs to know the state of the chain up to block `X` to process block `X+1`.
         if block_range.end < next_expected_cert {
             return Err(anyhow::format_err!("inconsistent storage: cannot start consensus for miniblock {next_expected_cert}, because earlier blocks are missing").into());
         }
-        let state = BlockStoreState {
+        Ok(storage::BlockStoreState {
             first: first_expected_cert,
             last: last_cert,
+        })
+    }
+
+    pub(super) async fn block(
+        &self,
+        ctx: &ctx::Ctx,
+        number: validator::BlockNumber,
+    ) -> ctx::Result<Option<validator::FinalBlock>> {
+        let conn = &mut self.access(ctx).await.wrap("access()")?;
+        let Some(justification) = conn.certificate(ctx, number).await.wrap("certificate()")? else {
+            return Ok(None);
         };
-        Ok(state)
+        let payload = conn
+            .payload(ctx, number)
+            .await
+            .wrap("payload()")?
+            .context("miniblock disappeared from storage")?;
+        Ok(Some(validator::FinalBlock {
+            payload: payload.encode(),
+            justification,
+        }))
+    }
+
+    /// Initializes consensus genesis (with 1 validator) to start at the last miniblock in storage.
+    /// No-op if db already contains a genesis.
+    pub(super) async fn try_init_genesis(
+        &self,
+        ctx: &ctx::Ctx,
+        validator_key: &validator::PublicKey,
+    ) -> ctx::Result<()> {
+        let mut conn = self.access(ctx).await.wrap("access()")?;
+        let block_range = conn.block_range(ctx).await.wrap("block_range()")?;
+        let mut txn = conn
+            .start_transaction(ctx)
+            .await
+            .wrap("start_transaction()")?;
+        if txn.genesis(ctx).await.wrap("genesis()")?.is_some() {
+            return Ok(());
+        }
+        let genesis = validator::Genesis {
+            // `ValidatorSet::new()` with a single validator should never fail.
+            validators: validator::ValidatorSet::new([validator_key.clone()]).unwrap(),
+            fork: validator::Fork {
+                number: validator::ForkNumber(0),
+                first_block: block_range.end,
+            },
+        };
+        txn.try_update_genesis(ctx, &genesis)
+            .await
+            .wrap("try_update_genesis()")?;
+        txn.commit(ctx).await.wrap("commit()")?;
+        Ok(())
+    }
+
+    pub(super) async fn into_block_store(
+        self,
+        ctx: &ctx::Ctx,
+        payload_queue: Option<PayloadQueue>,
+    ) -> ctx::Result<(Arc<storage::BlockStore>, BlockStoreRunner)> {
+        let persisted = self
+            .certificates_range(ctx)
+            .await
+            .wrap("certificates_range()")?;
+        let persisted = sync::watch::channel(persisted).0;
+        let (certs_send, certs_recv) = ctx::channel::unbounded();
+        let (block_store, runner) = storage::BlockStore::new(
+            ctx,
+            Box::new(BlockStore {
+                inner: self.clone(),
+                certificates: certs_send,
+                payloads: payload_queue.map(sync::Mutex::new),
+                persisted: persisted.subscribe(),
+            }),
+        )
+        .await?;
+        Ok((
+            block_store,
+            BlockStoreRunner {
+                store: self,
+                persisted,
+                certificates: certs_recv,
+                inner: runner,
+            },
+        ))
+    }
+}
+
+/// Wrapper of `ConnectionPool` implementing `PersistentBlockStore`.
+#[derive(Debug)]
+struct BlockStore {
+    inner: Store,
+    payloads: Option<sync::Mutex<PayloadQueue>>,
+    certificates: ctx::channel::UnboundedSender<validator::CommitQC>,
+    persisted: sync::watch::Receiver<storage::BlockStoreState>,
+}
+
+/// Background task of the `BlockStore`.
+pub struct BlockStoreRunner {
+    store: Store,
+    persisted: sync::watch::Sender<storage::BlockStoreState>,
+    certificates: ctx::channel::UnboundedReceiver<validator::CommitQC>,
+    inner: storage::BlockStoreRunner,
+}
+
+impl BlockStoreRunner {
+    pub async fn run(mut self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
+        let res = scope::run!(ctx, |ctx, s| async {
+            s.spawn(async { Ok(self.inner.run(ctx).await?) });
+            loop {
+                let cert = self.certificates.recv(ctx).await?;
+                self.store
+                    .wait_for_payload(ctx, cert.header().number)
+                    .await
+                    .wrap("wait_for_payload()")?;
+                self.store
+                    .access(ctx)
+                    .await
+                    .wrap("access()")?
+                    .insert_certificate(ctx, &cert)
+                    .await
+                    .wrap("insert_certificate()")?;
+                self.persisted.send_modify(|p| p.last = Some(cert));
+            }
+        })
+        .await;
+        match res {
+            Err(ctx::Error::Canceled(_)) | Ok(()) => Ok(()),
+            Err(ctx::Error::Internal(err)) => Err(err),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl storage::PersistentBlockStore for BlockStore {
+    async fn genesis(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::Genesis> {
+        self.inner.genesis(ctx).await
+    }
+
+    fn persisted(&self) -> sync::watch::Receiver<storage::BlockStoreState> {
+        self.persisted.clone()
     }
 
     async fn block(
@@ -345,21 +427,7 @@ impl PersistentBlockStore for BlockStore {
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
     ) -> ctx::Result<validator::FinalBlock> {
-        let conn = &mut self.inner.access(ctx).await.wrap("access()")?;
-        let justification = conn
-            .certificate(ctx, number)
-            .await
-            .wrap("certificate()")?
-            .context("not found")?;
-        let payload = conn
-            .payload(ctx, number)
-            .await
-            .wrap("payload()")?
-            .context("miniblock disappeared from storage")?;
-        Ok(validator::FinalBlock {
-            payload: payload.encode(),
-            justification,
-        })
+        Ok(self.inner.block(ctx, number).await?.context("not found")?)
     }
 
     /// If actions queue is set (and the block has not been stored yet),
@@ -370,16 +438,14 @@ impl PersistentBlockStore for BlockStore {
     /// `store_next_block()` call will wait synchronously for the miniblock.
     /// Once miniblock is observed in storage, `store_next_block()` will store a cert for this
     /// miniblock.
-    async fn store_next_block(
+    async fn queue_next_block(
         &self,
         ctx: &ctx::Ctx,
-        block: &validator::FinalBlock,
+        block: validator::FinalBlock,
     ) -> ctx::Result<()> {
-        tracing::info!("storing block {}", block.number());
-        // This mutex prevents concurrent `store_next_block` calls.
-        let mut guard = ctx.wait(self.store_next_block_mutex.lock()).await?;
-        if let Some(cursor) = &mut *guard {
-            let number = MiniblockNumber(
+        if let Some(payloads) = &self.payloads {
+            let mut payloads = sync::lock(ctx, payloads).await?.into_async();
+            let number = L2BlockNumber(
                 block
                     .number()
                     .0
@@ -405,27 +471,16 @@ impl PersistentBlockStore for BlockStore {
                     .map(FetchedTransaction::new)
                     .collect(),
             };
-            cursor.advance(block).await.context("cursor.advance()")?;
+            payloads.send(block).await.context("payload_queue.send()")?;
         }
-        self.inner
-            .wait_for_payload(ctx, block.number())
-            .await
-            .wrap("wait_for_payload()")?;
-        self.inner
-            .access(ctx)
-            .await
-            .wrap("access()")?
-            .insert_certificate(ctx, &block.justification)
-            .await
-            .wrap("insert_certificate()")?;
-        tracing::info!("storing block {} DONE", block.number());
+        self.certificates.send(block.justification);
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl ReplicaStore for Store {
-    async fn state(&self, ctx: &ctx::Ctx) -> ctx::Result<ReplicaState> {
+impl storage::ReplicaStore for Store {
+    async fn state(&self, ctx: &ctx::Ctx) -> ctx::Result<storage::ReplicaState> {
         self.access(ctx)
             .await
             .wrap("access()")?
@@ -434,7 +489,7 @@ impl ReplicaStore for Store {
             .wrap("replica_state()")
     }
 
-    async fn set_state(&self, ctx: &ctx::Ctx, state: &ReplicaState) -> ctx::Result<()> {
+    async fn set_state(&self, ctx: &ctx::Ctx, state: &storage::ReplicaState) -> ctx::Result<()> {
         self.access(ctx)
             .await
             .wrap("access()")?

@@ -57,18 +57,24 @@ impl ProtoRepr for proto::Contracts {
                 .as_ref()
                 .map(|x| parse_h160(x))
                 .transpose()
-                .context("l1_erc20_bridge_proxy_addr")?,
+                .context("l1_erc20_bridge_addr")?,
             l2_erc20_bridge_addr: erc20
                 .l2_address
                 .as_ref()
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("l1_erc20_bridge_impl_addr")?,
-            l1_shared_bridge_proxy_addr: required(&shared.l1_address)
-                .and_then(|x| parse_h160(x))
-                .context("l1_shared_bridge_addr")?,
-            l2_shared_bridge_addr: required(&shared.l2_address)
-                .and_then(|x| parse_h160(x))
+            l1_shared_bridge_proxy_addr: shared
+                .l1_address
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("l1_shared_bridge_proxy_addr")?,
+            l2_shared_bridge_addr: shared
+                .l2_address
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
                 .context("l2_shared_bridge_proxy_addr")?,
             l1_weth_bridge_proxy_addr: weth_bridge
                 .as_ref()
@@ -144,8 +150,8 @@ impl ProtoRepr for proto::Contracts {
             }),
             bridges: Some(proto::Bridges {
                 shared: Some(proto::Bridge {
-                    l1_address: Some(format!("{:?}", this.l1_shared_bridge_proxy_addr)),
-                    l2_address: Some(format!("{:?}", this.l2_shared_bridge_addr)),
+                    l1_address: this.l1_shared_bridge_proxy_addr.map(|a| format!("{:?}", a)),
+                    l2_address: this.l2_shared_bridge_addr.map(|a| format!("{:?}", a)),
                 }),
                 erc20: Some(proto::Bridge {
                     l1_address: this.l1_erc20_bridge_proxy_addr.map(|a| format!("{:?}", a)),
