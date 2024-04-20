@@ -78,26 +78,14 @@ impl ProtoRepr for proto::Contracts {
                 .context("l2_shared_bridge_proxy_addr")?,
             l1_weth_bridge_proxy_addr: weth_bridge
                 .as_ref()
-                .map(|bridge| {
-                    bridge
-                        .l1_address
-                        .as_ref()
-                        .map(|x| parse_h160(x))
-                        .context("l1_weth_bridge_addr")
-                })
-                .transpose()?
-                .transpose()?,
+                .and_then(|bridge| bridge.l1_address.as_ref().map(|x| parse_h160(x)))
+                .transpose()
+                .context("l1_weth_bridge_addr")?,
             l2_weth_bridge_addr: weth_bridge
                 .as_ref()
-                .map(|bridge| {
-                    bridge
-                        .l2_address
-                        .as_ref()
-                        .map(|x| parse_h160(x))
-                        .context("l2_weth_bridge_addr")
-                })
-                .transpose()?
-                .transpose()?,
+                .and_then(|bridge| bridge.l2_address.as_ref().map(|x| parse_h160(x)))
+                .transpose()
+                .context("l2_weth_bridge_addr")?,
             l2_testnet_paymaster_addr: l2
                 .testnet_paymaster_addr
                 .as_ref()
