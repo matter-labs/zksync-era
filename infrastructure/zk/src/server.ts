@@ -21,7 +21,6 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
     if (components) {
         options += ` --components=${components}`;
     }
-    // await utils.spawn(`RUST_LOG=trace cargo run --bin zksync_server --release ${options}`);
     await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
 }
 
@@ -64,7 +63,8 @@ async function create_genesis(cmd: string) {
 }
 
 export async function genesisFromSources() {
-    // we fix chainId as we need all chains to have the same chainId at genesis
+    // Note that that all the chains have the same chainId at genesis. It will be changed
+    // via an upgrade transaction during the registration of the chain.
     await create_genesis('cargo run --bin zksync_server --release -- --genesis');
 }
 
