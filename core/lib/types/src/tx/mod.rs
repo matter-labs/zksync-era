@@ -51,6 +51,6 @@ impl TransactionExecutionResult {
 #[derive(Debug, Clone, Copy)]
 pub struct IncludedTxLocation {
     pub tx_hash: H256,
-    pub tx_index_in_miniblock: u32,
+    pub tx_index_in_l2_block: u32,
     pub tx_initiator_address: Address,
 }

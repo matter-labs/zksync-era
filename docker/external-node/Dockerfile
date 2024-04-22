@@ -5,11 +5,11 @@ FROM matterlabs/zksync-build-base:latest as builder
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN cargo build --release
+RUN cargo build --release --features=rocksdb/io-uring
 
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y curl libpq5 ca-certificates liburing-dev && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/src/zksync/target/release/zksync_external_node /usr/bin
 COPY --from=builder /usr/src/zksync/target/release/block_reverter /usr/bin

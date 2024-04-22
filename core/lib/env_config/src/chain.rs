@@ -75,8 +75,9 @@ mod tests {
         StateKeeperConfig {
             transaction_slots: 50,
             block_commit_deadline_ms: 2500,
-            miniblock_commit_deadline_ms: 1000,
-            miniblock_seal_queue_capacity: 10,
+            l2_block_commit_deadline_ms: 1000,
+            l2_block_seal_queue_capacity: 10,
+            l2_block_max_payload_size: 1_000_000,
             max_single_tx_gas: 1_000_000,
             max_allowed_l2_tx_gas_limit: 2_000_000_000,
             close_block_at_eth_params_percentage: 0.2,
@@ -95,7 +96,6 @@ mod tests {
             fee_model_version: FeeModelVersion::V2,
             validation_computational_gas_limit: 10_000_000,
             save_call_traces: false,
-            enum_index_migration_chunk_size: Some(2_000),
             bootloader_hash: Some(hash(
                 "0x010007ede999d096c84553fb514d3d6ca76fbf39789dda76bfeda9f3ae06236e",
             )),
@@ -123,6 +123,7 @@ mod tests {
             CHAIN_STATE_KEEPER_BLOCK_COMMIT_DEADLINE_MS="2500"
             CHAIN_STATE_KEEPER_MINIBLOCK_COMMIT_DEADLINE_MS="1000"
             CHAIN_STATE_KEEPER_MINIBLOCK_SEAL_QUEUE_CAPACITY="10"
+            CHAIN_STATE_KEEPER_MINIBLOCK_MAX_PAYLOAD_SIZE="1000000"
             CHAIN_STATE_KEEPER_MINIMAL_L2_GAS_PRICE="100000000"
             CHAIN_STATE_KEEPER_COMPUTE_OVERHEAD_PART="0.0"
             CHAIN_STATE_KEEPER_PUBDATA_OVERHEAD_PART="1.0"
@@ -132,7 +133,6 @@ mod tests {
             CHAIN_STATE_KEEPER_FEE_MODEL_VERSION="V2"
             CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT="10000000"
             CHAIN_STATE_KEEPER_SAVE_CALL_TRACES="false"
-            CHAIN_STATE_KEEPER_ENUM_INDEX_MIGRATION_CHUNK_SIZE="2000"
             CHAIN_STATE_KEEPER_BOOTLOADER_HASH=0x010007ede999d096c84553fb514d3d6ca76fbf39789dda76bfeda9f3ae06236e
             CHAIN_STATE_KEEPER_DEFAULT_AA_HASH=0x0100055b041eb28aff6e3a6e0f37c31fd053fc9ef142683b05e5f0aee6934066
             CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE="{l1_batch_commit_data_generator_mode}"
