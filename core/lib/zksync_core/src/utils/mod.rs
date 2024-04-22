@@ -275,7 +275,7 @@ mod tests {
     struct MockEthereumForCommitGenerationMode {
         retval: Vec<ethabi::Token>,
         // Can't copy `Error` so use internal mutability to `take` it.
-        // This means the the error is one use, reload if you need a second call.
+        // This means the error is one use, reload if you need a second call.
         // We also can't use `RefCell`, since `EthInterface` requires implementors to be `Sync` and
         // `Send`.
         error: Mutex<Option<EthClientError>>,
