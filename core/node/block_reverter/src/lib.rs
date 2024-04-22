@@ -28,6 +28,9 @@ use zksync_types::{
     Address, L1BatchNumber, H160, H256, U256,
 };
 
+#[cfg(test)]
+mod tests;
+
 bitflags! {
     pub struct BlockReverterFlags: u32 {
         const POSTGRES = 0b_0001;
@@ -188,7 +191,7 @@ impl BlockReverter {
                 .blocks_dal()
                 .get_l1_batch_state_root(last_l1_batch_to_keep)
                 .await?
-                .context("failed to fetch root hash for target L1 batch")?;
+                .context("no state root hash for target L1 batch")?;
 
             // Rolling back Merkle tree
             let merkle_tree_path = Path::new(&self.merkle_tree_path);
