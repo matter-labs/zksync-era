@@ -1,3 +1,5 @@
+use std::{sync::Arc, time::Instant};
+
 use anyhow::Context;
 use async_trait::async_trait;
 use circuit_definitions::{
@@ -8,7 +10,6 @@ use circuit_definitions::{
     recursion_layer_proof_config,
 };
 use prover_dal::{Prover, ProverDal};
-use std::{sync::Arc, time::Instant};
 use zkevm_test_harness::{
     boojum::{
         field::{
