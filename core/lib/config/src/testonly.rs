@@ -13,14 +13,11 @@ trait Sample {
 impl Sample for Network {
     fn sample(rng: &mut (impl Rng + ?Sized)) -> Network {
         type T = Network;
-        match rng.gen_range(0..8) {
+        match rng.gen_range(0..5) {
             0 => T::Mainnet,
-            1 => T::Rinkeby,
-            2 => T::Ropsten,
-            3 => T::Goerli,
-            4 => T::Sepolia,
-            5 => T::Localhost,
-            6 => T::Unknown,
+            1 => T::Sepolia,
+            2 => T::Localhost,
+            3 => T::Unknown,
             _ => T::Test,
         }
     }
