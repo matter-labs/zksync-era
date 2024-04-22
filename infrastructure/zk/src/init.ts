@@ -6,7 +6,7 @@ import { announced } from './utils';
 import { clean } from './clean';
 import * as compiler from './compiler';
 import * as contract from './contract';
-import { DeploymentMode } from './contract';
+import { DeploymentMode, updateContractsEnv } from './contract';
 import * as db from './database';
 import * as docker from './docker';
 import * as env from './env';
@@ -111,6 +111,14 @@ const initHyperchain = async ({
     await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster, chainIdHack }));
 };
 
+const makeEraChainIdSameAsCurrent = async () => {
+    console.log('Making era chain id same as current chain id');
+
+    const initEnv = `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`;
+    env.modify('CONTRACTS_ERA_CHAIN_ID', process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!, initEnv, false);
+    env.reload();
+};
+
 // ########################### Command Actions ###########################
 type InitDevCmdActionOptions = InitSetupOptions & {
     skipTestTokenDeployment?: boolean;
@@ -128,6 +136,9 @@ export const initDevCmdAction = async ({
     validiumMode,
     chainIdHack
 }: InitDevCmdActionOptions): Promise<void> => {
+    if (chainIdHack) {
+        await makeEraChainIdSameAsCurrent();
+    }
     await initSetup({ skipEnvSetup, skipSubmodulesCheckout, runObservability, validiumMode });
     await initDatabase({ skipVerifierDeployment: false });
     if (!skipTestTokenDeployment) {
@@ -135,7 +146,6 @@ export const initDevCmdAction = async ({
     }
     await initBridgehubStateTransition();
     await initDatabase({ skipVerifierDeployment: true });
-    // FIXME propagate chain id hack properly
     await initHyperchain({ includePaymaster: true, baseTokenName, chainIdHack });
 };
 
@@ -190,7 +200,10 @@ export const initCommand = new Command('init')
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--validium-mode', 'deploy contracts in Validium mode')
     .option('--run-observability', 'run observability suite')
-    .option('--chain-id-hack', 'force-deploy L2TokenBeaconProxy even if chain id is ERA_CHAIN_ID')
+    .option(
+        '--chain-id-hack',
+        'used to test LegacyBridge compatibily. The chain will have the same id as the era chain id, while eraChainId in L2SharedBridge will be 0'
+    )
     .description('Deploys the shared bridge and registers a hyperchain locally, as quickly as possible.')
     .action(initDevCmdAction);
 

@@ -85,9 +85,6 @@ jobs:
           echo FAIL_FAST=true >> .env
           echo IN_DOCKER=1 >> .env
           echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
-          # Chain id of our hyperchain must be same as ERA's
-          echo CHAIN_ETH_ZKSYNC_NETWORK_ID=270 >> .env
-          echo CONTRACTS_ERA_CHAIN_ID=270 >> .env
 
       - name: Start services
         run: |
