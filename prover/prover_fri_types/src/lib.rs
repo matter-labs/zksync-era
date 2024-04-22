@@ -1,4 +1,4 @@
-use std::{env, iter::once};
+use std::env;
 
 pub use circuit_definitions;
 use circuit_definitions::{
@@ -48,7 +48,7 @@ impl StoredObject for CircuitWrapper {
     serialize_using_bincode!();
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum FriProofWrapper {
     Base(ZkSyncBaseLayerProof),
     Recursive(ZkSyncRecursionLayerProof),

@@ -80,6 +80,7 @@ message WitnessGenerator {
     optional uint32 leaf_generation_timeout_in_secs = 9; // optional;
     optional uint32 node_generation_timeout_in_secs = 10; // optional;
     optional uint32 scheduler_generation_timeout_in_secs = 11; // optional;
+    optional uint32 recursion_tip_timeout_in_secs = 12; // optional;
 }
 
 message WitnessVectorGenerator {

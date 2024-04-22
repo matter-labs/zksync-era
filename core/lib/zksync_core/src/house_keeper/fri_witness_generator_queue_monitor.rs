@@ -45,6 +45,12 @@ impl FriWitnessGeneratorStatsReporter {
                     .await,
             ),
             (
+                AggregationRound::RecursionTip,
+                conn.fri_witness_generator_dal()
+                    .get_witness_jobs_stats(AggregationRound::RecursionTip)
+                    .await,
+            ),
+            (
                 AggregationRound::Scheduler,
                 conn.fri_witness_generator_dal()
                     .get_witness_jobs_stats(AggregationRound::Scheduler)

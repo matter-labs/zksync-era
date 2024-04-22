@@ -1,37 +1,63 @@
-use zk_evm::aux_structures::{LogQuery, Timestamp};
-use zkevm_test_harness::zk_evm::abstractions::{RefundType, RefundedAmounts, Storage};
+use zkevm_test_harness::zk_evm::{
+    abstractions::{Storage, StorageAccessRefund},
+    aux_structures::{LogQuery, PubdataCost, Timestamp},
+    zkevm_opcode_defs::system_params::{STORAGE_AUX_BYTE, TRANSIENT_STORAGE_AUX_BYTE},
+};
 
 #[derive(Debug)]
 pub struct StorageOracle<T> {
     inn: T,
     storage_refunds: std::vec::IntoIter<u32>,
+    pubdata_costs: std::vec::IntoIter<i32>,
 }
 
 impl<T> StorageOracle<T> {
-    pub fn new(inn: T, storage_refunds: Vec<u32>) -> Self {
+    pub fn new(inn: T, storage_refunds: Vec<u32>, pubdata_costs: Vec<i32>) -> Self {
         Self {
             inn,
             storage_refunds: storage_refunds.into_iter(),
+            pubdata_costs: pubdata_costs.into_iter(),
         }
     }
 }
 
 impl<T: Storage> Storage for StorageOracle<T> {
-    fn estimate_refunds_for_write(
+    fn get_access_refund(
         &mut self,
         _monotonic_cycle_counter: u32,
-        _partial_query: &LogQuery,
-    ) -> RefundType {
-        let pubdata_bytes = self.storage_refunds.next().expect("Missing refund");
-        RefundType::RepeatedWrite(RefundedAmounts {
-            pubdata_bytes,
-            ergs: 0,
-        })
+        partial_query: &LogQuery,
+    ) -> StorageAccessRefund {
+        if partial_query.aux_byte == TRANSIENT_STORAGE_AUX_BYTE {
+            // Any transient access is warm. Also, no refund needs to be provided as it is already cheap
+            StorageAccessRefund::Warm { ergs: 0 }
+        } else if partial_query.aux_byte == STORAGE_AUX_BYTE {
+            let storage_refunds = self.storage_refunds.next().expect("Missing refund");
+            if storage_refunds == 0 {
+                StorageAccessRefund::Cold
+            } else {
+                StorageAccessRefund::Warm {
+                    ergs: storage_refunds,
+                }
+            }
+        } else {
+            unreachable!()
+        }
     }
 
-    fn execute_partial_query(&mut self, monotonic_cycle_counter: u32, query: LogQuery) -> LogQuery {
-        self.inn
-            .execute_partial_query(monotonic_cycle_counter, query)
+    fn start_new_tx(&mut self, _timestamp: Timestamp) {
+        self.inn.start_new_tx(_timestamp)
+    }
+
+    fn execute_partial_query(
+        &mut self,
+        monotonic_cycle_counter: u32,
+        query: LogQuery,
+    ) -> (LogQuery, PubdataCost) {
+        let (query, _) = self
+            .inn
+            .execute_partial_query(monotonic_cycle_counter, query);
+        let pubdata_cost = self.pubdata_costs.next().expect("Missing pubdata cost");
+        (query, PubdataCost(pubdata_cost))
     }
 
     fn finish_frame(&mut self, timestamp: Timestamp, panicked: bool) {

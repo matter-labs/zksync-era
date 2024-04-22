@@ -838,7 +838,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#d26608a13e455bcf29ecc7c794b6355d23a39063"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#ecb08797ced36fcc7d3696ffd2ec6a2d534b9395"
 dependencies = [
  "circuit_encodings 0.1.50",
  "crossbeam 0.8.4",
@@ -886,7 +886,7 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#d26608a13e455bcf29ecc7c794b6355d23a39063"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#ecb08797ced36fcc7d3696ffd2ec6a2d534b9395"
 dependencies = [
  "derivative",
  "serde",
@@ -948,7 +948,7 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#d26608a13e455bcf29ecc7c794b6355d23a39063"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#ecb08797ced36fcc7d3696ffd2ec6a2d534b9395"
 dependencies = [
  "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
  "circuit_encodings 0.1.50",
@@ -2901,7 +2901,7 @@ dependencies = [
 [[package]]
 name = "kzg"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#d26608a13e455bcf29ecc7c794b6355d23a39063"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#ecb08797ced36fcc7d3696ffd2ec6a2d534b9395"
 dependencies = [
  "boojum",
  "derivative",
@@ -7458,7 +7458,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#d26608a13e455bcf29ecc7c794b6355d23a39063"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#ecb08797ced36fcc7d3696ffd2ec6a2d534b9395"
 dependencies = [
  "bincode",
  "circuit_definitions",

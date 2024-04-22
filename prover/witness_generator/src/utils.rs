@@ -1,11 +1,18 @@
-use std::io::{BufWriter, Write as _};
+use std::{
+    collections::HashMap,
+    io::{BufWriter, Write as _},
+};
 
 use circuit_definitions::circuit_definitions::{
-    base_layer::ZkSyncBaseLayerCircuit, eip4844::EIP4844Circuit,
+    base_layer::ZkSyncBaseLayerCircuit,
+    recursion_layer::{ZkSyncRecursionLayerStorageType, ZkSyncRecursionProof},
 };
 use multivm::utils::get_used_bootloader_memory_bytes;
 use once_cell::sync::Lazy;
-use zkevm_test_harness::boojum::field::goldilocks::GoldilocksField;
+use zkevm_test_harness::{
+    boojum::field::goldilocks::GoldilocksField, empty_node_proof,
+    zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
+};
 use zksync_object_store::{serialize_using_bincode, Bucket, ObjectStore, StoredObject};
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -21,7 +28,7 @@ use zksync_prover_fri_types::{
         zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness,
     },
     keys::{AggregationsKey, ClosedFormInputKey, FriCircuitKey},
-    CircuitWrapper, FriProofWrapper, EIP_4844_CIRCUIT_ID,
+    CircuitWrapper, FriProofWrapper,
 };
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber, ProtocolVersionId, U256};
 
@@ -136,28 +143,6 @@ pub async fn save_circuit(
     (circuit_id, blob_url)
 }
 
-pub async fn save_eip_4844_circuit(
-    block_number: L1BatchNumber,
-    circuit: EIP4844Circuit,
-    sequence_number: usize,
-    object_store: &dyn ObjectStore,
-    depth: u16,
-) -> (usize, String) {
-    let circuit_id = EIP_4844_CIRCUIT_ID;
-    let circuit_key = FriCircuitKey {
-        block_number,
-        sequence_number,
-        circuit_id,
-        aggregation_round: AggregationRound::BasicCircuits,
-        depth,
-    };
-    let blob_url = object_store
-        .put(circuit_key, &CircuitWrapper::Eip4844(circuit))
-        .await
-        .unwrap();
-    (sequence_number, blob_url)
-}
-
 pub async fn save_recursive_layer_prover_input_artifacts(
     block_number: L1BatchNumber,
     aggregations: Vec<(
@@ -220,4 +205,44 @@ pub async fn load_proofs_for_job_ids(
         proofs.push(object_store.get(job_id).await.unwrap());
     }
     proofs
+}
+
+pub async fn load_proofs_for_recursion_tip(
+    job_ids: Vec<(u8, u32)>,
+    object_store: &dyn ObjectStore,
+) -> anyhow::Result<Vec<ZkSyncRecursionProof>> {
+    let job_mapping: HashMap<u8, u32> = job_ids
+        .into_iter()
+        .map(|(leaf_circuit_id, job_id)| {
+            (
+                ZkSyncRecursionLayerStorageType::from_leaf_u8_to_basic_u8(leaf_circuit_id),
+                job_id,
+            )
+        })
+        .collect();
+
+    let empty_proof = empty_node_proof().into_inner();
+
+    let mut proofs = Vec::new();
+    for circuit_id in BaseLayerCircuitType::as_iter_u8() {
+        if job_mapping.contains_key(&circuit_id) {
+            let fri_proof_wrapper = object_store
+                .get(*job_mapping.get(&circuit_id).unwrap())
+                .await
+                .expect("Failed to load proof for recursion_tip");
+            match fri_proof_wrapper {
+                FriProofWrapper::Base(_) => {
+                    return Err(anyhow::anyhow!(
+                        "Expected only recursive proofs for recursive tip, got Base"
+                    ));
+                }
+                FriProofWrapper::Recursive(recursive_proof) => {
+                    proofs.push(recursive_proof.into_inner());
+                }
+            }
+        } else {
+            proofs.push(empty_proof.clone());
+        }
+    }
+    Ok(proofs)
 }

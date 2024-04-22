@@ -8,15 +8,11 @@ use std::{
 use anyhow::Context as _;
 use async_trait::async_trait;
 use circuit_definitions::{
-    circuit_definitions::{
-        base_layer::ZkSyncBaseLayerStorage, eip4844::EIP4844InstanceSynthesisFunction,
-        ZkSyncUniformCircuitInstance,
-    },
+    circuit_definitions::base_layer::ZkSyncBaseLayerStorage,
     encodings::recursion_request::RecursionQueueSimulator,
     zkevm_circuits::fsm_input_output::ClosedFormInputCompactFormWitness,
 };
-// TODO: Switch to `vm_latest` once the prover supports v1.5.0
-use multivm::vm_1_4_2::{
+use multivm::vm_latest::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
 };
 use prover_dal::{
@@ -25,11 +21,7 @@ use prover_dal::{
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use tracing::Instrument;
-use zkevm_test_harness::{
-    geometry_config::get_geometry_config, toolset::GeometryConfig,
-    utils::generate_eip4844_circuit_and_witness,
-    zkevm_circuits::eip_4844::input::EIP4844OutputDataWitness,
-};
+use zkevm_test_harness::{geometry_config::get_geometry_config, toolset::GeometryConfig};
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::{Core, CoreDal};
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory, StoredObject};
@@ -45,16 +37,15 @@ use zksync_prover_fri_types::{
     },
     get_current_pod_name,
     keys::ClosedFormInputKey,
-    AuxOutputWitnessWrapper, EIP_4844_CIRCUIT_ID,
+    AuxOutputWitnessWrapper,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_prover_interface::inputs::{BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, StorageView};
 use zksync_types::{
-    basic_fri_types::{
-        AggregationRound, Eip4844Blobs, EIP_4844_BLOB_SIZE, MAX_4844_BLOBS_PER_BLOCK,
-    },
+    basic_fri_types::{AggregationRound, Eip4844Blobs},
+    block::StorageOracleInfo,
     protocol_version::ProtocolVersionId,
     Address, L1BatchNumber, BOOTLOADER_ADDRESS, H256, U256,
 };
@@ -65,19 +56,13 @@ use crate::{
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
     storage_oracle::StorageOracle,
     utils::{
-        expand_bootloader_contents, save_circuit, save_eip_4844_circuit, ClosedFormInputWrapper,
+        expand_bootloader_contents, save_circuit, ClosedFormInputWrapper,
         SchedulerPartialInputWrapper, KZG_TRUSTED_SETUP_FILE,
     },
 };
 
-type Eip4844Circuit =
-    ZkSyncUniformCircuitInstance<GoldilocksField, EIP4844InstanceSynthesisFunction>;
-
-type Eip4844Witness = EIP4844OutputDataWitness<GoldilocksField>;
-
 pub struct BasicCircuitArtifacts {
     circuit_urls: Vec<(u8, String)>,
-    eip_4844_circuit_urls: Vec<(usize, String)>,
     queue_urls: Vec<(u8, String, usize)>,
     scheduler_witness: SchedulerCircuitInstanceWitness<
         GoldilocksField,
@@ -90,7 +75,6 @@ pub struct BasicCircuitArtifacts {
 #[derive(Debug)]
 struct BlobUrls {
     circuit_ids_and_urls: Vec<(u8, String)>,
-    eip_4844_circuit_urls: Vec<(usize, String)>,
     closed_form_inputs_and_urls: Vec<(u8, String, usize)>,
     scheduler_witness_url: String,
 }
@@ -302,7 +286,6 @@ impl JobProcessor for BasicWitnessGenerator {
                     job_id,
                     BlobUrls {
                         circuit_ids_and_urls: artifacts.circuit_urls,
-                        eip_4844_circuit_urls: artifacts.eip_4844_circuit_urls,
                         closed_form_inputs_and_urls: artifacts.queue_urls,
                         scheduler_witness_url,
                     },
@@ -344,16 +327,15 @@ async fn process_basic_circuits_job(
 ) -> BasicCircuitArtifacts {
     let witness_gen_input =
         build_basic_circuits_witness_generator_input(&connection_pool, job, block_number).await;
-    let (circuit_urls, eip_4844_circuit_urls, queue_urls, scheduler_witness, aux_output_witness) =
-        generate_witness(
-            block_number,
-            object_store,
-            config,
-            connection_pool,
-            witness_gen_input,
-            eip_4844_blobs,
-        )
-        .await;
+    let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) = generate_witness(
+        block_number,
+        object_store,
+        config,
+        connection_pool,
+        witness_gen_input,
+        eip_4844_blobs,
+    )
+    .await;
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
         .observe(started_at.elapsed());
     tracing::info!(
@@ -364,7 +346,6 @@ async fn process_basic_circuits_job(
 
     BasicCircuitArtifacts {
         circuit_urls,
-        eip_4844_circuit_urls,
         queue_urls,
         scheduler_witness,
         aux_output_witness,
@@ -392,25 +373,6 @@ async fn update_database(
             protocol_version_id,
         )
         .await;
-    // Special casing EIP4844 as part of 1.4.2.
-    // In the future, this will be included in the above call.
-    // For now, there are [`MAX_4844_BLOBS_PER_BLOCK`] proofs, even though there may be less blobs.
-    // The proofs are expected as per: https://github.com/matter-labs/era-zkevm_circuits/blob/v1.4.2/src/scheduler/mod.rs#L1165
-    for index in 0..MAX_4844_BLOBS_PER_BLOCK {
-        prover_connection
-            .fri_prover_jobs_dal()
-            .insert_prover_job(
-                block_number,
-                EIP_4844_CIRCUIT_ID,
-                0,
-                blob_urls.eip_4844_circuit_urls[index].0,
-                AggregationRound::BasicCircuits,
-                &blob_urls.eip_4844_circuit_urls[index].1,
-                true,
-                protocol_version_id,
-            )
-            .await;
-    }
     prover_connection
         .fri_witness_generator_dal()
         .create_aggregation_jobs(
@@ -541,7 +503,6 @@ async fn generate_witness(
     eip_4844_blobs: Eip4844Blobs,
 ) -> (
     Vec<(u8, String)>,
-    Vec<(usize, String)>,
     Vec<(u8, String, usize)>,
     SchedulerCircuitInstanceWitness<
         GoldilocksField,
@@ -597,13 +558,15 @@ async fn generate_witness(
         .map(|hash| u256_to_h256(*hash))
         .collect();
 
-    let storage_refunds = connection
+    let StorageOracleInfo {
+        storage_refunds,
+        pubdata_costs,
+    } = connection
         .blocks_dal()
         .get_storage_oracle_info(input.block_number)
         .await
         .unwrap()
-        .unwrap()
-        .storage_refunds;
+        .unwrap();
 
     let mut used_bytecodes = connection
         .factory_deps_dal()
@@ -680,7 +643,13 @@ async fn generate_witness(
 
         let vm_storage_oracle: VmStorageOracle<StorageView<PostgresStorage<'_>>, HistoryDisabled> =
             VmStorageOracle::new(storage_view.clone());
-        let storage_oracle = StorageOracle::new(vm_storage_oracle, storage_refunds);
+        let storage_oracle = StorageOracle::new(
+            vm_storage_oracle,
+            storage_refunds,
+            pubdata_costs.expect("pubdata costs should be present"),
+        );
+
+        let path = KZG_TRUSTED_SETUP_FILE.path().to_str().unwrap();
 
         let (scheduler_witness, block_witness) = zkevm_test_harness::external_calls::run(
             Address::zero(),
@@ -689,12 +658,16 @@ async fn generate_witness(
             bootloader_contents,
             false,
             account_code_hash,
+            // NOTE: this will be evm_simulator_code_hash in future releases
+            account_code_hash,
             used_bytecodes,
             Vec::default(),
             MAX_CYCLES_FOR_TX as usize,
             geometry_config,
             storage_oracle,
             &mut tree,
+            path,
+            eip_4844_blobs.blobs(),
             |circuit| {
                 circuit_sender.blocking_send(circuit).unwrap();
             },
@@ -706,10 +679,13 @@ async fn generate_witness(
     let mut circuit_urls = vec![];
     let mut recursion_urls = vec![];
 
+    let mut circuits_present = HashSet::<u8>::new();
+
     let save_circuits = async {
         loop {
             tokio::select! {
                 Some(circuit) = circuit_receiver.recv() => {
+                    circuits_present.insert(circuit.numeric_circuit_type());
                     circuit_urls.push(
                         save_circuit(block_number, circuit, circuit_urls.len(), object_store).await,
                     );
@@ -723,59 +699,21 @@ async fn generate_witness(
         }
     };
 
-    let mut eip_4844_blobs = eip_4844_blobs.blobs();
-
-    let single_blob = eip_4844_blobs.len() == 1;
-    if single_blob {
-        // A proof is still expected for the scheduler (it's not going to be used), even though we have a single blob.
-        // See: https://github.com/matter-labs/era-zkevm_circuits/blob/v1.4.2/src/scheduler/mod.rs#L1165
-        eip_4844_blobs.push(vec![0; EIP_4844_BLOB_SIZE]);
-    }
-
-    let trusted_setup_path = KZG_TRUSTED_SETUP_FILE
-        .path()
-        .to_str()
-        .expect("Path to KZG trusted setup is not a UTF-8 string");
-    let (eip_4844_circuits, mut eip_4844_witnesses): (Vec<Eip4844Circuit>, Vec<Eip4844Witness>) =
-        eip_4844_blobs
-            .clone()
-            .into_iter()
-            .map(|blob| {
-                let (circuit, output_witness) =
-                    generate_eip4844_circuit_and_witness(blob, trusted_setup_path);
-                (circuit, output_witness.closed_form_input.observable_output)
-            })
-            .unzip();
-
     let (witnesses, ()) = tokio::join!(make_circuits, save_circuits);
-
-    let mut eip_4844_blob_urls = vec![];
-    // Note that the sequence number will be reused to determine ordering between blobs.
-    for (index, circuit) in eip_4844_circuits.into_iter().enumerate() {
-        eip_4844_blob_urls
-            .push(save_eip_4844_circuit(block_number, circuit, index, object_store, 0).await);
-    }
-
     let (mut scheduler_witness, block_aux_witness) = witnesses.unwrap();
+
+    let recursion_urls = recursion_urls
+        .into_iter()
+        .filter(|(circuit_id, _, _)| circuits_present.contains(circuit_id))
+        .collect();
 
     scheduler_witness.previous_block_meta_hash =
         previous_batch_with_metadata.metadata.meta_parameters_hash.0;
     scheduler_witness.previous_block_aux_hash =
         previous_batch_with_metadata.metadata.aux_data_hash.0;
 
-    if single_blob {
-        // The second witness has to be zeroed out (corresponding to the second blob), so it's not considered in the proof.
-        // See: https://github.com/matter-labs/era-zkevm_circuits/blob/v1.4.1/src/scheduler/mod.rs#L1149.
-        eip_4844_witnesses[1].linear_hash = [0u8; 32];
-        eip_4844_witnesses[1].output_hash = [0u8; 32];
-    }
-
-    scheduler_witness.eip4844_witnesses =
-        Some([eip_4844_witnesses[0].clone(), eip_4844_witnesses[1].clone()]);
-
     (
         circuit_urls,
-        eip_4844_blob_urls,
         recursion_urls,
         scheduler_witness,
         block_aux_witness,

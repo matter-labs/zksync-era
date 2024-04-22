@@ -1,7 +1,6 @@
 use std::{
     fs::{self, File},
     io::Read,
-    iter::once,
     path::Path,
 };
 

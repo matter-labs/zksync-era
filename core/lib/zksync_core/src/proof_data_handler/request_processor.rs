@@ -14,8 +14,8 @@ use zksync_prover_interface::api::{
     SubmitProofRequest, SubmitProofResponse,
 };
 use zksync_types::{
-    basic_fri_types::Eip4844BlobsWrapper, commitment::serialize_commitments,
-    web3::signing::keccak256, L1BatchNumber, H256,
+    basic_fri_types::Eip4844Blobs, commitment::serialize_commitments, web3::signing::keccak256,
+    L1BatchNumber, H256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -132,10 +132,9 @@ impl RequestProcessor {
             .unwrap()
             .unwrap();
 
-        let eip_4844_blobs_wrapper =
-            Eip4844BlobsWrapper::decode(storage_batch.pubdata_input.expect(&format!(
-                "expected pubdata, but it is not available for batch {l1_batch_number:?}"
-            )));
+        let eip_4844_blobs_wrapper = Eip4844Blobs::decode(storage_batch.pubdata_input.expect(
+            &format!("expected pubdata, but it is not available for batch {l1_batch_number:?}"),
+        ));
 
         let proof_gen_data = ProofGenerationData {
             l1_batch_number,

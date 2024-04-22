@@ -186,6 +186,11 @@ impl ProtoRepr for proto::WitnessGenerator {
                 .map(|x| x.try_into())
                 .transpose()
                 .context("node_generation_timeout_in_secs")?,
+            recursion_tip_generation_timeout_in_secs: self
+                .recursion_tip_timeout_in_secs
+                .map(|x| x.try_into())
+                .transpose()
+                .context("recursion_tip_generation_timeout_in_secs")?,
             scheduler_generation_timeout_in_secs: self
                 .scheduler_generation_timeout_in_secs
                 .map(|x| x.try_into())
@@ -208,6 +213,9 @@ impl ProtoRepr for proto::WitnessGenerator {
                 .map(|x| x.into()),
             leaf_generation_timeout_in_secs: this.leaf_generation_timeout_in_secs.map(|x| x.into()),
             node_generation_timeout_in_secs: this.node_generation_timeout_in_secs.map(|x| x.into()),
+            recursion_tip_timeout_in_secs: this
+                .recursion_tip_generation_timeout_in_secs
+                .map(|x| x.into()),
             scheduler_generation_timeout_in_secs: this
                 .scheduler_generation_timeout_in_secs
                 .map(|x| x.into()),

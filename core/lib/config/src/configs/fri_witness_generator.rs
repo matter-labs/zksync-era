@@ -13,6 +13,7 @@ pub struct FriWitnessGeneratorConfig {
     pub leaf_generation_timeout_in_secs: Option<u16>,
     pub scheduler_generation_timeout_in_secs: Option<u16>,
     pub node_generation_timeout_in_secs: Option<u16>,
+    pub recursion_tip_generation_timeout_in_secs: Option<u16>,
     /// Max attempts for generating witness
     pub max_attempts: u32,
     // Percentage of the blocks that gets proven in the range [0.0, 1.0]
@@ -35,6 +36,7 @@ pub struct WitnessGenerationTimeouts {
     basic: Duration,
     leaf: Duration,
     node: Duration,
+    recursion_tip: Duration,
     scheduler: Duration,
 }
 
@@ -51,15 +53,20 @@ impl WitnessGenerationTimeouts {
         self.node
     }
 
+    pub fn recursion_tip(&self) -> Duration {
+        self.recursion_tip
+    }
+
     pub fn scheduler(&self) -> Duration {
         self.scheduler
     }
 
-    pub fn new(basic: u16, leaf: u16, node: u16, scheduler: u16) -> Self {
+    pub fn new(basic: u16, leaf: u16, node: u16, recursion_tip: u16, scheduler: u16) -> Self {
         Self {
             basic: Duration::from_secs(basic as u64),
             leaf: Duration::from_secs(leaf as u64),
             node: Duration::from_secs(node as u64),
+            recursion_tip: Duration::from_secs(recursion_tip as u64),
             scheduler: Duration::from_secs(scheduler as u64),
         }
     }
@@ -73,6 +80,8 @@ impl FriWitnessGeneratorConfig {
             self.leaf_generation_timeout_in_secs
                 .unwrap_or(self.generation_timeout_in_secs),
             self.node_generation_timeout_in_secs
+                .unwrap_or(self.generation_timeout_in_secs),
+            self.recursion_tip_generation_timeout_in_secs
                 .unwrap_or(self.generation_timeout_in_secs),
             self.scheduler_generation_timeout_in_secs
                 .unwrap_or(self.generation_timeout_in_secs),

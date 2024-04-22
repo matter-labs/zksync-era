@@ -1,5 +1,3 @@
-use std::iter::once;
-
 use anyhow::Context as _;
 use circuit_definitions::{
     circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuit,

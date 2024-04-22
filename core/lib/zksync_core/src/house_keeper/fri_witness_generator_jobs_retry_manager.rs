@@ -88,6 +88,28 @@ impl FriWitnessGeneratorJobRetryManager {
         );
     }
 
+    pub async fn requeue_stuck_recursion_tip_jobs(&mut self) {
+        let stuck_jobs = self
+            .pool
+            .connection()
+            .await
+            .unwrap()
+            .fri_witness_generator_dal()
+            .requeue_stuck_recursion_tip_jobs(
+                self.processing_timeouts.recursion_tip(),
+                self.max_attempts,
+            )
+            .await;
+        let job_len = stuck_jobs.len();
+        for stuck_job in stuck_jobs {
+            tracing::info!("re-queuing fri witness input job {:?}", stuck_job);
+        }
+        metrics::counter!(
+            "server.recursion_tip_jobs_fri.requeued_jobs",
+            job_len as u64
+        );
+    }
+
     pub async fn requeue_stuck_scheduler_jobs(&mut self) {
         let stuck_jobs = self
             .pool
@@ -114,6 +136,7 @@ impl PeriodicJob for FriWitnessGeneratorJobRetryManager {
         self.requeue_stuck_witness_inputs_jobs().await;
         self.requeue_stuck_leaf_aggregations_jobs().await;
         self.requeue_stuck_node_aggregations_jobs().await;
+        self.requeue_stuck_recursion_tip_jobs().await;
         self.requeue_stuck_scheduler_jobs().await;
         Ok(())
     }

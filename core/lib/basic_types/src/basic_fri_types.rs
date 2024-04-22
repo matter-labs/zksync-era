@@ -17,10 +17,10 @@ pub type Blob = Vec<u8>;
 
 /// EIP4844 blobs, represents all blobs in a block.
 /// A block may have between 1 and 16 blobs. The absence is marked as a None.
-/// This structure is not meant to be constructed directly, but through `Eip4844BlobsWrapper`.
-type Eip4844Blobs = [Option<Blob>; MAX_4844_BLOBS_PER_BLOCK];
+/// This structure is not meant to be constructed directly, but through `Eip4844Blobs`.
+type Eip4844BlobsInner = [Option<Blob>; MAX_4844_BLOBS_PER_BLOCK];
 
-/// Wrapper struct, containing EIP 4844 blobs and enforcing invariants.
+/// External, wrapper struct, containing EIP 4844 blobs and enforcing invariants.
 /// Current invariants:
 ///   - there are between [1, 16] blobs
 ///   - all blobs are of the same size [`EIP_4844_BLOB_SIZE`]
@@ -28,17 +28,17 @@ type Eip4844Blobs = [Option<Blob>; MAX_4844_BLOBS_PER_BLOCK];
 ///
 /// Note: blobs are padded to fit the correct size.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Eip4844BlobsWrapper {
-    blobs: Eip4844Blobs,
+pub struct Eip4844Blobs {
+    blobs: Eip4844BlobsInner,
 }
 
-impl Eip4844BlobsWrapper {
-    pub fn blobs(self) -> Eip4844Blobs {
+impl Eip4844Blobs {
+    pub fn blobs(self) -> Eip4844BlobsInner {
         self.blobs
     }
 }
 
-impl Eip4844BlobsWrapper {
+impl Eip4844Blobs {
     pub fn encode(self) -> Vec<u8> {
         self.blobs().into_iter().flatten().flatten().collect()
     }
@@ -70,11 +70,6 @@ impl Eip4844BlobsWrapper {
             .expect("must always be able to take 16 elements");
         Self { blobs }
     }
-}
-
-pub struct FinalProofIds {
-    pub node_proof_ids: [u32; 13],
-    pub eip_4844_proof_ids: [u32; 2],
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Eq, Hash, PartialEq, PartialOrd, Ord)]
@@ -185,7 +180,7 @@ mod tests {
     #[should_panic]
     fn test_eip_4844_blobs_wrapper_empty_pubdata() {
         let payload = vec![];
-        let _eip_4844_blobs_wrapper = Eip4844BlobsWrapper::decode(payload);
+        let _eip_4844_blobs_wrapper = Eip4844Blobs::decode(payload);
     }
 
     #[test]
@@ -193,7 +188,7 @@ mod tests {
     fn test_eip_4844_blobs_wrapper_too_much_pubdata() {
         // blob size (126976) * 16 (max number of blobs) + 1
         let payload = vec![1; 2031617];
-        let _eip_4844_blobs_wrapper = Eip4844BlobsWrapper::decode(payload);
+        let _eip_4844_blobs_wrapper = Eip4844Blobs::decode(payload);
     }
 
     // General test.
@@ -204,7 +199,7 @@ mod tests {
     fn test_eip_4844_blobs_wrapper_needs_padding() {
         for no_blobs in 1..=16 {
             let payload = vec![1; no_blobs * 126976 - 1];
-            let eip_4844_blobs_wrapper = Eip4844BlobsWrapper::decode(payload);
+            let eip_4844_blobs_wrapper = Eip4844Blobs::decode(payload);
             let blobs = eip_4844_blobs_wrapper.blobs();
             assert_eq!(blobs.len(), 16, "expecting 16 blobs, got {}", blobs.len());
             for index in 0..no_blobs - 1 {
@@ -242,7 +237,7 @@ mod tests {
     fn test_eip_4844_blobs_wrapper_needs_no_padding() {
         for no_blobs in 1..=16 {
             let payload = vec![1; no_blobs * 126976];
-            let eip_4844_blobs_wrapper = Eip4844BlobsWrapper::decode(payload);
+            let eip_4844_blobs_wrapper = Eip4844Blobs::decode(payload);
             let blobs = eip_4844_blobs_wrapper.blobs();
             assert_eq!(blobs.len(), 16, "expecting 16 blobs, got {}", blobs.len());
             for index in 0..no_blobs {
@@ -269,7 +264,7 @@ mod tests {
         let initial_len = 126970;
         let blob_padded_size = EIP_4844_BLOB_SIZE;
         let payload = vec![1; initial_len];
-        let eip_4844_blobs_wrapper = Eip4844BlobsWrapper::decode(payload);
+        let eip_4844_blobs_wrapper = Eip4844Blobs::decode(payload);
         let raw = eip_4844_blobs_wrapper.encode();
         assert_ne!(raw.len(), initial_len);
         assert_eq!(raw.len(), 126976);
