@@ -31,9 +31,9 @@ use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_storage::{db::NamedColumnFamily, RocksDB};
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
 
-use self::metrics::METRICS;
 #[cfg(test)]
 use self::tests::RocksdbStorageEventListener;
+use self::{metrics::METRICS, recovery::Strategy};
 use crate::{InMemoryStorage, ReadStorage};
 
 mod metrics;
@@ -157,6 +157,35 @@ impl RocksdbStorageBuilder {
         self.0.l1_batch_number().await
     }
 
+    /// Ensures that the storage is ready to process L1 batches (i.e., has completed snapshot recovery).
+    ///
+    /// # Return value
+    ///
+    /// Returns a flag indicating whether snapshot recovery was performed.
+    ///
+    /// # Errors
+    ///
+    /// Returns I/O RocksDB and Postgres errors.
+    pub async fn ensure_ready(
+        &mut self,
+        storage: &mut Connection<'_, Core>,
+        stop_receiver: &watch::Receiver<bool>,
+    ) -> anyhow::Result<bool> {
+        let ready_result = self
+            .0
+            .ensure_ready(
+                storage,
+                RocksdbStorage::DESIRED_LOG_CHUNK_SIZE,
+                stop_receiver,
+            )
+            .await;
+        match ready_result {
+            Ok((strategy, _)) => Ok(matches!(strategy, Strategy::Recovery)),
+            Err(RocksdbSyncError::Interrupted) => Ok(false),
+            Err(RocksdbSyncError::Internal(err)) => Err(err),
+        }
+    }
+
     /// Synchronizes this storage with Postgres using the provided connection.
     ///
     /// # Return value
@@ -231,7 +260,7 @@ impl RocksdbStorage {
         storage: &mut Connection<'_, Core>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Result<(), RocksdbSyncError> {
-        let mut current_l1_batch_number = self
+        let (_, mut current_l1_batch_number) = self
             .ensure_ready(storage, Self::DESIRED_LOG_CHUNK_SIZE, stop_receiver)
             .await?;
 

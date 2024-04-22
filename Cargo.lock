@@ -8673,6 +8673,7 @@ dependencies = [
  "zksync_l1_contract_interface",
  "zksync_object_store",
  "zksync_protobuf_config",
+ "zksync_shared_metrics",
  "zksync_snapshots_applier",
  "zksync_state",
  "zksync_storage",
