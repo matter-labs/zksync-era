@@ -12,15 +12,15 @@ use zksync_health_check::CheckHealth;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
     api::{BlockDetails, L1BatchDetails},
-    block::{L1BatchHeader, L2BlockHeader},
-    get_code_key, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
+    block::L1BatchHeader,
+    get_code_key, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
 };
 
 use self::utils::{
-    mock_recovery_status, prepare_clients, MockMainNodeClient, ObjectStoreWithErrors,
+    mock_l2_block_header, mock_recovery_status, mock_snapshot_header, mock_tokens, prepare_clients,
+    random_storage_logs, MockMainNodeClient, ObjectStoreWithErrors,
 };
 use super::*;
-use crate::tests::utils::{mock_snapshot_header, mock_tokens, random_storage_logs};
 
 mod utils;
 
@@ -65,7 +65,8 @@ async fn snapshots_creator_can_successfully_recover_db(
         object_store.clone(),
     );
     let task_health = task.health_check();
-    task.run().await.unwrap();
+    let stats = task.run().await.unwrap();
+    assert!(stats.done_work);
     assert_matches!(
         task_health.check_health().await.status(),
         HealthStatus::Ready
@@ -103,16 +104,39 @@ async fn snapshots_creator_can_successfully_recover_db(
         assert_eq!(db_log.value, expected_log.value);
         assert_eq!(db_log.l2_block_number, expected_status.l2_block_number);
     }
-    drop(storage);
 
     // Try recovering again.
     let task = SnapshotsApplierTask::new(
         SnapshotsApplierConfig::for_tests(),
-        pool,
+        pool.clone(),
+        Box::new(client.clone()),
+        object_store.clone(),
+    );
+    task.run().await.unwrap();
+    // Here, stats would unfortunately have `done_work: true` because work detection isn't smart enough.
+
+    // Emulate a node processing data after recovery.
+    storage
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
+    let l2_block = mock_l2_block_header(expected_status.l2_block_number + 1);
+    storage
+        .blocks_dal()
+        .insert_l2_block(&l2_block)
+        .await
+        .unwrap();
+    drop(storage);
+
+    let task = SnapshotsApplierTask::new(
+        SnapshotsApplierConfig::for_tests(),
+        pool.clone(),
         Box::new(client),
         object_store,
     );
-    task.run().await.unwrap();
+    let stats = task.run().await.unwrap();
+    assert!(!stats.done_work);
 }
 
 #[tokio::test]
@@ -145,7 +169,7 @@ async fn health_status_immediately_after_task_start() {
 
         async fn fetch_tokens(
             &self,
-            _at_miniblock: L2BlockNumber,
+            _at_l2_block: L2BlockNumber,
         ) -> EnrichedClientResult<Vec<TokenInfo>> {
             self.0.wait().await;
             future::pending().await
@@ -183,21 +207,7 @@ async fn applier_errors_after_genesis() {
         .save_protocol_version_with_tx(&ProtocolVersion::default())
         .await
         .unwrap();
-    let genesis_l2_block = L2BlockHeader {
-        number: L2BlockNumber(0),
-        timestamp: 0,
-        hash: H256::zero(),
-        l1_tx_count: 0,
-        l2_tx_count: 0,
-        fee_account_address: Address::repeat_byte(1),
-        base_fee_per_gas: 1,
-        batch_fee_input: Default::default(),
-        gas_per_pubdata_limit: 2,
-        base_system_contracts_hashes: Default::default(),
-        protocol_version: Some(ProtocolVersionId::latest()),
-        virtual_blocks: 0,
-        gas_limit: 0,
-    };
+    let genesis_l2_block = mock_l2_block_header(L2BlockNumber(0));
     storage
         .blocks_dal()
         .insert_l2_block(&genesis_l2_block)
