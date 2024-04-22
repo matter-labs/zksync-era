@@ -51,8 +51,7 @@ impl MerkleTreePrunerHandle {
 /// stale keys are recorded in a separate column family. A pruner takes stale keys that were produced
 /// by a certain range of tree versions, and removes the corresponding nodes from the tree
 /// (in RocksDB, this uses simple pointwise `delete_cf()` operations). The range of versions
-/// depends on pruning policies; for now, it's "remove versions older than `latest_version - N`",
-/// where `N` is a configurable number set when the pruner [is created](Self::new()).
+/// depends on pruning policies; for now, it's passed via the pruner handle.
 pub struct MerkleTreePruner<DB> {
     db: DB,
     target_pruned_key_count: usize,
@@ -78,7 +77,8 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
     ///
     /// # Return value
     ///
-    /// Returns the created pruner and a handle to it. The pruner can be stopped by calling abort on it's handle
+    /// Returns the created pruner and a handle to it. The pruner can be stopped by calling abort on its handle
+    /// or dropping the handle.
     pub fn new(db: DB) -> (Self, MerkleTreePrunerHandle) {
         let (aborted_sender, aborted_receiver) = mpsc::channel();
         let target_retained_version = Arc::new(AtomicU64::new(0));
@@ -113,7 +113,7 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
         self.poll_interval = poll_interval;
     }
 
-    /// Returns max version number that can be safely pruned, so that after pruning there is at least one version present after pruning.
+    /// Returns max version number that can be safely pruned, so that there is at least one version present after pruning.
     #[doc(hidden)] // Used in integration tests; logically private
     pub fn last_prunable_version(&self) -> Option<u64> {
         let manifest = self.db.manifest()?;
@@ -190,7 +190,7 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
         }
     }
 
-    /// Runs this pruner indefinitely until it is aborted by calling abort() on its handle.
+    /// Runs this pruner indefinitely until it is aborted.
     pub fn run(mut self) {
         tracing::info!("Started Merkle tree pruner {self:?}");
 
@@ -287,9 +287,7 @@ mod tests {
     fn pruner_is_aborted_immediately_when_requested() {
         let (mut pruner, pruner_handle) = MerkleTreePruner::new(PatchSet::default());
         pruner.set_poll_interval(Duration::from_secs(30));
-        let join_handle = thread::spawn(|| {
-            pruner.run();
-        });
+        let join_handle = thread::spawn(|| pruner.run());
 
         pruner_handle.abort();
         let start = Instant::now();

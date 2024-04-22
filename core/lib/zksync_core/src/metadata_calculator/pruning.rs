@@ -50,7 +50,8 @@ impl MerkleTreePruningTask {
         }
         tracing::info!("Obtained pruning handles; starting Merkle tree pruning");
 
-        // FIXME: is this good enough (vs a managed task)?
+        // Pruner is not allocated a managed task because it is blocking; its cancellation awareness inherently
+        // depends on the pruner handle (i.e., this task).
         pruner.set_poll_interval(self.poll_interval);
         let pruner_task_handle = tokio::task::spawn_blocking(|| pruner.run());
 
