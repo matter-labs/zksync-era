@@ -101,7 +101,13 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean): Pr
 }
 
 // for testnet and development purposes it is ok to deploy contracts form L1.
-export async function deployL2ThroughL1({ includePaymaster }: { includePaymaster: boolean }): Promise<void> {
+export async function deployL2ThroughL1({
+    includePaymaster,
+    chainIdHack
+}: {
+    includePaymaster: boolean;
+    chainIdHack?: boolean;
+}): Promise<void> {
     await utils.confirmAction();
 
     const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
@@ -114,7 +120,11 @@ export async function deployL2ThroughL1({ includePaymaster }: { includePaymaster
         await utils.spawn(`yarn l2-contracts build`);
     }
 
-    await utils.spawn(`yarn l2-contracts deploy-shared-bridge-on-l2-through-l1 ${args.join(' ')} | tee deployL2.log`);
+    await utils.spawn(
+        `yarn l2-contracts deploy-shared-bridge-on-l2-through-l1 ${args.join(' ')} ${
+            chainIdHack ? '--chain-id-hack' : ''
+        } | tee deployL2.log`
+    );
 
     if (includePaymaster) {
         await utils.spawn(
@@ -129,12 +139,19 @@ export async function deployL2ThroughL1({ includePaymaster }: { includePaymaster
     let l2DeployLog = fs.readFileSync('deployL2.log').toString();
     const l2DeploymentEnvVars = [
         'CONTRACTS_L2_SHARED_BRIDGE_ADDR',
+        'CONTRACTS_L2_ERC20_BRIDGE_ADDR',
         'CONTRACTS_L2_TESTNET_PAYMASTER_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR',
         'CONTRACTS_L2_DEFAULT_UPGRADE_ADDR'
     ];
     updateContractsEnv(`etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`, l2DeployLog, l2DeploymentEnvVars);
+    // erc20 bridge is now deployed as shared bridge, but we still need the config var:
+    updateContractsEnv(
+        `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`,
+        `CONTRACTS_L2_ERC20_BRIDGE_ADDR=${process.env.CONTRACTS_L2_SHARED_BRIDGE_ADDR}`,
+        l2DeploymentEnvVars
+    );
 }
 
 async function _deployL1(onlyVerifier: boolean, deploymentMode: DeploymentMode): Promise<void> {

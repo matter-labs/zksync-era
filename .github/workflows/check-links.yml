@@ -36,7 +36,6 @@ jobs:
         run: |
           ci_run zk
 
-      - name: Run zk linkcheck - DISABLED (flaky)
+      - name: Run zk linkcheck
         run: |
-          ls
-        # ci_run zk linkcheck
+          ci_run zk linkcheck

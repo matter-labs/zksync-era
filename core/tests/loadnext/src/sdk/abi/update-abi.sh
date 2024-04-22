@@ -10,4 +10,4 @@ cat $ZKSYNC_HOME/contracts/l1-contracts/artifacts/contracts/state-transition/cha
 cat $ZKSYNC_HOME/contracts/l1-contracts/artifacts/contracts/bridge/interfaces/IL1SharedBridge.sol/IL1SharedBridge.json | jq '{ abi: .abi}' > IL1SharedBridge.json
 cat $ZKSYNC_HOME/contracts/l1-contracts/artifacts/contracts/bridge/interfaces/IL1ERC20Bridge.sol/IL1ERC20Bridge.json | jq '{ abi: .abi}' > IL1ERC20Bridge.json
 # Paymaster interface
-cat $ZKSYNC_HOME/contracts/l2-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/interfaces/IPaymasterFlow.sol/IPaymasterFlow.json | jq '{ abi: .abi}' > IPaymasterFlow.json
+cat $ZKSYNC_HOME/contracts/l2-contracts/artifacts-zk/contracts/interfaces/IPaymasterFlow.sol/IPaymasterFlow.json | jq '{ abi: .abi}' > IPaymasterFlow.json

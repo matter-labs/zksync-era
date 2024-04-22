@@ -16,7 +16,6 @@ pub enum VmVersion {
 impl VmVersion {
     /// Returns the latest supported VM version.
     pub const fn latest() -> VmVersion {
-        // kl to do delete local vm version
         Self::Vm1_5_0
     }
 }
