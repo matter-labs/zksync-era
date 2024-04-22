@@ -139,7 +139,7 @@ const lightweightInitCmdAction = async (): Promise<void> => {
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromBinary());
     await announced('Deploying localhost ERC20 and Weth tokens', run.deployERC20AndWeth({ command: 'dev' }));
-    // TODO set proper values
+    // TODO(EVM-573): support Validium mode
     await announced('Deploying L1 contracts', contract.redeployL1(false, DeploymentMode.Rollup));
     await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster: true }));
     await announced('Initializing governance', contract.initializeGovernance());
