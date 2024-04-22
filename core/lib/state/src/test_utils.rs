@@ -24,7 +24,7 @@ pub(crate) async fn prepare_postgres(conn: &mut Connection<'_, Core>) {
     }
 
     conn.storage_logs_dal()
-        .rollback_storage_logs(L2BlockNumber(0))
+        .revert_storage_logs(L2BlockNumber(0))
         .await
         .unwrap();
     conn.blocks_dal()

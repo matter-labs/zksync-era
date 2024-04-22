@@ -86,7 +86,7 @@ impl TokensDal<'_, '_> {
     }
 
     /// Removes token records that were deployed after `block_number`.
-    pub async fn rollback_tokens(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
+    pub async fn revert_tokens(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         let all_token_addresses = self.get_all_l2_token_addresses().await?;
         let token_deployment_data = self
             .storage
@@ -242,7 +242,7 @@ mod tests {
 
         storage
             .tokens_dal()
-            .rollback_tokens(L2BlockNumber(2))
+            .revert_tokens(L2BlockNumber(2))
             .await
             .unwrap();
         // Should be a no-op.
@@ -257,7 +257,7 @@ mod tests {
 
         storage
             .tokens_dal()
-            .rollback_tokens(L2BlockNumber(1))
+            .revert_tokens(L2BlockNumber(1))
             .await
             .unwrap();
         // The custom token should be removed; Ether shouldn't.
@@ -330,7 +330,7 @@ mod tests {
             .await
             .unwrap();
 
-        // Sanity check: before rollback the token must be present.
+        // Sanity check: before revert the token must be present.
         assert_eq!(
             storage
                 .tokens_dal()
@@ -342,7 +342,7 @@ mod tests {
 
         storage
             .tokens_dal()
-            .rollback_tokens(L2BlockNumber(99))
+            .revert_tokens(L2BlockNumber(99))
             .await
             .unwrap();
         // Token must be removed despite it's failed deployment being earlier than the last retained miniblock.

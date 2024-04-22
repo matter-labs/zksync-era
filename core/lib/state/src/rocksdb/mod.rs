@@ -180,17 +180,17 @@ impl RocksdbStorageBuilder {
         }
     }
 
-    /// Rolls back the state to a previous L1 batch number.
+    /// Reverts the state to a previous L1 batch number.
     ///
     /// # Errors
     ///
     /// Propagates RocksDB and Postgres errors.
-    pub async fn rollback(
+    pub async fn revert(
         mut self,
         storage: &mut Connection<'_, Core>,
         last_l1_batch_to_keep: L1BatchNumber,
     ) -> anyhow::Result<()> {
-        self.0.rollback(storage, last_l1_batch_to_keep).await
+        self.0.revert(storage, last_l1_batch_to_keep).await
     }
 }
 
@@ -375,20 +375,20 @@ impl RocksdbStorage {
         self.pending_patch.factory_deps.insert(hash, bytecode);
     }
 
-    async fn rollback(
+    async fn revert(
         &mut self,
         connection: &mut Connection<'_, Core>,
         last_l1_batch_to_keep: L1BatchNumber,
     ) -> anyhow::Result<()> {
-        tracing::info!("Rolling back state keeper storage to L1 batch #{last_l1_batch_to_keep}...");
+        tracing::info!("Reverting state keeper storage to L1 batch #{last_l1_batch_to_keep}...");
 
-        tracing::info!("Getting logs that should be applied to rollback state...");
+        tracing::info!("Getting logs that should be applied to revert the state...");
         let stage_start = Instant::now();
         let logs = connection
             .storage_logs_dal()
             .get_storage_logs_for_revert(last_l1_batch_to_keep)
             .await
-            .context("failed getting logs for rollback")?;
+            .context("failed getting logs for revert")?;
         tracing::info!("Got {} logs, took {:?}", logs.len(), stage_start.elapsed());
 
         tracing::info!("Getting number of last miniblock for L1 batch #{last_l1_batch_to_keep}...");

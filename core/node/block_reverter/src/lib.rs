@@ -74,15 +74,16 @@ pub enum NodeRole {
     External,
 }
 
-/// This struct is used to perform a rollback of the state.
-/// Rollback is a rare event of manual intervention, when the node operator
+/// This struct is used to revert node state.
+///
+/// Reversion is a rare event of manual intervention, when the node operator
 /// decides to revert some of the not yet finalized batches for some reason
 /// (e.g. inability to generate a proof).
 ///
-/// It is also used to automatically perform a rollback on the external node
-/// after it is detected on the main node.
+/// It is also used to automatically revert the external node state
+/// after it detects a reorg on the main node.
 ///
-/// There are a few state components that we can roll back:
+/// There are a few state components that `BlockReverter` can revert:
 ///
 /// - State of the Postgres database
 /// - State of the Merkle tree
@@ -90,7 +91,7 @@ pub enum NodeRole {
 /// - State of the Ethereum contract (if the block was committed)
 #[derive(Debug)]
 pub struct BlockReverter {
-    /// It affects the interactions with the consensus state.
+    /// Role affects the interactions with the consensus state.
     /// This distinction will be removed once consensus genesis is moved to the L1 state.
     node_role: NodeRole,
     allow_reverting_executed_batches: bool,
@@ -147,7 +148,7 @@ impl BlockReverter {
         self
     }
 
-    /// Reverts DBs (Postgres + RocksDB) to a previous state. If Postgres is rolled back and `snapshots_object_store`
+    /// Reverts DBs (Postgres + RocksDB) to a previous state. If Postgres is reverted and `snapshots_object_store`
     /// is specified, snapshot files will be deleted as well.
     pub async fn revert(&self, last_l1_batch_to_keep: L1BatchNumber) -> anyhow::Result<()> {
         if !self.allow_reverting_executed_batches {
@@ -196,7 +197,6 @@ impl BlockReverter {
                 .await?
                 .context("no state root hash for target L1 batch")?;
 
-            // Rolling back Merkle tree
             let merkle_tree_path = Path::new(merkle_tree_path);
             let merkle_tree_exists = fs::try_exists(merkle_tree_path).await.with_context(|| {
                 format!(
@@ -280,11 +280,11 @@ impl BlockReverter {
 
         if sk_cache.l1_batch_number().await > Some(last_l1_batch_to_keep + 1) {
             let mut storage = self.connection_pool.connection().await?;
-            tracing::info!("Rolling back state keeper cache");
+            tracing::info!("Reverting state keeper cache");
             sk_cache
-                .rollback(&mut storage, last_l1_batch_to_keep)
+                .revert(&mut storage, last_l1_batch_to_keep)
                 .await
-                .context("failed rolling back state keeper cache")?;
+                .context("failed reverting state keeper cache")?;
         } else {
             tracing::info!("Nothing to revert in state keeper cache");
         }
@@ -297,7 +297,7 @@ impl BlockReverter {
         &self,
         last_l1_batch_to_keep: L1BatchNumber,
     ) -> anyhow::Result<Vec<SnapshotMetadata>> {
-        tracing::info!("Rolling back postgres data");
+        tracing::info!("Reverting Postgres data");
         let mut storage = self.connection_pool.connection().await?;
         let mut transaction = storage.start_transaction().await?;
 
@@ -309,30 +309,30 @@ impl BlockReverter {
                 format!("L1 batch #{last_l1_batch_to_keep} doesn't contain L2 blocks")
             })?;
 
-        tracing::info!("Rolling back transactions state");
+        tracing::info!("Reverting transactions state");
         transaction
             .transactions_dal()
             .reset_transactions_state(last_l2_block_to_keep)
             .await?;
-        tracing::info!("Rolling back events");
+        tracing::info!("Reverting events");
         transaction
             .events_dal()
-            .rollback_events(last_l2_block_to_keep)
+            .revert_events(last_l2_block_to_keep)
             .await?;
-        tracing::info!("Rolling back L2 to L1 logs");
+        tracing::info!("Reverting L2-to-L1 logs");
         transaction
             .events_dal()
-            .rollback_l2_to_l1_logs(last_l2_block_to_keep)
+            .revert_l2_to_l1_logs(last_l2_block_to_keep)
             .await?;
-        tracing::info!("Rolling back created tokens");
+        tracing::info!("Reverting created tokens");
         transaction
             .tokens_dal()
-            .rollback_tokens(last_l2_block_to_keep)
+            .revert_tokens(last_l2_block_to_keep)
             .await?;
-        tracing::info!("Rolling back factory deps");
+        tracing::info!("Revering factory deps");
         transaction
             .factory_deps_dal()
-            .rollback_factory_deps(last_l2_block_to_keep)
+            .revert_factory_deps(last_l2_block_to_keep)
             .await?;
         tracing::info!("Rolling back storage");
         #[allow(deprecated)]
@@ -340,25 +340,25 @@ impl BlockReverter {
             .storage_logs_dal()
             .rollback_storage(last_l2_block_to_keep)
             .await?;
-        tracing::info!("Rolling back storage logs");
+        tracing::info!("Reverting storage logs");
         transaction
             .storage_logs_dal()
-            .rollback_storage_logs(last_l2_block_to_keep)
+            .revert_storage_logs(last_l2_block_to_keep)
             .await?;
-        tracing::info!("Rolling back Ethereum transactions");
+        tracing::info!("Reverting Ethereum transactions");
         transaction
             .eth_sender_dal()
             .delete_eth_txs(last_l1_batch_to_keep)
             .await?;
 
-        tracing::info!("Rolling back snapshots");
+        tracing::info!("Reverting snapshots");
         let deleted_snapshots = transaction
             .snapshots_dal()
             .delete_snapshots_after(last_l1_batch_to_keep)
             .await?;
 
         // Remove data from main tables (L2 blocks and L1 batches).
-        tracing::info!("Rolling back L1 batches");
+        tracing::info!("Reverting L1 batches");
         transaction
             .blocks_dal()
             .delete_l1_batches(last_l1_batch_to_keep)
@@ -367,7 +367,7 @@ impl BlockReverter {
             .blocks_dal()
             .delete_initial_writes(last_l1_batch_to_keep)
             .await?;
-        tracing::info!("Rolling back L2 blocks...");
+        tracing::info!("Reverting L2 blocks");
         transaction
             .blocks_dal()
             .delete_l2_blocks(last_l2_block_to_keep)
@@ -565,11 +565,11 @@ impl BlockReverter {
         Ok(L1BatchNumber(block_number.as_u32()))
     }
 
-    /// Returns suggested values for rollback.
+    /// Returns suggested values for a reversion.
     pub async fn suggested_values(
         &self,
         eth_config: &BlockReverterEthConfig,
-    ) -> anyhow::Result<SuggestedRollbackValues> {
+    ) -> anyhow::Result<SuggestedRevertValues> {
         let web3 =
             Web3::new(Http::new(&eth_config.eth_client_url).context("cannot create L1 client")?);
         let contract_address = eth_config.diamond_proxy_addr;
@@ -603,7 +603,7 @@ impl BlockReverter {
             .with_context(|| format!("failed getting transaction count for {reverter_address:?}"))?
             .as_u64();
 
-        Ok(SuggestedRollbackValues {
+        Ok(SuggestedRevertValues {
             last_executed_l1_batch_number,
             nonce,
             priority_fee,
@@ -624,7 +624,7 @@ impl BlockReverter {
 }
 
 #[derive(Debug, Serialize)]
-pub struct SuggestedRollbackValues {
+pub struct SuggestedRevertValues {
     pub last_executed_l1_batch_number: L1BatchNumber,
     pub nonce: u64,
     pub priority_fee: u64,

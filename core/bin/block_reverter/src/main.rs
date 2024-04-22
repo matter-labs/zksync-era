@@ -32,15 +32,15 @@ enum Command {
     /// Sends revert transaction to L1.
     #[command(name = "send-eth-transaction")]
     SendEthTransaction {
-        /// L1 batch number used to rollback to.
+        /// L1 batch number used to revert to.
         #[arg(long)]
         l1_batch_number: u32,
-        /// Priority fee used for rollback Ethereum transaction.
+        /// Priority fee used for the reverting Ethereum transaction.
         // We operate only by priority fee because we want to use base fee from Ethereum
         // and send transaction as soon as possible without any resend logic
         #[arg(long)]
         priority_fee_per_gas: Option<u64>,
-        /// Nonce used for rollback Ethereum transaction.
+        /// Nonce used for reverting Ethereum transaction.
         #[arg(long)]
         nonce: u64,
     },
@@ -48,19 +48,19 @@ enum Command {
     /// Reverts internal database state to previous block.
     #[command(name = "rollback-db")]
     RollbackDB {
-        /// L1 batch number used to rollback to.
+        /// L1 batch number used to revert to.
         #[arg(long)]
         l1_batch_number: u32,
-        /// Flag that specifies if Postgres DB should be rolled back.
+        /// Flag that specifies if Postgres DB should be reverted.
         #[arg(long)]
         rollback_postgres: bool,
-        /// Flag that specifies if RocksDB with tree should be rolled back.
+        /// Flag that specifies if RocksDB with tree should be reverted.
         #[arg(long)]
         rollback_tree: bool,
-        /// Flag that specifies if RocksDB with state keeper cache should be rolled back.
+        /// Flag that specifies if RocksDB with state keeper cache should be reverted.
         #[arg(long)]
         rollback_sk_cache: bool,
-        /// Flag that allows to revert already executed blocks, it's ultra dangerous and required only for fixing external nodes
+        /// Flag that allows to revert already executed blocks. It's ultra dangerous and required only for fixing external nodes.
         #[arg(long)]
         allow_executed_block_reversion: bool,
     },
@@ -124,7 +124,7 @@ async fn main() -> anyhow::Result<()> {
             if json {
                 println!("{}", serde_json::to_string(&suggested_values)?);
             } else {
-                println!("Suggested values for rollback: {:#?}", suggested_values);
+                println!("Suggested values for reversion: {:#?}", suggested_values);
             }
         }
         Command::SendEthTransaction {
@@ -151,9 +151,9 @@ async fn main() -> anyhow::Result<()> {
             allow_executed_block_reversion,
         } => {
             if !rollback_tree && rollback_postgres {
-                println!("You want to rollback Postgres DB without rolling back tree.");
+                println!("You want to revert Postgres DB without reverting back tree.");
                 println!(
-                    "If tree is not yet rolled back to this block then the only way \
+                    "If tree is not yet reverted back to this block then the only way \
                      to make it synced with Postgres will be to completely rebuild it."
                 );
                 println!("Are you sure? Print y/n");

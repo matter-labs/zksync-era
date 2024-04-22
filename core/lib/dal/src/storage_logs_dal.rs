@@ -260,7 +260,7 @@ impl StorageLogsDal<'_, '_> {
     }
 
     /// Removes all storage logs with a L2 block number strictly greater than the specified `block_number`.
-    pub async fn rollback_storage_logs(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
+    pub async fn revert_storage_logs(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM storage_logs
@@ -269,7 +269,7 @@ impl StorageLogsDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .instrument("rollback_storage_logs")
+        .instrument("revert_storage_logs")
         .with_arg("block_number", &block_number)
         .execute(self.storage)
         .await?;
@@ -863,14 +863,10 @@ mod tests {
         assert_eq!(touched_slots[&first_key], H256::repeat_byte(3));
         assert_eq!(touched_slots[&second_key], H256::repeat_byte(2));
 
-        test_rollback(&mut conn, first_key, second_key).await;
+        test_revert(&mut conn, first_key, second_key).await;
     }
 
-    async fn test_rollback(
-        conn: &mut Connection<'_, Core>,
-        key: StorageKey,
-        second_key: StorageKey,
-    ) {
+    async fn test_revert(conn: &mut Connection<'_, Core>, key: StorageKey, second_key: StorageKey) {
         let new_account = AccountTreeId::new(Address::repeat_byte(2));
         let new_key = StorageKey::new(new_account, H256::zero());
         let log = StorageLog::new_write_log(key, H256::repeat_byte(0xff));
@@ -927,7 +923,7 @@ mod tests {
         }
 
         conn.storage_logs_dal()
-            .rollback_storage_logs(L2BlockNumber(1))
+            .revert_storage_logs(L2BlockNumber(1))
             .await
             .unwrap();
 

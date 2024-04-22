@@ -102,7 +102,7 @@ impl EventsDal<'_, '_> {
     }
 
     /// Removes events with a block number strictly greater than the specified `block_number`.
-    pub async fn rollback_events(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
+    pub async fn revert_events(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM events
@@ -111,7 +111,7 @@ impl EventsDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .instrument("rollback_events")
+        .instrument("revert_events")
         .with_arg("block_number", &block_number)
         .execute(self.storage)
         .await?;
@@ -182,7 +182,7 @@ impl EventsDal<'_, '_> {
     }
 
     /// Removes all L2-to-L1 logs with a L2 block number strictly greater than the specified `block_number`.
-    pub async fn rollback_l2_to_l1_logs(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
+    pub async fn revert_l2_to_l1_logs(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM l2_to_l1_logs
@@ -191,7 +191,7 @@ impl EventsDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .instrument("rollback_l2_to_l1_logs")
+        .instrument("revert_l2_to_l1_logs")
         .with_arg("block_number", &block_number)
         .execute(self.storage)
         .await?;
@@ -433,7 +433,7 @@ mod tests {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
         conn.events_dal()
-            .rollback_events(L2BlockNumber(0))
+            .revert_events(L2BlockNumber(0))
             .await
             .unwrap();
         conn.blocks_dal()
@@ -514,7 +514,7 @@ mod tests {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
         conn.events_dal()
-            .rollback_l2_to_l1_logs(L2BlockNumber(0))
+            .revert_l2_to_l1_logs(L2BlockNumber(0))
             .await
             .unwrap();
         conn.blocks_dal()
