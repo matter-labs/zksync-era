@@ -4,7 +4,15 @@ use crate::{envy_load, FromEnv};
 
 impl FromEnv for ContractsConfig {
     fn from_env() -> anyhow::Result<Self> {
-        envy_load("contracts", "CONTRACTS_")
+        let mut contracts: ContractsConfig = envy_load("contracts", "CONTRACTS_")?;
+        // Note: we are renaming the bridge, the address remains the same
+        contracts.l2_erc20_bridge_addr = contracts
+            .l2_erc20_bridge_addr
+            .or(contracts.l2_shared_bridge_addr);
+        contracts.l2_shared_bridge_addr = contracts
+            .l2_shared_bridge_addr
+            .or(contracts.l2_erc20_bridge_addr);
+        Ok(contracts)
     }
 }
 
