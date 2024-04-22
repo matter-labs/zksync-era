@@ -23,13 +23,14 @@ describe('ETH token checks', () => {
     let bob: zksync.Wallet;
     let isETHBasedChain: boolean;
     let l2EthTokenAddressNonBase: string; // Used only for base token implementation
+    let baseTokenAddress: string; // Used only for base token implementation
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         bob = testMaster.newEmptyAccount();
         // Get the information about base token address directly from the L2.
-        const baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
+        baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
         isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
         console.log(`Starting checks for base token: ${baseTokenAddress} isEthBasedChain: ${isETHBasedChain}`);
         l2EthTokenAddressNonBase = await alice.l2TokenAddress(zksync.utils.ETH_ADDRESS_IN_CONTRACTS);
@@ -39,8 +40,8 @@ describe('ETH token checks', () => {
         if (!isETHBasedChain) {
             // Approving the needed allowance previously so we don't do it inside of the deposit.
             // This prevents the deposit fee from being miscalculated.
-            const l1MaxBaseTokenBalance = await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR!);
-            await (await alice.approveERC20(process.env.CONTRACTS_BASE_TOKEN_ADDR!, l1MaxBaseTokenBalance)).wait();
+            const l1MaxBaseTokenBalance = await alice.getBalanceL1(baseTokenAddress);
+            await (await alice.approveERC20(baseTokenAddress, l1MaxBaseTokenBalance)).wait();
         }
         const amount = 1; // 1 wei is enough.
         const gasPrice = scaledGasPrice(alice);
@@ -54,7 +55,7 @@ describe('ETH token checks', () => {
             : await shouldChangeTokenBalances(l2EthTokenAddressNonBase, [{ wallet: alice, change: amount }]);
 
         // Variables used only for base token implementation
-        const l1BaseTokenBalanceBefore = await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR!);
+        const l1BaseTokenBalanceBefore = await alice.getBalanceL1(baseTokenAddress);
         const l2BaseTokenBalanceBefore = await alice.getBalance(); // Base token balance on L2
 
         const gasPerPubdataByte = zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
@@ -106,7 +107,7 @@ describe('ETH token checks', () => {
             expect(l1EthBalanceBefore.sub(depositFee).sub(l1EthBalanceAfter)).bnToBeEq(amount);
         } else {
             // Base token checks
-            const l1BaseTokenBalanceAfter = await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR!);
+            const l1BaseTokenBalanceAfter = await alice.getBalanceL1(baseTokenAddress);
             expect(l1BaseTokenBalanceBefore).bnToBeEq(l1BaseTokenBalanceAfter.add(expectedL2Costs));
 
             const l2BaseTokenBalanceAfter = await alice.getBalance();
@@ -269,7 +270,7 @@ describe('ETH token checks', () => {
         if (!isETHBasedChain) {
             const baseTokenDetails = testMaster.environment().baseToken;
             const baseTokenMaxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
-            await (await alice.approveERC20(process.env.CONTRACTS_BASE_TOKEN_ADDR!, baseTokenMaxAmount)).wait();
+            await (await alice.approveERC20(baseTokenAddress, baseTokenMaxAmount)).wait();
         }
 
         const depositFee = await alice.getFullRequiredDepositFee({
