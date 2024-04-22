@@ -334,12 +334,6 @@ impl BlockReverter {
             .factory_deps_dal()
             .revert_factory_deps(last_l2_block_to_keep)
             .await?;
-        tracing::info!("Rolling back storage");
-        #[allow(deprecated)]
-        transaction
-            .storage_logs_dal()
-            .rollback_storage(last_l2_block_to_keep)
-            .await?;
         tracing::info!("Reverting storage logs");
         transaction
             .storage_logs_dal()

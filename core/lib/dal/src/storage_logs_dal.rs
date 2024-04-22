@@ -142,64 +142,6 @@ impl StorageLogsDal<'_, '_> {
             .await
     }
 
-    /// Rolls back storage to the specified point in time.
-    #[deprecated(note = "`storage` table is soft-removed")]
-    pub async fn rollback_storage(
-        &mut self,
-        last_l2_block_to_keep: L2BlockNumber,
-    ) -> DalResult<()> {
-        let stage_start = Instant::now();
-        let modified_keys = self
-            .modified_keys_in_l2_blocks(last_l2_block_to_keep.next()..=L2BlockNumber(u32::MAX))
-            .await?;
-        tracing::info!(
-            "Loaded {} keys changed after L2 block #{last_l2_block_to_keep} in {:?}",
-            modified_keys.len(),
-            stage_start.elapsed()
-        );
-
-        let stage_start = Instant::now();
-        let prev_values = self
-            .get_storage_values(&modified_keys, last_l2_block_to_keep)
-            .await?;
-        tracing::info!(
-            "Loaded previous storage values for modified keys in {:?}",
-            stage_start.elapsed()
-        );
-
-        let stage_start = Instant::now();
-        let mut keys_to_delete = vec![];
-        let mut keys_to_update = vec![];
-        let mut values_to_update = vec![];
-        for (key, maybe_value) in &prev_values {
-            if let Some(prev_value) = maybe_value {
-                keys_to_update.push(key.as_bytes());
-                values_to_update.push(prev_value.as_bytes());
-            } else {
-                keys_to_delete.push(key.as_bytes());
-            }
-        }
-        tracing::info!(
-            "Created revert plan (keys to update: {}, to delete: {}) in {:?}",
-            keys_to_update.len(),
-            keys_to_delete.len(),
-            stage_start.elapsed()
-        );
-
-        tracing::info!(
-            "Removed {} keys in {:?}",
-            keys_to_delete.len(),
-            stage_start.elapsed()
-        );
-
-        tracing::info!(
-            "Updated {} keys to previous values in {:?}",
-            keys_to_update.len(),
-            stage_start.elapsed()
-        );
-        Ok(())
-    }
-
     /// Returns distinct hashed storage keys that were modified in the specified L2 block range.
     pub async fn modified_keys_in_l2_blocks(
         &mut self,
