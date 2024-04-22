@@ -194,7 +194,7 @@ mod tests {
     // General test.
     // It first creates wrappers of all possible size [1..16], missing only 1 byte for a full last blob.
     // Then it checks that all blobs are filled, but the last one.
-    // Additional sanity check at the end ensures that the rest of the structure contains Nones, if no blobs were provided.
+    // Additional sanity check at the end ensures that the rest of the structure contains `None`s, if no blobs were provided.
     #[test]
     fn test_eip_4844_blobs_wrapper_needs_padding() {
         for no_blobs in 1..=16 {
@@ -231,7 +231,7 @@ mod tests {
     // General test.
     // It first creates wrappers of all possible size [1..16], filled to the last blob.
     // Then it checks that all blobs are filled as expected.
-    // Additional sanity check at the end ensures that the rest of the structure contains Nones, if no blobs were provided.
+    // Additional sanity check at the end ensures that the rest of the structure contains `None`s, if no blobs were provided.
     // The only difference from the previous test is that the last blob is filled.
     #[test]
     fn test_eip_4844_blobs_wrapper_needs_no_padding() {
