@@ -356,7 +356,7 @@ impl BlockReverter {
             .expect("`CONTRACTS_ERA_CHAIN_ID` has to be set in config");
 
         // It is expected that for all new chains `revertBatchesSharedBridge` can be used.
-        // For Era we are using `revertBatches` function for backwards compatibilty in case the migration
+        // For Era we are using `revertBatches` function for backwards compatibility in case the migration
         // to the shared bridge is not yet complete.
         let data = if hyperchain_id == era_chain_id {
             let revert_function = contract
