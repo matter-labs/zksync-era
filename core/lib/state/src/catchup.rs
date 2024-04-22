@@ -1,13 +1,15 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use anyhow::Context;
 use once_cell::sync::OnceCell;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core};
+use zksync_shared_metrics::{SnapshotRecoveryStage, APP_METRICS};
 use zksync_storage::RocksDB;
 use zksync_types::L1BatchNumber;
 
-use crate::{RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily};
+use crate::{RocksdbStorage, StateKeeperColumnFamily};
 
 /// A runnable task that blocks until the provided RocksDB cache instance is caught up with
 /// Postgres.
@@ -44,16 +46,24 @@ impl AsyncCatchupTask {
     ///
     /// Propagates RocksDB and Postgres errors.
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let started_at = Instant::now();
         tracing::debug!("Catching up RocksDB asynchronously");
-        let rocksdb_builder: RocksdbStorageBuilder =
-            RocksdbStorage::builder(self.state_keeper_db_path.as_ref())
-                .await
-                .context("Failed initializing RocksDB storage")?;
-        let mut connection = self
-            .pool
-            .connection()
+
+        let mut rocksdb_builder = RocksdbStorage::builder(self.state_keeper_db_path.as_ref())
             .await
-            .context("Failed accessing Postgres storage")?;
+            .context("Failed creating RocksDB storage builder")?;
+        let mut connection = self.pool.connection().await?;
+        let was_recovered_from_snapshot = rocksdb_builder
+            .ensure_ready(&mut connection, &stop_receiver)
+            .await
+            .context("failed initializing state keeper RocksDB from snapshot or scratch")?;
+        if was_recovered_from_snapshot {
+            let elapsed = started_at.elapsed();
+            APP_METRICS.snapshot_recovery_latency[&SnapshotRecoveryStage::StateKeeperCache]
+                .set(elapsed);
+            tracing::info!("Recovered state keeper RocksDB from snapshot in {elapsed:?}");
+        }
+
         let rocksdb = rocksdb_builder
             .synchronize(&mut connection, &stop_receiver, self.to_l1_batch_number)
             .await

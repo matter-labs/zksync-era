@@ -14,6 +14,7 @@ vise.workspace = true
 zksync_dal.workspace = true
 zksync_types.workspace = true
 zksync_utils.workspace = true
+zksync_shared_metrics.workspace = true
 zksync_storage.workspace = true
 
 anyhow.workspace = true

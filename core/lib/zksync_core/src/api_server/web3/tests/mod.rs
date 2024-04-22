@@ -402,7 +402,7 @@ async fn store_events(
     storage.blocks_dal().insert_l2_block(&new_miniblock).await?;
     let tx_location = IncludedTxLocation {
         tx_hash: H256::repeat_byte(1),
-        tx_index_in_miniblock: 0,
+        tx_index_in_l2_block: 0,
         tx_initiator_address: Address::repeat_byte(2),
     };
     let events = vec![
