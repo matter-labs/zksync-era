@@ -16,7 +16,7 @@ pub struct ProofGenerationData {
     pub data: PrepareBasicCircuitsJob,
     pub protocol_version_id: ProtocolVersionId,
     pub l1_verifier_config: L1VerifierConfig,
-    pub eip_4844_blobs_wrapper: Eip4844Blobs,
+    pub eip_4844_blobs: Eip4844Blobs,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -24,7 +24,7 @@ pub struct ProofGenerationDataRequest {}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ProofGenerationDataResponse {
-    Success(Option<ProofGenerationData>),
+    Success(Box<Option<ProofGenerationData>>),
     Error(String),
 }
 

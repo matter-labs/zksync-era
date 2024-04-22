@@ -3,13 +3,9 @@ use std::time::Instant;
 use serde::Serialize;
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_fri_types::{
-    keys::{AggregationsKey, FriCircuitKey},
-    CircuitWrapper,
-};
+use zksync_prover_fri_types::keys::AggregationsKey;
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_types::{
-    basic_fri_types::AggregationRound,
     prover_dal::{LeafAggregationJobMetadata, NodeAggregationJobMetadata},
     L1BatchNumber,
 };
@@ -17,8 +13,6 @@ use zksync_witness_generator::{
     leaf_aggregation::{prepare_leaf_aggregation_job, LeafAggregationWitnessGenerator},
     node_aggregation,
     node_aggregation::NodeAggregationWitnessGenerator,
-    scheduler,
-    scheduler::SchedulerWitnessGenerator,
     utils::AggregationWrapper,
 };
 

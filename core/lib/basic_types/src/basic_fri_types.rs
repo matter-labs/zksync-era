@@ -178,17 +178,17 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn test_eip_4844_blobs_wrapper_empty_pubdata() {
+    fn test_eip_4844_blobs_empty_pubdata() {
         let payload = vec![];
-        let _eip_4844_blobs_wrapper = Eip4844Blobs::decode(payload);
+        let _eip_4844_blobs = Eip4844Blobs::decode(payload);
     }
 
     #[test]
     #[should_panic]
-    fn test_eip_4844_blobs_wrapper_too_much_pubdata() {
+    fn test_eip_4844_blobs_too_much_pubdata() {
         // blob size (126976) * 16 (max number of blobs) + 1
         let payload = vec![1; 2031617];
-        let _eip_4844_blobs_wrapper = Eip4844Blobs::decode(payload);
+        let _eip_4844_blobs = Eip4844Blobs::decode(payload);
     }
 
     // General test.
@@ -196,11 +196,11 @@ mod tests {
     // Then it checks that all blobs are filled, but the last one.
     // Additional sanity check at the end ensures that the rest of the structure contains `None`s, if no blobs were provided.
     #[test]
-    fn test_eip_4844_blobs_wrapper_needs_padding() {
+    fn test_eip_4844_blobs_needs_padding() {
         for no_blobs in 1..=16 {
             let payload = vec![1; no_blobs * 126976 - 1];
-            let eip_4844_blobs_wrapper = Eip4844Blobs::decode(payload);
-            let blobs = eip_4844_blobs_wrapper.blobs();
+            let eip_4844_blobs = Eip4844Blobs::decode(payload);
+            let blobs = eip_4844_blobs.blobs();
             assert_eq!(blobs.len(), 16, "expecting 16 blobs, got {}", blobs.len());
             for (index, blob) in blobs.iter().enumerate().take(no_blobs - 1) {
                 let blob = blob
@@ -234,11 +234,11 @@ mod tests {
     // Additional sanity check at the end ensures that the rest of the structure contains `None`s, if no blobs were provided.
     // The only difference from the previous test is that the last blob is filled.
     #[test]
-    fn test_eip_4844_blobs_wrapper_needs_no_padding() {
+    fn test_eip_4844_blobs_needs_no_padding() {
         for no_blobs in 1..=16 {
             let payload = vec![1; no_blobs * 126976];
-            let eip_4844_blobs_wrapper = Eip4844Blobs::decode(payload);
-            let blobs = eip_4844_blobs_wrapper.blobs();
+            let eip_4844_blobs = Eip4844Blobs::decode(payload);
+            let blobs = eip_4844_blobs.blobs();
             assert_eq!(blobs.len(), 16, "expecting 16 blobs, got {}", blobs.len());
             for (index, blob) in blobs.iter().enumerate().take(no_blobs) {
                 let blob = blob
@@ -260,12 +260,12 @@ mod tests {
     }
 
     #[test]
-    fn test_eip_4844_blobs_wrapper_encode_happy_path() {
+    fn test_eip_4844_blobs_encode_happy_path() {
         let initial_len = 126970;
         let blob_padded_size = EIP_4844_BLOB_SIZE;
         let payload = vec![1; initial_len];
-        let eip_4844_blobs_wrapper = Eip4844Blobs::decode(payload);
-        let raw = eip_4844_blobs_wrapper.encode();
+        let eip_4844_blobs = Eip4844Blobs::decode(payload);
+        let raw = eip_4844_blobs.encode();
         assert_ne!(raw.len(), initial_len);
         assert_eq!(raw.len(), 126976);
         for byte in raw.iter().rev().take(blob_padded_size - initial_len) {

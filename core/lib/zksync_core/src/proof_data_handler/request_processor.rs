@@ -132,16 +132,16 @@ impl RequestProcessor {
             .unwrap()
             .unwrap();
 
-        let eip_4844_blobs_wrapper = Eip4844Blobs::decode(storage_batch.pubdata_input.expect(
-            &format!("expected pubdata, but it is not available for batch {l1_batch_number:?}"),
-        ));
+        let eip_4844_blobs = Eip4844Blobs::decode(storage_batch.pubdata_input.expect(&format!(
+            "expected pubdata, but it is not available for batch {l1_batch_number:?}"
+        )));
 
         let proof_gen_data = ProofGenerationData {
             l1_batch_number,
             data: blob,
             protocol_version_id,
             l1_verifier_config,
-            eip_4844_blobs_wrapper,
+            eip_4844_blobs,
         };
         Ok(Json(ProofGenerationDataResponse::Success(Some(
             proof_gen_data,
