@@ -13,7 +13,6 @@ import fetch from 'node-fetch';
 import { up } from './up';
 import * as Handlebars from 'handlebars';
 import { ProverType, setupProver } from './prover_setup';
-// import { DeploymentMode } from './contract';
 import { announced } from './utils';
 
 const title = chalk.blueBright;
@@ -141,7 +140,7 @@ async function setHyperchainMetadata(runObservability: boolean) {
     ];
 
     const results: any = await enquirer.prompt(questions);
-    // kl to do add random chainId generation here if user does not want to pick chainId.
+    // TODO(EVM-574): add random chainId generation here if user does not want to pick chainId.
 
     let deployer, governor, ethOperator, feeReceiver: ethers.Wallet | undefined;
     let feeReceiverAddress, l1Rpc, l1Id, databaseUrl, databaseProverUrl;
@@ -305,9 +304,6 @@ async function setHyperchainMetadata(runObservability: boolean) {
         await announced('Ensuring databases are up', db.wait({ core: true, prover: false }));
     }
 
-    // testTokens and weth will be done for the shared bridge.
-    // await initializeTestERC20s();
-
     console.log('\n');
 
     printAddressInfo('Deployer', deployer.address);
@@ -427,31 +423,6 @@ function printAddressInfo(name: string, address: string) {
     console.log('');
 }
 
-// async function initializeTestERC20s() {
-//     // TODO: For now selecting NO breaks server-core deployment, should be always YES or create empty-mock file for v2-core
-//     // PLA-595
-//     const questions: BasePromptOptions[] = [
-//         {
-//             message:
-//                 'Do you want to deploy some test ERC20s to your hyperchain? NB: Temporary broken, always select YES',
-//             name: 'deployERC20s',
-//             type: 'confirm'
-//         }
-//     ];
-
-//     const results: any = await enquirer.prompt(questions);
-
-//     if (results.deployERC20s) {
-//         env.modify('DEPLOY_TEST_TOKENS', 'true', 'etc/env/l1-inits/.init.env');
-//         console.log(
-//             warning(
-//                 `The addresses for the generated test ECR20 tokens will be available at the /etc/tokens/${getEnv(
-//                     process.env.CHAIN_ETH_NETWORK!
-//                 )}.json file.`
-//             )
-//         );
-//     }
-// }
 async function startServer() {
     const YES_DEFAULT = 'Yes (default components)';
     const YES_CUSTOM = 'Yes (custom components)';
@@ -767,7 +738,7 @@ async function configDemoHyperchain(cmd: Command) {
         skipEnvSetup: cmd.skipEnvSetup,
         skipSubmodulesCheckout: false,
         testTokenOptions: { envFile: process.env.CHAIN_ETH_NETWORK! },
-        // TODO set the proper values
+        // TODO(EVM-573): support Validium mode
         runObservability: false,
         validiumMode: false
     });

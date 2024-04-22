@@ -3,7 +3,6 @@ import { Command } from 'commander';
 import { up } from './up';
 import { announced } from './utils';
 import { initDevCmdAction, initHyperCmdAction } from './init';
-// import { DeploymentMode } from './contract';
 
 const reinitDevCmdAction = async (): Promise<void> => {
     await announced('Setting up containers', up(false));
@@ -13,7 +12,7 @@ const reinitDevCmdAction = async (): Promise<void> => {
         skipEnvSetup: true,
         skipSubmodulesCheckout: true,
         skipTestTokenDeployment: true,
-        // TODO set proper values
+        // TODO(EVM-573): support Validium mode
         runObservability: true,
         validiumMode: false
     });
