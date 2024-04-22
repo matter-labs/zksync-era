@@ -9,13 +9,14 @@ use tokio::{
     task::JoinHandle,
 };
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
+use zksync_config::configs::api::{MaxResponseSize, MaxResponseSizeOverrides};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
     jsonrpsee::{
         server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder},
-        RpcModule,
+        MethodCallback, Methods, RpcModule,
     },
     namespaces::{
         DebugNamespaceServer, EnNamespaceServer, EthNamespaceServer, EthPubSubServer,
@@ -125,7 +126,7 @@ struct OptionalApiParams {
     filters_limit: Option<usize>,
     subscriptions_limit: Option<usize>,
     batch_request_size_limit: Option<usize>,
-    response_body_size_limit: Option<usize>,
+    response_body_size_limit: Option<MaxResponseSize>,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
     tree_api: Option<Arc<dyn TreeApiClient>>,
     mempool_cache: Option<MempoolCache>,
@@ -225,8 +226,8 @@ impl ApiBuilder {
         self
     }
 
-    pub fn with_response_body_size_limit(mut self, response_body_size_limit: usize) -> Self {
-        self.optional.response_body_size_limit = Some(response_body_size_limit);
+    pub fn with_response_body_size_limit(mut self, max_response_size: MaxResponseSize) -> Self {
+        self.optional.response_body_size_limit = Some(max_response_size);
         self
     }
 
@@ -497,6 +498,61 @@ impl ApiServer {
         })
     }
 
+    /// Overrides max response sizes for specific RPC methods by additionally wrapping their callbacks
+    /// to which the max response size is passed as a param.
+    fn override_method_response_sizes(
+        rpc: RpcModule<()>,
+        response_size_overrides: &MaxResponseSizeOverrides,
+    ) -> anyhow::Result<Methods> {
+        let rpc = Methods::from(rpc);
+        let mut output_rpc = Methods::new();
+
+        for method_name in rpc.method_names() {
+            let method = rpc
+                .method(method_name)
+                .with_context(|| format!("method `{method_name}` disappeared from RPC module"))?;
+            let response_size_limit = response_size_overrides.get(method_name);
+
+            let method = match (method, response_size_limit) {
+                (MethodCallback::Sync(sync_method), Some(limit)) => {
+                    tracing::info!(
+                        "Overriding max response size to {limit}B for sync method `{method_name}`"
+                    );
+                    let sync_method = sync_method.clone();
+                    MethodCallback::Sync(Arc::new(move |id, params, _max_response_size| {
+                        sync_method(id, params, limit)
+                    }))
+                }
+                (MethodCallback::Async(async_method), Some(limit)) => {
+                    tracing::info!(
+                        "Overriding max response size to {limit}B for async method `{method_name}`"
+                    );
+                    let async_method = async_method.clone();
+                    MethodCallback::Async(Arc::new(
+                        move |id, params, connection_id, _max_response_size| {
+                            async_method(id, params, connection_id, limit)
+                        },
+                    ))
+                }
+                (MethodCallback::Unsubscription(unsub_method), Some(limit)) => {
+                    tracing::info!(
+                        "Overriding max response size to {limit}B for unsub method `{method_name}`"
+                    );
+                    let unsub_method = unsub_method.clone();
+                    MethodCallback::Unsubscription(Arc::new(
+                        move |id, params, connection_id, _max_response_size| {
+                            unsub_method(id, params, connection_id, limit)
+                        },
+                    ))
+                }
+                _ => method.clone(),
+            };
+            output_rpc.verify_and_insert(method_name, method)?;
+        }
+
+        Ok(output_rpc)
+    }
+
     async fn run_jsonrpsee_server(
         self,
         mut stop_receiver: watch::Receiver<bool>,
@@ -540,10 +596,12 @@ impl ApiServer {
             .map_or(BatchRequestConfig::Unlimited, |limit| {
                 BatchRequestConfig::Limit(limit as u32)
             });
-        let response_body_size_limit = self
-            .optional
-            .response_body_size_limit
-            .map_or(u32::MAX, |limit| limit as u32);
+        let (response_body_size_limit, max_response_size_overrides) =
+            if let Some(limit) = &self.optional.response_body_size_limit {
+                (limit.global as u32, limit.overrides.clone())
+            } else {
+                (u32::MAX, MaxResponseSizeOverrides::empty())
+            };
         let websocket_requests_per_minute_limit = self.optional.websocket_requests_per_minute_limit;
         let subscriptions_limit = self.optional.subscriptions_limit;
         let vm_barrier = self.optional.vm_barrier.clone();
@@ -558,6 +616,7 @@ impl ApiServer {
             "Built RPC module for {transport_str} server with {} methods: {registered_method_names:?}",
             registered_method_names.len()
         );
+        let rpc = Self::override_method_response_sizes(rpc, &max_response_size_overrides)?;
 
         // Setup CORS.
         let cors = is_http.then(|| {
