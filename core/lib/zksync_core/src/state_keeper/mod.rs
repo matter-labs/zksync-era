@@ -41,7 +41,7 @@ pub(crate) mod updates;
 pub(crate) async fn create_state_keeper(
     state_keeper_config: StateKeeperConfig,
     wallets: wallets::StateKeeper,
-    db_config: &DBConfig,
+    async_cache: AsyncRocksdbCache,
     l2chain_id: L2ChainId,
     mempool_config: &MempoolConfig,
     pool: ConnectionPool<Core>,
@@ -49,11 +49,9 @@ pub(crate) async fn create_state_keeper(
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
-) -> (ZkSyncStateKeeper, AsyncCatchupTask) {
-    let (storage_factory, task) =
-        AsyncRocksdbCache::new(pool.clone(), db_config.state_keeper_db_path.clone());
+) -> ZkSyncStateKeeper {
     let batch_executor_base = MainBatchExecutor::new(
-        Arc::new(storage_factory),
+        Arc::new(async_cache),
         state_keeper_config.save_call_traces,
         false,
     );
@@ -71,14 +69,12 @@ pub(crate) async fn create_state_keeper(
     .expect("Failed initializing main node I/O for state keeper");
 
     let sealer = SequencerSealer::new(state_keeper_config);
-    (
-        ZkSyncStateKeeper::new(
-            stop_receiver,
-            Box::new(io),
-            Box::new(batch_executor_base),
-            output_handler,
-            Arc::new(sealer),
-        ),
-        task,
+
+    ZkSyncStateKeeper::new(
+        stop_receiver,
+        Box::new(io),
+        Box::new(batch_executor_base),
+        output_handler,
+        Arc::new(sealer),
     )
 }
