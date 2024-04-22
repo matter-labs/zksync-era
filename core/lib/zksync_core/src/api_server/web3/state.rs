@@ -131,8 +131,7 @@ impl InternalApiConfig {
                 .estimate_gas_acceptable_overestimation,
             bridge_addresses: api::BridgeAddresses {
                 l1_erc20_default_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
-                // note we need the l2_erc20_bridge_addr here for legacy reasons, but it is the same as l2_shared_bridge_addr
-                l2_erc20_default_bridge: contracts_config.l2_shared_bridge_addr,
+                l2_erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
                 l1_shared_default_bridge: contracts_config.l1_shared_bridge_proxy_addr,
                 l2_shared_default_bridge: contracts_config.l2_shared_bridge_addr,
                 l1_weth_bridge: contracts_config.l1_weth_bridge_proxy_addr,
