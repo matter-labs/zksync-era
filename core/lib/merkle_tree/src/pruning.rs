@@ -4,7 +4,7 @@ use std::{
     fmt,
     sync::{
         atomic::{AtomicU64, Ordering},
-        mpsc, Arc,
+        mpsc, Arc, Weak,
     },
     time::Duration,
 };
@@ -14,29 +14,41 @@ use crate::{
     storage::{PruneDatabase, PrunePatchSet},
 };
 
+/// Error returned by [`MerkleTreePrunerHandle::set_target_retained_version()`].
+#[derive(Debug)]
+pub struct PrunerStoppedError(());
+
+impl fmt::Display for PrunerStoppedError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("Merkle tree pruner stopped")
+    }
+}
+
 /// Handle for a [`MerkleTreePruner`] allowing to abort its operation.
 ///
-/// The pruner is aborted once the abort method on handle is called.
+/// The pruner is aborted once the handle is dropped.
+#[must_use = "Pruner is aborted once handle is dropped"]
 #[derive(Debug)]
 pub struct MerkleTreePrunerHandle {
-    aborted_sender: mpsc::Sender<()>,
-    target_retained_version: Arc<AtomicU64>,
+    _aborted_sender: mpsc::Sender<()>,
+    target_retained_version: Weak<AtomicU64>,
 }
 
 impl MerkleTreePrunerHandle {
-    /// Aborts the pruner that this handle is attached to. If the pruner has already terminated
-    /// (e.g., due to a panic), this is a no-op.
-    pub fn abort(self) {
-        self.aborted_sender.send(()).ok();
-    }
-
     /// Sets the version of the tree the pruner should attempt to prune to. Calls should provide
     /// monotonically increasing versions; call with a lesser version will have no effect.
     ///
     /// Returns the previously set target retained version.
-    pub fn set_target_retained_version(&self, new_version: u64) -> u64 {
-        self.target_retained_version
-            .fetch_max(new_version, Ordering::Relaxed)
+    ///
+    /// # Errors
+    ///
+    /// If the pruner has stopped (e.g., due to a panic), this method will return an error.
+    pub fn set_target_retained_version(&self, new_version: u64) -> Result<u64, PrunerStoppedError> {
+        if let Some(version) = self.target_retained_version.upgrade() {
+            Ok(version.fetch_max(new_version, Ordering::Relaxed))
+        } else {
+            Err(PrunerStoppedError(()))
+        }
     }
 }
 
@@ -72,19 +84,17 @@ impl<DB> fmt::Debug for MerkleTreePruner<DB> {
 }
 
 impl<DB: PruneDatabase> MerkleTreePruner<DB> {
-    /// Creates a pruner with the specified database and the number of past tree versions to keep.
-    /// E.g., 0 means keeping only the latest version.
+    /// Creates a pruner with the specified database.
     ///
     /// # Return value
     ///
-    /// Returns the created pruner and a handle to it. The pruner can be stopped by calling abort on its handle
-    /// or dropping the handle.
+    /// Returns the created pruner and a handle to it. *The pruner will be aborted when its handle is dropped.*
     pub fn new(db: DB) -> (Self, MerkleTreePrunerHandle) {
         let (aborted_sender, aborted_receiver) = mpsc::channel();
         let target_retained_version = Arc::new(AtomicU64::new(0));
         let handle = MerkleTreePrunerHandle {
-            aborted_sender,
-            target_retained_version: target_retained_version.clone(),
+            _aborted_sender: aborted_sender,
+            target_retained_version: Arc::downgrade(&target_retained_version),
         };
         let this = Self {
             db,
@@ -178,11 +188,7 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
 
     fn wait_for_abort(&mut self, timeout: Duration) -> bool {
         match self.aborted_receiver.recv_timeout(timeout) {
-            Ok(()) => true, // Abort was requested
-            Err(mpsc::RecvTimeoutError::Disconnected) => {
-                tracing::warn!("Pruner handle is dropped without calling `abort()`; exiting");
-                true
-            }
+            Ok(()) | Err(mpsc::RecvTimeoutError::Disconnected) => true,
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 // The pruner handle is alive and wasn't used to abort the pruner.
                 false
@@ -289,7 +295,7 @@ mod tests {
         pruner.set_poll_interval(Duration::from_secs(30));
         let join_handle = thread::spawn(|| pruner.run());
 
-        pruner_handle.abort();
+        drop(pruner_handle);
         let start = Instant::now();
         join_handle.join().unwrap();
         assert!(start.elapsed() < Duration::from_secs(10));

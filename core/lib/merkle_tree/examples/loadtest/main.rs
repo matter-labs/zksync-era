@@ -162,7 +162,12 @@ impl Cli {
             };
 
             if let Some((pruner_handle, _)) = &pruner_handles {
-                pruner_handle.set_target_retained_version(version);
+                if pruner_handle.set_target_retained_version(version).is_err() {
+                    tracing::error!("Pruner unexpectedly stopped");
+                    let (_, pruner_thread) = pruner_handles.unwrap();
+                    pruner_thread.join().expect("Pruner panicked");
+                    return; // unreachable
+                }
             }
 
             let elapsed = start.elapsed();
@@ -177,8 +182,8 @@ impl Cli {
         tracing::info!("Verified tree consistency in {elapsed:?}");
 
         if let Some((pruner_handle, pruner_thread)) = pruner_handles {
-            pruner_handle.abort();
-            pruner_thread.join().unwrap();
+            drop(pruner_handle);
+            pruner_thread.join().expect("Pruner panicked");
         }
     }
 

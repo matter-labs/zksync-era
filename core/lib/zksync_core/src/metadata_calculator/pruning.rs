@@ -62,8 +62,14 @@ impl MerkleTreePruningTask {
 
             if let Some(l1_batch_number) = pruning_info.last_hard_pruned_l1_batch {
                 let target_retained_version = u64::from(l1_batch_number.0) + 1;
-                let prev_target_version =
-                    pruner_handle.set_target_retained_version(target_retained_version);
+                let Ok(prev_target_version) =
+                    pruner_handle.set_target_retained_version(target_retained_version)
+                else {
+                    tracing::error!("Merkle tree pruning thread unexpectedly stopped");
+                    return pruner_task_handle
+                        .await
+                        .context("Merkle tree pruning thread panicked");
+                };
                 if prev_target_version != target_retained_version {
                     tracing::info!("Set target retained tree version from {prev_target_version} to {target_retained_version}");
                 }
@@ -78,7 +84,7 @@ impl MerkleTreePruningTask {
         }
 
         tracing::info!("Stop signal received, Merkle tree pruning is shutting down");
-        pruner_handle.abort();
+        drop(pruner_handle);
         pruner_task_handle
             .await
             .context("Merkle tree pruning thread panicked")
