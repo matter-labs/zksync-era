@@ -326,7 +326,10 @@ impl ApiMetrics {
             filters_limit: optional.filters_limit,
             subscriptions_limit: optional.subscriptions_limit,
             batch_request_size_limit: optional.batch_request_size_limit,
-            response_body_size_limit: optional.response_body_size_limit,
+            response_body_size_limit: optional
+                .response_body_size_limit
+                .as_ref()
+                .map(|limit| limit.global),
             websocket_requests_per_minute_limit: optional
                 .websocket_requests_per_minute_limit
                 .map(Into::into),

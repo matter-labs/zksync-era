@@ -11,6 +11,7 @@ use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
 use zksync_config::{
     configs::{
+        api::{MaxResponseSize, MaxResponseSizeOverrides},
         chain::L1BatchCommitDataGeneratorMode,
         consensus::{ConsensusConfig, ConsensusSecrets},
     },
@@ -182,6 +183,9 @@ pub(crate) struct OptionalENConfig {
     /// Maximum response body size in MiBs. Default is 10 MiB.
     #[serde(default = "OptionalENConfig::default_max_response_body_size_mb")]
     pub max_response_body_size_mb: usize,
+    /// Method-specific overrides in MiBs for the maximum response body size.
+    #[serde(default = "MaxResponseSizeOverrides::empty")]
+    max_response_body_size_overrides_mb: MaxResponseSizeOverrides,
 
     // Other API config settings
     /// Interval between polling DB for pubsub (in ms).
@@ -530,8 +534,12 @@ impl OptionalENConfig {
             .unwrap_or_else(|| Namespace::DEFAULT.to_vec())
     }
 
-    pub fn max_response_body_size(&self) -> usize {
-        self.max_response_body_size_mb * BYTES_IN_MEGABYTE
+    pub fn max_response_body_size(&self) -> MaxResponseSize {
+        let scale = NonZeroUsize::new(BYTES_IN_MEGABYTE).unwrap();
+        MaxResponseSize {
+            global: self.max_response_body_size_mb * BYTES_IN_MEGABYTE,
+            overrides: self.max_response_body_size_overrides_mb.scale(scale),
+        }
     }
 
     pub fn healthcheck_slow_time_limit(&self) -> Option<Duration> {
