@@ -300,27 +300,28 @@ pub async fn prepare_job(
         "we have more circuits than supported"
     );
     let mut branch_circuit_type_set = [GoldilocksField::ZERO; RECURSION_TIP_ARITY];
-    let mut queue_sets: [_; RECURSION_TIP_ARITY] =
+    let mut queue_set: [_; RECURSION_TIP_ARITY] =
         std::array::from_fn(|_| QueueState::placeholder_witness());
 
     for (index, (circuit_id, recursion_queue)) in recursion_queues.iter().enumerate() {
         branch_circuit_type_set[index] = GoldilocksField::from_u64_unchecked(*circuit_id as u64);
-        queue_sets[index] = take_sponge_like_queue_state_from_simulator(recursion_queue);
+        queue_set[index] = take_sponge_like_queue_state_from_simulator(recursion_queue);
     }
 
     let leaf_vk_commits = get_leaf_vk_params(&keystore).context("get_leaf_vk_params()")?;
-    let leaf_layer_params: [RecursionLeafParametersWitness<GoldilocksField>; 16] = leaf_vk_commits
-        .iter()
-        .map(|el| el.1.clone())
-        .collect::<Vec<_>>()
-        .try_into()
-        .unwrap();
+    let leaf_layer_parameters: [RecursionLeafParametersWitness<GoldilocksField>; 16] =
+        leaf_vk_commits
+            .iter()
+            .map(|el| el.1.clone())
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
 
     let input = RecursionTipInputWitness {
-        leaf_layer_parameters: leaf_layer_params.clone(),
-        node_layer_vk_commitment: node_layer_vk_commitment,
-        branch_circuit_type_set: branch_circuit_type_set,
-        queue_set: queue_sets,
+        leaf_layer_parameters: leaf_layer_parameters,
+        node_layer_vk_commitment,
+        branch_circuit_type_set,
+        queue_set,
     };
 
     let recursion_tip_witness = RecursionTipInstanceWitness {

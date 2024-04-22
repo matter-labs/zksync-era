@@ -202,8 +202,8 @@ mod tests {
             let eip_4844_blobs_wrapper = Eip4844Blobs::decode(payload);
             let blobs = eip_4844_blobs_wrapper.blobs();
             assert_eq!(blobs.len(), 16, "expecting 16 blobs, got {}", blobs.len());
-            for index in 0..no_blobs - 1 {
-                let blob = blobs[index]
+            for (index, blob) in blobs.iter().enumerate().take(no_blobs - 1) {
+                let blob = blob
                     .clone()
                     .expect("blob missing, although payload was provided");
                 assert_eq!(
@@ -222,8 +222,8 @@ mod tests {
                 0,
                 "last blob was not padded whilst it was expecting padding"
             );
-            for index in no_blobs..16 {
-                assert!(blobs[index].is_none(), "blob[{}] was not None", index);
+            for (index, blob) in blobs.iter().enumerate().skip(no_blobs) {
+                assert!(blob.is_none(), "blob[{}] was not None", index);
             }
         }
     }
@@ -240,8 +240,8 @@ mod tests {
             let eip_4844_blobs_wrapper = Eip4844Blobs::decode(payload);
             let blobs = eip_4844_blobs_wrapper.blobs();
             assert_eq!(blobs.len(), 16, "expecting 16 blobs, got {}", blobs.len());
-            for index in 0..no_blobs {
-                let blob = blobs[index]
+            for (index, blob) in blobs.iter().enumerate().take(no_blobs) {
+                let blob = blob
                     .clone()
                     .expect("blob missing, although payload was provided");
                 assert_eq!(
@@ -253,8 +253,8 @@ mod tests {
                 assert_eq!(blob[0], 1, "blob[{}]'s first byte got overwritten", index);
             }
 
-            for index in no_blobs..16 {
-                assert!(blobs[index].is_none(), "blob[{}] was not None", index);
+            for (index, blob) in blobs.iter().enumerate().skip(no_blobs) {
+                assert!(blob.is_none(), "blob[{}] was not None", index);
             }
         }
     }
