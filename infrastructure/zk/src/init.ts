@@ -6,7 +6,7 @@ import { announced } from './utils';
 import { clean } from './clean';
 import * as compiler from './compiler';
 import * as contract from './contract';
-import { DeploymentMode, updateContractsEnv } from './contract';
+import { DeploymentMode } from './contract';
 import * as db from './database';
 import * as docker from './docker';
 import * as env from './env';
