@@ -1,6 +1,6 @@
 use std::{
-    fs::{self, File},
-    io::Read,
+    fs::File,
+    io::{BufReader, BufWriter},
     path::Path,
 };
 
@@ -113,24 +113,25 @@ impl Keystore {
     }
 
     fn load_json_from_file<T: for<'a> Deserialize<'a>>(filepath: String) -> anyhow::Result<T> {
-        let text = std::fs::read_to_string(&filepath)
-            .with_context(|| format!("Failed reading verification key from path: {filepath}"))?;
-        serde_json::from_str::<T>(&text)
+        let file = File::open(filepath.clone())
+            .with_context(|| format!("Failed reading json from path: {filepath:?}"))?;
+        let reader = BufReader::with_capacity(1 << 20, file);
+        serde_json::from_reader(reader)
             .with_context(|| format!("Failed deserializing verification key from path: {filepath}"))
     }
     fn save_json_pretty<T: Serialize>(filepath: String, data: &T) -> anyhow::Result<()> {
-        std::fs::write(&filepath, serde_json::to_string_pretty(data).unwrap())
+        let file = File::create(filepath.clone())
+            .with_context(|| format!("Failed creating json file in path: {filepath:?}"))?;
+        let writer = BufWriter::with_capacity(1 << 20, file);
+        serde_json::to_writer_pretty(writer, data)
             .with_context(|| format!("writing to '{filepath}' failed"))
     }
 
     fn load_bincode_from_file<T: for<'a> Deserialize<'a>>(filepath: String) -> anyhow::Result<T> {
-        let mut file = File::open(filepath.clone())
+        let file = File::open(filepath.clone())
             .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
-        let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer).with_context(|| {
-            format!("Failed reading setup-data to buffer from path: {filepath:?}")
-        })?;
-        bincode::deserialize::<T>(&buffer)
+        let reader = BufReader::with_capacity(1 << 20, file);
+        bincode::deserialize_from(reader)
             .with_context(|| format!("Failed deserializing setup-data at path: {filepath:?}"))
     }
 
@@ -194,9 +195,10 @@ impl Keystore {
         let filepath = self.get_file_path(key.clone(), ProverServiceDataType::FinalizationHints);
 
         tracing::info!("saving finalization hints for {:?} to: {}", key, filepath);
-        let serialized =
-            bincode::serialize(&hint).context("Failed to serialize finalization hints")?;
-        fs::write(filepath, serialized).context("Failed to write finalization hints to file")
+        let file =
+            File::create(filepath.clone()).context("Failed to create finalization hints file")?;
+        let writer = BufWriter::with_capacity(1 << 20, file);
+        bincode::serialize_into(writer, &hint).context("Failed to serialize finalization hints")
     }
 
     pub fn load_finalization_hints(
@@ -250,14 +252,11 @@ impl Keystore {
     ) -> anyhow::Result<GoldilocksProverSetupData> {
         let filepath = self.get_file_path(key.clone(), ProverServiceDataType::SetupData);
 
-        let mut file = File::open(filepath.clone())
+        let file = File::open(filepath.clone())
             .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
-        let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer).with_context(|| {
-            format!("Failed reading setup-data to buffer from path: {filepath:?}")
-        })?;
+        let reader = BufReader::with_capacity(1 << 20, file);
         tracing::info!("loading {:?} setup data from path: {}", key, filepath);
-        bincode::deserialize::<GoldilocksProverSetupData>(&buffer).with_context(|| {
+        bincode::deserialize_from(reader).with_context(|| {
             format!("Failed deserializing setup-data at path: {filepath:?} for circuit: {key:?}")
         })
     }
@@ -269,14 +268,11 @@ impl Keystore {
     ) -> anyhow::Result<GoldilocksGpuProverSetupData> {
         let filepath = self.get_file_path(key.clone(), ProverServiceDataType::SetupData);
 
-        let mut file = File::open(filepath.clone())
+        let file = File::open(filepath.clone())
             .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
-        let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer).with_context(|| {
-            format!("Failed reading setup-data to buffer from path: {filepath:?}")
-        })?;
+        let reader = BufReader::with_capacity(1 << 20, file);
         tracing::info!("loading {:?} setup data from path: {}", key, filepath);
-        bincode::deserialize::<GoldilocksGpuProverSetupData>(&buffer).with_context(|| {
+        bincode::deserialize_from(reader).with_context(|| {
             format!("Failed deserializing setup-data at path: {filepath:?} for circuit: {key:?}")
         })
     }
