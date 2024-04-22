@@ -100,7 +100,7 @@ impl ConsensusDal<'_, '_> {
         Ok(())
     }
 
-    /// Fetches the range of miniblocks present in storage.
+    /// Fetches the range of L2 blocks present in storage.
     /// If storage was recovered from snapshot, the range doesn't need to start at 0.
     pub async fn block_range(&mut self) -> DalResult<ops::Range<validator::BlockNumber>> {
         let mut txn = self.storage.start_transaction().await?;
@@ -108,9 +108,9 @@ impl ConsensusDal<'_, '_> {
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
             .await?;
-        // `snapshot.miniblock_number` indicates the last block processed.
+        // `snapshot.l2_block_number` indicates the last block processed.
         // This block is NOT present in storage. Therefore, the first block
-        // that will appear in storage is `snapshot.miniblock_number+1`.
+        // that will appear in storage is `snapshot.l2_block_number + 1`.
         let start = validator::BlockNumber(snapshot.map_or(0, |s| s.l2_block_number.0 + 1).into());
         let end = txn
             .blocks_dal()
@@ -295,11 +295,12 @@ impl ConsensusDal<'_, '_> {
         Ok(Some(block.into_payload(transactions)))
     }
 
-    /// Inserts a certificate for the miniblock `cert.header().number`.
-    /// It verifies that
-    /// * the certified payload matches the miniblock in storage
-    /// * the `cert.header().parent` matches the parent miniblock.
-    /// * the parent block already has a certificate.
+    /// Inserts a certificate for the L2 block `cert.header().number`. It verifies that
+    ///
+    /// - the certified payload matches the L2 block in storage
+    /// - the `cert.header().parent` matches the parent L2 block.
+    /// - the parent block already has a certificate.
+    ///
     /// NOTE: This is an extra secure way of storing a certificate,
     /// which will help us to detect bugs in the consensus implementation
     /// while it is "fresh". If it turns out to take too long,
@@ -317,10 +318,10 @@ impl ConsensusDal<'_, '_> {
             .consensus_dal()
             .block_payload(cert.message.proposal.number)
             .await?
-            .context("corresponding miniblock is missing")?;
+            .context("corresponding L2 block is missing")?;
         anyhow::ensure!(
             header.payload == want_payload.encode().hash(),
-            "consensus block payload doesn't match the miniblock"
+            "consensus block payload doesn't match the L2 block"
         );
         sqlx::query!(
             r#"

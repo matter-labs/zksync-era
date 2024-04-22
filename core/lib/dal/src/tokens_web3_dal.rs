@@ -88,7 +88,7 @@ impl TokensWeb3Dal<'_, '_> {
         .await?;
 
         let mut all_tokens: Vec<_> = records.into_iter().map(TokenInfo::from).collect();
-        let Some(at_miniblock) = at_l2_block else {
+        let Some(at_l2_block) = at_l2_block else {
             return Ok(all_tokens); // No additional filtering is required
         };
 
@@ -96,7 +96,7 @@ impl TokensWeb3Dal<'_, '_> {
         let filtered_addresses = self
             .storage
             .storage_logs_dal()
-            .filter_deployed_contracts(token_addresses, Some(at_miniblock))
+            .filter_deployed_contracts(token_addresses, Some(at_l2_block))
             .await?;
 
         all_tokens.retain(|token| filtered_addresses.contains_key(&token.l2_address));

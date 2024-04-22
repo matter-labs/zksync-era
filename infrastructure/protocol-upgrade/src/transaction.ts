@@ -384,7 +384,7 @@ async function sendTransaction(
     console.log('Transaction is executed');
 }
 
-function getWallet(l1rpc, privateKey) {
+export function getWallet(l1rpc, privateKey) {
     if (!l1rpc) {
         l1rpc = web3Url();
     }
