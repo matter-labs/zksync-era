@@ -33,7 +33,8 @@ use crate::sdk::{
 
 const IERC20_INTERFACE: &str = include_str!("../abi/IERC20.json");
 const HYPERCHAIN_INTERFACE: &str = include_str!("../abi/IZkSyncHyperchain.json");
-const L1_DEFAULT_BRIDGE_INTERFACE: &str = include_str!("../abi/IL1SharedBridge.json");
+const _L1_DEFAULT_BRIDGE_INTERFACE: &str = include_str!("../abi/IL1SharedBridge.json");
+const L1_ERC20_BRIDGE_INTERFACE: &str = include_str!("../abi/IL1ERC20Bridge.json");
 const RAW_ERC20_DEPOSIT_GAS_LIMIT: &str = include_str!("DepositERC20GasLimit.json");
 
 // The `gasPerPubdata` to be used in L1->L2 requests. It may be almost any number, but here we 800
@@ -51,8 +52,12 @@ pub fn ierc20_contract() -> ethabi::Contract {
 }
 
 /// Returns `ethabi::Contract` object for L1 Bridge smart contract interface.
-pub fn l1_bridge_contract() -> ethabi::Contract {
-    load_contract(L1_DEFAULT_BRIDGE_INTERFACE)
+pub fn _l1_bridge_contract() -> ethabi::Contract {
+    load_contract(_L1_DEFAULT_BRIDGE_INTERFACE)
+}
+
+pub fn l1_erc20_bridge_contract() -> ethabi::Contract {
+    load_contract(L1_ERC20_BRIDGE_INTERFACE)
 }
 
 /// `EthereumProvider` gains access to on-chain operations, such as deposits and full exits.
@@ -64,7 +69,7 @@ pub struct EthereumProvider<S: EthereumSigner> {
     eth_client: SigningClient<S>,
     default_bridges: BridgeAddresses,
     erc20_abi: ethabi::Contract,
-    l1_bridge_abi: ethabi::Contract,
+    l1_erc20_bridge_abi: ethabi::Contract,
     confirmation_timeout: Duration,
     polling_interval: Duration,
 }
@@ -110,13 +115,13 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             L1ChainId(l1_chain_id),
         );
         let erc20_abi = ierc20_contract();
-        let l1_bridge_abi = l1_bridge_contract();
+        let l1_erc20_bridge_abi = l1_erc20_bridge_contract();
 
         Ok(Self {
             eth_client,
             default_bridges,
             erc20_abi,
-            l1_bridge_abi,
+            l1_erc20_bridge_abi,
             confirmation_timeout: Duration::from_secs(10),
             polling_interval: Duration::from_secs(1),
         })
@@ -182,7 +187,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         // TODO(EVM-571): This should be moved to the shared bridge, which does not have `l2_token_address` on L1. Use L2 contracts instead.
         let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge.unwrap());
         let args = CallFunctionArgs::new("l2TokenAddress", l1_token_address)
-            .for_contract(bridge, self.l1_bridge_abi.clone());
+            .for_contract(bridge, self.l1_erc20_bridge_abi.clone());
         let res = self
             .eth_client
             .call_contract_function(args)
@@ -452,20 +457,20 @@ impl<S: EthereumSigner> EthereumProvider<S> {
 
         // Calculate the gas limit for transaction: it may vary for different tokens.
         let gas_limit = if is_eth_deposit {
-            200_000u64
+            400_000u64
         } else {
             let gas_limits: Map<String, Value> = serde_json::from_str(RAW_ERC20_DEPOSIT_GAS_LIMIT)
                 .map_err(|_| ClientError::Other)?;
             let address_str = format!("{:?}", l1_token_address);
             let is_mainnet = Network::from_chain_id(self.client().chain_id()) == Network::Mainnet;
             if is_mainnet && gas_limits.contains_key(&address_str) {
-                gas_limits
+                2 * gas_limits
                     .get(&address_str)
                     .unwrap()
                     .as_u64()
                     .ok_or(ClientError::Other)?
             } else {
-                300000u64
+                600000u64
             }
         };
 
@@ -490,7 +495,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         };
 
         // TODO (PLA-85): Add gas estimations for deposits in Rust SDK
-        let l2_gas_limit = U256::from(3_000_000u32);
+        let l2_gas_limit = U256::from(6_000_000u32);
 
         let base_cost: U256 = self
             .base_cost(
@@ -530,7 +535,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             let bridge_address =
                 bridge_address.unwrap_or(self.default_bridges.l1_erc20_default_bridge.unwrap());
             let contract_function = self
-                .l1_bridge_abi
+                .l1_erc20_bridge_abi
                 .function("deposit")
                 .expect("failed to get function parameters");
             let params = (
