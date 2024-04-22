@@ -21,7 +21,7 @@ mod tests {
             basic_generation_timeout_in_secs: Some(900u16),
             leaf_generation_timeout_in_secs: Some(800u16),
             node_generation_timeout_in_secs: Some(800u16),
-            recursion_tip_generation_timeout_in_secs: Some(700u16),
+            recursion_tip_generation_timeout_in_secs: Some(800u16),
             scheduler_generation_timeout_in_secs: Some(900u16),
             max_attempts: 4,
             blocks_proving_percentage: Some(30),
@@ -40,7 +40,7 @@ mod tests {
             FRI_WITNESS_BASIC_GENERATION_TIMEOUT_IN_SECS=900
             FRI_WITNESS_LEAF_GENERATION_TIMEOUT_IN_SECS=800
             FRI_WITNESS_NODE_GENERATION_TIMEOUT_IN_SECS=800
-            FRI_WITNESS_RECURSION_TIP_GENERATION_TIMEOUT_IN_SECS=700
+            FRI_WITNESS_RECURSION_TIP_GENERATION_TIMEOUT_IN_SECS=800
             FRI_WITNESS_SCHEDULER_GENERATION_TIMEOUT_IN_SECS=900
             FRI_WITNESS_MAX_ATTEMPTS=4
             FRI_WITNESS_DUMP_ARGUMENTS_FOR_BLOCKS="2,3"
