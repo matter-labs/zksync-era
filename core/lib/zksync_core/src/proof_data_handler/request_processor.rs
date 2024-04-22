@@ -88,7 +88,7 @@ impl RequestProcessor {
 
         let l1_batch_number = match l1_batch_number_result {
             Some(number) => number,
-            None => return Ok(Json(ProofGenerationDataResponse::Success(None))), // no batches pending to be proven
+            None => return Ok(Json(ProofGenerationDataResponse::Success(Box::new(None)))), // no batches pending to be proven
         };
 
         let blob = self
@@ -143,9 +143,9 @@ impl RequestProcessor {
             l1_verifier_config,
             eip_4844_blobs,
         };
-        Ok(Json(ProofGenerationDataResponse::Success(Some(
+        Ok(Json(ProofGenerationDataResponse::Success(Box::new(Some(
             proof_gen_data,
-        ))))
+        )))))
     }
 
     pub(crate) async fn submit_proof(
