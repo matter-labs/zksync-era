@@ -1,12 +1,9 @@
 use std::sync::Arc;
 
 use tokio::sync::watch;
-use zksync_config::{
-    configs::{
-        chain::{MempoolConfig, StateKeeperConfig},
-        wallets,
-    },
-    DBConfig,
+use zksync_config::configs::{
+    chain::{MempoolConfig, StateKeeperConfig},
+    wallets,
 };
 use zksync_dal::{ConnectionPool, Core};
 use zksync_types::L2ChainId;
