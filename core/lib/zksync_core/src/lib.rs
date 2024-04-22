@@ -828,8 +828,11 @@ async fn add_state_keeper_to_task_futures(
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
-    let pool_builder = ConnectionPool::<Core>::singleton(postgres_config.master_url()?);
-    let state_keeper_pool = pool_builder
+    // One (potentially held long-term) connection for async catch up task and another connection for
+    // batch executor.
+    let state_keeper_pool_builder =
+        ConnectionPool::<Core>::builder(postgres_config.master_url()?, 2);
+    let state_keeper_pool = state_keeper_pool_builder
         .build()
         .await
         .context("failed to build state_keeper_pool")?;
@@ -843,7 +846,7 @@ async fn add_state_keeper_to_task_futures(
         mempool
     };
 
-    let miniblock_sealer_pool = pool_builder
+    let miniblock_sealer_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
         .build()
         .await
         .context("failed to build miniblock_sealer_pool")?;
@@ -876,7 +879,7 @@ async fn add_state_keeper_to_task_futures(
     }));
     task_futures.push(tokio::spawn(state_keeper.run()));
 
-    let mempool_fetcher_pool = pool_builder
+    let mempool_fetcher_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
         .build()
         .await
         .context("failed to build mempool_fetcher_pool")?;
