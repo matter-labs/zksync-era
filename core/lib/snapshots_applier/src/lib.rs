@@ -47,7 +47,7 @@ impl SnapshotsApplierHealthDetails {
     fn done(status: &SnapshotRecoveryStatus) -> anyhow::Result<Self> {
         if status.storage_logs_chunks_left_to_process() != 0 {
             anyhow::bail!(
-                "Inconsistent Postgres state: there are miniblocks, but the snapshot recovery status \
+                "Inconsistent Postgres state: there are L2 blocks, but the snapshot recovery status \
                  contains unprocessed storage log chunks: {status:?}"
             );
         }
@@ -218,6 +218,13 @@ impl SnapshotsApplierConfig {
     }
 }
 
+/// Stats returned by [`SnapshotsApplierTask::run()`].
+#[derive(Debug)]
+pub struct SnapshotApplierTaskStats {
+    /// Did the task do any work?
+    pub done_work: bool,
+}
+
 #[derive(Debug)]
 pub struct SnapshotsApplierTask {
     config: SnapshotsApplierConfig,
@@ -256,7 +263,7 @@ impl SnapshotsApplierTask {
     /// or under any of the following conditions:
     ///
     /// - There are no snapshots on the main node
-    pub async fn run(self) -> anyhow::Result<()> {
+    pub async fn run(self) -> anyhow::Result<SnapshotApplierTaskStats> {
         tracing::info!("Starting snapshot recovery with config: {:?}", self.config);
 
         let mut backoff = self.config.initial_retry_backoff;
@@ -272,14 +279,16 @@ impl SnapshotsApplierTask {
             .await;
 
             match result {
-                Ok(final_status) => {
+                Ok((strategy, final_status)) => {
                     let health_details = SnapshotsApplierHealthDetails::done(&final_status)?;
                     self.health_updater
                         .update(Health::from(HealthStatus::Ready).with_details(health_details));
                     // Freeze the health check in the "ready" status, so that the snapshot recovery isn't marked
                     // as "shut down", which would lead to the app considered unhealthy.
                     self.health_updater.freeze();
-                    return Ok(());
+                    return Ok(SnapshotApplierTaskStats {
+                        done_work: !matches!(strategy, SnapshotRecoveryStrategy::Completed),
+                    });
                 }
                 Err(SnapshotsApplierError::Fatal(err)) => {
                     tracing::error!("Fatal error occurred during snapshots recovery: {err:?}");
@@ -305,21 +314,21 @@ impl SnapshotsApplierTask {
 }
 
 /// Strategy determining how snapshot recovery should proceed.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum SnapshotRecoveryStrategy {
     /// Snapshot recovery should proceed from scratch with the specified params.
-    New(SnapshotRecoveryStatus),
+    New,
     /// Snapshot recovery should continue with the specified params.
-    Resumed(SnapshotRecoveryStatus),
+    Resumed,
     /// Snapshot recovery has already been completed.
-    Completed(SnapshotRecoveryStatus),
+    Completed,
 }
 
 impl SnapshotRecoveryStrategy {
     async fn new(
         storage: &mut Connection<'_, Core>,
         main_node_client: &dyn SnapshotsApplierMainNodeClient,
-    ) -> Result<Self, SnapshotsApplierError> {
+    ) -> Result<(Self, SnapshotRecoveryStatus), SnapshotsApplierError> {
         let latency =
             METRICS.initial_stage_duration[&InitialStage::FetchMetadataFromMainNode].start();
         let applied_snapshot_status = storage
@@ -328,14 +337,14 @@ impl SnapshotRecoveryStrategy {
             .await?;
 
         if let Some(applied_snapshot_status) = applied_snapshot_status {
-            let sealed_miniblock_number = storage.blocks_dal().get_sealed_l2_block_number().await?;
-            if sealed_miniblock_number.is_some() {
-                return Ok(Self::Completed(applied_snapshot_status));
+            let sealed_l2_block_number = storage.blocks_dal().get_sealed_l2_block_number().await?;
+            if sealed_l2_block_number.is_some() {
+                return Ok((Self::Completed, applied_snapshot_status));
             }
 
             let latency = latency.observe();
             tracing::info!("Re-initialized snapshots applier after reset/failure in {latency:?}");
-            Ok(Self::Resumed(applied_snapshot_status))
+            Ok((Self::Resumed, applied_snapshot_status))
         } else {
             let is_genesis_needed = storage.blocks_dal().is_genesis_needed().await?;
             if !is_genesis_needed {
@@ -362,7 +371,7 @@ impl SnapshotRecoveryStrategy {
 
             let latency = latency.observe();
             tracing::info!("Initialized fresh snapshots applier in {latency:?}");
-            Ok(Self::New(recovery_status))
+            Ok((Self::New, recovery_status))
         }
     }
 
@@ -376,7 +385,7 @@ impl SnapshotRecoveryStrategy {
         let l1_batch_number = snapshot.l1_batch_number;
         let l2_block_number = snapshot.l2_block_number;
         tracing::info!(
-            "Found snapshot with data up to L1 batch #{l1_batch_number}, miniblock #{l2_block_number}, \
+            "Found snapshot with data up to L1 batch #{l1_batch_number}, L2 block #{l2_block_number}, \
             version {version}, storage logs are divided into {chunk_count} chunk(s)",
             version = snapshot.version,
             chunk_count = snapshot.storage_logs_chunks.len()
@@ -457,7 +466,7 @@ impl<'a> SnapshotsApplier<'a> {
         blob_store: &'a dyn ObjectStore,
         health_updater: &'a HealthUpdater,
         max_concurrency: usize,
-    ) -> Result<SnapshotRecoveryStatus, SnapshotsApplierError> {
+    ) -> Result<(SnapshotRecoveryStrategy, SnapshotRecoveryStatus), SnapshotsApplierError> {
         // While the recovery is in progress, the node is healthy (no error has occurred),
         // but is affected (its usual APIs don't work).
         health_updater.update(HealthStatus::Affected.into());
@@ -467,15 +476,13 @@ impl<'a> SnapshotsApplier<'a> {
             .await?;
         let mut storage_transaction = storage.start_transaction().await?;
 
-        let strategy =
+        let (strategy, applied_snapshot_status) =
             SnapshotRecoveryStrategy::new(&mut storage_transaction, main_node_client).await?;
-        tracing::info!("Chosen snapshot recovery strategy: {strategy:?}");
-        let (applied_snapshot_status, created_from_scratch) = match strategy {
-            SnapshotRecoveryStrategy::Completed(status) => {
-                return Ok(status);
-            }
-            SnapshotRecoveryStrategy::New(status) => (status, true),
-            SnapshotRecoveryStrategy::Resumed(status) => (status, false),
+        tracing::info!("Chosen snapshot recovery strategy: {strategy:?} with status: {applied_snapshot_status:?}");
+        let created_from_scratch = match strategy {
+            SnapshotRecoveryStrategy::Completed => return Ok((strategy, applied_snapshot_status)),
+            SnapshotRecoveryStrategy::New => true,
+            SnapshotRecoveryStrategy::Resumed => false,
         };
 
         let mut this = Self {
@@ -537,7 +544,7 @@ impl<'a> SnapshotsApplier<'a> {
         this.recover_tokens().await?;
         this.tokens_recovered = true;
         this.update_health();
-        Ok(this.applied_snapshot_status)
+        Ok((strategy, this.applied_snapshot_status))
     }
 
     fn update_health(&self) {

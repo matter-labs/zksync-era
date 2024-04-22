@@ -8640,7 +8640,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "23.0.0"
+version = "23.1.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -8674,6 +8674,7 @@ dependencies = [
  "zksync_l1_contract_interface",
  "zksync_object_store",
  "zksync_protobuf_config",
+ "zksync_shared_metrics",
  "zksync_snapshots_applier",
  "zksync_state",
  "zksync_storage",
