@@ -81,7 +81,6 @@ describe('ETH token checks', () => {
             amount,
             gasPerPubdataByte,
             l2GasLimit,
-            approveBaseERC20: isETHBasedChain ? true : false,
             approveERC20: isETHBasedChain ? true : false,
             approveBaseOverrides: {
                 gasPrice
@@ -252,7 +251,7 @@ describe('ETH token checks', () => {
             : await shouldChangeTokenBalances(l2EthTokenAddressNonBase, [{ wallet: alice, change: -amount }]);
 
         const withdrawalPromise = alice.withdraw({
-            token: isETHBasedChain ? ETH_ADDRESS : await alice.l2TokenAddress(zksync.utils.ETH_ADDRESS_IN_CONTRACTS),
+            token: isETHBasedChain ? ETH_ADDRESS : l2EthTokenAddressNonBase,
             amount
         });
         await expect(withdrawalPromise).toBeAccepted([l2ethBalanceChange]);
