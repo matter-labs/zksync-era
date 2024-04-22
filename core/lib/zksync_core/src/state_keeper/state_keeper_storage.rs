@@ -1,10 +1,11 @@
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, sync::Arc, time::Instant};
 
 use anyhow::Context;
 use async_trait::async_trait;
 use once_cell::sync::OnceCell;
 use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_shared_metrics::{SnapshotRecoveryStage, APP_METRICS};
 use zksync_state::{
     PostgresStorage, ReadStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily,
 };
@@ -176,13 +177,11 @@ impl AsyncRocksdbCache {
     pub fn new(
         pool: ConnectionPool<Core>,
         state_keeper_db_path: String,
-        enum_index_migration_chunk_size: usize,
     ) -> (Self, AsyncCatchupTask) {
         let rocksdb_cell = Arc::new(OnceCell::new());
         let task = AsyncCatchupTask {
             pool: pool.clone(),
             state_keeper_db_path,
-            enum_index_migration_chunk_size,
             rocksdb_cell: rocksdb_cell.clone(),
         };
         (Self { pool, rocksdb_cell }, task)
@@ -203,23 +202,29 @@ impl ReadStorageFactory for AsyncRocksdbCache {
 pub struct AsyncCatchupTask {
     pool: ConnectionPool<Core>,
     state_keeper_db_path: String,
-    enum_index_migration_chunk_size: usize,
     rocksdb_cell: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
 }
 
 impl AsyncCatchupTask {
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let started_at = Instant::now();
         tracing::debug!("Catching up RocksDB asynchronously");
-        let mut rocksdb_builder: RocksdbStorageBuilder =
-            RocksdbStorage::builder(self.state_keeper_db_path.as_ref())
-                .await
-                .context("Failed initializing RocksDB storage")?;
-        rocksdb_builder.enable_enum_index_migration(self.enum_index_migration_chunk_size);
-        let mut connection = self
-            .pool
-            .connection()
+
+        let mut rocksdb_builder = RocksdbStorage::builder(self.state_keeper_db_path.as_ref())
             .await
-            .context("Failed accessing Postgres storage")?;
+            .context("Failed creating RocksDB storage builder")?;
+        let mut connection = self.pool.connection().await?;
+        let was_recovered_from_snapshot = rocksdb_builder
+            .ensure_ready(&mut connection, &stop_receiver)
+            .await
+            .context("failed initializing state keeper RocksDB from snapshot or scratch")?;
+        if was_recovered_from_snapshot {
+            let elapsed = started_at.elapsed();
+            APP_METRICS.snapshot_recovery_latency[&SnapshotRecoveryStage::StateKeeperCache]
+                .set(elapsed);
+            tracing::info!("Recovered state keeper RocksDB from snapshot in {elapsed:?}");
+        }
+
         let rocksdb = rocksdb_builder
             .synchronize(&mut connection, &stop_receiver)
             .await

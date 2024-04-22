@@ -149,9 +149,9 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
         configs::chain::StateKeeperConfig {
             transaction_slots: self.sample(rng),
             block_commit_deadline_ms: self.sample(rng),
-            miniblock_commit_deadline_ms: self.sample(rng),
-            miniblock_seal_queue_capacity: self.sample(rng),
-            miniblock_max_payload_size: self.sample(rng),
+            l2_block_commit_deadline_ms: self.sample(rng),
+            l2_block_seal_queue_capacity: self.sample(rng),
+            l2_block_max_payload_size: self.sample(rng),
             max_single_tx_gas: self.sample(rng),
             max_allowed_l2_tx_gas_limit: self.sample(rng),
             reject_tx_at_geometry_percentage: self.sample(rng),
@@ -169,7 +169,6 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             fee_model_version: self.sample(rng),
             validation_computational_gas_limit: self.sample(rng),
             save_call_traces: self.sample(rng),
-            enum_index_migration_chunk_size: self.sample(rng),
             max_circuits_per_batch: self.sample(rng),
             // These values are not involved into files serialization skip them
             fee_account_addr: None,

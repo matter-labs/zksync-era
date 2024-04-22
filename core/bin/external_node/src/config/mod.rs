@@ -293,9 +293,6 @@ pub(crate) struct OptionalENConfig {
     // Other config settings
     /// Port on which the Prometheus exporter server is listening.
     pub prometheus_port: Option<u16>,
-    /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
-    #[serde(default = "OptionalENConfig::default_enum_index_migration_chunk_size")]
-    pub enum_index_migration_chunk_size: usize,
     /// Capacity of the queue for asynchronous miniblock sealing. Once this many miniblocks are queued,
     /// sealing will block until some of the miniblocks from the queue are processed.
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
@@ -441,10 +438,6 @@ impl OptionalENConfig {
 
     const fn default_max_response_body_size_mb() -> usize {
         10
-    }
-
-    const fn default_enum_index_migration_chunk_size() -> usize {
-        5000
     }
 
     const fn default_miniblock_seal_queue_capacity() -> usize {

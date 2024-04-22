@@ -90,11 +90,8 @@ async fn build_state_keeper(
     // We only need call traces on the external node if the `debug_` namespace is enabled.
     let save_call_traces = config.optional.api_namespaces().contains(&Namespace::Debug);
 
-    let (storage_factory, task) = AsyncRocksdbCache::new(
-        connection_pool.clone(),
-        state_keeper_db_path,
-        config.optional.enum_index_migration_chunk_size,
-    );
+    let (storage_factory, task) =
+        AsyncRocksdbCache::new(connection_pool.clone(), state_keeper_db_path);
     let mut stop_receiver_clone = stop_receiver.clone();
     task_handles.push(tokio::task::spawn(async move {
         let result = task.run(stop_receiver_clone.clone()).await;
