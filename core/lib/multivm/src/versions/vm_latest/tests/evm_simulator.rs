@@ -3196,6 +3196,25 @@ fn test_basic_environment4_vectors() {
     );
     assert_eq!(evm_output, 175.into());
 
+    let evm_output = test_evm_vector(
+        vec![
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("000000000000000000000000000000000000000000000000000000000000800A")
+                .unwrap(),
+            // extcodesize
+            hex::decode("3B").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(evm_output, 8224.into());
+
     // extcodecopy
     // Creates a constructor that creates a contract with 30 FF and 37 as code
     /*
@@ -3298,6 +3317,39 @@ fn test_basic_environment4_vectors() {
         H256(U256::from("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff37").into())
     );
 
+    let evm_output = test_evm_vector(
+        vec![
+            // push1 32 -- begin extcodecopy
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("000000000000000000000000000000000000000000000000000000000000800A")
+                .unwrap(),
+            // extcodecopy
+            hex::decode("3C").unwrap(),
+            // push1 memOffset
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // mload
+            hex::decode("51").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(
+        H256(evm_output.into()),
+        H256(U256::from("0000006003300270000000d6033001970000000102200190000000230000c13d").into())
+    );
     // TODO test returndatasize and returndatacopy -> staticcall is needed
 }
 
