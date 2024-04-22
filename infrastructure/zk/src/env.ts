@@ -97,6 +97,7 @@ export function load() {
 export function modify(variable: string, value: string, initEnv: string, withReload = true) {
     const assignedVariable = value.startsWith(`${variable}=`) ? value : `${variable}=${value}`;
     fs.mkdirSync('etc/env/l2-inits', { recursive: true });
+    fs.mkdirSync('etc/env/l1-inits', { recursive: true });
     if (!fs.existsSync(initEnv)) {
         fs.writeFileSync(initEnv, assignedVariable);
         return;

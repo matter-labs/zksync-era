@@ -346,19 +346,36 @@ impl BlockReverter {
                 .expect("Private key is required to send revert transaction"),
         );
         let chain_id = web3.eth().chain_id().await.unwrap().as_u64();
-        let zksync_chain_id = std::env::var("CHAIN_ETH_ZKSYNC_NETWORK_ID")
+        let hyperchain_id = std::env::var("CHAIN_ETH_ZKSYNC_NETWORK_ID")
             .ok()
             .and_then(|val| val.parse::<u128>().ok())
-            .expect("Hyperchain chain id has to be set in config");
-        let revert_function = contract.function("revertBatchesSharedBridge").expect(
-            "Either `revertBlocks` or `revertBatches` function must be present in contract",
-        );
-        let data = revert_function
-            .encode_input(&[
-                Token::Uint(zksync_chain_id.into()),
-                Token::Uint(last_l1_batch_to_keep.0.into()),
-            ])
-            .unwrap();
+            .expect("`CHAIN_ETH_ZKSYNC_NETWORK_ID` has to be set in config");
+        let era_chain_id = std::env::var("CONTRACTS_ERA_CHAIN_ID")
+            .ok()
+            .and_then(|val| val.parse::<u128>().ok())
+            .expect("`CONTRACTS_ERA_CHAIN_ID` has to be set in config");
+
+        // It is expected that for all new chains `revertBatchesSharedBridge` can be used.
+        // For Era we are using `revertBatches` function for backwards compatibility in case the migration
+        // to the shared bridge is not yet complete.
+        let data = if hyperchain_id == era_chain_id {
+            let revert_function = contract
+                .function("revertBatches")
+                .expect("`revertBatches` function must be present in contract");
+            revert_function
+                .encode_input(&[Token::Uint(last_l1_batch_to_keep.0.into())])
+                .unwrap()
+        } else {
+            let revert_function = contract
+                .function("revertBatchesSharedBridge")
+                .expect("`revertBatchesSharedBridge` function must be present in contract");
+            revert_function
+                .encode_input(&[
+                    Token::Uint(hyperchain_id.into()),
+                    Token::Uint(last_l1_batch_to_keep.0.into()),
+                ])
+                .unwrap()
+        };
 
         let base_fee = web3
             .eth()

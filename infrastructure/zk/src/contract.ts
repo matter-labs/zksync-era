@@ -47,30 +47,6 @@ export async function initializeGovernance(): Promise<void> {
     await utils.spawn(`yarn l1-contracts initialize-governance ${args.join(' ')} | tee initializeGovernance.log`);
 }
 
-export async function deployWeth(
-    command: 'dev' | 'new',
-    name?: string,
-    symbol?: string,
-    decimals?: string,
-    args: any = []
-): Promise<void> {
-    // let destinationFile = 'localhost';
-    // if (args.includes('--envFile')) {
-    //     destinationFile = args[args.indexOf('--envFile') + 1];
-    //     args.splice(args.indexOf('--envFile'), 2);
-    // }
-    await utils.spawn(`yarn --silent --cwd contracts/l1-contracts deploy-weth '
-            ${args.join(' ')} | tee deployL1.log`);
-
-    const deployLog = fs.readFileSync('deployL1.log').toString();
-    const l1DeploymentEnvVars = ['CONTRACTS_L1_WETH_TOKEN_ADDR'];
-    updateContractsEnv(
-        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`,
-        deployLog,
-        l1DeploymentEnvVars
-    );
-}
-
 export async function deployL2(args: any[] = [], includePaymaster?: boolean): Promise<void> {
     await utils.confirmAction();
 

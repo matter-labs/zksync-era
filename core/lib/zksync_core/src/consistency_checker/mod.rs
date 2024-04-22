@@ -419,7 +419,6 @@ impl ConsistencyChecker {
             }
         }
 
-        // TODO: Add support for post shared bridge commits
         let commit_function = if local.is_pre_boojum() {
             &*PRE_BOOJUM_COMMIT_FUNCTION
         } else if local.is_pre_shared_bridge() {
@@ -430,7 +429,7 @@ impl ConsistencyChecker {
         } else {
             self.contract
                 .function("commitBatchesSharedBridge")
-                .context("L1 contract does not have `commitBatches` function")
+                .context("L1 contract does not have `commitBatchesSharedBridge` function")
                 .map_err(CheckError::Internal)?
         };
 
