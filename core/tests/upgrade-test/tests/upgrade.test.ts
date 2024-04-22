@@ -19,18 +19,13 @@ const ADMIN_FACET_ABI = new ethers.utils.Interface(
     require(`${L1_CONTRACTS_FOLDER}/zksync/facets/Admin.sol/AdminFacet.json`).abi
 );
 const L2_FORCE_DEPLOY_UPGRADER_ABI = new ethers.utils.Interface(
-    require(
-        `${process.env.ZKSYNC_HOME}/contracts/l2-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`
-    ).abi
+    require(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
 );
 const COMPLEX_UPGRADER_ABI = new ethers.utils.Interface(
-    require(
-        `${process.env.ZKSYNC_HOME}/contracts/system-contracts/artifacts-zk/contracts-preprocessed/ComplexUpgrader.sol/ComplexUpgrader.json`
-    ).abi
+    require(`${process.env.ZKSYNC_HOME}/contracts/system-contracts/artifacts-zk/contracts-preprocessed/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
 );
-const COUNTER_BYTECODE = require(
-    `${process.env.ZKSYNC_HOME}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`
-).deployedBytecode;
+const COUNTER_BYTECODE =
+    require(`${process.env.ZKSYNC_HOME}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`).deployedBytecode;
 const depositAmount = ethers.utils.parseEther('0.001');
 
 describe('Upgrade test', function () {
