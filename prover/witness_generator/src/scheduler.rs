@@ -289,7 +289,7 @@ pub async fn prepare_job(
         block_number: l1_batch_number,
         scheduler_witness,
         node_vk,
-        leaf_layer_parameters: leaf_layer_parameters,
+        leaf_layer_parameters,
         recursion_tip_vk,
     })
 }

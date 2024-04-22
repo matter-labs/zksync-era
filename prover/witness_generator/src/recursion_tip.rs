@@ -318,7 +318,7 @@ pub async fn prepare_job(
             .unwrap();
 
     let input = RecursionTipInputWitness {
-        leaf_layer_parameters: leaf_layer_parameters,
+        leaf_layer_parameters,
         node_layer_vk_commitment,
         branch_circuit_type_set,
         queue_set,
