@@ -1,5 +1,8 @@
 use zk_evm_1_4_1::sha2;
-use zk_evm_1_5_0::zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32};
+use zk_evm_1_5_0::{
+    aux_structures::MemoryPage,
+    zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32},
+};
 use zksync_types::H256;
 
 /// Utility functions for the VM.
@@ -24,4 +27,8 @@ pub(crate) fn hash_evm_bytecode(bytecode: &[u8]) -> H256 {
     output[2..4].copy_from_slice(&len.to_be_bytes());
 
     H256(output)
+}
+
+pub const fn heap_page_from_base(base: MemoryPage) -> MemoryPage {
+    MemoryPage(base.0 + 2)
 }
