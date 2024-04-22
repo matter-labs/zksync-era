@@ -138,14 +138,11 @@ async fn block_reverter_basics(sync_merkle_tree: bool) {
         .await
         .unwrap();
 
-    let block_reverter = BlockReverter::new(
-        NodeRole::External,
-        sk_cache_path.to_str().unwrap().to_owned(),
-        merkle_tree_path.to_str().unwrap().to_owned(),
-        pool.clone(),
-    );
-    block_reverter
-        .rollback_db(L1BatchNumber(5), BlockReverterFlags::all(), None)
+    BlockReverter::new(NodeRole::External, pool.clone())
+        .enable_reverting_postgres()
+        .enable_reverting_merkle_tree(merkle_tree_path.to_str().unwrap().to_owned())
+        .enable_reverting_state_keeper_cache(sk_cache_path.to_str().unwrap().to_owned())
+        .revert(L1BatchNumber(5))
         .await
         .unwrap();
 
@@ -266,21 +263,12 @@ async fn reverting_snapshot(remove_objects: bool) {
         .unwrap();
     assert_eq!(all_snapshots.snapshots_l1_batch_numbers, [L1BatchNumber(7)]);
 
-    let block_reverter = BlockReverter::new(
-        NodeRole::External,
-        "unused".to_owned(), // FIXME: don't require these params
-        "unused".to_owned(),
-        pool.clone(),
-    );
-    let maybe_object_store = remove_objects.then_some(object_store.as_ref());
-    block_reverter
-        .rollback_db(
-            L1BatchNumber(5),
-            BlockReverterFlags::POSTGRES,
-            maybe_object_store,
-        )
-        .await
-        .unwrap();
+    let mut block_reverter = BlockReverter::new(NodeRole::External, pool.clone());
+    block_reverter.enable_reverting_postgres();
+    if remove_objects {
+        block_reverter.enable_reverting_snapshot_objects(object_store.clone());
+    }
+    block_reverter.revert(L1BatchNumber(5)).await.unwrap();
 
     // Check that snapshot has been removed.
     let all_snapshots = storage

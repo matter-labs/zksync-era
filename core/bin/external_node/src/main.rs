@@ -8,7 +8,7 @@ use tokio::{
     sync::{oneshot, watch, RwLock},
     task::{self, JoinHandle},
 };
-use zksync_block_reverter::{BlockReverter, BlockReverterFlags, NodeRole};
+use zksync_block_reverter::{BlockReverter, NodeRole};
 use zksync_commitment_generator::CommitmentGenerator;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{
@@ -934,14 +934,13 @@ async fn run_node(
     let sigint_receiver = env.setup_sigint_handler();
 
     // Revert the storage if needed.
-    let mut reverter = BlockReverter::new(
-        NodeRole::External,
-        config.required.state_cache_path.clone(),
-        config.required.merkle_tree_path.clone(),
-        connection_pool.clone(),
-    );
+    let mut reverter = BlockReverter::new(NodeRole::External, connection_pool.clone());
     // Reverting executed batches is more-or-less safe for external nodes.
-    reverter.allow_reverting_executed_batches();
+    let reverter = reverter
+        .allow_reverting_executed_batches()
+        .enable_reverting_postgres()
+        .enable_reverting_merkle_tree(config.required.merkle_tree_path.clone())
+        .enable_reverting_state_keeper_cache(config.required.state_cache_path.clone());
 
     let mut reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
     // We're checking for the reorg in the beginning because we expect that if reorg is detected during
@@ -951,31 +950,25 @@ async fn run_node(
     match reorg_detector.check_consistency().await {
         Ok(()) => {}
         Err(reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {
-            tracing::info!("Rolling back to l1 batch number {last_correct_l1_batch}");
-            reverter
-                .rollback_db(last_correct_l1_batch, BlockReverterFlags::all(), None)
-                .await?;
-            tracing::info!("Rollback successfully completed");
+            tracing::info!("Reverting to l1 batch number {last_correct_l1_batch}");
+            reverter.revert(last_correct_l1_batch).await?;
+            tracing::info!("Revert successfully completed");
         }
         Err(err) => return Err(err).context("reorg_detector.check_consistency()"),
     }
     if opt.revert_pending_l1_batch {
-        tracing::info!("Rolling pending L1 batch back..");
+        tracing::info!("Reverting pending L1 batch");
         let mut connection = connection_pool.connection().await?;
         let sealed_l1_batch_number = connection
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await?
-            .context(
-                "Cannot roll back pending L1 batch since there are no L1 batches in Postgres",
-            )?;
+            .context("Cannot revert pending L1 batch since there are no L1 batches in Postgres")?;
         drop(connection);
 
-        tracing::info!("Rolling back to l1 batch number {sealed_l1_batch_number}");
-        reverter
-            .rollback_db(sealed_l1_batch_number, BlockReverterFlags::all(), None)
-            .await?;
-        tracing::info!("Rollback successfully completed");
+        tracing::info!("Reverting to l1 batch number {sealed_l1_batch_number}");
+        reverter.revert(sealed_l1_batch_number).await?;
+        tracing::info!("Revert successfully completed");
     }
 
     app_health.insert_component(reorg_detector.health_check().clone());

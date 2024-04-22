@@ -22,7 +22,6 @@ zksync_merkle_tree.workspace = true
 
 anyhow.workspace = true
 tokio = { workspace = true, features = ["time", "fs"] }
-bitflags.workspace = true
 serde.workspace = true
 tracing.workspace = true
 

@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
-use zksync_block_reverter::{BlockReverter, BlockReverterEthConfig, BlockReverterFlags, NodeRole};
+use zksync_block_reverter::{BlockReverter, BlockReverterEthConfig, NodeRole};
 use zksync_config::{
     configs::ObservabilityConfig, ContractsConfig, DBConfig, EthConfig, PostgresConfig,
 };
@@ -116,12 +116,7 @@ async fn main() -> anyhow::Result<()> {
     .build()
     .await
     .context("failed to build a connection pool")?;
-    let mut block_reverter = BlockReverter::new(
-        NodeRole::Main,
-        db_config.state_keeper_db_path,
-        db_config.merkle_tree.path,
-        connection_pool,
-    );
+    let mut block_reverter = BlockReverter::new(NodeRole::Main, connection_pool);
 
     match command {
         Command::Display { json, .. } => {
@@ -183,31 +178,25 @@ async fn main() -> anyhow::Result<()> {
                 block_reverter.allow_reverting_executed_batches();
             }
 
-            let mut object_store = None;
-            let mut flags = BlockReverterFlags::empty();
             if rollback_postgres {
-                flags |= BlockReverterFlags::POSTGRES;
+                block_reverter.enable_reverting_postgres();
                 let object_store_config = SnapshotsObjectStoreConfig::from_env()
                     .context("SnapshotsObjectStoreConfig::from_env()")?;
-                object_store = Some(
+                block_reverter.enable_reverting_snapshot_objects(
                     ObjectStoreFactory::new(object_store_config.0)
                         .create_store()
                         .await,
                 );
             }
             if rollback_tree {
-                flags |= BlockReverterFlags::TREE;
+                block_reverter.enable_reverting_merkle_tree(db_config.merkle_tree.path);
             }
             if rollback_sk_cache {
-                flags |= BlockReverterFlags::SK_CACHE;
+                block_reverter.enable_reverting_state_keeper_cache(db_config.state_keeper_db_path);
             }
 
             block_reverter
-                .rollback_db(
-                    L1BatchNumber(l1_batch_number),
-                    flags,
-                    object_store.as_deref(),
-                )
+                .revert(L1BatchNumber(l1_batch_number))
                 .await?;
         }
         Command::ClearFailedL1Transactions => {

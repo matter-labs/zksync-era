@@ -1,7 +1,6 @@
-use std::{path::Path, time::Duration};
+use std::{path::Path, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
-use bitflags::bitflags;
 use serde::Serialize;
 use tokio::fs;
 use zksync_config::{ContractsConfig, EthConfig};
@@ -30,14 +29,6 @@ use zksync_types::{
 
 #[cfg(test)]
 mod tests;
-
-bitflags! {
-    pub struct BlockReverterFlags: u32 {
-        const POSTGRES = 0b_0001;
-        const TREE = 0b_0010;
-        const SK_CACHE = 0b_0100;
-    }
-}
 
 #[derive(Debug)]
 pub struct BlockReverterEthConfig {
@@ -102,25 +93,24 @@ pub struct BlockReverter {
     /// It affects the interactions with the consensus state.
     /// This distinction will be removed once consensus genesis is moved to the L1 state.
     node_role: NodeRole,
-    state_keeper_cache_path: String,
-    merkle_tree_path: String,
-    connection_pool: ConnectionPool<Core>,
     allow_reverting_executed_batches: bool,
+    connection_pool: ConnectionPool<Core>,
+    should_revert_postgres: bool,
+    state_keeper_cache_path: Option<String>,
+    merkle_tree_path: Option<String>,
+    snapshots_object_store: Option<Arc<dyn ObjectStore>>,
 }
 
 impl BlockReverter {
-    pub fn new(
-        node_role: NodeRole,
-        state_keeper_cache_path: String,
-        merkle_tree_path: String,
-        connection_pool: ConnectionPool<Core>,
-    ) -> Self {
+    pub fn new(node_role: NodeRole, connection_pool: ConnectionPool<Core>) -> Self {
         Self {
             node_role,
-            state_keeper_cache_path,
-            merkle_tree_path,
-            connection_pool,
             allow_reverting_executed_batches: false,
+            connection_pool,
+            should_revert_postgres: false,
+            state_keeper_cache_path: None,
+            merkle_tree_path: None,
+            snapshots_object_store: None,
         }
     }
 
@@ -129,22 +119,37 @@ impl BlockReverter {
     ///
     /// Main use case for the setting this flag is the external node, where may obtain an
     /// incorrect state even for a block that was marked as executed. On the EN, this mode is not destructive.
-    pub fn allow_reverting_executed_batches(&mut self) {
+    pub fn allow_reverting_executed_batches(&mut self) -> &mut Self {
         self.allow_reverting_executed_batches = true;
+        self
     }
 
-    /// Rolls back DBs (Postgres + RocksDB) to a previous state. If Postgres is rolled back and `snapshots_object_store`
-    /// is specified, snapshot files will be deleted as well.
-    pub async fn rollback_db(
-        &self,
-        last_l1_batch_to_keep: L1BatchNumber,
-        flags: BlockReverterFlags,
-        snapshots_object_store: Option<&dyn ObjectStore>,
-    ) -> anyhow::Result<()> {
-        let rollback_tree = flags.contains(BlockReverterFlags::TREE);
-        let rollback_postgres = flags.contains(BlockReverterFlags::POSTGRES);
-        let rollback_sk_cache = flags.contains(BlockReverterFlags::SK_CACHE);
+    pub fn enable_reverting_postgres(&mut self) -> &mut Self {
+        self.should_revert_postgres = true;
+        self
+    }
 
+    pub fn enable_reverting_merkle_tree(&mut self, path: String) -> &mut Self {
+        self.merkle_tree_path = Some(path);
+        self
+    }
+
+    pub fn enable_reverting_state_keeper_cache(&mut self, path: String) -> &mut Self {
+        self.state_keeper_cache_path = Some(path);
+        self
+    }
+
+    pub fn enable_reverting_snapshot_objects(
+        &mut self,
+        object_store: Arc<dyn ObjectStore>,
+    ) -> &mut Self {
+        self.snapshots_object_store = Some(object_store);
+        self
+    }
+
+    /// Reverts DBs (Postgres + RocksDB) to a previous state. If Postgres is rolled back and `snapshots_object_store`
+    /// is specified, snapshot files will be deleted as well.
+    pub async fn revert(&self, last_l1_batch_to_keep: L1BatchNumber) -> anyhow::Result<()> {
         if !self.allow_reverting_executed_batches {
             let mut storage = self.connection_pool.connection().await?;
             let last_executed_l1_batch = storage
@@ -157,15 +162,15 @@ impl BlockReverter {
             );
         }
 
-        // Tree needs to be reverted first to keep state recoverable
-        self.rollback_rocks_dbs(last_l1_batch_to_keep, rollback_tree, rollback_sk_cache)
-            .await?;
-        let deleted_snapshots = if rollback_postgres {
-            self.rollback_postgres(last_l1_batch_to_keep).await?
+        // Tree needs to be reverted first to keep the state recoverable
+        self.revert_rocksdb_instances(last_l1_batch_to_keep).await?;
+        let deleted_snapshots = if self.should_revert_postgres {
+            self.revert_postgres(last_l1_batch_to_keep).await?
         } else {
             vec![]
         };
-        if let Some(object_store) = snapshots_object_store {
+
+        if let Some(object_store) = &self.snapshots_object_store {
             Self::delete_snapshot_files(object_store, &deleted_snapshots).await?;
         } else if !deleted_snapshots.is_empty() {
             tracing::info!(
@@ -177,13 +182,11 @@ impl BlockReverter {
         Ok(())
     }
 
-    async fn rollback_rocks_dbs(
+    async fn revert_rocksdb_instances(
         &self,
         last_l1_batch_to_keep: L1BatchNumber,
-        rollback_tree: bool,
-        rollback_sk_cache: bool,
     ) -> anyhow::Result<()> {
-        if rollback_tree {
+        if let Some(merkle_tree_path) = &self.merkle_tree_path {
             let storage_root_hash = self
                 .connection_pool
                 .connection()
@@ -194,7 +197,7 @@ impl BlockReverter {
                 .context("no state root hash for target L1 batch")?;
 
             // Rolling back Merkle tree
-            let merkle_tree_path = Path::new(&self.merkle_tree_path);
+            let merkle_tree_path = Path::new(merkle_tree_path);
             let merkle_tree_exists = fs::try_exists(merkle_tree_path).await.with_context(|| {
                 format!(
                     "cannot check whether Merkle tree path `{}` exists",
@@ -221,21 +224,19 @@ impl BlockReverter {
             }
         }
 
-        if rollback_sk_cache {
-            let sk_cache_exists = fs::try_exists(&self.state_keeper_cache_path)
+        if let Some(state_keeper_cache_path) = &self.state_keeper_cache_path {
+            let sk_cache_exists = fs::try_exists(state_keeper_cache_path)
                 .await
                 .with_context(|| {
                     format!(
-                        "cannot check whether state keeper cache path `{}` exists",
-                        self.state_keeper_cache_path
+                        "cannot check whether state keeper cache path `{state_keeper_cache_path}` exists"
                     )
                 })?;
             anyhow::ensure!(
                 sk_cache_exists,
-                "Path with state keeper cache DB doesn't exist at {}",
-                self.state_keeper_cache_path
+                "Path with state keeper cache DB doesn't exist at `{state_keeper_cache_path}`"
             );
-            self.rollback_state_keeper_cache(last_l1_batch_to_keep)
+            self.revert_state_keeper_cache(last_l1_batch_to_keep, state_keeper_cache_path)
                 .await?;
         }
         Ok(())
@@ -267,21 +268,19 @@ impl BlockReverter {
     }
 
     /// Reverts blocks in the state keeper cache.
-    async fn rollback_state_keeper_cache(
+    async fn revert_state_keeper_cache(
         &self,
         last_l1_batch_to_keep: L1BatchNumber,
+        state_keeper_cache_path: &str,
     ) -> anyhow::Result<()> {
-        tracing::info!(
-            "Opening DB with state keeper cache at `{}`",
-            self.state_keeper_cache_path
-        );
-        let sk_cache = RocksdbStorage::builder(self.state_keeper_cache_path.as_ref())
+        tracing::info!("Opening DB with state keeper cache at `{state_keeper_cache_path}`");
+        let sk_cache = RocksdbStorage::builder(state_keeper_cache_path.as_ref())
             .await
             .context("failed initializing state keeper cache")?;
 
         if sk_cache.l1_batch_number().await > Some(last_l1_batch_to_keep + 1) {
             let mut storage = self.connection_pool.connection().await?;
-            tracing::info!("Rolling back state keeper cache...");
+            tracing::info!("Rolling back state keeper cache");
             sk_cache
                 .rollback(&mut storage, last_l1_batch_to_keep)
                 .await
@@ -294,7 +293,7 @@ impl BlockReverter {
 
     /// Reverts data in the Postgres database.
     /// If `node_role` is `Main` a consensus hard-fork is performed.
-    async fn rollback_postgres(
+    async fn revert_postgres(
         &self,
         last_l1_batch_to_keep: L1BatchNumber,
     ) -> anyhow::Result<Vec<SnapshotMetadata>> {
