@@ -3011,6 +3011,213 @@ fn test_basic_environment3_vectors() {
 }
 
 #[test]
+fn test_basic_environment4_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    // extcodesize
+    // Using the following contract's deployed bytecode (len = 175):
+    /*
+    // SPDX-License-Identifier: MIT
+    pragma solidity ^0.8.20;
+
+    contract Test {
+        // selector == 0x6d4ce63c
+        function get() pure public returns (uint256) {
+            return 7;
+        }
+    }
+    */
+    let evm_output = test_evm_vector(
+        vec![
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("6080604052348015600e575f80fd5b5060af80601a5f395ff3fe608060405234")
+                .unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("8015600e575f80fd5b50600436106026575f3560e01c80636d4ce63c14602a57")
+                .unwrap(),
+            // push1 32
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("5b5f80fd5b60306044565b604051603b91906062565b60405180910390f35b5f")
+                .unwrap(),
+            // push1 64
+            hex::decode("60").unwrap(),
+            hex::decode("40").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("6007905090565b5f819050919050565b605c81604c565b82525050565b5f6020")
+                .unwrap(),
+            // push1 96
+            hex::decode("60").unwrap(),
+            hex::decode("60").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("8201905060735f8301846055565b9291505056fea26469706673582212201357")
+                .unwrap(),
+            // push1 128
+            hex::decode("60").unwrap(),
+            hex::decode("80").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("3db24498d07df7d6344f02fa1ccf8e15038b10c382a6d71537a002ad4e736473")
+                .unwrap(),
+            // push1 160
+            hex::decode("60").unwrap(),
+            hex::decode("A0").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("6f6c634300081900330000000000000000000000000000000000000000000000")
+                .unwrap(),
+            // push1 192
+            hex::decode("60").unwrap(),
+            hex::decode("C0").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 201
+            hex::decode("60").unwrap(),
+            hex::decode("C9").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // create
+            hex::decode("F0").unwrap(),
+            // extcodesize
+            hex::decode("3B").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(evm_output, 175.into());
+
+    // extcodecopy
+    // Creates a constructor that creates a contract with 30 FF and 37 as code
+    /*
+    PUSH32 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+    PUSH1 0
+    MSTORE
+    PUSH32 0x3760005260206000F30000000000000000000000000000000000000000000000
+    PUSH1 32
+    MSTORE
+
+    // Create the contract with the constructor code above
+    PUSH1 41
+    PUSH1 0
+    PUSH1 0
+    CREATE // Puts the new contract address on the stack
+
+    // Clear the memory for the examples
+    PUSH1 0
+    PUSH1 0
+    MSTORE
+    PUSH1 0
+    PUSH1 32
+    MSTORE
+
+    // Example 1
+    PUSH1 32
+    PUSH1 0
+    PUSH1 0
+    DUP4
+    EXTCODECOPY
+    */
+    let evm_output = test_evm_vector(
+        vec![
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
+                .unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("3760005260206000F30000000000000000000000000000000000000000000000")
+                .unwrap(),
+            // push1 32
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 41
+            hex::decode("60").unwrap(),
+            hex::decode("29").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // create
+            hex::decode("F0").unwrap(),
+            // push0 -- clear the memory
+            hex::decode("5F").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // push1 32
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 32 -- begin extcodecopy
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // dup4
+            hex::decode("83").unwrap(),
+            // extcodecopy
+            hex::decode("3C").unwrap(),
+            // push1 memOffset
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // mload
+            hex::decode("51").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(
+        H256(evm_output.into()),
+        H256(U256::from("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff37").into())
+    );
+
+    // TODO test returndatasize and returndatacopy -> staticcall is needed
+}
+
+#[test]
 fn test_basic_logs_vectors() {
     // Here we just try to test some small EVM contracts and ensure that they work.
     // LOG0
