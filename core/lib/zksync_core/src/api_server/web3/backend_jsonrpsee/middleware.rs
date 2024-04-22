@@ -112,6 +112,11 @@ where
 /// as metrics.
 ///
 /// As an example, a method handler can set the requested block ID, which would then be used in relevant metric labels.
+///
+/// # Implementation notes
+///
+/// We express `TRACE_PARAMS` as a const param rather than a field so that the Rust compiler has more room for optimizations in case tracing
+/// is switched off.
 #[derive(Debug)]
 pub(crate) struct MetadataMiddleware<S, const TRACE_PARAMS: bool> {
     inner: S,
@@ -176,6 +181,13 @@ impl<F: Future<Output = MethodResponse>> Future for WithMethodCall<'_, F> {
     }
 }
 
+/// [`tower`] middleware layer that wraps services into [`MetadataMiddleware`]. Implemented as a named type
+/// to simplify call sites.
+///
+/// # Implementation notes
+///
+/// We express `TRACE_PARAMS` as a const param rather than a field so that the Rust compiler has more room for optimizations in case tracing
+/// is switched off.
 #[derive(Debug, Clone)]
 pub(crate) struct MetadataLayer<const TRACE_PARAMS: bool> {
     registered_method_names: Arc<HashSet<&'static str>>,

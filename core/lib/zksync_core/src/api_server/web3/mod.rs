@@ -669,14 +669,18 @@ impl ApiServer {
         let traffic_tracker = TrafficTracker::default();
         let traffic_tracker_for_middleware = traffic_tracker.clone();
 
+        // **Important.** The ordering of layers matters! Layers added first will receive the request earlier
+        // (i.e., are outermost in the call chain).
         let rpc_middleware = RpcServiceBuilder::new()
             .layer_fn(move |svc| {
                 ShutdownMiddleware::new(svc, traffic_tracker_for_middleware.clone())
             })
+            // We want to output method logs with a correlation ID; hence, `CorrelationMiddleware` must precede `metadata_layer`.
             .option_layer(
                 extended_tracing.then(|| tower::layer::layer_fn(CorrelationMiddleware::new)),
             )
             .layer(metadata_layer)
+            // We want to capture limit middleware errors with `metadata_layer`; hence, `LimitMiddleware` is placed after it.
             .option_layer((!is_http).then(|| {
                 tower::layer::layer_fn(move |svc| {
                     LimitMiddleware::new(svc, websocket_requests_per_minute_limit)
