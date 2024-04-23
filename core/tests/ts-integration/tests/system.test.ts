@@ -325,11 +325,7 @@ describe('System behavior checks', () => {
         const abi = getTestContract('ICreate2Factory').abi;
         const hash = hashBytecode(bytecode);
 
-        const contractFactory = new ethers.Contract(
-            BUILTIN_CREATE2_FACTORY_ADDRESS,
-            abi,
-            alice
-        );
+        const contractFactory = new ethers.Contract(BUILTIN_CREATE2_FACTORY_ADDRESS, abi, alice);
 
         const deploymentTx = await (await contractFactory.create2(salt, hash, [])).wait();
 
@@ -340,7 +336,6 @@ describe('System behavior checks', () => {
 
         expect(deployedAddress.deployedAddress.toLocaleLowerCase()).toEqual(correctCreate2Address.toLocaleLowerCase());
         expect(await alice.provider.getCode(deployedAddress.deployedAddress)).toEqual(bytecode);
-
     });
 
     afterAll(async () => {
