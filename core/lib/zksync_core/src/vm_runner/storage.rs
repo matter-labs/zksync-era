@@ -71,6 +71,9 @@ pub trait VmRunnerStorageLoader: Debug + Send + Sync + 'static {
 /// caught up). Always initialized as a `Postgres` variant and is then mutated into `Rocksdb`
 /// once RocksDB cache is caught up.
 /// 2. Loads data needed to re-execute the next unprocessed L1 batch.
+///
+/// Users of `VmRunnerStorage` are not supposed to retain storage access to batches that are less
+/// than `L::latest_processed_batch`. Holding one is considered to be an undefined behaviour.
 #[derive(Debug)]
 pub struct VmRunnerStorage<L: VmRunnerStorageLoader> {
     pool: ConnectionPool<Core>,
@@ -276,15 +279,13 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
                 tracing::info!("`StorageSyncTask` was interrupted");
                 return Ok(());
             }
-            // It's important to hold a lock on `state` while we are updating RocksDB cache
-            // as otherwise `VmRunnerStorage` will have an inconsistent view on DB state.
-            let mut state = self.state.write().await;
             let mut conn = self.pool.connection_tagged(L::name()).await?;
             let latest_processed_batch = self.loader.latest_processed_batch(&mut conn).await?;
             let rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb.clone());
             if rocksdb_builder.l1_batch_number().await == Some(latest_processed_batch + 1) {
                 // RocksDB is already caught up, we might not need to do anything.
                 // Just need to check that the memory diff is up-to-date in case this is a fresh start.
+                let state = self.state.read().await;
                 if state
                     .storage
                     .contains_key(&self.loader.last_ready_to_be_loaded_batch(&mut conn).await?)
@@ -296,6 +297,9 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
                     continue;
                 }
             }
+            // We rely on the assumption that no one is holding storage access to a batch with
+            // number less than `latest_processed_batch`. If they do, RocksDB synchronization below
+            // will cause them to have an inconsistent view on DB which we consider to be a UB.
             let rocksdb = rocksdb_builder
                 .synchronize(&mut conn, &stop_receiver, Some(latest_processed_batch))
                 .await
@@ -304,6 +308,7 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
                 tracing::info!("`StorageSyncTask` was interrupted during RocksDB synchronization");
                 return Ok(());
             };
+            let mut state = self.state.write().await;
             state.rocksdb = Some(rocksdb);
             state.l1_batch_number = latest_processed_batch;
             state
