@@ -89,8 +89,8 @@ use crate::{
     },
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     state_keeper::{
-        create_state_keeper, MempoolFetcher, MempoolGuard, OutputHandler, SequencerSealer,
-        StateKeeperPersistence,
+        create_state_keeper, AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler,
+        SequencerSealer, StateKeeperPersistence,
     },
     utils::ensure_l1_batch_commit_data_generation_mode,
 };
@@ -828,8 +828,7 @@ async fn add_state_keeper_to_task_futures(
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
-    let pool_builder = ConnectionPool::<Core>::singleton(postgres_config.master_url()?);
-    let state_keeper_pool = pool_builder
+    let state_keeper_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
         .build()
         .await
         .context("failed to build state_keeper_pool")?;
@@ -843,21 +842,29 @@ async fn add_state_keeper_to_task_futures(
         mempool
     };
 
-    let l2_block_sealer_pool = pool_builder
+    let l2_block_sealer_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
         .build()
         .await
         .context("failed to build l2_block_sealer_pool")?;
     let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
         l2_block_sealer_pool,
         contracts_config.l2_erc20_bridge_addr,
-        state_keeper_config.miniblock_seal_queue_capacity,
+        state_keeper_config.l2_block_seal_queue_capacity,
     );
     task_futures.push(tokio::spawn(l2_block_sealer.run()));
 
-    let (state_keeper, async_catchup_task) = create_state_keeper(
+    // One (potentially held long-term) connection for `AsyncCatchupTask` and another connection
+    // to access `AsyncRocksdbCache` as a storage.
+    let async_cache_pool = ConnectionPool::<Core>::builder(postgres_config.master_url()?, 2)
+        .build()
+        .await
+        .context("failed to build async_cache_pool")?;
+    let (async_cache, async_catchup_task) =
+        AsyncRocksdbCache::new(async_cache_pool, db_config.state_keeper_db_path.clone());
+    let state_keeper = create_state_keeper(
         state_keeper_config,
         state_keeper_wallets,
-        db_config,
+        async_cache,
         l2chain_id,
         mempool_config,
         state_keeper_pool,
@@ -876,7 +883,7 @@ async fn add_state_keeper_to_task_futures(
     }));
     task_futures.push(tokio::spawn(state_keeper.run()));
 
-    let mempool_fetcher_pool = pool_builder
+    let mempool_fetcher_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
         .build()
         .await
         .context("failed to build mempool_fetcher_pool")?;
