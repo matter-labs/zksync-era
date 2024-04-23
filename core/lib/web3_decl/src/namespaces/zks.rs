@@ -121,4 +121,7 @@ pub trait ZksNamespace {
         keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
     ) -> RpcResult<Option<Proof>>;
+
+    #[method(name = "getGasPerPubdataByte")]
+    async fn get_gas_per_pubdata_byte(&self) -> RpcResult<U256>;
 }

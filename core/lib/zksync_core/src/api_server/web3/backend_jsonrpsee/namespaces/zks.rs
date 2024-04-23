@@ -172,4 +172,8 @@ impl ZksNamespaceServer for ZksNamespace {
         self.get_base_token_l1_address_impl()
             .map_err(|err| self.current_method().map_err(err))
     }
+
+    async fn get_gas_per_pubdata_byte(&self) -> RpcResult<U256> {
+        Ok(self.get_gas_per_pubdata_byte_impl().await)
+    }
 }

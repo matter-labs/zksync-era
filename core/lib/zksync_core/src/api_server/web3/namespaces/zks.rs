@@ -3,7 +3,7 @@ use std::{collections::HashMap, convert::TryInto};
 use anyhow::Context as _;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
+use zksync_system_constants::{DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE, L1_GAS_PER_PUBDATA_BYTE};
 use zksync_types::{
     api::{
         BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof,
@@ -570,5 +570,19 @@ impl ZksNamespace {
             .api_config
             .base_token_address
             .ok_or(Web3Error::NotImplemented)
+    }
+    pub async fn get_gas_per_pubdata_byte_impl(&self) -> U256 {
+        let fee_input = self
+            .state
+            .tx_sender
+            .0
+            .batch_fee_input_provider
+            .get_batch_fee_input()
+            .await;
+
+        let l1_fair_pubdata_price = fee_input.fair_pubdata_price(); // wei per byte submitted on L1
+        let l2_gas_price = fee_input.fair_l2_gas_price(); // wei per 1 unit of L2 gas
+
+        U256::from(l1_fair_pubdata_price / l2_gas_price)
     }
 }
