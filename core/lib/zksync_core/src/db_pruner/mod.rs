@@ -4,9 +4,14 @@ use std::{fmt, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use serde::Serialize;
 use tokio::sync::watch;
-use zksync_dal::{pruning_dal::HardPruningStats, Connection, ConnectionPool, Core, CoreDal};
-use zksync_types::L1BatchNumber;
+use zksync_dal::{
+    pruning_dal::{HardPruningStats, PruningInfo},
+    Connection, ConnectionPool, Core, CoreDal,
+};
+use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
+use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 use self::{
     metrics::{MetricPruneType, METRICS},
@@ -34,11 +39,35 @@ pub struct DbPrunerConfig {
     pub minimum_l1_batch_age: Duration,
 }
 
+#[derive(Debug, Serialize)]
+struct DbPrunerHealth {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_soft_pruned_l1_batch: Option<L1BatchNumber>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_soft_pruned_l2_block: Option<L2BlockNumber>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_hard_pruned_l1_batch: Option<L1BatchNumber>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_hard_pruned_l2_block: Option<L2BlockNumber>,
+}
+
+impl From<PruningInfo> for DbPrunerHealth {
+    fn from(info: PruningInfo) -> Self {
+        Self {
+            last_soft_pruned_l1_batch: info.last_soft_pruned_l1_batch,
+            last_soft_pruned_l2_block: info.last_soft_pruned_l2_block,
+            last_hard_pruned_l1_batch: info.last_hard_pruned_l1_batch,
+            last_hard_pruned_l2_block: info.last_hard_pruned_l2_block,
+        }
+    }
+}
+
 /// Postgres database pruning component.
 #[derive(Debug)]
 pub struct DbPruner {
     config: DbPrunerConfig,
     connection_pool: ConnectionPool<Core>,
+    health_updater: HealthUpdater,
     prune_conditions: Vec<Arc<dyn PruneCondition>>,
 }
 
@@ -79,8 +108,13 @@ impl DbPruner {
         Self {
             config,
             connection_pool,
+            health_updater: ReactiveHealthCheck::new("db_pruner").1,
             prune_conditions,
         }
+    }
+
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.health_updater.subscribe()
     }
 
     async fn is_l1_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> bool {
@@ -127,11 +161,16 @@ impl DbPruner {
         Ok(())
     }
 
+    fn update_health(&self, info: PruningInfo) {
+        let health = Health::from(HealthStatus::Ready).with_details(DbPrunerHealth::from(info));
+        self.health_updater.update(health);
+    }
+
     async fn soft_prune(&self, storage: &mut Connection<'_, Core>) -> anyhow::Result<bool> {
         let latency = METRICS.pruning_chunk_duration[&MetricPruneType::Soft].start();
         let mut transaction = storage.start_transaction().await?;
 
-        let current_pruning_info = transaction.pruning_dal().get_pruning_info().await?;
+        let mut current_pruning_info = transaction.pruning_dal().get_pruning_info().await?;
         let next_l1_batch_to_prune = L1BatchNumber(
             current_pruning_info
                 .last_soft_pruned_l1_batch
@@ -161,6 +200,9 @@ impl DbPruner {
             "Soft pruned db l1_batches up to {next_l1_batch_to_prune} and miniblocks up to {next_miniblock_to_prune}, operation took {latency:?}",
         );
 
+        current_pruning_info.last_soft_pruned_l1_batch = Some(next_l1_batch_to_prune);
+        current_pruning_info.last_soft_pruned_l2_block = Some(next_miniblock_to_prune);
+        self.update_health(current_pruning_info);
         Ok(true)
     }
 
@@ -168,7 +210,7 @@ impl DbPruner {
         let latency = METRICS.pruning_chunk_duration[&MetricPruneType::Hard].start();
         let mut transaction = storage.start_transaction().await?;
 
-        let current_pruning_info = transaction.pruning_dal().get_pruning_info().await?;
+        let mut current_pruning_info = transaction.pruning_dal().get_pruning_info().await?;
         let last_soft_pruned_l1_batch =
             current_pruning_info.last_soft_pruned_l1_batch.with_context(|| {
                 format!("bogus pruning info {current_pruning_info:?}: trying to hard-prune data, but there is no soft-pruned L1 batch")
@@ -196,6 +238,9 @@ impl DbPruner {
             "Hard pruned db l1_batches up to {last_soft_pruned_l1_batch} and miniblocks up to {last_soft_pruned_miniblock}, \
             operation took {latency:?}"
         );
+        current_pruning_info.last_hard_pruned_l1_batch = Some(last_soft_pruned_l1_batch);
+        current_pruning_info.last_hard_pruned_l2_block = Some(last_soft_pruned_miniblock);
+        self.update_health(current_pruning_info);
         Ok(())
     }
 
@@ -222,6 +267,7 @@ impl DbPruner {
     async fn run_single_iteration(&self) -> anyhow::Result<bool> {
         let mut storage = self.connection_pool.connection_tagged("db_pruner").await?;
         let current_pruning_info = storage.pruning_dal().get_pruning_info().await?;
+        self.update_health(current_pruning_info);
 
         // If this `if` is not entered, it means that the node has restarted after soft pruning
         if current_pruning_info.last_soft_pruned_l1_batch
@@ -252,6 +298,11 @@ impl DbPruner {
                         "Pruning error, retrying in {:?}, error was: {err:?}",
                         self.config.next_iterations_delay
                     );
+                    let health =
+                        Health::from(HealthStatus::Affected).with_details(serde_json::json!({
+                            "error": err.to_string(),
+                        }));
+                    self.health_updater.update(health);
                     true
                 }
                 Ok(pruning_done) => !pruning_done,
