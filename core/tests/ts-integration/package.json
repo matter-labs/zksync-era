@@ -9,8 +9,8 @@
     "fee-test": "RUN_FEE_TEST=1 zk f jest -- fees.test.ts",
     "api-test": "zk f jest -- api/web3.test.ts api/debug.test.ts",
     "contract-verification-test": "zk f jest -- api/contract-verification.test.ts",
-    "build": "hardhat compile",
-    "build-yul": "hardhat run scripts/compile-yul.ts"
+    "build": "yarn ts-node scripts/build.ts",
+    "build-yul": "yarn ts-node scripts/compile-yul.ts"
   },
   "devDependencies": {
     "@matterlabs/hardhat-zksync-deploy":  "^0.6.5",

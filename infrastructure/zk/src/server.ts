@@ -46,20 +46,7 @@ export async function externalNode(reinit: boolean = false, args: string[]) {
 
 async function create_genesis(cmd: string) {
     await utils.confirmAction();
-    await utils.spawn(`${cmd} | tee genesis.log`);
-
-    const date = new Date();
-    const [year, month, day, hour, minute, second] = [
-        date.getFullYear(),
-        date.getMonth(),
-        date.getDate(),
-        date.getHours(),
-        date.getMinutes(),
-        date.getSeconds()
-    ];
-    const label = `${process.env.ZKSYNC_ENV}-Genesis_gen-${year}-${month}-${day}-${hour}${minute}${second}`;
-    fs.mkdirSync(`logs/${label}`, { recursive: true });
-    fs.copyFileSync('genesis.log', `logs/${label}/genesis.log`);
+    await utils.spawn(`${cmd}`);
 }
 
 export async function genesisFromSources() {
