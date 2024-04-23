@@ -197,7 +197,6 @@ impl FriGpuProverQueueDal<'_, '_> {
         let prover_max_age =
             pg_interval_from_duration(Duration::from_secs(archive_prover_after_secs));
 
-        // TODO: probably there is a way to make this query better
         sqlx::query_scalar!(
             r#"
             WITH deleted AS (
