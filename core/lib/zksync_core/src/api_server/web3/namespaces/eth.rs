@@ -13,7 +13,7 @@ use zksync_types::{
         self,
         types::{FeeHistory, SyncInfo, SyncState},
     },
-    AccountTreeId, Bytes, MiniblockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS, U256,
+    AccountTreeId, Bytes, L2BlockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
@@ -47,7 +47,7 @@ impl EthNamespace {
         let mut storage = self.state.acquire_connection().await?;
         let block_number = storage
             .blocks_dal()
-            .get_sealed_miniblock_number()
+            .get_sealed_l2_block_number()
             .await
             .map_err(DalError::generalize)?
             .ok_or(Web3Error::NoBlock)?;
@@ -163,7 +163,7 @@ impl EthNamespace {
         Ok(balance)
     }
 
-    fn set_block_diff(&self, block_number: MiniblockNumber) {
+    fn set_block_diff(&self, block_number: L2BlockNumber) {
         let diff = self.state.last_sealed_miniblock.diff(block_number);
         self.current_method().set_block_diff(diff);
     }
@@ -506,7 +506,7 @@ impl EthNamespace {
         let mut storage = self.state.acquire_connection().await?;
         let last_block_number = storage
             .blocks_dal()
-            .get_sealed_miniblock_number()
+            .get_sealed_l2_block_number()
             .await
             .map_err(DalError::generalize)?
             .context("no miniblocks in storage")?;

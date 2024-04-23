@@ -74,7 +74,7 @@ async fn wait_for_notifiers(
 async fn wait_for_notifier_miniblock(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     sub_type: SubscriptionType,
-    expected: MiniblockNumber,
+    expected: L2BlockNumber,
 ) {
     let wait_future = tokio::time::timeout(TEST_TIMEOUT, async {
         loop {
@@ -273,7 +273,7 @@ impl WsTest for BasicSubscriptionsTest {
         let miniblock_number = if self.snapshot_recovery {
             StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 2
         } else {
-            MiniblockNumber(1)
+            L2BlockNumber(1)
         };
         let new_miniblock = store_miniblock(&mut storage, miniblock_number, &[tx_result]).await?;
         drop(storage);
@@ -581,7 +581,7 @@ impl WsTest for LogSubscriptionsWithDelayTest {
         wait_for_notifier_miniblock(
             &mut pub_sub_events,
             SubscriptionType::Logs,
-            MiniblockNumber(1),
+            L2BlockNumber(1),
         )
         .await;
 
