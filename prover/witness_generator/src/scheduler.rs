@@ -124,7 +124,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
     const SERVICE_NAME: &'static str = "fri_scheduler_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.connection().await.unwrap();
+        let mut prover_connection = self.prover_connection_pool.connection().await?;
         let pod_name = get_current_pod_name();
         let Some(l1_batch_number) = prover_connection
             .fri_witness_generator_dal()
@@ -137,12 +137,10 @@ impl JobProcessor for SchedulerWitnessGenerator {
             .fri_prover_jobs_dal()
             .get_recursion_tip_proof_job_id(l1_batch_number)
             .await
-            .unwrap_or_else(|| {
-                panic!(
-                    "could not find recursion tip proof for l1 batch {}",
-                    l1_batch_number
-                )
-            });
+            .context(format!(
+                "could not find recursion tip proof for l1 batch {}",
+                l1_batch_number
+            ))?;
 
         Ok(Some((
             l1_batch_number,
@@ -193,13 +191,12 @@ impl JobProcessor for SchedulerWitnessGenerator {
         let scheduler_circuit_blob_url = self
             .object_store
             .put(key, &CircuitWrapper::Recursive(artifacts.scheduler_circuit))
-            .await
-            .unwrap();
+            .await?;
         WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::Scheduler.into()]
             .observe(blob_save_started_at.elapsed());
 
-        let mut prover_connection = self.prover_connection_pool.connection().await.unwrap();
-        let mut transaction = prover_connection.start_transaction().await.unwrap();
+        let mut prover_connection = self.prover_connection_pool.connection().await?;
+        let mut transaction = prover_connection.start_transaction().await?;
         let protocol_version_id = transaction
             .fri_witness_generator_dal()
             .protocol_version_for_l1_batch(job_id)
@@ -223,7 +220,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
             .mark_scheduler_job_as_successful(job_id, started_at.elapsed())
             .await;
 
-        transaction.commit().await.unwrap();
+        transaction.commit().await?;
         Ok(())
     }
 
@@ -252,7 +249,7 @@ pub async fn prepare_job(
     object_store: &dyn ObjectStore,
 ) -> anyhow::Result<SchedulerWitnessGeneratorJob> {
     let started_at = Instant::now();
-    let wrapper = object_store.get(recursion_tip_job_id).await.unwrap();
+    let wrapper = object_store.get(recursion_tip_job_id).await?;
     let recursion_tip_proof = match wrapper {
         FriProofWrapper::Base(_) => Err(anyhow::anyhow!(
             "Expected only recursive proofs for scheduler l1 batch {l1_batch_number}, got Base"
@@ -270,7 +267,7 @@ pub async fn prepare_job(
         )
         .context("get_recursive_layer_vk_for_circuit_type()")?;
     let SchedulerPartialInputWrapper(mut scheduler_witness) =
-        object_store.get(l1_batch_number).await.unwrap();
+        object_store.get(l1_batch_number).await?;
 
     let recursion_tip_vk = keystore
         .load_recursive_layer_verification_key(

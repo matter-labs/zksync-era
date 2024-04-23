@@ -207,7 +207,7 @@ pub async fn load_proofs_for_job_ids(
     proofs
 }
 
-/// Loads all proofs for aa given recursion tip's job ids.
+/// Loads all proofs for a given recursion tip's job ids.
 /// Note that recursion tip may not have proofs for some specific circuits (because the batch didn't contain them).
 /// In this scenario, we still need to pass a proof, but it won't be taken into account during proving.
 /// For this scenario, we use an empty_proof, but any proof would suffice.

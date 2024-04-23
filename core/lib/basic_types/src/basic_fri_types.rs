@@ -43,7 +43,7 @@ impl Eip4844Blobs {
         self.blobs().into_iter().flatten().flatten().collect()
     }
 
-    pub fn decode(blobs: Vec<u8>) -> Self {
+    pub fn decode(blobs: &[u8]) -> anyhow::Result<Self> {
         let mut chunks: Vec<Blob> = blobs
             .chunks(EIP_4844_BLOB_SIZE)
             .map(|chunk| chunk.into())
@@ -52,22 +52,25 @@ impl Eip4844Blobs {
         if let Some(last_chunk) = chunks.last_mut() {
             last_chunk.resize(EIP_4844_BLOB_SIZE, 0u8);
         } else {
-            panic!("cannot create Eip4844Blobs, received empty pubdata");
+            return Err(anyhow::anyhow!(
+                "cannot create Eip4844Blobs, received empty pubdata"
+            ));
         }
 
-        assert!(
-            chunks.len() <= MAX_4844_BLOBS_PER_BLOCK,
-            "cannot create Eip4844Blobs, expected max {}, received {}",
-            MAX_4844_BLOBS_PER_BLOCK,
-            chunks.len()
-        );
+        if chunks.len() > MAX_4844_BLOBS_PER_BLOCK {
+            return Err(anyhow::anyhow!(
+                "cannot create Eip4844Blobs, expected max {}, received {}",
+                MAX_4844_BLOBS_PER_BLOCK,
+                chunks.len()
+            ));
+        }
 
         let mut blobs: [Option<Blob>; MAX_4844_BLOBS_PER_BLOCK] = Default::default();
         for (i, blob) in chunks.into_iter().enumerate() {
             blobs[i] = Some(blob);
         }
 
-        Self { blobs }
+        Ok(Self { blobs })
     }
 }
 
@@ -176,18 +179,32 @@ mod tests {
     use super::*;
 
     #[test]
-    #[should_panic]
     fn test_eip_4844_blobs_empty_pubdata() {
         let payload = vec![];
-        let _ = Eip4844Blobs::decode(payload);
+        match Eip4844Blobs::decode(&payload) {
+            Ok(_) => panic!("expected error, got Ok"),
+            Err(e) => {
+                assert_eq!(
+                    e.to_string(),
+                    "cannot create Eip4844Blobs, received empty pubdata"
+                );
+            }
+        }
     }
 
     #[test]
-    #[should_panic]
     fn test_eip_4844_blobs_too_much_pubdata() {
         // blob size (126976) * 16 (max number of blobs) + 1
         let payload = vec![1; 2031617];
-        let _ = Eip4844Blobs::decode(payload);
+        match Eip4844Blobs::decode(&payload) {
+            Ok(_) => panic!("expected error, got Ok"),
+            Err(e) => {
+                assert_eq!(
+                    e.to_string(),
+                    "cannot create Eip4844Blobs, expected max 16, received 17"
+                );
+            }
+        }
     }
 
     // General test.
@@ -199,7 +216,7 @@ mod tests {
         for no_blobs in 1..=16 {
             // blob size (126976) - 1 for the last byte
             let payload = vec![1; no_blobs * 126976 - 1];
-            let eip_4844_blobs = Eip4844Blobs::decode(payload);
+            let eip_4844_blobs = Eip4844Blobs::decode(&payload).unwrap();
             let blobs = eip_4844_blobs.blobs();
             assert_eq!(blobs.len(), 16, "expecting 16 blobs, got {}", blobs.len());
             for (index, blob) in blobs.iter().enumerate().take(no_blobs - 1) {
@@ -238,7 +255,7 @@ mod tests {
         for no_blobs in 1..=16 {
             // blob size (126976)
             let payload = vec![1; no_blobs * 126976];
-            let eip_4844_blobs = Eip4844Blobs::decode(payload);
+            let eip_4844_blobs = Eip4844Blobs::decode(&payload).unwrap();
             let blobs = eip_4844_blobs.blobs();
             assert_eq!(blobs.len(), 16, "expecting 16 blobs, got {}", blobs.len());
             for (index, blob) in blobs.iter().enumerate().take(no_blobs) {
@@ -265,7 +282,7 @@ mod tests {
         let initial_len = 126970;
         let blob_padded_size = EIP_4844_BLOB_SIZE;
         let payload = vec![1; initial_len];
-        let eip_4844_blobs = Eip4844Blobs::decode(payload);
+        let eip_4844_blobs = Eip4844Blobs::decode(&payload).unwrap();
         let raw = eip_4844_blobs.encode();
         assert_ne!(raw.len(), initial_len);
         assert_eq!(raw.len(), 126976);

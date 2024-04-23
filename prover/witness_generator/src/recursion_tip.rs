@@ -139,7 +139,7 @@ impl JobProcessor for RecursionTipWitnessGenerator {
     const SERVICE_NAME: &'static str = "recursion_tip_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.connection().await.unwrap();
+        let mut prover_connection = self.prover_connection_pool.connection().await?;
         let pod_name = get_current_pod_name();
         let Some(l1_batch_number) = prover_connection
             .fri_witness_generator_dal()
@@ -211,14 +211,13 @@ impl JobProcessor for RecursionTipWitnessGenerator {
                 key,
                 &CircuitWrapper::Recursive(artifacts.recursion_tip_circuit),
             )
-            .await
-            .unwrap();
+            .await?;
 
         WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::RecursionTip.into()]
             .observe(blob_save_started_at.elapsed());
 
-        let mut prover_connection = self.prover_connection_pool.connection().await.unwrap();
-        let mut transaction = prover_connection.start_transaction().await.unwrap();
+        let mut prover_connection = self.prover_connection_pool.connection().await?;
+        let mut transaction = prover_connection.start_transaction().await?;
         let protocol_version_id = transaction
             .fri_witness_generator_dal()
             .protocol_version_for_l1_batch(job_id)
@@ -242,7 +241,7 @@ impl JobProcessor for RecursionTipWitnessGenerator {
             .mark_recursion_tip_job_as_successful(job_id, started_at.elapsed())
             .await;
 
-        transaction.commit().await.unwrap();
+        transaction.commit().await?;
         Ok(())
     }
 
@@ -291,7 +290,7 @@ pub async fn prepare_job(
             block_number: l1_batch_number,
             circuit_id,
         };
-        let ClosedFormInputWrapper(_, recursion_queue) = object_store.get(key).await.unwrap();
+        let ClosedFormInputWrapper(_, recursion_queue) = object_store.get(key).await?;
         recursion_queues.push((circuit_id, recursion_queue));
     }
 

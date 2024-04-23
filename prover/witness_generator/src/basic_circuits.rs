@@ -192,7 +192,7 @@ impl JobProcessor for BasicWitnessGenerator {
     const SERVICE_NAME: &'static str = "fri_basic_circuit_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.connection().await.unwrap();
+        let mut prover_connection = self.prover_connection_pool.connection().await?;
         let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
         let pod_name = get_current_pod_name();
         match prover_connection

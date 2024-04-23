@@ -23,7 +23,7 @@ flowchart LR
     C --- C1["Basic Circuits"]
     C --- C2["Leaf Aggregation"]
     C --- C3["Node Aggregation"]
-    c --- C4["Recursion Tip"]
+    C --- C4["Recursion Tip"]
     C --- C5["Scheduler"]
     C --> B
     B --> D["Vector Generator/Prover"]
@@ -80,7 +80,7 @@ installation as a pre-requisite, alongside these machine specs:
    API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --round=basic_circuits
    API_PROMETHEUS_LISTENER_PORT=3117 zk f cargo run --release --bin zksync_witness_generator -- --round=leaf_aggregation
    API_PROMETHEUS_LISTENER_PORT=3118 zk f cargo run --release --bin zksync_witness_generator -- --round=node_aggregation
-   API_PROMETHEUS_LISTENER_PORT=3120 zk f cargo run --release --bin zksync_witness_generator -- --round=recursion_tip
+   API_PROMETHEUS_LISTENER_PORT=3119 zk f cargo run --release --bin zksync_witness_generator -- --round=recursion_tip
    API_PROMETHEUS_LISTENER_PORT=3120 zk f cargo run --release --bin zksync_witness_generator -- --round=scheduler
    ```
 

@@ -51,15 +51,13 @@ impl PeriodicApi<ProofGenerationDataRequest> for PeriodicApiStruct {
 
     async fn handle_response(&self, _: (), response: Self::Response) {
         match response {
-            ProofGenerationDataResponse::Success(resp) => match *resp {
-                Some(data) => {
-                    tracing::info!("Received proof gen data for: {:?}", data.l1_batch_number);
-                    self.save_proof_gen_data(data).await;
-                }
-                None => {
-                    tracing::info!("There are currently no pending batches to be proven");
-                }
-            },
+            ProofGenerationDataResponse::Success(Some(data)) => {
+                tracing::info!("Received proof gen data for: {:?}", data.l1_batch_number);
+                self.save_proof_gen_data(*data).await;
+            }
+            ProofGenerationDataResponse::Success(None) => {
+                tracing::info!("There are currently no pending batches to be proven");
+            }
             ProofGenerationDataResponse::Error(err) => {
                 tracing::error!("Failed to get proof gen data: {:?}", err);
             }

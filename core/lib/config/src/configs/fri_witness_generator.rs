@@ -63,11 +63,11 @@ impl WitnessGenerationTimeouts {
 
     pub fn new(basic: u16, leaf: u16, node: u16, recursion_tip: u16, scheduler: u16) -> Self {
         Self {
-            basic: Duration::from_secs(basic as u64),
-            leaf: Duration::from_secs(leaf as u64),
-            node: Duration::from_secs(node as u64),
-            recursion_tip: Duration::from_secs(recursion_tip as u64),
-            scheduler: Duration::from_secs(scheduler as u64),
+            basic: Duration::from_secs(basic.into()),
+            leaf: Duration::from_secs(leaf.into()),
+            node: Duration::from_secs(node.into()),
+            recursion_tip: Duration::from_secs(recursion_tip.into()),
+            scheduler: Duration::from_secs(scheduler.into()),
         }
     }
 }
