@@ -1,7 +1,6 @@
 import { Command } from 'commander';
 import * as utils from './utils';
 import { clean } from './clean';
-import fs from 'fs';
 import * as path from 'path';
 import * as db from './database';
 import * as env from './env';
