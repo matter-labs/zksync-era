@@ -9,7 +9,7 @@ use crate::ProtocolVersionId;
 /// versions of Era prior to 1.4.1 integration.
 /// - `PubdataIndependent`: L1 gas price and pubdata price are not necessarily dependent on one another. This options is more suitable for the
 /// versions of Era after the 1.4.1 integration. It is expected that if a VM supports `PubdataIndependent` version, then it should also support `L1Pegged` version, but converting it into `PubdataIndependentBatchFeeModelInput` in-place.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BatchFeeInput {
     L1Pegged(L1PeggedBatchFeeModelInput),
     PubdataIndependent(PubdataIndependentBatchFeeModelInput),
@@ -137,7 +137,7 @@ impl BatchFeeInput {
 }
 
 /// Pubdata is only published via calldata and so its price is pegged to the L1 gas price.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct L1PeggedBatchFeeModelInput {
     /// Fair L2 gas price to provide
     pub fair_l2_gas_price: u64,
@@ -146,7 +146,7 @@ pub struct L1PeggedBatchFeeModelInput {
 }
 
 /// Pubdata price may be independent from L1 gas price.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PubdataIndependentBatchFeeModelInput {
     /// Fair L2 gas price to provide
     pub fair_l2_gas_price: u64,
