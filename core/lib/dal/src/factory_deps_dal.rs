@@ -180,4 +180,23 @@ impl FactoryDepsDal<'_, '_> {
         .await?;
         Ok(())
     }
+
+    /// Retrieves all factory deps entries for testing purposes.
+    pub async fn dump_all_factory_deps_for_tests(&mut self) -> HashMap<H256, Vec<u8>> {
+        sqlx::query!(
+            r#"
+            SELECT
+                bytecode,
+                bytecode_hash
+            FROM
+                factory_deps
+            "#
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| (H256::from_slice(&row.bytecode_hash), row.bytecode.into()))
+        .collect()
+    }
 }

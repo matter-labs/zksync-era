@@ -1,7 +1,9 @@
+use std::collections::HashMap;
 use std::{ops, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use backon::{ConstantBuilder, ExponentialBuilder, Retryable};
+use rand::Rng;
 use tempfile::TempDir;
 use tokio::{
     runtime::Handle,
@@ -14,7 +16,8 @@ use zksync_state::{PgOrRocksdbStorage, PostgresStorage, ReadStorage, ReadStorage
 use zksync_types::{
     block::{BlockGasCount, L1BatchHeader},
     fee::TransactionExecutionMetrics,
-    AccountTreeId, L1BatchNumber, L2ChainId, ProtocolVersionId, StorageKey,
+    AccountTreeId, L1BatchNumber, L2ChainId, ProtocolVersionId, StorageKey, StorageLog,
+    StorageLogKind, StorageValue, H160, H256,
 };
 
 use super::{BatchExecuteData, VmRunnerStorage, VmRunnerStorageLoader};
@@ -151,13 +154,13 @@ async fn store_l2_blocks(
     conn: &mut Connection<'_, Core>,
     numbers: ops::RangeInclusive<u32>,
     contract_hashes: BaseSystemContractsHashes,
-) -> Vec<L1BatchHeader> {
+) -> anyhow::Result<Vec<L1BatchHeader>> {
+    let mut rng = rand::thread_rng();
     let mut batches = Vec::new();
     let mut l2_block_number = conn
         .blocks_dal()
         .get_last_sealed_l2_block_header()
-        .await
-        .unwrap()
+        .await?
         .map(|m| m.number)
         .unwrap_or_default()
         + 1;
@@ -166,27 +169,46 @@ async fn store_l2_blocks(
         let tx = create_l2_transaction(10, 100);
         conn.transactions_dal()
             .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
-            .await
-            .unwrap();
+            .await?;
+        let mut logs = Vec::new();
+        let mut written_keys = Vec::new();
+        for _ in 0..10 {
+            let key = StorageKey::new(AccountTreeId::new(H160::random()), H256::random());
+            let value = StorageValue::random();
+            written_keys.push(key);
+            logs.push(StorageLog {
+                kind: StorageLogKind::Write,
+                key,
+                value,
+            });
+        }
+        let mut factory_deps = HashMap::new();
+        for _ in 0..10 {
+            factory_deps.insert(H256::random(), rng.gen::<[u8; 32]>().into());
+        }
+        conn.storage_logs_dal()
+            .insert_storage_logs(l2_block_number, &[(tx.hash(), logs)])
+            .await?;
+        conn.storage_logs_dedup_dal()
+            .insert_initial_writes(l1_batch_number, &written_keys)
+            .await?;
+        conn.factory_deps_dal()
+            .insert_factory_deps(l2_block_number, &factory_deps)
+            .await?;
         let mut new_l2_block = create_miniblock(l2_block_number.0);
         l2_block_number += 1;
         new_l2_block.base_system_contracts_hashes = contract_hashes;
         new_l2_block.l2_tx_count = 1;
-        conn.blocks_dal()
-            .insert_l2_block(&new_l2_block)
-            .await
-            .unwrap();
+        conn.blocks_dal().insert_l2_block(&new_l2_block).await?;
         let tx_result = execute_l2_transaction(tx);
         conn.transactions_dal()
             .mark_txs_as_executed_in_l2_block(new_l2_block.number, &[tx_result], 1.into())
-            .await
-            .unwrap();
+            .await?;
+
+        // Insert a fictive L2 block at the end of the batch
         let fictive_l2_block = create_miniblock(l2_block_number.0);
         l2_block_number += 1;
-        conn.blocks_dal()
-            .insert_l2_block(&fictive_l2_block)
-            .await
-            .unwrap();
+        conn.blocks_dal().insert_l2_block(&fictive_l2_block).await?;
 
         let header = L1BatchHeader::new(
             l1_batch_number,
@@ -201,29 +223,25 @@ async fn store_l2_blocks(
         };
         conn.blocks_dal()
             .insert_l1_batch(&header, &[], predicted_gas, &[], &[], Default::default())
-            .await
-            .unwrap();
+            .await?;
         conn.blocks_dal()
             .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
-            .await
-            .unwrap();
+            .await?;
 
         let metadata = create_l1_batch_metadata(l1_batch_number.0);
         conn.blocks_dal()
             .save_l1_batch_tree_data(l1_batch_number, &metadata.tree_data())
-            .await
-            .unwrap();
+            .await?;
         conn.blocks_dal()
             .save_l1_batch_commitment_artifacts(
                 l1_batch_number,
                 &l1_batch_metadata_to_commitment_artifacts(&metadata),
             )
-            .await
-            .unwrap();
+            .await?;
         batches.push(header);
     }
 
-    batches
+    Ok(batches)
 }
 
 #[tokio::test]
@@ -242,7 +260,7 @@ async fn rerun_storage_on_existing_data() -> anyhow::Result<()> {
         1u32..=10u32,
         genesis_params.base_system_contracts().hashes(),
     )
-    .await;
+    .await?;
 
     let mut tester = VmRunnerTester::new(connection_pool.clone());
     let loader_mock = Arc::new(RwLock::new(LoaderMock {
@@ -334,7 +352,7 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
         1u32..=1u32,
         genesis_params.base_system_contracts().hashes(),
     )
-    .await;
+    .await?;
     loader_mock.write().await.max += 1;
 
     // Load batch and mark it as processed
@@ -357,7 +375,7 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
         2u32..=2u32,
         genesis_params.base_system_contracts().hashes(),
     )
-    .await;
+    .await?;
     loader_mock.write().await.max += 1;
 
     // Load batch and mark it as processed
@@ -395,15 +413,18 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
         batch_range,
         genesis_params.base_system_contracts().hashes(),
     )
-    .await;
+    .await?;
 
-    let storage_logs = connection_pool
-        .connection()
-        .await
-        .unwrap()
+    let mut conn = connection_pool.connection().await?;
+    let storage_logs = conn
         .storage_logs_dal()
         .dump_all_storage_logs_for_tests()
         .await;
+    let factory_deps = conn
+        .factory_deps_dal()
+        .dump_all_factory_deps_for_tests()
+        .await;
+    drop(conn);
 
     let (_sender, receiver) = watch::channel(false);
     let mut tester = VmRunnerTester::new(connection_pool.clone());
@@ -434,9 +455,24 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
             for storage_log in &storage_logs {
                 let storage_key =
                     StorageKey::new(AccountTreeId::new(storage_log.address), storage_log.key);
-                let expected = pg_storage.read_value(&storage_key);
-                let actual = vm_storage.read_value(&storage_key);
-                assert_eq!(expected, actual);
+                assert_eq!(
+                    pg_storage.read_value(&storage_key),
+                    vm_storage.read_value(&storage_key)
+                );
+                assert_eq!(
+                    pg_storage.get_enumeration_index(&storage_key),
+                    vm_storage.get_enumeration_index(&storage_key)
+                );
+                assert_eq!(
+                    pg_storage.is_write_initial(&storage_key),
+                    vm_storage.is_write_initial(&storage_key)
+                );
+            }
+            for (hash, _) in &factory_deps {
+                assert_eq!(
+                    pg_storage.load_factory_dep(*hash),
+                    vm_storage.load_factory_dep(*hash)
+                );
             }
         }
 
