@@ -1,6 +1,7 @@
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
 use std::{
+    collections::HashSet,
     net::Ipv4Addr,
     str::FromStr,
     sync::Arc,
@@ -8,8 +9,11 @@ use std::{
 };
 
 use anyhow::Context as _;
-use api_server::tx_sender::master_pool_sink::MasterPoolSink;
+use api_server::tx_sender::{
+    deny_list_pool_sink::DenyListPoolSink, master_pool_sink::MasterPoolSink,
+};
 use fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInputProvider};
+use itertools::Itertools;
 use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::Prover;
 use temp_config_store::Secrets;
@@ -32,6 +36,7 @@ use zksync_config::{
         },
         consensus::ConsensusConfig,
         database::{MerkleTreeConfig, MerkleTreeMode},
+        tx_sink::TxSinkConfig,
         wallets,
         wallets::Wallets,
         ContractsConfig, GeneralConfig,
@@ -72,7 +77,7 @@ use crate::{
         execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
         healthcheck::HealthCheckHandle,
         tree::TreeApiHttpClient,
-        tx_sender::{tx_sink, ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
+        tx_sender::{ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
         web3::{self, mempool_cache::MempoolCache, state::InternalApiConfig, Namespace},
     },
     basic_witness_input_producer::BasicWitnessInputProducer,
@@ -387,6 +392,12 @@ pub async fn initialize_components(
             mempool_cache_update_task.run(stop_receiver.clone()),
         ));
 
+        let tx_sink_config = if components.contains(&Component::TxSinkDenyList) {
+            Some(configs.tx_sink_config.clone().context("tx_sink_config")?)
+        } else {
+            None
+        };
+
         if components.contains(&Component::HttpApi) {
             storage_caches = Some(
                 build_storage_caches(
@@ -423,6 +434,7 @@ pub async fn initialize_components(
                 state_keeper_config.save_call_traces,
                 storage_caches.clone().unwrap(),
                 mempool_cache.clone(),
+                tx_sink_config.clone(),
             )
             .await
             .context("run_http_api")?;
@@ -471,6 +483,7 @@ pub async fn initialize_components(
                 stop_receiver.clone(),
                 storage_caches,
                 mempool_cache,
+                tx_sink_config.clone(),
             )
             .await
             .context("run_ws_api")?;
@@ -1253,15 +1266,32 @@ async fn build_tx_sender(
     master_pool: ConnectionPool<Core>,
     batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     storage_caches: PostgresStorageCaches,
+    tx_sink_config: Option<TxSinkConfig>,
 ) -> (TxSender, VmConcurrencyBarrier) {
     let sequencer_sealer = SequencerSealer::new(state_keeper_config.clone());
-    let master_pool_sink = MasterPoolSink::new(master_pool);
-    let tx_sender_builder = TxSenderBuilder::new(
-        tx_sender_config.clone(),
-        replica_pool.clone(),
-        Arc::new(master_pool_sink),
-    )
-    .with_sealer(Arc::new(sequencer_sealer));
+
+    let tx_sender_builder = if let Some(config) = tx_sink_config {
+        let deny_list_pool_sink = if let Some(list) = config.deny_list() {
+            DenyListPoolSink::new(master_pool, list)
+        } else {
+            DenyListPoolSink::new(master_pool, HashSet::<Address>::new())
+        };
+
+        TxSenderBuilder::new(
+            tx_sender_config.clone(),
+            replica_pool.clone(),
+            Arc::new(deny_list_pool_sink),
+        )
+        .with_sealer(Arc::new(sequencer_sealer))
+    } else {
+        let master_pool_sink = MasterPoolSink::new(master_pool);
+        TxSenderBuilder::new(
+            tx_sender_config.clone(),
+            replica_pool.clone(),
+            Arc::new(master_pool_sink),
+        )
+        .with_sealer(Arc::new(sequencer_sealer))
+    };
 
     let max_concurrency = web3_json_config.vm_concurrency_limit();
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
@@ -1296,6 +1326,7 @@ async fn run_http_api(
     with_debug_namespace: bool,
     storage_caches: PostgresStorageCaches,
     mempool_cache: MempoolCache,
+    tx_sink_config: Option<TxSinkConfig>,
 ) -> anyhow::Result<()> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
@@ -1305,6 +1336,7 @@ async fn run_http_api(
         master_connection_pool,
         batch_fee_model_input_provider,
         storage_caches,
+        tx_sink_config,
     )
     .await;
 
@@ -1361,6 +1393,7 @@ async fn run_ws_api(
     stop_receiver: watch::Receiver<bool>,
     storage_caches: PostgresStorageCaches,
     mempool_cache: MempoolCache,
+    tx_sink_config: Option<TxSinkConfig>,
 ) -> anyhow::Result<()> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
@@ -1370,6 +1403,7 @@ async fn run_ws_api(
         master_connection_pool,
         batch_fee_model_input_provider,
         storage_caches,
+        tx_sink_config,
     )
     .await;
     let last_miniblock_pool = ConnectionPool::<Core>::singleton(postgres_config.replica_url()?)

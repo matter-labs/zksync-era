@@ -1,5 +1,4 @@
 //! Tests for the transaction sender.
-
 use zksync_config::configs::wallets::Wallets;
 use zksync_types::{get_nonce_key, L1BatchNumber, L2BlockNumber, StorageLog};
 
@@ -35,6 +34,7 @@ pub(crate) async fn create_test_tx_sender(
         pool,
         batch_fee_model_input_provider,
         storage_caches,
+        None,
     )
     .await;
 

@@ -1,22 +1,26 @@
-use std::{collections::HashSet, str::FromStr};
+use std::collections::{
+    hash_map::{Entry, HashMap},
+    HashSet,
+};
 
-use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
-use zksync_types::{fee::TransactionExecutionMetrics, l2::L2Tx, Address};
+use tokio::sync::Mutex;
+use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Core, CoreDal};
+use zksync_shared_metrics::{TxStage, APP_METRICS};
+use zksync_types::{fee::TransactionExecutionMetrics, l2::L2Tx, Address, Nonce, H256};
 
 use super::{tx_sink::TxSink, SubmitTxError};
-use crate::metrics::{TxStage, APP_METRICS};
+use crate::api_server::web3::metrics::API_METRICS;
 
 /// Wrapper for the master DB pool that allows to submit transactions to the mempool.
 #[derive(Debug)]
 pub struct DenyListPoolSink {
-    deny_list_pool: ConnectionPool,
+    deny_list_pool: ConnectionPool<Core>,
     deny_list: HashSet<Address>,
     inflight_requests: Mutex<HashMap<(Address, Nonce), H256>>,
 }
 
 impl DenyListPoolSink {
-    pub fn new(deny_list_pool: ConnectionPool, deny_list: HashSet<Address>) -> Self {
-
+    pub fn new(deny_list_pool: ConnectionPool<Core>, deny_list: HashSet<Address>) -> Self {
         Self {
             deny_list_pool,
             deny_list,
@@ -29,11 +33,11 @@ impl DenyListPoolSink {
 impl TxSink for DenyListPoolSink {
     async fn submit_tx(
         &self,
-        tx: L2Tx,
+        tx: &L2Tx,
         execution_metrics: TransactionExecutionMetrics,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let address_and_nonce = (tx.initiator_account(), tx.nonce());
-        if self.deny_list.contains(address_and_nonce.0) {
+        if self.deny_list.contains(&address_and_nonce.0) {
             return Err(SubmitTxError::SenderInDenyList);
         }
 
@@ -55,7 +59,7 @@ impl TxSink for DenyListPoolSink {
         };
         drop(lock);
 
-        let result = match self.master_pool.connection_tagged("api").await {
+        let result = match self.deny_list_pool.connection_tagged("api").await {
             Ok(mut connection) => connection
                 .transactions_dal()
                 .insert_transaction_l2(tx, execution_metrics)
