@@ -1,5 +1,4 @@
-use std::sync::Arc;
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
 use anyhow::Context;
 use once_cell::sync::OnceCell;

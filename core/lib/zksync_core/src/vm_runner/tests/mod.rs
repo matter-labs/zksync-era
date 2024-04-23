@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::{ops, sync::Arc, time::Duration};
+use std::{collections::HashMap, ops, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use backon::{ConstantBuilder, ExponentialBuilder, Retryable};
