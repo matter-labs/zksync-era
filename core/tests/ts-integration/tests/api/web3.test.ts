@@ -609,7 +609,7 @@ describe('web3 API compatibility tests', () => {
         const from = new MockMetamask(alice);
         const to = alice.address;
         const web3Provider = new zksync.Web3Provider(from);
-        const signer = web3Provider.getSigner();
+        const signer = zksync.Signer.from(web3Provider.getSigner(), alice.provider);
 
         // Check to ensure that tx was correctly processed.
         const feeCheck = await shouldOnlyTakeFee(alice);
