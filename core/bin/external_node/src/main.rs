@@ -206,7 +206,10 @@ async fn run_core(
 
     let (persistence, miniblock_sealer) = StateKeeperPersistence::new(
         connection_pool.clone(),
-        config.remote.l2_shared_bridge_addr.unwrap(),
+        config
+            .remote
+            .l2_shared_bridge_addr
+            .expect("L2 shared bridge address is not set"),
         config.optional.miniblock_seal_queue_capacity,
     );
     task_handles.push(tokio::spawn(miniblock_sealer.run()));

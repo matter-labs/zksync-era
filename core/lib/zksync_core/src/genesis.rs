@@ -343,6 +343,7 @@ async fn insert_system_contracts(
     let system_context_init_logs = (
         H256::default(),
         // During the genesis all chains have the same id.
+        // TODO(EVM-579): make sure that the logic is compatible with Era.
         get_system_context_init_logs(L2ChainId::from(DEFAULT_ERA_CHAIN_ID)),
     );
 
