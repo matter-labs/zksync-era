@@ -105,24 +105,19 @@ describe('Tests for the mempool behavior', () => {
         const fund = gasLimit.mul(gasPrice).mul(13).div(10);
         await alice.sendTransaction({ to: poorBob.address, value: fund }).then((tx) => tx.wait());
 
-        const gasLimitEstimate = await poorBob.estimateGas({ to: poorBob.address });
-        const gasPriceEstimate = await poorBob.provider.getGasPrice();
-
         // delayedTx should pass API checks (if not then error will be thrown on the next lime)
         // but should be rejected by the state-keeper (checked later).
         const delayedTx = await poorBob.sendTransaction({
             to: poorBob.address,
             nonce: nonce + 1,
-            gasLimit: gasLimitEstimate,
-            gasPrice: gasPriceEstimate
+            type: 0
         });
 
         await expect(
             poorBob.sendTransaction({
                 to: poorBob.address,
                 nonce,
-                gasLimit: gasLimitEstimate,
-                gasPrice: gasPriceEstimate
+                type: 0
             })
         ).toBeAccepted();
 
