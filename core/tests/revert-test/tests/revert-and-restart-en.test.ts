@@ -1,12 +1,12 @@
 // Test of the behaviour of the external node when L1 batches get reverted.
 //
 // NOTE:
-// main_contract.getTotalBlocksCommitted actually checks the number of batches committed.
-// main_contract.getTotalBlocksExecuted actually checks the number of batches executed.
+// main_contract.getTotalBatchesCommitted actually checks the number of batches committed.
+// main_contract.getTotalBatchesExecuted actually checks the number of batches executed.
 // TODO: Migrate from zksync-web3 to zksync-ethers.
 import * as utils from 'zk/build/utils';
 import { Tester } from './tester';
-import * as zkweb3 from 'zksync-web3';
+import * as zkweb3 from 'zksync-ethers';
 import { BigNumber, ethers } from 'ethers';
 import { expect, assert } from 'chai';
 import fs from 'fs';
@@ -72,6 +72,7 @@ function fetchEnv(zksyncEnv: string): any {
     let res = run('./bin/zk', ['f', 'env'], {
         cwd: process.env.ZKSYNC_HOME,
         env: {
+            PATH: process.env.PATH,
             ZKSYNC_ENV: zksyncEnv,
             ZKSYNC_HOME: process.env.ZKSYNC_HOME
         }
@@ -82,9 +83,33 @@ function fetchEnv(zksyncEnv: string): any {
 function runBlockReverter(args: string[]): string {
     let env = fetchEnv(mainEnv);
     env.RUST_LOG = 'off';
-    let res = run('./target/release/block_reverter', args, { cwd: env.ZKSYNC_HOME, env: env });
+    let res = run('./target/release/block_reverter', args, {
+        cwd: env.ZKSYNC_HOME,
+        env: {
+            ...env,
+            PATH: process.env.PATH
+        }
+    });
     console.log(res.stderr.toString());
     return res.stdout.toString();
+}
+
+async function killServerAndWaitForShutdown(tester: Tester, server: string) {
+    await utils.exec(`killall -9 ${server}`);
+    // Wait until it's really stopped.
+    let iter = 0;
+    while (iter < 30) {
+        try {
+            await tester.syncWallet.provider.getBlockNumber();
+            await utils.sleep(2);
+            iter += 1;
+        } catch (_) {
+            // When exception happens, we assume that server died.
+            return;
+        }
+    }
+    // It's going to panic anyway, since the server is a singleton entity, so better to exit early.
+    throw new Error("Server didn't stop after a kill request");
 }
 
 class MainNode {
@@ -93,7 +118,7 @@ class MainNode {
     // Terminates all main node processes running.
     public static async terminateAll() {
         try {
-            await utils.exec('killall -INT zksync_server --wait');
+            await utils.exec('killall -INT zksync_server');
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
@@ -120,7 +145,10 @@ class MainNode {
         let proc = spawn('./target/release/zksync_server', ['--components', components], {
             cwd: env.ZKSYNC_HOME,
             stdio: [null, logs, logs],
-            env: env
+            env: {
+                ...env,
+                PATH: process.env.PATH
+            }
         });
         // Wait until the main node starts responding.
         let tester: Tester = await Tester.init(env.ETH_CLIENT_WEB3_URL, env.API_WEB3_JSON_RPC_HTTP_URL);
@@ -138,15 +166,6 @@ class MainNode {
         }
         return new MainNode(tester, proc);
     }
-
-    // Sends SIGINT to the main node process and waits for it to exit.
-    public async terminate(): Promise<void> {
-        this.proc.kill('SIGINT');
-        while (this.proc.exitCode === null) {
-            await utils.sleep(1);
-        }
-        expect(this.proc.exitCode).to.equal(0);
-    }
 }
 
 class ExtNode {
@@ -155,7 +174,7 @@ class ExtNode {
     // Terminates all main node processes running.
     public static async terminateAll() {
         try {
-            await utils.exec('killall -INT zksync_external_node --wait');
+            await utils.exec('killall -INT zksync_external_node');
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
@@ -173,10 +192,13 @@ class ExtNode {
         let proc = spawn('./target/release/zksync_external_node', args, {
             cwd: env.ZKSYNC_HOME,
             stdio: [null, logs, logs],
-            env: env
+            env: {
+                ...env,
+                PATH: process.env.PATH
+            }
         });
         // Wait until the node starts responding.
-        let tester: Tester = await Tester.init(env.EN_ETH_CLIENT_URL, `http://localhost:${env.EN_HTTP_PORT}`);
+        let tester: Tester = await Tester.init(env.EN_ETH_CLIENT_URL, `http://127.0.0.1:${env.EN_HTTP_PORT}`);
         while (true) {
             try {
                 await tester.syncWallet.provider.getBlockNumber();
@@ -190,12 +212,6 @@ class ExtNode {
             }
         }
         return new ExtNode(tester, proc);
-    }
-
-    // Sends SIGINT to the node process and waits for it to exit.
-    public async terminate(): Promise<void> {
-        this.proc.kill('SIGINT');
-        expect(await this.waitForExit()).to.equal(0);
     }
 
     // Waits for the node process to exit.
@@ -227,32 +243,42 @@ describe('Block reverting test', function () {
         let mainNode = await MainNode.spawn(mainLogs, enableConsensus, true);
         console.log('Start ext node');
         let extNode = await ExtNode.spawn(extLogs, enableConsensus);
+
+        await mainNode.tester.fundSyncWallet();
+        await extNode.tester.fundSyncWallet();
+
         const main_contract = await mainNode.tester.syncWallet.getMainContract();
+        const baseTokenAddress = await mainNode.tester.syncWallet.getBaseToken();
+        const isETHBasedChain = baseTokenAddress == zkweb3.utils.ETH_ADDRESS_IN_CONTRACTS;
         const alice: zkweb3.Wallet = extNode.tester.emptyWallet();
 
         console.log(
             'Finalize an L1 transaction to ensure at least 1 executed L1 batch and that all transactions are processed'
         );
         const h: zkweb3.types.PriorityOpResponse = await extNode.tester.syncWallet.deposit({
-            token: zkweb3.utils.ETH_ADDRESS,
+            token: isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
             amount: depositAmount,
-            to: alice.address
+            to: alice.address,
+            approveBaseERC20: true,
+            approveERC20: true
         });
         await h.waitFinalize();
 
         console.log('Restart the main node with L1 batch execution disabled.');
-        await mainNode.terminate();
+        await killServerAndWaitForShutdown(mainNode.tester, 'zksync_server');
         mainNode = await MainNode.spawn(mainLogs, enableConsensus, false);
 
         console.log('Commit at least 2 L1 batches which are not executed');
-        const lastExecuted: BigNumber = await main_contract.getTotalBlocksExecuted();
+        const lastExecuted: BigNumber = await main_contract.getTotalBatchesExecuted();
         // One is not enough to test the reversion of sk cache because
         // it gets updated with some batch logs only at the start of the next batch.
-        const initialL1BatchNumber = (await main_contract.getTotalBlocksCommitted()).toNumber();
+        const initialL1BatchNumber = (await main_contract.getTotalBatchesCommitted()).toNumber();
         const firstDepositHandle = await extNode.tester.syncWallet.deposit({
-            token: zkweb3.utils.ETH_ADDRESS,
+            token: isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
             amount: depositAmount,
-            to: alice.address
+            to: alice.address,
+            approveBaseERC20: true,
+            approveERC20: true
         });
 
         await firstDepositHandle.wait();
@@ -261,9 +287,11 @@ describe('Block reverting test', function () {
         }
 
         const secondDepositHandle = await extNode.tester.syncWallet.deposit({
-            token: zkweb3.utils.ETH_ADDRESS,
+            token: isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
             amount: depositAmount,
-            to: alice.address
+            to: alice.address,
+            approveBaseERC20: true,
+            approveERC20: true
         });
         await secondDepositHandle.wait();
         while ((await extNode.tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber + 1) {
@@ -271,7 +299,7 @@ describe('Block reverting test', function () {
         }
 
         while (true) {
-            const lastCommitted: BigNumber = await main_contract.getTotalBlocksCommitted();
+            const lastCommitted: BigNumber = await main_contract.getTotalBatchesCommitted();
             console.log(`lastExecuted = ${lastExecuted}, lastCommitted = ${lastCommitted}`);
             if (lastCommitted.sub(lastExecuted).gte(2)) {
                 break;
@@ -280,7 +308,7 @@ describe('Block reverting test', function () {
         }
         const alice2 = await alice.getBalance();
         console.log('Terminate the main node');
-        await mainNode.terminate();
+        await killServerAndWaitForShutdown(mainNode.tester, 'zksync_server');
 
         console.log('Ask block_reverter to suggest to which L1 batch we should revert');
         const values_json = runBlockReverter([
@@ -305,7 +333,7 @@ describe('Block reverting test', function () {
         ]);
 
         console.log('Check that batches are reverted on L1');
-        const lastCommitted2 = await main_contract.getTotalBlocksCommitted();
+        const lastCommitted2 = await main_contract.getTotalBatchesCommitted();
         console.log(`lastCommitted = ${lastCommitted2}, want ${lastExecuted}`);
         assert(lastCommitted2.eq(lastExecuted));
 
@@ -330,9 +358,11 @@ describe('Block reverting test', function () {
 
         console.log('Execute an L1 transaction');
         const depositHandle = await extNode.tester.syncWallet.deposit({
-            token: zkweb3.utils.ETH_ADDRESS,
+            token: isETHBasedChain ? zkweb3.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
             amount: depositAmount,
-            to: alice.address
+            to: alice.address,
+            approveBaseERC20: true,
+            approveERC20: true
         });
 
         let l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);

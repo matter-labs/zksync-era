@@ -6,10 +6,15 @@
  * and waiting for the block finalization).
  */
 import { TestMaster } from '../src/index';
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { deployContract, getTestContract, scaledGasPrice, waitForNewL1Batch } from '../src/helpers';
-import { getHashedL2ToL1Msg, L1_MESSENGER, L1_MESSENGER_ADDRESS } from 'zksync-web3/build/src/utils';
+import {
+    getHashedL2ToL1Msg,
+    L1_MESSENGER,
+    L1_MESSENGER_ADDRESS,
+    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT
+} from 'zksync-ethers/build/src/utils';
 
 const SYSTEM_CONFIG = require(`${process.env.ZKSYNC_HOME}/contracts/SystemConfig.json`);
 
@@ -31,6 +36,9 @@ describe('Tests for L1 behavior', () => {
     let contextContract: zksync.Contract;
     let errorContract: zksync.Contract;
 
+    let isETHBasedChain: boolean;
+    let expectedL2Costs: ethers.BigNumberish;
+
     beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
@@ -44,6 +52,31 @@ describe('Tests for L1 behavior', () => {
         errorContract = await deployContract(alice, contracts.errors, []);
     });
 
+    test('Should provide allowance to shared bridge, if base token is not ETH', async () => {
+        const baseTokenAddress = process.env.CONTRACTS_BASE_TOKEN_ADDR!;
+        isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
+        if (!isETHBasedChain) {
+            const baseTokenDetails = testMaster.environment().baseToken;
+            const maxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
+            await (await alice.approveERC20(baseTokenDetails.l1Address, maxAmount)).wait();
+        }
+    });
+
+    test('Should calculate l2 base cost, if base token is not ETH', async () => {
+        const gasPrice = await scaledGasPrice(alice);
+        if (!isETHBasedChain) {
+            expectedL2Costs = (
+                await alice.getBaseCost({
+                    gasLimit: maxL2GasLimitForPriorityTxs(),
+                    gasPerPubdataByte: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT,
+                    gasPrice
+                })
+            )
+                .mul(140)
+                .div(100);
+        }
+    });
+
     test('Should request L1 execute', async () => {
         const calldata = counterContract.interface.encodeFunctionData('increment', ['1']);
         const gasPrice = scaledGasPrice(alice);
@@ -52,6 +85,7 @@ describe('Tests for L1 behavior', () => {
             alice.requestExecute({
                 contractAddress: counterContract.address,
                 calldata,
+                mintValue: isETHBasedChain ? ethers.BigNumber.from(0) : expectedL2Costs,
                 overrides: {
                     gasPrice
                 }
@@ -69,6 +103,7 @@ describe('Tests for L1 behavior', () => {
                 contractAddress: contextContract.address,
                 calldata,
                 l2Value,
+                mintValue: isETHBasedChain ? ethers.BigNumber.from(0) : expectedL2Costs,
                 overrides: {
                     gasPrice
                 }
@@ -85,6 +120,7 @@ describe('Tests for L1 behavior', () => {
                 contractAddress: errorContract.address,
                 calldata,
                 l2GasLimit: DEFAULT_L2_GAS_LIMIT,
+                mintValue: isETHBasedChain ? ethers.BigNumber.from(0) : expectedL2Costs,
                 overrides: {
                     gasPrice
                 }
@@ -116,12 +152,12 @@ describe('Tests for L1 behavior', () => {
         expect(accumutatedRoot).toBe(root);
 
         // Ensure that provided proof is accepted by the main zkSync contract.
-        const zkSyncContract = await alice.getMainContract();
-        const acceptedByContract = await zkSyncContract.proveL2MessageInclusion(
+        const chainContract = await alice.getMainContract();
+        const acceptedByContract = await chainContract.proveL2MessageInclusion(
             receipt.l1BatchNumber,
             id,
             {
-                txNumberInBlock: receipt.l1BatchTxIndex,
+                txNumberInBatch: receipt.l1BatchTxIndex,
                 sender: alice.address,
                 data: message
             },
@@ -132,7 +168,6 @@ describe('Tests for L1 behavior', () => {
 
     test('Should check max L2 gas limit for priority txs', async () => {
         const gasPrice = scaledGasPrice(alice);
-
         const l2GasLimit = maxL2GasLimitForPriorityTxs();
 
         // Check that the request with higher `gasLimit` fails.
@@ -140,6 +175,7 @@ describe('Tests for L1 behavior', () => {
             contractAddress: alice.address,
             calldata: '0x',
             l2GasLimit: l2GasLimit + 1,
+            mintValue: isETHBasedChain ? ethers.BigNumber.from(0) : expectedL2Costs,
             overrides: {
                 gasPrice,
                 gasLimit: 600_000
@@ -158,6 +194,7 @@ describe('Tests for L1 behavior', () => {
             contractAddress: alice.address,
             calldata: '0x',
             l2GasLimit,
+            mintValue: isETHBasedChain ? ethers.BigNumber.from(0) : expectedL2Costs,
             overrides: {
                 gasPrice
             }
@@ -185,6 +222,7 @@ describe('Tests for L1 behavior', () => {
             contractAddress: contract.address,
             calldata,
             l2GasLimit,
+            mintValue: isETHBasedChain ? ethers.BigNumber.from(0) : expectedL2Costs,
             overrides: {
                 gasPrice
             }
@@ -239,6 +277,7 @@ describe('Tests for L1 behavior', () => {
             contractAddress: contract.address,
             calldata,
             l2GasLimit,
+            mintValue: isETHBasedChain ? ethers.BigNumber.from(0) : expectedL2Costs,
             overrides: {
                 gasPrice
             }
@@ -273,6 +312,7 @@ describe('Tests for L1 behavior', () => {
             contractAddress: contract.address,
             calldata,
             l2GasLimit,
+            mintValue: isETHBasedChain ? ethers.BigNumber.from(0) : expectedL2Costs,
             overrides: {
                 gasPrice
             }
@@ -310,6 +350,7 @@ describe('Tests for L1 behavior', () => {
             contractAddress: contract.address,
             calldata,
             l2GasLimit,
+            mintValue: isETHBasedChain ? ethers.BigNumber.from(0) : expectedL2Costs,
             overrides: {
                 gasPrice
             }

@@ -6,7 +6,7 @@ use zksync_utils::{address_to_h256, u256_to_h256};
 
 use crate::{
     system_contracts::DEPLOYMENT_NONCE_INCREMENT, web3::signing::keccak256, AccountTreeId,
-    StorageKey, L2_ETH_TOKEN_ADDRESS, U256,
+    StorageKey, L2_BASE_TOKEN_ADDRESS, U256,
 };
 
 /// Displays a Unix timestamp (seconds since epoch) in human-readable form. Useful for logging.
@@ -77,7 +77,7 @@ pub fn storage_key_for_standard_token_balance(
 ) -> StorageKey {
     // We have different implementation of the standard ERC20 contract and native
     // eth contract. The key for the balance is different for each.
-    let key = if token_contract.address() == &L2_ETH_TOKEN_ADDRESS {
+    let key = if token_contract.address() == &L2_BASE_TOKEN_ADDRESS {
         key_for_eth_balance(address)
     } else {
         key_for_erc20_balance(address)
@@ -87,7 +87,7 @@ pub fn storage_key_for_standard_token_balance(
 }
 
 pub fn storage_key_for_eth_balance(address: &Address) -> StorageKey {
-    storage_key_for_standard_token_balance(AccountTreeId::new(L2_ETH_TOKEN_ADDRESS), address)
+    storage_key_for_standard_token_balance(AccountTreeId::new(L2_BASE_TOKEN_ADDRESS), address)
 }
 
 /// Pre-calculated the address of the to-be-deployed contract (via CREATE, not CREATE2).

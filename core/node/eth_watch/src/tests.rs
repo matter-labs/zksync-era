@@ -1,7 +1,7 @@
 use std::{collections::HashMap, convert::TryInto, sync::Arc};
 
 use tokio::sync::RwLock;
-use zksync_contracts::{governance_contract, zksync_contract};
+use zksync_contracts::{governance_contract, hyperchain_contract};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{
     ethabi::{encode, Hash, Token},
@@ -191,6 +191,7 @@ async fn create_test_watcher(connection_pool: ConnectionPool<Core>) -> (EthWatch
     let client = MockEthClient::new();
     let watcher = EthWatch::new(
         Address::default(),
+        None,
         &governance_contract(),
         Box::new(client.clone()),
         connection_pool,
@@ -279,6 +280,7 @@ async fn test_normal_operation_governance_upgrades() {
     let mut client = MockEthClient::new();
     let mut watcher = EthWatch::new(
         Address::default(),
+        None,
         &governance_contract(),
         Box::new(client.clone()),
         connection_pool.clone(),
@@ -471,7 +473,7 @@ fn tx_into_log(tx: L1Tx) -> Log {
 
     Log {
         address: Address::repeat_byte(0x1),
-        topics: vec![zksync_contract()
+        topics: vec![hyperchain_contract()
             .event("NewPriorityRequest")
             .expect("NewPriorityRequest event is missing in abi")
             .signature()],
@@ -489,7 +491,7 @@ fn tx_into_log(tx: L1Tx) -> Log {
 
 fn upgrade_into_governor_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
     let diamond_cut = upgrade_into_diamond_cut(upgrade);
-    let execute_upgrade_selector = zksync_contract()
+    let execute_upgrade_selector = hyperchain_contract()
         .function("executeUpgrade")
         .unwrap()
         .short_signature();

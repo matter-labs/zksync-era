@@ -544,6 +544,12 @@ pub async fn initialize_components(
         tracing::info!("initialized State Keeper in {elapsed:?}");
     }
 
+    let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
+    let state_transition_manager_addr = genesis_config
+        .shared_bridge
+        .as_ref()
+        .map(|a| a.state_transition_proxy_addr);
+
     if components.contains(&Component::Consensus) {
         let secrets = secrets.consensus.as_ref().context("Secrets are missing")?;
         let cfg = consensus::config::main_node(
@@ -576,8 +582,6 @@ pub async fn initialize_components(
         tracing::info!("initialized Consensus in {elapsed:?}");
     }
 
-    let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
-
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-Watcher");
@@ -597,7 +601,8 @@ pub async fn initialize_components(
                 eth_watch_config,
                 eth_watch_pool,
                 Arc::new(query_client.clone()),
-                main_zksync_contract_address,
+                diamond_proxy_addr,
+                state_transition_manager_addr,
                 governance,
                 stop_receiver.clone(),
             )
@@ -670,7 +675,7 @@ pub async fn initialize_components(
             Arc::new(eth_client),
             contracts_config.validator_timelock_addr,
             contracts_config.l1_multicall3_addr,
-            main_zksync_contract_address,
+            diamond_proxy_addr,
             l2_chain_id,
             operator_blobs_address,
             l1_batch_commit_data_generator,
@@ -847,7 +852,9 @@ async fn add_state_keeper_to_task_futures(
         .context("failed to build miniblock_sealer_pool")?;
     let (persistence, miniblock_sealer) = StateKeeperPersistence::new(
         miniblock_sealer_pool,
-        contracts_config.l2_erc20_bridge_addr,
+        contracts_config
+            .l2_shared_bridge_addr
+            .expect("`l2_shared_bridge_addr` config is missing"),
         state_keeper_config.l2_block_seal_queue_capacity,
     );
     task_futures.push(tokio::spawn(miniblock_sealer.run()));
@@ -897,23 +904,26 @@ async fn add_state_keeper_to_task_futures(
     Ok(())
 }
 
-async fn start_eth_watch(
+pub async fn start_eth_watch(
     config: EthWatchConfig,
     pool: ConnectionPool<Core>,
     eth_gateway: Arc<dyn EthInterface>,
     diamond_proxy_addr: Address,
+    state_transition_manager_addr: Option<Address>,
     governance: (Contract, Address),
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<JoinHandle<anyhow::Result<()>>> {
     let eth_client = EthHttpQueryClient::new(
         eth_gateway,
         diamond_proxy_addr,
+        state_transition_manager_addr,
         governance.1,
         config.confirmations_for_eth_event,
     );
 
     let eth_watch = EthWatch::new(
         diamond_proxy_addr,
+        state_transition_manager_addr,
         &governance.0,
         Box::new(eth_client),
         pool,

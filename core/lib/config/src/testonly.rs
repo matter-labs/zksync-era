@@ -248,10 +248,13 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             validator_timelock_addr: g.gen(),
             l1_erc20_bridge_proxy_addr: g.gen(),
             l2_erc20_bridge_addr: g.gen(),
+            l1_shared_bridge_proxy_addr: g.gen(),
+            l2_shared_bridge_addr: g.gen(),
             l1_weth_bridge_proxy_addr: g.gen(),
             l2_weth_bridge_addr: g.gen(),
             l2_testnet_paymaster_addr: g.gen(),
             l1_multicall3_addr: g.gen(),
+            base_token_addr: g.gen(),
         }
     }
 }
