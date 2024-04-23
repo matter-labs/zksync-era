@@ -22,7 +22,7 @@ RUN skip_versions="v1.3.12 v1.3.15 v1.3.20" && \
     done
 
 # install zksolc 1.4.x
-RUN for VERSION in $(seq -f "v1.4.%g" 0 0); do \
+RUN for VERSION in $(seq -f "v1.4.%g" 0 1); do \
     mkdir -p /etc/zksolc-bin/$VERSION && \
     wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-$VERSION -O /etc/zksolc-bin/$VERSION/zksolc && \
     chmod +x /etc/zksolc-bin/$VERSION/zksolc; \
@@ -37,7 +37,7 @@ RUN for VERSION in $(seq -f "v1.3.%g" 9 17); do \
     done
 
 # install zkvyper 1.4.x
-RUN for VERSION in $(seq -f "v1.4.%g" 0 0); do \
+RUN for VERSION in $(seq -f "v1.4.%g" 0 1); do \
     mkdir -p /etc/zkvyper-bin/$VERSION && \
     wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-$VERSION -O /etc/zkvyper-bin/$VERSION/zkvyper && \
     chmod +x /etc/zkvyper-bin/$VERSION/zkvyper; \
