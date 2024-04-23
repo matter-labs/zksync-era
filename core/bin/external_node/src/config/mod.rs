@@ -118,6 +118,7 @@ impl RemoteENConfig {
         };
 
         // These two config variables should always have the same value.
+        // TODO(EVM-578): double check and potentially forbid both of them being `None`.
         let l2_erc20_default_bridge = bridges
             .l2_erc20_default_bridge
             .or(bridges.l2_shared_default_bridge);

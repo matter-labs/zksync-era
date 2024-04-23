@@ -6,6 +6,9 @@ impl FromEnv for ContractsConfig {
     fn from_env() -> anyhow::Result<Self> {
         let mut contracts: ContractsConfig = envy_load("contracts", "CONTRACTS_")?;
         // Note: we are renaming the bridge, the address remains the same
+        // These two config variables should always have the same value.
+        // TODO(EVM-578): double check and potentially forbid both of them being `None`.
+
         contracts.l2_erc20_bridge_addr = contracts
             .l2_erc20_bridge_addr
             .or(contracts.l2_shared_bridge_addr);
