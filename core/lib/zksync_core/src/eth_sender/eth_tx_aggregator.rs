@@ -502,7 +502,7 @@ impl EthTxAggregator {
 
     fn encode_commit_data(
         commit_fn: &Function,
-        commit_payload: &Vec<Token>,
+        commit_payload: &[Token],
         l1_batch: Option<L1BatchWithMetadata>,
     ) -> (Vec<u8>, Option<EthTxBlobSidecar>) {
         let calldata = commit_fn
