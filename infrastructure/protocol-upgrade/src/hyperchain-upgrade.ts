@@ -140,6 +140,16 @@ async function hyperchainFullUpgrade() {
         process.env.CONTRACTS_DIAMOND_PROXY_ADDR,
         `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
     );
+    env.modify(
+        'CONTRACTS_L2_SHARED_BRIDGE_ADDR',
+        process.env.CONTRACTS_L2_ERC20_BRIDGE_ADDR,
+        `etc/env/l2-inits/${process.env.ZKSYNC_ENV}.init.env`
+    );
+    env.modify(
+        'CONTRACTS_BASE_TOKEN_ADDR',
+        '0x0000000000000000000000000000000000000001',
+        `etc/env/l2-inits/${process.env.ZKSYNC_ENV}.init.env`
+    );
 
     await deploySharedBridgeL2Implementation();
 
