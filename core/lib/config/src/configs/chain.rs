@@ -94,14 +94,18 @@ pub struct StateKeeperConfig {
 
     /// Number of ms after which an L1 batch is going to be unconditionally sealed.
     pub block_commit_deadline_ms: u64,
-    /// Number of ms after which a miniblock should be sealed by the timeout sealer.
-    pub miniblock_commit_deadline_ms: u64,
-    /// Capacity of the queue for asynchronous miniblock sealing. Once this many miniblocks are queued,
-    /// sealing will block until some of the miniblocks from the queue are processed.
+    /// Number of ms after which an L2 block should be sealed by the timeout sealer.
+    #[serde(alias = "miniblock_commit_deadline_ms")]
+    // legacy naming; since we don't serialize this struct, we use "alias" rather than "rename"
+    pub l2_block_commit_deadline_ms: u64,
+    /// Capacity of the queue for asynchronous L2 block sealing. Once this many L2 blocks are queued,
+    /// sealing will block until some of the L2 blocks from the queue are processed.
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
-    pub miniblock_seal_queue_capacity: usize,
-    /// The max payload size threshold (in bytes) that triggers sealing of a miniblock.
-    pub miniblock_max_payload_size: usize,
+    #[serde(alias = "miniblock_seal_queue_capacity")]
+    pub l2_block_seal_queue_capacity: usize,
+    /// The max payload size threshold (in bytes) that triggers sealing of an L2 block.
+    #[serde(alias = "miniblock_max_payload_size")]
+    pub l2_block_max_payload_size: usize,
 
     /// The max number of gas to spend on an L1 tx before its batch should be sealed by the gas sealer.
     pub max_single_tx_gas: u32,
@@ -175,9 +179,9 @@ impl StateKeeperConfig {
         Self {
             transaction_slots: 250,
             block_commit_deadline_ms: 2500,
-            miniblock_commit_deadline_ms: 1000,
-            miniblock_seal_queue_capacity: 10,
-            miniblock_max_payload_size: 1_000_000,
+            l2_block_commit_deadline_ms: 1000,
+            l2_block_seal_queue_capacity: 10,
+            l2_block_max_payload_size: 1_000_000,
             max_single_tx_gas: 6000000,
             max_allowed_l2_tx_gas_limit: 4000000000,
             reject_tx_at_geometry_percentage: 0.95,

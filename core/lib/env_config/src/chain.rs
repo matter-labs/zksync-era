@@ -75,9 +75,9 @@ mod tests {
         StateKeeperConfig {
             transaction_slots: 50,
             block_commit_deadline_ms: 2500,
-            miniblock_commit_deadline_ms: 1000,
-            miniblock_seal_queue_capacity: 10,
-            miniblock_max_payload_size: 1_000_000,
+            l2_block_commit_deadline_ms: 1000,
+            l2_block_seal_queue_capacity: 10,
+            l2_block_max_payload_size: 1_000_000,
             max_single_tx_gas: 1_000_000,
             max_allowed_l2_tx_gas_limit: 2_000_000_000,
             close_block_at_eth_params_percentage: 0.2,
