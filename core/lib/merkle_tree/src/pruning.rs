@@ -203,21 +203,24 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
         let mut wait_interval = Duration::ZERO;
         while !self.wait_for_abort(wait_interval) {
             let retained_version = self.target_retained_version.load(Ordering::Relaxed);
-            if let Some(stats) = self.prune_up_to(retained_version) {
+            wait_interval = if let Some(stats) = self.prune_up_to(retained_version) {
                 tracing::debug!(
                     "Performed pruning for target retained version {retained_version}: {stats:?}"
                 );
                 stats.report();
                 if stats.has_more_work() {
-                    continue;
+                    // Continue pruning right away instead of waiting for abort.
+                    Duration::ZERO
+                } else {
+                    self.poll_interval
                 }
             } else {
                 tracing::debug!(
                     "Pruning was not performed; waiting {:?}",
                     self.poll_interval
                 );
-            }
-            wait_interval = self.poll_interval;
+                self.poll_interval
+            };
         }
     }
 }
