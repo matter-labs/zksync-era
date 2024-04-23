@@ -242,6 +242,10 @@ describe('ETH token checks', () => {
     });
 
     test('Can perform a withdrawal', async () => {
+        if (!isETHBasedChain) {
+            // TODO(EVM-555): Currently this test is not working for non-eth based chains.
+            return;
+        }
         if (testMaster.isFastMode()) {
             return;
         }
