@@ -20,6 +20,8 @@ const contracts = {
     events: getTestContract('Emitter')
 };
 
+const BUILTIN_CREATE2_FACTORY_ADDRESS = '0x0000000000000000000000000000000000010000';
+
 describe('System behavior checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
@@ -313,6 +315,32 @@ describe('System behavior checks', () => {
         await expect(
             alice.sendTransaction({ to: alice.address, gasLimit: ethers.BigNumber.from(2).pow(51) })
         ).toBeRejected('exceeds block gas limit');
+    });
+
+    it('Create2Factory should work', async () => {
+        // For simplicity, we'll just deploy a contract factory
+        const salt = ethers.utils.randomBytes(32);
+
+        const bytecode = await alice.provider.getCode(BUILTIN_CREATE2_FACTORY_ADDRESS);
+        const abi = getTestContract('ICreate2Factory').abi;
+        const hash = hashBytecode(bytecode);
+
+        const contractFactory = new ethers.Contract(
+            BUILTIN_CREATE2_FACTORY_ADDRESS,
+            abi,
+            alice
+        );
+
+        const deploymentTx = await (await contractFactory.create2(salt, hash, [])).wait();
+
+        const deployedAddresses = zksync.utils.getDeployedContracts(deploymentTx);
+        expect(deployedAddresses.length).toEqual(1);
+        const deployedAddress = deployedAddresses[0];
+        const correctCreate2Address = zksync.utils.create2Address(contractFactory.address, hash, salt, []);
+
+        expect(deployedAddress.deployedAddress.toLocaleLowerCase()).toEqual(correctCreate2Address.toLocaleLowerCase());
+        expect(await alice.provider.getCode(deployedAddress.deployedAddress)).toEqual(bytecode);
+
     });
 
     afterAll(async () => {
