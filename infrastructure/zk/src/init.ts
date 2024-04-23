@@ -201,7 +201,7 @@ export const initCommand = new Command('init')
     .option('--validium-mode', 'deploy contracts in Validium mode')
     .option('--run-observability', 'run observability suite')
     .option(
-        '--chain-id-hack',
+        '--local-legacy-bridge-testing',
         'used to test LegacyBridge compatibily. The chain will have the same id as the era chain id, while eraChainId in L2SharedBridge will be 0'
     )
     .description('Deploys the shared bridge and registers a hyperchain locally, as quickly as possible.')

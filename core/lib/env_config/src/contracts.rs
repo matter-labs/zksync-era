@@ -12,6 +12,16 @@ impl FromEnv for ContractsConfig {
         contracts.l2_shared_bridge_addr = contracts
             .l2_shared_bridge_addr
             .or(contracts.l2_erc20_bridge_addr);
+
+        if let (Some(legacy_addr), Some(shared_addr)) = (
+            contracts.l2_erc20_bridge_addr,
+            contracts.l2_shared_bridge_addr,
+        ) {
+            if legacy_addr != shared_addr {
+                panic!("L2 erc20 bridge address and L2 shared bridge address are different.");
+            }
+        }
+
         Ok(contracts)
     }
 }

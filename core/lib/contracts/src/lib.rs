@@ -29,7 +29,7 @@ const BRIDGEHUB_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/bridgehub/IBridgehub.sol/IBridgehub.json";
 const STATE_TRANSITION_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/state-transition/IStateTransitionManager.sol/IStateTransitionManager.json";
-const STATE_TRANSITION_CHAIN_CONTRACT_FILE: &str =
+const ZKSYNC_HYPERCHAIN_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/state-transition/chain-interfaces/IZkSyncHyperchain.sol/IZkSyncHyperchain.json";
 const DIAMOND_INIT_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/state-transition/chain-interfaces/IDiamondInit.sol/IDiamondInit.json";
@@ -98,8 +98,8 @@ pub fn state_transition_manager_contract() -> Contract {
     load_contract(STATE_TRANSITION_CONTRACT_FILE)
 }
 
-pub fn state_transition_chain_contract() -> Contract {
-    load_contract(STATE_TRANSITION_CHAIN_CONTRACT_FILE)
+pub fn hyperchain_contract() -> Contract {
+    load_contract(ZKSYNC_HYPERCHAIN_CONTRACT_FILE)
 }
 
 pub fn diamond_init_contract() -> Contract {

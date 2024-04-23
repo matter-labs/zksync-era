@@ -48,6 +48,9 @@ pub(crate) struct RemoteENConfig {
     pub state_transition_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Option<Address>,
     pub diamond_proxy_addr: Address,
+    // While on L1 shared bridge and legacy bridge are different contracts with different addresses,
+    // the "l2_erc20_bridge_addr" and "l2_shared_bridge_addr" are basically the same contract, but with
+    // a different name, with names adapted only for consistency.
     pub l1_shared_bridge_proxy_addr: Option<Address>,
     pub l2_shared_bridge_addr: Option<Address>,
     pub l1_erc20_bridge_proxy_addr: Option<Address>,
@@ -114,6 +117,22 @@ impl RemoteENConfig {
             FeeParams::V2(params) => params.config.max_pubdata_per_batch,
         };
 
+        // These two config variables should always have the same value.
+        let l2_erc20_default_bridge = bridges
+            .l2_erc20_default_bridge
+            .or(bridges.l2_shared_default_bridge);
+        let l2_erc20_shared_bridge = bridges
+            .l2_shared_default_bridge
+            .or(bridges.l2_erc20_default_bridge);
+
+        if let (Some(legacy_addr), Some(shared_addr)) =
+            (l2_erc20_default_bridge, l2_erc20_shared_bridge)
+        {
+            if legacy_addr != shared_addr {
+                panic!("L2 erc20 bridge address and L2 shared bridge address are different.");
+            }
+        }
+
         Ok(Self {
             bridgehub_proxy_addr: shared_bridge.as_ref().map(|a| a.bridgehub_proxy_addr),
             state_transition_proxy_addr: shared_bridge
@@ -125,9 +144,9 @@ impl RemoteENConfig {
             diamond_proxy_addr,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
-            l2_erc20_bridge_addr: bridges.l2_erc20_default_bridge,
+            l2_erc20_bridge_addr: l2_erc20_default_bridge,
             l1_shared_bridge_proxy_addr: bridges.l1_shared_default_bridge,
-            l2_shared_bridge_addr: bridges.l2_shared_default_bridge,
+            l2_shared_bridge_addr: l2_erc20_shared_bridge,
             l1_weth_bridge_addr: bridges.l1_weth_bridge,
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
             l2_chain_id,

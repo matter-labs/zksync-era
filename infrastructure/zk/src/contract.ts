@@ -98,7 +98,7 @@ export async function deployL2ThroughL1({
 
     await utils.spawn(
         `yarn l2-contracts deploy-shared-bridge-on-l2-through-l1 ${args.join(' ')} ${
-            chainIdHack ? '--chain-id-hack' : ''
+            chainIdHack ? '--local-legacy-bridge-testing' : ''
         } | tee deployL2.log`
     );
 
@@ -256,7 +256,7 @@ export async function deployL1(args: [string]): Promise<void> {
     await _deployL1(false, mode);
 }
 
-async function upgradeSharedBridgeEra(): Promise<void> {
+async function setupLegacyBridgeEra(): Promise<void> {
     await utils.confirmAction();
     if (process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID != process.env.CONTRACTS_ERA_CHAIN_ID) {
         throw new Error('Era chain and l2 chain id do not match');
@@ -266,9 +266,9 @@ async function upgradeSharedBridgeEra(): Promise<void> {
     const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const args = [privateKey ? `--private-key ${privateKey}` : ''];
 
-    await utils.spawn(`yarn l1-contracts upgrade-shared-bridge-era ${args.join(' ')} | tee upgradeSharedBridgeEra.log`);
+    await utils.spawn(`yarn l1-contracts setup-legacy-bridge-era ${args.join(' ')} | tee setupLegacyBridgeEra.log`);
 
-    const deployLog = fs.readFileSync('upgradeSharedBridgeEra.log').toString();
+    const deployLog = fs.readFileSync('setupLegacyBridgeEra.log').toString();
     const l1EnvVars = ['CONTRACTS_L1_SHARED_BRIDGE_IMPL_ADDR'];
 
     console.log('Writing to', `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`);
@@ -295,9 +295,9 @@ command.command('build').description('build contracts').action(build);
 
 command.command('verify').description('verify L1 contracts').action(verifyL1Contracts);
 command
-    .command('upgrade-shared-bridge-era')
+    .command('setup-legacy-bridge-era')
     .description('upgrade shared bridge with deployed era diamond proxy address')
-    .action(upgradeSharedBridgeEra);
+    .action(setupLegacyBridgeEra);
 command
     .command('initialize-validator [init-opts...]')
     .allowUnknownOption(true)
