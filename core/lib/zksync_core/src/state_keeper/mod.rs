@@ -6,7 +6,6 @@ use zksync_config::configs::{
     wallets,
 };
 use zksync_dal::{ConnectionPool, Core};
-use zksync_state::AsyncCatchupTask;
 use zksync_types::L2ChainId;
 
 pub use self::{
