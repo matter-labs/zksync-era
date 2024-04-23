@@ -18,7 +18,7 @@ use zksync_types::{
     storage_writes_deduplicator::StorageWritesDeduplicator,
     system_contracts::get_system_smart_contracts, utils::storage_key_for_standard_token_balance,
     AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId,
-    StorageKey, StorageLog, Transaction, H256, L2_ETH_TOKEN_ADDRESS,
+    StorageKey, StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS,
     SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
 };
 use zksync_utils::u256_to_h256;
@@ -259,7 +259,7 @@ impl Tester {
 
         for address in addresses {
             let key = storage_key_for_standard_token_balance(
-                AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
+                AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
                 address,
             );
             let value = u256_to_h256(eth_amount);

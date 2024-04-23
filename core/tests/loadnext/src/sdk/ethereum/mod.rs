@@ -33,7 +33,6 @@ use crate::sdk::{
 
 const IERC20_INTERFACE: &str = include_str!("../abi/IERC20.json");
 const HYPERCHAIN_INTERFACE: &str = include_str!("../abi/IZkSyncHyperchain.json");
-const _L1_DEFAULT_BRIDGE_INTERFACE: &str = include_str!("../abi/IL1SharedBridge.json");
 const L1_ERC20_BRIDGE_INTERFACE: &str = include_str!("../abi/IL1ERC20Bridge.json");
 const RAW_ERC20_DEPOSIT_GAS_LIMIT: &str = include_str!("DepositERC20GasLimit.json");
 
@@ -41,19 +40,14 @@ const RAW_ERC20_DEPOSIT_GAS_LIMIT: &str = include_str!("DepositERC20GasLimit.jso
 // as an optimal one. In the future, it will be estimated.
 const L1_TO_L2_GAS_PER_PUBDATA: u32 = 800;
 
-/// Returns `ethabi::Contract` object for zkSync smart contract.
-pub fn state_transition_chain_contract() -> ethabi::Contract {
+/// Returns `ethabi::Contract` object for an interface of a hyperchain
+pub fn hyperchain_contract() -> ethabi::Contract {
     load_contract(HYPERCHAIN_INTERFACE)
 }
 
 /// Returns `ethabi::Contract` object for ERC-20 smart contract interface.
 pub fn ierc20_contract() -> ethabi::Contract {
     load_contract(IERC20_INTERFACE)
-}
-
-/// Returns `ethabi::Contract` object for L1 Bridge smart contract interface.
-pub fn _l1_bridge_contract() -> ethabi::Contract {
-    load_contract(_L1_DEFAULT_BRIDGE_INTERFACE)
 }
 
 pub fn l1_erc20_bridge_contract() -> ethabi::Contract {
@@ -107,7 +101,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
 
         let eth_client = SigningClient::new(
             transport,
-            state_transition_chain_contract(),
+            hyperchain_contract(),
             eth_addr,
             eth_signer,
             contract_address,
