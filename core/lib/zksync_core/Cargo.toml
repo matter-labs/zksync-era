@@ -84,7 +84,7 @@ lru.workspace = true
 governor.workspace = true
 tower-http = { workspace = true, features = ["full"] }
 tower = { workspace = true, features = ["full"] }
-axum = { workspace = true,features = [
+axum = { workspace = true, features = [
     "http1",
     "json",
     "tokio",
@@ -101,6 +101,7 @@ jsonrpsee.workspace = true
 tempfile.workspace = true
 test-casing.workspace = true
 test-log.workspace = true
+backon.workspace = true
 
 [build-dependencies]
 zksync_protobuf_build.workspace = true

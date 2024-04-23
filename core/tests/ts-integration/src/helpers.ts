@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import * as hre from 'hardhat';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
@@ -102,6 +102,6 @@ export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber
  */
 export async function scaledGasPrice(wallet: ethers.Wallet | zksync.Wallet): Promise<ethers.BigNumber> {
     const gasPrice = await wallet.getGasPrice();
-    // Increase by 40%.
-    return gasPrice.mul(170).div(100);
+    // Increase by 40%
+    return gasPrice.mul(140).div(100);
 }

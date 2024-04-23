@@ -4,9 +4,10 @@
 !docker/external-node/entrypoint.sh
 !docker/contract-verifier/install-all-solc.sh
 !etc/test_config
-!etc/env/dev.env.example
-!etc/env/docker.env
+!etc/env/target/dev.env.example
+!etc/env/target/docker.env
 !etc/env/base
+!etc/env/configs
 !etc/tokens
 !etc/ERC20
 !artifacts

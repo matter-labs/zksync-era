@@ -1,4 +1,4 @@
-use zksync_system_constants::{BOOTLOADER_ADDRESS, L2_ETH_TOKEN_ADDRESS};
+use zksync_system_constants::{BOOTLOADER_ADDRESS, L2_BASE_TOKEN_ADDRESS};
 
 use super::*;
 
@@ -108,7 +108,7 @@ fn test_extract_l2tol1logs_from_l1_messenger() {
         create_l2_to_l1_log_vm_event(
             BOOTLOADER_ADDRESS,
             U256::from(6),
-            L2_ETH_TOKEN_ADDRESS,
+            L2_BASE_TOKEN_ADDRESS,
             U256::from(6),
             U256::from(8),
         ),
@@ -138,7 +138,7 @@ fn test_extract_bytecode_publication_requests_from_l1_messenger() {
     ];
 
     let events = vec![
-        create_bytecode_publication_vm_event(L2_ETH_TOKEN_ADDRESS, U256::from(1337)),
+        create_bytecode_publication_vm_event(L2_BASE_TOKEN_ADDRESS, U256::from(1337)),
         create_bytecode_publication_vm_event(L1_MESSENGER_ADDRESS, U256::from(1438284388)),
         create_bytecode_publication_vm_event(L1_MESSENGER_ADDRESS, U256::from(1231014388)),
     ];

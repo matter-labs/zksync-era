@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use serde::Serialize;
 use tokio::fs;
 use zksync_config::{ContractsConfig, EthConfig};
-use zksync_contracts::zksync_contract;
+use zksync_contracts::hyperchain_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
 use zksync_merkle_tree::domain::ZkSyncTree;
@@ -447,7 +447,7 @@ impl BlockReverter {
     ) -> anyhow::Result<()> {
         let web3 =
             Web3::new(Http::new(&eth_config.eth_client_url).context("cannot create L1 client")?);
-        let contract = zksync_contract();
+        let contract = hyperchain_contract();
         let signer = PrivateKeySigner::new(
             eth_config
                 .reverter_private_key
@@ -459,16 +459,37 @@ impl BlockReverter {
             .await
             .context("failed getting L1 chain ID")?
             .as_u64();
+        // FIXME: brush up
+        let hyperchain_id = std::env::var("CHAIN_ETH_ZKSYNC_NETWORK_ID")
+            .ok()
+            .and_then(|val| val.parse::<u128>().ok())
+            .expect("`CHAIN_ETH_ZKSYNC_NETWORK_ID` has to be set in config");
+        let era_chain_id = std::env::var("CONTRACTS_ERA_CHAIN_ID")
+            .ok()
+            .and_then(|val| val.parse::<u128>().ok())
+            .expect("`CONTRACTS_ERA_CHAIN_ID` has to be set in config");
 
-        let revert_function = contract
-            .function("revertBlocks")
-            .or_else(|_| contract.function("revertBatches"))
-            .context(
-                "Either `revertBlocks` or `revertBatches` function must be present in contract",
-            )?;
-        let data = revert_function
-            .encode_input(&[Token::Uint(last_l1_batch_to_keep.0.into())])
-            .context("failed encoding revert function input")?;
+        // It is expected that for all new chains `revertBatchesSharedBridge` can be used.
+        // For Era we are using `revertBatches` function for backwards compatibility in case the migration
+        // to the shared bridge is not yet complete.
+        let data = if hyperchain_id == era_chain_id {
+            let revert_function = contract
+                .function("revertBatches")
+                .expect("`revertBatches` function must be present in contract");
+            revert_function
+                .encode_input(&[Token::Uint(last_l1_batch_to_keep.0.into())])
+                .unwrap()
+        } else {
+            let revert_function = contract
+                .function("revertBatchesSharedBridge")
+                .expect("`revertBatchesSharedBridge` function must be present in contract");
+            revert_function
+                .encode_input(&[
+                    Token::Uint(hyperchain_id.into()),
+                    Token::Uint(last_l1_batch_to_keep.0.into()),
+                ])
+                .unwrap()
+        };
 
         let base_fee = web3
             .eth()
@@ -567,7 +588,7 @@ impl BlockReverter {
         let web3 =
             Web3::new(Http::new(&eth_config.eth_client_url).context("cannot create L1 client")?);
         let contract_address = eth_config.diamond_proxy_addr;
-        let contract = Contract::new(web3.eth(), contract_address, zksync_contract());
+        let contract = Contract::new(web3.eth(), contract_address, hyperchain_contract());
 
         let last_committed_l1_batch_number =
             Self::get_l1_batch_number_from_contract(&contract, AggregatedActionType::Commit)

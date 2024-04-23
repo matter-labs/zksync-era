@@ -89,8 +89,8 @@ use crate::{
     },
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     state_keeper::{
-        create_state_keeper, MempoolFetcher, MempoolGuard, OutputHandler, SequencerSealer,
-        StateKeeperPersistence,
+        create_state_keeper, AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler,
+        SequencerSealer, StateKeeperPersistence,
     },
     utils::ensure_l1_batch_commit_data_generation_mode,
 };
@@ -113,6 +113,7 @@ pub mod state_keeper;
 pub mod sync_layer;
 pub mod temp_config_store;
 pub mod utils;
+pub mod vm_runner;
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
@@ -545,6 +546,12 @@ pub async fn initialize_components(
         tracing::info!("initialized State Keeper in {elapsed:?}");
     }
 
+    let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
+    let state_transition_manager_addr = genesis_config
+        .shared_bridge
+        .as_ref()
+        .map(|a| a.state_transition_proxy_addr);
+
     if components.contains(&Component::Consensus) {
         let secrets = secrets.consensus.as_ref().context("Secrets are missing")?;
         let cfg = consensus::config::main_node(
@@ -577,8 +584,6 @@ pub async fn initialize_components(
         tracing::info!("initialized Consensus in {elapsed:?}");
     }
 
-    let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
-
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-Watcher");
@@ -598,7 +603,8 @@ pub async fn initialize_components(
                 eth_watch_config,
                 eth_watch_pool,
                 Arc::new(query_client.clone()),
-                main_zksync_contract_address,
+                diamond_proxy_addr,
+                state_transition_manager_addr,
                 governance,
                 stop_receiver.clone(),
             )
@@ -671,7 +677,7 @@ pub async fn initialize_components(
             Arc::new(eth_client),
             contracts_config.validator_timelock_addr,
             contracts_config.l1_multicall3_addr,
-            main_zksync_contract_address,
+            diamond_proxy_addr,
             l2_chain_id,
             operator_blobs_address,
             l1_batch_commit_data_generator,
@@ -828,8 +834,7 @@ async fn add_state_keeper_to_task_futures(
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
-    let pool_builder = ConnectionPool::<Core>::singleton(postgres_config.master_url()?);
-    let state_keeper_pool = pool_builder
+    let state_keeper_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
         .build()
         .await
         .context("failed to build state_keeper_pool")?;
@@ -843,21 +848,31 @@ async fn add_state_keeper_to_task_futures(
         mempool
     };
 
-    let miniblock_sealer_pool = pool_builder
+    let miniblock_sealer_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
         .build()
         .await
         .context("failed to build miniblock_sealer_pool")?;
     let (persistence, miniblock_sealer) = StateKeeperPersistence::new(
         miniblock_sealer_pool,
-        contracts_config.l2_erc20_bridge_addr,
+        contracts_config
+            .l2_shared_bridge_addr
+            .expect("`l2_shared_bridge_addr` config is missing"),
         state_keeper_config.l2_block_seal_queue_capacity,
     );
     task_futures.push(tokio::spawn(miniblock_sealer.run()));
 
-    let (state_keeper, async_catchup_task) = create_state_keeper(
+    // One (potentially held long-term) connection for `AsyncCatchupTask` and another connection
+    // to access `AsyncRocksdbCache` as a storage.
+    let async_cache_pool = ConnectionPool::<Core>::builder(postgres_config.master_url()?, 2)
+        .build()
+        .await
+        .context("failed to build async_cache_pool")?;
+    let (async_cache, async_catchup_task) =
+        AsyncRocksdbCache::new(async_cache_pool, db_config.state_keeper_db_path.clone());
+    let state_keeper = create_state_keeper(
         state_keeper_config,
         state_keeper_wallets,
-        db_config,
+        async_cache,
         l2chain_id,
         mempool_config,
         state_keeper_pool,
@@ -876,7 +891,7 @@ async fn add_state_keeper_to_task_futures(
     }));
     task_futures.push(tokio::spawn(state_keeper.run()));
 
-    let mempool_fetcher_pool = pool_builder
+    let mempool_fetcher_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
         .build()
         .await
         .context("failed to build mempool_fetcher_pool")?;
@@ -891,23 +906,26 @@ async fn add_state_keeper_to_task_futures(
     Ok(())
 }
 
-async fn start_eth_watch(
+pub async fn start_eth_watch(
     config: EthWatchConfig,
     pool: ConnectionPool<Core>,
     eth_gateway: Arc<dyn EthInterface>,
     diamond_proxy_addr: Address,
+    state_transition_manager_addr: Option<Address>,
     governance: (Contract, Address),
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<JoinHandle<anyhow::Result<()>>> {
     let eth_client = EthHttpQueryClient::new(
         eth_gateway,
         diamond_proxy_addr,
+        state_transition_manager_addr,
         governance.1,
         config.confirmations_for_eth_event,
     );
 
     let eth_watch = EthWatch::new(
         diamond_proxy_addr,
+        state_transition_manager_addr,
         &governance.0,
         Box::new(eth_client),
         pool,

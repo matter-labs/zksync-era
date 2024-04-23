@@ -134,7 +134,7 @@ async fn block_reverter_basics(sync_merkle_tree: bool) {
     let sk_cache = RocksdbStorage::builder(&sk_cache_path).await.unwrap();
     let (_stop_sender, stop_receiver) = watch::channel(false);
     sk_cache
-        .synchronize(&mut storage, &stop_receiver)
+        .synchronize(&mut storage, &stop_receiver, None)
         .await
         .unwrap();
 
@@ -186,7 +186,7 @@ async fn block_reverter_basics(sync_merkle_tree: bool) {
 
     let sk_cache = RocksdbStorage::builder(&sk_cache_path).await.unwrap();
     let mut sk_cache = sk_cache
-        .synchronize(&mut storage, &stop_receiver)
+        .synchronize(&mut storage, &stop_receiver, None)
         .await
         .unwrap()
         .expect("sk_cache syncing unexpectedly stopped");

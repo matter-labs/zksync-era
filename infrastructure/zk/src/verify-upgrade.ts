@@ -30,7 +30,7 @@ const SYSTEM_CONTRACT_MAP: Map<string, string> = new Map([
     // 0x8007 is a ForceDeployer address (which is not a system contract, but conventional address)
     ['L1Messenger', '0x0000000000000000000000000000000000008008'],
     ['MsgValueSimulator', '0x0000000000000000000000000000000000008009'],
-    ['L2EthToken', '0x000000000000000000000000000000000000800a'],
+    ['L2BaseToken', '0x000000000000000000000000000000000000800a'],
     ['SystemContext', '0x000000000000000000000000000000000000800b'],
     ['BootloaderUtilities', '0x000000000000000000000000000000000000800c'],
     ['BytecodeCompressor', '0x000000000000000000000000000000000000800e'],
