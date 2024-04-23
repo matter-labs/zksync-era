@@ -17,7 +17,7 @@ pub use self::{
     keeper::ZkSyncStateKeeper,
     mempool_actor::MempoolFetcher,
     seal_criteria::SequencerSealer,
-    state_keeper_storage::{AsyncCatchupTask, AsyncRocksdbCache},
+    state_keeper_storage::AsyncRocksdbCache,
     types::MempoolGuard,
 };
 use crate::fee_model::BatchFeeModelInputProvider;
