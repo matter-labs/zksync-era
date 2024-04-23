@@ -4,7 +4,7 @@ use zkevm_test_harness::zk_evm::{
     zkevm_opcode_defs::system_params::{STORAGE_AUX_BYTE, TRANSIENT_STORAGE_AUX_BYTE},
 };
 
-// Due to traces, we've noticed in the past that stroage_refunds and pubdata_costs can be different than actual state_keeper's run.
+// Due to traces, we've noticed in the past that storage_refunds and pubdata_costs can be different than actual state_keeper's run.
 // Whilst this may not be true today, the storage oracle implementation in witness_generator guards us from such issues in the future.
 #[derive(Debug)]
 pub struct StorageOracle<T> {
