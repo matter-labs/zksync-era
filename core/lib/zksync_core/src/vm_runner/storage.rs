@@ -282,7 +282,7 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
             let mut conn = self.pool.connection_tagged(L::name()).await?;
             let latest_processed_batch = self.loader.latest_processed_batch(&mut conn).await?;
             let rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb.clone());
-            if rocksdb_builder.l1_batch_number().await == Some(latest_processed_batch) {
+            if rocksdb_builder.l1_batch_number().await == Some(latest_processed_batch + 1) {
                 // RocksDB is already caught up, we might not need to do anything.
                 // Just need to check that the memory diff is up-to-date in case this is a fresh start.
                 if state

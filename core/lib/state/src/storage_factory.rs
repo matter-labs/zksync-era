@@ -125,9 +125,8 @@ impl<'a> PgOrRocksdbStorage<'a> {
         let rocksdb_l1_batch_number = rocksdb
             .l1_batch_number()
             .await
-            .ok_or_else(|| anyhow::anyhow!("No L1 batches available in Postgres"))?
-            - 1;
-        if l1_batch_number != rocksdb_l1_batch_number {
+            .ok_or_else(|| anyhow::anyhow!("No L1 batches available in Postgres"))?;
+        if l1_batch_number + 1 != rocksdb_l1_batch_number {
             anyhow::bail!(
                 "RocksDB synchronized to L1 batch #{} while #{} was expected",
                 rocksdb_l1_batch_number,
