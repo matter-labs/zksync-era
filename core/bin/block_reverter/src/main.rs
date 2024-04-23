@@ -1,9 +1,12 @@
+use std::env;
+
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
 use zksync_block_reverter::{BlockReverter, BlockReverterEthConfig, NodeRole};
 use zksync_config::{
-    configs::ObservabilityConfig, ContractsConfig, DBConfig, EthConfig, PostgresConfig,
+    configs::{chain::NetworkConfig, ObservabilityConfig},
+    ContractsConfig, DBConfig, EthConfig, PostgresConfig,
 };
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
@@ -98,16 +101,16 @@ async fn main() -> anyhow::Result<()> {
             .default_priority_fee_per_gas,
     );
     let contracts = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
+    // FIXME: is it correct to parse the entire `NetworkConfig`?
+    let network = NetworkConfig::from_env().context("NetworkConfig::from_env()")?;
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let operator_address = if let Command::Display {
-        operator_address, ..
-    } = &command
-    {
-        Some(*operator_address)
-    } else {
-        None
-    };
-    let config = BlockReverterEthConfig::new(eth_sender, contracts, operator_address)?;
+    let era_chain_id = env::var("CONTRACTS_ERA_CHAIN_ID")
+        .context("`CONTRACTS_ERA_CHAIN_ID` env variable is not set")?
+        .parse()
+        .map_err(|err| {
+            anyhow::anyhow!("failed parsing `CONTRACTS_ERA_CHAIN_ID` env variable: {err}")
+        })?;
+    let config = BlockReverterEthConfig::new(eth_sender, &contracts, &network, era_chain_id)?;
 
     let connection_pool = ConnectionPool::<Core>::builder(
         postgres_config.master_url()?,
@@ -119,8 +122,13 @@ async fn main() -> anyhow::Result<()> {
     let mut block_reverter = BlockReverter::new(NodeRole::Main, connection_pool);
 
     match command {
-        Command::Display { json, .. } => {
-            let suggested_values = block_reverter.suggested_values(&config).await?;
+        Command::Display {
+            json,
+            operator_address,
+        } => {
+            let suggested_values = block_reverter
+                .suggested_values(&config, operator_address)
+                .await?;
             if json {
                 println!("{}", serde_json::to_string(&suggested_values)?);
             } else {

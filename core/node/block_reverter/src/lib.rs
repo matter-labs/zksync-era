@@ -3,7 +3,7 @@ use std::{path::Path, sync::Arc, time::Duration};
 use anyhow::Context as _;
 use serde::Serialize;
 use tokio::fs;
-use zksync_config::{ContractsConfig, EthConfig};
+use zksync_config::{configs::chain::NetworkConfig, ContractsConfig, EthConfig};
 use zksync_contracts::hyperchain_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
@@ -24,7 +24,7 @@ use zksync_types::{
         types::{BlockId, BlockNumber},
         Web3,
     },
-    Address, L1BatchNumber, H160, H256, U256,
+    Address, L1BatchNumber, L2ChainId, H160, H256, U256,
 };
 
 #[cfg(test)]
@@ -34,17 +34,19 @@ mod tests;
 pub struct BlockReverterEthConfig {
     eth_client_url: String,
     reverter_private_key: Option<H256>,
-    reverter_address: Option<Address>,
     diamond_proxy_addr: H160,
     validator_timelock_addr: H160,
     default_priority_fee_per_gas: u64,
+    hyperchain_id: L2ChainId,
+    era_chain_id: L2ChainId,
 }
 
 impl BlockReverterEthConfig {
     pub fn new(
         eth_config: EthConfig,
-        contract: ContractsConfig,
-        reverter_address: Option<Address>,
+        contract: &ContractsConfig,
+        network_config: &NetworkConfig,
+        era_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         #[allow(deprecated)]
         // `BlockReverter` doesn't support non env configs yet
@@ -56,13 +58,14 @@ impl BlockReverterEthConfig {
         Ok(Self {
             eth_client_url: eth_config.web3_url,
             reverter_private_key: pk,
-            reverter_address,
             diamond_proxy_addr: contract.diamond_proxy_addr,
             validator_timelock_addr: contract.validator_timelock_addr,
             default_priority_fee_per_gas: eth_config
                 .gas_adjuster
                 .context("gas adjuster")?
                 .default_priority_fee_per_gas,
+            hyperchain_id: network_config.zksync_network_id,
+            era_chain_id,
         })
     }
 }
@@ -459,36 +462,27 @@ impl BlockReverter {
             .await
             .context("failed getting L1 chain ID")?
             .as_u64();
-        // FIXME: brush up
-        let hyperchain_id = std::env::var("CHAIN_ETH_ZKSYNC_NETWORK_ID")
-            .ok()
-            .and_then(|val| val.parse::<u128>().ok())
-            .expect("`CHAIN_ETH_ZKSYNC_NETWORK_ID` has to be set in config");
-        let era_chain_id = std::env::var("CONTRACTS_ERA_CHAIN_ID")
-            .ok()
-            .and_then(|val| val.parse::<u128>().ok())
-            .expect("`CONTRACTS_ERA_CHAIN_ID` has to be set in config");
 
         // It is expected that for all new chains `revertBatchesSharedBridge` can be used.
-        // For Era we are using `revertBatches` function for backwards compatibility in case the migration
+        // For Era, we are using `revertBatches` function for backwards compatibility in case the migration
         // to the shared bridge is not yet complete.
-        let data = if hyperchain_id == era_chain_id {
+        let data = if eth_config.hyperchain_id == eth_config.era_chain_id {
             let revert_function = contract
                 .function("revertBatches")
-                .expect("`revertBatches` function must be present in contract");
+                .context("`revertBatches` function must be present in contract")?;
             revert_function
                 .encode_input(&[Token::Uint(last_l1_batch_to_keep.0.into())])
-                .unwrap()
+                .context("failed encoding `revertBatches` input")?
         } else {
             let revert_function = contract
                 .function("revertBatchesSharedBridge")
-                .expect("`revertBatchesSharedBridge` function must be present in contract");
+                .context("`revertBatchesSharedBridge` function must be present in contract")?;
             revert_function
                 .encode_input(&[
-                    Token::Uint(hyperchain_id.into()),
+                    Token::Uint(eth_config.hyperchain_id.as_u64().into()),
                     Token::Uint(last_l1_batch_to_keep.0.into()),
                 ])
-                .unwrap()
+                .context("failed encoding `revertBatchesSharedBridge` input")?
         };
 
         let base_fee = web3
@@ -584,6 +578,7 @@ impl BlockReverter {
     pub async fn suggested_values(
         &self,
         eth_config: &BlockReverterEthConfig,
+        reverter_address: Address,
     ) -> anyhow::Result<SuggestedRevertValues> {
         let web3 =
             Web3::new(Http::new(&eth_config.eth_client_url).context("cannot create L1 client")?);
@@ -608,9 +603,6 @@ impl BlockReverter {
         );
 
         let priority_fee = eth_config.default_priority_fee_per_gas;
-        let reverter_address = eth_config
-            .reverter_address
-            .context("need to provide operator address to suggest reversion values")?;
         let nonce = web3
             .eth()
             .transaction_count(reverter_address, Some(BlockNumber::Pending))
