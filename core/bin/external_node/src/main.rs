@@ -299,18 +299,6 @@ async fn run_core(
         task_handles.push(tokio::spawn(db_pruner.run(stop_receiver.clone())));
     }
 
-    let reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
-    app_health.insert_component(reorg_detector.health_check().clone());
-    task_handles.push(tokio::spawn({
-        let stop = stop_receiver.clone();
-        async move {
-            reorg_detector
-                .run(stop)
-                .await
-                .context("reorg_detector.run()")
-        }
-    }));
-
     let sk_handle = task::spawn(state_keeper.run());
     let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
