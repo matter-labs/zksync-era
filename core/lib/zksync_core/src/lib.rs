@@ -112,6 +112,7 @@ pub mod state_keeper;
 pub mod sync_layer;
 pub mod temp_config_store;
 pub mod utils;
+pub mod vm_runner;
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
