@@ -49,7 +49,7 @@ pub(crate) struct RemoteENConfig {
     pub transparent_proxy_admin_addr: Option<Address>,
     pub diamond_proxy_addr: Address,
     // While on L1 shared bridge and legacy bridge are different contracts with different addresses,
-    // the "l2_erc20_bridge_addr" and "l2_shared_bridge_addr" are basically the same contract, but with
+    // the `l2_erc20_bridge_addr` and `l2_shared_bridge_addr` are basically the same contract, but with
     // a different name, with names adapted only for consistency.
     pub l1_shared_bridge_proxy_addr: Option<Address>,
     pub l2_shared_bridge_addr: Option<Address>,
