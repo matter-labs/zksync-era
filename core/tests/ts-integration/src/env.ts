@@ -1,9 +1,10 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as ethers from 'ethers';
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 import { TestEnvironment } from './types';
 import { Reporter } from './reporter';
+import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/src/utils';
 
 /**
  * Attempts to connect to server.
@@ -29,7 +30,7 @@ export async function waitForServer() {
     for (let i = 0; i < maxAttempts; ++i) {
         try {
             await l2Provider.getNetwork(); // Will throw if the server is not ready yet.
-            const bridgeAddress = (await l2Provider.getDefaultBridgeAddresses()).erc20L2;
+            const bridgeAddress = (await l2Provider.getDefaultBridgeAddresses()).sharedL2;
             const code = await l2Provider.getCode(bridgeAddress);
             if (code == '0x') {
                 throw Error('L2 ERC20 bridge is not deployed yet, server is not ready');
@@ -63,6 +64,9 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
         process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL,
         'L2 node URL'
     );
+    const l2Provider = new zksync.Provider(l2NodeUrl);
+    const baseTokenAddress = await l2Provider.getBaseTokenContractAddress();
+
     const l1NodeUrl = ensureVariable(process.env.L1_RPC_ADDRESS || process.env.ETH_CLIENT_WEB3_URL, 'L1 node URL');
     const wsL2NodeUrl = ensureVariable(
         process.env.ZKSYNC_WEB3_WS_API_URL || process.env.API_WEB3_JSON_RPC_WS_URL,
@@ -76,24 +80,29 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
     // wBTC is chosen because it has decimals different from ETH (8 instead of 18).
     // Using this token will help us to detect decimals-related errors.
     // but if it's not available, we'll use the first token from the list.
-    let token = tokens.find((token: { symbol: string }) => token.symbol == 'wBTC')!;
+    let token = tokens.find((token: { symbol: string }) => token.symbol == 'WBTC')!;
     if (!token) {
         token = tokens[0];
     }
     const weth = tokens.find((token: { symbol: string }) => token.symbol == 'WETH')!;
+    const baseToken = tokens.find((token: { address: string }) =>
+        zksync.utils.isAddressEq(token.address, baseTokenAddress)
+    )!;
 
     // `waitForServer` is expected to be executed. Otherwise this call may throw.
     const l2TokenAddress = await new zksync.Wallet(
         mainWalletPK,
-        new zksync.Provider(l2NodeUrl),
+        l2Provider,
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(token.address);
 
     const l2WethAddress = await new zksync.Wallet(
         mainWalletPK,
-        new zksync.Provider(l2NodeUrl),
+        l2Provider,
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(weth.address);
+
+    const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
 
     return {
         network,
@@ -115,6 +124,13 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
             decimals: weth.decimals,
             l1Address: weth.address,
             l2Address: l2WethAddress
+        },
+        baseToken: {
+            name: baseToken?.name || token.name,
+            symbol: baseToken?.symbol || token.symbol,
+            decimals: baseToken?.decimals || token.decimals,
+            l1Address: baseToken?.address || token.address,
+            l2Address: baseTokenAddressL2
         }
     };
 }

@@ -66,6 +66,7 @@ COPY package.json /
 COPY core/lib/dal core/lib/dal
 COPY prover/prover_dal prover/prover_dal
 
+RUN mkdir /etc/env/l1-inits && mkdir /etc/env/l2-inits
 
 # setup entrypoint script
 COPY ./docker/local-node/entrypoint.sh /usr/bin/
