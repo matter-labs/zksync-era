@@ -207,6 +207,10 @@ pub async fn load_proofs_for_job_ids(
     proofs
 }
 
+/// Loads all proofs for aa given recursion tip's job ids.
+/// Note that recursion tip may not have proofs for some specific circuits (because the batch didn't contain them).
+/// In this scenario, we still need to pass a proof, but it won't be taken into account during proving.
+/// For this scenario, we use an empty_proof, but any proof would suffice.
 pub async fn load_proofs_for_recursion_tip(
     job_ids: Vec<(u8, u32)>,
     object_store: &dyn ObjectStore,
@@ -229,11 +233,17 @@ pub async fn load_proofs_for_recursion_tip(
             let fri_proof_wrapper = object_store
                 .get(*job_mapping.get(&circuit_id).unwrap())
                 .await
-                .expect("Failed to load proof for recursion_tip");
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Failed to load proof with circuit_id {} for recursion tip",
+                        circuit_id
+                    )
+                });
             match fri_proof_wrapper {
                 FriProofWrapper::Base(_) => {
                     return Err(anyhow::anyhow!(
-                        "Expected only recursive proofs for recursive tip, got Base"
+                        "Expected only recursive proofs for recursion tip, got Base for circuit {}",
+                        circuit_id
                     ));
                 }
                 FriProofWrapper::Recursive(recursive_proof) => {

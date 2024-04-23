@@ -4,6 +4,8 @@ use zkevm_test_harness::zk_evm::{
     zkevm_opcode_defs::system_params::{STORAGE_AUX_BYTE, TRANSIENT_STORAGE_AUX_BYTE},
 };
 
+// Due to traces, we've noticed in the past that stroage_refunds and pubdata_costs can be different than actual state_keeper's run.
+// Whilst this may not be true today, the storage oracle implementation in witness_generator guards us from such issues in the future.
 #[derive(Debug)]
 pub struct StorageOracle<T> {
     inn: T,
@@ -15,7 +17,9 @@ impl<T> StorageOracle<T> {
     pub fn new(inn: T, storage_refunds: Vec<u32>, pubdata_costs: Vec<i32>) -> Self {
         Self {
             inn,
+            // storage_refunds as precalculated in state_keeper
             storage_refunds: storage_refunds.into_iter(),
+            // pubdata_costs as precalculated in state_keeper
             pubdata_costs: pubdata_costs.into_iter(),
         }
     }
@@ -44,8 +48,8 @@ impl<T: Storage> Storage for StorageOracle<T> {
         }
     }
 
-    fn start_new_tx(&mut self, _timestamp: Timestamp) {
-        self.inn.start_new_tx(_timestamp)
+    fn start_new_tx(&mut self, timestamp: Timestamp) {
+        self.inn.start_new_tx(timestamp)
     }
 
     fn execute_partial_query(

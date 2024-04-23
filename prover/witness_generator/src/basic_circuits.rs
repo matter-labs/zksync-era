@@ -649,7 +649,10 @@ async fn generate_witness(
             pubdata_costs.expect("pubdata costs should be present"),
         );
 
-        let path = KZG_TRUSTED_SETUP_FILE.path().to_str().unwrap();
+        let path = KZG_TRUSTED_SETUP_FILE
+            .path()
+            .to_str()
+            .expect("Path to KZG trusted setup is not a UTF-8 string");
 
         let (scheduler_witness, block_witness) = zkevm_test_harness::external_calls::run(
             Address::zero(),
@@ -702,10 +705,7 @@ async fn generate_witness(
     let (witnesses, ()) = tokio::join!(make_circuits, save_circuits);
     let (mut scheduler_witness, block_aux_witness) = witnesses.unwrap();
 
-    let recursion_urls = recursion_urls
-        .into_iter()
-        .filter(|(circuit_id, _, _)| circuits_present.contains(circuit_id))
-        .collect();
+    recursion_urls.retain(|(circuit_id, _, _)| circuits_present.contains(circuit_id));
 
     scheduler_witness.previous_block_meta_hash =
         previous_batch_with_metadata.metadata.meta_parameters_hash.0;

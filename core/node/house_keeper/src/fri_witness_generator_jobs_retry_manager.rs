@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use prover_dal::{Prover, ProverDal};
 use zksync_config::configs::fri_witness_generator::WitnessGenerationTimeouts;
 use zksync_dal::ConnectionPool;
+use zksync_types::prover_dal::StuckJobs;
 
 use crate::periodic_job::PeriodicJob;
 
@@ -28,6 +29,16 @@ impl FriWitnessGeneratorJobRetryManager {
         }
     }
 
+    pub fn emit_telemetry(&self, witness_type: &str, stuck_jobs: &Vec<StuckJobs>) {
+        for stuck_job in stuck_jobs {
+            tracing::info!("re-queuing {:?} {:?}", witness_type, stuck_job);
+        }
+        metrics::counter!(
+            format!("server.{:?}.requeued_jobs", witness_type),
+            stuck_jobs.len() as u64
+        );
+    }
+
     pub async fn requeue_stuck_witness_inputs_jobs(&mut self) {
         let stuck_jobs = self
             .pool
@@ -37,11 +48,7 @@ impl FriWitnessGeneratorJobRetryManager {
             .fri_witness_generator_dal()
             .requeue_stuck_jobs(self.processing_timeouts.basic(), self.max_attempts)
             .await;
-        let job_len = stuck_jobs.len();
-        for stuck_job in stuck_jobs {
-            tracing::info!("re-queuing fri witness input job {:?}", stuck_job);
-        }
-        metrics::counter!("server.witness_inputs_fri.requeued_jobs", job_len as u64);
+        self.emit_telemetry("witness_inputs_fri", &stuck_jobs);
     }
 
     pub async fn requeue_stuck_leaf_aggregations_jobs(&mut self) {
@@ -56,14 +63,7 @@ impl FriWitnessGeneratorJobRetryManager {
                 self.max_attempts,
             )
             .await;
-        let job_len = stuck_jobs.len();
-        for stuck_job in stuck_jobs {
-            tracing::info!("re-queuing fri witness input job {:?}", stuck_job);
-        }
-        metrics::counter!(
-            "server.leaf_aggregations_jobs_fri.requeued_jobs",
-            job_len as u64
-        );
+        self.emit_telemetry("leaf_aggregations_jobs_fri", &stuck_jobs);
     }
 
     pub async fn requeue_stuck_node_aggregations_jobs(&mut self) {
@@ -78,14 +78,7 @@ impl FriWitnessGeneratorJobRetryManager {
                 self.max_attempts,
             )
             .await;
-        let job_len = stuck_jobs.len();
-        for stuck_job in stuck_jobs {
-            tracing::info!("re-queuing fri witness input job {:?}", stuck_job);
-        }
-        metrics::counter!(
-            "server.node_aggregations_jobs_fri.requeued_jobs",
-            job_len as u64
-        );
+        self.emit_telemetry("node_aggregations_jobs_fri", &stuck_jobs);
     }
 
     pub async fn requeue_stuck_recursion_tip_jobs(&mut self) {
@@ -100,14 +93,7 @@ impl FriWitnessGeneratorJobRetryManager {
                 self.max_attempts,
             )
             .await;
-        let job_len = stuck_jobs.len();
-        for stuck_job in stuck_jobs {
-            tracing::info!("re-queuing fri witness input job {:?}", stuck_job);
-        }
-        metrics::counter!(
-            "server.recursion_tip_jobs_fri.requeued_jobs",
-            job_len as u64
-        );
+        self.emit_telemetry("recursion_tip_jobs_fri", &stuck_jobs);
     }
 
     pub async fn requeue_stuck_scheduler_jobs(&mut self) {
@@ -119,11 +105,7 @@ impl FriWitnessGeneratorJobRetryManager {
             .fri_witness_generator_dal()
             .requeue_stuck_scheduler_jobs(self.processing_timeouts.scheduler(), self.max_attempts)
             .await;
-        let job_len = stuck_jobs.len();
-        for stuck_job in stuck_jobs {
-            tracing::info!("re-queuing fri witness input job {:?}", stuck_job);
-        }
-        metrics::counter!("server.scheduler_jobs_fri.requeued_jobs", job_len as u64);
+        self.emit_telemetry("scheduler_jobs_fri", &stuck_jobs);
     }
 }
 

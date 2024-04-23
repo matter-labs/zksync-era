@@ -1,7 +1,7 @@
 DROP TABLE IF EXISTS scheduler_dependency_tracker_fri;
 
 CREATE TABLE IF NOT EXISTS recursion_tip_witness_jobs_fri (
-    l1_batch_number           BIGSERIAL PRIMARY KEY,
+    l1_batch_number           BIGINT PRIMARY KEY,
     status                    TEXT NOT NULL,
     attempts                  SMALLINT NOT NULL DEFAULT 0,
     processing_started_at     TIMESTAMP,

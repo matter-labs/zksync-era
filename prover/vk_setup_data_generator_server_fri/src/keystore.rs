@@ -397,7 +397,7 @@ impl Keystore {
         )?)
         .context("save_recursion_tip_vk")?;
 
-        let node_hint = source
+        let recursion_tip_hint = source
             .get_recursion_tip_finalization_hint()
             .map_err(|err| {
                 anyhow::anyhow!("No finalization hint exist for recursion tip layer circuit: {err}")
@@ -407,7 +407,7 @@ impl Keystore {
             ProverServiceDataKey::new_recursive(
                 ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
             ),
-            &node_hint,
+            &recursion_tip_hint,
         )
         .context("save_finalization_hints()")?;
 

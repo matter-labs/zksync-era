@@ -71,6 +71,8 @@ impl WaitingToQueuedFriWitnessJobMover {
         );
     }
 
+    /// Marks recursion tip witness jobs as queued.
+    /// The trigger condition is all final node proving jobs for the batch have been completed.
     async fn move_recursion_tip_jobs(&mut self) {
         let mut conn = self.pool.connection().await.unwrap();
         let l1_batch_numbers = conn
@@ -89,6 +91,8 @@ impl WaitingToQueuedFriWitnessJobMover {
         );
     }
 
+    /// Marks scheduler witness jobs as queued.
+    /// The trigger condition is the recursion tip proving job for the batch has been completed.
     async fn move_scheduler_jobs(&mut self) {
         let mut conn = self.pool.connection().await.unwrap();
         let l1_batch_numbers = conn

@@ -137,7 +137,12 @@ impl JobProcessor for SchedulerWitnessGenerator {
             .fri_prover_jobs_dal()
             .get_recursion_tip_proof_job_id(l1_batch_number)
             .await
-            .unwrap();
+            .unwrap_or_else(|| {
+                panic!(
+                    "could not find recursion tip proof for l1 batch {}",
+                    l1_batch_number
+                )
+            });
 
         Ok(Some((
             l1_batch_number,
@@ -203,7 +208,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
             .fri_prover_jobs_dal()
             .insert_prover_job(
                 job_id,
-                1,
+                ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
                 0,
                 0,
                 AggregationRound::Scheduler,

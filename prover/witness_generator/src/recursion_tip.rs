@@ -227,7 +227,7 @@ impl JobProcessor for RecursionTipWitnessGenerator {
             .fri_prover_jobs_dal()
             .insert_prover_job(
                 job_id,
-                255,
+                ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
                 0,
                 0,
                 AggregationRound::RecursionTip,
@@ -295,9 +295,13 @@ pub async fn prepare_job(
         recursion_queues.push((circuit_id, recursion_queue));
     }
 
+    // RECURSION_TIP_ARITY is the maximum amount of proof that a single recursion tip can support.
+    // Given recursion_tip has at most 1 proof per circuit, it implies we can't add more circuit types without bumping arity up.
     assert!(
         RECURSION_TIP_ARITY >= recursion_queues.len(),
-        "we have more circuits than supported"
+        "recursion tip received more circuits ({}) than supported ({})",
+        recursion_queues.len(),
+        RECURSION_TIP_ARITY
     );
     let mut branch_circuit_type_set = [GoldilocksField::ZERO; RECURSION_TIP_ARITY];
     let mut queue_set: [_; RECURSION_TIP_ARITY] =
@@ -309,6 +313,12 @@ pub async fn prepare_job(
     }
 
     let leaf_vk_commits = get_leaf_vk_params(&keystore).context("get_leaf_vk_params()")?;
+    assert_eq!(
+        leaf_vk_commits.len(),
+        16,
+        "expected 16 leaf vk commits, which corresponds to the numebr of circuits, got {}",
+        leaf_vk_commits.len()
+    );
     let leaf_layer_parameters: [RecursionLeafParametersWitness<GoldilocksField>; 16] =
         leaf_vk_commits
             .iter()

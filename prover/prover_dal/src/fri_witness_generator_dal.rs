@@ -116,10 +116,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .map(|row| {
             (
                 L1BatchNumber(row.l1_batch_number as u32),
-                Eip4844Blobs::decode(
-                    row.eip_4844_blobs
-                        .expect("missing eip 4844 blobs from the database"),
-                ),
+                Eip4844Blobs::decode(row.eip_4844_blobs.unwrap_or_else(|| {
+                    panic!(
+                        "missing eip 4844 blobs from the database for batch {}",
+                        row.l1_batch_number
+                    )
+                })),
             )
         })
     }
@@ -296,6 +298,14 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .collect()
     }
 
+    /// Responsible for creating the jobs to be processed, after a basic witness generator run.
+    /// It will create as follows:
+    /// - all prover jobs for aggregation_round 0 identified in the basic witness generator run
+    /// - all leaf aggregation jobs for the batch
+    /// - all node aggregation jobs at depth 0 for the batch
+    /// - the recursion tip witness job
+    /// - the scheduler witness job
+    /// NOTE: Not all batches have all circuits, so it's possible we'll be missing some aggregation jobs (for circuits not present in the batch).
     pub async fn create_aggregation_jobs(
         &mut self,
         block_number: L1BatchNumber,
@@ -863,7 +873,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     WHERE
                         rtwj.status = 'waiting_for_proofs'
                         AND prover_jobs_fri.status = 'successful'
-                        AND prover_jobs_fri.aggregation_round = 2
+                        AND prover_jobs_fri.aggregation_round = $1
                         AND prover_jobs_fri.is_node_final_proof = true
                     GROUP BY
                         prover_jobs_fri.l1_batch_number,
@@ -874,6 +884,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 l1_batch_number;
             "#,
+            AggregationRound::NodeAggregation as i64,
     )
     .fetch_all(self.storage.conn())
     .await
@@ -899,11 +910,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     WHERE
                         swj.status = 'waiting_for_proofs'
                         AND prover_jobs_fri.status = 'successful'
-                        AND prover_jobs_fri.aggregation_round = 3
+                        AND prover_jobs_fri.aggregation_round = $1
                 )
             RETURNING
                 l1_batch_number;
             "#,
+            AggregationRound::RecursionTip as i64,
     )
     .fetch_all(self.storage.conn())
     .await
@@ -1235,7 +1247,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn mark_recursion_tip_job_as_successful(
         &mut self,
-        block_number: L1BatchNumber,
+        l1_batch_number: L1BatchNumber,
         time_taken: Duration,
     ) {
         sqlx::query!(
@@ -1249,7 +1261,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 l1_batch_number = $2
             "#,
             duration_to_naive_time(time_taken),
-            block_number.0 as i64
+            l1_batch_number.0 as i64
         )
         .execute(self.storage.conn())
         .await
@@ -1282,7 +1294,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn mark_recursion_tip_job_failed(
         &mut self,
         error: &str,
-        block_number: L1BatchNumber,
+        l1_batch_number: L1BatchNumber,
     ) {
         sqlx::query!(
             r#"
@@ -1295,7 +1307,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 l1_batch_number = $2
             "#,
             error,
-            block_number.0 as i64
+            l1_batch_number.0 as i64
         )
         .execute(self.storage.conn())
         .await

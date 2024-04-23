@@ -2,7 +2,7 @@
 
 // TODO (PLA-773): Should be moved to the prover workspace.
 
-use std::{convert::TryFrom, iter::repeat_with, str::FromStr};
+use std::{convert::TryFrom, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
@@ -57,17 +57,16 @@ impl Eip4844Blobs {
 
         assert!(
             chunks.len() <= MAX_4844_BLOBS_PER_BLOCK,
-            "cannot create Eip4844Blobs, received too many blobs"
+            "cannot create Eip4844Blobs, expected max {}, received {}",
+            MAX_4844_BLOBS_PER_BLOCK,
+            chunks.len()
         );
 
-        let blobs = chunks
-            .into_iter()
-            .map(Some)
-            .chain(repeat_with(|| None))
-            .take(MAX_4844_BLOBS_PER_BLOCK)
-            .collect::<Vec<Option<Blob>>>()
-            .try_into()
-            .expect("must always be able to take 16 elements");
+        let mut blobs: [Option<Blob>; MAX_4844_BLOBS_PER_BLOCK] = Default::default();
+        for (i, blob) in chunks.into_iter().enumerate() {
+            blobs[i] = Some(blob);
+        }
+
         Self { blobs }
     }
 }
@@ -180,7 +179,7 @@ mod tests {
     #[should_panic]
     fn test_eip_4844_blobs_empty_pubdata() {
         let payload = vec![];
-        let _eip_4844_blobs = Eip4844Blobs::decode(payload);
+        let _ = Eip4844Blobs::decode(payload);
     }
 
     #[test]
@@ -188,7 +187,7 @@ mod tests {
     fn test_eip_4844_blobs_too_much_pubdata() {
         // blob size (126976) * 16 (max number of blobs) + 1
         let payload = vec![1; 2031617];
-        let _eip_4844_blobs = Eip4844Blobs::decode(payload);
+        let _ = Eip4844Blobs::decode(payload);
     }
 
     // General test.
@@ -198,6 +197,7 @@ mod tests {
     #[test]
     fn test_eip_4844_blobs_needs_padding() {
         for no_blobs in 1..=16 {
+            // blob size (126976) - 1 for the last byte
             let payload = vec![1; no_blobs * 126976 - 1];
             let eip_4844_blobs = Eip4844Blobs::decode(payload);
             let blobs = eip_4844_blobs.blobs();
@@ -236,6 +236,7 @@ mod tests {
     #[test]
     fn test_eip_4844_blobs_needs_no_padding() {
         for no_blobs in 1..=16 {
+            // blob size (126976)
             let payload = vec![1; no_blobs * 126976];
             let eip_4844_blobs = Eip4844Blobs::decode(payload);
             let blobs = eip_4844_blobs.blobs();
