@@ -1,5 +1,5 @@
 use zksync_eth_signer::EthereumSigner;
-use zksync_types::{fee::Fee, l2::L2Tx, Address, Nonce, L2_ETH_TOKEN_ADDRESS, U256};
+use zksync_types::{fee::Fee, l2::L2Tx, Address, Nonce, L2_BASE_TOKEN_ADDRESS, U256};
 
 use crate::sdk::{
     error::ClientError,
@@ -150,7 +150,7 @@ where
             .or_else(|| self.paymaster_params.clone())
             .unwrap_or_default();
 
-        let tx = if token.is_zero() || token == L2_ETH_TOKEN_ADDRESS {
+        let tx = if token.is_zero() || token == L2_BASE_TOKEN_ADDRESS {
             // ETH estimate
             Execute {
                 contract_address: to,

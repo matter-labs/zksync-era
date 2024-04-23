@@ -13,12 +13,12 @@ import lldb
 
 # Read the .env file and store the key-value pairs in a array with format ["key=value"]
 env_array = []
-with open(os.path.join("etc/env/.init.env")) as f:
+with open(os.path.join("etc/env/l2-inits/dev.init.env")) as f:
     for line in f:
         if line.strip() and line.strip()[0] != "#":
             env_array.append(line.strip())
 
-with open(os.path.join("etc/env/dev.env")) as f:
+with open(os.path.join("etc/env/targets/dev.env")) as f:
     for line in f:
         if line.strip() and line.strip()[0] != "#":
             env_array.append(line.strip())
@@ -30,8 +30,8 @@ launch_info.SetEnvironmentEntries(env_array, True)
 target.SetLaunchInfo(launch_info)
 ```
 
-This file will load environment variables from `.init.env` and `dev.env` before starting the binary (notice that we do
-this in a particular order, as values in dev.env should be overwriting the ones in .init.env).
+This file will load environment variables from `dev.init.env` and `dev.env` before starting the binary (notice that we
+do this in a particular order, as values in dev.env should be overwriting the ones in dev.init.env).
 
 Afterwards you need to add something like this to your launch.json:
 
