@@ -218,7 +218,7 @@ impl AsyncTree {
     }
 
     pub fn revert_logs(&mut self, last_l1_batch_to_keep: L1BatchNumber) {
-        self.as_mut().revert_logs(last_l1_batch_to_keep);
+        self.as_mut().roll_back_logs(last_l1_batch_to_keep);
     }
 }
 

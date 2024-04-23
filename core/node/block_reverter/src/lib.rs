@@ -77,29 +77,33 @@ pub enum NodeRole {
     External,
 }
 
-/// This struct is used to revert node state.
+/// This struct is used to roll back node state and revert batches committed (but generally not finalized) on L1.
 ///
 /// Reversion is a rare event of manual intervention, when the node operator
 /// decides to revert some of the not yet finalized batches for some reason
 /// (e.g. inability to generate a proof).
 ///
-/// It is also used to automatically revert the external node state
-/// after it detects a reorg on the main node.
+/// It is also used to automatically roll back the external node state
+/// after it detects a reorg on the main node. Notice the difference in terminology; from the network
+/// perspective, *reversion* leaves a trace (L1 transactions etc.), while from the perspective of the node state, a *rollback*
+/// leaves the node in the same state as if the rolled back batches were never sealed in the first place.
 ///
-/// There are a few state components that `BlockReverter` can revert:
+/// `BlockReverter` can roll back the following pieces of node state:
 ///
 /// - State of the Postgres database
 /// - State of the Merkle tree
 /// - State of the state keeper cache
-/// - State of the Ethereum contract (if the block was committed)
+/// - Object store for protocol snapshots
+///
+/// In addition, it can revert the state of the Ethereum contract (if the reverted L1 batches were committed).
 #[derive(Debug)]
 pub struct BlockReverter {
     /// Role affects the interactions with the consensus state.
     /// This distinction will be removed once consensus genesis is moved to the L1 state.
     node_role: NodeRole,
-    allow_reverting_executed_batches: bool,
+    allow_rolling_back_executed_batches: bool,
     connection_pool: ConnectionPool<Core>,
-    should_revert_postgres: bool,
+    should_roll_back_postgres: bool,
     state_keeper_cache_path: Option<String>,
     merkle_tree_path: Option<String>,
     snapshots_object_store: Option<Arc<dyn ObjectStore>>,
@@ -109,41 +113,41 @@ impl BlockReverter {
     pub fn new(node_role: NodeRole, connection_pool: ConnectionPool<Core>) -> Self {
         Self {
             node_role,
-            allow_reverting_executed_batches: false,
+            allow_rolling_back_executed_batches: false,
             connection_pool,
-            should_revert_postgres: false,
+            should_roll_back_postgres: false,
             state_keeper_cache_path: None,
             merkle_tree_path: None,
             snapshots_object_store: None,
         }
     }
 
-    /// Allows reverting the state past the last batch finalized on L1. If this is disallowed (which is the default),
+    /// Allows rolling back the state past the last batch finalized on L1. If this is disallowed (which is the default),
     /// block reverter will error upon such an attempt.
     ///
     /// Main use case for the setting this flag is the external node, where may obtain an
     /// incorrect state even for a block that was marked as executed. On the EN, this mode is not destructive.
-    pub fn allow_reverting_executed_batches(&mut self) -> &mut Self {
-        self.allow_reverting_executed_batches = true;
+    pub fn allow_rolling_back_executed_batches(&mut self) -> &mut Self {
+        self.allow_rolling_back_executed_batches = true;
         self
     }
 
-    pub fn enable_reverting_postgres(&mut self) -> &mut Self {
-        self.should_revert_postgres = true;
+    pub fn enable_rolling_back_postgres(&mut self) -> &mut Self {
+        self.should_roll_back_postgres = true;
         self
     }
 
-    pub fn enable_reverting_merkle_tree(&mut self, path: String) -> &mut Self {
+    pub fn enable_rolling_back_merkle_tree(&mut self, path: String) -> &mut Self {
         self.merkle_tree_path = Some(path);
         self
     }
 
-    pub fn enable_reverting_state_keeper_cache(&mut self, path: String) -> &mut Self {
+    pub fn enable_rolling_back_state_keeper_cache(&mut self, path: String) -> &mut Self {
         self.state_keeper_cache_path = Some(path);
         self
     }
 
-    pub fn enable_reverting_snapshot_objects(
+    pub fn enable_rolling_back_snapshot_objects(
         &mut self,
         object_store: Arc<dyn ObjectStore>,
     ) -> &mut Self {
@@ -151,10 +155,9 @@ impl BlockReverter {
         self
     }
 
-    /// Reverts DBs (Postgres + RocksDB) to a previous state. If Postgres is reverted and `snapshots_object_store`
-    /// is specified, snapshot files will be deleted as well.
-    pub async fn revert(&self, last_l1_batch_to_keep: L1BatchNumber) -> anyhow::Result<()> {
-        if !self.allow_reverting_executed_batches {
+    /// Rolls back previously enabled DBs (Postgres + RocksDB) and the snapshot object store to a previous state.
+    pub async fn roll_back(&self, last_l1_batch_to_keep: L1BatchNumber) -> anyhow::Result<()> {
+        if !self.allow_rolling_back_executed_batches {
             let mut storage = self.connection_pool.connection().await?;
             let last_executed_l1_batch = storage
                 .blocks_dal()
@@ -162,14 +165,15 @@ impl BlockReverter {
                 .await?;
             anyhow::ensure!(
                 Some(last_l1_batch_to_keep) >= last_executed_l1_batch,
-                "Attempt to revert already executed L1 batches; the last executed batch is: {last_executed_l1_batch:?}"
+                "Attempt to roll back already executed L1 batches; the last executed batch is: {last_executed_l1_batch:?}"
             );
         }
 
-        // Tree needs to be reverted first to keep the state recoverable
-        self.revert_rocksdb_instances(last_l1_batch_to_keep).await?;
-        let deleted_snapshots = if self.should_revert_postgres {
-            self.revert_postgres(last_l1_batch_to_keep).await?
+        // Tree needs to be rolled back first to keep the state recoverable
+        self.roll_back_rocksdb_instances(last_l1_batch_to_keep)
+            .await?;
+        let deleted_snapshots = if self.should_roll_back_postgres {
+            self.roll_back_postgres(last_l1_batch_to_keep).await?
         } else {
             vec![]
         };
@@ -186,7 +190,7 @@ impl BlockReverter {
         Ok(())
     }
 
-    async fn revert_rocksdb_instances(
+    async fn roll_back_rocksdb_instances(
         &self,
         last_l1_batch_to_keep: L1BatchNumber,
     ) -> anyhow::Result<()> {
@@ -208,17 +212,20 @@ impl BlockReverter {
                 )
             })?;
             if merkle_tree_exists {
-                tracing::info!("Reverting Merkle tree at {}", merkle_tree_path.display());
+                tracing::info!(
+                    "Rolling back Merkle tree at `{}`",
+                    merkle_tree_path.display()
+                );
                 let merkle_tree_path = merkle_tree_path.to_path_buf();
                 tokio::task::spawn_blocking(move || {
-                    Self::revert_tree_blocking(
+                    Self::roll_back_tree_blocking(
                         last_l1_batch_to_keep,
                         &merkle_tree_path,
                         storage_root_hash,
                     )
                 })
                 .await
-                .context("reverting Merkle tree panicked")??;
+                .context("rolling back Merkle tree panicked")??;
             } else {
                 tracing::info!(
                     "Merkle tree not found at `{}`; skipping",
@@ -239,13 +246,13 @@ impl BlockReverter {
                 sk_cache_exists,
                 "Path with state keeper cache DB doesn't exist at `{state_keeper_cache_path}`"
             );
-            self.revert_state_keeper_cache(last_l1_batch_to_keep, state_keeper_cache_path)
+            self.roll_back_state_keeper_cache(last_l1_batch_to_keep, state_keeper_cache_path)
                 .await?;
         }
         Ok(())
     }
 
-    fn revert_tree_blocking(
+    fn roll_back_tree_blocking(
         last_l1_batch_to_keep: L1BatchNumber,
         path: &Path,
         storage_root_hash: H256,
@@ -254,24 +261,24 @@ impl BlockReverter {
         let mut tree = ZkSyncTree::new_lightweight(db.into());
 
         if tree.next_l1_batch_number() <= last_l1_batch_to_keep {
-            tracing::info!("Tree is behind the L1 batch to revert to; skipping");
+            tracing::info!("Tree is behind the L1 batch to roll back to; skipping");
             return Ok(());
         }
-        tree.revert_logs(last_l1_batch_to_keep);
+        tree.roll_back_logs(last_l1_batch_to_keep);
 
         tracing::info!("Checking match of the tree root hash and root hash from Postgres");
         let tree_root_hash = tree.root_hash();
         anyhow::ensure!(
             tree_root_hash == storage_root_hash,
-            "Mismatch between the tree root hash {tree_root_hash:?} and storage root hash {storage_root_hash:?} after revert"
+            "Mismatch between the tree root hash {tree_root_hash:?} and storage root hash {storage_root_hash:?} after rollback"
         );
         tracing::info!("Saving tree changes to disk");
         tree.save();
         Ok(())
     }
 
-    /// Reverts blocks in the state keeper cache.
-    async fn revert_state_keeper_cache(
+    /// Rolls back changes in the state keeper cache.
+    async fn roll_back_state_keeper_cache(
         &self,
         last_l1_batch_to_keep: L1BatchNumber,
         state_keeper_cache_path: &str,
@@ -283,24 +290,24 @@ impl BlockReverter {
 
         if sk_cache.l1_batch_number().await > Some(last_l1_batch_to_keep + 1) {
             let mut storage = self.connection_pool.connection().await?;
-            tracing::info!("Reverting state keeper cache");
+            tracing::info!("Rolling back state keeper cache");
             sk_cache
-                .revert(&mut storage, last_l1_batch_to_keep)
+                .roll_back(&mut storage, last_l1_batch_to_keep)
                 .await
-                .context("failed reverting state keeper cache")?;
+                .context("failed rolling back state keeper cache")?;
         } else {
-            tracing::info!("Nothing to revert in state keeper cache");
+            tracing::info!("Nothing to roll back in state keeper cache");
         }
         Ok(())
     }
 
-    /// Reverts data in the Postgres database.
+    /// Rolls back data in the Postgres database.
     /// If `node_role` is `Main` a consensus hard-fork is performed.
-    async fn revert_postgres(
+    async fn roll_back_postgres(
         &self,
         last_l1_batch_to_keep: L1BatchNumber,
     ) -> anyhow::Result<Vec<SnapshotMetadata>> {
-        tracing::info!("Reverting Postgres data");
+        tracing::info!("Rolling back Postgres data");
         let mut storage = self.connection_pool.connection().await?;
         let mut transaction = storage.start_transaction().await?;
 
@@ -312,50 +319,50 @@ impl BlockReverter {
                 format!("L1 batch #{last_l1_batch_to_keep} doesn't contain L2 blocks")
             })?;
 
-        tracing::info!("Reverting transactions state");
+        tracing::info!("Rolling back transactions state");
         transaction
             .transactions_dal()
             .reset_transactions_state(last_l2_block_to_keep)
             .await?;
-        tracing::info!("Reverting events");
+        tracing::info!("Rolling back events");
         transaction
             .events_dal()
-            .revert_events(last_l2_block_to_keep)
+            .roll_back_events(last_l2_block_to_keep)
             .await?;
-        tracing::info!("Reverting L2-to-L1 logs");
+        tracing::info!("Rolling back L2-to-L1 logs");
         transaction
             .events_dal()
-            .revert_l2_to_l1_logs(last_l2_block_to_keep)
+            .roll_back_l2_to_l1_logs(last_l2_block_to_keep)
             .await?;
-        tracing::info!("Reverting created tokens");
+        tracing::info!("Rolling back created tokens");
         transaction
             .tokens_dal()
-            .revert_tokens(last_l2_block_to_keep)
+            .roll_back_tokens(last_l2_block_to_keep)
             .await?;
-        tracing::info!("Revering factory deps");
+        tracing::info!("Rolling back factory deps");
         transaction
             .factory_deps_dal()
-            .revert_factory_deps(last_l2_block_to_keep)
+            .roll_back_factory_deps(last_l2_block_to_keep)
             .await?;
-        tracing::info!("Reverting storage logs");
+        tracing::info!("Rolling back storage logs");
         transaction
             .storage_logs_dal()
-            .revert_storage_logs(last_l2_block_to_keep)
+            .roll_back_storage_logs(last_l2_block_to_keep)
             .await?;
-        tracing::info!("Reverting Ethereum transactions");
+        tracing::info!("Rolling back Ethereum transactions");
         transaction
             .eth_sender_dal()
             .delete_eth_txs(last_l1_batch_to_keep)
             .await?;
 
-        tracing::info!("Reverting snapshots");
+        tracing::info!("Rolling back snapshots");
         let deleted_snapshots = transaction
             .snapshots_dal()
             .delete_snapshots_after(last_l1_batch_to_keep)
             .await?;
 
         // Remove data from main tables (L2 blocks and L1 batches).
-        tracing::info!("Reverting L1 batches");
+        tracing::info!("Rolling back L1 batches");
         transaction
             .blocks_dal()
             .delete_l1_batches(last_l1_batch_to_keep)
@@ -364,7 +371,7 @@ impl BlockReverter {
             .blocks_dal()
             .delete_initial_writes(last_l1_batch_to_keep)
             .await?;
-        tracing::info!("Reverting L2 blocks");
+        tracing::info!("Rolling back L2 blocks");
         transaction
             .blocks_dal()
             .delete_l2_blocks(last_l2_block_to_keep)

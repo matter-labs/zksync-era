@@ -48,22 +48,22 @@ enum Command {
         nonce: u64,
     },
 
-    /// Reverts internal database state to previous block.
+    /// Rolls back internal database state to a previous L1 batch.
     #[command(name = "rollback-db")]
     RollbackDB {
-        /// L1 batch number used to revert to.
+        /// L1 batch number used to roll back to.
         #[arg(long)]
         l1_batch_number: u32,
-        /// Flag that specifies if Postgres DB should be reverted.
+        /// Flag that specifies if Postgres DB should be rolled back.
         #[arg(long)]
         rollback_postgres: bool,
-        /// Flag that specifies if RocksDB with tree should be reverted.
+        /// Flag that specifies if RocksDB with tree should be rolled back.
         #[arg(long)]
         rollback_tree: bool,
-        /// Flag that specifies if RocksDB with state keeper cache should be reverted.
+        /// Flag that specifies if RocksDB with state keeper cache should be rolled back.
         #[arg(long)]
         rollback_sk_cache: bool,
-        /// Flag that allows to revert already executed blocks. It's ultra dangerous and required only for fixing external nodes.
+        /// Flag that allows to roll back already executed blocks. It's ultra dangerous and required only for fixing external nodes.
         #[arg(long)]
         allow_executed_block_reversion: bool,
     },
@@ -159,9 +159,9 @@ async fn main() -> anyhow::Result<()> {
             allow_executed_block_reversion,
         } => {
             if !rollback_tree && rollback_postgres {
-                println!("You want to revert Postgres DB without reverting back tree.");
+                println!("You want to roll back Postgres DB without rolling back tree.");
                 println!(
-                    "If tree is not yet reverted back to this block then the only way \
+                    "If the tree is not yet rolled back to this L1 batch, then the only way \
                      to make it synced with Postgres will be to completely rebuild it."
                 );
                 println!("Are you sure? Print y/n");
@@ -174,7 +174,7 @@ async fn main() -> anyhow::Result<()> {
             }
 
             if allow_executed_block_reversion {
-                println!("You want to revert already executed blocks. It's impossible to restore them for the main node");
+                println!("You want to roll back already executed blocks. It's impossible to restore them for the main node");
                 println!("Make sure you are doing it ONLY for external node");
                 println!("Are you sure? Print y/n");
 
@@ -183,28 +183,29 @@ async fn main() -> anyhow::Result<()> {
                 if input[0] != b'y' && input[0] != b'Y' {
                     std::process::exit(0);
                 }
-                block_reverter.allow_reverting_executed_batches();
+                block_reverter.allow_rolling_back_executed_batches();
             }
 
             if rollback_postgres {
-                block_reverter.enable_reverting_postgres();
+                block_reverter.enable_rolling_back_postgres();
                 let object_store_config = SnapshotsObjectStoreConfig::from_env()
                     .context("SnapshotsObjectStoreConfig::from_env()")?;
-                block_reverter.enable_reverting_snapshot_objects(
+                block_reverter.enable_rolling_back_snapshot_objects(
                     ObjectStoreFactory::new(object_store_config.0)
                         .create_store()
                         .await,
                 );
             }
             if rollback_tree {
-                block_reverter.enable_reverting_merkle_tree(db_config.merkle_tree.path);
+                block_reverter.enable_rolling_back_merkle_tree(db_config.merkle_tree.path);
             }
             if rollback_sk_cache {
-                block_reverter.enable_reverting_state_keeper_cache(db_config.state_keeper_db_path);
+                block_reverter
+                    .enable_rolling_back_state_keeper_cache(db_config.state_keeper_db_path);
             }
 
             block_reverter
-                .revert(L1BatchNumber(l1_batch_number))
+                .roll_back(L1BatchNumber(l1_batch_number))
                 .await?;
         }
         Command::ClearFailedL1Transactions => {

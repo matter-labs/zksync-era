@@ -171,7 +171,7 @@ impl StorageLogsDal<'_, '_> {
     }
 
     /// Removes all storage logs with a L2 block number strictly greater than the specified `block_number`.
-    pub async fn revert_storage_logs(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
+    pub async fn roll_back_storage_logs(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM storage_logs
@@ -180,7 +180,7 @@ impl StorageLogsDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .instrument("revert_storage_logs")
+        .instrument("roll_back_storage_logs")
         .with_arg("block_number", &block_number)
         .execute(self.storage)
         .await?;
@@ -805,7 +805,7 @@ mod tests {
         assert_eq!(prev_values[&prev_keys[2]], None);
 
         conn.storage_logs_dal()
-            .revert_storage_logs(L2BlockNumber(1))
+            .roll_back_storage_logs(L2BlockNumber(1))
             .await
             .unwrap();
 

@@ -220,7 +220,7 @@ impl RocksdbStorageBuilder {
     /// # Errors
     ///
     /// Propagates RocksDB and Postgres errors.
-    pub async fn revert(
+    pub async fn roll_back(
         mut self,
         storage: &mut Connection<'_, Core>,
         last_l1_batch_to_keep: L1BatchNumber,

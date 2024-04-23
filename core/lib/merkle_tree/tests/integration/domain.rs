@@ -230,7 +230,7 @@ fn revert_blocks() {
     {
         let mut tree = ZkSyncTree::new_lightweight(storage.into());
         assert_eq!(tree.root_hash(), tree_metadata.last().unwrap().root_hash);
-        tree.revert_logs(L1BatchNumber(3));
+        tree.roll_back_logs(L1BatchNumber(3));
         assert_eq!(tree.root_hash(), tree_metadata[3].root_hash);
         tree.save();
     }
@@ -239,7 +239,7 @@ fn revert_blocks() {
     let storage = RocksDB::new(temp_dir.as_ref()).unwrap();
     {
         let mut tree = ZkSyncTree::new_lightweight(storage.into());
-        tree.revert_logs(L1BatchNumber(1));
+        tree.roll_back_logs(L1BatchNumber(1));
         assert_eq!(tree.root_hash(), tree_metadata[1].root_hash);
         tree.save();
     }
@@ -248,7 +248,7 @@ fn revert_blocks() {
     let storage = RocksDB::new(temp_dir.as_ref()).unwrap();
     {
         let mut tree = ZkSyncTree::new_lightweight(storage.into());
-        tree.revert_logs(L1BatchNumber(1));
+        tree.roll_back_logs(L1BatchNumber(1));
         assert_eq!(tree.root_hash(), tree_metadata[1].root_hash);
         tree.save();
     }

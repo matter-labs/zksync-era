@@ -940,10 +940,10 @@ async fn run_node(
     let mut reverter = BlockReverter::new(NodeRole::External, connection_pool.clone());
     // Reverting executed batches is more-or-less safe for external nodes.
     let reverter = reverter
-        .allow_reverting_executed_batches()
-        .enable_reverting_postgres()
-        .enable_reverting_merkle_tree(config.required.merkle_tree_path.clone())
-        .enable_reverting_state_keeper_cache(config.required.state_cache_path.clone());
+        .allow_rolling_back_executed_batches()
+        .enable_rolling_back_postgres()
+        .enable_rolling_back_merkle_tree(config.required.merkle_tree_path.clone())
+        .enable_rolling_back_state_keeper_cache(config.required.state_cache_path.clone());
 
     let mut reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
     // We're checking for the reorg in the beginning because we expect that if reorg is detected during
@@ -954,7 +954,7 @@ async fn run_node(
         Ok(()) => {}
         Err(reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {
             tracing::info!("Reverting to l1 batch number {last_correct_l1_batch}");
-            reverter.revert(last_correct_l1_batch).await?;
+            reverter.roll_back(last_correct_l1_batch).await?;
             tracing::info!("Revert successfully completed");
         }
         Err(err) => return Err(err).context("reorg_detector.check_consistency()"),
@@ -970,7 +970,7 @@ async fn run_node(
         drop(connection);
 
         tracing::info!("Reverting to l1 batch number {sealed_l1_batch_number}");
-        reverter.revert(sealed_l1_batch_number).await?;
+        reverter.roll_back(sealed_l1_batch_number).await?;
         tracing::info!("Revert successfully completed");
     }
 
