@@ -1,6 +1,14 @@
-use std::{net::SocketAddr, num::NonZeroU32, time::Duration};
+use std::{
+    collections::HashMap,
+    fmt,
+    net::SocketAddr,
+    num::{NonZeroU32, NonZeroUsize},
+    str::FromStr,
+    time::Duration,
+};
 
-use serde::Deserialize;
+use anyhow::Context as _;
+use serde::{de, Deserialize, Deserializer};
 use zksync_basic_types::{Address, H256};
 
 pub use crate::configs::PrometheusConfig;
@@ -16,6 +24,112 @@ pub struct ApiConfig {
     pub healthcheck: HealthCheckConfig,
     /// Configuration options for Merkle tree API.
     pub merkle_tree: MerkleTreeApiConfig,
+}
+
+/// Response size limits for specific RPC methods.
+///
+/// The unit of measurement for contained limits depends on the context. In [`MaxResponseSize`],
+/// limits are measured in bytes, but in configs, limits are specified in MiBs.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MaxResponseSizeOverrides(HashMap<String, NonZeroUsize>);
+
+impl<S: Into<String>> FromIterator<(S, NonZeroUsize)> for MaxResponseSizeOverrides {
+    fn from_iter<I: IntoIterator<Item = (S, NonZeroUsize)>>(iter: I) -> Self {
+        Self(
+            iter.into_iter()
+                .map(|(method_name, size)| (method_name.into(), size))
+                .collect(),
+        )
+    }
+}
+
+impl FromStr for MaxResponseSizeOverrides {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut overrides = HashMap::new();
+        for part in s.split(',') {
+            let (method_name, size) = part.split_once('=').with_context(|| {
+                format!("Part `{part}` doesn't have form <method_name>=<int>|None")
+            })?;
+            let method_name = method_name.trim();
+
+            let size = size.trim();
+            let size = if size == "None" {
+                NonZeroUsize::MAX // No limit
+            } else {
+                size.parse().with_context(|| {
+                    format!("`{size}` specified for method `{method_name}` is not a valid size")
+                })?
+            };
+
+            if let Some(prev_size) = overrides.insert(method_name.to_owned(), size) {
+                anyhow::bail!(
+                    "Size override for `{method_name}` is redefined from {prev_size} to {size}"
+                );
+            }
+        }
+        Ok(Self(overrides))
+    }
+}
+
+impl MaxResponseSizeOverrides {
+    pub fn empty() -> Self {
+        Self(HashMap::new())
+    }
+
+    /// Gets the override in bytes for the specified method, or `None` if it's not set.
+    pub fn get(&self, method_name: &str) -> Option<usize> {
+        self.0.get(method_name).copied().map(NonZeroUsize::get)
+    }
+
+    /// Iterates over all overrides.
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = (&str, usize)> + '_ {
+        self.0
+            .iter()
+            .map(|(method_name, size)| (method_name.as_str(), size.get()))
+    }
+
+    /// Scales the overrides by the specified scale factor, saturating them if applicable.
+    pub fn scale(&self, factor: NonZeroUsize) -> Self {
+        let scaled = self
+            .0
+            .iter()
+            .map(|(method_name, &size)| (method_name.clone(), size.saturating_mul(factor)));
+        Self(scaled.collect())
+    }
+}
+
+impl<'de> Deserialize<'de> for MaxResponseSizeOverrides {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct ParseVisitor;
+
+        impl<'v> de::Visitor<'v> for ParseVisitor {
+            type Value = MaxResponseSizeOverrides;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("comma-separated list of <method_name>=<size>|None tuples, such as: eth_call=2,zks_getProof=None")
+            }
+
+            fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
+                value.parse().map_err(E::custom)
+            }
+        }
+
+        deserializer.deserialize_str(ParseVisitor)
+    }
+}
+
+/// Response size limits for JSON-RPC servers.
+#[derive(Debug)]
+pub struct MaxResponseSize {
+    /// Global limit applied to all RPC methods. Measured in bytes.
+    pub global: usize,
+    /// Limits applied to specific methods. Limits are measured in bytes; method names are full (e.g., `eth_call`).
+    pub overrides: MaxResponseSizeOverrides,
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -81,6 +195,9 @@ pub struct Web3JsonRpcConfig {
     pub max_batch_request_size: Option<usize>,
     /// Maximum response body size in MiBs. Default is 10 MiB.
     pub max_response_body_size_mb: Option<usize>,
+    /// Method-specific overrides in MiBs for the maximum response body size.
+    #[serde(default = "MaxResponseSizeOverrides::empty")]
+    pub max_response_body_size_overrides_mb: MaxResponseSizeOverrides,
     /// Maximum number of requests per minute for the WebSocket server.
     /// The value is per active connection.
     /// Note: For HTTP, rate limiting is expected to be configured on the infra level.
@@ -128,6 +245,7 @@ impl Web3JsonRpcConfig {
             fee_history_limit: Default::default(),
             max_batch_request_size: Default::default(),
             max_response_body_size_mb: Default::default(),
+            max_response_body_size_overrides_mb: MaxResponseSizeOverrides::empty(),
             websocket_requests_per_minute_limit: Default::default(),
             mempool_cache_update_interval: Default::default(),
             mempool_cache_size: Default::default(),
@@ -199,8 +317,12 @@ impl Web3JsonRpcConfig {
         self.max_batch_request_size.unwrap_or(500)
     }
 
-    pub fn max_response_body_size(&self) -> usize {
-        self.max_response_body_size_mb.unwrap_or(10) * super::BYTES_IN_MEGABYTE
+    pub fn max_response_body_size(&self) -> MaxResponseSize {
+        let scale = NonZeroUsize::new(super::BYTES_IN_MEGABYTE).unwrap();
+        MaxResponseSize {
+            global: self.max_response_body_size_mb.unwrap_or(10) * super::BYTES_IN_MEGABYTE,
+            overrides: self.max_response_body_size_overrides_mb.scale(scale),
+        }
     }
 
     pub fn websocket_requests_per_minute_limit(&self) -> NonZeroU32 {
@@ -273,5 +395,30 @@ pub struct MerkleTreeApiConfig {
 impl MerkleTreeApiConfig {
     const fn default_port() -> u16 {
         3_072
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn working_with_max_response_size_overrides() {
+        let overrides: MaxResponseSizeOverrides =
+            "eth_call=1, eth_getTransactionReceipt=None,zks_getProof = 32 "
+                .parse()
+                .unwrap();
+        assert_eq!(overrides.iter().len(), 3);
+        assert_eq!(overrides.get("eth_call"), Some(1));
+        assert_eq!(overrides.get("eth_getTransactionReceipt"), Some(usize::MAX));
+        assert_eq!(overrides.get("zks_getProof"), Some(32));
+        assert_eq!(overrides.get("eth_blockNumber"), None);
+
+        let scaled = overrides.scale(NonZeroUsize::new(1_000).unwrap());
+        assert_eq!(scaled.iter().len(), 3);
+        assert_eq!(scaled.get("eth_call"), Some(1_000));
+        assert_eq!(scaled.get("eth_getTransactionReceipt"), Some(usize::MAX));
+        assert_eq!(scaled.get("zks_getProof"), Some(32_000));
+        assert_eq!(scaled.get("eth_blockNumber"), None);
     }
 }

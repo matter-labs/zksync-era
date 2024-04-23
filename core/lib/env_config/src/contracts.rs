@@ -4,7 +4,28 @@ use crate::{envy_load, FromEnv};
 
 impl FromEnv for ContractsConfig {
     fn from_env() -> anyhow::Result<Self> {
-        envy_load("contracts", "CONTRACTS_")
+        let mut contracts: ContractsConfig = envy_load("contracts", "CONTRACTS_")?;
+        // Note: we are renaming the bridge, the address remains the same
+        // These two config variables should always have the same value.
+        // TODO(EVM-578): double check and potentially forbid both of them being `None`.
+
+        contracts.l2_erc20_bridge_addr = contracts
+            .l2_erc20_bridge_addr
+            .or(contracts.l2_shared_bridge_addr);
+        contracts.l2_shared_bridge_addr = contracts
+            .l2_shared_bridge_addr
+            .or(contracts.l2_erc20_bridge_addr);
+
+        if let (Some(legacy_addr), Some(shared_addr)) = (
+            contracts.l2_erc20_bridge_addr,
+            contracts.l2_shared_bridge_addr,
+        ) {
+            if legacy_addr != shared_addr {
+                panic!("L2 erc20 bridge address and L2 shared bridge address are different.");
+            }
+        }
+
+        Ok(contracts)
     }
 }
 

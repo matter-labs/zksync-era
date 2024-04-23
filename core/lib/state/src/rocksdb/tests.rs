@@ -88,6 +88,24 @@ async fn sync_test_storage(dir: &TempDir, conn: &mut Connection<'_, Core>) -> Ro
         .expect("Storage synchronization unexpectedly stopped")
 }
 
+async fn sync_test_storage_and_check_recovery(
+    dir: &TempDir,
+    conn: &mut Connection<'_, Core>,
+    expect_recovery: bool,
+) -> RocksdbStorage {
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let mut builder = RocksdbStorage::builder(dir.path())
+        .await
+        .expect("Failed initializing RocksDB");
+    let was_recovered = builder.ensure_ready(conn, &stop_receiver).await.unwrap();
+    assert_eq!(was_recovered, expect_recovery);
+    builder
+        .synchronize(conn, &stop_receiver)
+        .await
+        .unwrap()
+        .expect("Storage synchronization unexpectedly stopped")
+}
+
 #[tokio::test]
 async fn rocksdb_storage_syncing_with_postgres() {
     let pool = ConnectionPool::<Core>::test_pool().await;
@@ -252,7 +270,7 @@ async fn low_level_snapshot_recovery(log_chunk_size: u64) {
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
     let mut storage = RocksdbStorage::new(dir.path().into()).await.unwrap();
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    let next_l1_batch = storage
+    let (_, next_l1_batch) = storage
         .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
         .await
         .unwrap();
@@ -341,7 +359,7 @@ async fn recovering_from_snapshot_and_following_logs() {
     create_l1_batch(&mut conn, snapshot_recovery.l1_batch_number + 2, &[]).await;
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = sync_test_storage(&dir, &mut conn).await;
+    let mut storage = sync_test_storage_and_check_recovery(&dir, &mut conn, true).await;
 
     for (i, log) in new_storage_logs.iter().enumerate() {
         assert_eq!(storage.read_value(&log.key), log.value);
@@ -366,6 +384,9 @@ async fn recovering_from_snapshot_and_following_logs() {
         );
         assert!(!storage.is_write_initial(&log.key));
     }
+
+    drop(storage);
+    sync_test_storage_and_check_recovery(&dir, &mut conn, false).await;
 }
 
 #[tokio::test]

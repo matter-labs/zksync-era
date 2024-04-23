@@ -4,7 +4,7 @@ use bitflags::bitflags;
 use serde::Serialize;
 use tokio::time::sleep;
 use zksync_config::{ContractsConfig, EthConfig};
-use zksync_contracts::state_transition_chain_contract;
+use zksync_contracts::hyperchain_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
 use zksync_merkle_tree::domain::ZkSyncTree;
@@ -339,26 +339,43 @@ impl BlockReverter {
             .expect("eth_config is not provided");
 
         let web3 = Web3::new(Http::new(&eth_config.eth_client_url).unwrap());
-        let contract = state_transition_chain_contract();
+        let contract = hyperchain_contract();
         let signer = PrivateKeySigner::new(
             eth_config
                 .reverter_private_key
                 .expect("Private key is required to send revert transaction"),
         );
         let chain_id = web3.eth().chain_id().await.unwrap().as_u64();
-        let zksync_chain_id = std::env::var("CHAIN_ETH_ZKSYNC_NETWORK_ID")
+        let hyperchain_id = std::env::var("CHAIN_ETH_ZKSYNC_NETWORK_ID")
             .ok()
             .and_then(|val| val.parse::<u128>().ok())
-            .expect("Hyperchain chain id has to be set in config");
-        let revert_function = contract.function("revertBatchesSharedBridge").expect(
-            "Either `revertBlocks` or `revertBatches` function must be present in contract",
-        );
-        let data = revert_function
-            .encode_input(&[
-                Token::Uint(zksync_chain_id.into()),
-                Token::Uint(last_l1_batch_to_keep.0.into()),
-            ])
-            .unwrap();
+            .expect("`CHAIN_ETH_ZKSYNC_NETWORK_ID` has to be set in config");
+        let era_chain_id = std::env::var("CONTRACTS_ERA_CHAIN_ID")
+            .ok()
+            .and_then(|val| val.parse::<u128>().ok())
+            .expect("`CONTRACTS_ERA_CHAIN_ID` has to be set in config");
+
+        // It is expected that for all new chains `revertBatchesSharedBridge` can be used.
+        // For Era we are using `revertBatches` function for backwards compatibility in case the migration
+        // to the shared bridge is not yet complete.
+        let data = if hyperchain_id == era_chain_id {
+            let revert_function = contract
+                .function("revertBatches")
+                .expect("`revertBatches` function must be present in contract");
+            revert_function
+                .encode_input(&[Token::Uint(last_l1_batch_to_keep.0.into())])
+                .unwrap()
+        } else {
+            let revert_function = contract
+                .function("revertBatchesSharedBridge")
+                .expect("`revertBatchesSharedBridge` function must be present in contract");
+            revert_function
+                .encode_input(&[
+                    Token::Uint(hyperchain_id.into()),
+                    Token::Uint(last_l1_batch_to_keep.0.into()),
+                ])
+                .unwrap()
+        };
 
         let base_fee = web3
             .eth()
@@ -422,7 +439,7 @@ impl BlockReverter {
 
         let web3 = Web3::new(Http::new(&eth_config.eth_client_url).unwrap());
         let contract = {
-            let abi = state_transition_chain_contract();
+            let abi = hyperchain_contract();
             let contract_address = eth_config.diamond_proxy_addr;
             Contract::new(web3.eth(), contract_address, abi)
         };

@@ -209,7 +209,7 @@ async fn run_core(
         config
             .remote
             .l2_shared_bridge_addr
-            .unwrap_or_else(|| config.remote.l2_erc20_bridge_addr.unwrap()),
+            .expect("L2 shared bridge address is not set"),
         config.optional.miniblock_seal_queue_capacity,
     );
     task_handles.push(tokio::spawn(miniblock_sealer.run()));

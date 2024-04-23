@@ -11,6 +11,7 @@ use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
 use zksync_config::{
     configs::{
+        api::{MaxResponseSize, MaxResponseSizeOverrides},
         chain::L1BatchCommitDataGeneratorMode,
         consensus::{ConsensusConfig, ConsensusSecrets},
     },
@@ -47,6 +48,9 @@ pub(crate) struct RemoteENConfig {
     pub state_transition_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Option<Address>,
     pub diamond_proxy_addr: Address,
+    // While on L1 shared bridge and legacy bridge are different contracts with different addresses,
+    // the `l2_erc20_bridge_addr` and `l2_shared_bridge_addr` are basically the same contract, but with
+    // a different name, with names adapted only for consistency.
     pub l1_shared_bridge_proxy_addr: Option<Address>,
     pub l2_shared_bridge_addr: Option<Address>,
     pub l1_erc20_bridge_proxy_addr: Option<Address>,
@@ -113,6 +117,23 @@ impl RemoteENConfig {
             FeeParams::V2(params) => params.config.max_pubdata_per_batch,
         };
 
+        // These two config variables should always have the same value.
+        // TODO(EVM-578): double check and potentially forbid both of them being `None`.
+        let l2_erc20_default_bridge = bridges
+            .l2_erc20_default_bridge
+            .or(bridges.l2_shared_default_bridge);
+        let l2_erc20_shared_bridge = bridges
+            .l2_shared_default_bridge
+            .or(bridges.l2_erc20_default_bridge);
+
+        if let (Some(legacy_addr), Some(shared_addr)) =
+            (l2_erc20_default_bridge, l2_erc20_shared_bridge)
+        {
+            if legacy_addr != shared_addr {
+                panic!("L2 erc20 bridge address and L2 shared bridge address are different.");
+            }
+        }
+
         Ok(Self {
             bridgehub_proxy_addr: shared_bridge.as_ref().map(|a| a.bridgehub_proxy_addr),
             state_transition_proxy_addr: shared_bridge
@@ -124,9 +145,9 @@ impl RemoteENConfig {
             diamond_proxy_addr,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
-            l2_erc20_bridge_addr: bridges.l2_erc20_default_bridge,
+            l2_erc20_bridge_addr: l2_erc20_default_bridge,
             l1_shared_bridge_proxy_addr: bridges.l1_shared_default_bridge,
-            l2_shared_bridge_addr: bridges.l2_shared_default_bridge,
+            l2_shared_bridge_addr: l2_erc20_shared_bridge,
             l1_weth_bridge_addr: bridges.l1_weth_bridge,
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
             l2_chain_id,
@@ -206,6 +227,9 @@ pub(crate) struct OptionalENConfig {
     /// Maximum response body size in MiBs. Default is 10 MiB.
     #[serde(default = "OptionalENConfig::default_max_response_body_size_mb")]
     pub max_response_body_size_mb: usize,
+    /// Method-specific overrides in MiBs for the maximum response body size.
+    #[serde(default = "MaxResponseSizeOverrides::empty")]
+    max_response_body_size_overrides_mb: MaxResponseSizeOverrides,
 
     // Other API config settings
     /// Interval between polling DB for pubsub (in ms).
@@ -546,8 +570,12 @@ impl OptionalENConfig {
             .unwrap_or_else(|| Namespace::DEFAULT.to_vec())
     }
 
-    pub fn max_response_body_size(&self) -> usize {
-        self.max_response_body_size_mb * BYTES_IN_MEGABYTE
+    pub fn max_response_body_size(&self) -> MaxResponseSize {
+        let scale = NonZeroUsize::new(BYTES_IN_MEGABYTE).unwrap();
+        MaxResponseSize {
+            global: self.max_response_body_size_mb * BYTES_IN_MEGABYTE,
+            overrides: self.max_response_body_size_overrides_mb.scale(scale),
+        }
     }
 
     pub fn healthcheck_slow_time_limit(&self) -> Option<Duration> {

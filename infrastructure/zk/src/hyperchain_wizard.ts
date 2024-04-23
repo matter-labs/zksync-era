@@ -13,7 +13,6 @@ import fetch from 'node-fetch';
 import { up } from './up';
 import * as Handlebars from 'handlebars';
 import { ProverType, setupProver } from './prover_setup';
-// import { DeploymentMode } from './contract';
 import { announced } from './utils';
 
 const title = chalk.blueBright;
@@ -45,31 +44,12 @@ export interface BasePromptOptions {
     skip?: ((state: object) => boolean | Promise<boolean>) | boolean;
 }
 
-// PLA:681
-let isLocalhost = false;
-
 // An init command that allows configuring and spinning up a new hyperchain network.
 async function initHyperchain(envName: string, runObservability: boolean, validiumMode: boolean) {
     await announced('Initializing hyperchain creation', setupConfiguration(envName, runObservability));
     await init.initHyperCmdAction({ skipSetupCompletely: false, bumpChainId: true, runObservability, validiumMode });
 
-    // if we used matterlabs/geth network, we need custom ENV file for hyperchain compose parts
-    // This breaks `zk status prover` command, but neccessary for working in isolated docker-network
-    // TODO: Think about better implementation
-    // PLA:681
-    if (isLocalhost) {
-        env.modify(
-            'ETH_CLIENT_WEB3_URL',
-            'http://geth:8545',
-            `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
-        );
-        env.modify(
-            'DATABASE_URL',
-            'postgres://postgres:notsecurepassword@postgres:5432/zksync_local',
-            `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
-        );
-    }
-
+    // TODO: EVM:577 fix hyperchain wizard
     env.mergeInitToEnv();
 
     console.log(announce(`\nYour hyperchain configuration is available at ${process.env.ENV_FILE}\n`));
@@ -141,7 +121,7 @@ async function setHyperchainMetadata(runObservability: boolean) {
     ];
 
     const results: any = await enquirer.prompt(questions);
-    // kl to do add random chainId generation here if user does not want to pick chainId.
+    // TODO(EVM-574): add random chainId generation here if user does not want to pick chainId.
 
     let deployer, governor, ethOperator, feeReceiver: ethers.Wallet | undefined;
     let feeReceiverAddress, l1Rpc, l1Id, databaseUrl, databaseProverUrl;
@@ -305,9 +285,6 @@ async function setHyperchainMetadata(runObservability: boolean) {
         await announced('Ensuring databases are up', db.wait({ core: true, prover: false }));
     }
 
-    // testTokens and weth will be done for the shared bridge.
-    // await initializeTestERC20s();
-
     console.log('\n');
 
     printAddressInfo('Deployer', deployer.address);
@@ -354,7 +331,7 @@ async function setHyperchainMetadata(runObservability: boolean) {
 
     const environment = getEnv(results.chainName);
 
-    compileConfig(environment);
+    await compileConfig(environment);
     env.set(environment);
     // TODO: Generate url for data-compressor with selected region or fix env variable for keys location
     // PLA-595
@@ -427,31 +404,6 @@ function printAddressInfo(name: string, address: string) {
     console.log('');
 }
 
-// async function initializeTestERC20s() {
-//     // TODO: For now selecting NO breaks server-core deployment, should be always YES or create empty-mock file for v2-core
-//     // PLA-595
-//     const questions: BasePromptOptions[] = [
-//         {
-//             message:
-//                 'Do you want to deploy some test ERC20s to your hyperchain? NB: Temporary broken, always select YES',
-//             name: 'deployERC20s',
-//             type: 'confirm'
-//         }
-//     ];
-
-//     const results: any = await enquirer.prompt(questions);
-
-//     if (results.deployERC20s) {
-//         env.modify('DEPLOY_TEST_TOKENS', 'true', 'etc/env/l1-inits/.init.env');
-//         console.log(
-//             warning(
-//                 `The addresses for the generated test ECR20 tokens will be available at the /etc/tokens/${getEnv(
-//                     process.env.CHAIN_ETH_NETWORK!
-//                 )}.json file.`
-//             )
-//         );
-//     }
-// }
 async function startServer() {
     const YES_DEFAULT = 'Yes (default components)';
     const YES_CUSTOM = 'Yes (custom components)';
@@ -767,7 +719,7 @@ async function configDemoHyperchain(cmd: Command) {
         skipEnvSetup: cmd.skipEnvSetup,
         skipSubmodulesCheckout: false,
         testTokenOptions: { envFile: process.env.CHAIN_ETH_NETWORK! },
-        // TODO set the proper values
+        // TODO(EVM-573): support Validium mode
         runObservability: false,
         validiumMode: false
     });
@@ -818,6 +770,7 @@ export const initHyperchainCommand = new Command('stack')
 
 initHyperchainCommand
     .command('init')
+    .option('--run-observability')
     .option('--env-name <env-name>', 'chain name to use for initialization')
     .description('Wizard for hyperchain creation/configuration')
     .option('--validium-mode')
