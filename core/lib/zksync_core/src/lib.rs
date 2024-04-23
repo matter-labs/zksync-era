@@ -853,7 +853,9 @@ async fn add_state_keeper_to_task_futures(
         .context("failed to build miniblock_sealer_pool")?;
     let (persistence, miniblock_sealer) = StateKeeperPersistence::new(
         miniblock_sealer_pool,
-        contracts_config.l2_shared_bridge_addr.unwrap(),
+        contracts_config
+            .l2_shared_bridge_addr
+            .expect("`l2_shared_bridge_addr` config is missing"),
         state_keeper_config.l2_block_seal_queue_capacity,
     );
     task_futures.push(tokio::spawn(miniblock_sealer.run()));

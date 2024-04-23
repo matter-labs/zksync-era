@@ -2,7 +2,7 @@ use std::{fmt, sync::Arc};
 
 use async_trait::async_trait;
 use zksync_config::{configs::ContractsConfig, EthConfig};
-use zksync_contracts::state_transition_chain_contract;
+use zksync_contracts::hyperchain_contract;
 use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
 use zksync_types::{
     web3::{
@@ -58,7 +58,7 @@ impl PKSigningClient {
         tracing::info!("Operator address: {:?}", operator_address);
         SigningClient::new(
             transport,
-            state_transition_chain_contract(),
+            hyperchain_contract(),
             operator_address,
             signer,
             diamond_proxy_addr,

@@ -1,4 +1,4 @@
-use zksync_contracts::{multicall_contract, state_transition_chain_contract, verifier_contract};
+use zksync_contracts::{hyperchain_contract, multicall_contract, verifier_contract};
 use zksync_types::ethabi::{Contract, Function};
 
 #[derive(Debug)]
@@ -42,7 +42,7 @@ fn get_optional_function(contract: &Contract, name: &str) -> Option<Function> {
 
 impl Default for ZkSyncFunctions {
     fn default() -> Self {
-        let zksync_contract = state_transition_chain_contract();
+        let zksync_contract = hyperchain_contract();
         let verifier_contract = verifier_contract();
         let multicall_contract = multicall_contract();
 

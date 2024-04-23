@@ -44,31 +44,12 @@ export interface BasePromptOptions {
     skip?: ((state: object) => boolean | Promise<boolean>) | boolean;
 }
 
-// PLA:681
-let isLocalhost = false;
-
 // An init command that allows configuring and spinning up a new hyperchain network.
 async function initHyperchain(envName: string, runObservability: boolean, validiumMode: boolean) {
     await announced('Initializing hyperchain creation', setupConfiguration(envName, runObservability));
     await init.initHyperCmdAction({ skipSetupCompletely: false, bumpChainId: true, runObservability, validiumMode });
 
-    // if we used matterlabs/geth network, we need custom ENV file for hyperchain compose parts
-    // This breaks `zk status prover` command, but neccessary for working in isolated docker-network
-    // TODO: Think about better implementation
-    // PLA:681
-    if (isLocalhost) {
-        env.modify(
-            'ETH_CLIENT_WEB3_URL',
-            'http://geth:8545',
-            `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
-        );
-        env.modify(
-            'DATABASE_URL',
-            'postgres://postgres:notsecurepassword@postgres:5432/zksync_local',
-            `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
-        );
-    }
-
+    // TODO: EVM:577 fix hyperchain wizard
     env.mergeInitToEnv();
 
     console.log(announce(`\nYour hyperchain configuration is available at ${process.env.ENV_FILE}\n`));
@@ -350,7 +331,7 @@ async function setHyperchainMetadata(runObservability: boolean) {
 
     const environment = getEnv(results.chainName);
 
-    compileConfig(environment);
+    await compileConfig(environment);
     env.set(environment);
     // TODO: Generate url for data-compressor with selected region or fix env variable for keys location
     // PLA-595
@@ -789,6 +770,7 @@ export const initHyperchainCommand = new Command('stack')
 
 initHyperchainCommand
     .command('init')
+    .option('--run-observability')
     .option('--env-name <env-name>', 'chain name to use for initialization')
     .description('Wizard for hyperchain creation/configuration')
     .option('--validium-mode')
