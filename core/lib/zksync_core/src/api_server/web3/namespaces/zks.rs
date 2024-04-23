@@ -3,7 +3,7 @@ use std::{collections::HashMap, convert::TryInto};
 use anyhow::Context as _;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_system_constants::{DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE, L1_GAS_PER_PUBDATA_BYTE};
+use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
         BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof,
