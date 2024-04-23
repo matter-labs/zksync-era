@@ -134,7 +134,7 @@ impl RocksdbStorage {
                 })?;
 
                 #[cfg(test)]
-                (self.listener.on_logs_chunk_recovered)(chunk_id);
+                (self.listener.on_logs_chunk_recovered.write().await)(chunk_id);
             }
             RECOVERY_METRICS.recovered_chunk_count.inc_by(1);
         }

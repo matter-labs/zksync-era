@@ -117,6 +117,7 @@ pub mod state_keeper;
 pub mod sync_layer;
 pub mod temp_config_store;
 pub mod utils;
+pub mod vm_runner;
 
 pub struct TxSenderBuilderConfigs {
     tx_sender_config: TxSenderConfig,
