@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
-use anyhow::anyhow;
+use assert_matches::assert_matches;
 use multivm::zk_evm_latest::ethereum_types::H256;
 use test_log::test;
 use zksync_dal::pruning_dal::PruningInfo;
 use zksync_db_connection::connection::Connection;
+use zksync_health_check::CheckHealth;
 use zksync_types::{block::L2BlockHeader, Address, L2BlockNumber, ProtocolVersion};
 
 use super::*;
@@ -39,17 +40,10 @@ impl fmt::Display for ConditionMock {
 #[async_trait]
 impl PruneCondition for ConditionMock {
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
-        if !self
-            .is_batch_prunable_responses
-            .contains_key(&l1_batch_number)
-        {
-            return Err(anyhow!("Error!"));
-        }
-        Ok(self
-            .is_batch_prunable_responses
+        self.is_batch_prunable_responses
             .get(&l1_batch_number)
             .cloned()
-            .unwrap())
+            .context("error!")
     }
 }
 
@@ -152,6 +146,7 @@ async fn hard_pruning_ignores_conditions_checks() {
         pool.clone(),
         vec![nothing_prunable_check],
     );
+    let health_check = pruner.health_check();
 
     pruner.run_single_iteration().await.unwrap();
 
@@ -164,18 +159,19 @@ async fn hard_pruning_ignores_conditions_checks() {
         },
         conn.pruning_dal().get_pruning_info().await.unwrap()
     );
+    let health = health_check.check_health().await;
+    assert_matches!(health.status(), HealthStatus::Ready);
 }
 #[test(tokio::test)]
-async fn pruner_should_catch_up_with_hard_pruning_up_to_soft_pruning_boundary_ignoring_chunk_size()
-{
+async fn pruner_catches_up_with_hard_pruning_up_to_soft_pruning_boundary_ignoring_chunk_size() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut conn = pool.connection().await.unwrap();
-
     insert_miniblocks(&mut conn, 10, 2).await;
     conn.pruning_dal()
         .soft_prune_batches_range(L1BatchNumber(2), L2BlockNumber(5))
         .await
         .unwrap();
+
     let pruner = DbPruner::with_conditions(
         DbPrunerConfig {
             soft_and_hard_pruning_time_delta: Duration::ZERO,
@@ -257,7 +253,6 @@ async fn unconstrained_pruner_with_fresh_database() {
 async fn pruning_blocked_after_first_chunk() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut conn = pool.connection().await.unwrap();
-
     insert_miniblocks(&mut conn, 10, 2).await;
 
     let first_chunk_prunable_check =
@@ -273,7 +268,6 @@ async fn pruning_blocked_after_first_chunk() {
         pool.clone(),
         vec![first_chunk_prunable_check],
     );
-
     pruner.run_single_iteration().await.unwrap();
 
     assert_eq!(
@@ -297,4 +291,43 @@ async fn pruning_blocked_after_first_chunk() {
         },
         conn.pruning_dal().get_pruning_info().await.unwrap()
     );
+}
+
+#[tokio::test]
+async fn pruner_is_resistant_to_errors() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+
+    // This condition returns `true` despite the batch not present in Postgres.
+    let erroneous_condition =
+        Arc::new(ConditionMock::name("always returns true").with_response(L1BatchNumber(3), true));
+
+    let pruner = DbPruner::with_conditions(
+        DbPrunerConfig {
+            soft_and_hard_pruning_time_delta: Duration::ZERO,
+            pruned_batch_chunk_size: 3,
+            next_iterations_delay: Duration::ZERO,
+            minimum_l1_batch_age: Duration::ZERO,
+        },
+        pool.clone(),
+        vec![erroneous_condition],
+    );
+    pruner.run_single_iteration().await.unwrap_err();
+
+    let mut health_check = pruner.health_check();
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let pruner_task_handle = tokio::spawn(pruner.run(stop_receiver));
+
+    let health = health_check
+        .wait_for(|health| matches!(health.status(), HealthStatus::Affected))
+        .await;
+    let health_details = health.details().unwrap();
+    let error = health_details["error"].as_str().unwrap();
+    // Matching error messages is an anti-pattern, but we essentially test UX here.
+    assert!(
+        error.contains("L1 batch #3 is ready to be pruned, but has no miniblocks"),
+        "{error}"
+    );
+
+    stop_sender.send_replace(true);
+    pruner_task_handle.await.unwrap().unwrap();
 }

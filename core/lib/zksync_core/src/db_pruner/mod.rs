@@ -287,6 +287,7 @@ impl DbPruner {
         self.hard_prune(&mut storage).await?;
         Ok(true)
     }
+
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         while !*stop_receiver.borrow_and_update() {
             if let Err(err) = self.update_l1_batches_metric().await {
