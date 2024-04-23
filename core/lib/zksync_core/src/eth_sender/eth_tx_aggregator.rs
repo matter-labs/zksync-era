@@ -53,7 +53,7 @@ pub struct EthTxAggregator {
     config: SenderConfig,
     timelock_contract_address: Address,
     l1_multicall3_address: Address,
-    pub(super) main_zksync_contract_address: Address,
+    pub(super) state_transition_chain_contract: Address,
     functions: ZkSyncFunctions,
     base_nonce: u64,
     base_nonce_custom_commit_sender: Option<u64>,
@@ -81,7 +81,7 @@ impl EthTxAggregator {
         eth_client: Arc<dyn BoundEthInterface>,
         timelock_contract_address: Address,
         l1_multicall3_address: Address,
-        main_zksync_contract_address: Address,
+        state_transition_chain_contract: Address,
         rollup_chain_id: L2ChainId,
         custom_commit_sender_addr: Option<Address>,
         l1_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
@@ -109,7 +109,7 @@ impl EthTxAggregator {
             eth_client,
             timelock_contract_address,
             l1_multicall3_address,
-            main_zksync_contract_address,
+            state_transition_chain_contract,
             functions,
             base_nonce,
             base_nonce_custom_commit_sender,
@@ -164,7 +164,7 @@ impl EthTxAggregator {
             .encode_input(&[])
             .unwrap();
         let get_bootloader_hash_call = Multicall3Call {
-            target: self.main_zksync_contract_address,
+            target: self.state_transition_chain_contract,
             allow_failure: ALLOW_FAILURE,
             calldata: get_l2_bootloader_hash_input,
         };
@@ -176,7 +176,7 @@ impl EthTxAggregator {
             .encode_input(&[])
             .unwrap();
         let get_default_aa_hash_call = Multicall3Call {
-            target: self.main_zksync_contract_address,
+            target: self.state_transition_chain_contract,
             allow_failure: ALLOW_FAILURE,
             calldata: get_l2_default_aa_hash_input,
         };
@@ -188,7 +188,7 @@ impl EthTxAggregator {
             .encode_input(&[])
             .unwrap();
         let get_verifier_params_call = Multicall3Call {
-            target: self.main_zksync_contract_address,
+            target: self.state_transition_chain_contract,
             allow_failure: ALLOW_FAILURE,
             calldata: get_verifier_params_input,
         };
@@ -196,7 +196,7 @@ impl EthTxAggregator {
         // Fourth zksync contract call
         let get_verifier_input = self.functions.get_verifier.encode_input(&[]).unwrap();
         let get_verifier_call = Multicall3Call {
-            target: self.main_zksync_contract_address,
+            target: self.state_transition_chain_contract,
             allow_failure: ALLOW_FAILURE,
             calldata: get_verifier_input,
         };
@@ -208,7 +208,7 @@ impl EthTxAggregator {
             .encode_input(&[])
             .unwrap();
         let get_protocol_version_call = Multicall3Call {
-            target: self.main_zksync_contract_address,
+            target: self.state_transition_chain_contract,
             allow_failure: ALLOW_FAILURE,
             calldata: get_protocol_version_input,
         };

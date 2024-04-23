@@ -17,8 +17,8 @@ use zksync_types::{
     block::L2BlockHasher, ethabi::Token, fee::Fee, snapshots::SnapshotRecoveryStatus,
     storage_writes_deduplicator::StorageWritesDeduplicator,
     system_contracts::get_system_smart_contracts, utils::storage_key_for_standard_token_balance,
-    AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId,
-    ProtocolVersionId, StorageKey, StorageLog, Transaction, H256, L2_ETH_TOKEN_ADDRESS,
+    AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId,
+    StorageKey, StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS,
     SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
 };
 use zksync_utils::u256_to_h256;
@@ -39,7 +39,6 @@ use crate::{
 };
 
 const DEFAULT_GAS_PER_PUBDATA: u32 = 10000;
-const CHAIN_ID: u32 = 270;
 
 /// Representation of configuration parameters used by the state keeper.
 /// Has sensible defaults for most tests, each of which can be overridden.
@@ -241,7 +240,6 @@ impl Tester {
         if storage.blocks_dal().is_genesis_needed().await.unwrap() {
             create_genesis_l1_batch(
                 &mut storage,
-                L2ChainId::from(CHAIN_ID),
                 ProtocolVersionId::latest(),
                 &BASE_SYSTEM_CONTRACTS,
                 &get_system_smart_contracts(),
@@ -261,7 +259,7 @@ impl Tester {
 
         for address in addresses {
             let key = storage_key_for_standard_token_balance(
-                AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
+                AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
                 address,
             );
             let value = u256_to_h256(eth_amount);

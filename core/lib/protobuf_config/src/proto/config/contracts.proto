@@ -9,6 +9,7 @@ message L1 {
   optional string validator_timelock_addr = 4; // required; H160
   optional string default_upgrade_addr = 5; // required; H160
   optional string multicall3_addr = 6; // required; H160
+  optional string base_token_addr = 7; // required; H160
 }
 
 message L2 {
@@ -23,6 +24,7 @@ message Bridge {
 message Bridges {
   optional Bridge erc20 = 1;
   optional Bridge weth = 2;
+  optional Bridge shared = 3;
 }
 
 message Contracts {

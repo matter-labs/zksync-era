@@ -9,7 +9,7 @@ use zk_evm_1_3_3::{
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::{
     ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS,
-    KECCAK256_PRECOMPILE_ADDRESS, L2_ETH_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS,
+    KECCAK256_PRECOMPILE_ADDRESS, L2_BASE_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS,
     SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_types::{
@@ -126,7 +126,7 @@ fn valid_eth_token_call(address: Address, msg_sender: Address) -> bool {
     let is_valid_caller = msg_sender == MSG_VALUE_SIMULATOR_ADDRESS
         || msg_sender == CONTRACT_DEPLOYER_ADDRESS
         || msg_sender == BOOTLOADER_ADDRESS;
-    address == L2_ETH_TOKEN_ADDRESS && is_valid_caller
+    address == L2_BASE_TOKEN_ADDRESS && is_valid_caller
 }
 
 /// Tracer that is used to ensure that the validation adheres to all the rules

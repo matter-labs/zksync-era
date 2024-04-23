@@ -9,11 +9,10 @@ import { TestMaster } from '../src/index';
 import { shouldChangeTokenBalances } from '../src/modifiers/balance-checker';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { BigNumberish, BytesLike } from 'ethers';
-import { serialize, hashBytecode } from 'zksync-web3/build/src/utils';
-import { deployOnAnyLocalAddress, ForceDeployment } from '../src/system';
+import { serialize, hashBytecode } from 'zksync-ethers/build/src/utils';
 import { getTestContract } from '../src/helpers';
 
 const contracts = {
@@ -188,8 +187,6 @@ describe('System behavior checks', () => {
             from: alice.address,
             data: '0x',
             value: 0,
-            maxFeePerGas: 12000,
-            maxPriorityFeePerGas: 100,
             customData: {
                 gasPerPubdata: zksync.utils.DEFAULT_GAS_PER_PUBDATA_LIMIT
             }
@@ -296,69 +293,6 @@ describe('System behavior checks', () => {
         testMaster.reporter.debug('Finalized withdrawal #2');
     });
 
-    // TODO (SMA-1713): the test is flaky.
-    test.skip('Should test forceDeploy', async () => {
-        // Testing forcedDeploys involves small upgrades of smart contacts.
-        // Thus, it is not appropriate to do them anywhere else except for localhost.
-        if (testMaster.environment().network !== 'localhost') {
-            return;
-        }
-
-        const bytecodeHash = hashBytecode(contracts.counter.bytecode);
-
-        // Force-deploying two counters on the address 0x100 and 0x101
-        const forcedDeployments: ForceDeployment[] = [
-            {
-                bytecodeHash,
-                newAddress: '0x0000000000000000000000000000000000000100',
-                value: ethers.BigNumber.from(0),
-                input: '0x',
-                callConstructor: true
-            },
-            {
-                bytecodeHash,
-                newAddress: '0x0000000000000000000000000000000000000101',
-                value: ethers.BigNumber.from(0),
-                input: '0x',
-                callConstructor: true
-            }
-        ];
-
-        await testForcedDeployments(forcedDeployments, contracts.counter.bytecode);
-
-        // Testing that the bytecodes work correctly
-        for (const deployment of forcedDeployments) {
-            const contract = new ethers.Contract(deployment.newAddress, contracts.counter.abi, alice);
-
-            // Checking that the forced-deployed counter works well
-            await (await contract.set(1)).wait();
-            expect(contract.get()).resolves.bnToBeEq(1);
-        }
-
-        // We use it to check that overriding old bytecodes would work just as fine
-        // Here we use `contracts.events` contract, because it does not have a constructor and
-        // so will not override the storage
-        const eventsBytecode = contracts.events.bytecode;
-        await testForcedDeployments(
-            forcedDeployments.map((deployment) => ({ ...deployment, bytecodeHash: hashBytecode(eventsBytecode) })),
-            eventsBytecode
-        );
-        // Checking that the methods of the `events` contract work
-        for (const deployment of forcedDeployments) {
-            const contract = new ethers.Contract(deployment.newAddress, contracts.events.abi, alice);
-            await (await contract.test(1)).wait();
-        }
-
-        await testForcedDeployments(forcedDeployments, contracts.counter.bytecode);
-        // Testing that the storage has been preserved
-        for (const deployment of forcedDeployments) {
-            const contract = new ethers.Contract(deployment.newAddress, contracts.counter.abi, alice);
-
-            await (await contract.increment(1)).wait();
-            expect(contract.get()).resolves.bnToBeEq(2);
-        }
-    });
-
     test('should accept transaction with duplicated factory dep', async () => {
         const bytecode = contracts.counter.bytecode;
         // We need some bytecodes that weren't deployed before to test behavior properly.
@@ -392,21 +326,6 @@ describe('System behavior checks', () => {
         );
 
         return new ethers.Contract(BOOTLOADER_UTILS_ADDRESS, BOOTLOADER_UTILS, alice);
-    }
-
-    async function testForcedDeployments(forcedDeployments: ForceDeployment[], bytecode: BytesLike) {
-        const receipt = await deployOnAnyLocalAddress(alice.providerL1!, alice.provider, forcedDeployments, [bytecode]);
-
-        // TODO: use toBeAccepted
-        expect(receipt.status).toBe(1);
-
-        // veryfing that the codes stored are correct
-        for (const deployment of forcedDeployments) {
-            const codeFromApi = await alice.provider.getCode(deployment.newAddress);
-
-            // Testing that the API returns the correct bytecode
-            expect(deployment.bytecodeHash).toStrictEqual(hashBytecode(codeFromApi));
-        }
     }
 });
 
