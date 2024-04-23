@@ -141,7 +141,7 @@ async function setHyperchainMetadata(runObservability: boolean) {
 
     const results: any = await enquirer.prompt(questions);
 
-    let deployer, governor, ethOperator, feeReceiver: ethers.Wallet | undefined;
+    let deployer, governor, ethOperator, blobOperator, feeReceiver: ethers.Wallet | undefined;
     let feeReceiverAddress, l1Rpc, l1Id, databaseUrl, databaseProverUrl;
 
     if (results.l1Chain !== BaseNetwork.LOCALHOST || results.l1Chain !== BaseNetwork.LOCALHOST_CUSTOM) {
@@ -214,6 +214,7 @@ async function setHyperchainMetadata(runObservability: boolean) {
             governor = ethers.Wallet.createRandom();
             ethOperator = ethers.Wallet.createRandom();
             feeReceiver = ethers.Wallet.createRandom();
+            blobOperator = ethers.Wallet.createRandom();
             feeReceiverAddress = feeReceiver.address;
         } else {
             console.log(warning('The private keys for these wallets must be different from each other!\n'));
@@ -233,6 +234,12 @@ async function setHyperchainMetadata(runObservability: boolean) {
                 {
                     message: 'Private key of the L1 ETH Operator (the one that rolls up the batches)',
                     name: 'ethOperator',
+                    type: 'password',
+                    required: true
+                },
+                {
+                    message: 'Private key of the L1 blob Operator (the one that pays for blobs)',
+                    name: 'blobOperator',
                     type: 'password',
                     required: true
                 },
@@ -264,6 +271,12 @@ async function setHyperchainMetadata(runObservability: boolean) {
                 throw Error(error('ETH Operator private key is invalid'));
             }
 
+            try {
+                blobOperator = new ethers.Wallet(keyResults.blobOperator);
+            } catch (e) {
+                throw Error(error('Blob Operator private key is invalid'));
+            }
+
             if (!utils.isAddress(keyResults.feeReceiver)) {
                 throw Error(error('Fee Receiver address is not a valid address'));
             }
@@ -288,8 +301,9 @@ async function setHyperchainMetadata(runObservability: boolean) {
         deployer = new ethers.Wallet(richWallets[0].privateKey);
         governor = new ethers.Wallet(richWallets[1].privateKey);
         ethOperator = new ethers.Wallet(richWallets[2].privateKey);
+        blobOperator = new ethers.Wallet(richWallets[3].privateKey);
         feeReceiver = undefined;
-        feeReceiverAddress = richWallets[3].address;
+        feeReceiverAddress = richWallets[4].address;
 
         await up(runObservability);
         await announced('Ensuring databases are up', db.wait({ core: true, prover: false }));
@@ -303,6 +317,7 @@ async function setHyperchainMetadata(runObservability: boolean) {
     printAddressInfo('Deployer', deployer.address);
     printAddressInfo('Governor', governor.address);
     printAddressInfo('ETH Operator', ethOperator.address);
+    printAddressInfo('Blob Operator', blobOperator.address);
     printAddressInfo('Fee receiver', feeReceiverAddress);
 
     console.log(
@@ -353,6 +368,8 @@ async function setHyperchainMetadata(runObservability: boolean) {
     wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK_ID', results.chainId);
     wrapEnvModify('ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY', ethOperator.privateKey);
     wrapEnvModify('ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR', ethOperator.address);
+    wrapEnvModify('ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY', blobOperator.privateKey);
+    wrapEnvModify('ETH_SENDER_SENDER_OPERATOR_BLOBS_ETH_ADDR', blobOperator.address);
     wrapEnvModify('DEPLOYER_PRIVATE_KEY', deployer.privateKey);
     wrapEnvModify('GOVERNOR_PRIVATE_KEY', governor.privateKey);
     wrapEnvModify('GOVERNOR_ADDRESS', governor.address);
