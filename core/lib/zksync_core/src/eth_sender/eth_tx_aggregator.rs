@@ -506,7 +506,7 @@ impl EthTxAggregator {
         l1_batch: Option<L1BatchWithMetadata>,
     ) -> (Vec<u8>, Option<EthTxBlobSidecar>) {
         let calldata = commit_fn
-            .encode_input(&commit_payload)
+            .encode_input(commit_payload)
             .expect("Failed to encode commit transaction data");
 
         let sidecar = match l1_batch {
