@@ -186,7 +186,7 @@ async fn main() -> anyhow::Result<()> {
                 assert_eq!(
                     vk_commitments,
                     vk_commitments_in_db,
-                    "VK commitments didn't match commitments from DB for protocol version {protocol_version:?}. Cached commitments: {vk_commitments:?}, commitments in database: {db_commitments:?}"
+                    "VK commitments didn't match commitments from DB for protocol version {protocol_version:?}. Cached commitments: {vk_commitments:?}, commitments in database: {vk_commitments_in_db:?}"
                 );
 
                 let public_blob_store = match config.shall_save_to_public_bucket {
