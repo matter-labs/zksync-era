@@ -86,6 +86,7 @@ artifacts-zk/
 cache-zk/
 zksolc
 verified_sources
+*.timestamp
 
 # Hyperchain related
 hyperchain-*.yml
