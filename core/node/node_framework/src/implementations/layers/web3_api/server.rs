@@ -2,6 +2,7 @@ use std::{num::NonZeroU32, time::Duration};
 
 use tokio::{sync::oneshot, task::JoinHandle};
 use zksync_circuit_breaker::replication_lag::ReplicationLagChecker;
+use zksync_config::configs::api::MaxResponseSize;
 use zksync_core::api_server::web3::{state::InternalApiConfig, ApiBuilder, ApiServer, Namespace};
 
 use crate::{
@@ -24,7 +25,7 @@ pub struct Web3ServerOptionalConfig {
     pub filters_limit: Option<usize>,
     pub subscriptions_limit: Option<usize>,
     pub batch_request_size_limit: Option<usize>,
-    pub response_body_size_limit: Option<usize>,
+    pub response_body_size_limit: Option<MaxResponseSize>,
     pub websocket_requests_per_minute_limit: Option<NonZeroU32>,
     // used by circuit breaker.
     pub replication_lag_limit: Option<Duration>,

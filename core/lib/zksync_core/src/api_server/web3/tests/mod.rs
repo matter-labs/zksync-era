@@ -1,5 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
+    net::Ipv4Addr,
+    num::NonZeroUsize,
     pin::Pin,
     slice,
     time::Instant,
@@ -7,7 +9,11 @@ use std::{
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
-use jsonrpsee::core::{client::ClientT, params::BatchRequestBuilder, ClientError};
+use jsonrpsee::{
+    core::{client::ClientT, params::BatchRequestBuilder, ClientError},
+    rpc_params,
+    types::{error::OVERSIZED_RESPONSE_CODE, ErrorObjectOwned},
+};
 use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::sync::watch;
 use zksync_config::{
@@ -62,6 +68,66 @@ mod ws;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(90);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
+
+#[tokio::test]
+async fn setting_response_size_limits() {
+    let mut rpc_module = RpcModule::new(());
+    rpc_module
+        .register_method("test_limited", |params, _ctx| {
+            let response_size: usize = params.one()?;
+            Ok::<_, ErrorObjectOwned>("!".repeat(response_size))
+        })
+        .unwrap();
+    rpc_module
+        .register_method("test_unlimited", |params, _ctx| {
+            let response_size: usize = params.one()?;
+            Ok::<_, ErrorObjectOwned>("!".repeat(response_size))
+        })
+        .unwrap();
+    let overrides = MaxResponseSizeOverrides::from_iter([("test_unlimited", NonZeroUsize::MAX)]);
+    let methods = ApiServer::override_method_response_sizes(rpc_module, &overrides).unwrap();
+
+    let server = ServerBuilder::default()
+        .max_response_body_size(1_024)
+        .http_only()
+        .build((Ipv4Addr::LOCALHOST, 0))
+        .await
+        .unwrap();
+    let local_addr = server.local_addr().unwrap();
+    let server_handle = server.start(methods);
+    let client = <HttpClient>::builder()
+        .build(format!("http://{local_addr}/"))
+        .unwrap();
+
+    // Test both methods without hitting the global limit.
+    let response: String = client
+        .request("test_limited", rpc_params![1])
+        .await
+        .unwrap();
+    assert_eq!(response, "!");
+    let response: String = client
+        .request("test_unlimited", rpc_params![1])
+        .await
+        .unwrap();
+    assert_eq!(response, "!");
+
+    // Hit the global limit and test that the overridden method is not affected by it.
+    let response: String = client
+        .request("test_unlimited", rpc_params![10_000])
+        .await
+        .unwrap();
+    assert_eq!(response.len(), 10_000);
+    let err = client
+        .request::<String, _>("test_limited", rpc_params![10_000])
+        .await
+        .unwrap_err();
+    assert_matches!(
+        err,
+        ClientError::Call(err) if err.code() == OVERSIZED_RESPONSE_CODE
+    );
+
+    server_handle.stop().ok();
+}
 
 impl ApiServerHandles {
     /// Waits until the server health check reports the ready state. Must be called once per server instance.
@@ -402,7 +468,7 @@ async fn store_events(
     storage.blocks_dal().insert_l2_block(&new_miniblock).await?;
     let tx_location = IncludedTxLocation {
         tx_hash: H256::repeat_byte(1),
-        tx_index_in_miniblock: 0,
+        tx_index_in_l2_block: 0,
         tx_initiator_address: Address::repeat_byte(2),
     };
     let events = vec![

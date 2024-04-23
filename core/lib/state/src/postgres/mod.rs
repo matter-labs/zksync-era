@@ -48,19 +48,19 @@ impl CacheValue<StorageKey> for L1BatchNumber {
     #[allow(clippy::cast_possible_truncation)] // doesn't happen in practice
     fn cache_weight(&self) -> u32 {
         const WEIGHT: usize = mem::size_of::<L1BatchNumber>() + mem::size_of::<StorageKey>();
-        // ^ Since values are small in size, we want to account for key sizes as well
+        // ^ Since values are small, we want to account for key sizes as well
 
         WEIGHT as u32
     }
 }
 
-/// [`StorageValue`] together with a miniblock "timestamp" starting from which it is known to be valid.
+/// [`StorageValue`] together with an L2 block "timestamp" starting from which it is known to be valid.
 ///
-/// Using timestamped values in [`ValuesCache`] enables using it for past miniblock states. As long as
-/// a cached value has a "timestamp" older or equal than the requested miniblock, the value can be used.
+/// Using timestamped values in [`ValuesCache`] enables using it for past L2 block states. As long as
+/// a cached value has a "timestamp" older or equal than the requested L2 block, the value can be used.
 ///
-/// Timestamp is assigned to equal the latest miniblock when a value is fetched from the storage.
-/// A value may be valid for earlier miniblocks, but fetching the actual modification "timestamp"
+/// Timestamp is assigned to equal the latest L2 block when a value is fetched from the storage.
+/// A value may be valid for earlier L2 blocks, but fetching the actual modification "timestamp"
 /// would make the relevant Postgres query more complex.
 #[derive(Debug, Clone, Copy)]
 struct TimestampedStorageValue {
@@ -80,25 +80,25 @@ impl CacheValue<H256> for TimestampedStorageValue {
 
 #[derive(Debug)]
 struct ValuesCacheInner {
-    /// Miniblock up to which `self.values` are valid. Has the same meaning as `miniblock_number`
-    /// in `PostgresStorage` (i.e., the latest sealed miniblock for which storage logs should
+    /// L2 block up to which `self.values` are valid. Has the same meaning as `l2_block_number`
+    /// in `PostgresStorage` (i.e., the latest sealed L2 block for which storage logs should
     /// be taken into account).
     valid_for: L2BlockNumber,
     values: LruCache<H256, TimestampedStorageValue>,
 }
 
 /// Cache for the VM storage. Only caches values for a single VM storage snapshot, which logically
-/// corresponds to the latest sealed miniblock in Postgres.
+/// corresponds to the latest sealed L2 block in Postgres.
 ///
 /// The cached snapshot can be updated, which will load changed storage keys from Postgres and remove
 /// the (potentially stale) cached values for these keys.
 ///
 /// # Why wrap the cache in `RwLock`?
 ///
-/// We need to be sure that `valid_for` miniblock of the values cache has not changed while we are
+/// We need to be sure that `valid_for` L2 block of the values cache has not changed while we are
 /// loading or storing values in it. This is easiest to achieve using an `RwLock`. Note that
 /// almost all cache ops require only shared access to the lock (including cache updates!); we only
-/// need exclusive access when we are updating the `valid_for` miniblock. Further, the update itself
+/// need exclusive access when we are updating the `valid_for` L2 block. Further, the update itself
 /// doesn't grab the lock until *after* the Postgres data has been loaded. (This works because we
 /// know statically that there is a single thread updating the cache; hence, we have no contention
 /// over updating the cache.) To summarize, `RwLock` should see barely any contention.
@@ -121,32 +121,32 @@ impl ValuesCache {
     }
 
     /// Gets the cached value for `key` provided that the cache currently holds values
-    /// for `miniblock_number`.
-    fn get(&self, miniblock_number: L2BlockNumber, key: &StorageKey) -> Option<StorageValue> {
+    /// for `l2_block_number`.
+    fn get(&self, l2_block_number: L2BlockNumber, key: &StorageKey) -> Option<StorageValue> {
         let lock = self.0.read().expect("values cache is poisoned");
-        if lock.valid_for < miniblock_number {
+        if lock.valid_for < l2_block_number {
             // The request is from the future; we cannot say which values in the cache remain valid,
             // so we don't return *any* cached values.
             return None;
         }
 
         let timestamped_value = lock.values.get(&key.hashed_key())?;
-        if timestamped_value.loaded_at <= miniblock_number {
+        if timestamped_value.loaded_at <= l2_block_number {
             Some(timestamped_value.value)
         } else {
             None // The value is from the future
         }
     }
 
-    /// Caches `value` for `key`, but only if the cache currently holds values for `miniblock_number`.
-    fn insert(&self, miniblock_number: L2BlockNumber, key: StorageKey, value: StorageValue) {
+    /// Caches `value` for `key`, but only if the cache currently holds values for `l2_block_number`.
+    fn insert(&self, l2_block_number: L2BlockNumber, key: StorageKey, value: StorageValue) {
         let lock = self.0.read().expect("values cache is poisoned");
-        if lock.valid_for == miniblock_number {
+        if lock.valid_for == l2_block_number {
             lock.values.insert(
                 key.hashed_key(),
                 TimestampedStorageValue {
                     value,
-                    loaded_at: miniblock_number,
+                    loaded_at: l2_block_number,
                 },
             );
         } else {
@@ -156,43 +156,43 @@ impl ValuesCache {
 
     async fn update(
         &self,
-        from_miniblock: L2BlockNumber,
-        to_miniblock: L2BlockNumber,
+        from_l2_block: L2BlockNumber,
+        to_l2_block: L2BlockNumber,
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
-        const MAX_MINIBLOCKS_LAG: u32 = 5;
+        const MAX_L2_BLOCKS_LAG: u32 = 5;
 
         tracing::debug!(
-            "Updating storage values cache from miniblock {from_miniblock} to {to_miniblock}"
+            "Updating storage values cache from L2 block {from_l2_block} to {to_l2_block}"
         );
 
-        if to_miniblock.0 - from_miniblock.0 > MAX_MINIBLOCKS_LAG {
+        if to_l2_block.0 - from_l2_block.0 > MAX_L2_BLOCKS_LAG {
             // We can spend too much time loading data from Postgres, so we opt for an easier "update" route:
             // evict *everything* from cache and call it a day. This should not happen too often in practice.
             tracing::info!(
-                "Storage values cache is too far behind (current miniblock is {from_miniblock}; \
-                 requested update to {to_miniblock}); resetting the cache"
+                "Storage values cache is too far behind (current L2 block is {from_l2_block}; \
+                 requested update to {to_l2_block}); resetting the cache"
             );
             let mut lock = self
                 .0
                 .write()
                 .map_err(|_| anyhow::anyhow!("values cache is poisoned"))?;
             anyhow::ensure!(
-                lock.valid_for == from_miniblock,
-                "sanity check failed: values cache was expected to be valid for miniblock #{from_miniblock}, but it's actually \
-                 valid for miniblock #{}",
+                lock.valid_for == from_l2_block,
+                "sanity check failed: values cache was expected to be valid for L2 block #{from_l2_block}, but it's actually \
+                 valid for L2 block #{}",
                 lock.valid_for
             );
-            lock.valid_for = to_miniblock;
+            lock.valid_for = to_l2_block;
             lock.values.clear();
 
             CACHE_METRICS.values_emptied.inc();
         } else {
             let update_latency = CACHE_METRICS.values_update[&ValuesUpdateStage::LoadKeys].start();
-            let miniblocks = (from_miniblock + 1)..=to_miniblock;
+            let l2_blocks = (from_l2_block + 1)..=to_l2_block;
             let modified_keys = connection
                 .storage_logs_dal()
-                .modified_keys_in_l2_blocks(miniblocks.clone())
+                .modified_keys_in_l2_blocks(l2_blocks.clone())
                 .await?;
 
             let elapsed = update_latency.observe();
@@ -200,7 +200,7 @@ impl ValuesCache {
                 .values_update_modified_keys
                 .observe(modified_keys.len());
             tracing::debug!(
-                "Loaded {modified_keys_len} modified storage keys from miniblocks {miniblocks:?}; \
+                "Loaded {modified_keys_len} modified storage keys from L2 blocks {l2_blocks:?}; \
                  took {elapsed:?}",
                 modified_keys_len = modified_keys.len()
             );
@@ -215,12 +215,12 @@ impl ValuesCache {
             // (other than emptying the cache above). Thus, it's kept as simple and tight as possible.
             // E.g., we load data from Postgres beforehand.
             anyhow::ensure!(
-                lock.valid_for == from_miniblock,
-                "sanity check failed: values cache was expected to be valid for miniblock #{from_miniblock}, but it's actually \
-                 valid for miniblock #{}",
+                lock.valid_for == from_l2_block,
+                "sanity check failed: values cache was expected to be valid for L2 block #{from_l2_block}, but it's actually \
+                 valid for L2 block #{}",
                 lock.valid_for
             );
-            lock.valid_for = to_miniblock;
+            lock.valid_for = to_l2_block;
             for modified_key in &modified_keys {
                 lock.values.remove(modified_key);
             }
@@ -231,7 +231,7 @@ impl ValuesCache {
 
         CACHE_METRICS
             .values_valid_for_miniblock
-            .set(u64::from(to_miniblock.0));
+            .set(u64::from(to_l2_block.0));
         Ok(())
     }
 }
@@ -249,7 +249,7 @@ struct ValuesCacheAndUpdater {
 /// - Cache for smart contract bytecodes (never invalidated, since it is content-addressable)
 /// - Cache for L1 batch numbers of initial writes for storage keys (never invalidated, except after
 ///   reverting L1 batch execution)
-/// - Cache of the VM storage snapshot corresponding to the latest sealed miniblock
+/// - Cache of the VM storage snapshot corresponding to the latest sealed L2 block
 #[derive(Debug, Clone)]
 pub struct PostgresStorageCaches {
     factory_deps: FactoryDepsCache,
@@ -324,22 +324,22 @@ impl PostgresStorageCaches {
         }
     }
 
-    /// Schedules an update of the VM storage values cache to the specified miniblock. If the values cache is not configured,
+    /// Schedules an update of the VM storage values cache to the specified L2 block. If the values cache is not configured,
     /// this is a no-op.
     ///
     /// # Panics
     ///
     /// - Panics if the cache update task returned from `configure_storage_values_cache()` has panicked.
-    pub fn schedule_values_update(&self, to_miniblock: L2BlockNumber) {
+    pub fn schedule_values_update(&self, to_l2_block: L2BlockNumber) {
         let Some(values) = &self.values else {
             return;
         };
-        if values.cache.valid_for() < to_miniblock {
+        if values.cache.valid_for() < to_l2_block {
             // Filter out no-op updates right away in order to not store lots of them in RAM.
             // Since the task updating the values cache (`PostgresStorageCachesTask`) is cancel-aware,
             // it can stop before some of `schedule_values_update()` calls; in this case, it's OK
             // to ignore the updates.
-            values.command_sender.send(to_miniblock).ok();
+            values.command_sender.send(to_l2_block).ok();
         }
     }
 }
@@ -360,14 +360,14 @@ impl PostgresStorageCachesTask {
     /// - Propagates Postgres errors.
     /// - Propagates errors from the cache update task.
     pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let mut current_miniblock = self.values_cache.valid_for();
+        let mut current_l2_block = self.values_cache.valid_for();
         loop {
             tokio::select! {
                 _ = stop_receiver.changed() => {
                     break;
                 }
-                Some(to_miniblock) = self.command_receiver.recv() => {
-                    if to_miniblock <= current_miniblock {
+                Some(to_l2_block) = self.command_receiver.recv() => {
+                    if to_l2_block <= current_l2_block {
                         continue;
                     }
                     let mut connection = self
@@ -375,9 +375,9 @@ impl PostgresStorageCachesTask {
                         .connection_tagged("values_cache_updater")
                         .await?;
                     self.values_cache
-                        .update(current_miniblock, to_miniblock, &mut connection)
+                        .update(current_l2_block, to_l2_block, &mut connection)
                         .await?;
-                    current_miniblock = to_miniblock;
+                    current_l2_block = to_l2_block;
                 }
                 else => {
                     // The command sender has been dropped, which means that we must receive the stop signal soon.
@@ -395,8 +395,8 @@ impl PostgresStorageCachesTask {
 pub struct PostgresStorage<'a> {
     rt_handle: Handle,
     connection: Connection<'a, Core>,
-    miniblock_number: L2BlockNumber,
-    l1_batch_number_for_miniblock: L1BatchNumber,
+    l2_block_number: L2BlockNumber,
+    l1_batch_number_for_l2_block: L1BatchNumber,
     pending_l1_batch_number: L1BatchNumber,
     consider_new_l1_batch: bool,
     caches: Option<PostgresStorageCaches>,
@@ -441,13 +441,13 @@ impl<'a> PostgresStorage<'a> {
             .resolve_l1_batch_number_of_l2_block(block_number)
             .await
             .with_context(|| {
-                format!("failed resolving L1 batch number for miniblock #{block_number}")
+                format!("failed resolving L1 batch number for L2 block #{block_number}")
             })?;
         Ok(Self {
             rt_handle,
             connection,
-            miniblock_number: block_number,
-            l1_batch_number_for_miniblock: resolved.expected_l1_batch(),
+            l2_block_number: block_number,
+            l1_batch_number_for_l2_block: resolved.expected_l1_batch(),
             pending_l1_batch_number: resolved.pending_l1_batch,
             consider_new_l1_batch,
             caches: None,
@@ -469,9 +469,9 @@ impl<'a> PostgresStorage<'a> {
     /// that happened at the same batch or later (for historical `eth_call` requests).
     fn write_counts(&self, write_l1_batch_number: L1BatchNumber) -> bool {
         if self.consider_new_l1_batch {
-            self.l1_batch_number_for_miniblock >= write_l1_batch_number
+            self.l1_batch_number_for_l2_block >= write_l1_batch_number
         } else {
-            self.l1_batch_number_for_miniblock > write_l1_batch_number
+            self.l1_batch_number_for_l2_block > write_l1_batch_number
         }
     }
 
@@ -484,16 +484,16 @@ impl ReadStorage for PostgresStorage<'_> {
     fn read_value(&mut self, &key: &StorageKey) -> StorageValue {
         let latency = STORAGE_METRICS.storage[&Method::ReadValue].start();
         let values_cache = self.values_cache();
-        let cached_value = values_cache.and_then(|cache| cache.get(self.miniblock_number, &key));
+        let cached_value = values_cache.and_then(|cache| cache.get(self.l2_block_number, &key));
 
         let value = cached_value.unwrap_or_else(|| {
             let mut dal = self.connection.storage_web3_dal();
             let value = self
                 .rt_handle
-                .block_on(dal.get_historical_value_unchecked(&key, self.miniblock_number))
+                .block_on(dal.get_historical_value_unchecked(&key, self.l2_block_number))
                 .expect("Failed executing `read_value`");
             if let Some(cache) = self.values_cache() {
-                cache.insert(self.miniblock_number, key, value);
+                cache.insert(self.l2_block_number, key, value);
             }
             value
         });
@@ -583,7 +583,7 @@ impl ReadStorage for PostgresStorage<'_> {
         latency.observe();
         Some(
             value
-                .filter(|dep| dep.inserted_at <= self.miniblock_number)?
+                .filter(|dep| dep.inserted_at <= self.l2_block_number)?
                 .bytecode,
         )
     }
