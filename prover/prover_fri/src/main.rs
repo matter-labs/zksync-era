@@ -195,7 +195,7 @@ async fn get_prover_tasks(
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use crate::prover_job_processor::{load_setup_data_cache, Prover};
 
-    let protocol_version = ProtocolVersionId::latest_prover();
+    let protocol_version = ProtocolVersionId::current_prover_version();
 
     tracing::info!(
         "Starting CPU FRI proof generation for with protocol_version: {:?}",
@@ -247,7 +247,7 @@ async fn get_prover_tasks(
         port: prover_config.witness_vector_receiver_port,
     };
 
-    let protocol_version = ProtocolVersionId::latest_prover();
+    let protocol_version = ProtocolVersionId::current_prover_version();
 
     let prover = gpu_prover::Prover::new(
         store_factory.create_store().await,

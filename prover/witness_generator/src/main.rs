@@ -121,8 +121,8 @@ async fn main() -> anyhow::Result<()> {
         .context("failed to build a prover_connection_pool")?;
     let (stop_sender, stop_receiver) = watch::channel(false);
 
-    let protocol_version = ProtocolVersionId::latest_prover();
-    let db_commitments = match prover_connection_pool
+    let protocol_version = ProtocolVersionId::current_prover_version();
+    let vk_commitments_in_db = match prover_connection_pool
         .connection()
         .await
         .unwrap()
@@ -133,7 +133,7 @@ async fn main() -> anyhow::Result<()> {
         Some(commitments) => commitments,
         None => {
             panic!(
-                "Could not find commitments for a protocol version in database. Is gateway running?  Maybe you started this job before gateway updated the database? Protocol version: {:?}",
+                "No vk commitments available in database for a protocol version {:?}.",
                 protocol_version
             );
         }
@@ -185,7 +185,7 @@ async fn main() -> anyhow::Result<()> {
                 let vk_commitments = get_cached_commitments();
                 assert_eq!(
                     vk_commitments,
-                    db_commitments,
+                    vk_commitments_in_db,
                     "VK commitments didn't match commitments from DB for protocol version {protocol_version:?}. Cached commitments: {vk_commitments:?}, commitments in database: {db_commitments:?}"
                 );
 

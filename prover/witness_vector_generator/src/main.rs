@@ -87,7 +87,7 @@ async fn main() -> anyhow::Result<()> {
     let zone_url = &fri_prover_config.zone_read_url;
     let zone = get_zone(zone_url).await.context("get_zone()")?;
 
-    let protocol_version = ProtocolVersionId::latest_prover();
+    let protocol_version = ProtocolVersionId::current_prover_version();
 
     let witness_vector_generator = WitnessVectorGenerator::new(
         blob_store,

@@ -71,7 +71,7 @@ async fn main() -> anyhow::Result<()> {
         .create_store()
         .await;
 
-    let protocol_version = ProtocolVersionId::latest_prover();
+    let protocol_version = ProtocolVersionId::current_prover_version();
 
     let proof_compressor = ProofCompressor::new(
         blob_store,

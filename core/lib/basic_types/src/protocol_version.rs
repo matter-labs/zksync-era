@@ -53,7 +53,7 @@ impl ProtocolVersionId {
         Self::Version23
     }
 
-    pub fn latest_prover() -> Self {
+    pub fn current_prover_version() -> Self {
         Self::Version23
     }
 
