@@ -4,7 +4,7 @@ use once_cell::sync::OnceCell;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     get_code_key, get_nonce_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey,
-    StorageValue, H160, H256, L2_ETH_TOKEN_ADDRESS, U256,
+    StorageValue, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{address_to_h256, h256_to_u256};
 
@@ -113,7 +113,7 @@ fn get_balance_key(account: &AccountTreeId) -> StorageKey {
     let address_h256 = address_to_h256(account.address());
     let bytes = [address_h256.as_bytes(), &[0; 32]].concat();
     let balance_key: H256 = keccak256(&bytes).into();
-    StorageKey::new(AccountTreeId::new(L2_ETH_TOKEN_ADDRESS), balance_key)
+    StorageKey::new(AccountTreeId::new(L2_BASE_TOKEN_ADDRESS), balance_key)
 }
 
 fn get_storage_if_present(

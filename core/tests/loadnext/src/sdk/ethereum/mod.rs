@@ -40,7 +40,7 @@ const RAW_ERC20_DEPOSIT_GAS_LIMIT: &str = include_str!("DepositERC20GasLimit.jso
 // as an optimal one. In the future, it will be estimated.
 const L1_TO_L2_GAS_PER_PUBDATA: u32 = 800;
 
-/// Returns `ethabi::Contract` object for zkSync smart contract.
+/// Returns `ethabi::Contract` object for an interface of a hyperchain
 pub fn hyperchain_contract() -> ethabi::Contract {
     load_contract(HYPERCHAIN_INTERFACE)
 }
