@@ -134,6 +134,7 @@ async function hyperchainFullUpgrade() {
         'cp etc/env/.init.env etc/env/l1-inits/.init.env && rm ./etc/env/l2-inits/zksync_local.init.env && rm ./etc/env/target/zksync_local.env'
     );
     await spawn('zk env zksync_local');
+    env.reload('zksync_local');
     env.modify(
         'CONTRACTS_ERA_DIAMOND_PROXY_ADDR',
         process.env.CONTRACTS_DIAMOND_PROXY_ADDR,
@@ -170,7 +171,7 @@ async function hyperchainFullUpgrade() {
 async function postPropose() {
     // we need to set up the prover dal
     await setupForDal(DalPath.ProverDal, process.env.DATABASE_PROVER_URL);
-    await 'zk db migrate';
+    await spawn('zk db migrate');
 }
 
 export const command = new Command('hyperchain-upgrade').description('create and publish custom l2 upgrade');
