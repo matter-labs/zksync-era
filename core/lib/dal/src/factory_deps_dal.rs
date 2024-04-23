@@ -196,7 +196,7 @@ impl FactoryDepsDal<'_, '_> {
         .await
         .unwrap()
         .into_iter()
-        .map(|row| (H256::from_slice(&row.bytecode_hash), row.bytecode.into()))
+        .map(|row| (H256::from_slice(&row.bytecode_hash), row.bytecode))
         .collect()
     }
 }

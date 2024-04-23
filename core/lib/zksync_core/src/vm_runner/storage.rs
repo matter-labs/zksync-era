@@ -73,7 +73,7 @@ pub trait VmRunnerStorageLoader: Debug + Send + Sync + 'static {
 /// 2. Loads data needed to re-execute the next unprocessed L1 batch.
 ///
 /// Users of `VmRunnerStorage` are not supposed to retain storage access to batches that are less
-/// than `L::latest_processed_batch`. Holding one is considered to be an undefined behaviour.
+/// than `L::latest_processed_batch`. Holding one is considered to be an undefined behavior.
 #[derive(Debug)]
 pub struct VmRunnerStorage<L: VmRunnerStorageLoader> {
     pool: ConnectionPool<Core>,
@@ -299,7 +299,8 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
             }
             // We rely on the assumption that no one is holding storage access to a batch with
             // number less than `latest_processed_batch`. If they do, RocksDB synchronization below
-            // will cause them to have an inconsistent view on DB which we consider to be a UB.
+            // will cause them to have an inconsistent view on DB which we consider to be an
+            // undefined behavior.
             let rocksdb = rocksdb_builder
                 .synchronize(&mut conn, &stop_receiver, Some(latest_processed_batch))
                 .await

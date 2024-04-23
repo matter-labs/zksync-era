@@ -467,7 +467,7 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
                     vm_storage.is_write_initial(&storage_key)
                 );
             }
-            for (hash, _) in &factory_deps {
+            for hash in factory_deps.keys() {
                 assert_eq!(
                     pg_storage.load_factory_dep(*hash),
                     vm_storage.load_factory_dep(*hash)
