@@ -4,9 +4,7 @@ use vm2::{decode::decode_program, ExecutionEnd, Program, Settings, VirtualMachin
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::{
-    l1::is_l1_tx_type, tx, AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, U256,
-};
+use zksync_types::{l1::is_l1_tx_type, AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, U256};
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
 use super::{
@@ -17,11 +15,15 @@ use super::{
     transaction_data::TransactionData,
 };
 use crate::{
-    interface::{Halt, VmInterface, VmInterfaceHistoryEnabled},
+    interface::{Halt, TxRevertReason, VmInterface, VmInterfaceHistoryEnabled},
+    vm_fast::{bootloader_state::utils::apply_l2_block, refund::compute_refund},
     vm_latest::{
-        constants::VM_HOOK_POSITION, BootloaderMemory, CurrentExecutionState, ExecutionResult,
-        HistoryEnabled, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
-        VmExecutionResultAndLogs,
+        constants::{
+            OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
+            VM_HOOK_PARAMS_START_POSITION, VM_HOOK_POSITION,
+        },
+        BootloaderMemory, CurrentExecutionState, ExecutionResult, HistoryEnabled, L1BatchEnv,
+        L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs,
     },
 };
 
@@ -53,11 +55,12 @@ impl<S: WriteStorage + 'static> Vm<S> {
                     hook
                 }
                 ExecutionEnd::ProgramFinished(output) => {
-                    return ExecutionResult::Success { output };
+                    return ExecutionResult::Success { output }
                 }
                 ExecutionEnd::Reverted(output) => {
-                    return ExecutionResult::Revert {
-                        output: output.as_slice().into(),
+                    return match TxRevertReason::parse_error(&output) {
+                        TxRevertReason::TxReverted(output) => ExecutionResult::Revert { output },
+                        TxRevertReason::Halt(reason) => ExecutionResult::Halt { reason },
                     }
                 }
                 ExecutionEnd::Panicked => {
@@ -86,12 +89,66 @@ impl<S: WriteStorage + 'static> Vm<S> {
                 }
                 DebugLog => {}
                 DebugReturnData => {}
-                NearCallCatch => {}
-                AskOperatorForRefund => {}
-                NotifyAboutRefund => {}
-                PostResult => {}
-                FinalBatchInfo => {}
-                PubdataRequested => {}
+                NearCallCatch => {
+                    todo!("NearCallCatch")
+                }
+                AskOperatorForRefund => {
+                    let [bootloader_refund, gas_spent_on_pubdata, gas_per_pubdata_byte] =
+                        self.get_hook_params();
+                    let current_tx_index = self.bootloader_state.current_tx();
+                    let tx_description_offset = self
+                        .bootloader_state
+                        .get_tx_description_offset(current_tx_index);
+                    let tx_gas_limit = self
+                        .read_heap_word(tx_description_offset + TX_GAS_LIMIT_OFFSET)
+                        .as_u64();
+
+                    // TODO: not supported in the VM yet
+                    let pubdata_published = 0;
+
+                    let refund = compute_refund(
+                        &self.batch_env,
+                        bootloader_refund.as_u64(),
+                        gas_spent_on_pubdata.as_u64(),
+                        tx_gas_limit,
+                        gas_per_pubdata_byte.low_u32(),
+                        pubdata_published,
+                        self.bootloader_state
+                            .last_l2_block()
+                            .txs
+                            .last()
+                            .unwrap()
+                            .hash,
+                    );
+
+                    self.write_to_bootloader_heap([(
+                        OPERATOR_REFUNDS_OFFSET + current_tx_index,
+                        refund.into(),
+                    )]);
+                }
+                NotifyAboutRefund => {
+                    let refund = self.get_hook_params()[0];
+                    dbg!(refund);
+                }
+                PostResult => {
+                    let result = self.get_hook_params()[0];
+                    if result.is_zero() {
+                        dbg!("TX failed");
+                    } else {
+                        dbg!("TX succeeded");
+                    }
+                }
+                FinalBatchInfo => {
+                    // set fictive l2 block
+                    let txs_index = self.bootloader_state.free_tx_index();
+                    let l2_block = self.bootloader_state.insert_fictive_l2_block();
+                    let mut memory = vec![];
+                    apply_l2_block(&mut memory, l2_block, txs_index);
+                    self.write_to_bootloader_heap(memory);
+                }
+                PubdataRequested => {
+                    todo!("PubdataRequested")
+                }
             }
         }
     }
@@ -135,7 +192,23 @@ impl<S: WriteStorage + 'static> Vm<S> {
         }
     }
 
-    fn write_to_bootloader_heap(&mut self, memory: Vec<(usize, U256)>) {
+    fn get_hook_params(&self) -> [U256; 3] {
+        (VM_HOOK_PARAMS_START_POSITION..VM_HOOK_PARAMS_START_POSITION + VM_HOOK_PARAMS_COUNT)
+            .map(|word| self.read_heap_word(word as usize))
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap()
+    }
+
+    /// Typically used to read the bootloader heap. We know that we're in the bootloader
+    /// when a hook occurs, as they are only enabled when preprocessing bootloader code.
+    fn read_heap_word(&self, word: usize) -> U256 {
+        self.inner.state.heaps[self.inner.state.current_frame.heap]
+            [word as usize * 32..(word as usize + 1) * 32]
+            .into()
+    }
+
+    fn write_to_bootloader_heap(&mut self, memory: impl IntoIterator<Item = (usize, U256)>) {
         assert!(self.inner.state.previous_frames.is_empty());
         let heap = &mut self.inner.state.heaps[self.inner.state.current_frame.heap];
         for (slot, value) in memory {
@@ -280,6 +353,7 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
         }
 
         let result = self.run(execution_mode);
+        dbg!(&result);
 
         VmExecutionResultAndLogs {
             result,
