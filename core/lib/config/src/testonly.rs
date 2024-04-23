@@ -723,3 +723,11 @@ impl Distribution<configs::consensus::ConsensusSecrets> for EncodeDist {
         }
     }
 }
+
+impl Distribution<configs::TxSinkConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::TxSinkConfig {
+        configs::TxSinkConfig {
+            deny_list: self.sample(rng),
+        }
+    }
+}
