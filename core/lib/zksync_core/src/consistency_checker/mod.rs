@@ -206,6 +206,13 @@ impl LocalL1BatchCommitData {
             .map_or(true, |version| version.is_pre_boojum())
     }
 
+    fn is_pre_shared_bridge(&self) -> bool {
+        self.l1_batch
+            .header
+            .protocol_version
+            .map_or(true, |version| version.is_pre_shared_bridge())
+    }
+
     /// All returned errors are validation errors.
     fn verify_commitment(&self, reference: &ethabi::Token) -> anyhow::Result<()> {
         let protocol_version = self
@@ -322,7 +329,7 @@ impl ConsistencyChecker {
     ) -> anyhow::Result<Self> {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         Ok(Self {
-            contract: zksync_contracts::zksync_contract(),
+            contract: zksync_contracts::hyperchain_contract(),
             diamond_proxy_addr: None,
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
@@ -412,13 +419,17 @@ impl ConsistencyChecker {
             }
         }
 
-        // TODO: Add support for post shared bridge commits
         let commit_function = if local.is_pre_boojum() {
             &*PRE_BOOJUM_COMMIT_FUNCTION
-        } else {
+        } else if local.is_pre_shared_bridge() {
             self.contract
                 .function("commitBatches")
                 .context("L1 contract does not have `commitBatches` function")
+                .map_err(CheckError::Internal)?
+        } else {
+            self.contract
+                .function("commitBatchesSharedBridge")
+                .context("L1 contract does not have `commitBatchesSharedBridge` function")
                 .map_err(CheckError::Internal)?
         };
 

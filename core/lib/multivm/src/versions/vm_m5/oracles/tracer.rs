@@ -19,7 +19,7 @@ use zksync_types::{
     get_code_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey,
     ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS, H256,
     KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
-    L2_ETH_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, SYSTEM_CONTEXT_ADDRESS, U256,
+    L2_BASE_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, SYSTEM_CONTEXT_ADDRESS, U256,
 };
 use zksync_utils::{
     be_bytes_to_safe_address, h256_to_account_address, u256_to_account_address, u256_to_h256,
@@ -200,7 +200,7 @@ fn valid_eth_token_call(address: Address, msg_sender: Address) -> bool {
     let is_valid_caller = msg_sender == MSG_VALUE_SIMULATOR_ADDRESS
         || msg_sender == CONTRACT_DEPLOYER_ADDRESS
         || msg_sender == BOOTLOADER_ADDRESS;
-    address == L2_ETH_TOKEN_ADDRESS && is_valid_caller
+    address == L2_BASE_TOKEN_ADDRESS && is_valid_caller
 }
 
 /// Tracer that is used to ensure that the validation adheres to all the rules
