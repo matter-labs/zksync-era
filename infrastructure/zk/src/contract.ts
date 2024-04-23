@@ -79,10 +79,10 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean): Pr
 // for testnet and development purposes it is ok to deploy contracts form L1.
 export async function deployL2ThroughL1({
     includePaymaster,
-    chainIdHack
+    localLegacyBridgeTesting
 }: {
     includePaymaster: boolean;
-    chainIdHack?: boolean;
+    localLegacyBridgeTesting?: boolean;
 }): Promise<void> {
     await utils.confirmAction();
 
@@ -98,7 +98,7 @@ export async function deployL2ThroughL1({
 
     await utils.spawn(
         `yarn l2-contracts deploy-shared-bridge-on-l2-through-l1 ${args.join(' ')} ${
-            chainIdHack ? '--local-legacy-bridge-testing' : ''
+            localLegacyBridgeTesting ? '--local-legacy-bridge-testing' : ''
         } | tee deployL2.log`
     );
 
