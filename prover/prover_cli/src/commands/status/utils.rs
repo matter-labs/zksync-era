@@ -2,6 +2,7 @@ use std::{collections::HashMap, fmt::Debug};
 
 use anyhow::ensure;
 use colored::*;
+use prover_dal::fri_proof_compressor_dal::ProofCompressionJobStatus;
 use strum::{Display, EnumString};
 use zksync_basic_types::{basic_fri_types::AggregationRound, prover_dal::JobCountStatistics};
 use zksync_config::PostgresConfig;
@@ -205,6 +206,21 @@ pub enum TaskStatus {
 impl Default for TaskStatus {
     fn default() -> Self {
         TaskStatus::WaitingForProofs
+    }
+}
+
+impl From<ProofCompressionJobStatus> for TaskStatus {
+    fn from(status: ProofCompressionJobStatus) -> Self {
+        match status {
+            ProofCompressionJobStatus::Queued => TaskStatus::Queued,
+            ProofCompressionJobStatus::InProgress => TaskStatus::InProgress,
+            ProofCompressionJobStatus::Successful => TaskStatus::Successful,
+            ProofCompressionJobStatus::Failed => TaskStatus::InProgress,
+            ProofCompressionJobStatus::SentToServer => {
+                TaskStatus::Custom("Sent to server 📤".to_owned())
+            }
+            ProofCompressionJobStatus::Skipped => TaskStatus::Custom("Skipped ⏩".to_owned()),
+        }
     }
 }
 
