@@ -286,7 +286,7 @@ describe('Upgrade test', function () {
         );
         let iter = 0;
         let started = false;
-        while (iter < 30 && !mainContract) {
+        while (iter < 30 && !started) {
             try {
                 await tester.syncWallet.getMainContract();
                 started = true;
