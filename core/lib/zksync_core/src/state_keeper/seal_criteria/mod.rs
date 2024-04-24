@@ -159,7 +159,7 @@ impl IoSealCriteria for TimeoutSealer {
         let block_commit_deadline_ms = self.block_commit_deadline_ms;
 
         // Verify timestamp
-        let diff = manager.miniblock.timestamp - manager.batch_timestamp();
+        let diff = manager.l2_block.timestamp - manager.batch_timestamp();
         let should_seal_timeout = (diff * 1000) > block_commit_deadline_ms;
 
         if should_seal_timeout {
