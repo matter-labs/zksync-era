@@ -1,5 +1,9 @@
 version: '3.2'
 services:
+  compilers:
+    image: matterlabs/compilers:latest
+    volumes:
+      - compilers:/.cache/hardhat-nodejs/compilers-v2
   reth:
     restart: always
     image: "ghcr.io/paradigmxyz/reth:v0.2.0-beta.2"
@@ -34,11 +38,13 @@ services:
     security_opt:
       - seccomp:unconfined
     command: tail -f /dev/null
+    depends_on:
+      - compilers
     volumes:
       - .:/usr/src/zksync
       - /usr/src/cache:/usr/src/cache
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./hardhat-nodejs:/root/.cache/hardhat-nodejs
+      - compilers:/root/.cache/hardhat-nodejs/compilers-v2 # for hardhat compilers
     environment:
       - CACHE_DIR=/usr/src/cache
       - SCCACHE_CACHE_SIZE=50g
@@ -54,3 +60,6 @@ services:
       - "host:host-gateway"
     profiles:
       - runner
+
+volumes:
+  compilers:
