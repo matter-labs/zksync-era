@@ -166,7 +166,7 @@ async fn run_tree(
             .context("failed initializing metadata calculator")?;
 
     let tree_reader = Arc::new(metadata_calculator.tree_reader());
-    app_health.insert_component(metadata_calculator.tree_health_check());
+    app_health.insert_component(metadata_calculator.tree_health_check())?;
 
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
@@ -201,7 +201,7 @@ async fn run_core(
 ) -> anyhow::Result<SyncState> {
     // Create components.
     let sync_state = SyncState::default();
-    app_health.insert_custom_component(Arc::new(sync_state.clone()));
+    app_health.insert_custom_component(Arc::new(sync_state.clone()))?;
     let (action_queue_sender, action_queue) = ActionQueue::new();
 
     let (persistence, miniblock_sealer) = StateKeeperPersistence::new(
@@ -347,7 +347,7 @@ async fn run_core(
     .context("cannot initialize consistency checker")?
     .with_diamond_proxy_addr(diamond_proxy_addr);
 
-    app_health.insert_component(consistency_checker.health_check().clone());
+    app_health.insert_component(consistency_checker.health_check().clone())?;
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
 
     let batch_status_updater = BatchStatusUpdater::new(
@@ -357,14 +357,14 @@ async fn run_core(
             .await
             .context("failed to build a connection pool for BatchStatusUpdater")?,
     );
-    app_health.insert_component(batch_status_updater.health_check());
+    app_health.insert_component(batch_status_updater.health_check())?;
 
     let commitment_generator_pool = singleton_pool_builder
         .build()
         .await
         .context("failed to build a commitment_generator_pool")?;
     let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
-    app_health.insert_component(commitment_generator.health_check());
+    app_health.insert_component(commitment_generator.health_check())?;
     let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
 
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
@@ -520,7 +520,7 @@ async fn run_api(
             .run(stop_receiver.clone())
             .await
             .context("Failed initializing HTTP JSON-RPC server")?;
-        app_health.insert_component(http_server_handles.health_check);
+        app_health.insert_component(http_server_handles.health_check)?;
         task_handles.extend(http_server_handles.tasks);
     }
 
@@ -548,7 +548,7 @@ async fn run_api(
             .run(stop_receiver.clone())
             .await
             .context("Failed initializing WS JSON-RPC server")?;
-        app_health.insert_component(ws_server_handles.health_check);
+        app_health.insert_component(ws_server_handles.health_check)?;
         task_handles.extend(ws_server_handles.tasks);
     }
 
@@ -660,7 +660,7 @@ async fn init_tasks(
     if let Some(port) = config.optional.prometheus_port {
         let (prometheus_health_check, prometheus_health_updater) =
             ReactiveHealthCheck::new("prometheus_exporter");
-        app_health.insert_component(prometheus_health_check);
+        app_health.insert_component(prometheus_health_check)?;
         task_handles.push(tokio::spawn(async move {
             prometheus_health_updater.update(HealthStatus::Ready.into());
             let result = PrometheusExporterConfig::pull(port)
@@ -873,10 +873,10 @@ async fn run_node(
     ));
     app_health.insert_custom_component(Arc::new(MainNodeHealthCheck::from(
         main_node_client.clone(),
-    )));
+    )))?;
     app_health.insert_custom_component(Arc::new(ConnectionPoolHealthCheck::new(
         connection_pool.clone(),
-    )));
+    )))?;
 
     // Start the health check server early into the node lifecycle so that its health can be monitored from the very start.
     let healthcheck_handle = HealthCheckHandle::spawn_server(
@@ -969,7 +969,7 @@ async fn run_node(
         tracing::info!("Rollback successfully completed");
     }
 
-    app_health.insert_component(reorg_detector.health_check().clone());
+    app_health.insert_component(reorg_detector.health_check().clone())?;
     task_handles.push(tokio::spawn({
         let stop = stop_receiver.clone();
         async move {
