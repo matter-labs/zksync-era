@@ -1,10 +1,13 @@
 import path from 'path';
 import { exec } from 'child_process';
-import { needsRecompilation, setCompilationTime, isFolderEmpty } from './utils';
-
-const CONTRACTS_DIR = 'contracts';
-const OUTPUT_DIR = 'artifacts-zk';
-const TIMESTAMP_FILE = 'last_compilation.timestamp'; // File to store the last compilation time
+import {
+    needsRecompilation,
+    setCompilationTime,
+    isFolderEmpty,
+    CONTRACTS_DIR,
+    OUTPUT_DIR,
+    TIMESTAMP_FILE
+} from './utils';
 
 async function main() {
     const timestampFilePath = path.join(process.cwd(), TIMESTAMP_FILE);

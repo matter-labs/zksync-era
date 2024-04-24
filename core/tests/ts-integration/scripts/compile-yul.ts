@@ -5,12 +5,10 @@ import { exec as _exec, spawn as _spawn } from 'child_process';
 import { getZksolcUrl, saltFromUrl } from '@matterlabs/hardhat-zksync-solc';
 import { getCompilersDir } from 'hardhat/internal/util/global-dir';
 import path from 'path';
-import { needsRecompilation, setCompilationTime } from './utils';
+import { needsRecompilation, setCompilationTime, CONTRACTS_DIR, TIMESTAMP_FILE_YUL } from './utils';
 
-const CONTRACTS_DIR = 'contracts';
 const COMPILER_VERSION = '1.3.21';
 const IS_COMPILER_PRE_RELEASE = false;
-const TIMESTAMP_FILE = 'last_compilation_yul.timestamp'; // File to store the last compilation time
 
 async function compilerLocation(): Promise<string> {
     const compilersCache = await getCompilersDir();
@@ -87,7 +85,7 @@ class CompilerPaths {
 }
 
 async function main() {
-    const timestampFilePath = path.join(process.cwd(), TIMESTAMP_FILE);
+    const timestampFilePath = path.join(process.cwd(), TIMESTAMP_FILE_YUL);
     const folderToCheck = path.join(process.cwd(), CONTRACTS_DIR);
 
     if (needsRecompilation(folderToCheck, timestampFilePath)) {

@@ -3,6 +3,11 @@ import * as fsPr from 'fs/promises';
 import path from 'path';
 import { exec } from 'child_process';
 
+const CONTRACTS_DIR = 'contracts';
+const OUTPUT_DIR = 'artifacts-zk';
+const TIMESTAMP_FILE = 'last_compilation.timestamp'; // File to store the last compilation time
+const TIMESTAMP_FILE_YUL = 'last_compilation_yul.timestamp'; // File to store the last compilation time
+
 // Get the latest file modification time in the watched folder
 function getLatestModificationTime(folder: string): Date | null {
     const files = fs.readdirSync(folder);
@@ -78,3 +83,5 @@ export async function isFolderEmpty(folderPath: string): Promise<boolean> {
         return true; // Return true if an error, as folder doesn't exist.
     }
 }
+
+export { CONTRACTS_DIR, OUTPUT_DIR, TIMESTAMP_FILE, TIMESTAMP_FILE_YUL };
