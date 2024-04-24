@@ -70,7 +70,7 @@ message ProverGateway {
 
 message WitnessGenerator {
     optional uint32 generation_timeout_in_secs = 1; // required;
-    optional uint32 max_attempts = 2; //
+    optional uint32 max_attempts = 2; // required;
     optional uint32 last_l1_batch_to_process = 5; // optional
     optional bool shall_save_to_public_bucket = 7; // required
     optional uint32 basic_generation_timeout_in_secs = 8; // optional;
