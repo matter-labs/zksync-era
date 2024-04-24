@@ -13,12 +13,12 @@ categories.workspace = true
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 env_logger = "0.10"
 log = "0.4"
+colored = "2.1.0"
 
 clap = { workspace = true, features = ["derive"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 bincode.workspace = true
-colored.workspace = true
 hex.workspace = true
 anyhow.workspace = true
 zksync_config.workspace = true
@@ -29,3 +29,4 @@ zksync_types.workspace = true
 zksync_prover_fri_types.workspace = true
 zksync_prover_interface.workspace = true
 prover_dal.workspace = true
+strum.workspace = true
