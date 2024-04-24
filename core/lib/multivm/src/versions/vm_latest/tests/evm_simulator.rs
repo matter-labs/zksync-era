@@ -3470,6 +3470,115 @@ fn test_basic_environment4_vectors() {
         .concat(),
     );
     assert_eq!(H256(evm_output.into()), H256(U256::from("7").into()));
+
+    // extcodehash
+    let evm_output = test_evm_vector(
+        vec![
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("6080604052348015600e575f80fd5b5060af80601a5f395ff3fe608060405234")
+                .unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("8015600e575f80fd5b50600436106026575f3560e01c80636d4ce63c14602a57")
+                .unwrap(),
+            // push1 32
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("5b5f80fd5b60306044565b604051603b91906062565b60405180910390f35b5f")
+                .unwrap(),
+            // push1 64
+            hex::decode("60").unwrap(),
+            hex::decode("40").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("6007905090565b5f819050919050565b605c81604c565b82525050565b5f6020")
+                .unwrap(),
+            // push1 96
+            hex::decode("60").unwrap(),
+            hex::decode("60").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("8201905060735f8301846055565b9291505056fea26469706673582212201357")
+                .unwrap(),
+            // push1 128
+            hex::decode("60").unwrap(),
+            hex::decode("80").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("3db24498d07df7d6344f02fa1ccf8e15038b10c382a6d71537a002ad4e736473")
+                .unwrap(),
+            // push1 160
+            hex::decode("60").unwrap(),
+            hex::decode("A0").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("6f6c634300081900330000000000000000000000000000000000000000000000")
+                .unwrap(),
+            // push1 192
+            hex::decode("60").unwrap(),
+            hex::decode("C0").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 201
+            hex::decode("60").unwrap(),
+            hex::decode("C9").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // create
+            hex::decode("F0").unwrap(),
+            // extcodehash
+            hex::decode("3F").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    //assert_eq!(H256(evm_output.into()), H256(U256::from("7").into()));
+    println!("{:?}", H256(evm_output.into()));
+
+    // extcodehash
+    let evm_output = test_evm_vector(
+        vec![
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("000000000000000000000000000000000000000000000000000000000000800A")
+                .unwrap(),
+            // extcodehash
+            hex::decode("3F").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    println!("{:?}", H256(evm_output.into()));
+    assert_eq!(H256(evm_output.into()), H256(U256::from("7").into()));
 }
 
 #[test]
