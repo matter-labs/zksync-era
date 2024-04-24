@@ -367,7 +367,7 @@ impl StoredL2BlockInfo {
             .get_historical_value_unchecked(&l2_block_info_key, l2_block_number)
             .await
             .context("failed reading L2 block info from VM state")?;
-        let (virtual_block_number, l2_block_timestamp) =
+        let (l2_block_number_from_state, l2_block_timestamp) =
             unpack_block_info(h256_to_u256(l2_block_info));
 
         let l2_block_txs_rolling_hash_key = StorageKey::new(
@@ -392,7 +392,7 @@ impl StoredL2BlockInfo {
         };
 
         Ok(Self {
-            l2_block_number: virtual_block_number as u32,
+            l2_block_number: l2_block_number_from_state as u32,
             l2_block_timestamp,
             l2_block_hash,
             txs_rolling_hash,
