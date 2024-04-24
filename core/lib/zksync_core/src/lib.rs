@@ -83,7 +83,6 @@ use crate::{
         },
         Aggregator, EthTxAggregator, EthTxManager,
     },
-    genesis::GenesisParams,
     l1_gas_price::{
         GasAdjusterSingleton, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
     },
@@ -93,6 +92,7 @@ use crate::{
         SequencerSealer, StateKeeperPersistence,
     },
     utils::ensure_l1_batch_commit_data_generation_mode,
+    zksync_shared::genesis::GenesisParams,
 };
 
 pub mod api_server;
@@ -103,7 +103,6 @@ pub mod db_pruner;
 pub mod eth_sender;
 pub mod fee_model;
 pub mod gas_tracker;
-pub mod genesis;
 pub mod l1_gas_price;
 pub mod metadata_calculator;
 pub mod proof_data_handler;
@@ -128,7 +127,7 @@ pub async fn genesis_init(
     let mut storage = pool.connection().await.context("connection()")?;
 
     let params = GenesisParams::load_genesis_params(genesis_config)?;
-    genesis::ensure_genesis_state(&mut storage, &params).await?;
+    zksync_shared::genesis::ensure_genesis_state(&mut storage, &params).await?;
 
     Ok(())
 }

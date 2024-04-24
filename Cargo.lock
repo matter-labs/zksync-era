@@ -8490,6 +8490,7 @@ dependencies = [
  "zksync_protobuf_config",
  "zksync_prover_interface",
  "zksync_queued_job_processor",
+ "zksync_shared",
  "zksync_shared_metrics",
  "zksync_state",
  "zksync_storage",
@@ -8954,6 +8955,27 @@ dependencies = [
  "zksync_env_config",
  "zksync_protobuf_config",
  "zksync_storage",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
+name = "zksync_shared"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "itertools 0.10.5",
+ "multivm",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_eth_client",
+ "zksync_merkle_tree",
+ "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
 ]
