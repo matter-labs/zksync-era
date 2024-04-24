@@ -138,13 +138,13 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
         // We must retain at least one tree version.
         let last_prunable_version = self.last_prunable_version();
         if last_prunable_version.is_none() {
-            tracing::info!("Nothing to prune; skipping");
+            tracing::debug!("Nothing to prune; skipping");
             return None;
         }
         let target_retained_version = last_prunable_version?.min(target_retained_version);
         let stale_key_new_versions = min_stale_key_version..=target_retained_version;
         if stale_key_new_versions.is_empty() {
-            tracing::info!(
+            tracing::debug!(
                 "No Merkle tree versions can be pruned; min stale key version is {min_stale_key_version}, \
                  target retained version is {target_retained_version}"
             );
@@ -165,7 +165,7 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
         load_stale_keys_latency.observe();
 
         if pruned_keys.is_empty() {
-            tracing::info!("No stale keys to remove; skipping");
+            tracing::debug!("No stale keys to remove; skipping");
             return None;
         }
         let deleted_stale_key_versions = min_stale_key_version..(max_stale_key_version + 1);

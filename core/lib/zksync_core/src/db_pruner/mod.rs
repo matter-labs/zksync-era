@@ -79,7 +79,7 @@ trait PruneCondition: fmt::Debug + fmt::Display + Send + Sync + 'static {
 
 impl DbPruner {
     pub fn new(config: DbPrunerConfig, connection_pool: ConnectionPool<Core>) -> Self {
-        let conditions: Vec<Arc<dyn PruneCondition>> = vec![
+        let mut conditions: Vec<Arc<dyn PruneCondition>> = vec![
             Arc::new(L1BatchExistsCondition {
                 conn: connection_pool.clone(),
             }),
@@ -89,14 +89,18 @@ impl DbPruner {
             Arc::new(NextL1BatchWasExecutedCondition {
                 conn: connection_pool.clone(),
             }),
-            Arc::new(L1BatchOlderThanPruneCondition {
-                minimum_age: config.minimum_l1_batch_age,
-                conn: connection_pool.clone(),
-            }),
             Arc::new(ConsistencyCheckerProcessedBatch {
                 conn: connection_pool.clone(),
             }),
         ];
+        if config.minimum_l1_batch_age > Duration::ZERO {
+            // Do not add a condition if it's trivial in order to not clutter logs.
+            conditions.push(Arc::new(L1BatchOlderThanPruneCondition {
+                minimum_age: config.minimum_l1_batch_age,
+                conn: connection_pool.clone(),
+            }));
+        }
+
         Self::with_conditions(config, connection_pool, conditions)
     }
 
@@ -134,11 +138,11 @@ impl DbPruner {
         }
         let result = failed_conditions.is_empty() && errored_conditions.is_empty();
         if !result {
-            tracing::info!(
-                "Pruning l1 batch {l1_batch_number} is not possible, \
-                successful conditions: {successful_conditions:?}, \
-                failed conditions: {failed_conditions:?}, \
-                errored_conditions: {errored_conditions:?}"
+            tracing::debug!(
+                "Pruning L1 batch {l1_batch_number} is not possible, \
+                 successful conditions: {successful_conditions:?}, \
+                 failed conditions: {failed_conditions:?}, \
+                 errored conditions: {errored_conditions:?}"
             );
         }
         result
@@ -288,6 +292,14 @@ impl DbPruner {
 
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let next_iteration_delay = self.config.removal_delay / 2;
+        tracing::info!(
+            "Starting Postgres pruning with configuration {:?}, prune conditions {:?}",
+            self.config,
+            self.prune_conditions
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+        );
 
         while !*stop_receiver.borrow_and_update() {
             if let Err(err) = self.update_l1_batches_metric().await {
