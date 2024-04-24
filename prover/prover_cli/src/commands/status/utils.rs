@@ -1,6 +1,8 @@
 use std::{collections::HashMap, fmt::Debug};
 
+use anyhow::ensure;
 use colored::*;
+use prover_dal::fri_proof_compressor_dal::ProofCompressionJobStatus;
 use strum::{Display, EnumString};
 use zksync_basic_types::{basic_fri_types::AggregationRound, prover_dal::JobCountStatistics};
 use zksync_config::PostgresConfig;
@@ -29,34 +31,58 @@ impl BatchDataBuilder {
         }
     }
 
-    pub fn basic_witness_generator(mut self, task: Task) -> Self {
+    pub fn basic_witness_generator(mut self, task: Task) -> anyhow::Result<Self> {
+        ensure!(
+            matches!(task, Task::BasicWitnessGenerator(_)),
+            "Task should be a basic witness generator"
+        );
         self.basic_witness_generator = task;
-        self
+        Ok(self)
     }
 
-    pub fn leaf_witness_generator(mut self, task: Task) -> Self {
+    pub fn leaf_witness_generator(mut self, task: Task) -> anyhow::Result<Self> {
+        ensure!(
+            matches!(task, Task::LeafWitnessGenerator { .. }),
+            "Task should be a leaf witness generator"
+        );
         self.leaf_witness_generator = task;
-        self
+        Ok(self)
     }
 
-    pub fn node_witness_generator(mut self, task: Task) -> Self {
+    pub fn node_witness_generator(mut self, task: Task) -> anyhow::Result<Self> {
+        ensure!(
+            matches!(task, Task::NodeWitnessGenerator { .. }),
+            "Task should be a node witness generator"
+        );
         self.node_witness_generator = task;
-        self
+        Ok(self)
     }
 
-    pub fn recursion_tip(mut self, task: Task) -> Self {
+    pub fn recursion_tip(mut self, task: Task) -> anyhow::Result<Self> {
+        ensure!(
+            matches!(task, Task::RecursionTip { .. }),
+            "Task should be a recursion tip"
+        );
         self.recursion_tip = task;
-        self
+        Ok(self)
     }
 
-    pub fn scheduler(mut self, task: Task) -> Self {
+    pub fn scheduler(mut self, task: Task) -> anyhow::Result<Self> {
+        ensure!(
+            matches!(task, Task::Scheduler(_)),
+            "Task should be a scheduler"
+        );
         self.scheduler = task;
-        self
+        Ok(self)
     }
 
-    pub fn compressor(mut self, task: Task) -> Self {
+    pub fn compressor(mut self, task: Task) -> anyhow::Result<Self> {
+        ensure!(
+            matches!(task, Task::Compressor(_)),
+            "Task should be a compressor"
+        );
         self.compressor = task;
-        self
+        Ok(self)
     }
 
     pub fn build(self) -> BatchData {
@@ -68,6 +94,29 @@ impl BatchDataBuilder {
             recursion_tip: self.recursion_tip,
             scheduler: self.scheduler,
             compressor: self.compressor,
+        }
+    }
+}
+
+impl Default for BatchDataBuilder {
+    fn default() -> Self {
+        BatchDataBuilder {
+            batch_number: L1BatchNumber::default(),
+            basic_witness_generator: Task::BasicWitnessGenerator(TaskStatus::Stuck),
+            leaf_witness_generator: Task::LeafWitnessGenerator {
+                status: TaskStatus::WaitingForProofs,
+                aggregation_round_0_prover_jobs_data: ProverJobsData::default(),
+            },
+            node_witness_generator: Task::NodeWitnessGenerator {
+                status: TaskStatus::WaitingForProofs,
+                aggregation_round_1_prover_jobs_data: ProverJobsData::default(),
+            },
+            recursion_tip: Task::RecursionTip {
+                status: TaskStatus::WaitingForProofs,
+                aggregation_round_2_prover_jobs_data: ProverJobsData::default(),
+            },
+            scheduler: Task::Scheduler(TaskStatus::WaitingForProofs),
+            compressor: Task::Compressor(TaskStatus::WaitingForProofs),
         }
     }
 }
@@ -160,7 +209,20 @@ impl Default for TaskStatus {
     }
 }
 
-impl Copy for TaskStatus {}
+impl From<ProofCompressionJobStatus> for TaskStatus {
+    fn from(status: ProofCompressionJobStatus) -> Self {
+        match status {
+            ProofCompressionJobStatus::Queued => TaskStatus::Queued,
+            ProofCompressionJobStatus::InProgress => TaskStatus::InProgress,
+            ProofCompressionJobStatus::Successful => TaskStatus::Successful,
+            ProofCompressionJobStatus::Failed => TaskStatus::InProgress,
+            ProofCompressionJobStatus::SentToServer => {
+                TaskStatus::Custom("Sent to server 📤".to_owned())
+            }
+            ProofCompressionJobStatus::Skipped => TaskStatus::Custom("Skipped ⏩".to_owned()),
+        }
+    }
+}
 
 type ProverJobsData = HashMap<(L1BatchNumber, AggregationRound), JobCountStatistics>;
 
@@ -203,7 +265,7 @@ impl Task {
             | Task::NodeWitnessGenerator { status, .. }
             | Task::RecursionTip { status, .. }
             | Task::Scheduler(status)
-            | Task::Compressor(status) => *status,
+            | Task::Compressor(status) => status.clone(),
         }
     }
 }
