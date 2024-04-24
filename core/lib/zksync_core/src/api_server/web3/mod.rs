@@ -15,7 +15,9 @@ use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
     jsonrpsee::{
-        server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder},
+        server::{
+            middleware::rpc::either::Either, BatchRequestConfig, RpcServiceBuilder, ServerBuilder,
+        },
         MethodCallback, Methods, RpcModule,
     },
     namespaces::{
@@ -27,7 +29,8 @@ use zksync_web3_decl::{
 
 use self::{
     backend_jsonrpsee::{
-        LimitMiddleware, MetadataMiddleware, MethodTracer, ShutdownMiddleware, TrafficTracker,
+        CorrelationMiddleware, LimitMiddleware, MetadataLayer, MethodTracer, ShutdownMiddleware,
+        TrafficTracker,
     },
     mempool_cache::MempoolCache,
     metrics::API_METRICS,
@@ -130,6 +133,7 @@ struct OptionalApiParams {
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
     tree_api: Option<Arc<dyn TreeApiClient>>,
     mempool_cache: Option<MempoolCache>,
+    extended_tracing: bool,
     pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
 
@@ -263,6 +267,11 @@ impl ApiBuilder {
 
     pub fn with_mempool_cache(mut self, cache: MempoolCache) -> Self {
         self.optional.mempool_cache = Some(cache);
+        self
+    }
+
+    pub fn with_extended_tracing(mut self, extended_tracing: bool) -> Self {
+        self.optional.extended_tracing = extended_tracing;
         self
     }
 
@@ -608,6 +617,11 @@ impl ApiServer {
         let health_updater = self.health_updater.clone();
         let method_tracer = self.method_tracer.clone();
 
+        let extended_tracing = self.optional.extended_tracing;
+        if extended_tracing {
+            tracing::info!("Enabled extended call tracing for {transport_str} API server; this might negatively affect performance");
+        }
+
         let rpc = self
             .build_rpc_module(pub_sub, last_sealed_miniblock)
             .await?;
@@ -646,15 +660,27 @@ impl ApiServer {
             .flatten()
             .unwrap_or(5_000);
 
+        let metadata_layer = MetadataLayer::new(registered_method_names, method_tracer);
+        let metadata_layer = if extended_tracing {
+            Either::Left(metadata_layer.with_param_tracing())
+        } else {
+            Either::Right(metadata_layer)
+        };
         let traffic_tracker = TrafficTracker::default();
         let traffic_tracker_for_middleware = traffic_tracker.clone();
+
+        // **Important.** The ordering of layers matters! Layers added first will receive the request earlier
+        // (i.e., are outermost in the call chain).
         let rpc_middleware = RpcServiceBuilder::new()
             .layer_fn(move |svc| {
                 ShutdownMiddleware::new(svc, traffic_tracker_for_middleware.clone())
             })
-            .layer_fn(move |svc| {
-                MetadataMiddleware::new(svc, registered_method_names.clone(), method_tracer.clone())
-            })
+            // We want to output method logs with a correlation ID; hence, `CorrelationMiddleware` must precede `metadata_layer`.
+            .option_layer(
+                extended_tracing.then(|| tower::layer::layer_fn(CorrelationMiddleware::new)),
+            )
+            .layer(metadata_layer)
+            // We want to capture limit middleware errors with `metadata_layer`; hence, `LimitMiddleware` is placed after it.
             .option_layer((!is_http).then(|| {
                 tower::layer::layer_fn(move |svc| {
                     LimitMiddleware::new(svc, websocket_requests_per_minute_limit)
