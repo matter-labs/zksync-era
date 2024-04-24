@@ -424,7 +424,7 @@ async fn setup_calculator_with_options(
 
     let calculator_config =
         MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_config);
-    MetadataCalculator::new(calculator_config, object_store, pool.clone(), pool)
+    MetadataCalculator::new(calculator_config, object_store, pool)
         .await
         .unwrap()
 }
