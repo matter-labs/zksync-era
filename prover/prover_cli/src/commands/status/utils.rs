@@ -133,6 +133,10 @@ impl Default for BatchData {
 
 #[derive(Debug, EnumString, Clone, Display)]
 pub enum TaskStatus {
+    /// A custom status that can be set manually.
+    /// Mostly used when a task has singular status.
+    #[strum(to_string = "{0}")]
+    Custom(String),
     /// A task is considered queued when all of its jobs is queued.
     #[strum(to_string = "Queued 📥")]
     Queued,
@@ -152,7 +156,7 @@ pub enum TaskStatus {
 
 impl Default for TaskStatus {
     fn default() -> Self {
-        TaskStatus::Queued
+        TaskStatus::WaitingForProofs
     }
 }
 
