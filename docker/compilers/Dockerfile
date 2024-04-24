@@ -1,0 +1,44 @@
+# This docker file contains all the compilers (zksolc, solc, zkvyper and vyper), that are used by our contracts.
+# Normally, hardhat would download them in the background, but this is causing CI issues, due to github traffic limiting.
+# So we put them all into the docker file instead.
+# In the current version, this docker file is managed manually (so if we decide to use a new compiler version, we have to add it below).
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y wget
+
+# This ./cache/hardhat-nodejs is coming from the env-paths module
+# that hardhat is using.
+ENV COMPILER_DIR=./.cache/hardhat-nodejs/compilers-v2
+RUN  mkdir -p $COMPILER_DIR/linux-amd64
+RUN  mkdir -p $COMPILER_DIR/vyper/linux
+RUN  mkdir -p $COMPILER_DIR/zksolc
+RUN  mkdir -p $COMPILER_DIR/zkvyper
+
+
+# Fetch latest compiler version
+RUN wget -nv -O $COMPILER_DIR/zksolc/compilerVersionInfo.json  "https://raw.githubusercontent.com/matter-labs/zksolc-bin/main/version.json" 
+
+
+# These are the versions that we currently have in hardhat.config.ts in zksync-era and era-contracts.
+# For now, if there is a new version of compiler, we'd have to modify this file.
+# In the future, we should make it more automatic.
+RUN (for ver in v1.3.18 v1.3.21 v1.4.0 v1.4.1; do wget -nv -O $COMPILER_DIR/zksolc/zksolc-$ver  https://raw.githubusercontent.com/matter-labs/zksolc-bin/main/linux-amd64/zksolc-linux-amd64-musl-$ver; done) 
+
+RUN wget -nv -O $COMPILER_DIR/zkvyper/compilerVersionInfo.json  "https://raw.githubusercontent.com/matter-labs/zkvyper-bin/main/version.json" 
+
+RUN (for ver in v1.3.13; do wget -nv -O $COMPILER_DIR/zkvyper/zkvyper-$ver  https://raw.githubusercontent.com/matter-labs/zkvyper-bin/main/linux-amd64/zkvyper-linux-amd64-musl-$ver; done) 
+
+
+# This matches VYPER_RELEASES_MIRROR_URL from hardhat-vyper
+RUN wget -nv -O $COMPILER_DIR/vyper/linux/list.json https://vyper-releases-mirror.hardhat.org/list.json
+
+# Currently we only use 0.3.10 release of vyper compiler (path taken from the list.json above)
+RUN wget -nv -O $COMPILER_DIR/vyper/linux/0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10%2Bcommit.91361694.linux
+
+
+# This matches COMPILER_REPOSITORY_URL from hardhat-core.
+RUN wget -nv -O $COMPILER_DIR/linux-amd64/list.json https://binaries.soliditylang.org/linux-amd64/list.json
+
+RUN (for ver in solc-linux-amd64-v0.8.20+commit.a1b79de6 solc-linux-amd64-v0.8.23+commit.f704f362 solc-linux-amd64-v0.8.24+commit.e11b9ed9; do \
+    wget -nv -O $COMPILER_DIR/linux-amd64/$ver https://binaries.soliditylang.org/linux-amd64/$ver; \
+    done)
