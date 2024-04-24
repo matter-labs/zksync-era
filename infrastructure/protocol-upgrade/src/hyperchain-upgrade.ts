@@ -86,7 +86,7 @@ async function hyperchainUpgrade2() {
     await spawn(
         `yarn hyperchain-upgrade-2 --print-file-path ${getUpgradePath(
             environment
-        )}/operations.json | tee deploydeployHyperchainUpgrade2.log`
+        )} | tee deploydeployHyperchainUpgrade2.log`
     );
     process.chdir(cwd);
 }
