@@ -160,10 +160,10 @@ async fn run_tree(
     .await
     .context("failed creating DB pool for Merkle tree recovery")?;
 
-    let metadata_calculator =
-        MetadataCalculator::new(metadata_calculator_config, None, tree_pool, recovery_pool)
-            .await
-            .context("failed initializing metadata calculator")?;
+    let metadata_calculator = MetadataCalculator::new(metadata_calculator_config, None, tree_pool)
+        .await
+        .context("failed initializing metadata calculator")?
+        .with_recovery_pool(recovery_pool);
 
     let tree_reader = Arc::new(metadata_calculator.tree_reader());
     app_health.insert_component(metadata_calculator.tree_health_check());
@@ -206,7 +206,10 @@ async fn run_core(
 
     let (persistence, miniblock_sealer) = StateKeeperPersistence::new(
         connection_pool.clone(),
-        config.remote.l2_erc20_bridge_addr,
+        config
+            .remote
+            .l2_shared_bridge_addr
+            .expect("L2 shared bridge address is not set"),
         config.optional.miniblock_seal_queue_capacity,
     );
     task_handles.push(tokio::spawn(miniblock_sealer.run()));
@@ -518,6 +521,7 @@ async fn run_api(
                 .with_vm_barrier(vm_barrier.clone())
                 .with_sync_state(sync_state.clone())
                 .with_mempool_cache(mempool_cache.clone())
+                .with_extended_tracing(config.optional.extended_rpc_tracing)
                 .enable_api_namespaces(config.optional.api_namespaces());
         if let Some(tree_reader) = &tree_reader {
             builder = builder.with_tree_api(tree_reader.clone());
@@ -546,6 +550,7 @@ async fn run_api(
                 .with_vm_barrier(vm_barrier)
                 .with_sync_state(sync_state)
                 .with_mempool_cache(mempool_cache)
+                .with_extended_tracing(config.optional.extended_rpc_tracing)
                 .enable_api_namespaces(config.optional.api_namespaces());
         if let Some(tree_reader) = tree_reader {
             builder = builder.with_tree_api(tree_reader);

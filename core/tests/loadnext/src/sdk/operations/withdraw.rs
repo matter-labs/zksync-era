@@ -1,7 +1,7 @@
 use zksync_eth_signer::EthereumSigner;
 use zksync_types::{
     fee::Fee, l2::L2Tx, tokens::ETHEREUM_ADDRESS, transaction_request::PaymasterParams,
-    web3::ethabi, Address, Nonce, L2_ETH_TOKEN_ADDRESS, U256,
+    web3::ethabi, Address, Nonce, L2_BASE_TOKEN_ADDRESS, U256,
 };
 
 use crate::sdk::{
@@ -58,7 +58,7 @@ where
             let calldata_params = vec![ethabi::ParamType::Address];
             let mut calldata = ethabi::short_signature("withdraw", &calldata_params).to_vec();
             calldata.append(&mut ethabi::encode(&[ethabi::Token::Address(to)]));
-            (L2_ETH_TOKEN_ADDRESS, calldata, amount)
+            (L2_BASE_TOKEN_ADDRESS, calldata, amount)
         } else {
             let bridge_address = if let Some(bridge) = self.bridge {
                 bridge
@@ -70,7 +70,8 @@ where
                     .get_bridge_contracts()
                     .await
                     .map_err(|err| ClientError::NetworkError(err.to_string()))?;
-                default_bridges.l2_erc20_default_bridge
+                // Note, that this is safe, but only for Era
+                default_bridges.l2_erc20_default_bridge.unwrap()
             };
 
             // TODO (SMA-1608): Do not implement the ABI manually, introduce ABI files with an update script similarly to

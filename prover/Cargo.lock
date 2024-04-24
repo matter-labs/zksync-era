@@ -7713,6 +7713,7 @@ dependencies = [
  "serde",
  "zksync_basic_types",
  "zksync_config",
+ "zksync_system_constants",
 ]
 
 [[package]]
@@ -7938,17 +7939,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_shared_metrics"
+version = "0.1.0"
+dependencies = [
+ "vise",
+ "zksync_dal",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_state"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "chrono",
  "itertools 0.10.5",
  "mini-moka",
+ "once_cell",
  "tokio",
  "tracing",
  "vise",
  "zksync_dal",
+ "zksync_shared_metrics",
  "zksync_storage",
  "zksync_types",
  "zksync_utils",

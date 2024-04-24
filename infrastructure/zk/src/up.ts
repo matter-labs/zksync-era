@@ -14,7 +14,6 @@ export async function up(runObservability: boolean, composeFile?: string) {
     } else {
         await utils.spawn('docker compose up -d');
     }
-
     if (runObservability) {
         await utils.spawn(`docker compose -f ./target/dockprom/docker-compose.yml up -d`);
     }
