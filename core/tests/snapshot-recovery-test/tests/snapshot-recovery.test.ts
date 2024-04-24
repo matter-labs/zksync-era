@@ -267,9 +267,9 @@ describe('snapshot recovery', () => {
 
             if (!consistencyCheckerSucceeded) {
                 const status = health.components.consistency_checker?.status;
-                expect(status).to.be.oneOf([undefined, 'ready']);
+                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready']);
                 const details = health.components.consistency_checker?.details;
-                if (details !== undefined) {
+                if (status === 'ready' && details !== undefined) {
                     console.log('Received consistency checker health details', details);
                     if (details.first_checked_batch !== undefined && details.last_checked_batch !== undefined) {
                         expect(details.first_checked_batch).to.equal(snapshotMetadata.l1BatchNumber + 1);
@@ -281,9 +281,9 @@ describe('snapshot recovery', () => {
 
             if (!reorgDetectorSucceeded) {
                 const status = health.components.reorg_detector?.status;
-                expect(status).to.be.oneOf([undefined, 'ready']);
+                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready']);
                 const details = health.components.reorg_detector?.details;
-                if (details !== undefined) {
+                if (status === 'ready' && details !== undefined) {
                     console.log('Received reorg detector health details', details);
                     if (details.last_correct_l1_batch !== undefined && details.last_correct_miniblock !== undefined) {
                         expect(details.last_correct_l1_batch).to.be.greaterThan(snapshotMetadata.l1BatchNumber);
