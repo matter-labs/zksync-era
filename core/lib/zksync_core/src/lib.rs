@@ -1016,9 +1016,10 @@ async fn run_tree(
         .build()
         .await
         .context("failed to build connection pool for Merkle tree recovery")?;
-    let metadata_calculator = MetadataCalculator::new(config, object_store, pool, recovery_pool)
+    let metadata_calculator = MetadataCalculator::new(config, object_store, pool)
         .await
-        .context("failed initializing metadata_calculator")?;
+        .context("failed initializing metadata_calculator")?
+        .with_recovery_pool(recovery_pool);
 
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
@@ -1035,7 +1036,6 @@ async fn run_tree(
 
     let tree_health_check = metadata_calculator.tree_health_check();
     app_health.insert_component(tree_health_check)?;
-
     let tree_task = tokio::spawn(metadata_calculator.run(stop_receiver));
     task_futures.push(tree_task);
 

@@ -160,10 +160,10 @@ async fn run_tree(
     .await
     .context("failed creating DB pool for Merkle tree recovery")?;
 
-    let metadata_calculator =
-        MetadataCalculator::new(metadata_calculator_config, None, tree_pool, recovery_pool)
-            .await
-            .context("failed initializing metadata calculator")?;
+    let metadata_calculator = MetadataCalculator::new(metadata_calculator_config, None, tree_pool)
+        .await
+        .context("failed initializing metadata calculator")?
+        .with_recovery_pool(recovery_pool);
 
     let tree_reader = Arc::new(metadata_calculator.tree_reader());
     app_health.insert_component(metadata_calculator.tree_health_check())?;
