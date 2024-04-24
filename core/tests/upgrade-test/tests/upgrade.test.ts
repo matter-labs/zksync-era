@@ -284,7 +284,20 @@ describe('Upgrade test', function () {
             'cd $ZKSYNC_HOME && zk f cargo run --bin zksync_server --release -- --components=api,tree,eth,state_keeper,commitment_generator &> upgrade.log',
             [null, logs, logs]
         );
-        await utils.sleep(5);
+        let iter = 0;
+        let started = false;
+        while (iter < 30 && !mainContract) {
+            try {
+                await tester.syncWallet.getMainContract();
+                started = true;
+            } catch (_) {
+                await utils.sleep(1);
+            }
+            iter += 1;
+        }
+        if (!started) {
+            throw new Error('Server did not start');
+        }
 
         // Trying to send a transaction from the same address again
         await checkedRandomTransfer(alice, BigNumber.from(1));
