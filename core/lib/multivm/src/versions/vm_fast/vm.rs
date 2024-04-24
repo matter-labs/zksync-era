@@ -18,7 +18,7 @@ use super::{
     transaction_data::TransactionData,
 };
 use crate::{
-    interface::{Halt, TxRevertReason, VmInterface, VmInterfaceHistoryEnabled},
+    interface::{Halt, TxRevertReason, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason},
     vm_fast::{bootloader_state::utils::apply_l2_block, refund::compute_refund},
     vm_latest::{
         constants::{
@@ -34,6 +34,7 @@ pub struct Vm<S: WriteStorage> {
     pub(crate) inner: VirtualMachine,
     suspended_at: u16,
     gas_for_account_validation: u32,
+    last_tx_result: Option<ExecutionResult>,
 
     bootloader_state: BootloaderState,
     pub(crate) storage: StoragePtr<S>,
@@ -87,7 +88,7 @@ impl<S: WriteStorage + 'static> Vm<S> {
                 ValidationStepEnded => {}
                 TxHasEnded => {
                     if let VmExecutionMode::OneTx = execution_mode {
-                        return ExecutionResult::Success { output: vec![] };
+                        return self.last_tx_result.take().unwrap();
                     }
                 }
                 DebugLog => {}
@@ -135,11 +136,19 @@ impl<S: WriteStorage + 'static> Vm<S> {
                 }
                 PostResult => {
                     let result = self.get_hook_params()[0];
-                    if result.is_zero() {
-                        dbg!("TX failed");
+
+                    // TODO get latest return data
+                    let return_data = vec![];
+
+                    self.last_tx_result = Some(if result.is_zero() {
+                        ExecutionResult::Revert {
+                            output: VmRevertReason::from(return_data.as_slice()),
+                        }
                     } else {
-                        dbg!("TX succeeded");
-                    }
+                        ExecutionResult::Success {
+                            output: return_data,
+                        }
+                    });
                 }
                 FinalBatchInfo => {
                     // set fictive l2 block
@@ -334,6 +343,7 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
             inner,
             suspended_at: 0,
             gas_for_account_validation: system_env.default_validation_computational_gas_limit,
+            last_tx_result: None,
             bootloader_state: BootloaderState::new(
                 system_env.execution_mode,
                 bootloader_initial_memory(&batch_env),
