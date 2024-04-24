@@ -53,7 +53,7 @@ pub const KECCAK256_PRECOMPILE_ADDRESS: Address = H160([
     0x00, 0x00, 0x80, 0x10,
 ]);
 
-pub const L2_ETH_TOKEN_ADDRESS: Address = H160([
+pub const L2_BASE_TOKEN_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x80, 0x0a,
 ]);
@@ -120,6 +120,12 @@ pub const CODE_ORACLE_ADDRESS: Address = H160([
     0x00, 0x00, 0x80, 0x12,
 ]);
 
+/// Note, that the `Create2Factory` is explicitly deployed on a non-system-contract address.
+pub const CREATE2_FACTORY_ADDRESS: Address = H160([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x01, 0x00, 0x00,
+]);
+
 pub const ERC20_TRANSFER_TOPIC: H256 = H256([
     221, 242, 82, 173, 27, 226, 200, 155, 105, 194, 176, 104, 252, 55, 141, 170, 149, 43, 167, 241,
     99, 196, 161, 22, 40, 245, 90, 77, 245, 35, 179, 239,
@@ -128,5 +134,16 @@ pub const ERC20_TRANSFER_TOPIC: H256 = H256([
 // TODO (SMA-240): Research whether using zero address is ok
 pub const MINT_AND_BURN_ADDRESS: H160 = H160::zero();
 
-// The `storage_log.value` database value for a contract that was deployed in a failed transaction.
+/// The `storage_log.value` database value for a contract that was deployed in a failed transaction.
 pub const FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH: H256 = H256::zero();
+
+/// The number that is used in the shared bridge to present ETH token. Note that it is not an address of any token,
+/// but rather a representation of the ETH token, since it does not have any formal address.
+pub const SHARED_BRIDGE_ETHER_TOKEN_ADDRESS: Address = H160([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x01,
+]);
+
+/// Default `ERA_CHAIN_ID`. All hyperchains start with this chain id and later on during their registration
+/// an "initial upgrade" transaction overrides it with the correct value.
+pub const DEFAULT_ERA_CHAIN_ID: u32 = 270;

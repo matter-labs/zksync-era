@@ -72,10 +72,10 @@ pub enum CallType {
     NearCall,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
 /// Represents a call in the VM trace.
 /// This version of the call represents the call structure before the 1.5.0 protocol version, where
 /// all the gas-related fields were represented as `u32` instead of `u64`.
+#[derive(Clone, Serialize, Deserialize)]
 pub struct LegacyCall {
     /// Type of the call.
     pub r#type: CallType,
@@ -103,8 +103,38 @@ pub struct LegacyCall {
     pub calls: Vec<LegacyCall>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
 /// Represents a call in the VM trace.
+/// This version has subcalls in the form of "new" calls.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LegacyMixedCall {
+    /// Type of the call.
+    pub r#type: CallType,
+    /// Address of the caller.
+    pub from: Address,
+    /// Address of the callee.
+    pub to: Address,
+    /// Gas from the parent call.
+    pub parent_gas: u32,
+    /// Gas provided for the call.
+    pub gas: u32,
+    /// Gas used by the call.
+    pub gas_used: u32,
+    /// Value transferred.
+    pub value: U256,
+    /// Input data.
+    pub input: Vec<u8>,
+    /// Output data.
+    pub output: Vec<u8>,
+    /// Error message provided by vm or some unexpected errors.
+    pub error: Option<String>,
+    /// Revert reason.
+    pub revert_reason: Option<String>,
+    /// Subcalls.
+    pub calls: Vec<Call>,
+}
+
+/// Represents a call in the VM trace.
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Call {
     /// Type of the call.
     pub r#type: CallType,
@@ -151,6 +181,25 @@ impl From<LegacyCall> for Call {
     }
 }
 
+impl From<LegacyMixedCall> for Call {
+    fn from(legacy_call: LegacyMixedCall) -> Self {
+        Self {
+            r#type: legacy_call.r#type,
+            from: legacy_call.from,
+            to: legacy_call.to,
+            parent_gas: legacy_call.parent_gas as u64,
+            gas: legacy_call.gas as u64,
+            gas_used: legacy_call.gas_used as u64,
+            value: legacy_call.value,
+            input: legacy_call.input,
+            output: legacy_call.output,
+            error: legacy_call.error,
+            revert_reason: legacy_call.revert_reason,
+            calls: legacy_call.calls,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LegacyCallConversionOverflowError;
 
@@ -182,6 +231,36 @@ impl TryFrom<Call> for LegacyCall {
             error: call.error,
             revert_reason: call.revert_reason,
             calls: calls?,
+        })
+    }
+}
+
+impl TryFrom<Call> for LegacyMixedCall {
+    type Error = LegacyCallConversionOverflowError;
+
+    fn try_from(call: Call) -> Result<Self, LegacyCallConversionOverflowError> {
+        Ok(Self {
+            r#type: call.r#type,
+            from: call.from,
+            to: call.to,
+            parent_gas: call
+                .parent_gas
+                .try_into()
+                .map_err(|_| LegacyCallConversionOverflowError)?,
+            gas: call
+                .gas
+                .try_into()
+                .map_err(|_| LegacyCallConversionOverflowError)?,
+            gas_used: call
+                .gas_used
+                .try_into()
+                .map_err(|_| LegacyCallConversionOverflowError)?,
+            value: call.value,
+            input: call.input,
+            output: call.output,
+            error: call.error,
+            revert_reason: call.revert_reason,
+            calls: call.calls,
         })
     }
 }

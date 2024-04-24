@@ -18,7 +18,7 @@ use zksync_types::{
     transaction_request::CallRequest,
     utils::storage_key_for_standard_token_balance,
     AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction,
-    L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+    L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_utils::{address_to_h256, h256_to_u256};
 use zksync_web3_decl::{
@@ -123,6 +123,11 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
+    pub fn get_base_token_l1_address(&self) -> Option<Address> {
+        self.state.api_config.base_token_address
+    }
+
+    #[tracing::instrument(skip(self))]
     pub fn l1_chain_id_impl(&self) -> U64 {
         U64::from(*self.state.api_config.l1_chain_id)
     }
@@ -168,7 +173,7 @@ impl ZksNamespace {
             .map_err(DalError::generalize)?;
         let hashed_balance_keys = tokens.iter().map(|&token_address| {
             let token_account = AccountTreeId::new(if token_address == ETHEREUM_ADDRESS {
-                L2_ETH_TOKEN_ADDRESS
+                L2_BASE_TOKEN_ADDRESS
             } else {
                 token_address
             });
@@ -557,5 +562,13 @@ impl ZksNamespace {
             address,
             storage_proof,
         }))
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub fn get_base_token_l1_address_impl(&self) -> Result<Address, Web3Error> {
+        self.state
+            .api_config
+            .base_token_address
+            .ok_or(Web3Error::NotImplemented)
     }
 }

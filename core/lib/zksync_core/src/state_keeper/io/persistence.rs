@@ -26,7 +26,7 @@ struct Completable<T> {
 #[derive(Debug)]
 pub struct StateKeeperPersistence {
     pool: ConnectionPool<Core>,
-    l2_erc20_bridge_addr: Address,
+    l2_shared_bridge_addr: Address,
     pre_insert_txs: bool,
     insert_protective_reads: bool,
     commands_sender: mpsc::Sender<Completable<L2BlockSealCommand>>,
@@ -42,7 +42,7 @@ impl StateKeeperPersistence {
     /// `command_capacity` for unprocessed sealing commands.
     pub fn new(
         pool: ConnectionPool<Core>,
-        l2_erc20_bridge_addr: Address,
+        l2_shared_bridge_addr: Address,
         mut command_capacity: usize,
     ) -> (Self, L2BlockSealerTask) {
         let is_sync = command_capacity == 0;
@@ -57,7 +57,7 @@ impl StateKeeperPersistence {
         };
         let this = Self {
             pool,
-            l2_erc20_bridge_addr,
+            l2_shared_bridge_addr,
             pre_insert_txs: false,
             insert_protective_reads: true,
             commands_sender,
@@ -150,7 +150,7 @@ impl StateKeeperPersistence {
 impl StateKeeperOutputHandler for StateKeeperPersistence {
     async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
         let command =
-            updates_manager.seal_l2_block_command(self.l2_erc20_bridge_addr, self.pre_insert_txs);
+            updates_manager.seal_l2_block_command(self.l2_shared_bridge_addr, self.pre_insert_txs);
         self.submit_l2_block(command).await;
         Ok(())
     }
@@ -165,7 +165,7 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
         updates_manager
             .seal_l1_batch(
                 &mut storage,
-                self.l2_erc20_bridge_addr,
+                self.l2_shared_bridge_addr,
                 self.insert_protective_reads,
             )
             .await
