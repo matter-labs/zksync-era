@@ -6,12 +6,13 @@ use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, StorageLogMetadat
 use zksync_types::{L1BatchNumber, StorageKey};
 
 use crate::{
+    consistency::ConsistencyError,
     storage::{PatchSet, Patched, RocksDBWrapper},
     types::{
         Key, Root, TreeEntry, TreeEntryWithProof, TreeInstruction, TreeLogEntry, ValueHash,
         TREE_DEPTH,
     },
-    BlockOutput, HashTree, MerkleTree, NoVersionError,
+    BlockOutput, HashTree, MerkleTree, MerkleTreePruner, MerkleTreePrunerHandle, NoVersionError,
 };
 
 /// Metadata for the current tree state.
@@ -42,6 +43,7 @@ pub struct ZkSyncTree {
     tree: MerkleTree<Patched<RocksDBWrapper>>,
     thread_pool: Option<ThreadPool>,
     mode: TreeMode,
+    pruning_enabled: bool,
 }
 
 impl ZkSyncTree {
@@ -93,7 +95,24 @@ impl ZkSyncTree {
             tree: MerkleTree::new(Patched::new(db)),
             thread_pool: None,
             mode,
+            pruning_enabled: false,
         }
+    }
+
+    /// Returns tree pruner and a handle to stop it.
+    ///
+    /// # Panics
+    ///
+    /// Panics if this method was already called for the tree instance; it's logically unsound to run
+    /// multiple pruners for the same tree concurrently.
+    pub fn pruner(&mut self) -> (MerkleTreePruner<RocksDBWrapper>, MerkleTreePrunerHandle) {
+        assert!(
+            !self.pruning_enabled,
+            "pruner was already obtained for the tree"
+        );
+        self.pruning_enabled = true;
+        let db = self.tree.db.inner().clone();
+        MerkleTreePruner::new(db)
     }
 
     /// Returns a readonly handle to the tree. The handle **does not** see uncommitted changes to the tree,
@@ -360,6 +379,14 @@ impl ZkSyncTreeReader {
         L1BatchNumber(number)
     }
 
+    /// Returns the minimum L1 batch number retained by the tree.
+    #[allow(clippy::missing_panics_doc)]
+    pub fn min_l1_batch_number(&self) -> Option<L1BatchNumber> {
+        self.0.first_retained_version().map(|version| {
+            L1BatchNumber(u32::try_from(version).expect("integer overflow for L1 batch number"))
+        })
+    }
+
     /// Returns the number of leaves in the tree.
     pub fn leaf_count(&self) -> u64 {
         self.0.latest_root().leaf_count()
@@ -378,5 +405,18 @@ impl ZkSyncTreeReader {
     ) -> Result<Vec<TreeEntryWithProof>, NoVersionError> {
         let version = u64::from(l1_batch_number.0);
         self.0.entries_with_proofs(version, keys)
+    }
+
+    /// Verifies consistency of the tree at the specified L1 batch number.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first encountered verification error, should one occur.
+    pub fn verify_consistency(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<(), ConsistencyError> {
+        let version = l1_batch_number.0.into();
+        self.0.verify_consistency(version, true)
     }
 }

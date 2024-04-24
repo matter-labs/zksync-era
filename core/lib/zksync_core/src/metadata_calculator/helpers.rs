@@ -26,6 +26,7 @@ use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageKey, H256};
 
 use super::{
     metrics::{LoadChangesStage, TreeUpdateStage, METRICS},
+    pruning::PruningHandles,
     MetadataCalculatorConfig,
 };
 
@@ -35,6 +36,7 @@ pub struct MerkleTreeInfo {
     pub mode: MerkleTreeMode,
     pub root_hash: H256,
     pub next_l1_batch_number: L1BatchNumber,
+    pub min_l1_batch_number: Option<L1BatchNumber>,
     pub leaf_count: u64,
 }
 
@@ -156,6 +158,10 @@ impl AsyncTree {
         self.mode
     }
 
+    pub fn pruner(&mut self) -> PruningHandles {
+        self.as_mut().pruner()
+    }
+
     pub fn reader(&self) -> AsyncTreeReader {
         AsyncTreeReader {
             inner: self.inner.as_ref().expect(Self::INCONSISTENT_MSG).reader(),
@@ -235,10 +241,19 @@ impl AsyncTreeReader {
             mode: self.mode,
             root_hash: self.inner.root_hash(),
             next_l1_batch_number: self.inner.next_l1_batch_number(),
+            min_l1_batch_number: self.inner.min_l1_batch_number(),
             leaf_count: self.inner.leaf_count(),
         })
         .await
         .unwrap()
+    }
+
+    #[cfg(test)]
+    pub async fn verify_consistency(self, l1_batch_number: L1BatchNumber) -> anyhow::Result<()> {
+        tokio::task::spawn_blocking(move || self.inner.verify_consistency(l1_batch_number))
+            .await
+            .context("tree consistency verification panicked")?
+            .map_err(Into::into)
     }
 
     pub async fn entries_with_proofs(
