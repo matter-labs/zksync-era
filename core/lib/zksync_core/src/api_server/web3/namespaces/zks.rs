@@ -571,6 +571,8 @@ impl ZksNamespace {
             .base_token_address
             .ok_or(Web3Error::NotImplemented)
     }
+
+    #[tracing::instrument(skip(self))]
     pub async fn get_gas_per_pubdata_byte_impl(&self) -> U256 {
         let fee_input = self
             .state
