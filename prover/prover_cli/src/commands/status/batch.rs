@@ -1,10 +1,10 @@
-use super::utils::BatchData;
-use crate::commands::status::utils::postgres_config;
 use anyhow::{ensure, Context as _};
 use clap::Args as ClapArgs;
-
 use prover_dal::{ConnectionPool, Prover};
 use zksync_types::L1BatchNumber;
+
+use super::utils::BatchData;
+use crate::commands::status::utils::postgres_config;
 
 #[derive(ClapArgs)]
 pub struct Args {
