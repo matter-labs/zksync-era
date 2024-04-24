@@ -514,7 +514,6 @@ async fn unconditional_sealing() {
         .next_tx("The only tx", random_tx(1), successful_exec())
         .no_txs_until_next_action("We don't give transaction to wait for miniblock to be sealed")
         .miniblock_sealed("Miniblock is sealed with just one tx")
-        .no_txs_until_next_action("Still no tx")
         .batch_sealed("Batch is sealed with just one tx")
         .run(sealer)
         .await;
