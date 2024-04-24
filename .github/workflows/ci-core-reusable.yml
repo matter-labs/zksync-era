@@ -59,7 +59,7 @@ jobs:
           ci_run zk contract build
 
       - name: Contracts unit tests
-        run: ci_run zk test l1-contracts
+        run: ci_run yarn l1-contracts test
 
       - name: Rust unit tests
         run: ci_run zk test rust
@@ -99,13 +99,16 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run zk
-          ci_run zk init
+          ci_run zk init --local-legacy-bridge-testing
 
-      # `sleep 30` because we need to wait until server added all the tokens
+      # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
         run: |
-          ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper &>server.log &
-          ci_run sleep 30
+          ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper,commitment_generator &>server.log &
+          ci_run sleep 60
+
+      - name: Deploy legacy era contracts
+        run: ci_run zk contract setup-legacy-bridge-era
 
       - name: Perform loadtest
         run: ci_run zk run loadtest
@@ -119,15 +122,16 @@ jobs:
         run: |
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
+
   integration:
-    name: Integration (consensus=${{ matrix.consensus }}, deployment_mode=${{ matrix.deployment_mode }})
+    name: Integration (consensus=${{ matrix.consensus }}, base_token=${{ matrix.base_token }})
     strategy:
       # In matrix jobs, fail-fast is true by default.
       # To be consistent with the rest of the workflow we disable it explicitly.
       fail-fast: false
       matrix:
         consensus: [false, true]
-        deployment_mode: ["Rollup", "Validium"]
+        base_token: ["Eth", "Custom"]
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
 
@@ -186,13 +190,8 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
-          if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
-            ci_run zk init
-          elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
-            ci_run zk env dev_validium_docker
-            ci_run zk config compile dev_validium_docker
-            ci_run zk init --validium-mode
-          fi
+          ci_run zk config compile
+          ci_run zk init ${{ matrix.base_token == 'Custom' && '--base-token-name BAT' || ''}}
 
       # `sleep 5` because we need to wait until server started properly
       - name: Run server
@@ -213,11 +212,7 @@ jobs:
         # An empty topmost environment helps avoid a mess when redefining env vars shared between both envs
         # (e.g., DATABASE_URL).
         run: |
-          if [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
-            ci_run zk config compile ext-node-validium
-            ci_run zk config compile ext-node-validium-docker
-          fi
-          ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=${{ matrix.deployment_mode }} PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run yarn snapshot-recovery-test snapshot-recovery-test
+          ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=Rollup PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run yarn snapshot-recovery-test snapshot-recovery-test
 
       - name: Fee projection tests
         run: ci_run zk test i fees
@@ -226,7 +221,8 @@ jobs:
         run: |
           ci_run pkill zksync_server || true
           ci_run sleep 2
-          ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=${{ matrix.deployment_mode }} PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert
+          ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=Rollup PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert
+
 
         # This test should be the last one as soon as it
         # finished bootloader will be different
@@ -266,12 +262,12 @@ jobs:
           ci_run cat /tmp/sccache_log.txt
 
   external-node:
-    name: External node (consensus=${{ matrix.consensus }}, deployment_mode=${{ matrix.deployment_mode }})
+    name: External node (consensus=${{ matrix.consensus }}, base_token=${{ matrix.base_token }})
     strategy:
       fail-fast: false
       matrix:
         consensus: [false, true]
-        deployment_mode: ["Rollup", "Validium"]
+        base_token: ["Eth", "Custom"]
     runs-on: [matterlabs-ci-runner]
 
     env:
@@ -305,13 +301,8 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
-          if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
-            ci_run zk init
-          elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
-            ci_run zk env dev_validium_docker
-            ci_run zk config compile dev_validium_docker
-            ci_run zk init --validium-mode
-          fi
+          ci_run zk config compile
+          ci_run zk init ${{ matrix.base_token == 'Custom' && '--base-token-name BAT' || ''}}
 
       # `sleep 30` because we need to wait until server started properly
       - name: Run server
@@ -321,11 +312,7 @@ jobs:
 
       - name: Run external node
         run: |
-          if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
-            ci_run zk env ext-node-docker
-          elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
-            ci_run zk env ext-node-validium-docker
-          fi
+          ci_run zk env ext-node-docker
           ci_run zk db setup
           ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
           ci_run sleep 30
@@ -335,24 +322,15 @@ jobs:
 
       - name: Run revert test
         run: |
-          ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=${{ matrix.deployment_mode }} PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert-en
+          ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=Rollup PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert-en
           # test terminates the nodes, so we restart them.
-          if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
-            ZKSYNC_ENV=docker ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
-            ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
-          elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
-            ZKSYNC_ENV=dev_validium_docker ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
-            ZKSYNC_ENV=ext-node-validium-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
-          fi
+          ZKSYNC_ENV=docker ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
+          ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
           ci_run sleep 30
 
       - name: Run upgrade test
         run: |
-          if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
-            ci_run zk env docker
-          elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
-            ci_run zk env dev_validium_docker
-          fi
+          ci_run zk env docker
           CHECK_EN_URL="http://0.0.0.0:3060" ci_run zk test i upgrade
 
       - name: Show server.log logs

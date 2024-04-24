@@ -38,9 +38,6 @@ struct Cli {
     /// Generate genesis block for the first contract deployment using temporary DB.
     #[arg(long)]
     genesis: bool,
-    /// Set chain id (temporary will be moved to genesis config)
-    #[arg(long)]
-    set_chain_id: bool,
     /// Rebuild tree.
     #[arg(long)]
     rebuild_tree: bool,
@@ -180,15 +177,9 @@ async fn main() -> anyhow::Result<()> {
         genesis_init(genesis.clone(), &postgres_config)
             .await
             .context("genesis_init")?;
-        if opt.genesis {
-            return Ok(());
-        }
-    }
-
-    if opt.set_chain_id {
-        let eth_client = configs.eth.as_ref().context("eth config")?;
 
         if let Some(shared_bridge) = &genesis.shared_bridge {
+            let eth_client = configs.eth.as_ref().context("eth config")?;
             genesis::save_set_chain_id_tx(
                 &eth_client.web3_url,
                 contracts_config.diamond_proxy_addr,
@@ -197,6 +188,10 @@ async fn main() -> anyhow::Result<()> {
             )
             .await
             .context("Failed to save SetChainId upgrade transaction")?;
+        }
+
+        if opt.genesis {
+            return Ok(());
         }
     }
 

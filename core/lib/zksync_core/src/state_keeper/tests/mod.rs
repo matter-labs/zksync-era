@@ -484,6 +484,7 @@ async fn load_upgrade_tx() {
 }
 
 /// Unconditionally seal the batch without triggering specific criteria.
+/// TODO(PLA-881): this test can be flaky if run under load.
 #[tokio::test]
 async fn unconditional_sealing() {
     // Trigger to know when to seal the batch.

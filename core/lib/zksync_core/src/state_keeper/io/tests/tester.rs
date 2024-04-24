@@ -142,7 +142,6 @@ impl Tester {
         if storage.blocks_dal().is_genesis_needed().await.unwrap() {
             create_genesis_l1_batch(
                 &mut storage,
-                L2ChainId::from(270),
                 ProtocolVersionId::latest(),
                 &self.base_system_contracts,
                 &get_system_smart_contracts(),
