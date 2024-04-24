@@ -10,8 +10,8 @@ import {
 } from './utils';
 
 async function main() {
-    const timestampFilePath = path.join(process.cwd(), TIMESTAMP_FILE);
-    const folderToCheck = path.join(process.cwd(), CONTRACTS_DIR);
+    const timestampFilePath = path.join(process.cwd(), TIMESTAMP_FILE); // File stores the timestamp of last compilation
+    const folderToCheck = path.join(process.cwd(), CONTRACTS_DIR); // Directory to check if files & imports were changed after last compilation
 
     if ((await isFolderEmpty(OUTPUT_DIR)) || needsRecompilation(folderToCheck, timestampFilePath)) {
         console.log('Compilation needed.');

@@ -85,8 +85,8 @@ class CompilerPaths {
 }
 
 async function main() {
-    const timestampFilePath = path.join(process.cwd(), TIMESTAMP_FILE_YUL);
-    const folderToCheck = path.join(process.cwd(), CONTRACTS_DIR);
+    const timestampFilePath = path.join(process.cwd(), TIMESTAMP_FILE_YUL); // File stores the timestamp of last compilation
+    const folderToCheck = path.join(process.cwd(), CONTRACTS_DIR); // Directory to check if files & imports were changed after last compilation
 
     if (needsRecompilation(folderToCheck, timestampFilePath)) {
         console.log('Compilation needed.');
