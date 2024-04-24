@@ -170,7 +170,7 @@ impl IoCursor {
                 },
                 number: block.number,
             });
-            FETCHER_METRICS.l2_block.set(block.number.0.into());
+            FETCHER_METRICS.miniblock.set(block.number.0.into());
         }
 
         APP_METRICS.processed_txs[&TxStage::added_to_mempool()]
