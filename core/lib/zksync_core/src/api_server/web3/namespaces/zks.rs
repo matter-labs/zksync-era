@@ -580,9 +580,7 @@ impl ZksNamespace {
             .get_batch_fee_input()
             .await;
 
-        let l1_fair_pubdata_price = fee_input.fair_pubdata_price(); // wei per byte submitted on L1
-        let l2_gas_price = fee_input.fair_l2_gas_price(); // wei per 1 unit of L2 gas
-
-        U256::from(l1_fair_pubdata_price / l2_gas_price)
+        // wei per 1 byte submitted on L1 / wei per 1 unit of L2 gas = units of L2 gas per 1 byte submitted on L1
+        U256::from(fee_input.fair_pubdata_price() / fee_input.fair_l2_gas_price())
     }
 }
