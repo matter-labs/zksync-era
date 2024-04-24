@@ -3747,6 +3747,110 @@ fn test_basic_return_vectors() {
 }
 
 #[test]
+fn test_basic_delegatecall_vectors() {
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // PUSH17 0x67600054600757FE5B60005260086018F3
+                hex::decode("70").unwrap(),
+                hex::decode("67600054600757FE5B60005260086018F3").unwrap(),
+                // PUSH0
+                hex::decode("5F").unwrap(),
+                // MSTORE
+                hex::decode("52").unwrap(),
+                // PUSH1 17
+                hex::decode("60").unwrap(),
+                hex::decode("11").unwrap(),
+                // PUSH1 15
+                hex::decode("60").unwrap(),
+                hex::decode("0F").unwrap(),
+                // PUSH0
+                hex::decode("5F").unwrap(),
+                // CREATE
+                hex::decode("F0").unwrap(),
+                // PUSH0
+                hex::decode("5F").unwrap(),
+                // PUSH0
+                hex::decode("5F").unwrap(),
+                // PUSH0
+                hex::decode("5F").unwrap(),
+                // PUSH0
+                hex::decode("5F").unwrap(),
+                // DUP5
+                hex::decode("84").unwrap(),
+                // PUSH2 0xFFFF
+                hex::decode("61").unwrap(),
+                hex::decode("FFFF").unwrap(),
+                // DELEGATECALL
+                hex::decode("F4").unwrap(),
+                // PUSH0
+                hex::decode("5F").unwrap(),
+                // SSTORE
+                hex::decode("55").unwrap()
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // PUSH17 0x67600054600757FE5B60005260086018F3
+                hex::decode("70").unwrap(),
+                hex::decode("67600054600757FE5B60005260086018F3").unwrap(),
+                // PUSH0
+                hex::decode("5F").unwrap(),
+                // MSTORE
+                hex::decode("52").unwrap(),
+                // PUSH1 17
+                hex::decode("60").unwrap(),
+                hex::decode("11").unwrap(),
+                // PUSH1 15
+                hex::decode("60").unwrap(),
+                hex::decode("0F").unwrap(),
+                // PUSH0
+                hex::decode("5F").unwrap(),
+                // CREATE
+                hex::decode("F0").unwrap(),
+                // PUSH0
+                hex::decode("5F").unwrap(),
+                // PUSH1 1
+                hex::decode("60").unwrap(),
+                hex::decode("01").unwrap(),
+                // PUSH0
+                hex::decode("5F").unwrap(),
+                // SSTORE
+                hex::decode("55").unwrap(),
+                // PUSH0
+                hex::decode("5F").unwrap(),
+                // PUSH0
+                hex::decode("5F").unwrap(),
+                // PUSH1 32
+                hex::decode("60").unwrap(),
+                hex::decode("20").unwrap(),
+                // PUSH0
+                hex::decode("5F").unwrap(),
+                // DUP6
+                hex::decode("85").unwrap(),
+                // PUSH2 0xFFFF
+                hex::decode("71").unwrap(),
+                hex::decode("FFFF").unwrap(),
+                // DELEGATECALL
+                hex::decode("F4").unwrap(),
+                // PUSH0
+                hex::decode("5F").unwrap(),
+                // SSTORE
+                hex::decode("55").unwrap()
+            ]
+            .into_iter()
+            .concat()
+        ),
+        1.into()
+    );
+}
+
+#[test]
 #[ignore = "It cannot be tested right now since test_evm_vector makes an assert checking if the transaction fails, In this case we want it to fail and check if the result is correct"]
 fn test_basic_revert_vectors() {
     // It cannot be tested right now since test_evm_vector makes an assert checking if the transaction fails
