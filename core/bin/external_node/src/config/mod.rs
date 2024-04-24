@@ -1,6 +1,6 @@
 use std::{
     env, fmt,
-    num::{NonZeroU32, NonZeroUsize},
+    num::{NonZeroU32, NonZeroU64, NonZeroUsize},
     str::FromStr,
     time::Duration,
 };
@@ -379,6 +379,10 @@ pub(crate) struct OptionalENConfig {
     /// Number of L1 batches pruned at a time.
     #[serde(default = "OptionalENConfig::default_pruning_chunk_size")]
     pub pruning_chunk_size: u32,
+    /// Delta between soft- and hard-removing data from Postgres. Should be reasonably large (order of 60 seconds).
+    /// The default value is 60 seconds.
+    #[serde(default = "OptionalENConfig::default_pruning_removal_delay_sec")]
+    pruning_removal_delay_sec: NonZeroU64,
     /// If set, L1 batches will be pruned after the batch timestamp is ths old (in seconds). Note that an L1 batch
     /// may be temporarily retained for other reasons; e.g., a batch cannot be pruned until it is executed on L1,
     /// which happens ~24 hours after its generation on the mainnet. Thus, in practice this value can specify
@@ -525,6 +529,10 @@ impl OptionalENConfig {
         10
     }
 
+    fn default_pruning_removal_delay_sec() -> NonZeroU64 {
+        NonZeroU64::new(60).unwrap()
+    }
+
     pub fn polling_interval(&self) -> Duration {
         Duration::from_millis(self.polling_interval)
     }
@@ -599,6 +607,10 @@ impl OptionalENConfig {
 
     pub fn mempool_cache_update_interval(&self) -> Duration {
         Duration::from_millis(self.mempool_cache_update_interval)
+    }
+
+    pub fn pruning_removal_delay(&self) -> Duration {
+        Duration::from_secs(self.pruning_removal_delay_sec.get())
     }
 
     pub fn pruning_data_retention(&self) -> Duration {

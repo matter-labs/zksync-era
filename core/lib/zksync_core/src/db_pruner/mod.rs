@@ -30,9 +30,7 @@ mod tests;
 #[derive(Debug)]
 pub struct DbPrunerConfig {
     /// Delta between soft- and hard-removing data from Postgres.
-    pub soft_and_hard_pruning_time_delta: Duration,
-    /// Sleep interval between pruning iterations.
-    pub next_iterations_delay: Duration,
+    pub removal_delay: Duration,
     /// Number of L1 batches pruned at a time. The pruner will do nothing if there is less than this number
     /// of batches to prune.
     pub pruned_batch_chunk_size: u32,
@@ -282,13 +280,15 @@ impl DbPruner {
         }
         drop(storage); // Don't hold a connection across a timeout
 
-        tokio::time::sleep(self.config.soft_and_hard_pruning_time_delta).await;
+        tokio::time::sleep(self.config.removal_delay).await;
         let mut storage = self.connection_pool.connection_tagged("db_pruner").await?;
         self.hard_prune(&mut storage).await?;
         Ok(true)
     }
 
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let next_iteration_delay = self.config.removal_delay / 2;
+
         while !*stop_receiver.borrow_and_update() {
             if let Err(err) = self.update_l1_batches_metric().await {
                 tracing::warn!("Error updating DB pruning metrics: {err:?}");
@@ -298,8 +298,7 @@ impl DbPruner {
                 Err(err) => {
                     // As this component is not really mission-critical, all errors are generally ignored
                     tracing::warn!(
-                        "Pruning error, retrying in {:?}, error was: {err:?}",
-                        self.config.next_iterations_delay
+                        "Pruning error, retrying in {next_iteration_delay:?}, error was: {err:?}"
                     );
                     let health =
                         Health::from(HealthStatus::Affected).with_details(serde_json::json!({
@@ -312,7 +311,7 @@ impl DbPruner {
             };
 
             if should_sleep
-                && tokio::time::timeout(self.config.next_iterations_delay, stop_receiver.changed())
+                && tokio::time::timeout(next_iteration_delay, stop_receiver.changed())
                     .await
                     .is_ok()
             {

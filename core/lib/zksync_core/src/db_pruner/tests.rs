@@ -64,9 +64,8 @@ async fn is_l1_batch_prunable_works() {
     );
     let pruner = DbPruner::with_conditions(
         DbPrunerConfig {
-            soft_and_hard_pruning_time_delta: Duration::ZERO,
+            removal_delay: Duration::ZERO,
             pruned_batch_chunk_size: 1,
-            next_iterations_delay: Duration::ZERO,
             minimum_l1_batch_age: Duration::ZERO,
         },
         ConnectionPool::test_pool().await,
@@ -138,9 +137,8 @@ async fn hard_pruning_ignores_conditions_checks() {
     let nothing_prunable_check = Arc::new(ConditionMock::name("nothing prunable"));
     let pruner = DbPruner::with_conditions(
         DbPrunerConfig {
-            soft_and_hard_pruning_time_delta: Duration::ZERO,
+            removal_delay: Duration::ZERO,
             pruned_batch_chunk_size: 5,
-            next_iterations_delay: Duration::ZERO,
             minimum_l1_batch_age: Duration::ZERO,
         },
         pool.clone(),
@@ -174,9 +172,8 @@ async fn pruner_catches_up_with_hard_pruning_up_to_soft_pruning_boundary_ignorin
 
     let pruner = DbPruner::with_conditions(
         DbPrunerConfig {
-            soft_and_hard_pruning_time_delta: Duration::ZERO,
+            removal_delay: Duration::ZERO,
             pruned_batch_chunk_size: 5,
-            next_iterations_delay: Duration::ZERO,
             minimum_l1_batch_age: Duration::ZERO,
         },
         pool.clone(),
@@ -216,9 +213,8 @@ async fn unconstrained_pruner_with_fresh_database() {
 
     let pruner = DbPruner::with_conditions(
         DbPrunerConfig {
-            soft_and_hard_pruning_time_delta: Duration::ZERO,
+            removal_delay: Duration::ZERO,
             pruned_batch_chunk_size: 3,
-            next_iterations_delay: Duration::ZERO,
             minimum_l1_batch_age: Duration::ZERO,
         },
         pool.clone(),
@@ -260,9 +256,8 @@ async fn pruning_blocked_after_first_chunk() {
 
     let pruner = DbPruner::with_conditions(
         DbPrunerConfig {
-            soft_and_hard_pruning_time_delta: Duration::ZERO,
+            removal_delay: Duration::ZERO,
             pruned_batch_chunk_size: 3,
-            next_iterations_delay: Duration::ZERO,
             minimum_l1_batch_age: Duration::ZERO,
         },
         pool.clone(),
@@ -303,9 +298,8 @@ async fn pruner_is_resistant_to_errors() {
 
     let pruner = DbPruner::with_conditions(
         DbPrunerConfig {
-            soft_and_hard_pruning_time_delta: Duration::ZERO,
+            removal_delay: Duration::ZERO,
             pruned_batch_chunk_size: 3,
-            next_iterations_delay: Duration::ZERO,
             minimum_l1_batch_age: Duration::ZERO,
         },
         pool.clone(),

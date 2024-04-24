@@ -144,6 +144,7 @@ pub struct ApiServer {
     transport: ApiTransport,
     tx_sender: TxSender,
     polling_interval: Duration,
+    pruning_info_refresh_interval: Duration,
     namespaces: Vec<Namespace>,
     method_tracer: Arc<MethodTracer>,
     optional: OptionalApiParams,
@@ -155,6 +156,7 @@ pub struct ApiBuilder {
     updaters_pool: ConnectionPool<Core>,
     config: InternalApiConfig,
     polling_interval: Duration,
+    pruning_info_refresh_interval: Duration,
     // Mandatory params that must be set using builder methods.
     transport: Option<ApiTransport>,
     tx_sender: Option<TxSender>,
@@ -167,6 +169,7 @@ pub struct ApiBuilder {
 
 impl ApiBuilder {
     const DEFAULT_POLLING_INTERVAL: Duration = Duration::from_millis(200);
+    const DEFAULT_PRUNING_INFO_REFRESH_INTERVAL: Duration = Duration::from_secs(10);
 
     pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ConnectionPool<Core>) -> Self {
         Self {
@@ -174,6 +177,7 @@ impl ApiBuilder {
             pool,
             config,
             polling_interval: Self::DEFAULT_POLLING_INTERVAL,
+            pruning_info_refresh_interval: Self::DEFAULT_PRUNING_INFO_REFRESH_INTERVAL,
             transport: None,
             tx_sender: None,
             namespaces: None,
@@ -250,6 +254,11 @@ impl ApiBuilder {
         self
     }
 
+    pub fn with_pruning_info_refresh_interval(mut self, interval: Duration) -> Self {
+        self.pruning_info_refresh_interval = interval;
+        self
+    }
+
     pub fn enable_api_namespaces(mut self, namespaces: Vec<Namespace>) -> Self {
         self.namespaces = Some(namespaces);
         self
@@ -296,6 +305,7 @@ impl ApiBuilder {
             transport,
             tx_sender: self.tx_sender.context("Transaction sender not set")?,
             polling_interval: self.polling_interval,
+            pruning_info_refresh_interval: self.pruning_info_refresh_interval,
             namespaces: self.namespaces.unwrap_or_else(|| {
                 tracing::warn!(
                     "debug_ and snapshots_ API namespace will be disabled by default in ApiBuilder"
@@ -318,7 +328,8 @@ impl ApiServer {
         last_sealed_miniblock: SealedMiniblockNumber,
     ) -> anyhow::Result<RpcState> {
         let mut storage = self.updaters_pool.connection_tagged("api").await?;
-        let start_info = BlockStartInfo::new(&mut storage).await?;
+        let start_info =
+            BlockStartInfo::new(&mut storage, self.pruning_info_refresh_interval).await?;
         drop(storage);
 
         // Disable filter API for HTTP endpoints, WS endpoints are unaffected by the `filters_disabled` flag

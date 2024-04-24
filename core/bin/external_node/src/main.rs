@@ -172,8 +172,8 @@ async fn run_tree(
     if config.optional.pruning_enabled {
         tracing::warn!("Proceeding with node state pruning for the Merkle tree. This is an experimental feature; use at your own risk");
 
-        // FIXME: delays should be configurable for tests?
-        let pruning_task = metadata_calculator.pruning_task(Duration::from_secs(60));
+        let pruning_task =
+            metadata_calculator.pruning_task(config.optional.pruning_removal_delay() / 2);
         app_health.insert_component(pruning_task.health_check());
         let pruning_task_handle = tokio::spawn(pruning_task.run(stop_receiver.clone()));
         task_futures.push(pruning_task_handle);
@@ -301,9 +301,7 @@ async fn run_core(
         );
         let db_pruner = DbPruner::new(
             DbPrunerConfig {
-                // Don't change this value without adjusting API server pruning info cache max age
-                soft_and_hard_pruning_time_delta: Duration::from_secs(60),
-                next_iterations_delay: Duration::from_secs(30),
+                removal_delay: config.optional.pruning_removal_delay(),
                 pruned_batch_chunk_size: config.optional.pruning_chunk_size,
                 minimum_l1_batch_age,
             },
@@ -524,6 +522,10 @@ async fn run_api(
         mempool_cache_update_task.run(stop_receiver.clone()),
     ));
 
+    // The refresh interval should be several times lower than the pruning removal delay, so that
+    // soft-pruning will timely propagate to the API server.
+    let pruning_info_refresh_interval = config.optional.pruning_removal_delay() / 5;
+
     if components.contains(&Component::HttpApi) {
         let mut builder =
             ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
@@ -531,6 +533,7 @@ async fn run_api(
                 .with_filter_limit(config.optional.filters_limit)
                 .with_batch_request_size_limit(config.optional.max_batch_request_size)
                 .with_response_body_size_limit(config.optional.max_response_body_size())
+                .with_pruning_info_refresh_interval(pruning_info_refresh_interval)
                 .with_tx_sender(tx_sender.clone())
                 .with_vm_barrier(vm_barrier.clone())
                 .with_sync_state(sync_state.clone())
@@ -559,6 +562,7 @@ async fn run_api(
                 .with_batch_request_size_limit(config.optional.max_batch_request_size)
                 .with_response_body_size_limit(config.optional.max_response_body_size())
                 .with_polling_interval(config.optional.polling_interval())
+                .with_pruning_info_refresh_interval(pruning_info_refresh_interval)
                 .with_tx_sender(tx_sender)
                 .with_vm_barrier(vm_barrier)
                 .with_sync_state(sync_state)
