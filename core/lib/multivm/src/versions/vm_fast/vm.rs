@@ -4,7 +4,10 @@ use vm2::{decode::decode_program, ExecutionEnd, Program, Settings, VirtualMachin
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::{l1::is_l1_tx_type, AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, U256};
+use zksync_types::{
+    l1::is_l1_tx_type, AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160,
+    KNOWN_CODES_STORAGE_ADDRESS, U256,
+};
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
 use super::{
@@ -234,7 +237,12 @@ impl<S: WriteStorage + 'static> Vm<S> {
     pub(crate) fn dump_state(&self) -> (vm2::State, Vec<((H160, U256), U256)>, Box<[vm2::Event]>) {
         (
             self.inner.state.clone(),
-            self.inner.world.get_storage_changes().collect(),
+            self.inner
+                .world
+                .get_storage_changes()
+                .iter()
+                .map(|(k, v)| (*k, *v))
+                .collect(),
             self.inner.world.events().into(),
         )
     }
@@ -249,7 +257,14 @@ impl<S: WriteStorage + 'static> Vm<S> {
             // L1 transactions do not need compression
             vec![]
         } else {
-            compress_bytecodes(&tx.factory_deps, self.storage.clone())
+            compress_bytecodes(&tx.factory_deps, |hash| {
+                self.inner
+                    .world
+                    .get_storage_changes()
+                    .get(&(KNOWN_CODES_STORAGE_ADDRESS.into(), h256_to_u256(hash)))
+                    .map(|x| !x.is_zero())
+                    .unwrap_or_else(|| self.storage.borrow_mut().is_bytecode_known(&hash))
+            })
         };
 
         let trusted_ergs_limit = tx.trusted_ergs_limit();
