@@ -275,7 +275,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         base_fee_per_gas: 10,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
-        l2_erc20_bridge_addr: Address::default(),
+        l2_shared_bridge_addr: Address::default(),
         pre_insert_txs: false,
     };
     let mut conn = connection_pool.connection().await.unwrap();
@@ -358,7 +358,7 @@ async fn processing_events_when_sealing_l2_block() {
         base_fee_per_gas: 10,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
-        l2_erc20_bridge_addr: Address::default(),
+        l2_shared_bridge_addr: Address::default(),
         pre_insert_txs: false,
     };
     let mut conn = pool.connection().await.unwrap();

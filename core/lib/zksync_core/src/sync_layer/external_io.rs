@@ -311,7 +311,6 @@ impl StateKeeperIO for ExternalIO {
             tx.hash()
         );
     }
-
     async fn load_base_system_contracts(
         &mut self,
         protocol_version: ProtocolVersionId,

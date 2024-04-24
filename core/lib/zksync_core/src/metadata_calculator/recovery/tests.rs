@@ -252,10 +252,9 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
         &merkle_tree_config,
         &OperationsManagerConfig { delay_interval: 50 },
     );
-    let mut calculator =
-        MetadataCalculator::new(calculator_config, None, pool.clone(), pool.clone())
-            .await
-            .unwrap();
+    let mut calculator = MetadataCalculator::new(calculator_config, None, pool.clone())
+        .await
+        .unwrap();
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
     calculator.delayer.delay_notifier = delay_sx;
 

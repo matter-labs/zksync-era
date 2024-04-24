@@ -78,6 +78,7 @@ anyhow = "1"
 assert_matches = "1.5"
 async-trait = "0.1"
 axum = "0.6.19"
+backon = "0.4.4"
 bigdecimal = "0.3.0"
 bincode = "1"
 bitflags = "1.3.2"
@@ -226,6 +227,6 @@ zksync_crypto_primitives = { path = "core/lib/crypto_primitives" }
 zksync_node_framework = { path = "core/node/node_framework" }
 zksync_eth_watch = { path = "core/node/eth_watch" }
 zksync_shared_metrics = { path = "core/node/shared_metrics" }
-zksync_block_reverter = { path = "core/node/block_reverter"}
+zksync_block_reverter = { path = "core/node/block_reverter" }
 zksync_commitment_generator = { path = "core/node/commitment_generator" }
-zksync_house_keeper =  { path = "core/node/house_keeper" }
+zksync_house_keeper = { path = "core/node/house_keeper" }

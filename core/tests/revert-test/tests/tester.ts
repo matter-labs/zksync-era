@@ -1,8 +1,10 @@
 import { expect } from 'chai';
 import * as ethers from 'ethers';
-import * as zkweb3 from 'zksync-web3';
+import * as zkweb3 from 'zksync-ethers';
 import * as fs from 'fs';
 import * as path from 'path';
+
+const BASE_ERC20_TO_MINT = ethers.utils.parseEther('100');
 
 export class Tester {
     public runningFee: Map<zkweb3.types.Address, ethers.BigNumber>;
@@ -10,7 +12,10 @@ export class Tester {
         public ethProvider: ethers.providers.Provider,
         public ethWallet: ethers.Wallet,
         public syncWallet: zkweb3.Wallet,
-        public web3Provider: zkweb3.Provider
+        public web3Provider: zkweb3.Provider,
+        public hyperchainAdmin: ethers.Wallet, // We need to add validator to ValidatorTimelock with admin rights
+        public isETHBasedChain: boolean,
+        public baseTokenAddress: string
     ) {
         this.runningFee = new Map();
     }
@@ -25,6 +30,10 @@ export class Tester {
         let ethWallet = ethers.Wallet.fromMnemonic(
             ethTestConfig.test_mnemonic as string,
             "m/44'/60'/0'/0/0"
+        ).connect(ethProvider);
+        let hyperchainAdmin = ethers.Wallet.fromMnemonic(
+            ethTestConfig.mnemonic as string,
+            "m/44'/60'/0'/0/1"
         ).connect(ethProvider);
         const web3Provider = new zkweb3.Provider(l2_rpc_addr);
         web3Provider.pollingInterval = 100; // It's OK to keep it low even on stage.
@@ -50,7 +59,22 @@ export class Tester {
             console.log(`Canceled ${cancellationTxs.length} pending transactions`);
         }
 
-        return new Tester(ethProvider, ethWallet, syncWallet, web3Provider);
+        const baseTokenAddress = process.env.CONTRACTS_BASE_TOKEN_ADDR!;
+        const isETHBasedChain = baseTokenAddress == zkweb3.utils.ETH_ADDRESS_IN_CONTRACTS;
+
+        return new Tester(ethProvider, ethWallet, syncWallet, web3Provider, hyperchainAdmin, isETHBasedChain, baseTokenAddress);
+    }
+
+    /// Ensures that the main wallet has enough base token.
+    /// This can not be done inside the `init` function becasue `init` function can be called before the
+    /// L2 RPC is active, but we need the L2 RPC to get the base token address.
+    async fundSyncWallet() {
+        const baseTokenAddress = await this.syncWallet.provider.getBaseTokenContractAddress();
+        if (!(baseTokenAddress === zkweb3.utils.ETH_ADDRESS_IN_CONTRACTS)) {
+            const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
+            const l1Erc20Contract = new ethers.Contract(baseTokenAddress, l1Erc20ABI, this.ethWallet);
+            await (await l1Erc20Contract.mint(this.ethWallet.address, BASE_ERC20_TO_MINT)).wait();
+        }
     }
 
     async fundedWallet(

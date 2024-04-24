@@ -11,9 +11,9 @@ import { deployContract, getTestContract, waitForNewL1Batch } from '../src/helpe
 import { shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 
 import * as ethers from 'ethers';
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
+import { Provider } from 'zksync-ethers';
 import * as elliptic from 'elliptic';
-import { Provider } from 'zksync-web3';
 import { RetryProvider } from '../src/retry-provider';
 
 // TODO: Leave only important ones.
@@ -62,7 +62,6 @@ describe('Smart contract behavior checks', () => {
 
     test('Should deploy contract with create', async () => {
         const contractFactory = new zksync.ContractFactory(contracts.create.abi, contracts.create.bytecode, alice);
-
         const contract = await contractFactory.deploy({
             customData: {
                 factoryDeps: [contracts.create.factoryDep]
@@ -426,7 +425,7 @@ async function invalidBytecodeTestTransaction(
         maxFeePerGas: gasPrice,
 
         customData: {
-            gasPerPubdata: zksync.utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
+            gasPerPubdataByte: zksync.utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
             factoryDeps,
             customSignature: new Uint8Array(17)
         }
