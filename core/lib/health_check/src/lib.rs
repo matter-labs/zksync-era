@@ -140,6 +140,10 @@ impl AppHealthCheck {
     }
 
     /// Inserts health check for a component.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the component with the same name is already defined.
     pub fn insert_component(
         &self,
         health_check: ReactiveHealthCheck,
@@ -148,6 +152,10 @@ impl AppHealthCheck {
     }
 
     /// Inserts a custom health check for a component.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the component with the same name is already defined.
     pub fn insert_custom_component(
         &self,
         health_check: Arc<dyn CheckHealth>,
