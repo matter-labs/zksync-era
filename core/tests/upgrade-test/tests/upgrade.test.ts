@@ -280,14 +280,14 @@ describe('Upgrade test', function () {
     step('Execute transactions after simple restart', async () => {
         // Stop server.
         await utils.exec('pkill zksync_server');
-        await utils.sleep(5);
+        await utils.sleep(10);
 
         // Run again.
         utils.background(
             'cd $ZKSYNC_HOME && zk f cargo run --bin zksync_server --release -- --components=api,tree,eth,state_keeper,commitment_generator &> upgrade.log',
             [null, logs, logs]
         );
-        await utils.sleep(5);
+        await utils.sleep(10);
 
         // Trying to send a transaction from the same address again
         await checkedRandomTransfer(alice, BigNumber.from(1));
