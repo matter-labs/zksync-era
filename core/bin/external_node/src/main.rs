@@ -160,13 +160,24 @@ async fn run_tree(
     .await
     .context("failed creating DB pool for Merkle tree recovery")?;
 
-    let metadata_calculator = MetadataCalculator::new(metadata_calculator_config, None, tree_pool)
-        .await
-        .context("failed initializing metadata calculator")?
-        .with_recovery_pool(recovery_pool);
+    let mut metadata_calculator =
+        MetadataCalculator::new(metadata_calculator_config, None, tree_pool)
+            .await
+            .context("failed initializing metadata calculator")?
+            .with_recovery_pool(recovery_pool);
 
     let tree_reader = Arc::new(metadata_calculator.tree_reader());
     app_health.insert_component(metadata_calculator.tree_health_check());
+
+    if config.optional.pruning_enabled {
+        tracing::warn!("Proceeding with node state pruning for the Merkle tree. This is an experimental feature; use at your own risk");
+
+        // FIXME: delays should be configurable for tests?
+        let pruning_task = metadata_calculator.pruning_task(Duration::from_secs(60));
+        app_health.insert_component(pruning_task.health_check());
+        let pruning_task_handle = tokio::spawn(pruning_task.run(stop_receiver.clone()));
+        task_futures.push(pruning_task_handle);
+    }
 
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
@@ -281,14 +292,16 @@ async fn run_core(
         }
     }));
 
-    if let Some(data_retention_hours) = config.optional.pruning_data_retention_hours {
-        let minimum_l1_batch_age = Duration::from_secs(3600 * data_retention_hours);
+    if config.optional.pruning_enabled {
+        tracing::warn!("Proceeding with node state pruning for Postgres. This is an experimental feature; use at your own risk");
+
+        let minimum_l1_batch_age = config.optional.pruning_data_retention();
         tracing::info!(
             "Configured pruning of batches after they become {minimum_l1_batch_age:?} old"
         );
         let db_pruner = DbPruner::new(
             DbPrunerConfig {
-                // don't change this value without adjusting API server pruning info cache max age
+                // Don't change this value without adjusting API server pruning info cache max age
                 soft_and_hard_pruning_time_delta: Duration::from_secs(60),
                 next_iterations_delay: Duration::from_secs(30),
                 pruned_batch_chunk_size: config.optional.pruning_chunk_size,
@@ -296,6 +309,7 @@ async fn run_core(
             },
             connection_pool.clone(),
         );
+        app_health.insert_component(db_pruner.health_check());
         task_handles.push(tokio::spawn(db_pruner.run(stop_receiver.clone())));
     }
 
