@@ -24,6 +24,11 @@ RUN wget -nv -O $COMPILER_DIR/zksolc/compilerVersionInfo.json  "https://raw.gith
 # In the future, we should make it more automatic.
 RUN (for ver in v1.3.18 v1.3.21 v1.4.0 v1.4.1; do wget -nv -O $COMPILER_DIR/zksolc/zksolc-$ver  https://raw.githubusercontent.com/matter-labs/zksolc-bin/main/linux-amd64/zksolc-linux-amd64-musl-$ver; done) 
 
+# Special pre-release 1.5.0 compiler.
+# It can be removed once system-contracts/hardhatconfig.ts stops using it.
+RUN wget -nv -O $COMPILER_DIR/zksolc/zksolc-remote-4cad2deaa6801d7a419f1ed6503c999948b0d6d8.0 https://github.com/matter-labs/era-compiler-solidity/releases/download/prerelease-a167aa3-code4rena/zksolc-linux-amd64-musl-v1.5.0
+
+
 RUN wget -nv -O $COMPILER_DIR/zkvyper/compilerVersionInfo.json  "https://raw.githubusercontent.com/matter-labs/zkvyper-bin/main/version.json" 
 
 RUN (for ver in v1.3.13; do wget -nv -O $COMPILER_DIR/zkvyper/zkvyper-$ver  https://raw.githubusercontent.com/matter-labs/zkvyper-bin/main/linux-amd64/zkvyper-linux-amd64-musl-$ver; done) 
