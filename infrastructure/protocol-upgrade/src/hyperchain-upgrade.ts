@@ -6,8 +6,7 @@ import { ethers } from 'ethers';
 import { updateContractsEnv } from 'zk/build/contract';
 import * as env from 'zk/build/env';
 import { setupForDal, DalPath } from 'zk/build/database';
-import { getFacetsFileName, getCryptoFileName } from './utils';
-import { getPostUpgradeCalldataFileName } from './utils';
+import { getFacetsFileName, getCryptoFileName, getPostUpgradeCalldataFileName, getUpgradePath } from './utils';
 import { IZkSyncHyperchainFactory } from 'l1-contracts/typechain/IZkSyncHyperchainFactory';
 import { getWallet } from './transaction';
 
@@ -83,8 +82,12 @@ async function insertAddresses() {
 async function hyperchainUpgrade2() {
     const cwd = process.cwd();
     process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
-
-    await spawn(`yarn hyperchain-upgrade-2 | tee deploydeployHyperchainUpgrade2.log`);
+    const environment = process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : 'localhost';
+    await spawn(
+        `yarn hyperchain-upgrade-2 --print-file-path ${getUpgradePath(
+            environment
+        )}/operations.json | tee deploydeployHyperchainUpgrade2.log`
+    );
     process.chdir(cwd);
 }
 
