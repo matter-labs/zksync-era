@@ -1,4 +1,5 @@
 use std::{
+    cell::RefCell,
     collections::HashSet,
     future::Future,
     num::NonZeroU32,
@@ -16,7 +17,9 @@ use governor::{
 };
 use once_cell::sync::OnceCell;
 use pin_project_lite::pin_project;
+use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use tokio::sync::watch;
+use tracing::instrument::{Instrument, Instrumented};
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, GaugeGuard, Histogram, Metrics,
 };
@@ -27,7 +30,7 @@ use zksync_web3_decl::jsonrpsee::{
 };
 
 use super::metadata::{MethodCall, MethodTracer};
-use crate::api_server::web3::metrics::API_METRICS;
+use crate::api_server::web3::metrics::{ObservedRpcParams, API_METRICS};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "transport", rename_all = "snake_case")]
@@ -109,32 +112,23 @@ where
 /// as metrics.
 ///
 /// As an example, a method handler can set the requested block ID, which would then be used in relevant metric labels.
+///
+/// # Implementation notes
+///
+/// We express `TRACE_PARAMS` as a const param rather than a field so that the Rust compiler has more room for optimizations in case tracing
+/// is switched off.
 #[derive(Debug)]
-pub(crate) struct MetadataMiddleware<S> {
+pub(crate) struct MetadataMiddleware<S, const TRACE_PARAMS: bool> {
     inner: S,
     registered_method_names: Arc<HashSet<&'static str>>,
     method_tracer: Arc<MethodTracer>,
 }
 
-impl<S> MetadataMiddleware<S> {
-    pub fn new(
-        inner: S,
-        registered_method_names: Arc<HashSet<&'static str>>,
-        method_tracer: Arc<MethodTracer>,
-    ) -> Self {
-        Self {
-            inner,
-            registered_method_names,
-            method_tracer,
-        }
-    }
-}
-
-impl<'a, S> RpcServiceT<'a> for MetadataMiddleware<S>
+impl<'a, S, const TRACE_PARAMS: bool> RpcServiceT<'a> for MetadataMiddleware<S, TRACE_PARAMS>
 where
     S: Send + Sync + RpcServiceT<'a>,
 {
-    type Future = WithMethodCall<S::Future>;
+    type Future = WithMethodCall<'a, S::Future>;
 
     fn call(&self, request: Request<'a>) -> Self::Future {
         // "Normalize" the method name by searching it in the set of all registered methods. This extends the lifetime
@@ -145,23 +139,32 @@ where
             .copied()
             .unwrap_or("");
 
-        WithMethodCall {
-            call: self.method_tracer.new_call(method_name),
-            inner: self.inner.call(request),
-        }
+        let observed_params = if TRACE_PARAMS {
+            ObservedRpcParams::new(request.params.as_ref())
+        } else {
+            ObservedRpcParams::Unknown
+        };
+        let call = self.method_tracer.new_call(method_name, observed_params);
+        WithMethodCall::new(self.inner.call(request), call)
     }
 }
 
 pin_project! {
     #[derive(Debug)]
-    pub(crate) struct WithMethodCall<F> {
-        call: MethodCall,
+    pub(crate) struct WithMethodCall<'a, F> {
         #[pin]
         inner: F,
+        call: MethodCall<'a>,
     }
 }
 
-impl<F: Future<Output = MethodResponse>> Future for WithMethodCall<F> {
+impl<'a, F> WithMethodCall<'a, F> {
+    fn new(inner: F, call: MethodCall<'a>) -> Self {
+        Self { inner, call }
+    }
+}
+
+impl<F: Future<Output = MethodResponse>> Future for WithMethodCall<'_, F> {
     type Output = MethodResponse;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -175,6 +178,82 @@ impl<F: Future<Output = MethodResponse>> Future for WithMethodCall<F> {
                 Poll::Ready(response)
             }
         }
+    }
+}
+
+/// [`tower`] middleware layer that wraps services into [`MetadataMiddleware`]. Implemented as a named type
+/// to simplify call sites.
+///
+/// # Implementation notes
+///
+/// We express `TRACE_PARAMS` as a const param rather than a field so that the Rust compiler has more room for optimizations in case tracing
+/// is switched off.
+#[derive(Debug, Clone)]
+pub(crate) struct MetadataLayer<const TRACE_PARAMS: bool> {
+    registered_method_names: Arc<HashSet<&'static str>>,
+    method_tracer: Arc<MethodTracer>,
+}
+
+impl MetadataLayer<false> {
+    pub fn new(
+        registered_method_names: Arc<HashSet<&'static str>>,
+        method_tracer: Arc<MethodTracer>,
+    ) -> Self {
+        Self {
+            registered_method_names,
+            method_tracer,
+        }
+    }
+
+    pub fn with_param_tracing(self) -> MetadataLayer<true> {
+        MetadataLayer {
+            registered_method_names: self.registered_method_names,
+            method_tracer: self.method_tracer,
+        }
+    }
+}
+
+impl<Svc, const TRACE_PARAMS: bool> tower::Layer<Svc> for MetadataLayer<TRACE_PARAMS> {
+    type Service = MetadataMiddleware<Svc, TRACE_PARAMS>;
+
+    fn layer(&self, inner: Svc) -> Self::Service {
+        MetadataMiddleware {
+            inner,
+            registered_method_names: self.registered_method_names.clone(),
+            method_tracer: self.method_tracer.clone(),
+        }
+    }
+}
+
+/// Middleware that adds tracing spans to each RPC call, so that logs belonging to the same call
+/// can be easily filtered.
+#[derive(Debug)]
+pub(crate) struct CorrelationMiddleware<S> {
+    inner: S,
+}
+
+impl<S> CorrelationMiddleware<S> {
+    pub fn new(inner: S) -> Self {
+        Self { inner }
+    }
+}
+
+impl<'a, S> RpcServiceT<'a> for CorrelationMiddleware<S>
+where
+    S: RpcServiceT<'a>,
+{
+    type Future = Instrumented<S::Future>;
+
+    fn call(&self, request: Request<'a>) -> Self::Future {
+        thread_local! {
+            static CORRELATION_ID_RNG: RefCell<SmallRng> = RefCell::new(SmallRng::from_entropy());
+        }
+
+        // Wrap a call into a span with unique correlation ID, so that events occurring in the span can be easily filtered.
+        // This works as a cheap alternative to Open Telemetry tracing with its trace / span IDs.
+        let correlation_id = CORRELATION_ID_RNG.with(|rng| rng.borrow_mut().next_u64());
+        let call_span = tracing::debug_span!("rpc_call", correlation_id);
+        self.inner.call(request).instrument(call_span)
     }
 }
 
@@ -293,10 +372,10 @@ mod tests {
                 }
             };
 
-            WithMethodCall {
-                call: method_tracer.new_call("test"),
+            WithMethodCall::new(
                 inner,
-            }
+                method_tracer.new_call("test", ObservedRpcParams::None),
+            )
         });
 
         if spawn_tasks {
