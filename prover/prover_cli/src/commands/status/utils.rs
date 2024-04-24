@@ -11,13 +11,21 @@ pub fn postgres_config() -> anyhow::Result<PostgresConfig> {
     Ok(PostgresConfig::from_env()?)
 }
 
+/// Represents the proving data of a batch.
 pub struct BatchData {
+    /// The number of the batch.
     pub batch_number: L1BatchNumber,
+    /// The basic witness generator data.
     pub basic_witness_generator: Task,
+    /// The leaf witness generator data.
     pub leaf_witness_generator: Task,
+    /// The node witness generator data.
     pub node_witness_generator: Task,
+    /// The recursion tip data.
     pub recursion_tip: Task,
+    /// The scheduler data.
     pub scheduler: Task,
+    /// The compressor data.
     pub compressor: Task,
 }
 
@@ -93,25 +101,31 @@ type ProverJobsData = HashMap<(L1BatchNumber, AggregationRound), JobCountStatist
 
 #[derive(EnumString, Clone, Display)]
 pub enum Task {
+    /// Represents the basic witness generator task and its status.
     #[strum(to_string = "Basic Witness Generator")]
     BasicWitnessGenerator(TaskStatus),
+    /// Represents the leaf witness generator task, its status and the aggregation round 0 prover jobs data.
     #[strum(to_string = "Leaf Witness Generator")]
     LeafWitnessGenerator {
         status: TaskStatus,
         aggregation_round_0_prover_jobs_data: ProverJobsData,
     },
+    /// Represents the node witness generator task, its status and the aggregation round 1 prover jobs data.
     #[strum(to_string = "Node Witness Generator")]
     NodeWitnessGenerator {
         status: TaskStatus,
         aggregation_round_1_prover_jobs_data: ProverJobsData,
     },
+    /// Represents the recursion tip task, its status and the aggregation round 2 prover jobs data.
     #[strum(to_string = "Recursion Tip")]
     RecursionTip {
         status: TaskStatus,
         aggregation_round_2_prover_jobs_data: ProverJobsData,
     },
+    /// Represents the scheduler task and its status.
     #[strum(to_string = "Scheduler")]
     Scheduler(TaskStatus),
+    /// Represents the compressor task and its status.
     #[strum(to_string = "Compressor")]
     Compressor(TaskStatus),
 }
