@@ -102,6 +102,8 @@ impl ProtoRepr for proto::ProverGroup {
             group_10: read_vec(&self.group_10).context("group_10")?,
             group_11: read_vec(&self.group_11).context("group_11")?,
             group_12: read_vec(&self.group_12).context("group_12")?,
+            group_13: read_vec(&self.group_13).context("group_13")?,
+            group_14: read_vec(&self.group_14).context("group_14")?,
         })
     }
 
@@ -120,6 +122,8 @@ impl ProtoRepr for proto::ProverGroup {
             group_10: build_vec(&this.group_10),
             group_11: build_vec(&this.group_11),
             group_12: build_vec(&this.group_12),
+            group_13: build_vec(&this.group_13),
+            group_14: build_vec(&this.group_14),
         }
     }
 }

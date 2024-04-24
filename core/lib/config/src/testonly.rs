@@ -529,6 +529,14 @@ impl Distribution<configs::fri_prover_group::FriProverGroupConfig> for EncodeDis
                 .sample_range(rng)
                 .map(|_| Sample::sample(rng))
                 .collect(),
+            group_13: self
+                .sample_range(rng)
+                .map(|_| Sample::sample(rng))
+                .collect(),
+            group_14: self
+                .sample_range(rng)
+                .map(|_| Sample::sample(rng))
+                .collect(),
         }
     }
 }

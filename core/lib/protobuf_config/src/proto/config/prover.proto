@@ -57,6 +57,8 @@ message ProverGroup {
     repeated CircuitIdRoundTuple group_10 = 11;
     repeated CircuitIdRoundTuple group_11 = 12;
     repeated CircuitIdRoundTuple group_12 = 13;
+    repeated CircuitIdRoundTuple group_13 = 14;
+    repeated CircuitIdRoundTuple group_14 = 15;
 }
 
 message ProverGateway {
