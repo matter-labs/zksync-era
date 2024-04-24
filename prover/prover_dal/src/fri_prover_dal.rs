@@ -598,7 +598,7 @@ impl FriProverDal<'_, '_> {
     pub async fn get_prover_jobs_stats_for_batch(
         &mut self,
         l1_batches_numbers: Vec<L1BatchNumber>,
-    ) -> HashMap<(L1BatchNumber, u8), JobCountStatistics> {
+    ) -> HashMap<(L1BatchNumber, AggregationRound), JobCountStatistics> {
         {
             sqlx::query!(
                 r#"
@@ -639,7 +639,7 @@ impl FriProverDal<'_, '_> {
                     let stats = acc
                         .entry((
                             L1BatchNumber(l1_batch_number as u32),
-                            aggregation_round as u8,
+                            AggregationRound::from(aggregation_round as u8),
                         ))
                         .or_insert(JobCountStatistics {
                             queued: 0,
