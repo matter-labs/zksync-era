@@ -265,6 +265,39 @@ mod tests {
             .unwrap()
             .expect("snapshot is not persisted");
         assert_eq!(snapshot_metadata.l1_batch_number, l1_batch_number);
+    }
+
+    #[tokio::test]
+    async fn deleting_snapshots() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+        let mut dal = conn.snapshots_dal();
+        let l1_batch_number = L1BatchNumber(100);
+        dal.add_snapshot(
+            SnapshotVersion::Version0,
+            l1_batch_number,
+            2,
+            "gs:///bucket/factory_deps.bin",
+        )
+        .await
+        .unwrap();
+
+        for i in 0..2 {
+            dal.add_storage_logs_filepath_for_snapshot(
+                l1_batch_number,
+                i,
+                "gs:///bucket/chunk.bin",
+            )
+            .await
+            .unwrap();
+        }
+
+        let snapshot_metadata = dal
+            .get_snapshot_metadata(l1_batch_number)
+            .await
+            .unwrap()
+            .expect("snapshot is not persisted");
+        assert!(snapshot_metadata.is_complete());
 
         let deleted_snapshots = dal.delete_snapshots_after(l1_batch_number).await.unwrap();
         assert!(deleted_snapshots.is_empty(), "{deleted_snapshots:?}");
@@ -292,6 +325,9 @@ mod tests {
             deleted_snapshot_metadata.is_none(),
             "{deleted_snapshot_metadata:?}"
         );
+
+        let complete_snapshots = dal.get_all_complete_snapshots().await.unwrap();
+        assert_eq!(complete_snapshots.snapshots_l1_batch_numbers, []);
     }
 
     #[tokio::test]
