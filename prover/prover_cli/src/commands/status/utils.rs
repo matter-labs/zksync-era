@@ -11,6 +11,67 @@ pub fn postgres_config() -> anyhow::Result<PostgresConfig> {
     Ok(PostgresConfig::from_env()?)
 }
 
+pub struct BatchDataBuilder {
+    batch_number: L1BatchNumber,
+    basic_witness_generator: Task,
+    leaf_witness_generator: Task,
+    node_witness_generator: Task,
+    recursion_tip: Task,
+    scheduler: Task,
+    compressor: Task,
+}
+
+impl BatchDataBuilder {
+    pub fn new(batch_number: L1BatchNumber) -> Self {
+        BatchDataBuilder {
+            batch_number,
+            ..Default::default()
+        }
+    }
+
+    pub fn basic_witness_generator(mut self, task: Task) -> Self {
+        self.basic_witness_generator = task;
+        self
+    }
+
+    pub fn leaf_witness_generator(mut self, task: Task) -> Self {
+        self.leaf_witness_generator = task;
+        self
+    }
+
+    pub fn node_witness_generator(mut self, task: Task) -> Self {
+        self.node_witness_generator = task;
+        self
+    }
+
+    pub fn recursion_tip(mut self, task: Task) -> Self {
+        self.recursion_tip = task;
+        self
+    }
+
+    pub fn scheduler(mut self, task: Task) -> Self {
+        self.scheduler = task;
+        self
+    }
+
+    pub fn compressor(mut self, task: Task) -> Self {
+        self.compressor = task;
+        self
+    }
+
+    pub fn build(self) -> BatchData {
+        BatchData {
+            batch_number: self.batch_number,
+            basic_witness_generator: self.basic_witness_generator,
+            leaf_witness_generator: self.leaf_witness_generator,
+            node_witness_generator: self.node_witness_generator,
+            recursion_tip: self.recursion_tip,
+            scheduler: self.scheduler,
+            compressor: self.compressor,
+        }
+    }
+}
+
 /// Represents the proving data of a batch.
 pub struct BatchData {
     /// The number of the batch.
