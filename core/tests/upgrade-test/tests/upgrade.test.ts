@@ -208,7 +208,8 @@ describe('Upgrade test', function () {
 
         const scheduleUpgrade = await govWallet.sendTransaction({
             to: governanceContract.address,
-            data: scheduleTransparentOperation
+            data: scheduleTransparentOperation,
+            type: 0
         });
         await scheduleUpgrade.wait();
 
@@ -246,7 +247,8 @@ describe('Upgrade test', function () {
         // Send execute tx.
         const execute = await govWallet.sendTransaction({
             to: governanceContract.address,
-            data: executeOperation
+            data: executeOperation,
+            type: 0
         });
         await execute.wait();
     });
@@ -255,7 +257,8 @@ describe('Upgrade test', function () {
         // Send finalize tx.
         const finalize = await govWallet.sendTransaction({
             to: mainContract.address,
-            data: finalizeOperation
+            data: finalizeOperation,
+            type: 0
         });
         await finalize.wait();
 
@@ -302,7 +305,8 @@ async function checkedRandomTransfer(sender: zkweb3.Wallet, amount: BigNumber): 
     const receiver = zkweb3.Wallet.createRandom().connect(sender.provider);
     const transferHandle = await sender.sendTransaction({
         to: receiver.address,
-        value: amount
+        value: amount,
+        type: 0
     });
     const txReceipt = await transferHandle.wait();
 
