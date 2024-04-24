@@ -1,4 +1,4 @@
-name: Build Core images
+name: Build contract verifier
 on:
   workflow_call:
     secrets:
@@ -32,14 +32,9 @@ jobs:
     strategy:
       matrix:
           components:
-            - server-v2
-            - external-node
-            - snapshots-creator
+            - contract-verifier
           platforms:
             - linux/amd64
-          include:
-            - components: external-node
-              platforms: linux/arm64
 
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
@@ -157,11 +152,7 @@ jobs:
     strategy:
       matrix:
         component:
-          - name: server-v2
-            platform: linux/amd64
-          - name: external-node
-            platform: linux/amd64,linux/arm64
-          - name: snapshots-creator
+          - name: contract-verifier
             platform: linux/amd64
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}

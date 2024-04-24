@@ -18,10 +18,12 @@ use zksync_types::{
 };
 
 mod cache;
+mod catchup;
 mod in_memory;
 mod postgres;
 mod rocksdb;
 mod shadow_storage;
+mod storage_factory;
 mod storage_view;
 #[cfg(test)]
 mod test_utils;
@@ -29,10 +31,12 @@ mod witness;
 
 pub use self::{
     cache::sequential_cache::SequentialCache,
+    catchup::AsyncCatchupTask,
     in_memory::InMemoryStorage,
     postgres::{PostgresStorage, PostgresStorageCaches, PostgresStorageCachesTask},
     rocksdb::{RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily},
     shadow_storage::ShadowStorage,
+    storage_factory::{BatchDiff, PgOrRocksdbStorage, ReadStorageFactory, RocksdbWithMemory},
     storage_view::{StorageView, StorageViewMetrics},
     witness::WitnessStorage,
 };

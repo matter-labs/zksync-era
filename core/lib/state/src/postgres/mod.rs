@@ -592,7 +592,10 @@ impl ReadStorage for PostgresStorage<'_> {
         let mut dal = self.connection.storage_logs_dedup_dal();
         let value = self
             .rt_handle
-            .block_on(dal.get_enumeration_index_for_key(key.hashed_key()));
+            .block_on(dal.get_enumeration_index_in_l1_batch(
+                key.hashed_key(),
+                self.l1_batch_number_for_l2_block,
+            ));
         value.expect("failed getting enumeration index for key")
     }
 }
