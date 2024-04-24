@@ -184,7 +184,6 @@ impl Default for BatchData {
 pub enum TaskStatus {
     /// A custom status that can be set manually.
     /// Mostly used when a task has singular status.
-    #[strum(to_string = "{0}")]
     Custom(String),
     /// A task is considered queued when all of its jobs is queued.
     #[strum(to_string = "Queued 📥")]
@@ -273,6 +272,10 @@ impl Task {
 impl Debug for Task {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "-- {} --", self.to_string().bold())?;
-        writeln!(f, "> {}", self.status().to_string())
+        if let TaskStatus::Custom(msg) = self.status() {
+            writeln!(f, "> {msg}")
+        } else {
+            writeln!(f, "> {}", self.status().to_string())
+        }
     }
 }
