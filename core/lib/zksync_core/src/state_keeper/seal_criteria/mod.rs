@@ -18,6 +18,7 @@ use zksync_types::{
     block::BlockGasCount,
     fee::TransactionExecutionMetrics,
     tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics},
+    utils::display_timestamp,
     ProtocolVersionId, Transaction,
 };
 use zksync_utils::time::millis_since;
@@ -26,7 +27,7 @@ mod conditional_sealer;
 pub(super) mod criteria;
 
 pub use self::conditional_sealer::{ConditionalSealer, NoopSealer, SequencerSealer};
-use super::{extractors, metrics::AGGREGATION_METRICS, updates::UpdatesManager};
+use super::{metrics::AGGREGATION_METRICS, updates::UpdatesManager};
 use crate::gas_tracker::{gas_count_from_tx_and_metrics, gas_count_from_writes};
 
 /// Reported decision regarding block sealing.
@@ -74,7 +75,7 @@ impl SealResolution {
 }
 
 /// Information about transaction or block applicable either to a single transaction, or
-/// to the entire miniblock / L1 batch.
+/// to the entire L2 block / L1 batch.
 #[derive(Debug, Default)]
 pub struct SealData {
     pub(super) execution_metrics: ExecutionMetrics,
@@ -127,21 +128,21 @@ pub trait IoSealCriteria {
     /// Checks whether an L1 batch should be sealed (i.e., regardless of metrics
     /// related to transaction execution) given the provided `manager` state.
     fn should_seal_l1_batch(&mut self, manager: &UpdatesManager) -> bool;
-    /// Checks whether a miniblock should be sealed given the provided `manager` state.
-    fn should_seal_miniblock(&mut self, manager: &UpdatesManager) -> bool;
+    /// Checks whether an L2 block should be sealed given the provided `manager` state.
+    fn should_seal_l2_block(&mut self, manager: &UpdatesManager) -> bool;
 }
 
 #[derive(Debug, Clone, Copy)]
 pub(super) struct TimeoutSealer {
     block_commit_deadline_ms: u64,
-    miniblock_commit_deadline_ms: u64,
+    l2_block_commit_deadline_ms: u64,
 }
 
 impl TimeoutSealer {
     pub fn new(config: &StateKeeperConfig) -> Self {
         Self {
             block_commit_deadline_ms: config.block_commit_deadline_ms,
-            miniblock_commit_deadline_ms: config.miniblock_commit_deadline_ms,
+            l2_block_commit_deadline_ms: config.l2_block_commit_deadline_ms,
         }
     }
 }
@@ -166,32 +167,32 @@ impl IoSealCriteria for TimeoutSealer {
             tracing::debug!(
                 "Decided to seal L1 batch using rule `{RULE_NAME}`; batch timestamp: {}, \
                  commit deadline: {block_commit_deadline_ms}ms",
-                extractors::display_timestamp(manager.batch_timestamp())
+                display_timestamp(manager.batch_timestamp())
             );
         }
         should_seal_timeout
     }
 
-    fn should_seal_miniblock(&mut self, manager: &UpdatesManager) -> bool {
-        !manager.miniblock.executed_transactions.is_empty()
-            && millis_since(manager.miniblock.timestamp) > self.miniblock_commit_deadline_ms
+    fn should_seal_l2_block(&mut self, manager: &UpdatesManager) -> bool {
+        !manager.l2_block.executed_transactions.is_empty()
+            && millis_since(manager.l2_block.timestamp) > self.l2_block_commit_deadline_ms
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(super) struct MiniblockMaxPayloadSizeSealer {
+pub(super) struct L2BlockMaxPayloadSizeSealer {
     max_payload_size: usize,
 }
 
-impl MiniblockMaxPayloadSizeSealer {
+impl L2BlockMaxPayloadSizeSealer {
     pub fn new(config: &StateKeeperConfig) -> Self {
         Self {
-            max_payload_size: config.miniblock_max_payload_size,
+            max_payload_size: config.l2_block_max_payload_size,
         }
     }
 
-    pub fn should_seal_miniblock(&mut self, manager: &UpdatesManager) -> bool {
-        manager.miniblock.payload_encoding_size >= self.max_payload_size
+    pub fn should_seal_l2_block(&mut self, manager: &UpdatesManager) -> bool {
+        manager.l2_block.payload_encoding_size >= self.max_payload_size
     }
 }
 
@@ -215,59 +216,59 @@ mod tests {
         );
     }
 
-    /// This test mostly exists to make sure that we can't seal empty miniblocks on the main node.
+    /// This test mostly exists to make sure that we can't seal empty L2 blocks on the main node.
     #[test]
-    fn timeout_miniblock_sealer() {
-        let mut timeout_miniblock_sealer = TimeoutSealer {
+    fn timeout_l2_block_sealer() {
+        let mut timeout_l2_block_sealer = TimeoutSealer {
             block_commit_deadline_ms: 10_000,
-            miniblock_commit_deadline_ms: 10_000,
+            l2_block_commit_deadline_ms: 10_000,
         };
 
         let mut manager = create_updates_manager();
-        // Empty miniblock should not trigger.
-        manager.miniblock.timestamp = seconds_since_epoch() - 10;
+        // Empty L2 block should not trigger.
+        manager.l2_block.timestamp = seconds_since_epoch() - 10;
         assert!(
-            !timeout_miniblock_sealer.should_seal_miniblock(&manager),
-            "Empty miniblock shouldn't be sealed"
+            !timeout_l2_block_sealer.should_seal_l2_block(&manager),
+            "Empty L2 block shouldn't be sealed"
         );
 
-        // Non-empty miniblock should trigger.
+        // Non-empty L2 block should trigger.
         apply_tx_to_manager(create_transaction(10, 100), &mut manager);
         assert!(
-            timeout_miniblock_sealer.should_seal_miniblock(&manager),
-            "Non-empty miniblock with old timestamp should be sealed"
+            timeout_l2_block_sealer.should_seal_l2_block(&manager),
+            "Non-empty L2 block with old timestamp should be sealed"
         );
 
         // Check the timestamp logic. This relies on the fact that the test shouldn't run
         // for more than 10 seconds (while the test itself is trivial, it may be preempted
         // by other tests).
-        manager.miniblock.timestamp = seconds_since_epoch();
+        manager.l2_block.timestamp = seconds_since_epoch();
         assert!(
-            !timeout_miniblock_sealer.should_seal_miniblock(&manager),
-            "Non-empty miniblock with too recent timestamp shouldn't be sealed"
+            !timeout_l2_block_sealer.should_seal_l2_block(&manager),
+            "Non-empty L2 block with too recent timestamp shouldn't be sealed"
         );
     }
 
     #[test]
-    fn max_size_miniblock_sealer() {
+    fn max_size_l2_block_sealer() {
         let tx = create_transaction(10, 100);
         let tx_encoding_size =
             zksync_protobuf::repr::encode::<zksync_dal::consensus::proto::Transaction>(&tx).len();
 
-        let mut max_payload_sealer = MiniblockMaxPayloadSizeSealer {
+        let mut max_payload_sealer = L2BlockMaxPayloadSizeSealer {
             max_payload_size: tx_encoding_size,
         };
 
         let mut manager = create_updates_manager();
         assert!(
-            !max_payload_sealer.should_seal_miniblock(&manager),
-            "Empty miniblock shouldn't be sealed"
+            !max_payload_sealer.should_seal_l2_block(&manager),
+            "Empty L2 block shouldn't be sealed"
         );
 
         apply_tx_to_manager(tx, &mut manager);
         assert!(
-            max_payload_sealer.should_seal_miniblock(&manager),
-            "Miniblock with payload encoding size equal or greater than max payload size should be sealed"
+            max_payload_sealer.should_seal_l2_block(&manager),
+            "L2 block with payload encoding size equal or greater than max payload size should be sealed"
         );
     }
 }

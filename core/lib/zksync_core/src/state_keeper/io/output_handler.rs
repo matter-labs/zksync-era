@@ -7,7 +7,7 @@ use async_trait::async_trait;
 
 use crate::state_keeper::{io::IoCursor, updates::UpdatesManager};
 
-/// Handler for state keeper outputs (miniblocks and L1 batches).
+/// Handler for state keeper outputs (L2 blocks and L1 batches).
 #[async_trait]
 pub trait StateKeeperOutputHandler: 'static + Send + fmt::Debug {
     /// Initializes this handler. This method will be called on state keeper initialization before any other calls.
@@ -16,8 +16,8 @@ pub trait StateKeeperOutputHandler: 'static + Send + fmt::Debug {
         Ok(())
     }
 
-    /// Handles a miniblock (aka L2 block) produced by the state keeper.
-    async fn handle_miniblock(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()>;
+    /// Handles an L2 block produced by the state keeper.
+    async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()>;
 
     /// Handles an L1 batch produced by the state keeper.
     async fn handle_l1_batch(&mut self, _updates_manager: &UpdatesManager) -> anyhow::Result<()> {
@@ -28,7 +28,7 @@ pub trait StateKeeperOutputHandler: 'static + Send + fmt::Debug {
 /// Compound output handler plugged into the state keeper.
 ///
 /// This handle aggregates one or more [`StateKeeperOutputHandler`]s executing their hooks
-/// on each new miniblock / L1 batch produced by the state keeper. These are executed sequentially in the order
+/// on each new L2 block / L1 batch produced by the state keeper. These are executed sequentially in the order
 /// handlers were inserted into this `OutputHandler`. Errors from handlers are bubbled up to the state keeper level,
 /// meaning that if a handler fails, the corresponding hook won't run for subsequent handlers.
 #[derive(Debug)]
@@ -61,18 +61,18 @@ impl OutputHandler {
         Ok(())
     }
 
-    pub(crate) async fn handle_miniblock(
+    pub(crate) async fn handle_l2_block(
         &mut self,
         updates_manager: &UpdatesManager,
     ) -> anyhow::Result<()> {
         for handler in &mut self.inner {
             handler
-                .handle_miniblock(updates_manager)
+                .handle_l2_block(updates_manager)
                 .await
                 .with_context(|| {
                     format!(
-                        "failed handling miniblock {:?} on handler {handler:?}",
-                        updates_manager.miniblock
+                        "failed handling L2 block {:?} on handler {handler:?}",
+                        updates_manager.l2_block
                     )
                 })?;
         }

@@ -144,7 +144,7 @@ pub(crate) async fn pending_protocol_version(
 
     let last_miniblock = storage
         .blocks_dal()
-        .get_last_sealed_miniblock_header()
+        .get_last_sealed_l2_block_header()
         .await?;
     if let Some(last_miniblock) = last_miniblock {
         return Ok(last_miniblock.protocol_version.unwrap_or_else(|| {
@@ -170,8 +170,10 @@ async fn get_pubdata_pricing_mode(
     diamond_proxy_address: Address,
     eth_client: &dyn EthInterface,
 ) -> Result<Vec<ethabi::Token>, EthClientError> {
-    let args = CallFunctionArgs::new("getPubdataPricingMode", ())
-        .for_contract(diamond_proxy_address, zksync_contracts::zksync_contract());
+    let args = CallFunctionArgs::new("getPubdataPricingMode", ()).for_contract(
+        diamond_proxy_address,
+        zksync_contracts::state_transition_manager_contract(),
+    );
     eth_client.call_contract_function(args).await
 }
 

@@ -62,7 +62,7 @@ zk contract redeploy
 
 ## Environment configurations
 
-Env config files are held in `etc/env/`
+Env config files are held in `etc/env/target/`
 
 List configurations:
 
@@ -88,7 +88,8 @@ zk server
 ```
 
 Server is configured using env files in `./etc/env` directory. After the first initialization, file
-`./etc/env/dev.env`will be created. By default, this file is copied from the `./etc/env/dev.env.example` template.
+`./etc/env/target/dev.env`will be created. By default, this file is copied from the `./etc/env/target/dev.env.example`
+template.
 
 Make sure you have environment variables set right, you can check it by running: `zk env`. You should see `* dev` in
 output.

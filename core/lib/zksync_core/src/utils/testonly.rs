@@ -7,7 +7,7 @@ use zksync_dal::{Connection, Core, CoreDal};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
-    block::{L1BatchHeader, MiniblockHeader},
+    block::{L1BatchHeader, L2BlockHeader},
     commitment::{
         AuxCommitments, L1BatchCommitmentArtifacts, L1BatchCommitmentHash, L1BatchMetaParameters,
         L1BatchMetadata,
@@ -18,16 +18,17 @@ use zksync_types::{
     snapshots::SnapshotRecoveryStatus,
     transaction_request::PaymasterParams,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
-    Address, L1BatchNumber, L2ChainId, MiniblockNumber, Nonce, ProtocolVersion, ProtocolVersionId,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersion, ProtocolVersionId,
     StorageLog, H256, U256,
 };
 
 use crate::{fee_model::BatchFeeModelInputProvider, genesis::GenesisParams};
 
+// FIXME: rename
 /// Creates a miniblock header with the specified number and deterministic contents.
-pub(crate) fn create_miniblock(number: u32) -> MiniblockHeader {
-    MiniblockHeader {
-        number: MiniblockNumber(number),
+pub(crate) fn create_miniblock(number: u32) -> L2BlockHeader {
+    L2BlockHeader {
+        number: L2BlockNumber(number),
         timestamp: number.into(),
         hash: H256::from_low_u64_be(number.into()),
         l1_tx_count: 0,
@@ -152,7 +153,7 @@ pub(crate) fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionR
 #[derive(Debug)]
 pub(crate) struct Snapshot {
     pub l1_batch: L1BatchHeader,
-    pub miniblock: MiniblockHeader,
+    pub miniblock: L2BlockHeader,
     pub storage_logs: Vec<StorageLog>,
     pub factory_deps: HashMap<H256, Vec<u8>>,
 }
@@ -161,7 +162,7 @@ impl Snapshot {
     // Constructs a dummy Snapshot based on the provided values.
     pub fn make(
         l1_batch: L1BatchNumber,
-        miniblock: MiniblockNumber,
+        miniblock: L2BlockNumber,
         storage_logs: &[StorageLog],
     ) -> Self {
         let genesis_params = GenesisParams::mock();
@@ -172,7 +173,7 @@ impl Snapshot {
             contracts.hashes(),
             genesis_params.protocol_version(),
         );
-        let miniblock = MiniblockHeader {
+        let miniblock = L2BlockHeader {
             number: miniblock,
             timestamp: miniblock.0.into(),
             hash: H256::from_low_u64_be(miniblock.0.into()),
@@ -205,7 +206,7 @@ impl Snapshot {
 pub(crate) async fn prepare_recovery_snapshot(
     storage: &mut Connection<'_, Core>,
     l1_batch: L1BatchNumber,
-    miniblock: MiniblockNumber,
+    miniblock: L2BlockNumber,
     storage_logs: &[StorageLog],
 ) -> SnapshotRecoveryStatus {
     recover(storage, Snapshot::make(l1_batch, miniblock, storage_logs)).await
@@ -227,7 +228,7 @@ pub(crate) async fn snapshot(storage: &mut Connection<'_, Core>) -> Snapshot {
         .unwrap();
     let (_, miniblock) = storage
         .blocks_dal()
-        .get_miniblock_range_of_l1_batch(l1_batch.number)
+        .get_l2_block_range_of_l1_batch(l1_batch.number)
         .await
         .unwrap()
         .unwrap();
@@ -235,7 +236,7 @@ pub(crate) async fn snapshot(storage: &mut Connection<'_, Core>) -> Snapshot {
     Snapshot {
         miniblock: storage
             .blocks_dal()
-            .get_miniblock_header(miniblock)
+            .get_l2_block_header(miniblock)
             .await
             .unwrap()
             .unwrap(),
@@ -319,9 +320,9 @@ pub(crate) async fn recover(
         l1_batch_number: snapshot.l1_batch.number,
         l1_batch_timestamp: snapshot.l1_batch.timestamp,
         l1_batch_root_hash,
-        miniblock_number: snapshot.miniblock.number,
-        miniblock_timestamp: snapshot.miniblock.timestamp,
-        miniblock_hash: snapshot.miniblock.hash,
+        l2_block_number: snapshot.miniblock.number,
+        l2_block_timestamp: snapshot.miniblock.timestamp,
+        l2_block_hash: snapshot.miniblock.hash,
         protocol_version: snapshot.l1_batch.protocol_version.unwrap(),
         storage_logs_chunks_processed: vec![true; 100],
     };

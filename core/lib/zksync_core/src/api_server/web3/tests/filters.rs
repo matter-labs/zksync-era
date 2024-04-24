@@ -36,7 +36,7 @@ impl HttpTest for BasicFilterChangesTest {
             if self.snapshot_recovery {
                 StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 2
             } else {
-                MiniblockNumber(1)
+                L2BlockNumber(1)
             },
             &[tx_result],
         )

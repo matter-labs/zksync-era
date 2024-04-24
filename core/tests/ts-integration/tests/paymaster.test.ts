@@ -2,15 +2,15 @@
  * This suite contains tests checking the behavior of paymasters -- entities that can cover fees for users.
  */
 import { TestMaster } from '../src/index';
-import * as zksync from 'zksync-web3';
-import { Provider, Wallet, utils, Contract } from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
+import { Provider, Wallet, utils, Contract } from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { deployContract, getTestContract } from '../src/helpers';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 import { checkReceipt } from '../src/modifiers/receipt-check';
 import { extractFee } from '../src/modifiers/balance-checker';
 import { TestMessage } from '../src/matchers/matcher-helpers';
-import { Address } from 'zksync-web3/build/src/types';
+import { Address } from 'zksync-ethers/build/src/types';
 import * as hre from 'hardhat';
 import { Deployer } from '@matterlabs/hardhat-zksync-deploy';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-deploy/dist/types';
@@ -55,6 +55,12 @@ describe('Paymaster tests', () => {
     });
 
     test('Should pay fee with paymaster', async () => {
+        paymaster = await deployContract(alice, contracts.customPaymaster, []);
+        // Supplying paymaster with ETH it would need to cover the fees for the user
+        await alice
+            .transfer({ to: paymaster.address, amount: L2_DEFAULT_ETH_PER_ACCOUNT.div(4) })
+            .then((tx) => tx.wait());
+
         const correctSignature = new Uint8Array(46);
 
         const paymasterParamsForEstimation = await getTestPaymasterParamsForFeeEstimation(
@@ -183,8 +189,6 @@ describe('Paymaster tests', () => {
         });
         const txPromise = alice.sendTransaction({
             ...tx,
-            maxFeePerGas: gasPrice,
-            maxPriorityFeePerGas: gasPrice,
             gasLimit,
             customData: {
                 gasPerPubdata: utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
@@ -233,7 +237,7 @@ describe('Paymaster tests', () => {
     });
 
     it('Should deploy nonce-check paymaster and not fail validation', async function () {
-        const deployer = new Deployer(hre, alice);
+        const deployer = new Deployer(hre as any, alice as any);
         const paymaster = await deployPaymaster(deployer);
         const token = testMaster.environment().erc20Token;
 

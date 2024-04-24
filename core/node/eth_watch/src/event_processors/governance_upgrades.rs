@@ -14,7 +14,8 @@ use crate::{
 /// Listens to operation events coming from the governance contract and saves new protocol upgrade proposals to the database.
 #[derive(Debug)]
 pub struct GovernanceUpgradesEventProcessor {
-    diamond_proxy_address: Address,
+    // zkSync diamond proxy if pre-shared bridge; state transition manager if post shared bridge.
+    target_contract_address: Address,
     /// Last protocol version seen. Used to skip events for already known upgrade proposals.
     last_seen_version_id: ProtocolVersionId,
     upgrade_proposal_signature: H256,
@@ -22,18 +23,19 @@ pub struct GovernanceUpgradesEventProcessor {
 
 impl GovernanceUpgradesEventProcessor {
     pub fn new(
-        diamond_proxy_address: Address,
+        target_contract_address: Address,
         last_seen_version_id: ProtocolVersionId,
         governance_contract: &Contract,
-    ) -> anyhow::Result<Self> {
-        Ok(Self {
-            diamond_proxy_address,
+    ) -> Self {
+        Self {
+            target_contract_address,
             last_seen_version_id,
             upgrade_proposal_signature: governance_contract
                 .event("TransparentOperationScheduled")
-                .context("TransparentOperationScheduled event is missing in ABI")?
+                .context("TransparentOperationScheduled event is missing in ABI")
+                .unwrap()
                 .signature(),
-        })
+        }
     }
 }
 
@@ -55,7 +57,7 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
             for call in governance_operation
                 .calls
                 .into_iter()
-                .filter(|call| call.target == self.diamond_proxy_address)
+                .filter(|call| call.target == self.target_contract_address)
             {
                 // We might not get an upgrade operation here, but something else instead
                 // (e.g. `acceptGovernor` call), so if parsing doesn't work, just skip the call.

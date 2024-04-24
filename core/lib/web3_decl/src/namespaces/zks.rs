@@ -9,7 +9,7 @@ use zksync_types::{
     fee::Fee,
     fee_model::FeeParams,
     transaction_request::CallRequest,
-    Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
+    Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
 
 use crate::types::Token;
@@ -45,6 +45,9 @@ pub trait ZksNamespace {
     #[method(name = "getBridgeContracts")]
     async fn get_bridge_contracts(&self) -> RpcResult<BridgeAddresses>;
 
+    #[method(name = "getBaseTokenL1Address")]
+    async fn get_base_token_l1_address(&self) -> RpcResult<Address>;
+
     #[method(name = "L1ChainId")]
     async fn l1_chain_id(&self) -> RpcResult<U64>;
 
@@ -58,7 +61,7 @@ pub trait ZksNamespace {
     #[method(name = "getL2ToL1MsgProof")]
     async fn get_l2_to_l1_msg_proof(
         &self,
-        block: MiniblockNumber,
+        block: L2BlockNumber,
         sender: Address,
         msg: H256,
         l2_log_position: Option<usize>,
@@ -80,7 +83,7 @@ pub trait ZksNamespace {
     #[method(name = "getBlockDetails")]
     async fn get_block_details(
         &self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> RpcResult<Option<BlockDetails>>;
 
     #[method(name = "getTransactionDetails")]
@@ -89,7 +92,7 @@ pub trait ZksNamespace {
     #[method(name = "getRawBlockTransactions")]
     async fn get_raw_block_transactions(
         &self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> RpcResult<Vec<zksync_types::Transaction>>;
 
     #[method(name = "getL1BatchDetails")]

@@ -89,8 +89,8 @@ use crate::{
     },
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     state_keeper::{
-        create_state_keeper, MempoolFetcher, MempoolGuard, OutputHandler, SequencerSealer,
-        StateKeeperPersistence,
+        create_state_keeper, AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler,
+        SequencerSealer, StateKeeperPersistence,
     },
     utils::ensure_l1_batch_commit_data_generation_mode,
 };
@@ -113,6 +113,7 @@ pub mod state_keeper;
 pub mod sync_layer;
 pub mod temp_config_store;
 pub mod utils;
+pub mod vm_runner;
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
@@ -332,7 +333,7 @@ pub async fn initialize_components(
 
     let (prometheus_health_check, prometheus_health_updater) =
         ReactiveHealthCheck::new("prometheus_exporter");
-    app_health.insert_component(prometheus_health_check);
+    app_health.insert_component(prometheus_health_check)?;
     let prometheus_task = prom_config.run(stop_receiver.clone());
     let prometheus_task = tokio::spawn(async move {
         prometheus_health_updater.update(HealthStatus::Ready.into());
@@ -545,6 +546,12 @@ pub async fn initialize_components(
         tracing::info!("initialized State Keeper in {elapsed:?}");
     }
 
+    let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
+    let state_transition_manager_addr = genesis_config
+        .shared_bridge
+        .as_ref()
+        .map(|a| a.state_transition_proxy_addr);
+
     if components.contains(&Component::Consensus) {
         let secrets = secrets.consensus.as_ref().context("Secrets are missing")?;
         let cfg = consensus::config::main_node(
@@ -577,8 +584,6 @@ pub async fn initialize_components(
         tracing::info!("initialized Consensus in {elapsed:?}");
     }
 
-    let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
-
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-Watcher");
@@ -598,7 +603,8 @@ pub async fn initialize_components(
                 eth_watch_config,
                 eth_watch_pool,
                 Arc::new(query_client.clone()),
-                main_zksync_contract_address,
+                diamond_proxy_addr,
+                state_transition_manager_addr,
                 governance,
                 stop_receiver.clone(),
             )
@@ -671,7 +677,7 @@ pub async fn initialize_components(
             Arc::new(eth_client),
             contracts_config.validator_timelock_addr,
             contracts_config.l1_multicall3_addr,
-            main_zksync_contract_address,
+            diamond_proxy_addr,
             l2_chain_id,
             operator_blobs_address,
             l1_batch_commit_data_generator,
@@ -796,7 +802,7 @@ pub async fn initialize_components(
                 .await
                 .context("failed to build commitment_generator_pool")?;
         let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
-        app_health.insert_component(commitment_generator.health_check());
+        app_health.insert_component(commitment_generator.health_check())?;
         task_futures.push(tokio::spawn(
             commitment_generator.run(stop_receiver.clone()),
         ));
@@ -804,7 +810,7 @@ pub async fn initialize_components(
 
     // Run healthcheck server for all components.
     let db_health_check = ConnectionPoolHealthCheck::new(replica_connection_pool);
-    app_health.insert_custom_component(Arc::new(db_health_check));
+    app_health.insert_custom_component(Arc::new(db_health_check))?;
     let health_check_handle =
         HealthCheckHandle::spawn_server(health_check_config.bind_addr(), app_health);
 
@@ -828,8 +834,7 @@ async fn add_state_keeper_to_task_futures(
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
-    let pool_builder = ConnectionPool::<Core>::singleton(postgres_config.master_url()?);
-    let state_keeper_pool = pool_builder
+    let state_keeper_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
         .build()
         .await
         .context("failed to build state_keeper_pool")?;
@@ -843,21 +848,31 @@ async fn add_state_keeper_to_task_futures(
         mempool
     };
 
-    let miniblock_sealer_pool = pool_builder
+    let miniblock_sealer_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
         .build()
         .await
         .context("failed to build miniblock_sealer_pool")?;
     let (persistence, miniblock_sealer) = StateKeeperPersistence::new(
         miniblock_sealer_pool,
-        contracts_config.l2_erc20_bridge_addr,
-        state_keeper_config.miniblock_seal_queue_capacity,
+        contracts_config
+            .l2_shared_bridge_addr
+            .expect("`l2_shared_bridge_addr` config is missing"),
+        state_keeper_config.l2_block_seal_queue_capacity,
     );
     task_futures.push(tokio::spawn(miniblock_sealer.run()));
 
-    let (state_keeper, async_catchup_task) = create_state_keeper(
+    // One (potentially held long-term) connection for `AsyncCatchupTask` and another connection
+    // to access `AsyncRocksdbCache` as a storage.
+    let async_cache_pool = ConnectionPool::<Core>::builder(postgres_config.master_url()?, 2)
+        .build()
+        .await
+        .context("failed to build async_cache_pool")?;
+    let (async_cache, async_catchup_task) =
+        AsyncRocksdbCache::new(async_cache_pool, db_config.state_keeper_db_path.clone());
+    let state_keeper = create_state_keeper(
         state_keeper_config,
         state_keeper_wallets,
-        db_config,
+        async_cache,
         l2chain_id,
         mempool_config,
         state_keeper_pool,
@@ -876,7 +891,7 @@ async fn add_state_keeper_to_task_futures(
     }));
     task_futures.push(tokio::spawn(state_keeper.run()));
 
-    let mempool_fetcher_pool = pool_builder
+    let mempool_fetcher_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
         .build()
         .await
         .context("failed to build mempool_fetcher_pool")?;
@@ -891,23 +906,26 @@ async fn add_state_keeper_to_task_futures(
     Ok(())
 }
 
-async fn start_eth_watch(
+pub async fn start_eth_watch(
     config: EthWatchConfig,
     pool: ConnectionPool<Core>,
     eth_gateway: Arc<dyn EthInterface>,
     diamond_proxy_addr: Address,
+    state_transition_manager_addr: Option<Address>,
     governance: (Contract, Address),
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<JoinHandle<anyhow::Result<()>>> {
     let eth_client = EthHttpQueryClient::new(
         eth_gateway,
         diamond_proxy_addr,
+        state_transition_manager_addr,
         governance.1,
         config.confirmations_for_eth_event,
     );
 
     let eth_watch = EthWatch::new(
         diamond_proxy_addr,
+        state_transition_manager_addr,
         &governance.0,
         Box::new(eth_client),
         pool,
@@ -988,9 +1006,21 @@ async fn run_tree(
     tracing::info!("Initializing Merkle tree in {mode_str} mode");
 
     let config = MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_manager);
-    let metadata_calculator = MetadataCalculator::new(config, object_store)
+    let pool = ConnectionPool::singleton(postgres_config.master_url()?)
+        .build()
         .await
-        .context("failed initializing metadata_calculator")?;
+        .context("failed to build connection pool for Merkle tree")?;
+    // The number of connections in a recovery pool is based on the mainnet recovery runs. It doesn't need
+    // to be particularly accurate at this point, since the main node isn't expected to recover from a snapshot.
+    let recovery_pool = ConnectionPool::builder(postgres_config.replica_url()?, 10)
+        .build()
+        .await
+        .context("failed to build connection pool for Merkle tree recovery")?;
+    let metadata_calculator = MetadataCalculator::new(config, object_store, pool)
+        .await
+        .context("failed initializing metadata_calculator")?
+        .with_recovery_pool(recovery_pool);
+
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
         let tree_reader = metadata_calculator.tree_reader();
@@ -1005,12 +1035,8 @@ async fn run_tree(
     }
 
     let tree_health_check = metadata_calculator.tree_health_check();
-    app_health.insert_component(tree_health_check);
-    let pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
-        .build()
-        .await
-        .context("failed to build connection pool")?;
-    let tree_task = tokio::spawn(metadata_calculator.run(pool, stop_receiver));
+    app_health.insert_component(tree_health_check)?;
+    let tree_task = tokio::spawn(metadata_calculator.run(stop_receiver));
     task_futures.push(tree_task);
 
     let elapsed = started_at.elapsed();
@@ -1305,7 +1331,7 @@ async fn run_http_api(
     if let Some(tree_api_url) = api_config.web3_json_rpc.tree_api_url() {
         let tree_api = Arc::new(TreeApiHttpClient::new(tree_api_url));
         api_builder = api_builder.with_tree_api(tree_api.clone());
-        app_health.insert_custom_component(tree_api);
+        app_health.insert_custom_component(tree_api)?;
     }
 
     let server_handles = api_builder
@@ -1314,7 +1340,7 @@ async fn run_http_api(
         .run(stop_receiver)
         .await?;
     task_futures.extend(server_handles.tasks);
-    app_health.insert_component(server_handles.health_check);
+    app_health.insert_component(server_handles.health_check)?;
     Ok(())
 }
 
@@ -1373,7 +1399,7 @@ async fn run_ws_api(
     if let Some(tree_api_url) = api_config.web3_json_rpc.tree_api_url() {
         let tree_api = Arc::new(TreeApiHttpClient::new(tree_api_url));
         api_builder = api_builder.with_tree_api(tree_api.clone());
-        app_health.insert_custom_component(tree_api);
+        app_health.insert_custom_component(tree_api)?;
     }
 
     let server_handles = api_builder
@@ -1382,7 +1408,7 @@ async fn run_ws_api(
         .run(stop_receiver)
         .await?;
     task_futures.extend(server_handles.tasks);
-    app_health.insert_component(server_handles.health_check);
+    app_health.insert_component(server_handles.health_check)?;
     Ok(())
 }
 

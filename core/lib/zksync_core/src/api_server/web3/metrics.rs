@@ -1,6 +1,11 @@
 //! Metrics for the JSON-RPC server.
 
-use std::{fmt, time::Duration};
+use std::{
+    borrow::Cow,
+    cell::Cell,
+    fmt, thread,
+    time::{Duration, Instant},
+};
 
 use vise::{
     Buckets, Counter, DurationAsSecs, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram,
@@ -13,6 +18,108 @@ use super::{
     backend_jsonrpsee::MethodMetadata, ApiTransport, InternalApiConfig, OptionalApiParams,
     TypedFilter,
 };
+
+/// Allows filtering events (e.g., for logging) so that they are reported no more frequently than with a configurable interval.
+///
+/// Current implementation uses thread-local vars in order to not rely on mutexes or other cross-thread primitives.
+/// I.e., it only really works if the number of threads accessing it is limited (which is the case for the API server;
+/// the number of worker threads is congruent to the CPU count).
+#[derive(Debug)]
+struct ReportFilter {
+    interval: Duration,
+    last_timestamp: &'static thread::LocalKey<Cell<Option<Instant>>>,
+}
+
+impl ReportFilter {
+    /// Should be called sparingly, since it involves moderately heavy operations (getting current time).
+    fn should_report(&self) -> bool {
+        let timestamp = self.last_timestamp.get();
+        let now = Instant::now();
+        if timestamp.map_or(true, |ts| now - ts > self.interval) {
+            self.last_timestamp.set(Some(now));
+            true
+        } else {
+            false
+        }
+    }
+}
+
+/// Creates a new filter with the specified reporting interval *per thread*.
+macro_rules! report_filter {
+    ($interval:expr) => {{
+        thread_local! {
+            static LAST_TIMESTAMP: Cell<Option<Instant>> = Cell::new(None);
+        }
+        ReportFilter {
+            interval: $interval,
+            last_timestamp: &LAST_TIMESTAMP,
+        }
+    }};
+}
+
+/// Observed version of RPC parameters. Have a bounded upper-limit size (256 bytes), so that we don't over-allocate.
+#[derive(Debug)]
+pub(super) enum ObservedRpcParams<'a> {
+    None,
+    Unknown,
+    Borrowed(&'a serde_json::value::RawValue),
+    Owned { start: Box<str>, total_len: usize },
+}
+
+impl fmt::Display for ObservedRpcParams<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if matches!(self, Self::Unknown) {
+            return Ok(());
+        }
+        formatter.write_str(" with params ")?;
+
+        let (start, total_len) = match self {
+            Self::None => return formatter.write_str("[]"),
+            Self::Unknown => unreachable!(),
+            Self::Borrowed(params) => (Self::maybe_shorten(params), params.get().len()),
+            Self::Owned { start, total_len } => (start.as_ref(), *total_len),
+        };
+
+        if total_len == start.len() {
+            formatter.write_str(start)
+        } else {
+            // Since params is a JSON array, we add a closing ']' at the end
+            write!(formatter, "{start} ...({total_len} bytes)]")
+        }
+    }
+}
+
+impl<'a> ObservedRpcParams<'a> {
+    const MAX_LEN: usize = 256;
+
+    fn maybe_shorten(raw_value: &serde_json::value::RawValue) -> &str {
+        let raw_str = raw_value.get();
+        if raw_str.len() <= Self::MAX_LEN {
+            raw_str
+        } else {
+            // Truncate `params_str` to be no longer than `MAX_LEN`.
+            let mut pos = Self::MAX_LEN;
+            while !raw_str.is_char_boundary(pos) {
+                pos -= 1; // Shouldn't underflow; the char boundary is at most 3 bytes away
+            }
+            &raw_str[..pos]
+        }
+    }
+
+    pub fn new(raw: Option<&Cow<'a, serde_json::value::RawValue>>) -> Self {
+        match raw {
+            None => Self::None,
+            // In practice, `jsonrpsee` never returns `Some(Cow::Borrowed(_))` because of a `serde` / `serde_json` flaw (?)
+            // when deserializing `Cow<'_, RawValue`: https://github.com/serde-rs/json/issues/1076. Thus, each `new()` call
+            // in which params are actually specified will allocate, but this allocation is quite small.
+            Some(Cow::Borrowed(params)) => Self::Borrowed(params),
+            Some(Cow::Owned(params)) => Self::Owned {
+                start: Self::maybe_shorten(params).into(),
+                total_len: params.get().len(),
+            },
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "scheme", rename_all = "UPPERCASE")]
@@ -219,7 +326,10 @@ impl ApiMetrics {
             filters_limit: optional.filters_limit,
             subscriptions_limit: optional.subscriptions_limit,
             batch_request_size_limit: optional.batch_request_size_limit,
-            response_body_size_limit: optional.response_body_size_limit,
+            response_body_size_limit: optional
+                .response_body_size_limit
+                .as_ref()
+                .map(|limit| limit.global),
             websocket_requests_per_minute_limit: optional
                 .websocket_requests_per_minute_limit
                 .map(Into::into),
@@ -231,48 +341,91 @@ impl ApiMetrics {
     }
 
     /// Observes latency of a finished RPC call.
-    pub fn observe_latency(&self, meta: &MethodMetadata) {
+    pub(super) fn observe_latency(
+        &self,
+        meta: &MethodMetadata,
+        raw_params: &ObservedRpcParams<'_>,
+    ) {
+        static FILTER: ReportFilter = report_filter!(Duration::from_secs(1));
+        const MIN_REPORTED_LATENCY: Duration = Duration::from_secs(5);
+
         let latency = meta.started_at.elapsed();
         self.web3_call[&MethodLabels::from(meta)].observe(latency);
         if let Some(block_diff) = meta.block_diff {
             self.web3_call_block_diff[&meta.name].observe(block_diff.into());
         }
+        if latency >= MIN_REPORTED_LATENCY && FILTER.should_report() {
+            tracing::info!("Long call to `{}`{raw_params}: {latency:?}", meta.name);
+        }
     }
 
     /// Observes latency of a dropped RPC call.
-    pub fn observe_dropped_call(&self, meta: &MethodMetadata) {
+    pub(super) fn observe_dropped_call(
+        &self,
+        meta: &MethodMetadata,
+        raw_params: &ObservedRpcParams<'_>,
+    ) {
+        static FILTER: ReportFilter = report_filter!(Duration::from_secs(1));
+
         let latency = meta.started_at.elapsed();
         self.web3_dropped_call_latency[&MethodLabels::from(meta)].observe(latency);
+        if FILTER.should_report() {
+            tracing::info!(
+                "Call to `{}`{raw_params} was dropped by client after {latency:?}",
+                meta.name
+            );
+        }
     }
 
     /// Observes serialized size of a response.
-    pub fn observe_response_size(&self, method: &'static str, size: usize) {
+    pub(super) fn observe_response_size(
+        &self,
+        method: &'static str,
+        raw_params: &ObservedRpcParams<'_>,
+        size: usize,
+    ) {
+        static FILTER: ReportFilter = report_filter!(Duration::from_secs(1));
+        const MIN_REPORTED_SIZE: usize = 4 * 1_024 * 1_024; // 4 MiB
+
         self.web3_call_response_size[&method].observe(size);
+        if size >= MIN_REPORTED_SIZE && FILTER.should_report() {
+            tracing::info!(
+                "Call to `{method}`{raw_params} has resulted in large response: {size}B"
+            );
+        }
     }
 
-    pub fn observe_protocol_error(&self, method: &'static str, error_code: i32, app_error: bool) {
+    pub(super) fn observe_protocol_error(
+        &self,
+        method: &'static str,
+        raw_params: &ObservedRpcParams<'_>,
+        error_code: i32,
+        has_app_error: bool,
+    ) {
+        static FILTER: ReportFilter = report_filter!(Duration::from_millis(100));
+
         let labels = ProtocolErrorLabels {
             method,
             error_code,
-            origin: if app_error {
+            origin: if has_app_error {
                 ProtocolErrorOrigin::App
             } else {
                 ProtocolErrorOrigin::Framework
             },
         };
-        if self.web3_rpc_errors[&labels].inc() == 0 {
+        if self.web3_rpc_errors[&labels].inc() == 0 || FILTER.should_report() {
             let ProtocolErrorLabels {
                 method,
                 error_code,
                 origin,
             } = &labels;
             tracing::info!(
-                "Observed new error code for method `{method}`: {error_code}, origin: {origin:?}"
+                "Observed error code {error_code} (origin: {origin:?}) for method `{method}`{raw_params}"
             );
         }
     }
 
-    pub fn observe_web3_error(&self, method: &'static str, err: &Web3Error) {
+    pub(super) fn observe_web3_error(&self, method: &'static str, err: &Web3Error) {
         // Log internal error details.
         match err {
             Web3Error::InternalError(err) => {
@@ -390,3 +543,54 @@ pub(super) struct MempoolCacheMetrics {
 
 #[vise::register]
 pub(super) static MEMPOOL_CACHE_METRICS: vise::Global<MempoolCacheMetrics> = vise::Global::new();
+
+#[cfg(test)]
+mod tests {
+    use assert_matches::assert_matches;
+    use serde_json::value::RawValue;
+
+    use super::*;
+
+    #[test]
+    fn observing_rpc_params() {
+        let rpc_params = ObservedRpcParams::new(None);
+        assert_matches!(rpc_params, ObservedRpcParams::None);
+        assert_eq!(rpc_params.to_string(), " with params []");
+
+        let raw_params = RawValue::from_string(r#"["0x1"]"#.into()).unwrap();
+        let rpc_params = ObservedRpcParams::new(Some(&Cow::Borrowed(&raw_params)));
+        assert_matches!(rpc_params, ObservedRpcParams::Borrowed(_));
+        assert_eq!(rpc_params.to_string(), r#" with params ["0x1"]"#);
+
+        let rpc_params = ObservedRpcParams::new(Some(&Cow::Owned(raw_params)));
+        assert_matches!(rpc_params, ObservedRpcParams::Owned { .. });
+        assert_eq!(rpc_params.to_string(), r#" with params ["0x1"]"#);
+
+        let raw_params = [zksync_types::Bytes(vec![0xff; 512])];
+        let raw_params = serde_json::value::to_raw_value(&raw_params).unwrap();
+        assert_eq!(raw_params.get().len(), 1_030); // 1024 'f' chars + '0x' + '[]' + '""'
+        let rpc_params = ObservedRpcParams::new(Some(&Cow::Borrowed(&raw_params)));
+        assert_matches!(rpc_params, ObservedRpcParams::Borrowed(_));
+        let rpc_params_str = rpc_params.to_string();
+        assert!(
+            rpc_params_str.starts_with(r#" with params ["0xffff"#),
+            "{rpc_params_str}"
+        );
+        assert!(
+            rpc_params_str.ends_with("ff ...(1030 bytes)]"),
+            "{rpc_params_str}"
+        );
+
+        let rpc_params = ObservedRpcParams::new(Some(&Cow::Owned(raw_params)));
+        assert_matches!(rpc_params, ObservedRpcParams::Owned { .. });
+        let rpc_params_str = rpc_params.to_string();
+        assert!(
+            rpc_params_str.starts_with(r#" with params ["0xffff"#),
+            "{rpc_params_str}"
+        );
+        assert!(
+            rpc_params_str.ends_with("ff ...(1030 bytes)]"),
+            "{rpc_params_str}"
+        );
+    }
+}
