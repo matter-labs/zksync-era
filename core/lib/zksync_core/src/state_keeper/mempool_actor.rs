@@ -2,14 +2,10 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use multivm::utils::derive_base_fee_and_gas_per_pubdata;
-#[cfg(test)]
-use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
-#[cfg(test)]
-use zksync_types::H256;
 use zksync_types::{get_nonce_key, Address, Nonce, Transaction, VmVersion};
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
