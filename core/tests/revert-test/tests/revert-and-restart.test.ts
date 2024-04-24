@@ -249,7 +249,8 @@ async function checkedRandomTransfer(sender: zkweb3.Wallet, amount: BigNumber) {
     const receiver = zkweb3.Wallet.createRandom().connect(sender.provider);
     const transferHandle = await sender.sendTransaction({
         to: receiver.address,
-        value: amount
+        value: amount,
+        type: 0
     });
 
     // ethers doesn't work well with block reversions, so we poll for the receipt manually.
