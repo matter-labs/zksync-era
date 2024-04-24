@@ -89,7 +89,7 @@ impl FriProverGroupConfig {
     /// In aggregation round 3, the circuit ids should be 255.
     /// In aggregation round 4, the circuit ids should be 1.
     pub fn validate(&self) -> anyhow::Result<()> {
-        let mut rounds: Vec<Vec<CircuitIdRoundTuple>> = vec![Vec::new(); 4];
+        let mut rounds: Vec<Vec<CircuitIdRoundTuple>> = vec![Vec::new(); 5];
         let groups = [
             &self.group_0,
             &self.group_1,
@@ -124,7 +124,7 @@ impl FriProverGroupConfig {
 
             let (missing_ids, not_in_range, expected_circuits_description) = match round {
                 0 => {
-                    let mut expected_range: Vec<_> = (1..=13).collect();
+                    let mut expected_range: Vec<_> = (1..=15).collect();
                     expected_range.push(255);
                     let missing_ids: Vec<_> = expected_range
                         .iter()
