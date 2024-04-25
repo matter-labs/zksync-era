@@ -10,6 +10,7 @@ use multivm::{
         LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp,
     },
 };
+use std::env;
 use zksync_contracts::{
     read_sys_contract_bytecode, BaseSystemContracts, ContractLanguage, SET_CHAIN_ID_EVENT,
 };
@@ -184,9 +185,15 @@ async fn insert_system_contracts(
 ) -> anyhow::Result<()> {
     let system_context_init_logs = (H256::default(), get_system_context_init_logs(chain_id));
 
-    let evm_simulator_bytecode =
-        // read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Sol);
-        read_sys_contract_bytecode("", "EvmInterpreterPreprocessed", ContractLanguage::Yul);
+    let evm_simulator_bytecode;
+    let evm_simulator_version = env::var("EVM_SIMULATOR").unwrap_or_else(|_| "yul".to_string());
+    if evm_simulator_version.to_lowercase() == "yul" {
+        evm_simulator_bytecode =
+            read_sys_contract_bytecode("", "EvmInterpreterPreprocessed", ContractLanguage::Yul);
+    } else {
+        evm_simulator_bytecode =
+            read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Sol);
+    }
     let evm_simulator_hash = hash_bytecode(&evm_simulator_bytecode);
     let evm_simulator_known_code_log = vec![StorageLog::new_write_log(
         StorageKey::new(

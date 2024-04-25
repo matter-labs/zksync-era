@@ -18,6 +18,8 @@ use crate::{
     SHA256_PRECOMPILE_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
 
+use std::env;
+
 // Note, that in the `NONCE_HOLDER_ADDRESS` storage the nonces of accounts
 // are stored in the following form:
 // `2^128 * deployment_nonce + tx_nonce`,
@@ -176,12 +178,20 @@ static SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new(|| {
 });
 
 static EVM_INTERPRETER_HASH: Lazy<H256> = Lazy::new(|| {
-    hash_bytecode(&read_sys_contract_bytecode(
-        "",
-        "EvmInterpreterPreprocessed",
-        // ContractLanguage::Sol,
-        ContractLanguage::Yul,
-    ))
+    let evm_simulator_version = env::var("EVM_SIMULATOR").unwrap_or_else(|_| "yul".to_string());
+    if evm_simulator_version.to_lowercase() == "yul" {
+        hash_bytecode(&read_sys_contract_bytecode(
+            "",
+            "EvmInterpreterPreprocessed",
+            ContractLanguage::Yul,
+        ))
+    } else {
+        hash_bytecode(&read_sys_contract_bytecode(
+            "",
+            "EvmInterpreter",
+            ContractLanguage::Sol,
+        ))
+    }
 });
 
 /// Gets default set of system contracts, based on ZKSYNC_HOME environment variable.
