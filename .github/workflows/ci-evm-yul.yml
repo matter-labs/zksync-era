@@ -57,6 +57,7 @@ jobs:
       - name: Build zkEVM test contracts
         run: |
           cd etc/contracts-test-data \
+            && sed -i 's/zksolc-macosx-arm64/zksolc-linux-amd64-musl/' hardhat.config.ts \
             && yarn install \
             && yarn build
 
