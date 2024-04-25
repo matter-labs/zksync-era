@@ -67,6 +67,15 @@ pub async fn run(args: Args) -> anyhow::Result<()> {
         println!("Re-queuing proof compressor job {stuck_job:?} 🔁",);
     }
 
+    let stuck_prover_jobs = conn
+        .fri_prover_jobs_dal()
+        .requeue_stuck_jobs_for_batch(args.batch, args.max_attempts)
+        .await;
+
+    for stuck_job in stuck_prover_jobs {
+        println!("Re-queuing prover job {stuck_job:?} 🔁",);
+    }
+
     Ok(())
 }
 
