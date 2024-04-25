@@ -84,6 +84,7 @@ class CompilerPaths {
     }
 }
 
+// Caching is performed while compiling yul and zkasm contracts
 async function main() {
     const timestampFilePath = path.join(process.cwd(), TIMESTAMP_FILE_YUL); // File stores the timestamp of last compilation
     const folderToCheck = path.join(process.cwd(), CONTRACTS_DIR); // Directory to check if files & imports were changed after last compilation

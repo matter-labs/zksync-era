@@ -1,5 +1,4 @@
 import * as fs from 'fs';
-import * as fsPr from 'fs/promises';
 import path from 'path';
 import { exec } from 'child_process';
 import { glob } from 'glob';
@@ -146,13 +145,13 @@ export function deleteDir(path: string): Promise<void> {
     });
 }
 
-export async function isFolderEmpty(folderPath: string): Promise<boolean> {
+export function isFolderEmpty(folderPath: string): boolean {
     try {
-        const files = await fsPr.readdir(folderPath); // Get a list of files in the folder
+        const files = fs.readdirSync(folderPath); // Read the folder synchronously
         return files.length === 0; // If there are no files, the folder is empty
     } catch (error) {
-        console.error('No target folder with artifacts.');
-        return true; // Return true if an error, as folder doesn't exist.
+        console.error('Error while checking if folder is empty:', error.message);
+        return true; // If an error occurs (like the folder doesn't exist), assume it's empty
     }
 }
 
