@@ -5,7 +5,7 @@ use strum::{Display, EnumString};
 use zksync_basic_types::{basic_fri_types::AggregationRound, prover_dal::JobCountStatistics};
 use zksync_config::PostgresConfig;
 use zksync_env_config::FromEnv;
-use zksync_types::L1BatchNumber;
+use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchNumber};
 
 pub fn postgres_config() -> anyhow::Result<PostgresConfig> {
     Ok(PostgresConfig::from_env()?)
@@ -74,7 +74,6 @@ impl Default for BatchData {
 pub enum TaskStatus {
     /// A custom status that can be set manually.
     /// Mostly used when a task has singular status.
-    #[strum(to_string = "{0}")]
     Custom(String),
     /// A task is considered queued when all of its jobs is queued.
     #[strum(to_string = "Queued 📥")]
@@ -96,6 +95,21 @@ pub enum TaskStatus {
 impl Default for TaskStatus {
     fn default() -> Self {
         TaskStatus::WaitingForProofs
+    }
+}
+
+impl From<ProofCompressionJobStatus> for TaskStatus {
+    fn from(status: ProofCompressionJobStatus) -> Self {
+        match status {
+            ProofCompressionJobStatus::Queued => TaskStatus::Queued,
+            ProofCompressionJobStatus::InProgress => TaskStatus::InProgress,
+            ProofCompressionJobStatus::Successful => TaskStatus::Successful,
+            ProofCompressionJobStatus::Failed => TaskStatus::InProgress,
+            ProofCompressionJobStatus::SentToServer => {
+                TaskStatus::Custom("Sent to server 📤".to_owned())
+            }
+            ProofCompressionJobStatus::Skipped => TaskStatus::Custom("Skipped ⏩".to_owned()),
+        }
     }
 }
 
@@ -148,6 +162,10 @@ impl Task {
 impl Debug for Task {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "-- {} --", self.to_string().bold())?;
-        writeln!(f, "> {}", self.status().to_string())
+        if let TaskStatus::Custom(msg) = self.status() {
+            writeln!(f, "> {msg}")
+        } else {
+            writeln!(f, "> {}", self.status().to_string())
+        }
     }
 }

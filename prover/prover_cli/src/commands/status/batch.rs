@@ -1,9 +1,9 @@
 use anyhow::{ensure, Context as _};
 use clap::Args as ClapArgs;
-use prover_dal::{ConnectionPool, Prover};
+use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_types::L1BatchNumber;
 
-use super::utils::BatchData;
+use super::utils::{BatchData, Task, TaskStatus};
 use crate::commands::status::utils::postgres_config;
 
 #[derive(ClapArgs)]
@@ -29,7 +29,7 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn get_batches_data(_batches: Vec<L1BatchNumber>) -> anyhow::Result<Vec<BatchData>> {
+async fn get_batches_data(batches: Vec<L1BatchNumber>) -> anyhow::Result<Vec<BatchData>> {
     let config = postgres_config()?;
 
     let prover_connection_pool =
@@ -38,9 +38,29 @@ async fn get_batches_data(_batches: Vec<L1BatchNumber>) -> anyhow::Result<Vec<Ba
             .await
             .context("failed to build a prover_connection_pool")?;
 
-    let _conn = prover_connection_pool.connection().await.unwrap();
+    let mut conn = prover_connection_pool.connection().await.unwrap();
 
-    // Queries here...
+    let mut batches_data = Vec::new();
+    for batch in batches {
+        let current_batch_data = BatchData {
+            compressor: Task::Compressor(
+                get_proof_compression_job_status_for_batch(batch, &mut conn).await,
+            ),
+            ..Default::default()
+        };
+        batches_data.push(current_batch_data);
+    }
 
-    Ok(vec![BatchData::default()])
+    Ok(batches_data)
+}
+
+async fn get_proof_compression_job_status_for_batch<'a>(
+    batch_number: L1BatchNumber,
+    conn: &mut Connection<'a, Prover>,
+) -> TaskStatus {
+    conn.fri_proof_compressor_dal()
+        .get_proof_compression_job_for_batch(batch_number)
+        .await
+        .map(|job| TaskStatus::from(job.status))
+        .unwrap_or(TaskStatus::Custom("Compressor job not found 🚫".to_owned()))
 }
