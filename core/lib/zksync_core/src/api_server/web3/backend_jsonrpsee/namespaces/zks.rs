@@ -140,7 +140,7 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    // to be removed in favor of get_batch_fee_input
+    // to be removed in favor of `get_batch_fee_input`
     async fn get_l1_gas_price(&self) -> RpcResult<U64> {
         Ok(self.get_batch_fee_input_impl().await.l1_gas_price.into())
     }
