@@ -849,7 +849,7 @@ async fn add_state_keeper_to_task_futures(
         mempool
     };
 
-    // L2 Block sealing process is paralellized, so we have to provide enough pooled connections.
+    // L2 Block sealing process is parallelized, so we have to provide enough pooled connections.
     let l2_block_sealer_pool = ConnectionPool::<Core>::builder(
         postgres_config.master_url()?,
         L2BlockSealProcess::subtasks_len(),

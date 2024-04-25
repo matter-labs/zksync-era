@@ -52,10 +52,10 @@ impl L2BlockSealProcess {
     }
 }
 
-/// An abstraction that represents l2 block seal subtask that can be run in parallel with other subtasks.
+/// An abstraction that represents l2 block seal sub-task that can be run in parallel with other sub-tasks.
 #[async_trait::async_trait]
 pub(crate) trait L2BlockSealSubtask: Send + Sync + 'static {
-    /// Returns subtask name.
+    /// Returns sub-task name.
     fn name(&self) -> &'static str;
 
     /// Spawns tokio task that runs the seal process.
@@ -506,7 +506,7 @@ mod tests {
             .await
             .unwrap();
 
-        // Check factory dep is saved.
+        // Check factory dependency is saved.
         let mut connection = pool.connection().await.unwrap();
         let factory_deps = connection
             .factory_deps_dal()
@@ -519,7 +519,7 @@ mod tests {
             .await
             .unwrap();
 
-        // Check factory dep was removed.
+        // Check factory dependency was removed.
         let factory_deps = connection
             .factory_deps_dal()
             .get_factory_deps(&vec![bytecode_hash].into_iter().collect())

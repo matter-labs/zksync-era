@@ -348,7 +348,7 @@ impl L2BlockSealCommand {
             progress.observe(Some(this.l2_block.executed_transactions.len()));
         }
 
-        // Run subtasks in parallel.
+        // Run sub-tasks in parallel.
         L2BlockSealProcess::run_subtasks(this.clone(), pool.clone()).await?;
 
         // Seal block header at the last step.
