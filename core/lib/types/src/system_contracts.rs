@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{env, path::PathBuf};
 
 use once_cell::sync::Lazy;
 use zksync_basic_types::{AccountTreeId, Address, H256, U256};
@@ -17,8 +17,6 @@ use crate::{
     L2_ETH_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, NONCE_HOLDER_ADDRESS,
     SHA256_PRECOMPILE_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
-
-use std::env;
 
 // Note, that in the `NONCE_HOLDER_ADDRESS` storage the nonces of accounts
 // are stored in the following form:

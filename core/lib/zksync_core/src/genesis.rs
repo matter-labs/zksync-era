@@ -2,6 +2,8 @@
 //! It initializes the Merkle tree with the basic setup (such as fields of special service accounts),
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
+use std::env;
+
 use anyhow::Context as _;
 use multivm::{
     circuit_sequencer_api_latest::sort_storage_access::sort_storage_access_queries,
@@ -10,7 +12,6 @@ use multivm::{
         LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp,
     },
 };
-use std::env;
 use zksync_contracts::{
     read_sys_contract_bytecode, BaseSystemContracts, ContractLanguage, SET_CHAIN_ID_EVENT,
 };
