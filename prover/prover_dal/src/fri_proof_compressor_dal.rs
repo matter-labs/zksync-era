@@ -318,7 +318,7 @@ impl FriProofCompressorDal<'_, '_> {
         &mut self,
         block_number: L1BatchNumber,
     ) -> Option<ProofCompressionJobInfo> {
-        let row = sqlx::query!(
+        sqlx::query!(
             r#"
             SELECT
                 *
@@ -331,24 +331,19 @@ impl FriProofCompressorDal<'_, '_> {
         )
         .fetch_optional(self.storage.conn())
         .await
-        .unwrap();
-
-        if let Some(row) = row {
-            Some(ProofCompressionJobInfo {
-                l1_batch_number: block_number,
-                attempts: row.attempts as u32,
-                status: ProofCompressionJobStatus::from_str(&row.status).unwrap(),
-                fri_proof_blob_url: row.fri_proof_blob_url,
-                l1_proof_blob_url: row.l1_proof_blob_url,
-                error: row.error,
-                created_at: row.created_at,
-                updated_at: row.updated_at,
-                processing_started_at: row.processing_started_at,
-                time_taken: row.time_taken,
-                picked_by: row.picked_by,
-            })
-        } else {
-            None
-        }
+        .unwrap()
+        .map(|row| ProofCompressionJobInfo {
+            l1_batch_number: block_number,
+            attempts: row.attempts as u32,
+            status: ProofCompressionJobStatus::from_str(&row.status).unwrap(),
+            fri_proof_blob_url: row.fri_proof_blob_url,
+            l1_proof_blob_url: row.l1_proof_blob_url,
+            error: row.error,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            processing_started_at: row.processing_started_at,
+            time_taken: row.time_taken,
+            picked_by: row.picked_by,
+        })
     }
 }
