@@ -1,11 +1,9 @@
 use anyhow::{ensure, Context as _};
 use clap::Args as ClapArgs;
-use prover_dal::{
-    fri_proof_compressor_dal::ProofCompressionJobStatus, ConnectionPool, Prover, ProverDal,
-};
+use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_types::L1BatchNumber;
 
-use super::utils::{BatchData, BatchDataBuilder, Task, TaskStatus};
+use super::utils::{BatchData, Task, TaskStatus};
 use crate::commands::status::utils::postgres_config;
 
 #[derive(ClapArgs)]
@@ -46,7 +44,7 @@ async fn get_batches_data(batches: Vec<L1BatchNumber>) -> anyhow::Result<Vec<Bat
     for batch in batches {
         let current_batch_data = BatchData {
             compressor: Task::Compressor(
-                get_proof_compression_job_status_for_batch(batch, conn.clone()).await?,
+                get_proof_compression_job_status_for_batch(batch, &mut conn).await,
             ),
             ..Default::default()
         };
@@ -58,8 +56,8 @@ async fn get_batches_data(batches: Vec<L1BatchNumber>) -> anyhow::Result<Vec<Bat
 
 async fn get_proof_compression_job_status_for_batch<'a>(
     batch_number: L1BatchNumber,
-    conn: ConnectionPool<'a, Prover>,
-) -> anyhow::Result<TaskStatus> {
+    conn: &mut Connection<'a, Prover>,
+) -> TaskStatus {
     conn.fri_proof_compressor_dal()
         .get_proof_compression_job_for_batch(batch_number)
         .await
