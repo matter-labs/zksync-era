@@ -15,6 +15,7 @@ use ethabi::{
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use std::env;
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 
 pub mod test_contracts;
@@ -299,9 +300,16 @@ impl BaseSystemContracts {
 
         // FIXME: this part can get changed in API more often than e.g. default account especially when optimizations are used, etc.
         // so it is better to rely on more dynamic value instead of disk value
-        let evm_simulator_bytecode =
-            // read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Sol);
-            read_sys_contract_bytecode("", "EvmInterpreterPreprocessed", ContractLanguage::Yul);
+
+        let evm_simulator_bytecode;
+        let evm_simulator_version = env::var("EVM_SIMULATOR").unwrap_or_else(|_| "yul".to_string());
+        if evm_simulator_version.to_lowercase() == "yul" {
+            evm_simulator_bytecode =
+                read_sys_contract_bytecode("", "EvmInterpreterPreprocessed", ContractLanguage::Yul);
+        } else {
+            evm_simulator_bytecode =
+                read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Sol);
+        }
         let evm_simulator_hash = hash_bytecode(&evm_simulator_bytecode);
         let evm_simulator = SystemContractCode {
             code: bytes_to_be_words(evm_simulator_bytecode),
