@@ -40,6 +40,9 @@ jobs:
       - name: Install preprocessor
         run: npm install -g preprocess-cli-tool
 
+      - name: Install sqlx
+        run: cargo install sqlx
+
       - name: Download solc
         run: |
           curl -L -o bin/solc https://github.com/ethereum/solidity/releases/download/v0.8.24/solc-static-linux \
@@ -84,4 +87,5 @@ jobs:
           zk \
             && zk env dev \
             && zk config compile dev \
-            && zk init
+            && zk init \
+            && zk server --components "api,tree,eth,state_keeper,housekeeper" &
