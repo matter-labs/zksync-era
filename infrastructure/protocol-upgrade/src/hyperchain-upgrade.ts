@@ -14,9 +14,7 @@ async function hyperchainUpgrade1() {
     const cwd = process.cwd();
     process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
 
-    await spawn(
-        `yarn hyperchain-upgrade-1 --private-key  | tee deployHyperchainUpgradeContracts.log`
-    );
+    await spawn(`yarn hyperchain-upgrade-1 --private-key  | tee deployHyperchainUpgradeContracts.log`);
     process.chdir(cwd);
 
     const deployLog = fs
