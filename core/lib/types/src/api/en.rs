@@ -1,7 +1,7 @@
 //! API types related to the External Node specific methods.
 
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{Address, L1BatchNumber, MiniblockNumber, H256};
+use zksync_basic_types::{Address, L1BatchNumber, L2BlockNumber, H256};
 use zksync_contracts::BaseSystemContractsHashes;
 
 use crate::ProtocolVersionId;
@@ -15,11 +15,10 @@ use crate::ProtocolVersionId;
 #[serde(rename_all = "camelCase")]
 pub struct SyncBlock {
     /// Number of the L2 block.
-    pub number: MiniblockNumber,
+    pub number: L2BlockNumber,
     /// Number of L1 batch this L2 block belongs to.
     pub l1_batch_number: L1BatchNumber,
-    /// Whether this L2 block is the last in the L1 batch.
-    /// Currently, should always indicate the fictive miniblock.
+    /// Whether this L2 block is the last in the L1 batch. Currently, should always indicate the fictive L2 block.
     pub last_in_batch: bool,
     /// L2 block timestamp.
     pub timestamp: u64,

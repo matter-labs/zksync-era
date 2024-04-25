@@ -11,15 +11,15 @@ use once_cell::sync::Lazy;
 use zksync_contracts::{deployer_contract, BaseSystemContracts};
 use zksync_state::{InMemoryStorage, StorageView};
 use zksync_types::{
-    block::MiniblockHasher,
+    block::L2BlockHasher,
     ethabi::{encode, Token},
     fee::Fee,
     fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms,
     l2::L2Tx,
     utils::storage_key_for_eth_balance,
-    Address, L1BatchNumber, L2ChainId, MiniblockNumber, Nonce, PackedEthSignature,
-    ProtocolVersionId, Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, PackedEthSignature, ProtocolVersionId,
+    Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
 use zksync_utils::bytecode::hash_bytecode;
 
@@ -81,7 +81,7 @@ impl BenchmarkingVm {
                 first_l2_block: L2BlockEnv {
                     number: 1,
                     timestamp,
-                    prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+                    prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
                     max_virtual_blocks_to_create: 100,
                 },
             },

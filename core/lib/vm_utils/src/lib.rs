@@ -27,13 +27,12 @@ pub fn create_vm(
     let l1_batch_params_provider = rt_handle
         .block_on(L1BatchParamsProvider::new(&mut connection))
         .context("failed initializing L1 batch params provider")?;
-    let first_miniblock_in_batch = rt_handle
+    let first_l2_block_in_batch = rt_handle
         .block_on(
-            l1_batch_params_provider
-                .load_first_miniblock_in_batch(&mut connection, l1_batch_number),
+            l1_batch_params_provider.load_first_l2_block_in_batch(&mut connection, l1_batch_number),
         )
-        .with_context(|| format!("failed loading first miniblock in L1 batch #{l1_batch_number}"))?
-        .with_context(|| format!("no miniblocks persisted for L1 batch #{l1_batch_number}"))?;
+        .with_context(|| format!("failed loading first L2 block in L1 batch #{l1_batch_number}"))?
+        .with_context(|| format!("no L2 blocks persisted for L1 batch #{l1_batch_number}"))?;
 
     // In the state keeper, this value is used to reject execution.
     // All batches ran by BasicWitnessInputProducer have already been executed by State Keeper.
@@ -43,19 +42,15 @@ pub fn create_vm(
     let (system_env, l1_batch_env) = rt_handle
         .block_on(l1_batch_params_provider.load_l1_batch_params(
             &mut connection,
-            &first_miniblock_in_batch,
+            &first_l2_block_in_batch,
             validation_computational_gas_limit,
             l2_chain_id,
         ))
-        .context("expected miniblock to be executed and sealed")?;
+        .context("expected L2 block to be executed and sealed")?;
 
-    let storage_miniblock_number = first_miniblock_in_batch.number() - 1;
-    let pg_storage = PostgresStorage::new(
-        rt_handle.clone(),
-        connection,
-        storage_miniblock_number,
-        true,
-    );
+    let storage_l2_block_number = first_l2_block_in_batch.number() - 1;
+    let pg_storage =
+        PostgresStorage::new(rt_handle.clone(), connection, storage_l2_block_number, true);
     let storage_view = StorageView::new(pg_storage).to_rc_ptr();
     let vm = VmInstance::new(l1_batch_env, system_env, storage_view.clone());
 

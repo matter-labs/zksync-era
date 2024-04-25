@@ -1,8 +1,8 @@
 use tokio::sync::mpsc;
-use zksync_types::{L1BatchNumber, MiniblockNumber};
+use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 use super::{fetcher::FetchedTransaction, metrics::QUEUE_METRICS};
-use crate::state_keeper::io::{L1BatchParams, MiniblockParams};
+use crate::state_keeper::io::{L1BatchParams, L2BlockParams};
 
 #[derive(Debug)]
 pub struct ActionQueueSender(mpsc::Sender<SyncAction>);
@@ -141,12 +141,12 @@ pub(crate) enum SyncAction {
         params: L1BatchParams,
         // Additional parameters used only for sanity checks
         number: L1BatchNumber,
-        first_miniblock_number: MiniblockNumber,
+        first_miniblock_number: L2BlockNumber,
     },
     Miniblock {
-        params: MiniblockParams,
+        params: L2BlockParams,
         // Additional parameters used only for sanity checks
-        number: MiniblockNumber,
+        number: L2BlockNumber,
     },
     Tx(Box<FetchedTransaction>),
     /// We need an explicit action for the miniblock sealing, since we fetch the whole miniblocks and already know
@@ -177,19 +177,19 @@ mod tests {
                 validation_computational_gas_limit: u32::MAX,
                 operator_address: Address::default(),
                 fee_input: BatchFeeInput::default(),
-                first_miniblock: MiniblockParams {
+                first_l2_block: L2BlockParams {
                     timestamp: 1,
                     virtual_blocks: 1,
                 },
             },
             number: L1BatchNumber(1),
-            first_miniblock_number: MiniblockNumber(1),
+            first_miniblock_number: L2BlockNumber(1),
         }
     }
 
     fn miniblock() -> SyncAction {
         SyncAction::Miniblock {
-            params: MiniblockParams {
+            params: L2BlockParams {
                 timestamp: 1,
                 virtual_blocks: 1,
             },

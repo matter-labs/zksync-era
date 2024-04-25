@@ -2,9 +2,19 @@
 
 use std::{fmt, time::Duration};
 
-use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
+use vise::{
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics, Unit,
+};
 use zksync_dal::transactions_dal::L2TxSubmissionResult;
 use zksync_types::aggregated_operations::AggregatedActionType;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[metrics(label = "stage", rename_all = "snake_case")]
+pub enum SnapshotRecoveryStage {
+    Postgres,
+    Tree,
+    StateKeeperCache,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage")]
@@ -120,21 +130,24 @@ impl TxStage {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
-pub enum MiniblockStage {
+pub enum L2BlockStage {
     Sealed,
 }
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server")]
 pub struct AppMetrics {
+    /// Latency to perform a certain stage of the snapshot recovery.
+    #[metrics(unit = Unit::Seconds)]
+    pub snapshot_recovery_latency: Family<SnapshotRecoveryStage, Gauge<Duration>>,
     /// Latency to initialize a specific server component.
     pub init_latency: Family<InitStage, Gauge<Duration>>,
     pub block_number: Family<BlockStage, Gauge<u64>>,
-    pub miniblock_number: Family<MiniblockStage, Gauge<u64>>,
+    pub miniblock_number: Family<L2BlockStage, Gauge<u64>>,
     #[metrics(buckets = Buckets::LATENCIES)]
     pub block_latency: Family<BlockStage, Histogram<Duration>>,
     #[metrics(buckets = Buckets::LATENCIES)]
-    pub miniblock_latency: Family<MiniblockStage, Histogram<Duration>>,
+    pub miniblock_latency: Family<L2BlockStage, Histogram<Duration>>,
     pub processed_txs: Family<TxStage, Counter>,
     pub processed_l1_txs: Family<TxStage, Counter>,
 
