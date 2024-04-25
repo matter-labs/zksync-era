@@ -328,4 +328,18 @@ impl FriProofCompressorDal<'_, '_> {
             .collect()
         }
     }
+
+    pub async fn delete_batch_data(&mut self, block_number: L1BatchNumber) {
+        sqlx::query!(
+            r#"
+            DELETE FROM proof_compression_jobs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
 }

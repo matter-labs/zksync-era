@@ -594,4 +594,46 @@ impl FriProverDal<'_, '_> {
         .unwrap()
         .unwrap_or(0) as usize
     }
+
+    pub async fn delete_prover_jobs_fri_batch_data(&mut self, l1_batch_number: L1BatchNumber) {
+        sqlx::query!(
+            r#"
+            DELETE FROM
+                prover_jobs_fri
+            WHERE
+                l1_batch_number = $1;
+            
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
+
+    pub async fn delete_prover_jobs_fri_archive_batch_data(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) {
+        sqlx::query!(
+            r#"
+            DELETE FROM
+                prover_jobs_fri_archive
+            WHERE
+                l1_batch_number = $1;
+            
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
+
+    pub async fn delete_batch_data(&mut self, l1_batch_number: L1BatchNumber) {
+        self.delete_prover_jobs_fri_batch_data(l1_batch_number)
+            .await;
+        self.delete_prover_jobs_fri_archive_batch_data(l1_batch_number)
+            .await;
+    }
 }

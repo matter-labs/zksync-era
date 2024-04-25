@@ -1151,4 +1151,71 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .map(|id| ProtocolVersionId::try_from(id as u16).unwrap())
         .unwrap()
     }
+
+    pub async fn delete_witness_inputs_batch_data(&mut self, block_number: L1BatchNumber) {
+        sqlx::query!(
+            r#"
+            DELETE FROM
+                witness_inputs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
+
+    pub async fn delete_leaf_aggregation_batch_data(&mut self, block_number: L1BatchNumber) {
+        sqlx::query!(
+            r#"
+            DELETE FROM
+                leaf_aggregation_witness_jobs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
+
+    pub async fn delete_node_aggregation_batch_data(&mut self, block_number: L1BatchNumber) {
+        sqlx::query!(
+            r#"
+            DELETE FROM
+                node_aggregation_witness_jobs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
+
+    pub async fn delete_scheduler_batch_data(&mut self, block_number: L1BatchNumber) {
+        sqlx::query!(
+            r#"
+            DELETE FROM
+                scheduler_witness_jobs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
+
+    pub async fn delete_batch_data(&mut self, block_number: L1BatchNumber) {
+        self.delete_witness_inputs_batch_data(block_number).await;
+        self.delete_leaf_aggregation_batch_data(block_number).await;
+        self.delete_node_aggregation_batch_data(block_number).await;
+        self.delete_scheduler_batch_data(block_number).await;
+    }
 }
