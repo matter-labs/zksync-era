@@ -40,6 +40,9 @@ jobs:
       - name: Install preprocessor
         run: npm install -g preprocess-cli-tool
 
+      - name: Download zksolc
+        run: curl -L -o bin/zksolc https://github.com/matter-labs/zksolc-bin/releases/download/v1.4.0/zksolc-linux-amd64-musl-v1.4.0
+
       - name: Build system contracts
         run: |
           cd contracts/system-contracts \
