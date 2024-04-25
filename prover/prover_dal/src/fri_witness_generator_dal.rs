@@ -1224,7 +1224,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 AND attempts >= {}
                 AND NOT status = 'successful'
             RETURNING
-                {}
+                {},
                 status,
                 attempts
             "#,
