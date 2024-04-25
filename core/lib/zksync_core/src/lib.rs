@@ -332,7 +332,7 @@ pub async fn initialize_components(
 
     let (prometheus_health_check, prometheus_health_updater) =
         ReactiveHealthCheck::new("prometheus_exporter");
-    app_health.insert_component(prometheus_health_check);
+    app_health.insert_component(prometheus_health_check)?;
     let prometheus_task = prom_config.run(stop_receiver.clone());
     let prometheus_task = tokio::spawn(async move {
         prometheus_health_updater.update(HealthStatus::Ready.into());
@@ -801,7 +801,7 @@ pub async fn initialize_components(
                 .await
                 .context("failed to build commitment_generator_pool")?;
         let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
-        app_health.insert_component(commitment_generator.health_check());
+        app_health.insert_component(commitment_generator.health_check())?;
         task_futures.push(tokio::spawn(
             commitment_generator.run(stop_receiver.clone()),
         ));
@@ -809,7 +809,7 @@ pub async fn initialize_components(
 
     // Run healthcheck server for all components.
     let db_health_check = ConnectionPoolHealthCheck::new(replica_connection_pool);
-    app_health.insert_custom_component(Arc::new(db_health_check));
+    app_health.insert_custom_component(Arc::new(db_health_check))?;
     let health_check_handle =
         HealthCheckHandle::spawn_server(health_check_config.bind_addr(), app_health);
 
@@ -1034,7 +1034,7 @@ async fn run_tree(
     }
 
     let tree_health_check = metadata_calculator.tree_health_check();
-    app_health.insert_component(tree_health_check);
+    app_health.insert_component(tree_health_check)?;
     let tree_task = tokio::spawn(metadata_calculator.run(stop_receiver));
     task_futures.push(tree_task);
 
@@ -1323,7 +1323,7 @@ async fn run_http_api(
     if let Some(tree_api_url) = api_config.web3_json_rpc.tree_api_url() {
         let tree_api = Arc::new(TreeApiHttpClient::new(tree_api_url));
         api_builder = api_builder.with_tree_api(tree_api.clone());
-        app_health.insert_custom_component(tree_api);
+        app_health.insert_custom_component(tree_api)?;
     }
 
     let server_handles = api_builder
@@ -1332,7 +1332,7 @@ async fn run_http_api(
         .run(stop_receiver)
         .await?;
     task_futures.extend(server_handles.tasks);
-    app_health.insert_component(server_handles.health_check);
+    app_health.insert_component(server_handles.health_check)?;
     Ok(())
 }
 
@@ -1391,7 +1391,7 @@ async fn run_ws_api(
     if let Some(tree_api_url) = api_config.web3_json_rpc.tree_api_url() {
         let tree_api = Arc::new(TreeApiHttpClient::new(tree_api_url));
         api_builder = api_builder.with_tree_api(tree_api.clone());
-        app_health.insert_custom_component(tree_api);
+        app_health.insert_custom_component(tree_api)?;
     }
 
     let server_handles = api_builder
@@ -1400,7 +1400,7 @@ async fn run_ws_api(
         .run(stop_receiver)
         .await?;
     task_futures.extend(server_handles.tasks);
-    app_health.insert_component(server_handles.health_check);
+    app_health.insert_component(server_handles.health_check)?;
     Ok(())
 }
 

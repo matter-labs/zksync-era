@@ -551,10 +551,7 @@ impl Distribution<configs::FriWitnessGeneratorConfig> for EncodeDist {
             recursion_tip_generation_timeout_in_secs: self.sample(rng),
             scheduler_generation_timeout_in_secs: self.sample(rng),
             max_attempts: self.sample(rng),
-            blocks_proving_percentage: self.sample(rng),
-            dump_arguments_for_blocks: self.sample_collect(rng),
             last_l1_batch_to_process: self.sample(rng),
-            force_process_block: self.sample(rng),
             shall_save_to_public_bucket: self.sample(rng),
         }
     }

@@ -24,10 +24,7 @@ mod tests {
             recursion_tip_generation_timeout_in_secs: Some(700u16),
             scheduler_generation_timeout_in_secs: Some(900u16),
             max_attempts: 4,
-            blocks_proving_percentage: Some(30),
-            dump_arguments_for_blocks: vec![2, 3],
             last_l1_batch_to_process: None,
-            force_process_block: Some(1),
             shall_save_to_public_bucket: true,
         }
     }
@@ -43,9 +40,6 @@ mod tests {
             FRI_WITNESS_RECURSION_TIP_GENERATION_TIMEOUT_IN_SECS=700
             FRI_WITNESS_SCHEDULER_GENERATION_TIMEOUT_IN_SECS=900
             FRI_WITNESS_MAX_ATTEMPTS=4
-            FRI_WITNESS_DUMP_ARGUMENTS_FOR_BLOCKS="2,3"
-            FRI_WITNESS_BLOCKS_PROVING_PERCENTAGE="30"
-            FRI_WITNESS_FORCE_PROCESS_BLOCK="1"
             FRI_WITNESS_SHALL_SAVE_TO_PUBLIC_BUCKET=true
         "#;
         lock.set_env(config);
@@ -67,9 +61,6 @@ mod tests {
             FRI_WITNESS_BASIC_GENERATION_TIMEOUT_IN_SECS=100
             FRI_WITNESS_SCHEDULER_GENERATION_TIMEOUT_IN_SECS=200
             FRI_WITNESS_MAX_ATTEMPTS=4
-            FRI_WITNESS_DUMP_ARGUMENTS_FOR_BLOCKS="2,3"
-            FRI_WITNESS_BLOCKS_PROVING_PERCENTAGE="30"
-            FRI_WITNESS_FORCE_PROCESS_BLOCK="1"
             FRI_WITNESS_SHALL_SAVE_TO_PUBLIC_BUCKET=true
         "#;
         lock.set_env(config);

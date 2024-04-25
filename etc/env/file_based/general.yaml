@@ -174,10 +174,8 @@ prover:
   zone_read_url: http://metadata.google.internal/computeMetadata/v1/instance/zone
   shall_save_to_public_bucket: true
 witness_generator:
-  dump_arguments_for_blocks: [ 2,3 ]
   generation_timeout_in_secs: 900
   max_attempts: 10
-  force_process_block: 1
   shall_save_to_public_bucket: true
 witness_vector_generator:
   prover_instance_wait_timeout_in_secs: 200
