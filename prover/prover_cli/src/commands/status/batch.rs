@@ -46,12 +46,15 @@ async fn get_batches_data(batches: Vec<L1BatchNumber>) -> anyhow::Result<Vec<Bat
             basic_witness_generator: Task::BasicWitnessGenerator(
                 get_proof_basic_witness_generator_status_for_batch(batch, &mut conn).await,
             ),
+            compressor: Task::Compressor(
+                get_proof_compression_job_status_for_batch(batch, &mut conn).await,
+            ),
             ..Default::default()
         };
         batches_data.push(current_batch_data);
     }
 
-    Ok(vec![BatchData::default()])
+    Ok(batches_data)
 }
 
 async fn get_proof_basic_witness_generator_status_for_batch<'a>(
@@ -65,4 +68,15 @@ async fn get_proof_basic_witness_generator_status_for_batch<'a>(
         .unwrap_or(TaskStatus::Custom(
             "Basic witness generator job not found 🚫".to_owned(),
         ))
+}
+
+async fn get_proof_compression_job_status_for_batch<'a>(
+    batch_number: L1BatchNumber,
+    conn: &mut Connection<'a, Prover>,
+) -> TaskStatus {
+    conn.fri_proof_compressor_dal()
+        .get_proof_compression_job_for_batch(batch_number)
+        .await
+        .map(|job| TaskStatus::from(job.status))
+        .unwrap_or(TaskStatus::Custom("Compressor job not found 🚫".to_owned()))
 }

@@ -2,6 +2,7 @@
 use std::{net::IpAddr, ops::Add, str::FromStr};
 
 use chrono::{DateTime, Duration, NaiveDateTime, NaiveTime, Utc};
+use strum::{Display, EnumString};
 
 use crate::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
@@ -246,4 +247,34 @@ pub struct BasicWitnessGeneratorJobInfo {
     pub protocol_version: Option<i32>,
     pub picked_by: Option<String>,
     pub eip_4844_blobs: Option<Eip4844Blobs>,
+}
+
+#[derive(Debug, EnumString, Display)]
+pub enum ProofCompressionJobStatus {
+    #[strum(serialize = "queued")]
+    Queued,
+    #[strum(serialize = "in_progress")]
+    InProgress,
+    #[strum(serialize = "successful")]
+    Successful,
+    #[strum(serialize = "failed")]
+    Failed,
+    #[strum(serialize = "sent_to_server")]
+    SentToServer,
+    #[strum(serialize = "skipped")]
+    Skipped,
+}
+
+pub struct ProofCompressionJobInfo {
+    pub l1_batch_number: L1BatchNumber,
+    pub attempts: u32,
+    pub status: ProofCompressionJobStatus,
+    pub fri_proof_blob_url: Option<String>,
+    pub l1_proof_blob_url: Option<String>,
+    pub error: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub processing_started_at: Option<NaiveDateTime>,
+    pub time_taken: Option<NaiveTime>,
+    pub picked_by: Option<String>,
 }
