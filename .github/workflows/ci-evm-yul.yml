@@ -68,3 +68,4 @@ jobs:
         run: cargo test evm_simulator
         env:
           RUSTFLAGS: ""
+          ZKSYNC_HOME: $(pwd)
