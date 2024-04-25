@@ -917,13 +917,13 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 l1_batch_number;
             "#,
             AggregationRound::RecursionTip as i64,
-    )
-    .fetch_all(self.storage.conn())
-    .await
-    .unwrap()
-    .into_iter()
-    .map(|row| (row.l1_batch_number as u64))
-    .collect()
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| (row.l1_batch_number as u64))
+        .collect()
     }
 
     pub async fn requeue_stuck_leaf_aggregations_jobs(
