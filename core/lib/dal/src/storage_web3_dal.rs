@@ -69,17 +69,37 @@ impl StorageWeb3Dal<'_, '_> {
 
     /// Gets the current value for the specified `key`.
     pub async fn get_value(&mut self, key: &StorageKey) -> DalResult<H256> {
-        self.get_historical_value_unchecked(key, L2BlockNumber(u32::MAX))
+        let Some(l2_block_number) = self
+            .storage
+            .blocks_dal()
+            .get_sealed_l2_block_number()
+            .await?
+        else {
+            return Ok(H256::zero());
+        };
+        self.get_historical_value_unchecked(key, l2_block_number)
             .await
     }
 
     /// Gets the current values for the specified `hashed_keys`. The returned map has requested hashed keys as keys
     /// and current storage values as values.
     pub async fn get_values(&mut self, hashed_keys: &[H256]) -> DalResult<HashMap<H256, H256>> {
+        let Some(l2_block_number) = self
+            .storage
+            .blocks_dal()
+            .get_sealed_l2_block_number()
+            .await?
+        else {
+            let result = hashed_keys
+                .iter()
+                .map(|hashed_key| (*hashed_key, H256::zero()))
+                .collect();
+            return Ok(result);
+        };
         let storage_map = self
             .storage
             .storage_logs_dal()
-            .get_storage_values(hashed_keys, L2BlockNumber(u32::MAX))
+            .get_storage_values(hashed_keys, l2_block_number)
             .await?;
         Ok(storage_map
             .into_iter()

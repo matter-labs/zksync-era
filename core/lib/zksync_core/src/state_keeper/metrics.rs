@@ -267,8 +267,6 @@ pub(super) enum L2BlockSealStage {
     InsertEvents,
     ExtractL2ToL1Logs,
     InsertL2ToL1Logs,
-    #[metrics(name = "commit_miniblock")]
-    CommitL2Block,
     ReportTxMetrics,
 }
 

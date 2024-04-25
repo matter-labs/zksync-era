@@ -89,8 +89,9 @@ use crate::{
     },
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     state_keeper::{
-        create_state_keeper, AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler,
-        SequencerSealer, StateKeeperPersistence,
+        create_state_keeper, io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess,
+        AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler, SequencerSealer,
+        StateKeeperPersistence,
     },
     utils::ensure_l1_batch_commit_data_generation_mode,
 };
@@ -848,18 +849,22 @@ async fn add_state_keeper_to_task_futures(
         mempool
     };
 
-    let miniblock_sealer_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
-        .build()
-        .await
-        .context("failed to build miniblock_sealer_pool")?;
-    let (persistence, miniblock_sealer) = StateKeeperPersistence::new(
-        miniblock_sealer_pool,
+    // L2 Block sealing process is paralellized, so we have to provide enough pooled connections.
+    let l2_block_sealer_pool = ConnectionPool::<Core>::builder(
+        postgres_config.master_url()?,
+        L2BlockSealProcess::subtasks_len(),
+    )
+    .build()
+    .await
+    .context("failed to build l2_block_sealer_pool")?;
+    let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
+        l2_block_sealer_pool,
         contracts_config
             .l2_shared_bridge_addr
             .expect("`l2_shared_bridge_addr` config is missing"),
         state_keeper_config.l2_block_seal_queue_capacity,
     );
-    task_futures.push(tokio::spawn(miniblock_sealer.run()));
+    task_futures.push(tokio::spawn(l2_block_sealer.run()));
 
     // One (potentially held long-term) connection for `AsyncCatchupTask` and another connection
     // to access `AsyncRocksdbCache` as a storage.

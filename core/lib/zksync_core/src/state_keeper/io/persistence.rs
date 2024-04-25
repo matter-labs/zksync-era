@@ -159,12 +159,10 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
         // We cannot start sealing an L1 batch until we've sealed all L2 blocks included in it.
         self.wait_for_all_commands().await;
 
-        let pool = self.pool.clone();
-        let mut storage = pool.connection_tagged("state_keeper").await?;
         let batch_number = updates_manager.l1_batch.number;
         updates_manager
             .seal_l1_batch(
-                &mut storage,
+                self.pool.clone(),
                 self.l2_shared_bridge_addr,
                 self.insert_protective_reads,
             )
@@ -204,8 +202,7 @@ impl L2BlockSealerTask {
         // Commands must be processed sequentially: a later L2 block cannot be saved before
         // an earlier one.
         while let Some(completable) = self.next_command().await {
-            let mut storage = self.pool.connection_tagged("state_keeper").await?;
-            completable.command.seal(&mut storage).await?;
+            completable.command.seal(self.pool.clone()).await?;
             if let Some(delta) = l2_block_seal_delta {
                 L2_BLOCK_METRICS.seal_delta.observe(delta.elapsed());
             }

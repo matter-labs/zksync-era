@@ -142,64 +142,6 @@ impl StorageLogsDal<'_, '_> {
             .await
     }
 
-    /// Rolls back storage to the specified point in time.
-    #[deprecated(note = "`storage` table is soft-removed")]
-    pub async fn rollback_storage(
-        &mut self,
-        last_l2_block_to_keep: L2BlockNumber,
-    ) -> DalResult<()> {
-        let stage_start = Instant::now();
-        let modified_keys = self
-            .modified_keys_in_l2_blocks(last_l2_block_to_keep.next()..=L2BlockNumber(u32::MAX))
-            .await?;
-        tracing::info!(
-            "Loaded {} keys changed after L2 block #{last_l2_block_to_keep} in {:?}",
-            modified_keys.len(),
-            stage_start.elapsed()
-        );
-
-        let stage_start = Instant::now();
-        let prev_values = self
-            .get_storage_values(&modified_keys, last_l2_block_to_keep)
-            .await?;
-        tracing::info!(
-            "Loaded previous storage values for modified keys in {:?}",
-            stage_start.elapsed()
-        );
-
-        let stage_start = Instant::now();
-        let mut keys_to_delete = vec![];
-        let mut keys_to_update = vec![];
-        let mut values_to_update = vec![];
-        for (key, maybe_value) in &prev_values {
-            if let Some(prev_value) = maybe_value {
-                keys_to_update.push(key.as_bytes());
-                values_to_update.push(prev_value.as_bytes());
-            } else {
-                keys_to_delete.push(key.as_bytes());
-            }
-        }
-        tracing::info!(
-            "Created revert plan (keys to update: {}, to delete: {}) in {:?}",
-            keys_to_update.len(),
-            keys_to_delete.len(),
-            stage_start.elapsed()
-        );
-
-        tracing::info!(
-            "Removed {} keys in {:?}",
-            keys_to_delete.len(),
-            stage_start.elapsed()
-        );
-
-        tracing::info!(
-            "Updated {} keys to previous values in {:?}",
-            keys_to_update.len(),
-            stage_start.elapsed()
-        );
-        Ok(())
-    }
-
     /// Returns distinct hashed storage keys that were modified in the specified L2 block range.
     pub async fn modified_keys_in_l2_blocks(
         &mut self,
@@ -257,8 +199,14 @@ impl StorageLogsDal<'_, '_> {
                         *
                     FROM
                         storage_logs
+                        LEFT JOIN miniblocks ON miniblocks.number = storage_logs.miniblock_number
+                        LEFT JOIN snapshot_recovery ON snapshot_recovery.miniblock_number = storage_logs.miniblock_number
                     WHERE
                         storage_logs.hashed_key = $1
+                        AND (
+                            miniblocks.number IS NOT NULL
+                            OR snapshot_recovery.miniblock_number IS NOT NULL
+                        )
                     ORDER BY
                         storage_logs.miniblock_number DESC,
                         storage_logs.operation_number DESC
@@ -298,17 +246,23 @@ impl StorageLogsDal<'_, '_> {
             r#"
             SELECT DISTINCT
                 ON (hashed_key) hashed_key,
-                miniblock_number,
-                value
+                storage_logs.miniblock_number,
+                storage_logs.value
             FROM
                 storage_logs
+                LEFT JOIN miniblocks ON miniblocks.number = storage_logs.miniblock_number
+                LEFT JOIN snapshot_recovery ON snapshot_recovery.miniblock_number = storage_logs.miniblock_number
             WHERE
-                hashed_key = ANY ($1)
-                AND miniblock_number <= $2
+                storage_logs.hashed_key = ANY ($1)
+                AND storage_logs.miniblock_number <= $2
+                AND (
+                    miniblocks.number IS NOT NULL
+                    OR snapshot_recovery.miniblock_number IS NOT NULL
+                )
             ORDER BY
-                hashed_key,
-                miniblock_number DESC,
-                operation_number DESC
+                storage_logs.hashed_key,
+                storage_logs.miniblock_number DESC,
+                storage_logs.operation_number DESC
             "#,
             &bytecode_hashed_keys as &[_],
             i64::from(max_l2_block_number)
@@ -1111,15 +1065,13 @@ mod tests {
 
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
-        // If deployment fails then two writes are issued, one that writes `bytecode_hash` to the "correct" value,
-        // and the next write reverts its value back to `FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH`.
-        conn.storage_logs_dal()
-            .insert_storage_logs(
-                L2BlockNumber(1),
-                &[(H256::zero(), vec![successful_deployment, failed_deployment])],
-            )
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
+        // If deployment fails then two writes are issued, one that writes `bytecode_hash` to the "correct" value,
+        // and the next write reverts its value back to `FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH`.
+        insert_l2_block(&mut conn, 1, vec![successful_deployment, failed_deployment]).await;
 
         let tested_l2_blocks = [
             None,
@@ -1142,13 +1094,7 @@ mod tests {
             );
         }
 
-        conn.storage_logs_dal()
-            .insert_storage_logs(
-                L2BlockNumber(2),
-                &[(H256::zero(), vec![successful_deployment])],
-            )
-            .await
-            .unwrap();
+        insert_l2_block(&mut conn, 2, vec![successful_deployment]).await;
 
         for old_l2_block in [L2BlockNumber(0), L2BlockNumber(1)] {
             let deployed_map = conn
@@ -1183,13 +1129,7 @@ mod tests {
             get_code_key(&other_contract_address),
             H256::repeat_byte(0xff),
         );
-        conn.storage_logs_dal()
-            .insert_storage_logs(
-                L2BlockNumber(3),
-                &[(H256::zero(), vec![other_successful_deployment])],
-            )
-            .await
-            .unwrap();
+        insert_l2_block(&mut conn, 3, vec![other_successful_deployment]).await;
 
         for old_l2_block in [L2BlockNumber(0), L2BlockNumber(1)] {
             let deployed_map = conn

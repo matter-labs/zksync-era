@@ -510,13 +510,9 @@ impl TransactionsDal<'_, '_> {
         l2_block_number: L2BlockNumber,
         transactions: &[TransactionExecutionResult],
         block_base_fee_per_gas: U256,
+        protocol_version: ProtocolVersionId,
     ) -> DalResult<()> {
         let mut transaction = self.storage.start_transaction().await?;
-        let protocol_version = transaction
-            .blocks_dal()
-            .get_l2_block_protocol_version_id(l2_block_number)
-            .await?
-            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
         let mut call_traces_tx_hashes = Vec::with_capacity(transactions.len());
         let mut bytea_call_traces = Vec::with_capacity(transactions.len());
@@ -1214,9 +1210,14 @@ impl TransactionsDal<'_, '_> {
                     MAX(priority_op_id) AS "op_id"
                 FROM
                     transactions
+                    LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
+                    LEFT JOIN snapshot_recovery ON snapshot_recovery.miniblock_number = transactions.miniblock_number
                 WHERE
                     is_priority = TRUE
-                    AND miniblock_number IS NOT NULL
+                    AND (
+                        miniblocks.number IS NOT NULL
+                        OR snapshot_recovery.miniblock_number IS NOT NULL
+                    )
                 "#
             )
             .fetch_optional(self.storage.conn())
@@ -1435,13 +1436,13 @@ impl TransactionsDal<'_, '_> {
     }
 
     pub async fn get_call_trace(&mut self, tx_hash: H256) -> DalResult<Option<Call>> {
-        let protocol_version: ProtocolVersionId = sqlx::query!(
+        let row = sqlx::query!(
             r#"
             SELECT
                 protocol_version
             FROM
                 transactions
-                LEFT JOIN miniblocks ON transactions.miniblock_number = miniblocks.number
+                INNER JOIN miniblocks ON transactions.miniblock_number = miniblocks.number
             WHERE
                 transactions.hash = $1
             "#,
@@ -1450,9 +1451,16 @@ impl TransactionsDal<'_, '_> {
         .instrument("get_call_trace")
         .with_arg("tx_hash", &tx_hash)
         .fetch_optional(self.storage)
-        .await?
-        .and_then(|row| row.protocol_version.map(|v| (v as u16).try_into().unwrap()))
-        .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
+        .await?;
+
+        let Some(row) = row else {
+            return Ok(None);
+        };
+
+        let protocol_version = row
+            .protocol_version
+            .map(|v| (v as u16).try_into().unwrap())
+            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
         Ok(sqlx::query_as!(
             CallTrace,
@@ -1532,7 +1540,12 @@ mod tests {
         });
         let expected_call_trace = tx_result.call_trace().unwrap();
         conn.transactions_dal()
-            .mark_txs_as_executed_in_l2_block(L2BlockNumber(1), &[tx_result], 1.into())
+            .mark_txs_as_executed_in_l2_block(
+                L2BlockNumber(1),
+                &[tx_result],
+                1.into(),
+                ProtocolVersionId::latest(),
+            )
             .await
             .unwrap();
 

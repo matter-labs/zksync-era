@@ -283,13 +283,6 @@ impl BlockReverter {
             .rollback_factory_deps(last_miniblock_to_keep)
             .await
             .expect("Failed rolling back factory dependencies");
-        tracing::info!("rolling back storage...");
-        #[allow(deprecated)]
-        transaction
-            .storage_logs_dal()
-            .rollback_storage(last_miniblock_to_keep)
-            .await
-            .expect("failed rolling back storage");
         tracing::info!("rolling back storage logs...");
         transaction
             .storage_logs_dal()

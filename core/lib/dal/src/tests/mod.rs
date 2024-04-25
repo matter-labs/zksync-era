@@ -300,6 +300,7 @@ async fn remove_stuck_txs() {
             L2BlockNumber(1),
             &[mock_execution_result(executed_tx.clone())],
             U256::from(1),
+            ProtocolVersionId::latest(),
         )
         .await
         .unwrap();

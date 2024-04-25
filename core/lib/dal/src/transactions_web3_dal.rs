@@ -163,7 +163,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                 SELECT
                     transactions.hash AS tx_hash,
                     transactions.index_in_block AS index_in_block,
-                    transactions.miniblock_number AS block_number,
+                    miniblocks.number AS block_number,
                     transactions.nonce AS nonce,
                     transactions.signature AS signature,
                     transactions.initiator_address AS initiator_address,
@@ -193,7 +193,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                     &hashes.iter().map(H256::as_bytes).collect::<Vec<_>>() as &[&[u8]]
                 ),
                 TransactionSelector::Position(block_number, idx) => (
-                    "transactions.miniblock_number = $1 AND transactions.index_in_block = $2";
+                    "miniblocks.number = $1 AND transactions.index_in_block = $2";
                     i64::from(block_number.0),
                     idx as i32
                 ),
@@ -249,7 +249,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                 transactions.gas_limit,
                 transactions.gas_per_pubdata_limit,
                 transactions.received_at,
-                transactions.miniblock_number,
+                miniblocks.number AS "miniblock_number?",
                 transactions.error,
                 transactions.effective_gas_price,
                 transactions.refunded_gas,
@@ -301,7 +301,6 @@ impl TransactionsWeb3Dal<'_, '_> {
                 transactions.received_at
             FROM
                 transactions
-                LEFT JOIN miniblocks ON miniblocks.number = miniblock_number
             WHERE
                 received_at > $1
             ORDER BY
@@ -388,11 +387,12 @@ impl TransactionsWeb3Dal<'_, '_> {
             StorageTransaction,
             r#"
             SELECT
-                *
+                transactions.*
             FROM
                 transactions
+                INNER JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
             WHERE
-                miniblock_number = $1
+                miniblocks.number = $1
             ORDER BY
                 index_in_block
             "#,
@@ -411,7 +411,9 @@ impl TransactionsWeb3Dal<'_, '_> {
 mod tests {
     use std::collections::HashMap;
 
-    use zksync_types::{fee::TransactionExecutionMetrics, l2::L2Tx, Nonce, ProtocolVersion};
+    use zksync_types::{
+        fee::TransactionExecutionMetrics, l2::L2Tx, Nonce, ProtocolVersion, ProtocolVersionId,
+    };
 
     use super::*;
     use crate::{
@@ -448,7 +450,12 @@ mod tests {
             .collect::<Vec<_>>();
 
         conn.transactions_dal()
-            .mark_txs_as_executed_in_l2_block(L2BlockNumber(1), &tx_results, U256::from(1))
+            .mark_txs_as_executed_in_l2_block(
+                L2BlockNumber(1),
+                &tx_results,
+                U256::from(1),
+                ProtocolVersionId::latest(),
+            )
             .await
             .unwrap();
     }
@@ -619,7 +626,12 @@ mod tests {
             mock_execution_result(tx_by_nonce[&1].clone()),
         ];
         conn.transactions_dal()
-            .mark_txs_as_executed_in_l2_block(l2_block.number, &executed_txs, 1.into())
+            .mark_txs_as_executed_in_l2_block(
+                l2_block.number,
+                &executed_txs,
+                1.into(),
+                ProtocolVersionId::latest(),
+            )
             .await
             .unwrap();
 

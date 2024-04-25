@@ -201,7 +201,12 @@ async fn store_l2_blocks(
         conn.blocks_dal().insert_l2_block(&new_l2_block).await?;
         let tx_result = execute_l2_transaction(tx);
         conn.transactions_dal()
-            .mark_txs_as_executed_in_l2_block(new_l2_block.number, &[tx_result], 1.into())
+            .mark_txs_as_executed_in_l2_block(
+                new_l2_block.number,
+                &[tx_result],
+                1.into(),
+                ProtocolVersionId::latest(),
+            )
             .await?;
 
         // Insert a fictive L2 block at the end of the batch

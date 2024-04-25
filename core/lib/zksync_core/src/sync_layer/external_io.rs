@@ -17,7 +17,7 @@ use super::{
 };
 use crate::state_keeper::{
     io::{
-        common::{load_pending_batch, IoCursor},
+        common::{clear_pending_l2_block, load_pending_batch, IoCursor},
         L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
     },
     metrics::KEEPER_METRICS,
@@ -72,7 +72,7 @@ impl ExternalIO {
             .connection_tagged("sync_layer")
             .await?
             .factory_deps_dal()
-            .get_factory_dep(hash)
+            .get_sealed_factory_dep(hash)
             .await?;
 
         Ok(match bytecode {
@@ -142,6 +142,8 @@ impl StateKeeperIO for ExternalIO {
             cursor.l1_batch,
             cursor.next_l2_block,
         );
+
+        clear_pending_l2_block(&mut storage, cursor.next_l2_block - 1).await?;
 
         let pending_miniblock_header = self
             .l1_batch_params_provider

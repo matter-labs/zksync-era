@@ -372,7 +372,12 @@ async fn store_pending_l2_blocks(
         let tx_result = execute_l2_transaction(tx);
         storage
             .transactions_dal()
-            .mark_txs_as_executed_in_l2_block(new_l2_block.number, &[tx_result], 1.into())
+            .mark_txs_as_executed_in_l2_block(
+                new_l2_block.number,
+                &[tx_result],
+                1.into(),
+                ProtocolVersionId::latest(),
+            )
             .await
             .unwrap();
     }

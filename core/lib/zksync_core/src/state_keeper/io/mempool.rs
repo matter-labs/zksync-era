@@ -24,7 +24,7 @@ use crate::{
     fee_model::BatchFeeModelInputProvider,
     state_keeper::{
         io::{
-            common::{load_pending_batch, poll_iters, IoCursor},
+            common::{clear_pending_l2_block, load_pending_batch, poll_iters, IoCursor},
             L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
         },
         mempool_actor::l2_tx_filter,
@@ -80,6 +80,8 @@ impl StateKeeperIO for MempoolIO {
     async fn initialize(&mut self) -> anyhow::Result<(IoCursor, Option<PendingBatchData>)> {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
         let cursor = IoCursor::new(&mut storage).await?;
+
+        clear_pending_l2_block(&mut storage, cursor.next_l2_block - 1).await?;
 
         let pending_l2_block_header = self
             .l1_batch_params_provider

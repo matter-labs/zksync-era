@@ -56,19 +56,26 @@ impl FactoryDepsDal<'_, '_> {
     }
 
     /// Returns bytecode for a factory dependency with the specified bytecode `hash`.
-    pub async fn get_factory_dep(&mut self, hash: H256) -> DalResult<Option<Vec<u8>>> {
+    /// Returns bytecodes only from sealed miniblocks.
+    pub async fn get_sealed_factory_dep(&mut self, hash: H256) -> DalResult<Option<Vec<u8>>> {
         Ok(sqlx::query!(
             r#"
             SELECT
                 bytecode
             FROM
                 factory_deps
+                LEFT JOIN miniblocks ON miniblocks.number = factory_deps.miniblock_number
+                LEFT JOIN snapshot_recovery ON snapshot_recovery.miniblock_number = factory_deps.miniblock_number
             WHERE
                 bytecode_hash = $1
+                AND (
+                    miniblocks.number IS NOT NULL
+                    OR snapshot_recovery.miniblock_number IS NOT NULL
+                )
             "#,
             hash.as_bytes(),
         )
-        .instrument("get_factory_dep")
+        .instrument("get_sealed_factory_dep")
         .with_arg("hash", &hash)
         .fetch_optional(self.storage)
         .await?
@@ -81,7 +88,7 @@ impl FactoryDepsDal<'_, '_> {
         default_aa_hash: H256,
     ) -> anyhow::Result<BaseSystemContracts> {
         let bootloader_bytecode = self
-            .get_factory_dep(bootloader_hash)
+            .get_sealed_factory_dep(bootloader_hash)
             .await
             .context("failed loading bootloader code")?
             .with_context(|| format!("bootloader code with hash {bootloader_hash:?} should be present in the database"))?;
@@ -91,7 +98,7 @@ impl FactoryDepsDal<'_, '_> {
         };
 
         let default_aa_bytecode = self
-            .get_factory_dep(default_aa_hash)
+            .get_sealed_factory_dep(default_aa_hash)
             .await
             .context("failed loading default account code")?
             .with_context(|| format!("default account code with hash {default_aa_hash:?} should be present in the database"))?;

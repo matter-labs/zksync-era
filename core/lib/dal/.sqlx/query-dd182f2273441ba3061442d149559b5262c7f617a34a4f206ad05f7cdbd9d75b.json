@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    MAX(priority_op_id) AS \"op_id\"\n                FROM\n                    transactions\n                    LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number\n                    LEFT JOIN snapshot_recovery ON snapshot_recovery.miniblock_number = transactions.miniblock_number\n                WHERE\n                    is_priority = TRUE\n                    AND (\n                        miniblocks.number IS NOT NULL\n                        OR snapshot_recovery.miniblock_number IS NOT NULL\n                    )\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "op_id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "dd182f2273441ba3061442d149559b5262c7f617a34a4f206ad05f7cdbd9d75b"
+}

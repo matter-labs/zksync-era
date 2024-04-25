@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                call_trace\n            FROM\n                call_traces\n                INNER JOIN transactions ON tx_hash = transactions.hash\n                INNER JOIN miniblocks ON miniblocks.number = transactions.miniblock_number\n            WHERE\n                transactions.miniblock_number = $1\n            ORDER BY\n                transactions.index_in_block\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "call_trace",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "26d79bfbd77612d7c54ce5a4f20391f24ed252cd3f17ee6eaec569c05fa76a30"
+}

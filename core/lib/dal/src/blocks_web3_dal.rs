@@ -501,6 +501,7 @@ impl BlocksWeb3Dal<'_, '_> {
             FROM
                 call_traces
                 INNER JOIN transactions ON tx_hash = transactions.hash
+                INNER JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
             WHERE
                 transactions.miniblock_number = $1
             ORDER BY
@@ -912,7 +913,12 @@ mod tests {
             tx_results.push(tx_result);
         }
         conn.transactions_dal()
-            .mark_txs_as_executed_in_l2_block(L2BlockNumber(1), &tx_results, 1.into())
+            .mark_txs_as_executed_in_l2_block(
+                L2BlockNumber(1),
+                &tx_results,
+                1.into(),
+                ProtocolVersionId::latest(),
+            )
             .await
             .unwrap();
 

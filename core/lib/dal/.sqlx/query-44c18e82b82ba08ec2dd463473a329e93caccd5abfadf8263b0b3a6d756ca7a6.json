@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT DISTINCT\n                ON (hashed_key) hashed_key,\n                storage_logs.miniblock_number,\n                storage_logs.value\n            FROM\n                storage_logs\n                LEFT JOIN miniblocks ON miniblocks.number = storage_logs.miniblock_number\n                LEFT JOIN snapshot_recovery ON snapshot_recovery.miniblock_number = storage_logs.miniblock_number\n            WHERE\n                storage_logs.hashed_key = ANY ($1)\n                AND storage_logs.miniblock_number <= $2\n                AND (\n                    miniblocks.number IS NOT NULL\n                    OR snapshot_recovery.miniblock_number IS NOT NULL\n                )\n            ORDER BY\n                storage_logs.hashed_key,\n                storage_logs.miniblock_number DESC,\n                storage_logs.operation_number DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "hashed_key",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "miniblock_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "value",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "ByteaArray",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "44c18e82b82ba08ec2dd463473a329e93caccd5abfadf8263b0b3a6d756ca7a6"
+}

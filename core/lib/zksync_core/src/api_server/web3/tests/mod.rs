@@ -39,7 +39,8 @@ use zksync_types::{
         TransactionExecutionResult,
     },
     utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance},
-    AccountTreeId, Address, L1BatchNumber, Nonce, StorageKey, StorageLog, VmEvent, H256, U64,
+    AccountTreeId, Address, L1BatchNumber, Nonce, ProtocolVersionId, StorageKey, StorageLog,
+    VmEvent, H256, U64,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
@@ -428,7 +429,12 @@ async fn store_miniblock(
     storage.blocks_dal().insert_l2_block(&new_miniblock).await?;
     storage
         .transactions_dal()
-        .mark_txs_as_executed_in_l2_block(new_miniblock.number, transaction_results, 1.into())
+        .mark_txs_as_executed_in_l2_block(
+            new_miniblock.number,
+            transaction_results,
+            1.into(),
+            ProtocolVersionId::latest(),
+        )
         .await?;
     Ok(new_miniblock)
 }

@@ -459,7 +459,7 @@ impl ZksNamespace {
         let mut storage = self.state.acquire_connection().await?;
         Ok(storage
             .factory_deps_dal()
-            .get_factory_dep(hash)
+            .get_sealed_factory_dep(hash)
             .await
             .map_err(DalError::generalize)?)
     }
