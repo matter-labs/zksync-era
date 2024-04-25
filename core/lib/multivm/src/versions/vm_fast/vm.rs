@@ -23,6 +23,7 @@ use crate::{
     interface::{Halt, TxRevertReason, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason},
     vm_fast::{
         bootloader_state::utils::{apply_l2_block, apply_pubdata_to_memory},
+        events::merge_events,
         pubdata::PubdataInput,
         refund::compute_refund,
     },
@@ -32,7 +33,7 @@ use crate::{
             VM_HOOK_PARAMS_START_POSITION, VM_HOOK_POSITION,
         },
         BootloaderMemory, CurrentExecutionState, ExecutionResult, HistoryEnabled, L1BatchEnv,
-        L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs,
+        L2BlockEnv, SystemEnv, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs,
     },
 };
 
@@ -427,7 +428,13 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
 
         VmExecutionResultAndLogs {
             result,
-            logs: Default::default(),
+            logs: VmExecutionLogs {
+                storage_logs: Default::default(),
+                events: merge_events(self.inner.world.events(), self.batch_env.number),
+                user_l2_to_l1_logs: Default::default(),
+                system_l2_to_l1_logs: Default::default(),
+                total_log_queries_count: 0, // This field is unused
+            },
             statistics: Default::default(),
             refunds: Default::default(),
         }
