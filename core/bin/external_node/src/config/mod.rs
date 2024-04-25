@@ -274,6 +274,10 @@ pub(crate) struct OptionalENConfig {
     /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
     #[serde(default = "OptionalENConfig::default_mempool_cache_size")]
     pub mempool_cache_size: usize,
+    /// Enables extended tracing of RPC calls. This may negatively impact performance for nodes under high load
+    /// (hundreds or thousands RPS).
+    #[serde(default = "OptionalENConfig::default_extended_api_tracing")]
+    pub extended_rpc_tracing: bool,
 
     // Health checks
     /// Time limit in milliseconds to mark a health check as slow and log the corresponding warning.
@@ -511,6 +515,10 @@ impl OptionalENConfig {
 
     const fn default_mempool_cache_size() -> usize {
         10_000
+    }
+
+    const fn default_extended_api_tracing() -> bool {
+        true
     }
 
     fn default_main_node_rate_limit_rps() -> NonZeroUsize {

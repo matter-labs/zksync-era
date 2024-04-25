@@ -64,7 +64,9 @@ impl WiringLayer for MetadataCalculatorLayer {
         .with_recovery_pool(recovery_pool);
 
         let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
-        app_health.insert_custom_component(Arc::new(metadata_calculator.tree_health_check()));
+        app_health
+            .insert_custom_component(Arc::new(metadata_calculator.tree_health_check()))
+            .map_err(WiringError::internal)?;
 
         let task = Box::new(MetadataCalculatorTask {
             metadata_calculator,

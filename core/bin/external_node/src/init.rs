@@ -97,7 +97,7 @@ pub(crate) async fn ensure_storage_initialized(
                 Box::new(main_node_client.for_component("snapshot_recovery")),
                 blob_store,
             );
-            app_health.insert_component(snapshots_applier_task.health_check());
+            app_health.insert_component(snapshots_applier_task.health_check())?;
 
             let recovery_started_at = Instant::now();
             let stats = snapshots_applier_task
