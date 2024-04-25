@@ -65,7 +65,6 @@ jobs:
             && export PATH=$ZKSYNC_HOME/bin:$PATH
 
       - name: Run unit tests
-        run: cargo test evm_simulator
+        run: ZKSYNC_HOME=$(pwd) cargo test evm_simulator
         env:
           RUSTFLAGS: ""
-          ZKSYNC_HOME: $(pwd)
