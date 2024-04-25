@@ -5,11 +5,13 @@ use std::{
     future,
     future::Future,
     path::Path,
+    sync::Arc,
     time::Duration,
 };
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
 use tokio::sync::mpsc;
@@ -20,9 +22,10 @@ use zksync_health_check::{CheckHealth, Health, HealthStatus, ReactiveHealthCheck
 use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
     recovery::MerkleTreeRecovery,
-    Database, Key, NoVersionError, RocksDBWrapper, TreeEntry, TreeEntryWithProof, TreeInstruction,
+    Database, Key, MerkleTreeColumnFamily, NoVersionError, RocksDBWrapper, TreeEntry,
+    TreeEntryWithProof, TreeInstruction,
 };
-use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries};
+use zksync_storage::{db::Weak, RocksDB, RocksDBOptions, StalledWritesRetries};
 use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageKey, H256};
 
 use super::{
@@ -73,15 +76,25 @@ impl From<MerkleTreeHealth> for Health {
 #[derive(Debug)]
 pub(super) struct MerkleTreeHealthCheck {
     reactive_check: ReactiveHealthCheck,
-    // Used after the tree is initialized to get data from the tree without a delay.
-    reader: LazyAsyncTreeReader,
+    weak_reader: Arc<OnceCell<WeakAsyncTreeReader>>,
 }
 
 impl MerkleTreeHealthCheck {
     pub fn new(reactive_check: ReactiveHealthCheck, reader: LazyAsyncTreeReader) -> Self {
+        // We must not retain a strong RocksDB ref in the health check because it will prevent
+        // proper node shutdown (which waits until all RocksDB instances are dropped); health checks
+        // are dropped after all components are terminated.
+        let weak_reader = Arc::<OnceCell<WeakAsyncTreeReader>>::default();
+        let weak_reader_for_task = weak_reader.clone();
+        tokio::spawn(async move {
+            weak_reader_for_task
+                .set(reader.wait().await.downgrade())
+                .ok();
+        });
+
         Self {
             reactive_check,
-            reader,
+            weak_reader,
         }
     }
 }
@@ -98,7 +111,11 @@ impl CheckHealth for MerkleTreeHealthCheck {
             return health;
         }
 
-        if let Some(reader) = self.reader.read() {
+        if let Some(reader) = self
+            .weak_reader
+            .get()
+            .and_then(WeakAsyncTreeReader::upgrade)
+        {
             let info = reader.info().await;
             health.with_details(MerkleTreeHealth::MainLoop(info))
         } else {
@@ -273,6 +290,13 @@ pub struct AsyncTreeReader {
 }
 
 impl AsyncTreeReader {
+    fn downgrade(&self) -> WeakAsyncTreeReader {
+        WeakAsyncTreeReader {
+            db: self.inner.db().clone().into_inner().downgrade(),
+            mode: self.mode,
+        }
+    }
+
     pub async fn info(self) -> MerkleTreeInfo {
         tokio::task::spawn_blocking(move || MerkleTreeInfo {
             mode: self.mode,
@@ -301,6 +325,22 @@ impl AsyncTreeReader {
         tokio::task::spawn_blocking(move || self.inner.entries_with_proofs(l1_batch_number, &keys))
             .await
             .unwrap()
+    }
+}
+
+/// Version of async tree reader that holds a weak reference to RocksDB. Used in [`MerkleTreeHealthCheck`].
+#[derive(Debug)]
+struct WeakAsyncTreeReader {
+    db: RocksDB<MerkleTreeColumnFamily, Weak>,
+    mode: MerkleTreeMode,
+}
+
+impl WeakAsyncTreeReader {
+    fn upgrade(&self) -> Option<AsyncTreeReader> {
+        Some(AsyncTreeReader {
+            inner: ZkSyncTreeReader::new(self.db.upgrade()?.into()),
+            mode: self.mode,
+        })
     }
 }
 

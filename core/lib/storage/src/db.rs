@@ -312,15 +312,48 @@ impl Default for RocksDBOptions {
     }
 }
 
+/// Kind of a reference used in [`RocksDB`]: either [`Strong`] or [`Weak`].
+pub trait RefKind {
+    type Ref<T: Send + Sync>: Clone + Send + Sync;
+}
+
+/// Strong reference to the underlying RocksDB instance.
+#[derive(Debug, Clone, Copy)]
+pub struct Strong(());
+
+impl RefKind for Strong {
+    type Ref<T: Send + Sync> = Arc<T>;
+}
+
+/// Weak reference to the underlying RocksDB instance.
+#[derive(Debug, Clone, Copy)]
+pub struct Weak(());
+
+impl RefKind for Weak {
+    type Ref<T: Send + Sync> = std::sync::Weak<T>;
+}
+
 /// Thin wrapper around a RocksDB instance.
 ///
-/// The wrapper is cheaply cloneable (internally, it wraps a DB instance in an [`Arc`]).
-#[derive(Debug, Clone)]
-pub struct RocksDB<CF> {
-    inner: Arc<RocksDBInner>,
+/// The wrapper is cheaply cloneable. Internally, it wraps a DB instance in an [`Arc`] or [`Weak`](std::sync::Weak),
+/// depending on the [`RefKind`] type param.
+#[derive(Debug)]
+pub struct RocksDB<CF, R: RefKind = Strong> {
+    inner: R::Ref<RocksDBInner>,
     sync_writes: bool,
     stalled_writes_retries: StalledWritesRetries,
     _cf: PhantomData<CF>,
+}
+
+impl<CF, R: RefKind> Clone for RocksDB<CF, R> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            sync_writes: self.sync_writes,
+            stalled_writes_retries: self.stalled_writes_retries,
+            _cf: PhantomData,
+        }
+    }
 }
 
 impl<CF: NamedColumnFamily> RocksDB<CF> {
@@ -446,6 +479,15 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             options.set_block_based_table_factory(&block_based_options);
         }
         options
+    }
+
+    pub fn downgrade(&self) -> RocksDB<CF, Weak> {
+        RocksDB {
+            inner: Arc::downgrade(&self.inner),
+            sync_writes: self.sync_writes,
+            stalled_writes_retries: self.stalled_writes_retries,
+            _cf: PhantomData,
+        }
     }
 
     pub fn estimated_number_of_entries(&self, cf: CF) -> u64 {
@@ -607,6 +649,18 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             block_read_size: AtomicU64::new(0),
             multiget_read_size: AtomicU64::new(0),
         }
+    }
+}
+
+impl<CF: NamedColumnFamily> RocksDB<CF, Weak> {
+    /// Tries to upgrade to a strong reference to RocksDB. If the RocksDB instance has been dropped, returns `None`.
+    pub fn upgrade(&self) -> Option<RocksDB<CF>> {
+        Some(RocksDB {
+            inner: self.inner.upgrade()?,
+            sync_writes: self.sync_writes,
+            stalled_writes_retries: self.stalled_writes_retries,
+            _cf: PhantomData,
+        })
     }
 }
 
