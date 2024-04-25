@@ -1,7 +1,10 @@
 #![doc = include_str!("../doc/FriProofCompressorDal.md")]
 use std::{collections::HashMap, str::FromStr, time::Duration};
 
-use sqlx::Row;
+use sqlx::{
+    types::chrono::{NaiveDateTime, NaiveTime},
+    Row,
+};
 use strum::{Display, EnumString};
 use zksync_basic_types::{
     prover_dal::{JobCountStatistics, StuckJobs},
@@ -30,6 +33,20 @@ pub enum ProofCompressionJobStatus {
     SentToServer,
     #[strum(serialize = "skipped")]
     Skipped,
+}
+
+pub struct ProofCompressionJobInfo {
+    pub l1_batch_number: L1BatchNumber,
+    pub attempts: u32,
+    pub status: ProofCompressionJobStatus,
+    pub fri_proof_blob_url: Option<String>,
+    pub l1_proof_blob_url: Option<String>,
+    pub error: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub processing_started_at: Option<NaiveDateTime>,
+    pub time_taken: Option<NaiveTime>,
+    pub picked_by: Option<String>,
 }
 
 impl FriProofCompressorDal<'_, '_> {
@@ -326,6 +343,44 @@ impl FriProofCompressorDal<'_, '_> {
                 attempts: row.attempts as u64,
             })
             .collect()
+        }
+    }
+
+    pub async fn get_proof_compression_job_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+    ) -> Option<ProofCompressionJobInfo> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                *
+            FROM
+                proof_compression_jobs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap();
+
+        if let Some(row) = row {
+            Some(ProofCompressionJobInfo {
+                l1_batch_number: block_number,
+                attempts: row.attempts as u32,
+                status: ProofCompressionJobStatus::from_str(&row.status).unwrap(),
+                fri_proof_blob_url: row.fri_proof_blob_url,
+                l1_proof_blob_url: row.l1_proof_blob_url,
+                error: row.error,
+                created_at: row.created_at,
+                updated_at: row.updated_at,
+                processing_started_at: row.processing_started_at,
+                time_taken: row.time_taken,
+                picked_by: row.picked_by,
+            })
+        } else {
+            None
         }
     }
 }
