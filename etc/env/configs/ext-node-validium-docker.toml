@@ -1,5 +1,9 @@
 __imports__ = [ "configs/ext-node-validium.toml" ]
 
+database_url = "postgres://postgres:notsecurepassword@postgres/_ext_node"
+template_database_url = "postgres://postgres:notsecurepassword@postgres/zksync_local"
+test_database_url = "postgres://postgres:notsecurepassword@host:5433/zksync_local_test_ext_node"
+
 [en]
 l1_batch_commit_data_generator_mode = "Validium"
 
