@@ -33,7 +33,7 @@ Cargo.lock
 
 /etc/env/target/*
 /etc/env/.current
-/etc/env/configs
+/etc/env/configs/*
 !/etc/env/configs/dev.toml
 !/etc/env/configs/dev_validium.toml
 !/etc/env/configs/dev_validium_docker.toml
