@@ -213,7 +213,7 @@ impl BlockStartInfoInner {
     }
 }
 
-/// Information about first L1 batch / miniblock in the node storage.
+/// Information about first L1 batch / L2 block in the node storage.
 #[derive(Debug, Clone)]
 pub(crate) struct BlockStartInfo {
     cached_pruning_info: Arc<RwLock<BlockStartInfoInner>>,
@@ -279,7 +279,7 @@ impl BlockStartInfo {
         }
     }
 
-    pub async fn first_miniblock(
+    pub async fn first_l2_block(
         &self,
         storage: &mut Connection<'_, Core>,
     ) -> anyhow::Result<L2BlockNumber> {
@@ -304,26 +304,26 @@ impl BlockStartInfo {
     }
 
     /// Checks whether a block with the specified ID is pruned and returns an error if it is.
-    /// The `Err` variant wraps the first non-pruned miniblock.
+    /// The `Err` variant wraps the first non-pruned L2 block.
     pub async fn ensure_not_pruned_block(
         &self,
         block: api::BlockId,
         storage: &mut Connection<'_, Core>,
     ) -> Result<(), BlockArgsError> {
-        let first_miniblock = self
-            .first_miniblock(storage)
+        let first_l2_block = self
+            .first_l2_block(storage)
             .await
             .map_err(BlockArgsError::Database)?;
         match block {
             api::BlockId::Number(api::BlockNumber::Number(number))
-                if number < first_miniblock.0.into() =>
+                if number < first_l2_block.0.into() =>
             {
-                Err(BlockArgsError::Pruned(first_miniblock))
+                Err(BlockArgsError::Pruned(first_l2_block))
             }
             api::BlockId::Number(api::BlockNumber::Earliest)
-                if first_miniblock > L2BlockNumber(0) =>
+                if first_l2_block > L2BlockNumber(0) =>
             {
-                Err(BlockArgsError::Pruned(first_miniblock))
+                Err(BlockArgsError::Pruned(first_l2_block))
             }
             _ => Ok(()),
         }
@@ -389,7 +389,7 @@ impl BlockArgs {
             .resolve_l1_batch_number_of_l2_block(resolved_block_number)
             .await
             .with_context(|| {
-                format!("failed resolving L1 batch number of miniblock #{resolved_block_number}")
+                format!("failed resolving L1 batch number of L2 block #{resolved_block_number}")
             })?;
         let l1_batch_timestamp = connection
             .blocks_web3_dal()
@@ -408,7 +408,7 @@ impl BlockArgs {
         self.resolved_block_number
     }
 
-    pub fn resolves_to_latest_sealed_miniblock(&self) -> bool {
+    pub fn resolves_to_latest_sealed_l2_block(&self) -> bool {
         matches!(
             self.block_id,
             api::BlockId::Number(

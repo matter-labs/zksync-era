@@ -59,7 +59,7 @@ impl TxCache {
 
     async fn remove_tx(&self, tx_hash: H256) {
         self.inner.write().await.tx_cache.remove(&tx_hash);
-        // We intentionally don't change `nonces_by_account`; they should only be changed in response to new miniblocks
+        // We intentionally don't change `nonces_by_account`; they should only be changed in response to new L2 blocks
     }
 
     async fn run_updates(

@@ -187,25 +187,25 @@ impl DbPruner {
             return Ok(false);
         }
 
-        let (_, next_miniblock_to_prune) = transaction
+        let (_, next_l2_block_to_prune) = transaction
             .blocks_dal()
             .get_l2_block_range_of_l1_batch(next_l1_batch_to_prune)
             .await?
-            .with_context(|| format!("L1 batch #{next_l1_batch_to_prune} is ready to be pruned, but has no miniblocks"))?;
+            .with_context(|| format!("L1 batch #{next_l1_batch_to_prune} is ready to be pruned, but has no L2 blocks"))?;
         transaction
             .pruning_dal()
-            .soft_prune_batches_range(next_l1_batch_to_prune, next_miniblock_to_prune)
+            .soft_prune_batches_range(next_l1_batch_to_prune, next_l2_block_to_prune)
             .await?;
 
         transaction.commit().await?;
 
         let latency = latency.observe();
         tracing::info!(
-            "Soft pruned db l1_batches up to {next_l1_batch_to_prune} and miniblocks up to {next_miniblock_to_prune}, operation took {latency:?}",
+            "Soft pruned db l1_batches up to {next_l1_batch_to_prune} and L2 blocks up to {next_l2_block_to_prune}, operation took {latency:?}",
         );
 
         current_pruning_info.last_soft_pruned_l1_batch = Some(next_l1_batch_to_prune);
-        current_pruning_info.last_soft_pruned_l2_block = Some(next_miniblock_to_prune);
+        current_pruning_info.last_soft_pruned_l2_block = Some(next_l2_block_to_prune);
         self.update_health(current_pruning_info);
         Ok(true)
     }
@@ -219,14 +219,14 @@ impl DbPruner {
             current_pruning_info.last_soft_pruned_l1_batch.with_context(|| {
                 format!("bogus pruning info {current_pruning_info:?}: trying to hard-prune data, but there is no soft-pruned L1 batch")
             })?;
-        let last_soft_pruned_miniblock =
+        let last_soft_pruned_l2_block =
             current_pruning_info.last_soft_pruned_l2_block.with_context(|| {
-                format!("bogus pruning info {current_pruning_info:?}: trying to hard-prune data, but there is no soft-pruned miniblock")
+                format!("bogus pruning info {current_pruning_info:?}: trying to hard-prune data, but there is no soft-pruned L2 block")
             })?;
 
         let stats = transaction
             .pruning_dal()
-            .hard_prune_batches_range(last_soft_pruned_l1_batch, last_soft_pruned_miniblock)
+            .hard_prune_batches_range(last_soft_pruned_l1_batch, last_soft_pruned_l2_block)
             .await?;
         Self::report_hard_pruning_stats(stats);
         transaction.commit().await?;
@@ -239,11 +239,11 @@ impl DbPruner {
 
         let latency = latency.observe();
         tracing::info!(
-            "Hard pruned db l1_batches up to {last_soft_pruned_l1_batch} and miniblocks up to {last_soft_pruned_miniblock}, \
+            "Hard pruned db l1_batches up to {last_soft_pruned_l1_batch} and L2 blocks up to {last_soft_pruned_l2_block}, \
             operation took {latency:?}"
         );
         current_pruning_info.last_hard_pruned_l1_batch = Some(last_soft_pruned_l1_batch);
-        current_pruning_info.last_hard_pruned_l2_block = Some(last_soft_pruned_miniblock);
+        current_pruning_info.last_hard_pruned_l2_block = Some(last_soft_pruned_l2_block);
         self.update_health(current_pruning_info);
         Ok(())
     }
@@ -251,7 +251,7 @@ impl DbPruner {
     fn report_hard_pruning_stats(stats: HardPruningStats) {
         let HardPruningStats {
             deleted_l1_batches,
-            deleted_l2_blocks: deleted_miniblocks,
+            deleted_l2_blocks,
             deleted_storage_logs_from_past_batches,
             deleted_storage_logs_from_pruned_batches,
             deleted_events,
@@ -261,7 +261,7 @@ impl DbPruner {
         let deleted_storage_logs =
             deleted_storage_logs_from_past_batches + deleted_storage_logs_from_pruned_batches;
         tracing::info!(
-            "Performed pruning of database, deleted {deleted_l1_batches} L1 batches, {deleted_miniblocks} miniblocks, \
+            "Performed pruning of database, deleted {deleted_l1_batches} L1 batches, {deleted_l2_blocks} L2 blocks, \
              {deleted_storage_logs} storage logs ({deleted_storage_logs_from_pruned_batches} from pruned batches + \
              {deleted_storage_logs_from_past_batches} from past batches), \
              {deleted_events} events, {deleted_call_traces} call traces, {deleted_l2_to_l1_logs} L2-to-L1 logs"

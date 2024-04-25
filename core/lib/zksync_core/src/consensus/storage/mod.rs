@@ -203,7 +203,7 @@ impl Store {
         ))
     }
 
-    /// Waits for the `number` miniblock.
+    /// Waits for the `number` L2 block.
     pub async fn wait_for_payload(
         &self,
         ctx: &ctx::Ctx,
@@ -240,7 +240,7 @@ impl Store {
     async fn certificates_range(&self, ctx: &ctx::Ctx) -> ctx::Result<storage::BlockStoreState> {
         let mut conn = self.access(ctx).await.wrap("access()")?;
 
-        // Fetch the range of miniblocks in storage.
+        // Fetch the range of L2 blocks in storage.
         let block_range = conn.block_range(ctx).await.context("block_range")?;
 
         // Fetch the range of certificates in storage.
@@ -258,7 +258,7 @@ impl Store {
             .as_ref()
             .map_or(first_expected_cert, |cert| cert.header().number.next());
 
-        // Check that the first certificate in storage has the expected miniblock number.
+        // Check that the first certificate in storage has the expected L2 block number.
         if let Some(got) = conn
             .first_certificate(ctx)
             .await
@@ -275,7 +275,7 @@ impl Store {
         // Check that the node has all the blocks before the next expected certificate, because
         // the node needs to know the state of the chain up to block `X` to process block `X+1`.
         if block_range.end < next_expected_cert {
-            return Err(anyhow::format_err!("inconsistent storage: cannot start consensus for miniblock {next_expected_cert}, because earlier blocks are missing").into());
+            return Err(anyhow::format_err!("inconsistent storage: cannot start consensus for L2 block {next_expected_cert}, because earlier blocks are missing").into());
         }
         Ok(storage::BlockStoreState {
             first: first_expected_cert,
@@ -296,14 +296,14 @@ impl Store {
             .payload(ctx, number)
             .await
             .wrap("payload()")?
-            .context("miniblock disappeared from storage")?;
+            .context("L2 block disappeared from storage")?;
         Ok(Some(validator::FinalBlock {
             payload: payload.encode(),
             justification,
         }))
     }
 
-    /// Initializes consensus genesis (with 1 validator) to start at the last miniblock in storage.
+    /// Initializes consensus genesis (with 1 validator) to start at the last L2 block in storage.
     /// No-op if db already contains a genesis.
     pub(super) async fn try_init_genesis(
         &self,
@@ -433,11 +433,11 @@ impl storage::PersistentBlockStore for BlockStore {
     /// If actions queue is set (and the block has not been stored yet),
     /// the block will be translated into a sequence of actions.
     /// The received actions should be fed
-    /// to `ExternalIO`, so that `StateKeeper` will store the corresponding miniblock in the db.
+    /// to `ExternalIO`, so that `StateKeeper` will store the corresponding L2 block in the db.
     ///
-    /// `store_next_block()` call will wait synchronously for the miniblock.
-    /// Once miniblock is observed in storage, `store_next_block()` will store a cert for this
-    /// miniblock.
+    /// `store_next_block()` call will wait synchronously for the L2 block.
+    /// Once the L2 block is observed in storage, `store_next_block()` will store a cert for this
+    /// L2 block.
     async fn queue_next_block(
         &self,
         ctx: &ctx::Ctx,
@@ -501,8 +501,7 @@ impl storage::ReplicaStore for Store {
 
 #[async_trait::async_trait]
 impl PayloadManager for Store {
-    /// Currently (for the main node) proposing is implemented as just converting a miniblock from db (without a cert) into a
-    /// payload.
+    /// Currently (for the main node) proposing is implemented as just converting an L2 block from db (without a cert) into a payload.
     async fn propose(
         &self,
         ctx: &ctx::Ctx,
@@ -524,8 +523,8 @@ impl PayloadManager for Store {
     }
 
     /// Verify that `payload` is a correct proposal for the block `block_number`.
-    /// Currently (for the main node) it is implemented as checking whether the received payload
-    /// matches the miniblock in the db.
+    /// Currently, (for the main node) it is implemented as checking whether the received payload
+    /// matches the L2 block in the db.
     async fn verify(
         &self,
         ctx: &ctx::Ctx,

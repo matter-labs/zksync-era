@@ -80,7 +80,7 @@ impl MainNodeFeeInputProvider {
 }
 
 /// The fee model provider to be used in the API. It returns the maximal batch fee input between the projected main node one and
-/// the one from the last sealed miniblock.
+/// the one from the last sealed L2 block.
 #[derive(Debug)]
 pub(crate) struct ApiFeeInputProvider {
     inner: Arc<dyn BatchFeeModelInputProvider>,
@@ -110,7 +110,7 @@ impl BatchFeeModelInputProvider for ApiFeeInputProvider {
             .inner
             .get_batch_fee_input_scaled(l1_gas_price_scale_factor, l1_pubdata_price_scale_factor)
             .await;
-        let last_miniblock_params = self
+        let last_l2_block_params = self
             .connection_pool
             .connection_tagged("api_fee_input_provider")
             .await
@@ -120,7 +120,7 @@ impl BatchFeeModelInputProvider for ApiFeeInputProvider {
             .await
             .unwrap();
 
-        last_miniblock_params
+        last_l2_block_params
             .map(|header| inner_input.stricter(header.batch_fee_input))
             .unwrap_or(inner_input)
     }

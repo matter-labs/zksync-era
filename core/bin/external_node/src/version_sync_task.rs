@@ -13,10 +13,7 @@ pub async fn get_l1_batch_remote_protocol_version(
     main_node_client: &BoxedL2Client,
     l1_batch_number: L1BatchNumber,
 ) -> anyhow::Result<Option<ProtocolVersionId>> {
-    let Some((miniblock, _)) = main_node_client
-        .get_miniblock_range(l1_batch_number)
-        .await?
-    else {
+    let Some((miniblock, _)) = main_node_client.get_l2_block_range(l1_batch_number).await? else {
         return Ok(None);
     };
     let sync_block = main_node_client

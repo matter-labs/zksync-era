@@ -81,10 +81,10 @@ async fn is_l1_batch_prunable_works() {
     assert!(pruner.is_l1_batch_prunable(L1BatchNumber(4)).await);
 }
 
-async fn insert_miniblocks(
+async fn insert_l2_blocks(
     conn: &mut Connection<'_, Core>,
     l1_batches_count: u64,
-    miniblocks_per_batch: u64,
+    l2_blocks_per_batch: u64,
 ) {
     conn.protocol_versions_dal()
         .save_protocol_version_with_tx(&ProtocolVersion::default())
@@ -92,13 +92,13 @@ async fn insert_miniblocks(
         .unwrap();
 
     for l1_batch_number in 0..l1_batches_count {
-        for miniblock_index in 0..miniblocks_per_batch {
-            let miniblock_number =
-                L2BlockNumber((l1_batch_number * miniblocks_per_batch + miniblock_index) as u32);
-            let miniblock_header = L2BlockHeader {
-                number: miniblock_number,
+        for l2_block_index in 0..l2_blocks_per_batch {
+            let l2_block_number =
+                L2BlockNumber((l1_batch_number * l2_blocks_per_batch + l2_block_index) as u32);
+            let l2_block_header = L2BlockHeader {
+                number: l2_block_number,
                 timestamp: 0,
-                hash: H256::from_low_u64_be(u64::from(miniblock_number.0)),
+                hash: H256::from_low_u64_be(u64::from(l2_block_number.0)),
                 l1_tx_count: 0,
                 l2_tx_count: 0,
                 fee_account_address: Address::repeat_byte(1),
@@ -112,7 +112,7 @@ async fn insert_miniblocks(
             };
 
             conn.blocks_dal()
-                .insert_l2_block(&miniblock_header)
+                .insert_l2_block(&l2_block_header)
                 .await
                 .unwrap();
             conn.blocks_dal()
@@ -128,7 +128,7 @@ async fn hard_pruning_ignores_conditions_checks() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut conn = pool.connection().await.unwrap();
 
-    insert_miniblocks(&mut conn, 10, 2).await;
+    insert_l2_blocks(&mut conn, 10, 2).await;
     conn.pruning_dal()
         .soft_prune_batches_range(L1BatchNumber(2), L2BlockNumber(5))
         .await
@@ -164,7 +164,7 @@ async fn hard_pruning_ignores_conditions_checks() {
 async fn pruner_catches_up_with_hard_pruning_up_to_soft_pruning_boundary_ignoring_chunk_size() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut conn = pool.connection().await.unwrap();
-    insert_miniblocks(&mut conn, 10, 2).await;
+    insert_l2_blocks(&mut conn, 10, 2).await;
     conn.pruning_dal()
         .soft_prune_batches_range(L1BatchNumber(2), L2BlockNumber(5))
         .await
@@ -209,7 +209,7 @@ async fn unconstrained_pruner_with_fresh_database() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut conn = pool.connection().await.unwrap();
 
-    insert_miniblocks(&mut conn, 10, 2).await;
+    insert_l2_blocks(&mut conn, 10, 2).await;
 
     let pruner = DbPruner::with_conditions(
         DbPrunerConfig {
@@ -249,7 +249,7 @@ async fn unconstrained_pruner_with_fresh_database() {
 async fn pruning_blocked_after_first_chunk() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut conn = pool.connection().await.unwrap();
-    insert_miniblocks(&mut conn, 10, 2).await;
+    insert_l2_blocks(&mut conn, 10, 2).await;
 
     let first_chunk_prunable_check =
         Arc::new(ConditionMock::name("first chunk prunable").with_response(L1BatchNumber(3), true));
@@ -318,7 +318,7 @@ async fn pruner_is_resistant_to_errors() {
     let error = health_details["error"].as_str().unwrap();
     // Matching error messages is an anti-pattern, but we essentially test UX here.
     assert!(
-        error.contains("L1 batch #3 is ready to be pruned, but has no miniblocks"),
+        error.contains("L1 batch #3 is ready to be pruned, but has no L2 blocks"),
         "{error}"
     );
 

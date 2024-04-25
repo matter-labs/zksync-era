@@ -12,16 +12,16 @@ use super::*;
 use crate::{
     genesis::{insert_genesis_batch, GenesisParams},
     sync_layer::metrics::L1BatchStage,
-    utils::testonly::{create_l1_batch, create_miniblock, prepare_recovery_snapshot},
+    utils::testonly::{create_l1_batch, create_l2_block, prepare_recovery_snapshot},
 };
 
 async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber) {
     let mut storage = storage.start_transaction().await.unwrap();
-    // Insert a mock miniblock so that `get_block_details()` will return values.
-    let miniblock = create_miniblock(number.0);
+    // Insert a mock L2 block so that `get_block_details()` will return values.
+    let l2_block = create_l2_block(number.0);
     storage
         .blocks_dal()
-        .insert_l2_block(&miniblock)
+        .insert_l2_block(&l2_block)
         .await
         .unwrap();
 
@@ -180,7 +180,7 @@ impl From<L1BatchStagesMap> for MockMainNodeClient {
 
 #[async_trait]
 impl MainNodeClient for MockMainNodeClient {
-    async fn resolve_l1_batch_to_miniblock(
+    async fn resolve_l1_batch_to_l2_block(
         &self,
         number: L1BatchNumber,
     ) -> EnrichedClientResult<Option<L2BlockNumber>> {
