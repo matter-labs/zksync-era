@@ -102,7 +102,7 @@ jsonrpsee.workspace = true
 tempfile.workspace = true
 test-casing.workspace = true
 test-log.workspace = true
-backon.workspsace = true
+backon.workspace = true
 
 [build-dependencies]
 zksync_protobuf_build.workspace = true

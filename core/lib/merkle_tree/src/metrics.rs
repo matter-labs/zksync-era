@@ -334,7 +334,7 @@ pub struct PruningStats {
 }
 
 impl PruningStats {
-    pub fn report(self) {
+    pub fn report(&self) {
         PRUNING_METRICS
             .target_retained_version
             .set(self.target_retained_version);
