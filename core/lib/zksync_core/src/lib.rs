@@ -616,6 +616,9 @@ pub async fn initialize_components(
         tracing::info!("initialized ETH-Watcher in {elapsed:?}");
     }
 
+    let is_validium = genesis_config.l1_batch_commit_data_generator_mode
+        == L1BatchCommitDataGeneratorMode::Validium;
+
     if components.contains(&Component::EthTxAggregator) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-TxAggregator");
@@ -804,7 +807,7 @@ pub async fn initialize_components(
         let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
         app_health.insert_component(commitment_generator.health_check());
         task_futures.push(tokio::spawn(
-            commitment_generator.run(stop_receiver.clone()),
+            commitment_generator.run(stop_receiver.clone(), is_validium),
         ));
     }
 

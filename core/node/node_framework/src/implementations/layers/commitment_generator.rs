@@ -44,6 +44,6 @@ impl Task for CommitmentGeneratorTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.commitment_generator.run(stop_receiver.0).await
+        self.commitment_generator.run(stop_receiver.0, false).await
     }
 }

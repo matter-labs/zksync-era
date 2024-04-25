@@ -337,15 +337,15 @@ async fn run_core(
     )
     .await?;
 
-    let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match config
-        .optional
-        .l1_batch_commit_data_generator_mode
-    {
-        L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
-        L1BatchCommitDataGeneratorMode::Validium => {
-            Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
-        }
-    };
+    let (l1_batch_commit_data_generator, is_validium): (Arc<dyn L1BatchCommitDataGenerator>, bool) =
+        match config.optional.l1_batch_commit_data_generator_mode {
+            L1BatchCommitDataGeneratorMode::Rollup => {
+                (Arc::new(RollupModeL1BatchCommitDataGenerator {}), false)
+            }
+            L1BatchCommitDataGeneratorMode::Validium => {
+                (Arc::new(ValidiumModeL1BatchCommitDataGenerator {}), true)
+            }
+        };
 
     let consistency_checker = ConsistencyChecker::new(
         eth_client,
@@ -377,7 +377,8 @@ async fn run_core(
         .context("failed to build a commitment_generator_pool")?;
     let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
     app_health.insert_component(commitment_generator.health_check());
-    let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
+    let commitment_generator_handle =
+        tokio::spawn(commitment_generator.run(stop_receiver.clone(), is_validium));
 
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
 

@@ -116,6 +116,7 @@ impl CommitmentGenerator {
     async fn prepare_input(
         &self,
         l1_batch_number: L1BatchNumber,
+        is_validium: bool,
     ) -> anyhow::Result<CommitmentInput> {
         tracing::info!("Started preparing commitment input for L1 batch #{l1_batch_number}");
 
@@ -230,7 +231,7 @@ impl CommitmentGenerator {
             }
             state_diffs.sort_unstable_by_key(|rec| (rec.address, rec.key));
 
-            let blob_commitments = if protocol_version.is_post_1_4_2() {
+            let blob_commitments = if protocol_version.is_post_1_4_2() && !is_validium {
                 let pubdata_input = header.pubdata_input.with_context(|| {
                     format!("`pubdata_input` is missing for L1 batch #{l1_batch_number}")
                 })?;
@@ -252,10 +253,10 @@ impl CommitmentGenerator {
         Ok(input)
     }
 
-    async fn step(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<()> {
+    async fn step(&self, l1_batch_number: L1BatchNumber, is_validium: bool) -> anyhow::Result<()> {
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::PrepareInput].start();
-        let input = self.prepare_input(l1_batch_number).await?;
+        let mut input = self.prepare_input(l1_batch_number, is_validium).await?;
         let latency = latency.observe();
         tracing::debug!("Prepared commitment input for L1 batch #{l1_batch_number} in {latency:?}");
 
@@ -289,7 +290,11 @@ impl CommitmentGenerator {
         Ok(())
     }
 
-    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(
+        self,
+        stop_receiver: watch::Receiver<bool>,
+        is_validium: bool,
+    ) -> anyhow::Result<()> {
         self.health_updater.update(HealthStatus::Ready.into());
         loop {
             if *stop_receiver.borrow() {
@@ -310,7 +315,7 @@ impl CommitmentGenerator {
             };
 
             tracing::info!("Started commitment generation for L1 batch #{l1_batch_number}");
-            self.step(l1_batch_number).await?;
+            self.step(l1_batch_number, is_validium).await?;
             tracing::info!("Finished commitment generation for L1 batch #{l1_batch_number}");
         }
         Ok(())

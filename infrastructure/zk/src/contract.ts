@@ -134,11 +134,7 @@ async function _deployL1(onlyVerifier: boolean, deploymentMode: DeploymentMode):
     await utils.confirmAction();
 
     const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    const args = [
-        privateKey ? `--private-key ${privateKey}` : '',
-        onlyVerifier ? '--only-verifier' : '',
-        deploymentMode == DeploymentMode.Validium ? '--validium' : ''
-    ];
+    const args = [privateKey ? `--private-key ${privateKey}` : '', onlyVerifier ? '--only-verifier' : ''];
 
     // In the localhost setup scenario we don't have the workspace,
     // so we have to `--cwd` into the required directory.
@@ -215,13 +211,20 @@ export async function erc20BridgeFinish(args: any[] = []): Promise<void> {
     await utils.spawn(`yarn l1-contracts erc20-finish-deployment-on-chain ${args.join(' ')} | tee -a deployL2.log`);
 }
 
-export async function registerHyperchain({ baseTokenName }: { baseTokenName?: string }): Promise<void> {
+export async function registerHyperchain({
+    baseTokenName,
+    deploymentMode
+}: {
+    baseTokenName?: string;
+    deploymentMode?: DeploymentMode;
+}): Promise<void> {
     await utils.confirmAction();
 
     const privateKey = process.env.GOVERNOR_PRIVATE_KEY;
     const args = [
         privateKey ? `--private-key ${privateKey}` : '',
-        baseTokenName ? `--base-token-name ${baseTokenName}` : ''
+        baseTokenName ? `--base-token-name ${baseTokenName}` : '',
+        deploymentMode === DeploymentMode.Validium ? '--validium-mode' : ''
     ];
 
     await utils.spawn(`yarn l1-contracts register-hyperchain ${args.join(' ')} | tee registerHyperchain.log`);
@@ -248,7 +251,7 @@ export async function deployVerifier(): Promise<void> {
 
 export async function deployL1(args: [string]): Promise<void> {
     let mode;
-    if (args.includes('validium')) {
+    if (args.includes('--validium-mode')) {
         mode = DeploymentMode.Validium;
     } else {
         mode = DeploymentMode.Rollup;

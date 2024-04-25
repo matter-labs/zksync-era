@@ -42,13 +42,17 @@ type InitSetupOptions = {
     skipEnvSetup: boolean;
     skipSubmodulesCheckout: boolean;
     runObservability: boolean;
-    validiumMode: boolean;
+    deploymentMode: DeploymentMode;
 };
 const initSetup = async ({
     skipSubmodulesCheckout,
     skipEnvSetup,
-    runObservability
+    runObservability,
+    deploymentMode
 }: InitSetupOptions): Promise<void> => {
+    await announced(
+        `Initializing in ${deploymentMode == contract.DeploymentMode.Validium ? 'Validium mode' : 'Roll-up mode'}`
+    );
     if (!skipSubmodulesCheckout) {
         await announced('Checkout submodules', submoduleUpdate());
     }
@@ -91,21 +95,34 @@ const deployTestTokens = async (options?: DeployTestTokensOptions) => {
 };
 
 // Deploys and verifies L1 contracts and initializes governance
-const initBridgehubStateTransition = async () => {
-    await announced('Deploying L1 contracts', contract.deployL1(['']));
+const initBridgehubStateTransition = async (deploymentMode: DeploymentMode) => {
+    await announced('Running server genesis setup', server.genesisFromSources());
+    if (deploymentMode == DeploymentMode.Validium) {
+        await announced('Deploying L1 contracts', contract.deployL1(['--validium-mode']));
+    } else if (deploymentMode == DeploymentMode.Rollup) {
+        await announced('Deploying L1 contracts', contract.deployL1(['']));
+    } else {
+        throw new Error('Invalid deployment mode');
+    }
     await announced('Verifying L1 contracts', contract.verifyL1Contracts());
     await announced('Initializing governance', contract.initializeGovernance());
     await announced('Reloading env', env.reload());
 };
 
 // Registers a hyperchain and deploys L2 contracts through L1
-type InitHyperchainOptions = { includePaymaster: boolean; baseTokenName?: string; localLegacyBridgeTesting?: boolean };
+type InitHyperchainOptions = {
+    includePaymaster: boolean;
+    baseTokenName?: string;
+    localLegacyBridgeTesting?: boolean;
+    deploymentMode: DeploymentMode;
+};
 const initHyperchain = async ({
     includePaymaster,
     baseTokenName,
-    localLegacyBridgeTesting
+    localLegacyBridgeTesting,
+    deploymentMode
 }: InitHyperchainOptions): Promise<void> => {
-    await announced('Registering Hyperchain', contract.registerHyperchain({ baseTokenName }));
+    await announced('Registering Hyperchain', contract.registerHyperchain({ baseTokenName, deploymentMode }));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced(
@@ -127,6 +144,7 @@ type InitDevCmdActionOptions = InitSetupOptions & {
     skipTestTokenDeployment?: boolean;
     testTokenOptions?: DeployTestTokensOptions;
     baseTokenName?: string;
+    validiumMode?: boolean;
     localLegacyBridgeTesting?: boolean;
 };
 export const initDevCmdAction = async ({
@@ -142,14 +160,15 @@ export const initDevCmdAction = async ({
     if (localLegacyBridgeTesting) {
         await makeEraChainIdSameAsCurrent();
     }
-    await initSetup({ skipEnvSetup, skipSubmodulesCheckout, runObservability, validiumMode });
+    let deploymentMode = validiumMode !== undefined ? contract.DeploymentMode.Validium : contract.DeploymentMode.Rollup;
+    await initSetup({ skipEnvSetup, skipSubmodulesCheckout, runObservability, deploymentMode });
     await initDatabase({ skipVerifierDeployment: false });
     if (!skipTestTokenDeployment) {
         await deployTestTokens(testTokenOptions);
     }
-    await initBridgehubStateTransition();
+    await initBridgehubStateTransition(deploymentMode);
     await initDatabase({ skipVerifierDeployment: true });
-    await initHyperchain({ includePaymaster: true, baseTokenName, localLegacyBridgeTesting });
+    await initHyperchain({ includePaymaster: true, baseTokenName, localLegacyBridgeTesting, deploymentMode });
 };
 
 const lightweightInitCmdAction = async (): Promise<void> => {
@@ -169,7 +188,7 @@ type InitSharedBridgeCmdActionOptions = InitSetupOptions;
 const initSharedBridgeCmdAction = async (options: InitSharedBridgeCmdActionOptions): Promise<void> => {
     await initSetup(options);
     await initDatabase({ skipVerifierDeployment: false });
-    await initBridgehubStateTransition();
+    await initBridgehubStateTransition(options.deploymentMode);
 };
 
 type InitHyperCmdActionOptions = {
@@ -177,23 +196,23 @@ type InitHyperCmdActionOptions = {
     bumpChainId: boolean;
     baseTokenName?: string;
     runObservability: boolean;
-    validiumMode: boolean;
+    deploymentMode: DeploymentMode;
 };
 export const initHyperCmdAction = async ({
     skipSetupCompletely,
     bumpChainId,
     baseTokenName,
     runObservability,
-    validiumMode
+    deploymentMode
 }: InitHyperCmdActionOptions): Promise<void> => {
     if (bumpChainId) {
         config.bumpChainId();
     }
     if (!skipSetupCompletely) {
-        await initSetup({ skipEnvSetup: false, skipSubmodulesCheckout: false, runObservability, validiumMode });
+        await initSetup({ skipEnvSetup: false, skipSubmodulesCheckout: false, runObservability, deploymentMode });
     }
     await initDatabase({ skipVerifierDeployment: true });
-    await initHyperchain({ includePaymaster: true, baseTokenName });
+    await initHyperchain({ includePaymaster: true, baseTokenName, deploymentMode });
 };
 
 // ########################### Command Definitions ###########################
