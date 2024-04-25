@@ -60,7 +60,7 @@ jobs:
             && yarn build
 
       - name: Compile EVM interpreter
-        run: bash recompile_interpreter.sh
+        run: ZKSYNC_HOME=$(pwd) PATH=$(pwd)/bin:$PATH bash recompile_interpreter.sh
 
       - name: Export needed env vars
         run: |
