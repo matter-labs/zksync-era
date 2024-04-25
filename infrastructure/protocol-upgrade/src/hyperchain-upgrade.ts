@@ -14,7 +14,9 @@ async function hyperchainUpgrade1() {
     const cwd = process.cwd();
     process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
 
-    await spawn(`yarn hyperchain-upgrade-1 --private-key  | tee deployHyperchainUpgradeContracts.log`);
+    await spawn(
+        `yarn hyperchain-upgrade-1 --private-key  | tee deployHyperchainUpgradeContracts.log`
+    );
     process.chdir(cwd);
 
     const deployLog = fs
@@ -166,7 +168,7 @@ async function hyperchainFullUpgrade() {
     // env.reload('zksync_local');
 
     // await insertAddresses("stage");
-    env.reload('zksync_local');
+    env.reload('stage_migration');
 
     // await spawn('zk f yarn  workspace protocol-upgrade-tool start facets generate-facet-cuts --environment stage ');
     // await spawn('zk f yarn  workspace protocol-upgrade-tool start system-contracts publish-all  --environment stage --private-key ');
