@@ -1,13 +1,11 @@
 #![doc = include_str!("../doc/FriProofCompressorDal.md")]
 use std::{collections::HashMap, str::FromStr, time::Duration};
 
-use sqlx::{
-    types::chrono::{NaiveDateTime, NaiveTime},
-    Row,
-};
-use strum::{Display, EnumString};
+use sqlx::Row;
 use zksync_basic_types::{
-    prover_dal::{JobCountStatistics, StuckJobs},
+    prover_dal::{
+        JobCountStatistics, ProofCompressionJobInfo, ProofCompressionJobStatus, StuckJobs,
+    },
     L1BatchNumber,
 };
 use zksync_db_connection::connection::Connection;
@@ -17,36 +15,6 @@ use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
 #[derive(Debug)]
 pub struct FriProofCompressorDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Prover>,
-}
-
-#[derive(Debug, EnumString, Display)]
-pub enum ProofCompressionJobStatus {
-    #[strum(serialize = "queued")]
-    Queued,
-    #[strum(serialize = "in_progress")]
-    InProgress,
-    #[strum(serialize = "successful")]
-    Successful,
-    #[strum(serialize = "failed")]
-    Failed,
-    #[strum(serialize = "sent_to_server")]
-    SentToServer,
-    #[strum(serialize = "skipped")]
-    Skipped,
-}
-
-pub struct ProofCompressionJobInfo {
-    pub l1_batch_number: L1BatchNumber,
-    pub attempts: u32,
-    pub status: ProofCompressionJobStatus,
-    pub fri_proof_blob_url: Option<String>,
-    pub l1_proof_blob_url: Option<String>,
-    pub error: Option<String>,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
-    pub processing_started_at: Option<NaiveDateTime>,
-    pub time_taken: Option<NaiveTime>,
-    pub picked_by: Option<String>,
 }
 
 impl FriProofCompressorDal<'_, '_> {

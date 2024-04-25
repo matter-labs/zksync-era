@@ -1,12 +1,11 @@
 use std::{collections::HashMap, fmt::Debug};
 
 use colored::*;
-use prover_dal::fri_proof_compressor_dal::ProofCompressionJobStatus;
 use strum::{Display, EnumString};
 use zksync_basic_types::{basic_fri_types::AggregationRound, prover_dal::JobCountStatistics};
 use zksync_config::PostgresConfig;
 use zksync_env_config::FromEnv;
-use zksync_types::L1BatchNumber;
+use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchNumber};
 
 pub fn postgres_config() -> anyhow::Result<PostgresConfig> {
     Ok(PostgresConfig::from_env()?)
