@@ -41,7 +41,7 @@ jobs:
         run: npm install -g preprocess-cli-tool
 
       - name: Install sqlx
-        run: cargo install sqlx-cli@^0.5
+        run: cargo install sqlx-cli@^0.5 --locked
 
       - name: Download solc
         run: |
