@@ -6,6 +6,7 @@ test_database_url = "postgres://postgres:notsecurepassword@host:5433/zksync_loca
 
 [en]
 l1_batch_commit_data_generator_mode = "Validium"
+eth_client_url = "http://reth:8545"
 
 [_metadata]
 base = ["ext-node-docker.toml"]
