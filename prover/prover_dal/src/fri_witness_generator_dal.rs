@@ -1,12 +1,13 @@
 #![doc = include_str!("../doc/FriWitnessGeneratorDal.md")]
-use std::{collections::HashMap, convert::TryFrom, time::Duration};
+use std::{collections::HashMap, convert::TryFrom, str::FromStr, time::Duration};
 
 use sqlx::Row;
 use zksync_basic_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     protocol_version::ProtocolVersionId,
     prover_dal::{
-        JobCountStatistics, LeafAggregationJobMetadata, NodeAggregationJobMetadata, StuckJobs,
+        BasicWitnessGeneratorJobInfo, JobCountStatistics, LeafAggregationJobMetadata,
+        NodeAggregationJobMetadata, StuckJobs, WitnessJobStatus,
     },
     L1BatchNumber,
 };
@@ -1150,5 +1151,40 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .protocol_version
         .map(|id| ProtocolVersionId::try_from(id as u16).unwrap())
         .unwrap()
+    }
+
+    pub async fn get_basic_witness_generator_job_for_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Option<BasicWitnessGeneratorJobInfo> {
+        sqlx::query!(
+            r#"
+            SELECT
+                *
+            FROM
+                witness_inputs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| BasicWitnessGeneratorJobInfo {
+            l1_batch_number: l1_batch_number,
+            merkle_tree_paths_blob_url: row.merkle_tree_paths_blob_url,
+            attempts: row.attempts as u32,
+            status: WitnessJobStatus::from_str(&row.status).unwrap(),
+            error: row.error,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            processing_started_at: row.processing_started_at,
+            time_taken: row.time_taken,
+            is_blob_cleaned: row.is_blob_cleaned,
+            protocol_version: row.protocol_version,
+            picked_by: row.picked_by,
+            eip_4844_blobs: row.eip_4844_blobs.map(|vec_u8| Eip4844Blobs::from(vec_u8)),
+        })
     }
 }

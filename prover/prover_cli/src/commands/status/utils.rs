@@ -5,7 +5,7 @@ use strum::{Display, EnumString};
 use zksync_basic_types::{basic_fri_types::AggregationRound, prover_dal::JobCountStatistics};
 use zksync_config::PostgresConfig;
 use zksync_env_config::FromEnv;
-use zksync_types::L1BatchNumber;
+use zksync_types::{prover_dal::WitnessJobStatus, L1BatchNumber};
 
 pub fn postgres_config() -> anyhow::Result<PostgresConfig> {
     Ok(PostgresConfig::from_env()?)
@@ -149,5 +149,21 @@ impl Debug for Task {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "-- {} --", self.to_string().bold())?;
         writeln!(f, "> {}", self.status().to_string())
+    }
+}
+
+impl From<WitnessJobStatus> for TaskStatus {
+    fn from(status: WitnessJobStatus) -> Self {
+        match status {
+            WitnessJobStatus::Queued => TaskStatus::Queued,
+            WitnessJobStatus::InProgress => TaskStatus::InProgress,
+            WitnessJobStatus::Successful(_) => TaskStatus::Successful,
+            WitnessJobStatus::Failed(_) => TaskStatus::InProgress,
+            WitnessJobStatus::WaitingForArtifacts => {
+                TaskStatus::Custom("Waiting for Artifacts ⏱️".to_owned())
+            }
+            WitnessJobStatus::Skipped => TaskStatus::Custom("Skipped ⏩".to_owned()),
+            WitnessJobStatus::WaitingForProofs => TaskStatus::WaitingForProofs,
+        }
     }
 }

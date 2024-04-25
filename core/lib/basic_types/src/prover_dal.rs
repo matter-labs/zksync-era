@@ -1,9 +1,12 @@
 //! Types exposed by the prover DAL for general-purpose use.
 use std::{net::IpAddr, ops::Add, str::FromStr};
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration, NaiveDateTime, NaiveTime, Utc};
 
-use crate::{basic_fri_types::AggregationRound, L1BatchNumber};
+use crate::{
+    basic_fri_types::{AggregationRound, Eip4844Blobs},
+    L1BatchNumber,
+};
 
 // This currently lives in `zksync_prover_types` -- we don't want a dependency between prover types (`zkevm_test_harness`) and DAL.
 // This will be gone as part of 1.5.0, when EIP4844 becomes normal jobs, rather than special cased ones.
@@ -228,4 +231,19 @@ impl FromStr for GpuProverInstanceStatus {
             _ => Err(()),
         }
     }
+}
+pub struct BasicWitnessGeneratorJobInfo {
+    pub l1_batch_number: L1BatchNumber,
+    pub merkle_tree_paths_blob_url: Option<String>,
+    pub attempts: u32,
+    pub status: WitnessJobStatus,
+    pub error: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub processing_started_at: Option<NaiveDateTime>,
+    pub time_taken: Option<NaiveTime>,
+    pub is_blob_cleaned: Option<bool>,
+    pub protocol_version: Option<i32>,
+    pub picked_by: Option<String>,
+    pub eip_4844_blobs: Option<Eip4844Blobs>,
 }
