@@ -151,7 +151,8 @@ export function isFolderEmpty(folderPath: string): boolean {
         const files = fs.readdirSync(folderPath); // Read the folder synchronously
         return files.length === 0; // If there are no files, the folder is empty
     } catch (error) {
-        console.error('Error while checking if folder is empty:', error.message);
+        const err = error as Error; // Cast `error` to `Error`
+        console.error('Error while checking if folder is empty:', err.message);
         return true; // If an error occurs (like the folder doesn't exist), assume it's empty
     }
 }
