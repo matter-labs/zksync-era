@@ -18,6 +18,8 @@ use crate::{
     SHA256_PRECOMPILE_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
 
+use std::env;
+
 // Note, that in the `NONCE_HOLDER_ADDRESS` storage the nonces of accounts
 // are stored in the following form:
 // `2^128 * deployment_nonce + tx_nonce`,
