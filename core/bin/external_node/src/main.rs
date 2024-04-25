@@ -167,7 +167,7 @@ async fn run_tree(
             .with_recovery_pool(recovery_pool);
 
     let tree_reader = Arc::new(metadata_calculator.tree_reader());
-    app_health.insert_component(metadata_calculator.tree_health_check());
+    app_health.insert_custom_component(Arc::new(metadata_calculator.tree_health_check()));
 
     if config.optional.pruning_enabled {
         tracing::warn!("Proceeding with node state pruning for the Merkle tree. This is an experimental feature; use at your own risk");

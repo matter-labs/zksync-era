@@ -9,13 +9,14 @@ use std::{
 };
 
 use anyhow::Context as _;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::{Connection, Core, CoreDal};
-use zksync_health_check::{Health, HealthStatus};
+use zksync_health_check::{CheckHealth, Health, HealthStatus, ReactiveHealthCheck};
 use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
     recovery::MerkleTreeRecovery,
@@ -64,9 +65,45 @@ impl From<MerkleTreeHealth> for Health {
     }
 }
 
-impl From<MerkleTreeInfo> for Health {
-    fn from(info: MerkleTreeInfo) -> Self {
-        Self::from(HealthStatus::Ready).with_details(MerkleTreeHealth::MainLoop(info))
+/// Health check for the Merkle tree.
+///
+/// [`ReactiveHealthCheck`] is not sufficient for the tree because in the main loop, tree info
+/// can be updated by multiple tasks (the metadata calculator and the pruning task). Additionally,
+/// keeping track of all places where the info is updated is error-prone.
+#[derive(Debug)]
+pub(super) struct MerkleTreeHealthCheck {
+    reactive_check: ReactiveHealthCheck,
+    // Used after the tree is initialized to get data from the tree without a delay.
+    reader: LazyAsyncTreeReader,
+}
+
+impl MerkleTreeHealthCheck {
+    pub fn new(reactive_check: ReactiveHealthCheck, reader: LazyAsyncTreeReader) -> Self {
+        Self {
+            reactive_check,
+            reader,
+        }
+    }
+}
+
+#[async_trait]
+impl CheckHealth for MerkleTreeHealthCheck {
+    fn name(&self) -> &'static str {
+        "tree"
+    }
+
+    async fn check_health(&self) -> Health {
+        let health = self.reactive_check.check_health().await;
+        if !matches!(health.status(), HealthStatus::Ready) {
+            return health;
+        }
+
+        if let Some(reader) = self.reader.read() {
+            let info = reader.info().await;
+            health.with_details(MerkleTreeHealth::MainLoop(info))
+        } else {
+            health
+        }
     }
 }
 
