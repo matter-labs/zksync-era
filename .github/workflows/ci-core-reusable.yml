@@ -192,8 +192,9 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
           if [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
-            ci_run zk config compile ext-node-validium
-            ci_run zk config compile ext-node-validium-docker
+            ci_run zk env dev_validium_docker
+            ci_run zk config compile dev_validium_docker
+            ci_run zk init --validium-mode
           else
             ci_run zk config compile
           fi
