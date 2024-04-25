@@ -1,5 +1,7 @@
 // Everywhere in this module the word "block" actually means "miniblock".
 
+#[macro_use]
+mod utils;
 pub mod contract_verification;
 pub mod execution_sandbox;
 pub mod healthcheck;

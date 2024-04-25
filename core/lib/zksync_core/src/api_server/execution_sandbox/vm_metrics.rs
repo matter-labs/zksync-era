@@ -14,6 +14,8 @@ use zksync_types::{
 };
 use zksync_utils::bytecode::bytecode_len_in_bytes;
 
+use crate::api_server::utils::ReportFilter;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "type", rename_all = "snake_case")]
 enum SizeType {
@@ -112,11 +114,12 @@ impl SubmitTxLatencyObserver<'_> {
     }
 
     pub fn observe(mut self) {
+        static FILTER: ReportFilter = report_filter!(Duration::from_secs(10));
         const MIN_LOGGED_LATENCY: Duration = Duration::from_secs(1);
 
         let latency = self.inner.take().unwrap().observe();
         // ^ `unwrap()` is safe: `LatencyObserver` is only taken out in this method.
-        if latency > MIN_LOGGED_LATENCY {
+        if latency > MIN_LOGGED_LATENCY && FILTER.should_report() {
             tracing::info!(
                 "Transaction {:?} submission stage {:?} has high latency: {latency:?}",
                 self.tx_hash,
@@ -128,7 +131,9 @@ impl SubmitTxLatencyObserver<'_> {
 
 impl Drop for SubmitTxLatencyObserver<'_> {
     fn drop(&mut self) {
-        if self.inner.is_some() {
+        static FILTER: ReportFilter = report_filter!(Duration::from_secs(10));
+
+        if self.inner.is_some() && FILTER.should_report() {
             tracing::info!(
                 "Transaction {:?} submission was dropped at stage {:?} due to error or client disconnecting",
                 self.tx_hash,
