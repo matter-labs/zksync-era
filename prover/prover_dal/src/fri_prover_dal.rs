@@ -594,4 +594,46 @@ impl FriProverDal<'_, '_> {
         .unwrap()
         .unwrap_or(0) as usize
     }
+
+    pub async fn requeue_stuck_jobs_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        {
+            sqlx::query!(
+                r#"
+                UPDATE prover_jobs_fri
+                SET
+                    status = 'queued',
+                    error = 'Manually requeued',
+                    attempts = 2,
+                    updated_at = NOW(),
+                    processing_started_at = NOW()
+                WHERE
+                    l1_batch_number = $1
+                    AND attempts >= $2
+                    AND NOT (
+                        status = 'successful'
+                    )
+                RETURNING
+                    id,
+                    status,
+                    attempts
+                "#,
+                i64::from(block_number.0),
+                max_attempts as i32,
+            )
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| StuckJobs {
+                id: row.id as u64,
+                status: row.status,
+                attempts: row.attempts as u64,
+            })
+            .collect()
+        }
+    }
 }
