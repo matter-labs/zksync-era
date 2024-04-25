@@ -72,12 +72,18 @@ jobs:
       - name: Compile EVM interpreter
         run: ZKSYNC_HOME=$(pwd) PATH=$(pwd)/bin:$PATH bash recompile_interpreter.sh
 
-      - name: Export needed env vars
-        run: |
-          export ZKSYNC_HOME=$(pwd) \
-            && export PATH=$ZKSYNC_HOME/bin:$PATH
+      # - name: Run unit tests
+      #   run: ZKSYNC_HOME=$(pwd) cargo test evm_simulator
+      #   env:
+      #     RUSTFLAGS: ""
 
-      - name: Run unit tests
-        run: ZKSYNC_HOME=$(pwd) cargo test evm_simulator
-        env:
-          RUSTFLAGS: ""
+      - name: Run integration tests
+        run: |
+          ZKSYNC_HOME=$(pwd) PATH=$(pwd)/bin:$PATH \
+            zk \
+            && zk env dev \
+            && zk config compile dev \
+            && zk init \
+            && zk server --components "api,tree,eth,state_keeper,housekeeper" & ; \
+            cd core/tests/ts-integration \
+            && yarn test evm-contracts-test.ts
