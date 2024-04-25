@@ -82,7 +82,7 @@ async function insertAddresses(environment?: string) {
 async function hyperchainUpgrade2() {
     const cwd = process.cwd();
     process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
-    const environment = process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : 'localhost';
+    const environment = 'stage'; //process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : 'localhost';
     await spawn(
         `yarn hyperchain-upgrade-2 --print-file-path ${getUpgradePath(
             environment
