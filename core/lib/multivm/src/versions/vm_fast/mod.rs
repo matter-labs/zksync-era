@@ -1,5 +1,6 @@
 mod bootloader_state;
 mod bytecode;
+mod events;
 mod hook;
 mod initial_bootloader_memory;
 mod pubdata;
