@@ -40,7 +40,7 @@ jobs:
       - name: Install preprocessor
         run: npm install -g preprocess-cli-tool
 
-      - name: Install solc
+      - name: Download solc
         run: |
           curl -L -o bin/solc https://github.com/ethereum/solidity/releases/download/v0.8.24/solc-static-linux \
             && chmod +x bin/solc
@@ -84,6 +84,7 @@ jobs:
             && zk env dev \
             && zk config compile dev \
             && zk init \
-            && zk server --components "api,tree,eth,state_keeper,housekeeper" & ; \
+            && zk server --components "api,tree,eth,state_keeper,housekeeper" &
+          ZKSYNC_HOME=$(pwd) PATH=$(pwd)/bin:$PATH \
             cd core/tests/ts-integration \
             && yarn test evm-contracts-test.ts
