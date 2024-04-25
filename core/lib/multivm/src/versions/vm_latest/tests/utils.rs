@@ -151,11 +151,13 @@ pub(crate) fn get_complex_upgrade_abi() -> Contract {
 }
 
 pub(crate) fn read_test_evm_bytecode(folder_name: &str, contract_name: &str) -> (Vec<u8>, Vec<u8>) {
-    read_evm_bytecode(format!("etc/evm-contracts-test-data/artifacts/contracts/{folder_name}/{contract_name}.sol/{contract_name}.json"))
+    let contract_lowercase = contract_name.to_lowercase();
+    read_evm_bytecode(format!("etc/evm-contracts-test-data/artifacts/contracts/{folder_name}/{contract_lowercase}.sol/{contract_name}.json"))
 }
 
 pub(crate) fn load_test_evm_contract(folder_name: &str, contract_name: &str) -> Contract {
+    let contract_lowercase = contract_name.to_lowercase();
     load_contract(format!(
-        "etc/evm-contracts-test-data/artifacts/contracts/{folder_name}/{contract_name}.sol/{contract_name}.json",
+        "etc/evm-contracts-test-data/artifacts/contracts/{folder_name}/{contract_lowercase}.sol/{contract_name}.json",
     ))
 }
