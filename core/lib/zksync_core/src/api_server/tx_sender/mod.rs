@@ -306,7 +306,10 @@ impl TxSender {
     }
 
     #[tracing::instrument(skip(self, tx))]
-    pub async fn submit_tx(&self, tx: L2Tx) -> Result<L2TxSubmissionResult, SubmitTxError> {
+    pub async fn submit_tx(
+        &self,
+        tx: L2Tx,
+    ) -> Result<(L2TxSubmissionResult, VmExecutionResultAndLogs), SubmitTxError> {
         let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::Validate].start();
         let mut connection = self.acquire_replica_connection().await?;
         let protocol_verison = pending_protocol_version(&mut connection).await?;
@@ -396,12 +399,12 @@ impl TxSender {
             L2TxSubmissionResult::Proxied => {
                 SANDBOX_METRICS.submit_tx[&SubmitTxStage::TxProxy]
                     .observe(stage_started_at.elapsed());
-                Ok(submission_res_handle)
+                Ok((submission_res_handle, execution_output.vm))
             }
             _ => {
                 SANDBOX_METRICS.submit_tx[&SubmitTxStage::DbInsert]
                     .observe(stage_started_at.elapsed());
-                Ok(submission_res_handle)
+                Ok((submission_res_handle, execution_output.vm))
             }
         }
     }

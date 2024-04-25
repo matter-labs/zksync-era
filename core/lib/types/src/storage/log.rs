@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use zksync_basic_types::AccountTreeId;
 use zksync_utils::u256_to_h256;
 
+use crate::api::ApiStorageLogQuery;
 use crate::{
     zk_evm_types::{LogQuery, Timestamp},
     StorageKey, StorageValue, U256,
@@ -80,7 +81,7 @@ impl StorageLog {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 pub enum StorageLogQueryType {
     Read,
     InitialWrite,
@@ -92,4 +93,23 @@ pub enum StorageLogQueryType {
 pub struct StorageLogQuery {
     pub log_query: LogQuery,
     pub log_type: StorageLogQueryType,
+}
+
+impl From<&StorageLogQuery> for ApiStorageLogQuery {
+    fn from(log_query: &StorageLogQuery) -> Self {
+        ApiStorageLogQuery {
+            timestamp: log_query.log_query.timestamp,
+            tx_number_in_block: log_query.log_query.tx_number_in_block,
+            aux_byte: log_query.log_query.aux_byte,
+            shard_id: log_query.log_query.shard_id,
+            address: log_query.log_query.address,
+            key: log_query.log_query.key,
+            read_value: log_query.log_query.read_value,
+            written_value: log_query.log_query.written_value,
+            rw_flag: log_query.log_query.rw_flag,
+            rollback: log_query.log_query.rollback,
+            is_service: log_query.log_query.is_service,
+            log_type: log_query.log_type,
+        }
+    }
 }

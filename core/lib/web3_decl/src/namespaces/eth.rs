@@ -2,6 +2,7 @@ use jsonrpsee::{
     core::{RpcResult, SubscriptionResult},
     proc_macros::rpc,
 };
+use zksync_types::api::OptimisticTransactionResult;
 use zksync_types::{
     api::{BlockId, BlockIdVariant, BlockNumber, Transaction, TransactionVariant},
     transaction_request::CallRequest,
@@ -141,6 +142,12 @@ pub trait EthNamespace {
 
     #[method(name = "sendRawTransaction")]
     async fn send_raw_transaction(&self, tx_bytes: Bytes) -> RpcResult<H256>;
+
+    #[method(name = "sendRawTransactionOptimistic")]
+    async fn send_raw_transaction_optimistic(
+        &self,
+        tx_bytes: Bytes,
+    ) -> RpcResult<OptimisticTransactionResult>;
 
     #[method(name = "syncing")]
     async fn syncing(&self) -> RpcResult<SyncState>;

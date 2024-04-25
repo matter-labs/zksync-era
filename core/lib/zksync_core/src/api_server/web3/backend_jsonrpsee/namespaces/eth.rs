@@ -1,3 +1,5 @@
+use itertools::Itertools;
+use zksync_types::api::{ApiStorageLogQuery, ApiVmEvent, OptimisticTransactionResult};
 use zksync_types::{
     api::{
         Block, BlockId, BlockIdVariant, BlockNumber, Log, Transaction, TransactionId,
@@ -210,6 +212,32 @@ impl EthNamespaceServer for EthNamespace {
     async fn send_raw_transaction(&self, tx_bytes: Bytes) -> RpcResult<H256> {
         self.send_raw_transaction_impl(tx_bytes)
             .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn send_raw_transaction_optimistic(
+        &self,
+        tx_bytes: Bytes,
+    ) -> RpcResult<OptimisticTransactionResult> {
+        self.send_raw_transaction_optimistic_impl(tx_bytes)
+            .await
+            .map(|result| OptimisticTransactionResult {
+                transaction_hash: result.0,
+                storage_logs: result
+                    .1
+                    .logs
+                    .storage_logs
+                    .iter()
+                    .map(|m| ApiStorageLogQuery::from(m))
+                    .collect_vec(),
+                events: result
+                    .1
+                    .logs
+                    .events
+                    .iter()
+                    .map(|m| ApiVmEvent::from(m))
+                    .collect_vec(),
+            })
             .map_err(|err| self.current_method().map_err(err))
     }
 

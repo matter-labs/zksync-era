@@ -9,6 +9,7 @@ use zksync_utils::{
     address_to_u256, h256_to_account_address, h256_to_u256, u256_to_bytes_be, u256_to_h256,
 };
 
+use crate::api::ApiVmEvent;
 use crate::{
     ethabi,
     l2_to_l1_log::L2ToL1Log,
@@ -38,6 +39,18 @@ impl VmEvent {
                 address: self.address,
                 topic: (idx as u32, topic),
             })
+    }
+}
+
+impl From<&VmEvent> for ApiVmEvent {
+    fn from(vm_event: &VmEvent) -> Self {
+        ApiVmEvent {
+            l1_batch_number: vm_event.location.0,
+            tx_batch_index: vm_event.location.1,
+            address: vm_event.address,
+            indexed_topics: vm_event.indexed_topics.clone(),
+            value: vm_event.value.clone(),
+        }
     }
 }
 
