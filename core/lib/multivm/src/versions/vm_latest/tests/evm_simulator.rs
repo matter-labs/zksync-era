@@ -1,10 +1,16 @@
 use std::{
+    env,
+    error::Error,
+    fs::{File, OpenOptions},
+    io::{prelude::*, Seek, SeekFrom},
     ops::{Div, Sub},
     str::FromStr,
 };
 
+use csv::{ReaderBuilder, Writer, WriterBuilder};
 use ethabi::{encode, ethereum_types::H264, Contract, Token};
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 // FIXME: 1.4.1 should not be imported from 1.5.0
 use zk_evm_1_4_1::sha2::{self};
 use zk_evm_1_5_0::zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32};
@@ -42,12 +48,6 @@ use crate::{
     vm_m5::storage::Storage,
     HistoryMode,
 };
-use csv::{ReaderBuilder, Writer, WriterBuilder};
-use serde::{Deserialize, Serialize};
-use std::env;
-use std::error::Error;
-use std::fs::{File, OpenOptions};
-use std::io::{prelude::*, Seek, SeekFrom};
 const CONTRACT_ADDRESS: &str = "0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7";
 
 fn insert_evm_contract(storage: &mut InMemoryStorage, mut bytecode: Vec<u8>) -> Address {
