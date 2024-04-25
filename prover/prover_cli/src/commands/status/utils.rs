@@ -1,6 +1,5 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use anyhow::ensure;
 use colored::*;
 use prover_dal::fri_proof_compressor_dal::ProofCompressionJobStatus;
 use strum::{Display, EnumString};
@@ -11,114 +10,6 @@ use zksync_types::L1BatchNumber;
 
 pub fn postgres_config() -> anyhow::Result<PostgresConfig> {
     Ok(PostgresConfig::from_env()?)
-}
-
-pub struct BatchDataBuilder {
-    batch_number: L1BatchNumber,
-    basic_witness_generator: Task,
-    leaf_witness_generator: Task,
-    node_witness_generator: Task,
-    recursion_tip: Task,
-    scheduler: Task,
-    compressor: Task,
-}
-
-impl BatchDataBuilder {
-    pub fn new(batch_number: L1BatchNumber) -> Self {
-        BatchDataBuilder {
-            batch_number,
-            ..Default::default()
-        }
-    }
-
-    pub fn basic_witness_generator(mut self, task: Task) -> anyhow::Result<Self> {
-        ensure!(
-            matches!(task, Task::BasicWitnessGenerator(_)),
-            "Task should be a basic witness generator"
-        );
-        self.basic_witness_generator = task;
-        Ok(self)
-    }
-
-    pub fn leaf_witness_generator(mut self, task: Task) -> anyhow::Result<Self> {
-        ensure!(
-            matches!(task, Task::LeafWitnessGenerator { .. }),
-            "Task should be a leaf witness generator"
-        );
-        self.leaf_witness_generator = task;
-        Ok(self)
-    }
-
-    pub fn node_witness_generator(mut self, task: Task) -> anyhow::Result<Self> {
-        ensure!(
-            matches!(task, Task::NodeWitnessGenerator { .. }),
-            "Task should be a node witness generator"
-        );
-        self.node_witness_generator = task;
-        Ok(self)
-    }
-
-    pub fn recursion_tip(mut self, task: Task) -> anyhow::Result<Self> {
-        ensure!(
-            matches!(task, Task::RecursionTip { .. }),
-            "Task should be a recursion tip"
-        );
-        self.recursion_tip = task;
-        Ok(self)
-    }
-
-    pub fn scheduler(mut self, task: Task) -> anyhow::Result<Self> {
-        ensure!(
-            matches!(task, Task::Scheduler(_)),
-            "Task should be a scheduler"
-        );
-        self.scheduler = task;
-        Ok(self)
-    }
-
-    pub fn compressor(mut self, task: Task) -> anyhow::Result<Self> {
-        ensure!(
-            matches!(task, Task::Compressor(_)),
-            "Task should be a compressor"
-        );
-        self.compressor = task;
-        Ok(self)
-    }
-
-    pub fn build(self) -> BatchData {
-        BatchData {
-            batch_number: self.batch_number,
-            basic_witness_generator: self.basic_witness_generator,
-            leaf_witness_generator: self.leaf_witness_generator,
-            node_witness_generator: self.node_witness_generator,
-            recursion_tip: self.recursion_tip,
-            scheduler: self.scheduler,
-            compressor: self.compressor,
-        }
-    }
-}
-
-impl Default for BatchDataBuilder {
-    fn default() -> Self {
-        BatchDataBuilder {
-            batch_number: L1BatchNumber::default(),
-            basic_witness_generator: Task::BasicWitnessGenerator(TaskStatus::Stuck),
-            leaf_witness_generator: Task::LeafWitnessGenerator {
-                status: TaskStatus::WaitingForProofs,
-                aggregation_round_0_prover_jobs_data: ProverJobsData::default(),
-            },
-            node_witness_generator: Task::NodeWitnessGenerator {
-                status: TaskStatus::WaitingForProofs,
-                aggregation_round_1_prover_jobs_data: ProverJobsData::default(),
-            },
-            recursion_tip: Task::RecursionTip {
-                status: TaskStatus::WaitingForProofs,
-                aggregation_round_2_prover_jobs_data: ProverJobsData::default(),
-            },
-            scheduler: Task::Scheduler(TaskStatus::WaitingForProofs),
-            compressor: Task::Compressor(TaskStatus::WaitingForProofs),
-        }
-    }
 }
 
 /// Represents the proving data of a batch.
