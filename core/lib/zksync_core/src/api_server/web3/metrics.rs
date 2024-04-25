@@ -429,7 +429,7 @@ impl ApiMetrics {
         // Log internal error details.
         match err {
             Web3Error::InternalError(err) => {
-                tracing::error!("Internal error in method `{method}`: {err}");
+                tracing::error!("Internal error in method `{method}`: {err:#}");
             }
             Web3Error::ProxyError(err) => {
                 tracing::warn!("Error proxying call to main node in method `{method}`: {err}");
