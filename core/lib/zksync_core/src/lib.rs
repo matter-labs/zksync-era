@@ -62,6 +62,7 @@ use zksync_house_keeper::{
 };
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
+use zksync_shared::genesis::GenesisParams;
 use zksync_shared_metrics::{InitStage, APP_METRICS};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
@@ -92,7 +93,6 @@ use crate::{
         SequencerSealer, StateKeeperPersistence,
     },
     utils::ensure_l1_batch_commit_data_generation_mode,
-    zksync_shared::genesis::GenesisParams,
 };
 
 pub mod api_server;

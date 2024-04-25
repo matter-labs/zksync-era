@@ -9,10 +9,7 @@ use clap::Parser;
 use serde_yaml::Serializer;
 use zksync_config::{GenesisConfig, PostgresConfig};
 use zksync_contracts::BaseSystemContracts;
-use zksync_core::{
-    genesis::{insert_genesis_batch, GenesisParams},
-    temp_config_store::decode_yaml_repr,
-};
+use zksync_core::temp_config_store::decode_yaml_repr;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_protobuf::{
@@ -20,6 +17,7 @@ use zksync_protobuf::{
     ProtoRepr,
 };
 use zksync_protobuf_config::proto::genesis::Genesis;
+use zksync_shared::genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::ProtocolVersionId;
 
 const DEFAULT_GENESIS_FILE_PATH: &str = "./etc/env/file_based/genesis.yaml";

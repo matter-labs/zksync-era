@@ -19,11 +19,12 @@ use zksync_config::{
     GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core::{
-    genesis, genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
+    genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
     temp_config_store::{decode_yaml, decode_yaml_repr, Secrets, TempConfigStore},
     Component, Components,
 };
 use zksync_env_config::FromEnv;
+use zksync_shared::genesis;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 

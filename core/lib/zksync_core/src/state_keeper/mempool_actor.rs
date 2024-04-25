@@ -156,6 +156,7 @@ async fn get_transaction_nonces(
 
 #[cfg(test)]
 mod tests {
+    use zksync_shared::genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{
         fee::TransactionExecutionMetrics, L2BlockNumber, PriorityOpId, ProtocolVersionId,
         StorageLog, H256,
@@ -163,10 +164,7 @@ mod tests {
     use zksync_utils::u256_to_h256;
 
     use super::*;
-    use crate::{
-        genesis::{insert_genesis_batch, GenesisParams},
-        utils::testonly::{create_l2_transaction, MockBatchFeeParamsProvider},
-    };
+    use crate::utils::testonly::{create_l2_transaction, MockBatchFeeParamsProvider};
 
     const TEST_MEMPOOL_CONFIG: MempoolConfig = MempoolConfig {
         sync_interval_ms: 10,

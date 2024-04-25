@@ -2,7 +2,7 @@
 //! It initializes the Merkle tree with the basic setup (such as fields of special service accounts),
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
-use std::fmt::Formatter;
+use std::{collections::BTreeMap, fmt::Formatter};
 
 use anyhow::Context as _;
 use itertools::Itertools;
@@ -11,11 +11,11 @@ use multivm::{
     utils::get_max_gas_per_pubdata_byte,
     zk_evm_latest::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp},
 };
-use zksync_config::{configs::database::MerkleTreeMode, GenesisConfig, PostgresConfig};
+use zksync_config::{GenesisConfig, PostgresConfig};
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_eth_client::{clients::QueryClient, EthInterface};
-use zksync_merkle_tree::domain::ZkSyncTree;
+use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_system_constants::{DEFAULT_ERA_CHAIN_ID, PRIORITY_EXPIRATION};
 use zksync_types::{
     block::{
@@ -35,8 +35,6 @@ use zksync_types::{
     ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, H256,
 };
 use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
-
-use crate::metadata_calculator::L1BatchWithLogs;
 
 #[derive(Debug, Clone)]
 pub struct BaseContractsHashError {
@@ -186,6 +184,44 @@ pub struct GenesisBatchParams {
     pub rollup_last_leaf_index: u64,
 }
 
+// TODO: add metrics to track latency of each stage
+async fn get_storage_logs_for_genesis_block(
+    storage: &mut Connection<'_, Core>,
+) -> Result<Vec<TreeInstruction<StorageKey>>, GenesisError> {
+    let l1_batch_number = L1BatchNumber(0);
+
+    let touched_slots = storage
+        .storage_logs_dal()
+        .get_touched_slots_for_l1_batch(l1_batch_number)
+        .await
+        .context("cannot fetch touched slots")?;
+
+    let hashed_keys_for_writes: Vec<_> = touched_slots.keys().map(StorageKey::hashed_key).collect();
+    let l1_batches_for_initial_writes = storage
+        .storage_logs_dal()
+        .get_l1_batches_and_indices_for_initial_writes(&hashed_keys_for_writes)
+        .await
+        .context("cannot fetch initial writes batch numbers and indices")?;
+
+    let mut storage_logs = BTreeMap::new();
+
+    for (storage_key, value) in touched_slots {
+        if let Some(&(initial_write_batch_for_key, leaf_index)) =
+            l1_batches_for_initial_writes.get(&storage_key.hashed_key())
+        {
+            // Filter out logs that correspond to deduplicated writes.
+            if initial_write_batch_for_key <= l1_batch_number {
+                storage_logs.insert(
+                    storage_key,
+                    TreeInstruction::write(storage_key, leaf_index, value),
+                );
+            }
+        }
+    }
+
+    Ok(storage_logs.into_values().collect())
+}
+
 // Insert genesis batch into the database
 pub async fn insert_genesis_batch(
     storage: &mut Connection<'_, Core>,
@@ -211,15 +247,7 @@ pub async fn insert_genesis_batch(
     .await?;
     tracing::info!("chain_schema_genesis is complete");
 
-    let storage_logs = L1BatchWithLogs::new(
-        &mut transaction,
-        L1BatchNumber(0),
-        MerkleTreeMode::Lightweight,
-    )
-    .await
-    .context("failed fetching tree input for genesis L1 batch")?
-    .context("genesis L1 batch disappeared from Postgres")?;
-    let storage_logs = storage_logs.storage_logs;
+    let storage_logs = get_storage_logs_for_genesis_block(&mut transaction).await?;
     let metadata = ZkSyncTree::process_genesis_batch(&storage_logs);
     let genesis_root_hash = metadata.root_hash;
     let rollup_last_leaf_index = metadata.leaf_count + 1;

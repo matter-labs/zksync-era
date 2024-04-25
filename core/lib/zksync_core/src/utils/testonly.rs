@@ -5,6 +5,7 @@ use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
+use zksync_shared::genesis::GenesisParams;
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
@@ -22,7 +23,7 @@ use zksync_types::{
     StorageLog, H256, U256,
 };
 
-use crate::{fee_model::BatchFeeModelInputProvider, genesis::GenesisParams};
+use crate::fee_model::BatchFeeModelInputProvider;
 
 // FIXME: rename
 /// Creates a miniblock header with the specified number and deterministic contents.

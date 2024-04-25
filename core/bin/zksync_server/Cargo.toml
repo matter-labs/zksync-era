@@ -18,6 +18,7 @@ zksync_storage.workspace = true
 zksync_utils.workspace = true
 zksync_types.workspace = true
 zksync_core.workspace = true
+zksync_shared.workspace = true
 
 # Consensus dependenices
 zksync_consensus_crypto.workspace = true

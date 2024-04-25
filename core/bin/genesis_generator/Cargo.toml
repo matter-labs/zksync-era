@@ -21,7 +21,7 @@ zksync_core.workspace = true
 zksync_dal.workspace = true
 zksync_contracts.workspace = true
 zksync_protobuf.workspace = true
-
+zksync_shared.workspace = true
 
 anyhow.workspace = true
 serde_json.workspace = true

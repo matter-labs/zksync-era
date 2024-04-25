@@ -2376,6 +2376,7 @@ dependencies = [
  "zksync_env_config",
  "zksync_protobuf",
  "zksync_protobuf_config",
+ "zksync_shared",
  "zksync_types",
  "zksync_utils",
 ]
@@ -8954,6 +8955,7 @@ dependencies = [
  "zksync_core",
  "zksync_env_config",
  "zksync_protobuf_config",
+ "zksync_shared",
  "zksync_storage",
  "zksync_types",
  "zksync_utils",
