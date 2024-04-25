@@ -3473,7 +3473,7 @@ fn test_basic_environment4_vectors() {
 }
 
 #[test]
-#[ignore = "Ignored beceause the current compared values don't match"]
+#[ignore = "Ignored because the current compared values don't match"]
 fn test_basic_extcodehash_vectors() {
     // extcodehash
     let evm_output = test_evm_vector(
