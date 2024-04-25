@@ -241,6 +241,19 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     }
 }
 
+impl<DB: PruneDatabase> MerkleTree<DB> {
+    /// Returns the first retained version of the tree.
+    pub fn first_retained_version(&self) -> Option<u64> {
+        match self.db.min_stale_key_version() {
+            // Min stale key version is next after the first retained version since at least
+            // the root is updated on each version.
+            Some(version) => version.checked_sub(1),
+            // No stale keys means all past versions of the tree have been pruned
+            None => self.latest_version(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

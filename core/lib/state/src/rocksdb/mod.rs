@@ -125,7 +125,7 @@ impl From<anyhow::Error> for RocksdbSyncError {
 }
 
 /// [`ReadStorage`] implementation backed by RocksDB.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RocksdbStorage {
     db: RocksDB<StateKeeperColumnFamily>,
     pending_patch: InMemoryStorage,
@@ -202,9 +202,13 @@ impl RocksdbStorageBuilder {
         self,
         storage: &mut Connection<'_, Core>,
         stop_receiver: &watch::Receiver<bool>,
+        to_l1_batch_number: Option<L1BatchNumber>,
     ) -> anyhow::Result<Option<RocksdbStorage>> {
         let mut inner = self.0;
-        match inner.update_from_postgres(storage, stop_receiver).await {
+        match inner
+            .update_from_postgres(storage, stop_receiver, to_l1_batch_number)
+            .await
+        {
             Ok(()) => Ok(Some(inner)),
             Err(RocksdbSyncError::Interrupted) => Ok(None),
             Err(RocksdbSyncError::Internal(err)) => Err(err),
@@ -268,6 +272,7 @@ impl RocksdbStorage {
         &mut self,
         storage: &mut Connection<'_, Core>,
         stop_receiver: &watch::Receiver<bool>,
+        to_l1_batch_number: Option<L1BatchNumber>,
     ) -> Result<(), RocksdbSyncError> {
         let (_, mut current_l1_batch_number) = self
             .ensure_ready(storage, Self::DESIRED_LOG_CHUNK_SIZE, stop_receiver)
@@ -283,21 +288,33 @@ impl RocksdbStorage {
             // No L1 batches are persisted in Postgres; update is not necessary.
             return Ok(());
         };
-        tracing::debug!("Loading storage for l1 batch number {latest_l1_batch_number}");
+        let to_l1_batch_number = if let Some(to_l1_batch_number) = to_l1_batch_number {
+            if to_l1_batch_number > latest_l1_batch_number {
+                let err = anyhow::anyhow!(
+                    "Requested to update RocksDB to L1 batch number ({current_l1_batch_number}) that \
+                     is greater than the last sealed L1 batch number in Postgres ({latest_l1_batch_number})"
+                );
+                return Err(err.into());
+            }
+            to_l1_batch_number
+        } else {
+            latest_l1_batch_number
+        };
+        tracing::debug!("Loading storage for l1 batch number {to_l1_batch_number}");
 
-        if current_l1_batch_number > latest_l1_batch_number + 1 {
+        if current_l1_batch_number > to_l1_batch_number + 1 {
             let err = anyhow::anyhow!(
                 "L1 batch number in state keeper cache ({current_l1_batch_number}) is greater than \
-                 the last sealed L1 batch number in Postgres ({latest_l1_batch_number})"
+                 the requested batch number ({to_l1_batch_number})"
             );
             return Err(err.into());
         }
 
-        while current_l1_batch_number <= latest_l1_batch_number {
+        while current_l1_batch_number <= to_l1_batch_number {
             if *stop_receiver.borrow() {
                 return Err(RocksdbSyncError::Interrupted);
             }
-            let current_lag = latest_l1_batch_number.0 - current_l1_batch_number.0 + 1;
+            let current_lag = to_l1_batch_number.0 - current_l1_batch_number.0 + 1;
             METRICS.lag.set(current_lag.into());
 
             tracing::debug!("Loading state changes for l1 batch {current_l1_batch_number}");
@@ -323,7 +340,7 @@ impl RocksdbStorage {
                 .await
                 .with_context(|| format!("failed saving L1 batch #{current_l1_batch_number}"))?;
             #[cfg(test)]
-            (self.listener.on_l1_batch_synced)(current_l1_batch_number - 1);
+            (self.listener.on_l1_batch_synced.write().await)(current_l1_batch_number - 1);
         }
 
         latency.observe();
@@ -331,7 +348,7 @@ impl RocksdbStorage {
         let estimated_size = self.estimated_map_size();
         METRICS.size.set(estimated_size);
         tracing::info!(
-            "Secondary storage for L1 batch #{latest_l1_batch_number} initialized, size is {estimated_size}"
+            "Secondary storage for L1 batch #{to_l1_batch_number} initialized, size is {estimated_size}"
         );
 
         Ok(())

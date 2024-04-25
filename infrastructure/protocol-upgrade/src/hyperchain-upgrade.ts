@@ -134,10 +134,21 @@ async function hyperchainFullUpgrade() {
         'cp etc/env/.init.env etc/env/l1-inits/.init.env && rm ./etc/env/l2-inits/zksync_local.init.env && rm ./etc/env/target/zksync_local.env'
     );
     await spawn('zk env zksync_local');
+    env.reload('zksync_local');
     env.modify(
         'CONTRACTS_ERA_DIAMOND_PROXY_ADDR',
         process.env.CONTRACTS_DIAMOND_PROXY_ADDR,
         `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+    );
+    env.modify(
+        'CONTRACTS_L2_SHARED_BRIDGE_ADDR',
+        process.env.CONTRACTS_L2_ERC20_BRIDGE_ADDR,
+        `etc/env/l2-inits/${process.env.ZKSYNC_ENV}.init.env`
+    );
+    env.modify(
+        'CONTRACTS_BASE_TOKEN_ADDR',
+        '0x0000000000000000000000000000000000000001',
+        `etc/env/l2-inits/${process.env.ZKSYNC_ENV}.init.env`
     );
 
     await deploySharedBridgeL2Implementation();
@@ -170,7 +181,7 @@ async function hyperchainFullUpgrade() {
 async function postPropose() {
     // we need to set up the prover dal
     await setupForDal(DalPath.ProverDal, process.env.DATABASE_PROVER_URL);
-    await 'zk db migrate';
+    await spawn('zk db migrate');
 }
 
 export const command = new Command('hyperchain-upgrade').description('create and publish custom l2 upgrade');

@@ -32,7 +32,7 @@ use crate::{
 #[test]
 fn calculating_chunk_count() {
     let mut snapshot = SnapshotParameters {
-        miniblock: L2BlockNumber(1),
+        l2_block: L2BlockNumber(1),
         log_count: 160_000_000,
         expected_root_hash: H256::zero(),
     };
@@ -252,10 +252,9 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
         &merkle_tree_config,
         &OperationsManagerConfig { delay_interval: 50 },
     );
-    let mut calculator =
-        MetadataCalculator::new(calculator_config, None, pool.clone(), pool.clone())
-            .await
-            .unwrap();
+    let mut calculator = MetadataCalculator::new(calculator_config, None, pool.clone())
+        .await
+        .unwrap();
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
     calculator.delayer.delay_notifier = delay_sx;
 
