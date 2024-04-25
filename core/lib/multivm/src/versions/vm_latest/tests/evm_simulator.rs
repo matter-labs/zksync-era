@@ -7,11 +7,12 @@ use std::{
     str::FromStr,
 };
 
+// FIXME: 1.4.1 should not be imported from 1.5.0
+use chrono::{Datelike, Timelike, Utc};
 use csv::{ReaderBuilder, Writer, WriterBuilder};
 use ethabi::{encode, ethereum_types::H264, Contract, Token};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-// FIXME: 1.4.1 should not be imported from 1.5.0
 use zk_evm_1_4_1::sha2::{self};
 use zk_evm_1_5_0::zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32};
 use zksync_contracts::{load_contract, read_bytecode, read_evm_bytecode};
@@ -4217,22 +4218,16 @@ fn perform_opcode_benchmark(params: EVMOpcodeBenchmarkParams) -> EVMOpcodeBenchm
 
 fn start_benchmark() -> Result<String, Box<dyn std::error::Error>> {
     let evm_version = env::var("EVM_SIMULATOR").unwrap_or_else(|_| "yul".to_string());
-    let seconds_since_epoch = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let days = seconds_since_epoch / (24 * 3600);
-    let hours = (seconds_since_epoch % (24 * 3600)) / 3600;
-    let minutes = (seconds_since_epoch % 3600) / 60;
-    let seconds = seconds_since_epoch % 60;
+    let now = Utc::now();
+    let year = now.year();
+    let month = now.month();
+    let day = now.day();
+    let hour = now.hour();
+    let minute = now.minute();
+    let second = now.second();
     let formatted_time = format!(
         "{:04}-{:02}-{:02}-{:02}-{:02}-{:02}",
-        1970 + days as i32 / 365,
-        1 + (days as i32 % 365) / 30,
-        1 + (days as i32 % 365) % 30,
-        hours,
-        minutes,
-        seconds
+        year, month, day, hour, minute, second
     );
     let directory_path = format!("benchmarks");
     if !std::fs::metadata(&directory_path).is_ok() {
