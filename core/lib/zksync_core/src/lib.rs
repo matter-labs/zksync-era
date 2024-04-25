@@ -188,7 +188,7 @@ pub enum Component {
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
-    /// Component generating BFT consensus certificates for miniblocks.
+    /// Component generating BFT consensus certificates for L2 blocks.
     Consensus,
     /// Component generating commitment for L1 batches.
     CommitmentGenerator,
@@ -334,7 +334,7 @@ pub async fn initialize_components(
 
     let (prometheus_health_check, prometheus_health_updater) =
         ReactiveHealthCheck::new("prometheus_exporter");
-    app_health.insert_component(prometheus_health_check);
+    app_health.insert_component(prometheus_health_check)?;
     let prometheus_task = prom_config.run(stop_receiver.clone());
     let prometheus_task = tokio::spawn(async move {
         prometheus_health_updater.update(HealthStatus::Ready.into());
@@ -803,7 +803,7 @@ pub async fn initialize_components(
                 .await
                 .context("failed to build commitment_generator_pool")?;
         let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
-        app_health.insert_component(commitment_generator.health_check());
+        app_health.insert_component(commitment_generator.health_check())?;
         task_futures.push(tokio::spawn(
             commitment_generator.run(stop_receiver.clone()),
         ));
@@ -811,7 +811,7 @@ pub async fn initialize_components(
 
     // Run healthcheck server for all components.
     let db_health_check = ConnectionPoolHealthCheck::new(replica_connection_pool);
-    app_health.insert_custom_component(Arc::new(db_health_check));
+    app_health.insert_custom_component(Arc::new(db_health_check))?;
     let health_check_handle =
         HealthCheckHandle::spawn_server(health_check_config.bind_addr(), app_health);
 
@@ -861,7 +861,7 @@ async fn add_state_keeper_to_task_futures(
         l2_block_sealer_pool,
         contracts_config
             .l2_shared_bridge_addr
-            .expect("`l2_shared_bridge_addr` config is missing"),
+            .context("`l2_shared_bridge_addr` config is missing")?,
         state_keeper_config.l2_block_seal_queue_capacity,
     );
     task_futures.push(tokio::spawn(l2_block_sealer.run()));
@@ -1040,7 +1040,7 @@ async fn run_tree(
     }
 
     let tree_health_check = metadata_calculator.tree_health_check();
-    app_health.insert_component(tree_health_check);
+    app_health.insert_component(tree_health_check)?;
     let tree_task = tokio::spawn(metadata_calculator.run(stop_receiver));
     task_futures.push(tree_task);
 
@@ -1320,7 +1320,7 @@ async fn run_http_api(
     let updaters_pool = ConnectionPool::<Core>::builder(postgres_config.replica_url()?, 2)
         .build()
         .await
-        .context("failed to build last_miniblock_pool")?;
+        .context("failed to build updaters_pool")?;
 
     let mut api_builder =
         web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
@@ -1336,7 +1336,7 @@ async fn run_http_api(
     if let Some(tree_api_url) = api_config.web3_json_rpc.tree_api_url() {
         let tree_api = Arc::new(TreeApiHttpClient::new(tree_api_url));
         api_builder = api_builder.with_tree_api(tree_api.clone());
-        app_health.insert_custom_component(tree_api);
+        app_health.insert_custom_component(tree_api)?;
     }
 
     let server_handles = api_builder
@@ -1345,7 +1345,7 @@ async fn run_http_api(
         .run(stop_receiver)
         .await?;
     task_futures.extend(server_handles.tasks);
-    app_health.insert_component(server_handles.health_check);
+    app_health.insert_component(server_handles.health_check)?;
     Ok(())
 }
 
@@ -1375,10 +1375,10 @@ async fn run_ws_api(
         storage_caches,
     )
     .await;
-    let last_miniblock_pool = ConnectionPool::<Core>::singleton(postgres_config.replica_url()?)
+    let updaters_pool = ConnectionPool::<Core>::singleton(postgres_config.replica_url()?)
         .build()
         .await
-        .context("failed to build last_miniblock_pool")?;
+        .context("failed to build updaters_pool")?;
 
     let mut namespaces = Namespace::DEFAULT.to_vec();
     namespaces.push(Namespace::Snapshots);
@@ -1386,7 +1386,7 @@ async fn run_ws_api(
     let mut api_builder =
         web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
             .ws(api_config.web3_json_rpc.ws_port)
-            .with_updaters_pool(last_miniblock_pool)
+            .with_updaters_pool(updaters_pool)
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())
             .with_subscriptions_limit(api_config.web3_json_rpc.subscriptions_limit())
             .with_batch_request_size_limit(api_config.web3_json_rpc.max_batch_request_size())
@@ -1404,7 +1404,7 @@ async fn run_ws_api(
     if let Some(tree_api_url) = api_config.web3_json_rpc.tree_api_url() {
         let tree_api = Arc::new(TreeApiHttpClient::new(tree_api_url));
         api_builder = api_builder.with_tree_api(tree_api.clone());
-        app_health.insert_custom_component(tree_api);
+        app_health.insert_custom_component(tree_api)?;
     }
 
     let server_handles = api_builder
@@ -1413,7 +1413,7 @@ async fn run_ws_api(
         .run(stop_receiver)
         .await?;
     task_futures.extend(server_handles.tasks);
-    app_health.insert_component(server_handles.health_check);
+    app_health.insert_component(server_handles.health_check)?;
     Ok(())
 }
 
