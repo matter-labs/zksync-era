@@ -45,7 +45,6 @@ impl ZksNamespace {
         &self.state.current_method
     }
 
-    #[tracing::instrument(skip(self, request))]
     pub async fn estimate_fee_impl(&self, request: CallRequest) -> Result<Fee, Web3Error> {
         let mut request_with_gas_per_pubdata_overridden = request;
         self.state
@@ -68,7 +67,6 @@ impl ZksNamespace {
         self.estimate_fee(tx.into()).await
     }
 
-    #[tracing::instrument(skip(self, request))]
     pub async fn estimate_l1_to_l2_gas_impl(
         &self,
         request: CallRequest,
@@ -102,37 +100,26 @@ impl ZksNamespace {
             .await?)
     }
 
-    #[tracing::instrument(skip(self))]
     pub fn get_bridgehub_contract_impl(&self) -> Option<Address> {
         self.state.api_config.bridgehub_proxy_addr
     }
 
-    #[tracing::instrument(skip(self))]
     pub fn get_main_contract_impl(&self) -> Address {
         self.state.api_config.diamond_proxy_addr
     }
 
-    #[tracing::instrument(skip(self))]
     pub fn get_testnet_paymaster_impl(&self) -> Option<Address> {
         self.state.api_config.l2_testnet_paymaster_addr
     }
 
-    #[tracing::instrument(skip(self))]
     pub fn get_bridge_contracts_impl(&self) -> BridgeAddresses {
         self.state.api_config.bridge_addresses.clone()
     }
 
-    #[tracing::instrument(skip(self))]
-    pub fn get_base_token_l1_address(&self) -> Option<Address> {
-        self.state.api_config.base_token_address
-    }
-
-    #[tracing::instrument(skip(self))]
     pub fn l1_chain_id_impl(&self) -> U64 {
         U64::from(*self.state.api_config.l1_chain_id)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_confirmed_tokens_impl(
         &self,
         from: u32,
@@ -160,7 +147,6 @@ impl ZksNamespace {
         Ok(tokens)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_all_account_balances_impl(
         &self,
         address: Address,
@@ -203,7 +189,6 @@ impl ZksNamespace {
         Ok(balances)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_l2_to_l1_msg_proof_impl(
         &self,
         block_number: L2BlockNumber,
@@ -321,7 +306,6 @@ impl ZksNamespace {
         }))
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_l2_to_l1_log_proof_impl(
         &self,
         tx_hash: H256,
@@ -348,7 +332,6 @@ impl ZksNamespace {
         Ok(log_proof)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_l1_batch_number_impl(&self) -> Result<U64, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
         let l1_batch_number = storage
@@ -360,7 +343,6 @@ impl ZksNamespace {
         Ok(l1_batch_number.0.into())
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_miniblock_range_impl(
         &self,
         batch: L1BatchNumber,
@@ -378,7 +360,6 @@ impl ZksNamespace {
         Ok(range.map(|(min, max)| (U64::from(min.0), U64::from(max.0))))
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_block_details_impl(
         &self,
         block_number: L2BlockNumber,
@@ -396,7 +377,6 @@ impl ZksNamespace {
             .map_err(DalError::generalize)?)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_raw_block_transactions_impl(
         &self,
         block_number: L2BlockNumber,
@@ -414,7 +394,6 @@ impl ZksNamespace {
             .map_err(DalError::generalize)?)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_transaction_details_impl(
         &self,
         hash: H256,
@@ -433,7 +412,6 @@ impl ZksNamespace {
         Ok(tx_details)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_l1_batch_details_impl(
         &self,
         batch_number: L1BatchNumber,
@@ -451,7 +429,6 @@ impl ZksNamespace {
             .map_err(DalError::generalize)?)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_bytecode_by_hash_impl(
         &self,
         hash: H256,
@@ -464,7 +441,6 @@ impl ZksNamespace {
             .map_err(DalError::generalize)?)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_l1_gas_price_impl(&self) -> U64 {
         let gas_price = self
             .state
@@ -477,7 +453,6 @@ impl ZksNamespace {
         gas_price.into()
     }
 
-    #[tracing::instrument(skip(self))]
     pub fn get_fee_params_impl(&self) -> FeeParams {
         self.state
             .tx_sender
@@ -486,7 +461,6 @@ impl ZksNamespace {
             .get_fee_model_params()
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_protocol_version_impl(
         &self,
         version_id: Option<u16>,
@@ -510,7 +484,6 @@ impl ZksNamespace {
         Ok(protocol_version)
     }
 
-    #[tracing::instrument(skip_all)]
     pub async fn get_proofs_impl(
         &self,
         address: Address,
@@ -564,7 +537,6 @@ impl ZksNamespace {
         }))
     }
 
-    #[tracing::instrument(skip_all)]
     pub fn get_base_token_l1_address_impl(&self) -> Result<Address, Web3Error> {
         self.state
             .api_config
