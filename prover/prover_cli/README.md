@@ -18,32 +18,6 @@ Options:
 
 ## Status
 
-### Status batch
-
-You can get the progress for some batch proof, for a bunch of batches the `status batch` command:
-
-```bash
-# Displays the proof progress of the batch 1
- zk f cargo run --release -- status batch --batch 1
-# Displays the proof progress of the batches 1 and 2
- zk f cargo run --release -- status batch --batch 1 2
-# Displays the proof progress of the batch 3, with additional information
- zk f cargo run --release -- status batch --batch 3 --verbose
-```
-
-Example:
-
-```bash
-$ zk f cargo run --release -- status batch --batch 1 --verbose
-
-Batch number: 1
-Progress: 34.88% (45/129)
-In progress: 1
-Queued: 83
-Successful: 45
-Failed: 0
-```
-
 ### Status l1
 
 Retrieve information about the state of the batches sent to L1 and compare the contract hashes in L1 with those stored
