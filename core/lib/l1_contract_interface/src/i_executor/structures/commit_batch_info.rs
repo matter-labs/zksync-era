@@ -364,14 +364,6 @@ impl<'a> CommitBatchInfoValidium<'a> {
             ]
         }
     }
-
-    fn pubdata_input(&self) -> Vec<u8> {
-        self.l1_batch_with_metadata
-            .header
-            .pubdata_input
-            .clone()
-            .unwrap_or_else(|| self.l1_batch_with_metadata.construct_pubdata())
-    }
 }
 
 impl<'a> Tokenizable for CommitBatchInfoValidium<'a> {

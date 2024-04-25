@@ -256,7 +256,7 @@ impl CommitmentGenerator {
     async fn step(&self, l1_batch_number: L1BatchNumber, is_validium: bool) -> anyhow::Result<()> {
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::PrepareInput].start();
-        let mut input = self.prepare_input(l1_batch_number, is_validium).await?;
+        let input = self.prepare_input(l1_batch_number, is_validium).await?;
         let latency = latency.observe();
         tracing::debug!("Prepared commitment input for L1 batch #{l1_batch_number} in {latency:?}");
 
