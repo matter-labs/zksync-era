@@ -176,6 +176,18 @@
       "address": "0x0000000000000000000000000000000000010000"
     }
   ],
+  "defaultAA": {
+    "name": "DefaultAccount",
+    "bytecodeHashes": [
+      "0x01000563374c277a2c1e34659a2a1e87371bb6d852ce142022d497bfb50b9e32"
+    ]
+  },
+  "bootloader": {
+    "name": "Bootloader",
+    "bytecodeHashes": [
+      "0x010008e7f0f15ed191392960117f88fe371348982b28a033c7207ed2c09bc0f4"
+    ]
+  },
   "forcedDeployments": [
     {
       "bytecodeHash": "0x0100000781e55a60f3f14fd7dd67e3c8caab896b7b0fca4a662583959299eede",
