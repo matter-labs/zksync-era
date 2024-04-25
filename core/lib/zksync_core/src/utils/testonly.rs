@@ -24,9 +24,8 @@ use zksync_types::{
 
 use crate::{fee_model::BatchFeeModelInputProvider, genesis::GenesisParams};
 
-// FIXME: rename
-/// Creates a miniblock header with the specified number and deterministic contents.
-pub(crate) fn create_miniblock(number: u32) -> L2BlockHeader {
+/// Creates an L2 block header with the specified number and deterministic contents.
+pub(crate) fn create_l2_block(number: u32) -> L2BlockHeader {
     L2BlockHeader {
         number: L2BlockNumber(number),
         timestamp: number.into(),
@@ -153,7 +152,7 @@ pub(crate) fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionR
 #[derive(Debug)]
 pub(crate) struct Snapshot {
     pub l1_batch: L1BatchHeader,
-    pub miniblock: L2BlockHeader,
+    pub l2_block: L2BlockHeader,
     pub storage_logs: Vec<StorageLog>,
     pub factory_deps: HashMap<H256, Vec<u8>>,
 }
@@ -162,7 +161,7 @@ impl Snapshot {
     // Constructs a dummy Snapshot based on the provided values.
     pub fn make(
         l1_batch: L1BatchNumber,
-        miniblock: L2BlockNumber,
+        l2_block: L2BlockNumber,
         storage_logs: &[StorageLog],
     ) -> Self {
         let genesis_params = GenesisParams::mock();
@@ -173,10 +172,10 @@ impl Snapshot {
             contracts.hashes(),
             genesis_params.protocol_version(),
         );
-        let miniblock = L2BlockHeader {
-            number: miniblock,
-            timestamp: miniblock.0.into(),
-            hash: H256::from_low_u64_be(miniblock.0.into()),
+        let l2_block = L2BlockHeader {
+            number: l2_block,
+            timestamp: l2_block.0.into(),
+            hash: H256::from_low_u64_be(l2_block.0.into()),
             l1_tx_count: 0,
             l2_tx_count: 0,
             base_fee_per_gas: 100,
@@ -192,7 +191,7 @@ impl Snapshot {
         };
         Snapshot {
             l1_batch,
-            miniblock,
+            l2_block,
             factory_deps: [&contracts.bootloader, &contracts.default_aa]
                 .into_iter()
                 .map(|c| (c.hash, zksync_utils::be_words_to_bytes(&c.code)))
@@ -206,10 +205,10 @@ impl Snapshot {
 pub(crate) async fn prepare_recovery_snapshot(
     storage: &mut Connection<'_, Core>,
     l1_batch: L1BatchNumber,
-    miniblock: L2BlockNumber,
+    l2_block: L2BlockNumber,
     storage_logs: &[StorageLog],
 ) -> SnapshotRecoveryStatus {
-    recover(storage, Snapshot::make(l1_batch, miniblock, storage_logs)).await
+    recover(storage, Snapshot::make(l1_batch, l2_block, storage_logs)).await
 }
 
 /// Takes a storage snapshot at the last sealed L1 batch.
@@ -226,7 +225,7 @@ pub(crate) async fn snapshot(storage: &mut Connection<'_, Core>) -> Snapshot {
         .await
         .unwrap()
         .unwrap();
-    let (_, miniblock) = storage
+    let (_, l2_block) = storage
         .blocks_dal()
         .get_l2_block_range_of_l1_batch(l1_batch.number)
         .await
@@ -234,15 +233,15 @@ pub(crate) async fn snapshot(storage: &mut Connection<'_, Core>) -> Snapshot {
         .unwrap();
     let all_hashes = H256::zero()..=H256::repeat_byte(0xff);
     Snapshot {
-        miniblock: storage
+        l2_block: storage
             .blocks_dal()
-            .get_l2_block_header(miniblock)
+            .get_l2_block_header(l2_block)
             .await
             .unwrap()
             .unwrap(),
         storage_logs: storage
             .snapshots_creator_dal()
-            .get_storage_logs_chunk(miniblock, l1_batch.number, all_hashes)
+            .get_storage_logs_chunk(l2_block, l1_batch.number, all_hashes)
             .await
             .unwrap()
             .into_iter()
@@ -250,7 +249,7 @@ pub(crate) async fn snapshot(storage: &mut Connection<'_, Core>) -> Snapshot {
             .collect(),
         factory_deps: storage
             .snapshots_creator_dal()
-            .get_all_factory_deps(miniblock)
+            .get_all_factory_deps(l2_block)
             .await
             .unwrap()
             .into_iter()
@@ -260,7 +259,7 @@ pub(crate) async fn snapshot(storage: &mut Connection<'_, Core>) -> Snapshot {
 }
 
 /// Recovers storage from a snapshot.
-/// Miniblock and L1 batch are intentionally **not** inserted into the storage.
+/// L2 block and L1 batch are intentionally **not** inserted into the storage.
 pub(crate) async fn recover(
     storage: &mut Connection<'_, Core>,
     snapshot: Snapshot,
@@ -298,7 +297,7 @@ pub(crate) async fn recover(
     }
     storage
         .factory_deps_dal()
-        .insert_factory_deps(snapshot.miniblock.number, &snapshot.factory_deps)
+        .insert_factory_deps(snapshot.l2_block.number, &snapshot.factory_deps)
         .await
         .unwrap();
 
@@ -310,7 +309,7 @@ pub(crate) async fn recover(
     storage
         .storage_logs_dal()
         .insert_storage_logs(
-            snapshot.miniblock.number,
+            snapshot.l2_block.number,
             &[(H256::zero(), snapshot.storage_logs)],
         )
         .await
@@ -320,9 +319,9 @@ pub(crate) async fn recover(
         l1_batch_number: snapshot.l1_batch.number,
         l1_batch_timestamp: snapshot.l1_batch.timestamp,
         l1_batch_root_hash,
-        l2_block_number: snapshot.miniblock.number,
-        l2_block_timestamp: snapshot.miniblock.timestamp,
-        l2_block_hash: snapshot.miniblock.hash,
+        l2_block_number: snapshot.l2_block.number,
+        l2_block_timestamp: snapshot.l2_block.timestamp,
+        l2_block_hash: snapshot.l2_block.hash,
         protocol_version: snapshot.l1_batch.protocol_version.unwrap(),
         storage_logs_chunks_processed: vec![true; 100],
     };
@@ -334,13 +333,13 @@ pub(crate) async fn recover(
 
     storage
         .pruning_dal()
-        .soft_prune_batches_range(snapshot.l1_batch.number, snapshot.miniblock.number)
+        .soft_prune_batches_range(snapshot.l1_batch.number, snapshot.l2_block.number)
         .await
         .unwrap();
 
     storage
         .pruning_dal()
-        .hard_prune_batches_range(snapshot.l1_batch.number, snapshot.miniblock.number)
+        .hard_prune_batches_range(snapshot.l1_batch.number, snapshot.l2_block.number)
         .await
         .unwrap();
 

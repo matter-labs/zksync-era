@@ -98,8 +98,8 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
     }
 
     fn transaction_executor(&self) -> MockTransactionExecutor {
-        let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
-        CallTest::create_executor(first_local_miniblock)
+        let first_local_l2_block = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
+        CallTest::create_executor(first_local_l2_block)
     }
 
     async fn test(&self, client: &HttpClient, _pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
@@ -116,7 +116,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
             .await?;
         assert_eq!(call_result.0, b"output");
 
-        let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
+        let first_local_l2_block = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
         let pruned_block_numbers = [0, 1, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0];
         for number in pruned_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number.into());
@@ -124,11 +124,11 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
                 .call(CallTest::call_request(b"pruned"), Some(number))
                 .await
                 .unwrap_err();
-            assert_pruned_block_error(&error, first_local_miniblock);
+            assert_pruned_block_error(&error, first_local_l2_block);
         }
 
-        let first_miniblock_numbers = [api::BlockNumber::Latest, first_local_miniblock.0.into()];
-        for number in first_miniblock_numbers {
+        let first_l2_block_numbers = [api::BlockNumber::Latest, first_local_l2_block.0.into()];
+        for number in first_l2_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number);
             let call_result = client
                 .call(CallTest::call_request(b"first"), Some(number))
@@ -355,7 +355,7 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
             .await?;
         TraceCallTest::assert_debug_call(&call_request, &call_result);
 
-        let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
+        let first_local_l2_block = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
         let pruned_block_numbers = [0, 1, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0];
         for number in pruned_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number.into());
@@ -363,12 +363,12 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
                 .call(CallTest::call_request(b"pruned"), Some(number))
                 .await
                 .unwrap_err();
-            assert_pruned_block_error(&error, first_local_miniblock);
+            assert_pruned_block_error(&error, first_local_l2_block);
         }
 
         let call_request = CallTest::call_request(b"first");
-        let first_miniblock_numbers = [api::BlockNumber::Latest, first_local_miniblock.0.into()];
-        for number in first_miniblock_numbers {
+        let first_l2_block_numbers = [api::BlockNumber::Latest, first_local_l2_block.0.into()];
+        for number in first_l2_block_numbers {
             let number = api::BlockId::Number(number);
             let call_result = client
                 .trace_call(call_request.clone(), Some(number), None)

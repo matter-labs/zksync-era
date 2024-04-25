@@ -18,7 +18,7 @@ use zksync_types::{
     transaction_request::CallRequest,
     utils::storage_key_for_standard_token_balance,
     AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction,
-    L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+    L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_utils::{address_to_h256, h256_to_u256};
 use zksync_web3_decl::{
@@ -123,6 +123,11 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
+    pub fn get_base_token_l1_address(&self) -> Option<Address> {
+        self.state.api_config.base_token_address
+    }
+
+    #[tracing::instrument(skip(self))]
     pub fn l1_chain_id_impl(&self) -> U64 {
         U64::from(*self.state.api_config.l1_chain_id)
     }
@@ -168,7 +173,7 @@ impl ZksNamespace {
             .map_err(DalError::generalize)?;
         let hashed_balance_keys = tokens.iter().map(|&token_address| {
             let token_account = AccountTreeId::new(if token_address == ETHEREUM_ADDRESS {
-                L2_ETH_TOKEN_ADDRESS
+                L2_BASE_TOKEN_ADDRESS
             } else {
                 token_address
             });
@@ -220,12 +225,12 @@ impl ZksNamespace {
         else {
             return Ok(None);
         };
-        let (first_miniblock_of_l1_batch, _) = storage
+        let (first_l2_block_of_l1_batch, _) = storage
             .blocks_web3_dal()
             .get_l2_block_range_of_l1_batch(l1_batch_number)
             .await
             .map_err(DalError::generalize)?
-            .context("L1 batch should contain at least one miniblock")?;
+            .context("L1 batch should contain at least one L2 block")?;
 
         // Position of l1 log in L1 batch relative to logs with identical data
         let l1_log_relative_position = if let Some(l2_log_position) = l2_log_position {
@@ -233,7 +238,7 @@ impl ZksNamespace {
                 .events_web3_dal()
                 .get_logs(
                     GetLogsFilter {
-                        from_block: first_miniblock_of_l1_batch,
+                        from_block: first_l2_block_of_l1_batch,
                         to_block: block_number,
                         addresses: vec![L1_MESSENGER_ADDRESS],
                         topics: vec![(2, vec![address_to_h256(&sender)]), (3, vec![msg])],
@@ -356,7 +361,7 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn get_miniblock_range_impl(
+    pub async fn get_l2_block_range_impl(
         &self,
         batch: L1BatchNumber,
     ) -> Result<Option<(U64, U64)>, Web3Error> {
@@ -557,5 +562,13 @@ impl ZksNamespace {
             address,
             storage_proof,
         }))
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub fn get_base_token_l1_address_impl(&self) -> Result<Address, Web3Error> {
+        self.state
+            .api_config
+            .base_token_address
+            .ok_or(Web3Error::NotImplemented)
     }
 }

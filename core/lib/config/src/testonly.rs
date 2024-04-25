@@ -248,10 +248,13 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             validator_timelock_addr: g.gen(),
             l1_erc20_bridge_proxy_addr: g.gen(),
             l2_erc20_bridge_addr: g.gen(),
+            l1_shared_bridge_proxy_addr: g.gen(),
+            l2_shared_bridge_addr: g.gen(),
             l1_weth_bridge_proxy_addr: g.gen(),
             l2_weth_bridge_addr: g.gen(),
             l2_testnet_paymaster_addr: g.gen(),
             l1_multicall3_addr: g.gen(),
+            base_token_addr: g.gen(),
         }
     }
 }
@@ -539,10 +542,7 @@ impl Distribution<configs::FriWitnessGeneratorConfig> for EncodeDist {
             node_generation_timeout_in_secs: self.sample(rng),
             scheduler_generation_timeout_in_secs: self.sample(rng),
             max_attempts: self.sample(rng),
-            blocks_proving_percentage: self.sample(rng),
-            dump_arguments_for_blocks: self.sample_collect(rng),
             last_l1_batch_to_process: self.sample(rng),
-            force_process_block: self.sample(rng),
             shall_save_to_public_bucket: self.sample(rng),
         }
     }

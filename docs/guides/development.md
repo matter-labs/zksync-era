@@ -24,7 +24,7 @@ zk init
 
 This command will do the following:
 
-- Generate `$ZKSYNC_HOME/etc/env/dev.env` file with settings for the applications.
+- Generate `$ZKSYNC_HOME/etc/env/target/dev.env` file with settings for the applications.
 - Initialize docker containers with `reth` Ethereum node for local development.
 - Download and unpack files for cryptographical backend.
 - Generate required smart contracts.
@@ -51,8 +51,8 @@ zk clean --database --backups # Remove database *and* backups, but not configs.
 
 1. If you have an initialized database and want to run `zk init`, you have to remove the database first.
 2. If after getting new functionality from the `main` branch your code stopped working and `zk init` doesn't help, you
-   may try removing `$ZKSYNC_HOME/etc/env/dev.env` and running `zk init` once again. This may help if the application
-   configuration has changed.
+   may try removing `$ZKSYNC_HOME/etc/env/target/dev.env` and running `zk init` once again. This may help if the
+   application configuration has changed.
 
 If you don’t need all of the `zk init` functionality, but just need to start/stop containers, use the following
 commands:
@@ -162,7 +162,7 @@ By default, the chosen prover is a "dummy" one, meaning that it doesn't actually
 avoid expensive computations in the development environment.
 
 To switch dummy prover to real prover, one must change `dummy_verifier` to `false` in `contracts.toml` for your env
-(most likely, `etc/env/dev/contracts.toml`) and run `zk init` to redeploy smart contracts.
+(most likely, `etc/env/base/contracts.toml`) and run `zk init` to redeploy smart contracts.
 
 ## Testing
 

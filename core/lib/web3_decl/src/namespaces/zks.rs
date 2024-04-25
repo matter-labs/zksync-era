@@ -45,6 +45,9 @@ pub trait ZksNamespace {
     #[method(name = "getBridgeContracts")]
     async fn get_bridge_contracts(&self) -> RpcResult<BridgeAddresses>;
 
+    #[method(name = "getBaseTokenL1Address")]
+    async fn get_base_token_l1_address(&self) -> RpcResult<Address>;
+
     #[method(name = "L1ChainId")]
     async fn l1_chain_id(&self) -> RpcResult<U64>;
 
@@ -75,7 +78,7 @@ pub trait ZksNamespace {
     async fn get_l1_batch_number(&self) -> RpcResult<U64>;
 
     #[method(name = "getL1BatchBlockRange")]
-    async fn get_miniblock_range(&self, batch: L1BatchNumber) -> RpcResult<Option<(U64, U64)>>;
+    async fn get_l2_block_range(&self, batch: L1BatchNumber) -> RpcResult<Option<(U64, U64)>>;
 
     #[method(name = "getBlockDetails")]
     async fn get_block_details(
