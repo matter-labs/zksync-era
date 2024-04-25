@@ -42,7 +42,12 @@ use crate::{
     vm_m5::storage::Storage,
     HistoryMode,
 };
-
+use csv::{ReaderBuilder, Writer, WriterBuilder};
+use serde::{Deserialize, Serialize};
+use std::env;
+use std::error::Error;
+use std::fs::{File, OpenOptions};
+use std::io::{prelude::*, Seek, SeekFrom};
 const CONTRACT_ADDRESS: &str = "0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7";
 
 fn insert_evm_contract(storage: &mut InMemoryStorage, mut bytecode: Vec<u8>) -> Address {
@@ -4088,8 +4093,16 @@ struct EVMOpcodeBenchmarkParams {
     pub opcode: u8,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 struct EVMOpcodeBenchmarkResult {
+    pub used_zkevm_ergs: u32,
+    pub used_evm_gas: u32,
+    pub used_circuits: f32,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct EVMOpcodeBenchmarkResultWithName {
+    pub name: String,
     pub used_zkevm_ergs: u32,
     pub used_evm_gas: u32,
     pub used_circuits: f32,
@@ -4224,8 +4237,10 @@ fn perform_benchmark(bytecode: Vec<u8>) -> EVMOpcodeBenchmarkResult {
     vm.vm.push_transaction(tx);
 
     let ergs_before = vm.vm.gas_remaining();
+
     let tx_result: crate::vm_latest::VmExecutionResultAndLogs =
         vm.vm.execute(VmExecutionMode::OneTx);
+
     let ergs_after = vm.vm.gas_remaining();
 
     assert!(
@@ -4284,20 +4299,308 @@ fn perform_opcode_benchmark(params: EVMOpcodeBenchmarkParams) -> EVMOpcodeBenchm
     diff / params.number_of_opcodes
 }
 
+fn start_benchmark() -> Result<String, Box<dyn std::error::Error>> {
+    let evm_version = env::var("EVM_SIMULATOR").unwrap_or_else(|_| "yul".to_string());
+    let seconds_since_epoch = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let days = seconds_since_epoch / (24 * 3600);
+    let hours = (seconds_since_epoch % (24 * 3600)) / 3600;
+    let minutes = (seconds_since_epoch % 3600) / 60;
+    let seconds = seconds_since_epoch % 60;
+    let formatted_time = format!(
+        "{:04}-{:02}-{:02}-{:02}-{:02}-{:02}",
+        1970 + days as i32 / 365,
+        1 + (days as i32 % 365) / 30,
+        1 + (days as i32 % 365) % 30,
+        hours,
+        minutes,
+        seconds
+    );
+    let directory_path = format!("benchmarks");
+    if !std::fs::metadata(&directory_path).is_ok() {
+        // If it doesn't exist, create it
+        std::fs::create_dir(&directory_path)?;
+    }
+    let filename = format!(
+        "benchmarks/benchmark_{}_{}.csv",
+        evm_version, formatted_time
+    );
+
+    Ok(filename.to_string())
+}
+fn save_benchmark(
+    name: &str,
+    filename: &String,
+    result: EVMOpcodeBenchmarkResult,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let result_with_name = EVMOpcodeBenchmarkResultWithName {
+        name: name.to_string(),
+        used_zkevm_ergs: result.used_zkevm_ergs,
+        used_evm_gas: result.used_evm_gas,
+        used_circuits: result.used_circuits,
+    };
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(filename)?;
+
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+
+    // Move the cursor to the start of the file
+    file.seek(SeekFrom::Start(0))?;
+
+    // Deserialize existing CSV into a vector of EVMOpcodeBenchmarkResult
+    let mut results: Vec<EVMOpcodeBenchmarkResultWithName> = if contents.is_empty() {
+        Vec::new()
+    } else {
+        let mut reader = ReaderBuilder::new().from_reader(contents.as_bytes());
+        reader
+            .deserialize::<EVMOpcodeBenchmarkResultWithName>()
+            .collect::<Result<Vec<_>, _>>()?
+    };
+
+    // Push the new result
+    results.push(result_with_name);
+
+    // Serialize the vector back to CSV
+    let mut writer = WriterBuilder::new().from_writer(file);
+
+    for result in &results {
+        writer.serialize(result)?;
+    }
+
+    writer.flush()?;
+
+    Ok(())
+}
+
+fn perform_benchmark_and_save(
+    name: &str,
+    filename: &String,
+    bytecode: Vec<u8>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let result = perform_benchmark(bytecode);
+    save_benchmark(name, filename, result)
+}
+
+fn benchmark_basic(filename: &String) {
+    let name = "benchmark_basic";
+    let bytecode = vec![
+        // push1 0
+        hex::decode("60").unwrap(),
+        hex::decode("00").unwrap(),
+        // push1 1
+        hex::decode("60").unwrap(),
+        hex::decode("01").unwrap(),
+        // add
+        hex::decode("01").unwrap(),
+        // push1 2
+        hex::decode("60").unwrap(),
+        hex::decode("02").unwrap(),
+        // add
+        hex::decode("01").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // add
+        hex::decode("01").unwrap(),
+        // push1 4
+        hex::decode("60").unwrap(),
+        hex::decode("04").unwrap(),
+        // add
+        hex::decode("01").unwrap(),
+        // push1 5
+        hex::decode("60").unwrap(),
+        hex::decode("05").unwrap(),
+        // add
+        hex::decode("01").unwrap(),
+        // push1 6
+        hex::decode("60").unwrap(),
+        hex::decode("06").unwrap(),
+        // add
+        hex::decode("01").unwrap(),
+        // push1 7
+        hex::decode("60").unwrap(),
+        hex::decode("07").unwrap(),
+        // add
+        hex::decode("01").unwrap(),
+        // push1 8
+        hex::decode("60").unwrap(),
+        hex::decode("08").unwrap(),
+        // add
+        hex::decode("01").unwrap(),
+        // push1 9
+        hex::decode("60").unwrap(),
+        hex::decode("09").unwrap(),
+        // add
+        hex::decode("01").unwrap(),
+        // push1 10
+        hex::decode("60").unwrap(),
+        hex::decode("0A").unwrap(),
+        // add
+        hex::decode("01").unwrap(),
+        // push1 11
+        hex::decode("60").unwrap(),
+        hex::decode("0B").unwrap(),
+        // add
+        hex::decode("01").unwrap(),
+        // push1 12
+        hex::decode("60").unwrap(),
+        hex::decode("0C").unwrap(),
+        // add
+        hex::decode("01").unwrap(),
+        // push1 13
+        hex::decode("60").unwrap(),
+    ]
+    .into_iter()
+    .concat();
+
+    perform_benchmark_and_save(name, filename, bytecode).unwrap();
+}
+
+fn benchmark_basic2(filename: &String) {
+    let name = "benchmark_basic_2";
+    let bytecode = vec![
+        // push32 179,624,556
+        hex::decode("7F").unwrap(),
+        u256_to_h256(179_624_556.into()).0.to_vec(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // 16 pushes
+        // dup16
+        hex::decode("8F").unwrap(),
+        // push32 0
+        hex::decode("7F").unwrap(),
+        H256::zero().0.to_vec(),
+        // sstore
+        hex::decode("55").unwrap(),
+    ]
+    .into_iter()
+    .concat();
+
+    perform_benchmark_and_save(name, filename, bytecode).unwrap();
+}
+
+fn benchmark_basic_3(filename: &String) {
+    let name = "benchmark_basic_3";
+    let bytecode = vec![
+        // push32 179,624,556
+        hex::decode("7F").unwrap(),
+        u256_to_h256(179_624_556.into()).0.to_vec(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // push1 3
+        hex::decode("60").unwrap(),
+        hex::decode("03").unwrap(),
+        // push1 255
+        hex::decode("60").unwrap(),
+        hex::decode("FF").unwrap(),
+        // 16 pushes
+        // push1 10
+        hex::decode("60").unwrap(),
+        hex::decode("0A").unwrap(),
+        // swap16
+        hex::decode("9F").unwrap(),
+        // push32 0
+        hex::decode("7F").unwrap(),
+        H256::zero().0.to_vec(),
+        // sstore
+        hex::decode("55").unwrap(),
+    ]
+    .into_iter()
+    .concat();
+
+    perform_benchmark_and_save(name, filename, bytecode).unwrap();
+}
 // TODO: move this test to a separate binary
 #[test]
 fn test_evm_benchmark() {
-    println!("{:#?}", perform_zkevm_benchmark());
-
-    println!(
-        "{:#?}",
-        perform_opcode_benchmark(EVMOpcodeBenchmarkParams {
-            number_of_opcodes: 50,
-            filler: encode_multiple_push32(vec![
-                U256::from(2).pow(255.into()) + U256::from(1),
-                U256::from(2).pow(255.into())
-            ]),
-            opcode: 1 // add
-        })
-    );
+    let filename = start_benchmark().unwrap();
+    benchmark_basic(&filename);
+    benchmark_basic2(&filename);
+    benchmark_basic_3(&filename);
 }
