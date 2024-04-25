@@ -69,7 +69,7 @@ impl DebugNamespace {
         let mut connection = self.state.acquire_connection().await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         self.current_method()
-            .set_block_diff(self.state.last_sealed_miniblock.diff(block_number));
+            .set_block_diff(self.state.last_sealed_l2_block.diff(block_number));
 
         let call_traces = connection
             .blocks_web3_dal()
@@ -144,7 +144,7 @@ impl DebugNamespace {
 
         self.current_method().set_block_diff(
             self.state
-                .last_sealed_miniblock
+                .last_sealed_l2_block
                 .diff_with_block_args(&block_args),
         );
         let tx = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;

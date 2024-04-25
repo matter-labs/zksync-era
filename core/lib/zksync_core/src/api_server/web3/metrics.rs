@@ -240,12 +240,12 @@ pub(in crate::api_server) struct ApiMetrics {
     web3_info: Family<ApiTransportLabel, Info<Web3ConfigLabels>>,
 
     /// Latency of a Web3 call. Calls that take block ID as an input have block ID and block diff
-    /// labels (the latter is the difference between the latest sealed miniblock and the resolved miniblock).
+    /// labels (the latter is the difference between the latest sealed L2 block and the resolved L2 block).
     #[metrics(buckets = Buckets::LATENCIES)]
     web3_call: Family<MethodLabels, Histogram<Duration>>,
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
     web3_dropped_call_latency: Family<MethodLabels, Histogram<Duration>>,
-    /// Difference between the latest sealed miniblock and the resolved miniblock for a web3 call.
+    /// Difference between the latest sealed L2 block and the resolved L2 block for a web3 call.
     #[metrics(buckets = BLOCK_DIFF_BUCKETS, labels = ["method"])]
     web3_call_block_diff: LabeledFamily<&'static str, Histogram<u64>>,
     /// Serialized response size in bytes. Only recorded for successful responses.

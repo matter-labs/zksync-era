@@ -210,12 +210,12 @@ impl ZksNamespace {
         else {
             return Ok(None);
         };
-        let (first_miniblock_of_l1_batch, _) = storage
+        let (first_l2_block_of_l1_batch, _) = storage
             .blocks_web3_dal()
             .get_l2_block_range_of_l1_batch(l1_batch_number)
             .await
             .map_err(DalError::generalize)?
-            .context("L1 batch should contain at least one miniblock")?;
+            .context("L1 batch should contain at least one L2 block")?;
 
         // Position of l1 log in L1 batch relative to logs with identical data
         let l1_log_relative_position = if let Some(l2_log_position) = l2_log_position {
@@ -223,7 +223,7 @@ impl ZksNamespace {
                 .events_web3_dal()
                 .get_logs(
                     GetLogsFilter {
-                        from_block: first_miniblock_of_l1_batch,
+                        from_block: first_l2_block_of_l1_batch,
                         to_block: block_number,
                         addresses: vec![L1_MESSENGER_ADDRESS],
                         topics: vec![(2, vec![address_to_h256(&sender)]), (3, vec![msg])],
@@ -343,7 +343,7 @@ impl ZksNamespace {
         Ok(l1_batch_number.0.into())
     }
 
-    pub async fn get_miniblock_range_impl(
+    pub async fn get_l2_block_range_impl(
         &self,
         batch: L1BatchNumber,
     ) -> Result<Option<(U64, U64)>, Web3Error> {

@@ -1,4 +1,4 @@
-// Everywhere in this module the word "block" actually means "miniblock".
+// Everywhere in this module the word "block" actually means "L2 block".
 
 #[macro_use]
 mod utils;

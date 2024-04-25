@@ -28,7 +28,7 @@ async fn test_validator_block_store() {
     let rng = &mut ctx.rng();
     let store = new_store(false).await;
 
-    // Fill storage with unsigned miniblocks.
+    // Fill storage with unsigned L2 blocks.
     // Fetch a suffix of blocks that we will generate (fake) certs for.
     let want = scope::run!(ctx, |ctx, s| async {
         // Start state keeper.
@@ -95,8 +95,8 @@ fn executor_config(cfg: &network::Config) -> executor::Config {
 }
 
 // In the current implementation, consensus certificates are created asynchronously
-// for the miniblocks constructed by the StateKeeper. This means that consensus actor
-// is effectively just back filling the consensus certificates for the miniblocks in storage.
+// for the L2 blocks constructed by the StateKeeper. This means that consensus actor
+// is effectively just back filling the consensus certificates for the L2 blocks in storage.
 #[test_casing(2, [false, true])]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_validator(from_snapshot: bool) {
@@ -117,7 +117,7 @@ async fn test_validator(from_snapshot: bool) {
         store
             .wait_for_payload(ctx, sk.last_block())
             .await
-            .context("sk.wait_for_miniblocks(<1st phase>)")?;
+            .context("sk.wait_for_payload(<1st phase>)")?;
 
         tracing::info!("Restart consensus actor a couple times, making it process a bunch of blocks each time.");
         for iteration in 0..3 {

@@ -27,7 +27,7 @@ use crate::{
     l1_gas_price::{GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing},
     state_keeper::{MempoolGuard, MempoolIO},
     utils::testonly::{
-        create_l1_batch, create_l2_transaction, create_miniblock, execute_l2_transaction,
+        create_l1_batch, create_l2_block, create_l2_transaction, execute_l2_transaction,
         DeploymentMode,
     },
 };
@@ -173,7 +173,7 @@ impl Tester {
                 base_fee_per_gas,
                 batch_fee_input: fee_input,
                 base_system_contracts_hashes: self.base_system_contracts.hashes(),
-                ..create_miniblock(number)
+                ..create_l2_block(number)
             })
             .await
             .unwrap();
