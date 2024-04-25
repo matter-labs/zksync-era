@@ -17,7 +17,7 @@ use multivm::vm_latest::{
 };
 use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tracing::Instrument;
-use zkevm_test_harness::{geometry_config::get_geometry_config, toolset::GeometryConfig};
+use zkevm_test_harness::geometry_config::get_geometry_config;
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::{Core, CoreDal};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -280,15 +280,14 @@ async fn process_basic_circuits_job(
 ) -> BasicCircuitArtifacts {
     let witness_gen_input =
         build_basic_circuits_witness_generator_input(&connection_pool, job, block_number).await;
-    let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) =
-        generate_witness(
-            block_number,
-            object_store,
-            connection_pool,
-            witness_gen_input,
-            eip_4844_blobs,
-        )
-        .await;
+    let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) = generate_witness(
+        block_number,
+        object_store,
+        connection_pool,
+        witness_gen_input,
+        eip_4844_blobs,
+    )
+    .await;
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
         .observe(started_at.elapsed());
     tracing::info!(
