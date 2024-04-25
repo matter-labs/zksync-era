@@ -1238,7 +1238,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             .map(|row| StuckJobs {
                 id: block_number.0 as u64,
                 status: row.get("status"),
-                attempts: row.get::<i64, &str>("attempts") as u64,
+                attempts: row.get::<i16, &str>("attempts") as u64,
             })
             .collect()
     }
