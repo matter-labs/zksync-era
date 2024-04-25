@@ -1,0 +1,68 @@
+name: CI Yul equivalent EVM
+
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches:
+      - staging
+      - trying
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    name: Run tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          submodules: "recursive"
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: 1.74.0-nightly
+
+      - name: Install node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 21.7
+
+      - name: Install yarn
+        run: corepack enable
+        # https://yarnpkg.com/corepack
+
+      - name: Install preprocessor
+        run: npm install -g preprocess-cli-tool
+
+      - name: Build system contracts
+        run: |
+          cd contracts/system-contracts \
+            && yarn install \
+            && yarn build
+
+      - name: Build EVM test contracts
+        run: |
+          cd etc/evm-contracts-test-data \
+            && yarn install \
+            && yarn build
+
+      - name: Build zkEVM test contracts
+        run: |
+          cd etc/contracts-test-data \
+            && yarn install \
+            && yarn build
+
+      - name: Export needed env vars
+        run: |
+          export ZKSYNC_HOME=$(pwd) \
+            && export PATH=$ZKSYNC_HOME/bin:$PATH
+
+      - name: Run unit tests
+        run: cargo test evm_simulator
