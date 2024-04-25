@@ -130,7 +130,7 @@ export async function deployL2ThroughL1({
     );
 }
 
-async function _deployL1(onlyVerifier: boolean, deploymentMode: DeploymentMode): Promise<void> {
+async function _deployL1(onlyVerifier: boolean, _deploymentMode: DeploymentMode): Promise<void> {
     await utils.confirmAction();
 
     const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
