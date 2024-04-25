@@ -309,14 +309,16 @@ impl TxSender {
     pub async fn submit_tx(&self, tx: L2Tx) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::Validate].start();
         let mut connection = self.acquire_replica_connection().await?;
-        let protocol_verison = pending_protocol_version(&mut connection).await?;
-        self.validate_tx(&tx, protocol_verison).await?;
+        let protocol_version = pending_protocol_version(&mut connection).await?;
+        drop(connection);
+        self.validate_tx(&tx, protocol_version).await?;
         stage_latency.observe();
 
         let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::DryRun].start();
         let shared_args = self.shared_args().await?;
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
+        let mut connection = self.acquire_replica_connection().await?;
         let block_args = BlockArgs::pending(&mut connection).await?;
         drop(connection);
 
@@ -406,6 +408,8 @@ impl TxSender {
         }
     }
 
+    /// **Important.** For the main node, this method acquires a DB connection inside `get_batch_fee_input()`.
+    /// Thus, you shouldn't call it if you're holding a DB connection already.
     async fn shared_args(&self) -> anyhow::Result<TxSharedArgs> {
         let fee_input = self
             .0
