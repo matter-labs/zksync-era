@@ -328,4 +328,46 @@ impl FriProofCompressorDal<'_, '_> {
             .collect()
         }
     }
+
+    pub async fn requeue_stuck_jobs_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        {
+            sqlx::query!(
+                r#"
+                UPDATE proof_compression_jobs_fri
+                SET
+                    status = 'queued',
+                    error = 'Manually requeued',
+                    attempts = 2,
+                    updated_at = NOW(),
+                    processing_started_at = NOW()
+                WHERE
+                    l1_batch_number = $1
+                    AND attempts >= $2
+                    AND NOT (
+                        status = 'successful'
+                        OR status = 'sent_to_server'
+                    )
+                RETURNING
+                    status,
+                    attempts
+                "#,
+                i64::from(block_number.0),
+                max_attempts as i32,
+            )
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| StuckJobs {
+                id: block_number.0 as u64,
+                status: row.status,
+                attempts: row.attempts as u64,
+            })
+            .collect()
+        }
+    }
 }

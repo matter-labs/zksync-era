@@ -1278,4 +1278,95 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .map(|id| ProtocolVersionId::try_from(id as u16).unwrap())
         .unwrap()
     }
+
+    pub async fn requeue_stuck_witness_inputs_jobs_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        self.requeue_stuck_jobs_for_batch_in_aggregation_round(
+            AggregationRound::BasicCircuits,
+            block_number,
+            max_attempts,
+        )
+        .await
+    }
+
+    pub async fn requeue_stuck_leaf_aggregation_jobs_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        self.requeue_stuck_jobs_for_batch_in_aggregation_round(
+            AggregationRound::LeafAggregation,
+            block_number,
+            max_attempts,
+        )
+        .await
+    }
+
+    pub async fn requeue_stuck_node_aggregation_jobs_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        self.requeue_stuck_jobs_for_batch_in_aggregation_round(
+            AggregationRound::NodeAggregation,
+            block_number,
+            max_attempts,
+        )
+        .await
+    }
+
+    pub async fn requeue_stuck_scheduler_jobs_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        self.requeue_stuck_jobs_for_batch_in_aggregation_round(
+            AggregationRound::Scheduler,
+            block_number,
+            max_attempts,
+        )
+        .await
+    }
+
+    async fn requeue_stuck_jobs_for_batch_in_aggregation_round(
+        &mut self,
+        aggregation_round: AggregationRound,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        let table_name = Self::input_table_name_for(aggregation_round);
+        let query = format!(
+            r#"
+            UPDATE {}
+            SET
+                status = 'queued',
+                updated_at = NOW(),
+                processing_started_at = NOW()
+            WHERE
+                l1_batch_number = {}
+                AND attempts >= {}
+                AND NOT status = 'successful'
+            RETURNING
+                status,
+                attempts
+            "#,
+            table_name,
+            i64::from(block_number.0),
+            max_attempts
+        );
+        sqlx::query(&query)
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| StuckJobs {
+                id: block_number.0 as u64,
+                status: row.get("status"),
+                attempts: row.get::<i64, &str>("attempts") as u64,
+            })
+            .collect()
+    }
 }
