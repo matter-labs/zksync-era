@@ -48,7 +48,7 @@ use zksync_db_connection::{
 };
 use zksync_eth_client::{clients::QueryClient, EthInterface};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
-use zksync_state::PostgresStorageCaches;
+use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
@@ -90,8 +90,12 @@ async fn build_state_keeper(
     // We only need call traces on the external node if the `debug_` namespace is enabled.
     let save_call_traces = config.optional.api_namespaces().contains(&Namespace::Debug);
 
-    let (storage_factory, task) =
-        AsyncRocksdbCache::new(connection_pool.clone(), state_keeper_db_path);
+    // FIXME: make configurable
+    let (storage_factory, task) = AsyncRocksdbCache::new(
+        connection_pool.clone(),
+        state_keeper_db_path,
+        RocksdbStorageOptions::default(),
+    );
     let mut stop_receiver_clone = stop_receiver.clone();
     task_handles.push(tokio::task::spawn(async move {
         let result = task.run(stop_receiver_clone.clone()).await;

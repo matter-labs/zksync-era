@@ -30,7 +30,7 @@ use anyhow::Context as _;
 use itertools::{Either, Itertools};
 use tokio::sync::watch;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
-use zksync_storage::{db::NamedColumnFamily, RocksDB};
+use zksync_storage::{db::NamedColumnFamily, RocksDB, RocksDBOptions};
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
 
 #[cfg(test)]
@@ -121,6 +121,30 @@ enum RocksdbSyncError {
 impl From<anyhow::Error> for RocksdbSyncError {
     fn from(err: anyhow::Error) -> Self {
         Self::Internal(err)
+    }
+}
+
+/// Options for [`RocksdbStorage`].
+#[derive(Debug)]
+pub struct RocksdbStorageOptions {
+    /// Size of the RocksDB block cache in bytes. The default value is 128 MiB.
+    pub block_cache_capacity: usize,
+}
+
+impl Default for RocksdbStorageOptions {
+    fn default() -> Self {
+        Self {
+            block_cache_capacity: 128 << 20,
+        }
+    }
+}
+
+impl RocksdbStorageOptions {
+    fn into_generic(self) -> RocksDBOptions {
+        RocksDBOptions {
+            block_cache_capacity: Some(self.block_cache_capacity),
+            ..RocksDBOptions::default()
+        }
     }
 }
 
@@ -250,15 +274,29 @@ impl RocksdbStorage {
     ///
     /// Propagates RocksDB I/O errors.
     pub async fn builder(path: &Path) -> anyhow::Result<RocksdbStorageBuilder> {
-        Self::new(path.to_path_buf())
+        Self::builder_with_options(path, RocksdbStorageOptions::default()).await
+    }
+
+    /// Creates a new storage builder with the provided RocksDB `path` and custom options.
+    ///
+    /// # Errors
+    ///
+    /// Propagates RocksDB I/O errors.
+    pub async fn builder_with_options(
+        path: &Path,
+        options: RocksdbStorageOptions,
+    ) -> anyhow::Result<RocksdbStorageBuilder> {
+        Self::new(path.to_path_buf(), options)
             .await
             .map(RocksdbStorageBuilder)
     }
 
-    async fn new(path: PathBuf) -> anyhow::Result<Self> {
+    async fn new(path: PathBuf, options: RocksdbStorageOptions) -> anyhow::Result<Self> {
         tokio::task::spawn_blocking(move || {
+            let db = RocksDB::with_options(&path, options.into_generic())
+                .context("failed initializing state keeper RocksDB")?;
             Ok(Self {
-                db: RocksDB::new(&path).context("failed initializing state keeper RocksDB")?,
+                db,
                 pending_patch: InMemoryStorage::default(),
                 #[cfg(test)]
                 listener: RocksdbStorageEventListener::default(),
