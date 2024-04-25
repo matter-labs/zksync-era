@@ -10,7 +10,7 @@ use zksync_types::{
         ProtocolVersion, StorageProof, TransactionDetails,
     },
     fee::Fee,
-    fee_model::FeeParams,
+    fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     l1::L1Tx,
     l2::L2Tx,
     l2_to_l1_log::{l2_to_l1_logs_tree_size, L2ToL1Log},
@@ -465,19 +465,6 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn get_l1_gas_price_impl(&self) -> U64 {
-        let gas_price = self
-            .state
-            .tx_sender
-            .0
-            .batch_fee_input_provider
-            .get_batch_fee_input()
-            .await
-            .l1_gas_price();
-        gas_price.into()
-    }
-
-    #[tracing::instrument(skip(self))]
     pub fn get_fee_params_impl(&self) -> FeeParams {
         self.state
             .tx_sender
@@ -573,16 +560,13 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn get_gas_per_pubdata_byte_impl(&self) -> U256 {
-        let fee_input = self
-            .state
+    pub async fn get_batch_fee_input_impl(&self) -> PubdataIndependentBatchFeeModelInput {
+        self.state
             .tx_sender
             .0
             .batch_fee_input_provider
             .get_batch_fee_input()
-            .await;
-
-        // wei per 1 byte submitted on L1 / wei per 1 unit of L2 gas = units of L2 gas per 1 byte submitted on L1
-        U256::from(fee_input.fair_pubdata_price() / fee_input.fair_l2_gas_price())
+            .await
+            .into_pubdata_independent()
     }
 }

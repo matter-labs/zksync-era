@@ -7,7 +7,7 @@ use zksync_types::{
         TransactionDetails,
     },
     fee::Fee,
-    fee_model::FeeParams,
+    fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     transaction_request::CallRequest,
     Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
@@ -122,6 +122,6 @@ pub trait ZksNamespace {
         l1_batch_number: L1BatchNumber,
     ) -> RpcResult<Option<Proof>>;
 
-    #[method(name = "getGasPerPubdataByte")]
-    async fn get_gas_per_pubdata_byte(&self) -> RpcResult<U256>;
+    #[method(name = "getBatchFeeInput")]
+    async fn get_batch_fee_input(&self) -> RpcResult<PubdataIndependentBatchFeeModelInput>;
 }
