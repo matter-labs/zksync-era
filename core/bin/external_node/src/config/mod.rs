@@ -387,9 +387,9 @@ pub(crate) struct OptionalENConfig {
     /// The default value is 60 seconds.
     #[serde(default = "OptionalENConfig::default_pruning_removal_delay_sec")]
     pruning_removal_delay_sec: NonZeroU64,
-    /// If set, L1 batches will be pruned after the batch timestamp is ths old (in seconds). Note that an L1 batch
+    /// If set, L1 batches will be pruned after the batch timestamp is this old (in seconds). Note that an L1 batch
     /// may be temporarily retained for other reasons; e.g., a batch cannot be pruned until it is executed on L1,
-    /// which happens ~24 hours after its generation on the mainnet. Thus, in practice this value can specify
+    /// which happens roughly 24 hours after its generation on the mainnet. Thus, in practice this value can specify
     /// the retention period greater than that implicitly imposed by other criteria (e.g., 7 or 30 days).
     /// If not specified or set to 0, L1 batches will not be retained based on their timestamp.
     #[serde(default)]
