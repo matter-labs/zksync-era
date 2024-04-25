@@ -84,6 +84,8 @@ interface HealthCheckResponse {
 }
 
 /**
+ * Tests snapshot recovery and node state pruning.
+ *
  * Assumptions:
  *
  * - Main node is run for the duration of the test.
@@ -92,6 +94,8 @@ interface HealthCheckResponse {
  */
 describe('snapshot recovery', () => {
     const STORAGE_LOG_SAMPLE_PROBABILITY = 0.1;
+    // Number of L1 batches awaited to be pruned.
+    const PRUNED_BATCH_COUNT = 2;
 
     const homeDir = process.env.ZKSYNC_HOME!!;
 
@@ -348,13 +352,13 @@ describe('snapshot recovery', () => {
         await stopExternalNode();
         await waitForProcess(externalNodeProcess);
 
-        console.log('Starting EN with pruning');
-        externalNodeEnv = {
+        const pruningParams = {
             EN_PRUNING_ENABLED: 'true',
             EN_PRUNING_REMOVAL_DELAY_SEC: '3',
-            EN_PRUNING_CHUNK_SIZE: '1',
-            ...externalNodeEnv
+            EN_PRUNING_CHUNK_SIZE: '1'
         };
+        externalNodeEnv = { ...externalNodeEnv, ...pruningParams };
+        console.log('Starting EN with pruning params', pruningParams);
         externalNodeProcess = spawn('zk', externalNodeArgs(), {
             cwd: homeDir,
             stdio: [null, externalNodeLogs.fd, externalNodeLogs.fd],
@@ -386,9 +390,12 @@ describe('snapshot recovery', () => {
         }
     });
 
-    step('generate transactions', async () => {
+    // The logic below works fine if there is other transaction activity on the test network; we still
+    // create *at least* `PRUNED_BATCH_COUNT + 1` L1 batches; thus, at least `PRUNED_BATCH_COUNT` of them
+    // should be pruned eventually.
+    step(`generate ${PRUNED_BATCH_COUNT + 1} transactions`, async () => {
         let pastL1BatchNumber = snapshotMetadata.l1BatchNumber;
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < PRUNED_BATCH_COUNT + 1; i++) {
             const transactionResponse = await fundedWallet.transfer({
                 to: fundedWallet.address,
                 amount: 1,
@@ -408,9 +415,12 @@ describe('snapshot recovery', () => {
         }
     });
 
-    step('wait for pruning', async () => {
+    step(`wait for pruning ${PRUNED_BATCH_COUNT} L1 batches`, async () => {
+        const expectedPrunedBatchNumber = snapshotMetadata.l1BatchNumber + PRUNED_BATCH_COUNT;
+        console.log(`Waiting for L1 batch #${expectedPrunedBatchNumber} to be pruned`);
         let isDbPruned = false;
         let isTreePruned = false;
+
         while (!isDbPruned || !isTreePruned) {
             await sleep(1000);
             const health = (await getExternalNodeHealth())!;
@@ -418,16 +428,14 @@ describe('snapshot recovery', () => {
             const dbPrunerHealth = health.components.db_pruner!;
             console.log('DB pruner health', dbPrunerHealth);
             expect(dbPrunerHealth.status).to.be.equal('ready');
-            isDbPruned = dbPrunerHealth.details!.last_hard_pruned_l1_batch! > snapshotMetadata.l1BatchNumber;
+            isDbPruned = dbPrunerHealth.details!.last_hard_pruned_l1_batch! >= expectedPrunedBatchNumber;
 
             const treeHealth = health.components.tree!;
             console.log('Tree health', treeHealth);
             expect(treeHealth.status).to.be.equal('ready');
             const minTreeL1BatchNumber = treeHealth.details?.min_l1_batch_number;
-            isTreePruned =
-                typeof minTreeL1BatchNumber === 'number'
-                    ? minTreeL1BatchNumber - 1 > snapshotMetadata.l1BatchNumber
-                    : false;
+            // The batch number pruned from the tree is one less than `minTreeL1BatchNumber`.
+            isTreePruned = minTreeL1BatchNumber ? minTreeL1BatchNumber - 1 >= expectedPrunedBatchNumber : false;
         }
     });
 });
