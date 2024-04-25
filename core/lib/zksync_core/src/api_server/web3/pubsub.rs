@@ -43,7 +43,7 @@ impl IdProvider for EthSubscriptionIdProvider {
 pub(super) enum PubSubEvent {
     Subscribed(SubscriptionType),
     NotifyIterationFinished(SubscriptionType),
-    MiniblockAdvanced(SubscriptionType, L2BlockNumber),
+    L2BlockAdvanced(SubscriptionType, L2BlockNumber),
 }
 
 /// Manager of notifications for a certain type of subscriptions.
@@ -58,16 +58,15 @@ struct PubSubNotifier {
 impl PubSubNotifier {
     // Notifier tasks are spawned independently of the main server task, so we need to wait for
     // Postgres to be non-empty separately.
-    async fn get_starting_miniblock_number(
+    async fn get_starting_l2_block_number(
         &self,
         stop_receiver: &mut watch::Receiver<bool>,
     ) -> anyhow::Result<Option<L2BlockNumber>> {
         while !*stop_receiver.borrow_and_update() {
             let mut storage = self.connection_pool.connection_tagged("api").await?;
-            if let Some(miniblock_number) =
-                storage.blocks_dal().get_sealed_l2_block_number().await?
+            if let Some(l2_block_number) = storage.blocks_dal().get_sealed_l2_block_number().await?
             {
-                return Ok(Some(miniblock_number));
+                return Ok(Some(l2_block_number));
             }
             drop(storage);
 
@@ -91,7 +90,7 @@ impl PubSubNotifier {
 impl PubSubNotifier {
     async fn notify_blocks(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let Some(mut last_block_number) = self
-            .get_starting_miniblock_number(&mut stop_receiver)
+            .get_starting_l2_block_number(&mut stop_receiver)
             .await?
         else {
             tracing::info!("Stop signal received, pubsub_block_notifier is shutting down");
@@ -114,7 +113,7 @@ impl PubSubNotifier {
                 last_block_number = L2BlockNumber(last_block.number.unwrap().as_u32());
                 let new_blocks = new_blocks.into_iter().map(PubSubResult::Header).collect();
                 self.send_pub_sub_results(new_blocks, SubscriptionType::Blocks);
-                self.emit_event(PubSubEvent::MiniblockAdvanced(
+                self.emit_event(PubSubEvent::L2BlockAdvanced(
                     SubscriptionType::Blocks,
                     last_block_number,
                 ));
@@ -187,7 +186,7 @@ impl PubSubNotifier {
 
     async fn notify_logs(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let Some(mut last_block_number) = self
-            .get_starting_miniblock_number(&mut stop_receiver)
+            .get_starting_l2_block_number(&mut stop_receiver)
             .await?
         else {
             tracing::info!("Stop signal received, pubsub_logs_notifier is shutting down");
@@ -210,7 +209,7 @@ impl PubSubNotifier {
                 last_block_number = L2BlockNumber(last_log.block_number.unwrap().as_u32());
                 let new_logs = new_logs.into_iter().map(PubSubResult::Log).collect();
                 self.send_pub_sub_results(new_logs, SubscriptionType::Logs);
-                self.emit_event(PubSubEvent::MiniblockAdvanced(
+                self.emit_event(PubSubEvent::L2BlockAdvanced(
                     SubscriptionType::Logs,
                     last_block_number,
                 ));

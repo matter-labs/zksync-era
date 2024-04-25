@@ -11,6 +11,7 @@ use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
 use zksync_config::{
     configs::{
+        api::{MaxResponseSize, MaxResponseSizeOverrides},
         chain::L1BatchCommitDataGeneratorMode,
         consensus::{ConsensusConfig, ConsensusSecrets},
     },
@@ -27,14 +28,13 @@ use zksync_core::{
 use zksync_dal::{ConnectionPool, Core};
 use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
-use zksync_types::{api::BridgeAddresses, fee_model::FeeParams};
+use zksync_types::{api::BridgeAddresses, fee_model::FeeParams, ETHEREUM_ADDRESS};
 use zksync_web3_decl::{
     client::L2Client,
     error::ClientRpcContext,
-    jsonrpsee::http_client::HttpClientBuilder,
+    jsonrpsee::{core::ClientError, http_client::HttpClientBuilder, types::error::ErrorCode},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
-
 pub(crate) mod observability;
 #[cfg(test)]
 mod tests;
@@ -48,13 +48,19 @@ pub(crate) struct RemoteENConfig {
     pub state_transition_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Option<Address>,
     pub diamond_proxy_addr: Address,
-    pub l1_erc20_bridge_proxy_addr: Address,
-    pub l2_erc20_bridge_addr: Address,
-    pub l1_weth_bridge_proxy_addr: Option<Address>,
+    // While on L1 shared bridge and legacy bridge are different contracts with different addresses,
+    // the `l2_erc20_bridge_addr` and `l2_shared_bridge_addr` are basically the same contract, but with
+    // a different name, with names adapted only for consistency.
+    pub l1_shared_bridge_proxy_addr: Option<Address>,
+    pub l2_shared_bridge_addr: Option<Address>,
+    pub l1_erc20_bridge_proxy_addr: Option<Address>,
+    pub l2_erc20_bridge_addr: Option<Address>,
+    pub l1_weth_bridge_addr: Option<Address>,
     pub l2_weth_bridge_addr: Option<Address>,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l2_chain_id: L2ChainId,
     pub l1_chain_id: L1ChainId,
+    pub base_token_addr: Address,
     pub max_pubdata_per_batch: u64,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
     pub dummy_verifier: bool,
@@ -76,6 +82,22 @@ impl RemoteENConfig {
             .get_main_contract()
             .rpc_context("get_main_contract")
             .await?;
+        let base_token_addr = match client.get_base_token_l1_address().await {
+            Err(ClientError::Call(err))
+                if [
+                    ErrorCode::MethodNotFound.code(),
+                    // This what `Web3Error::NotImplemented` gets
+                    // `casted` into in the `api` server.
+                    ErrorCode::InternalError.code(),
+                ]
+                .contains(&(err.code())) =>
+            {
+                // This is the fallback case for when the EN tries to interact
+                // with a node that does not implement the `zks_baseTokenL1Address` endpoint.
+                ETHEREUM_ADDRESS
+            }
+            response => response.context("Failed to fetch base token address")?,
+        };
         let l2_chain_id = client.chain_id().rpc_context("chain_id").await?;
         let l2_chain_id = L2ChainId::try_from(l2_chain_id.as_u64())
             .map_err(|err| anyhow::anyhow!("invalid chain ID supplied by main node: {err}"))?;
@@ -95,6 +117,23 @@ impl RemoteENConfig {
             FeeParams::V2(params) => params.config.max_pubdata_per_batch,
         };
 
+        // These two config variables should always have the same value.
+        // TODO(EVM-578): double check and potentially forbid both of them being `None`.
+        let l2_erc20_default_bridge = bridges
+            .l2_erc20_default_bridge
+            .or(bridges.l2_shared_default_bridge);
+        let l2_erc20_shared_bridge = bridges
+            .l2_shared_default_bridge
+            .or(bridges.l2_erc20_default_bridge);
+
+        if let (Some(legacy_addr), Some(shared_addr)) =
+            (l2_erc20_default_bridge, l2_erc20_shared_bridge)
+        {
+            if legacy_addr != shared_addr {
+                panic!("L2 erc20 bridge address and L2 shared bridge address are different.");
+            }
+        }
+
         Ok(Self {
             bridgehub_proxy_addr: shared_bridge.as_ref().map(|a| a.bridgehub_proxy_addr),
             state_transition_proxy_addr: shared_bridge
@@ -106,11 +145,14 @@ impl RemoteENConfig {
             diamond_proxy_addr,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
-            l2_erc20_bridge_addr: bridges.l2_erc20_default_bridge,
-            l1_weth_bridge_proxy_addr: bridges.l1_weth_bridge,
+            l2_erc20_bridge_addr: l2_erc20_default_bridge,
+            l1_shared_bridge_proxy_addr: bridges.l1_shared_default_bridge,
+            l2_shared_bridge_addr: l2_erc20_shared_bridge,
+            l1_weth_bridge_addr: bridges.l1_weth_bridge,
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
             l2_chain_id,
             l1_chain_id,
+            base_token_addr,
             max_pubdata_per_batch,
             l1_batch_commit_data_generator_mode: genesis
                 .as_ref()
@@ -130,13 +172,16 @@ impl RemoteENConfig {
             state_transition_proxy_addr: None,
             transparent_proxy_admin_addr: None,
             diamond_proxy_addr: Address::repeat_byte(1),
-            l1_erc20_bridge_proxy_addr: Address::repeat_byte(2),
-            l2_erc20_bridge_addr: Address::repeat_byte(3),
-            l1_weth_bridge_proxy_addr: None,
+            l1_erc20_bridge_proxy_addr: Some(Address::repeat_byte(2)),
+            l2_erc20_bridge_addr: Some(Address::repeat_byte(3)),
             l2_weth_bridge_addr: None,
             l2_testnet_paymaster_addr: None,
             l2_chain_id: L2ChainId::default(),
             l1_chain_id: L1ChainId(9),
+            base_token_addr: Address::repeat_byte(4),
+            l1_shared_bridge_proxy_addr: Some(Address::repeat_byte(5)),
+            l1_weth_bridge_addr: None,
+            l2_shared_bridge_addr: Some(Address::repeat_byte(6)),
             max_pubdata_per_batch: 1 << 17,
             l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
             dummy_verifier: true,
@@ -182,6 +227,9 @@ pub(crate) struct OptionalENConfig {
     /// Maximum response body size in MiBs. Default is 10 MiB.
     #[serde(default = "OptionalENConfig::default_max_response_body_size_mb")]
     pub max_response_body_size_mb: usize,
+    /// Method-specific overrides in MiBs for the maximum response body size.
+    #[serde(default = "MaxResponseSizeOverrides::empty")]
+    max_response_body_size_overrides_mb: MaxResponseSizeOverrides,
 
     // Other API config settings
     /// Interval between polling DB for pubsub (in ms).
@@ -226,6 +274,10 @@ pub(crate) struct OptionalENConfig {
     /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
     #[serde(default = "OptionalENConfig::default_mempool_cache_size")]
     pub mempool_cache_size: usize,
+    /// Enables extended tracing of RPC calls. This may negatively impact performance for nodes under high load
+    /// (hundreds or thousands RPS).
+    #[serde(default = "OptionalENConfig::default_extended_api_tracing")]
+    pub extended_rpc_tracing: bool,
 
     // Health checks
     /// Time limit in milliseconds to mark a health check as slow and log the corresponding warning.
@@ -289,9 +341,6 @@ pub(crate) struct OptionalENConfig {
     // Other config settings
     /// Port on which the Prometheus exporter server is listening.
     pub prometheus_port: Option<u16>,
-    /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
-    #[serde(default = "OptionalENConfig::default_enum_index_migration_chunk_size")]
-    pub enum_index_migration_chunk_size: usize,
     /// Capacity of the queue for asynchronous miniblock sealing. Once this many miniblocks are queued,
     /// sealing will block until some of the miniblocks from the queue are processed.
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
@@ -439,10 +488,6 @@ impl OptionalENConfig {
         10
     }
 
-    const fn default_enum_index_migration_chunk_size() -> usize {
-        5000
-    }
-
     const fn default_miniblock_seal_queue_capacity() -> usize {
         10
     }
@@ -457,6 +502,10 @@ impl OptionalENConfig {
 
     const fn default_mempool_cache_size() -> usize {
         10_000
+    }
+
+    const fn default_extended_api_tracing() -> bool {
+        true
     }
 
     fn default_main_node_rate_limit_rps() -> NonZeroUsize {
@@ -529,8 +578,12 @@ impl OptionalENConfig {
             .unwrap_or_else(|| Namespace::DEFAULT.to_vec())
     }
 
-    pub fn max_response_body_size(&self) -> usize {
-        self.max_response_body_size_mb * BYTES_IN_MEGABYTE
+    pub fn max_response_body_size(&self) -> MaxResponseSize {
+        let scale = NonZeroUsize::new(BYTES_IN_MEGABYTE).unwrap();
+        MaxResponseSize {
+            global: self.max_response_body_size_mb * BYTES_IN_MEGABYTE,
+            overrides: self.max_response_body_size_overrides_mb.scale(scale),
+        }
     }
 
     pub fn healthcheck_slow_time_limit(&self) -> Option<Duration> {
@@ -802,7 +855,9 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
             bridge_addresses: BridgeAddresses {
                 l1_erc20_default_bridge: config.remote.l1_erc20_bridge_proxy_addr,
                 l2_erc20_default_bridge: config.remote.l2_erc20_bridge_addr,
-                l1_weth_bridge: config.remote.l1_weth_bridge_proxy_addr,
+                l1_shared_default_bridge: config.remote.l1_shared_bridge_proxy_addr,
+                l2_shared_default_bridge: config.remote.l2_shared_bridge_addr,
+                l1_weth_bridge: config.remote.l1_weth_bridge_addr,
                 l2_weth_bridge: config.remote.l2_weth_bridge_addr,
             },
             bridgehub_proxy_addr: config.remote.bridgehub_proxy_addr,
@@ -812,6 +867,7 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,
             fee_history_limit: config.optional.fee_history_limit,
+            base_token_address: Some(config.remote.base_token_addr),
             filters_disabled: config.optional.filters_disabled,
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,

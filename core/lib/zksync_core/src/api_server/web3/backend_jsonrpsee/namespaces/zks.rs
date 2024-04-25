@@ -95,8 +95,8 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn get_miniblock_range(&self, batch: L1BatchNumber) -> RpcResult<Option<(U64, U64)>> {
-        self.get_miniblock_range_impl(batch)
+    async fn get_l2_block_range(&self, batch: L1BatchNumber) -> RpcResult<Option<(U64, U64)>> {
+        self.get_l2_block_range_impl(batch)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
@@ -165,6 +165,11 @@ impl ZksNamespaceServer for ZksNamespace {
     ) -> RpcResult<Option<Proof>> {
         self.get_proofs_impl(address, keys, l1_batch_number)
             .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn get_base_token_l1_address(&self) -> RpcResult<Address> {
+        self.get_base_token_l1_address_impl()
             .map_err(|err| self.current_method().map_err(err))
     }
 }

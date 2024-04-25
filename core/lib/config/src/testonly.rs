@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use rand::{distributions::Distribution, Rng};
 use zksync_basic_types::{
     basic_fri_types::CircuitIdRoundTuple, network::Network, L1ChainId, L2ChainId,
@@ -74,6 +76,18 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             fee_history_limit: self.sample(rng),
             max_batch_request_size: self.sample(rng),
             max_response_body_size_mb: self.sample(rng),
+            max_response_body_size_overrides_mb: [
+                (
+                    "eth_call",
+                    NonZeroUsize::new(self.sample(rng)).unwrap_or(NonZeroUsize::MAX),
+                ),
+                (
+                    "zks_getProof",
+                    NonZeroUsize::new(self.sample(rng)).unwrap_or(NonZeroUsize::MAX),
+                ),
+            ]
+            .into_iter()
+            .collect(),
             websocket_requests_per_minute_limit: self.sample(rng),
             tree_api_url: self.sample(rng),
             mempool_cache_update_interval: self.sample(rng),
@@ -149,9 +163,9 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
         configs::chain::StateKeeperConfig {
             transaction_slots: self.sample(rng),
             block_commit_deadline_ms: self.sample(rng),
-            miniblock_commit_deadline_ms: self.sample(rng),
-            miniblock_seal_queue_capacity: self.sample(rng),
-            miniblock_max_payload_size: self.sample(rng),
+            l2_block_commit_deadline_ms: self.sample(rng),
+            l2_block_seal_queue_capacity: self.sample(rng),
+            l2_block_max_payload_size: self.sample(rng),
             max_single_tx_gas: self.sample(rng),
             max_allowed_l2_tx_gas_limit: self.sample(rng),
             reject_tx_at_geometry_percentage: self.sample(rng),
@@ -169,7 +183,6 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             fee_model_version: self.sample(rng),
             validation_computational_gas_limit: self.sample(rng),
             save_call_traces: self.sample(rng),
-            enum_index_migration_chunk_size: self.sample(rng),
             max_circuits_per_batch: self.sample(rng),
             // These values are not involved into files serialization skip them
             fee_account_addr: None,
@@ -235,10 +248,13 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             validator_timelock_addr: g.gen(),
             l1_erc20_bridge_proxy_addr: g.gen(),
             l2_erc20_bridge_addr: g.gen(),
+            l1_shared_bridge_proxy_addr: g.gen(),
+            l2_shared_bridge_addr: g.gen(),
             l1_weth_bridge_proxy_addr: g.gen(),
             l2_weth_bridge_addr: g.gen(),
             l2_testnet_paymaster_addr: g.gen(),
             l1_multicall3_addr: g.gen(),
+            base_token_addr: g.gen(),
         }
     }
 }
@@ -526,10 +542,7 @@ impl Distribution<configs::FriWitnessGeneratorConfig> for EncodeDist {
             node_generation_timeout_in_secs: self.sample(rng),
             scheduler_generation_timeout_in_secs: self.sample(rng),
             max_attempts: self.sample(rng),
-            blocks_proving_percentage: self.sample(rng),
-            dump_arguments_for_blocks: self.sample_collect(rng),
             last_l1_batch_to_process: self.sample(rng),
-            force_process_block: self.sample(rng),
             shall_save_to_public_bucket: self.sample(rng),
         }
     }

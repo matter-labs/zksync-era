@@ -260,7 +260,6 @@ pub(super) enum L2BlockSealStage {
     #[metrics(name = "mark_transactions_in_miniblock")]
     MarkTransactionsInL2Block,
     InsertStorageLogs,
-    ApplyStorageLogs,
     InsertFactoryDeps,
     ExtractAddedTokens,
     InsertTokens,

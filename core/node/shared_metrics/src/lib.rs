@@ -2,9 +2,19 @@
 
 use std::{fmt, time::Duration};
 
-use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
+use vise::{
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics, Unit,
+};
 use zksync_dal::transactions_dal::L2TxSubmissionResult;
 use zksync_types::aggregated_operations::AggregatedActionType;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[metrics(label = "stage", rename_all = "snake_case")]
+pub enum SnapshotRecoveryStage {
+    Postgres,
+    Tree,
+    StateKeeperCache,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage")]
@@ -127,6 +137,9 @@ pub enum L2BlockStage {
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server")]
 pub struct AppMetrics {
+    /// Latency to perform a certain stage of the snapshot recovery.
+    #[metrics(unit = Unit::Seconds)]
+    pub snapshot_recovery_latency: Family<SnapshotRecoveryStage, Gauge<Duration>>,
     /// Latency to initialize a specific server component.
     pub init_latency: Family<InitStage, Gauge<Duration>>,
     pub block_number: Family<BlockStage, Gauge<u64>>,
@@ -175,8 +188,8 @@ pub struct ExternalNodeMetrics {
     pub sync_lag: Gauge<u64>,
     /// Number of the last L1 batch checked by the re-org detector or consistency checker.
     pub last_correct_batch: Family<CheckerComponent, Gauge<u64>>,
-    /// Number of the last miniblock checked by the re-org detector or consistency checker.
-    pub last_correct_miniblock: Family<CheckerComponent, Gauge<u64>>,
+    /// Number of the last L2 block checked by the re-org detector.
+    pub last_correct_l2_block: Family<CheckerComponent, Gauge<u64>>,
 }
 
 #[vise::register]

@@ -63,6 +63,10 @@ api:
     estimate_gas_scale_factor: 1.2
     estimate_gas_acceptable_overestimation: 1000
     max_tx_size: 1000000
+    max_response_body_size_overrides:
+      - method: eth_getTransactionReceipt # no size specified, meaning no size limit
+      - method: zks_getProof
+        size_mb: 64
 state_keeper:
   transaction_slots: 250
   max_allowed_l2_tx_gas_limit: 4000000000
@@ -170,10 +174,8 @@ prover:
   zone_read_url: http://metadata.google.internal/computeMetadata/v1/instance/zone
   shall_save_to_public_bucket: true
 witness_generator:
-  dump_arguments_for_blocks: [ 2,3 ]
   generation_timeout_in_secs: 900
   max_attempts: 10
-  force_process_block: 1
   shall_save_to_public_bucket: true
 witness_vector_generator:
   prover_instance_wait_timeout_in_secs: 200

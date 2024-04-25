@@ -193,8 +193,10 @@ pub struct L2ToL1LogProof {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BridgeAddresses {
-    pub l1_erc20_default_bridge: Address,
-    pub l2_erc20_default_bridge: Address,
+    pub l1_shared_default_bridge: Option<Address>,
+    pub l2_shared_default_bridge: Option<Address>,
+    pub l1_erc20_default_bridge: Option<Address>,
+    pub l2_erc20_default_bridge: Option<Address>,
     pub l1_weth_bridge: Option<Address>,
     pub l2_weth_bridge: Option<Address>,
 }
@@ -210,7 +212,7 @@ pub struct TransactionReceipt {
     /// Hash of the block this transaction was included within.
     #[serde(rename = "blockHash")]
     pub block_hash: H256,
-    /// Number of the miniblock this transaction was included within.
+    /// Number of the L2 block this transaction was included within.
     #[serde(rename = "blockNumber")]
     pub block_number: U64,
     /// Index of transaction in l1 batch
@@ -306,7 +308,7 @@ pub struct Block<TX> {
     pub logs_bloom: H2048,
     /// Timestamp
     pub timestamp: U256,
-    /// Timestamp of the l1 batch this miniblock was included within
+    /// Timestamp of the l1 batch this L2 block was included within
     #[serde(rename = "l1BatchTimestamp")]
     pub l1_batch_timestamp: Option<U256>,
     /// Difficulty
@@ -686,7 +688,7 @@ pub struct BlockDetailsBase {
     pub timestamp: u64,
     pub l1_tx_count: usize,
     pub l2_tx_count: usize,
-    /// Hash for a miniblock, or the root hash (aka state hash) for an L1 batch.
+    /// Hash for an L2 block, or the root hash (aka state hash) for an L1 batch.
     pub root_hash: Option<H256>,
     pub status: BlockStatus,
     pub commit_tx_hash: Option<H256>,

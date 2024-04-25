@@ -272,10 +272,10 @@ mod tests {
     }
 
     async fn test_getting_all_tokens(storage: &mut Connection<'_, Core>) {
-        for at_miniblock in [None, Some(L2BlockNumber(2)), Some(L2BlockNumber(100))] {
+        for at_l2_block in [None, Some(L2BlockNumber(2)), Some(L2BlockNumber(100))] {
             let all_tokens = storage
                 .tokens_web3_dal()
-                .get_all_tokens(at_miniblock)
+                .get_all_tokens(at_l2_block)
                 .await
                 .unwrap();
             assert_eq!(all_tokens.len(), 2);

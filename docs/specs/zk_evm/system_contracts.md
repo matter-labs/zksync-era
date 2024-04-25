@@ -106,15 +106,16 @@ These precompiles simulate the behaviour of the EVM's EcAdd and EcMul precompile
 without circuit counterparts. You can read more about them
 [here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Elliptic%20curve%20precompiles.md).
 
-## L2EthToken & MsgValueSimulator
+## L2BaseToken & MsgValueSimulator
 
 Unlike Ethereum, zkEVM does not have any notion of any special native token. That’s why we have to simulate operations
-with Ether via two contracts: `L2EthToken` & `MsgValueSimulator`.
+with Ether via two contracts: `L2BaseToken` & `MsgValueSimulator`.
 
-`L2EthToken` is a contract that holds the balances of ETH for the users. This contract does NOT provide ERC20 interface.
-The only method for transferring Ether is `transferFromTo`. It permits only some system contracts to transfer on behalf
-of users. This is needed to ensure that the interface is as close to Ethereum as possible, i.e. the only way to transfer
-ETH is by doing a call to a contract with some `msg.value`. This is what `MsgValueSimulator` system contract is for.
+`L2BaseToken` is a contract that holds the balances of ETH for the users. This contract does NOT provide ERC20
+interface. The only method for transferring Ether is `transferFromTo`. It permits only some system contracts to transfer
+on behalf of users. This is needed to ensure that the interface is as close to Ethereum as possible, i.e. the only way
+to transfer ETH is by doing a call to a contract with some `msg.value`. This is what `MsgValueSimulator` system contract
+is for.
 
 Whenever anyone wants to do a non-zero value call, they need to call `MsgValueSimulator` with:
 

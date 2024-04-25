@@ -43,7 +43,7 @@ impl UpdatesManager {
     pub(super) async fn seal_l1_batch(
         &self,
         storage: &mut Connection<'_, Core>,
-        l2_erc20_bridge_addr: Address,
+        l2_shared_bridge_addr: Address,
         insert_protective_reads: bool,
     ) -> anyhow::Result<()> {
         let started_at = Instant::now();
@@ -57,7 +57,7 @@ impl UpdatesManager {
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FictiveL2Block);
         // Seal fictive L2 block with last events and storage logs.
         let l2_block_command = self.seal_l2_block_command(
-            l2_erc20_bridge_addr,
+            l2_shared_bridge_addr,
             false, // fictive L2 blocks don't have txs, so it's fine to pass `false` here.
         );
         l2_block_command
@@ -308,7 +308,7 @@ impl L2BlockSealCommand {
     /// the bootloader enters the "tip" phase in which it can still generate events (e.g.,
     /// one for sending fees to the operator).
     ///
-    /// `l2_erc20_bridge_addr` is required to extract the information on newly added tokens.
+    /// `l2_shared_bridge_addr` is required to extract the information on newly added tokens.
     async fn seal_inner(
         &self,
         storage: &mut Connection<'_, Core>,
@@ -391,16 +391,6 @@ impl L2BlockSealCommand {
             .await?;
         progress.observe(write_log_count);
 
-        #[allow(deprecated)] // Will be removed shortly
-        {
-            let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ApplyStorageLogs, is_fictive);
-            transaction
-                .storage_dal()
-                .apply_storage_logs(&write_logs)
-                .await;
-            progress.observe(write_log_count);
-        }
-
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertFactoryDeps, is_fictive);
         let new_factory_deps = &self.l2_block.new_factory_deps;
         let new_factory_deps_count = new_factory_deps.len();
@@ -413,7 +403,7 @@ impl L2BlockSealCommand {
         progress.observe(new_factory_deps_count);
 
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ExtractAddedTokens, is_fictive);
-        let added_tokens = extract_added_tokens(self.l2_erc20_bridge_addr, &self.l2_block.events);
+        let added_tokens = extract_added_tokens(self.l2_shared_bridge_addr, &self.l2_block.events);
         progress.observe(added_tokens.len());
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertTokens, is_fictive);
         let added_tokens_len = added_tokens.len();
@@ -578,7 +568,7 @@ impl L2BlockSealCommand {
 
             let location = IncludedTxLocation {
                 tx_hash,
-                tx_index_in_miniblock: tx_index - self.first_tx_index as u32,
+                tx_index_in_l2_block: tx_index - self.first_tx_index as u32,
                 tx_initiator_address,
             };
             (location, entries.collect())

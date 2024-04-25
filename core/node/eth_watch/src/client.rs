@@ -40,8 +40,10 @@ const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
 pub struct EthHttpQueryClient {
     client: Arc<dyn EthInterface>,
     topics: Vec<H256>,
-    zksync_contract_addr: Address,
+    diamond_proxy_addr: Address,
     governance_address: Address,
+    // Only present for post-shared bridge chains.
+    state_transition_manager_address: Option<Address>,
     verifier_contract_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
 }
@@ -49,17 +51,21 @@ pub struct EthHttpQueryClient {
 impl EthHttpQueryClient {
     pub fn new(
         client: Arc<dyn EthInterface>,
-        zksync_contract_addr: Address,
+        diamond_proxy_addr: Address,
+        state_transition_manager_address: Option<Address>,
         governance_address: Address,
         confirmations_for_eth_event: Option<u64>,
     ) -> Self {
         tracing::debug!(
-            "New eth client, zkSync addr: {zksync_contract_addr:x}, governance addr: {governance_address:?}"
+            "New eth client, zkSync addr: {:x}, governance addr: {:?}",
+            diamond_proxy_addr,
+            governance_address
         );
         Self {
             client,
             topics: Vec::new(),
-            zksync_contract_addr,
+            diamond_proxy_addr,
+            state_transition_manager_address,
             governance_address,
             verifier_contract_abi: verifier_contract(),
             confirmations_for_eth_event,
@@ -73,7 +79,16 @@ impl EthHttpQueryClient {
         topics: Vec<H256>,
     ) -> Result<Vec<Log>, EthClientError> {
         let filter = FilterBuilder::default()
-            .address(vec![self.zksync_contract_addr, self.governance_address])
+            .address(
+                [
+                    Some(self.diamond_proxy_addr),
+                    Some(self.governance_address),
+                    self.state_transition_manager_address,
+                ]
+                .into_iter()
+                .flatten()
+                .collect(),
+            )
             .from_block(from)
             .to_block(to)
             .topics(Some(topics), None, None, None)

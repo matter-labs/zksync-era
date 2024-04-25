@@ -16,7 +16,7 @@ use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_eth_client::{clients::QueryClient, EthInterface};
 use zksync_merkle_tree::domain::ZkSyncTree;
-use zksync_system_constants::PRIORITY_EXPIRATION;
+use zksync_system_constants::{DEFAULT_ERA_CHAIN_ID, PRIORITY_EXPIRATION};
 use zksync_types::{
     block::{
         BlockGasCount, DeployedContract, L1BatchHeader, L1BatchTreeData, L2BlockHasher,
@@ -203,7 +203,6 @@ pub async fn insert_genesis_batch(
 
     create_genesis_l1_batch(
         &mut transaction,
-        genesis_params.config.l2_chain_id,
         genesis_params.protocol_version(),
         genesis_params.base_system_contracts(),
         genesis_params.system_contracts(),
@@ -340,9 +339,13 @@ async fn insert_base_system_contracts_to_factory_deps(
 async fn insert_system_contracts(
     storage: &mut Connection<'_, Core>,
     contracts: &[DeployedContract],
-    chain_id: L2ChainId,
 ) -> Result<(), GenesisError> {
-    let system_context_init_logs = (H256::default(), get_system_context_init_logs(chain_id));
+    let system_context_init_logs = (
+        H256::default(),
+        // During the genesis all chains have the same id.
+        // TODO(EVM-579): make sure that the logic is compatible with Era.
+        get_system_context_init_logs(L2ChainId::from(DEFAULT_ERA_CHAIN_ID)),
+    );
 
     let known_code_storage_logs: Vec<_> = contracts
         .iter()
@@ -446,12 +449,6 @@ async fn insert_system_contracts(
         .insert_initial_writes(L1BatchNumber(0), &written_storage_keys)
         .await?;
 
-    #[allow(deprecated)]
-    transaction
-        .storage_dal()
-        .apply_storage_logs(&storage_logs)
-        .await;
-
     let factory_deps = contracts
         .iter()
         .map(|c| (hash_bytecode(&c.bytecode), c.bytecode.clone()))
@@ -468,7 +465,6 @@ async fn insert_system_contracts(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn create_genesis_l1_batch(
     storage: &mut Connection<'_, Core>,
-    chain_id: L2ChainId,
     protocol_version: ProtocolVersionId,
     base_system_contracts: &BaseSystemContracts,
     system_contracts: &[DeployedContract],
@@ -489,7 +485,7 @@ pub(crate) async fn create_genesis_l1_batch(
         protocol_version,
     );
 
-    let genesis_miniblock_header = L2BlockHeader {
+    let genesis_l2_block_header = L2BlockHeader {
         number: L2BlockNumber(0),
         timestamp: 0,
         hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
@@ -524,7 +520,7 @@ pub(crate) async fn create_genesis_l1_batch(
         .await?;
     transaction
         .blocks_dal()
-        .insert_l2_block(&genesis_miniblock_header)
+        .insert_l2_block(&genesis_l2_block_header)
         .await?;
     transaction
         .blocks_dal()
@@ -532,7 +528,7 @@ pub(crate) async fn create_genesis_l1_batch(
         .await?;
 
     insert_base_system_contracts_to_factory_deps(&mut transaction, base_system_contracts).await?;
-    insert_system_contracts(&mut transaction, system_contracts, chain_id).await?;
+    insert_system_contracts(&mut transaction, system_contracts).await?;
     add_eth_token(&mut transaction).await?;
 
     transaction.commit().await?;
@@ -603,7 +599,7 @@ pub async fn save_set_chain_id_tx(
 
     let eth_client = QueryClient::new(eth_client_url)?;
     let to = eth_client.block_number("fetch_chain_id_tx").await?.as_u64();
-    let from = to - PRIORITY_EXPIRATION;
+    let from = to.saturating_sub(PRIORITY_EXPIRATION);
     let filter = FilterBuilder::default()
         .address(vec![state_transition_manager_address])
         .topics(
@@ -624,6 +620,8 @@ pub async fn save_set_chain_id_tx(
     );
     let (version_id, upgrade_tx) =
         decode_set_chain_id_event(logs.remove(0)).context("Chain id event is incorrect")?;
+
+    tracing::info!("New version id {:?}", version_id);
     storage
         .protocol_versions_dal()
         .save_genesis_upgrade_with_tx(version_id, &upgrade_tx)
