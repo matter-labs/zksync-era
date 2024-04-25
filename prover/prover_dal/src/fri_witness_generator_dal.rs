@@ -1211,6 +1211,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
         let table_name = Self::input_table_name_for(aggregation_round);
+        let job_id_table_name = Self::job_id_table_name_for(aggregation_round);
         let query = format!(
             r#"
             UPDATE {}
@@ -1223,12 +1224,14 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 AND attempts >= {}
                 AND NOT status = 'successful'
             RETURNING
+                {}
                 status,
                 attempts
             "#,
             table_name,
             i64::from(block_number.0),
-            max_attempts
+            max_attempts,
+            job_id_table_name
         );
         sqlx::query(&query)
             .fetch_all(self.storage.conn())
@@ -1236,10 +1239,17 @@ impl FriWitnessGeneratorDal<'_, '_> {
             .unwrap()
             .into_iter()
             .map(|row| StuckJobs {
-                id: block_number.0 as u64,
+                id: row.get::<i64, &str>(job_id_table_name) as u64,
                 status: row.get("status"),
                 attempts: row.get::<i16, &str>("attempts") as u64,
             })
             .collect()
+    }
+
+    fn job_id_table_name_for(aggregation_round: AggregationRound) -> &'static str {
+        match aggregation_round {
+            AggregationRound::BasicCircuits | AggregationRound::Scheduler => "l1_batch_number",
+            AggregationRound::LeafAggregation | AggregationRound::NodeAggregation => "id",
+        }
     }
 }
