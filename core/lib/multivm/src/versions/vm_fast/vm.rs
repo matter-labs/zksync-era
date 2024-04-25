@@ -1,12 +1,14 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use vm2::{decode::decode_program, ExecutionEnd, Program, Settings, VirtualMachine};
-use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
+use zk_evm_1_5_0::{
+    aux_structures::LogQuery, zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION,
+};
 use zksync_contracts::SystemContractCode;
-use zksync_state::{StoragePtr, WriteStorage};
+use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{
-    l1::is_l1_tx_type, AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160,
-    KNOWN_CODES_STORAGE_ADDRESS, U256,
+    l1::is_l1_tx_type, writes::StateDiffRecord, AccountTreeId, StorageKey, BOOTLOADER_ADDRESS,
+    H160, KNOWN_CODES_STORAGE_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
@@ -19,7 +21,11 @@ use super::{
 };
 use crate::{
     interface::{Halt, TxRevertReason, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason},
-    vm_fast::{bootloader_state::utils::apply_l2_block, refund::compute_refund},
+    vm_fast::{
+        bootloader_state::utils::{apply_l2_block, apply_pubdata_to_memory},
+        pubdata::PubdataInput,
+        refund::compute_refund,
+    },
     vm_latest::{
         constants::{
             OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
@@ -30,7 +36,7 @@ use crate::{
     },
 };
 
-pub struct Vm<S: WriteStorage> {
+pub struct Vm<S: ReadStorage> {
     pub(crate) inner: VirtualMachine,
     suspended_at: u16,
     gas_for_account_validation: u32,
@@ -47,7 +53,7 @@ pub struct Vm<S: WriteStorage> {
     snapshots: Vec<VmSnapshot>,
 }
 
-impl<S: WriteStorage + 'static> Vm<S> {
+impl<S: ReadStorage + 'static> Vm<S> {
     fn run(&mut self, execution_mode: VmExecutionMode) -> ExecutionResult {
         loop {
             let hook = match self.inner.resume_from(self.suspended_at) {
@@ -159,7 +165,23 @@ impl<S: WriteStorage + 'static> Vm<S> {
                     self.write_to_bootloader_heap(memory);
                 }
                 PubdataRequested => {
-                    todo!("PubdataRequested")
+                    // TODO: replace empty vectors with actual values
+                    let pubdata_input = PubdataInput {
+                        user_logs: vec![],
+                        l2_to_l1_messages: vec![],
+                        published_bytecodes: vec![],
+                        state_diffs: self.compute_state_diffs(),
+                    };
+
+                    // Save the pubdata for the future initial bootloader memory building
+                    self.bootloader_state
+                        .set_pubdata_input(pubdata_input.clone());
+
+                    // Apply the pubdata to the current memory
+                    let mut memory_to_apply = vec![];
+
+                    apply_pubdata_to_memory(&mut memory_to_apply, pubdata_input);
+                    self.write_to_bootloader_heap(memory_to_apply);
                 }
             }
         }
@@ -289,9 +311,32 @@ impl<S: WriteStorage + 'static> Vm<S> {
 
         self.write_to_bootloader_heap(memory);
     }
+
+    fn compute_state_diffs(&self) -> Vec<StateDiffRecord> {
+        let mut storage = self.storage.borrow_mut();
+
+        self.inner
+            .world
+            .get_storage_changes()
+            .iter()
+            .map(|(&(address, key), value)| {
+                let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(key));
+                StateDiffRecord {
+                    address,
+                    key,
+                    derived_key: LogQuery::derive_final_address_for_params(&address, &key),
+                    enumeration_index: storage
+                        .get_enumeration_index(&storage_key)
+                        .unwrap_or_default(),
+                    initial_value: storage.read_value(&storage_key).as_bytes().into(),
+                    final_value: *value,
+                }
+            })
+            .collect()
+    }
 }
 
-impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
+impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
     type TracerDispatcher = ();
 
     fn new(
@@ -435,7 +480,7 @@ struct VmSnapshot {
     gas_for_account_validation: u32,
 }
 
-impl<S: WriteStorage + 'static> VmInterfaceHistoryEnabled<S> for Vm<S> {
+impl<S: ReadStorage + 'static> VmInterfaceHistoryEnabled<S> for Vm<S> {
     fn make_snapshot(&mut self) {
         self.snapshots.push(VmSnapshot {
             state: self.inner.state.clone(),
@@ -470,7 +515,7 @@ impl<S: WriteStorage + 'static> VmInterfaceHistoryEnabled<S> for Vm<S> {
     }
 }
 
-impl<S: WriteStorage + 'static> Vm<S> {
+impl<S: ReadStorage + 'static> Vm<S> {
     fn delete_history_if_appropriate(&mut self) {
         if self.snapshots.is_empty() && self.inner.state.previous_frames.is_empty() {
             self.inner.world.delete_history();
@@ -478,7 +523,7 @@ impl<S: WriteStorage + 'static> Vm<S> {
     }
 }
 
-struct World<S: WriteStorage> {
+struct World<S: ReadStorage> {
     storage: StoragePtr<S>,
 
     // TODO: It would be nice to store an LRU cache elsewhere.
@@ -486,7 +531,7 @@ struct World<S: WriteStorage> {
     program_cache: Rc<RefCell<HashMap<U256, Program>>>,
 }
 
-impl<S: WriteStorage> World<S> {
+impl<S: ReadStorage> World<S> {
     fn new(storage: StoragePtr<S>, program_cache: Rc<RefCell<HashMap<U256, Program>>>) -> Self {
         Self {
             storage,
@@ -495,7 +540,7 @@ impl<S: WriteStorage> World<S> {
     }
 }
 
-impl<S: WriteStorage> vm2::World for World<S> {
+impl<S: ReadStorage> vm2::World for World<S> {
     fn decommit(&mut self, hash: U256) -> Program {
         self.program_cache
             .borrow_mut()
