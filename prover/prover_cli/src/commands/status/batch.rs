@@ -61,7 +61,7 @@ async fn get_proof_compression_job_status_for_batch<'a>(
     conn: ConnectionPool<'a, Prover>,
 ) -> anyhow::Result<TaskStatus> {
     conn.fri_proof_compressor_dal()
-        .get_proof_compression_job_for_batch(L1BatchNumber(0))
+        .get_proof_compression_job_for_batch(batch_number)
         .await
         .map(|job| TaskStatus::from(job.status))
         .unwrap_or(TaskStatus::Custom("Compressor job not found 🚫".to_owned()))
