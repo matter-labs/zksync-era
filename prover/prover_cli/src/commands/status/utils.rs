@@ -215,7 +215,7 @@ impl Debug for Task {
             TaskStatus::InProgress | TaskStatus::Successful => {
                 writeln!(f, "> {}", self.status().to_string())?;
                 if let Some(status) = self.prover_jobs_status() {
-                    writeln!(f, "> {}", status.to_string())?;
+                    writeln!(f, "   > Prover Jobs Status: {}", status.to_string())?;
                 }
             }
             TaskStatus::Queued | TaskStatus::WaitingForProofs | TaskStatus::Stuck => {
