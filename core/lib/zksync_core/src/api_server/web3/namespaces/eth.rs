@@ -1,5 +1,4 @@
 use anyhow::Context as _;
-use multivm::vm_1_4_2::VmExecutionResultAndLogs;
 use zksync_dal::{CoreDal, DalError};
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
@@ -597,22 +596,6 @@ impl EthNamespace {
     pub fn protocol_version(&self) -> String {
         // TODO (SMA-838): Versioning of our protocol
         PROTOCOL_VERSION.to_string()
-    }
-
-    #[tracing::instrument(skip(self, tx_bytes))]
-    pub async fn send_raw_transaction_optimistic_impl(
-        &self,
-        tx_bytes: Bytes,
-    ) -> Result<(H256, VmExecutionResultAndLogs), Web3Error> {
-        let (mut tx, hash) = self.state.parse_transaction_bytes(&tx_bytes.0)?;
-        tx.set_input(tx_bytes.0, hash);
-
-        let submit_result = self.state.tx_sender.submit_tx(tx).await;
-        submit_result.map(|result| (hash, result.1)).map_err(|err| {
-            tracing::debug!("Send raw transaction error: {err}");
-            API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
-            err.into()
-        })
     }
 
     #[tracing::instrument(skip(self, tx_bytes))]

@@ -11,8 +11,9 @@ use zksync_types::{
     transaction_request::CallRequest,
     Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
+use zksync_types::api::OptimisticTransactionResult;
 
-use crate::types::Token;
+use crate::types::{Bytes, Token};
 
 #[cfg_attr(
     all(feature = "client", feature = "server"),
@@ -121,4 +122,10 @@ pub trait ZksNamespace {
         keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
     ) -> RpcResult<Option<Proof>>;
+
+    #[method(name = "sendRawTransactionOptimistic")]
+    async fn send_raw_transaction_optimistic(
+        &self,
+        tx_bytes: Bytes,
+    ) -> RpcResult<OptimisticTransactionResult>;
 }
