@@ -11,11 +11,14 @@ pub enum VmVersion {
     Vm1_4_1,
     Vm1_4_2,
     Vm1_5_0,
+    // To keep the name consistent with the previous version
+    #[allow(non_camel_case_types)]
+    Vm_1_5_0_IncreaedBootloaderMemory,
 }
 
 impl VmVersion {
     /// Returns the latest supported VM version.
     pub const fn latest() -> VmVersion {
-        Self::Vm1_5_0
+        Self::Vm_1_5_0_IncreaedBootloaderMemory
     }
 }

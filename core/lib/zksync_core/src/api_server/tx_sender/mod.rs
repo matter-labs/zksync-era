@@ -68,6 +68,8 @@ pub struct MultiVMBaseSystemContracts {
     pub(crate) post_1_4_1: BaseSystemContracts,
     /// Contracts to be used after the 1.4.2 upgrade
     pub(crate) post_1_4_2: BaseSystemContracts,
+    /// Contracts to be used during the `v23` upgrade. This upgrade was done on an internal staging environment only.
+    pub(crate) vm_1_5_0_small_memory: BaseSystemContracts,
     /// Contracts to be used after the 1.5.0 upgrade
     pub(crate) post_1_5_0: BaseSystemContracts,
 }
@@ -97,7 +99,8 @@ impl MultiVMBaseSystemContracts {
             ProtocolVersionId::Version19 => self.post_allowlist_removal,
             ProtocolVersionId::Version20 => self.post_1_4_1,
             ProtocolVersionId::Version21 | ProtocolVersionId::Version22 => self.post_1_4_2,
-            ProtocolVersionId::Version23 | ProtocolVersionId::Version24 => self.post_1_5_0,
+            ProtocolVersionId::Version23 => self.vm_1_5_0_small_memory,
+            ProtocolVersionId::Version24 | ProtocolVersionId::Version25 => self.post_1_5_0,
         }
     }
 }
@@ -131,6 +134,7 @@ impl ApiContracts {
                 post_allowlist_removal: BaseSystemContracts::estimate_gas_post_allowlist_removal(),
                 post_1_4_1: BaseSystemContracts::estimate_gas_post_1_4_1(),
                 post_1_4_2: BaseSystemContracts::estimate_gas_post_1_4_2(),
+                vm_1_5_0_small_memory: BaseSystemContracts::playground_1_5_0_small_memory(),
                 post_1_5_0: BaseSystemContracts::estimate_gas_post_1_5_0(),
             },
             eth_call: MultiVMBaseSystemContracts {
@@ -142,6 +146,7 @@ impl ApiContracts {
                 post_allowlist_removal: BaseSystemContracts::playground_post_allowlist_removal(),
                 post_1_4_1: BaseSystemContracts::playground_post_1_4_1(),
                 post_1_4_2: BaseSystemContracts::playground_post_1_4_2(),
+                vm_1_5_0_small_memory: BaseSystemContracts::playground_1_5_0_small_memory(),
                 post_1_5_0: BaseSystemContracts::playground_post_1_5_0(),
             },
         }

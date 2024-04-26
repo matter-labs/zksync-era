@@ -44,17 +44,20 @@ pub enum ProtocolVersionId {
     Version20,
     Version21,
     Version22,
+    // Version `23` is only present on the internal staging networks.
+    // All the user-facing environments were switched from 22 to 24 rightaway.
     Version23,
     Version24,
+    Version25,
 }
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
-        Self::Version23
+        Self::Version24
     }
 
     pub fn next() -> Self {
-        Self::Version24
+        Self::Version25
     }
 
     /// Returns VM version to be used by API for this protocol version.
@@ -85,7 +88,8 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version21 => VmVersion::Vm1_4_2,
             ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
             ProtocolVersionId::Version23 => VmVersion::Vm1_5_0,
-            ProtocolVersionId::Version24 => VmVersion::Vm1_5_0,
+            ProtocolVersionId::Version24 => VmVersion::Vm_1_5_0_IncreaedBootloaderMemory,
+            ProtocolVersionId::Version25 => VmVersion::Vm_1_5_0_IncreaedBootloaderMemory,
         }
     }
 
@@ -223,7 +227,8 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version21 => VmVersion::Vm1_4_2,
             ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
             ProtocolVersionId::Version23 => VmVersion::Vm1_5_0,
-            ProtocolVersionId::Version24 => VmVersion::Vm1_5_0,
+            ProtocolVersionId::Version24 => VmVersion::Vm_1_5_0_IncreaedBootloaderMemory,
+            ProtocolVersionId::Version25 => VmVersion::Vm_1_5_0_IncreaedBootloaderMemory,
         }
     }
 }

@@ -3,7 +3,7 @@ use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     event::extract_l2tol1logs_from_l1_messenger,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    Transaction,
+    Transaction, VmVersion,
 };
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -23,6 +23,36 @@ use crate::{
     HistoryMode,
 };
 
+/// MultiVM-specific addition.
+///
+/// After the release in the In the second version an issue that led to smaller used bootloader memory was fixed.
+#[derive(Debug, Copy, Clone)]
+pub(crate) enum MultiVMSubversion {
+    /// Initial v1.5.0
+    InitialVm1_5_0,
+    /// Bug with code compression was fixed.
+    IncreasedMemory,
+}
+
+impl MultiVMSubversion {
+    pub(crate) fn latest() -> Self {
+        Self::IncreasedMemory
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct VmVersionIsNotVm150Error;
+impl TryFrom<VmVersion> for MultiVMSubversion {
+    type Error = VmVersionIsNotVm150Error;
+    fn try_from(value: VmVersion) -> Result<Self, Self::Error> {
+        match value {
+            VmVersion::Vm1_5_0 => Ok(Self::InitialVm1_5_0),
+            VmVersion::Vm_1_5_0_IncreaedBootloaderMemory => Ok(Self::IncreasedMemory),
+            _ => Err(VmVersionIsNotVm150Error),
+        }
+    }
+}
+
 /// Main entry point for Virtual Machine integration.
 /// The instance should process only one l1 batch
 #[derive(Debug)]
@@ -35,6 +65,7 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
     pub(crate) batch_env: L1BatchEnv,
     // Snapshots for the current run
     pub(crate) snapshots: Vec<VmSnapshot>,
+    pub(crate) subversion: MultiVMSubversion,
     _phantom: std::marker::PhantomData<H>,
 }
 
@@ -42,16 +73,13 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher<S, H::Vm1_5_0>;
 
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
-        let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
-        Self {
-            bootloader_state,
-            state,
-            storage,
-            system_env,
+        let vm_version: VmVersion = system_env.version.into();
+        Self::new_with_subversion(
             batch_env,
-            snapshots: vec![],
-            _phantom: Default::default(),
-        }
+            system_env,
+            storage,
+            vm_version.try_into().expect("Incorrect 1.5.0 VmVersion"),
+        )
     }
 
     /// Push tx into memory for the future execution
@@ -182,6 +210,27 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                     .clone()
                     .build_pubdata(false),
             ),
+        }
+    }
+}
+
+impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
+    pub(crate) fn new_with_subversion(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: StoragePtr<S>,
+        subversion: MultiVMSubversion,
+    ) -> Self {
+        let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
+        Self {
+            bootloader_state,
+            state,
+            storage,
+            system_env,
+            batch_env,
+            subversion,
+            snapshots: vec![],
+            _phantom: Default::default(),
         }
     }
 }
