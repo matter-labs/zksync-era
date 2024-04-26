@@ -120,6 +120,8 @@ jobs:
         run: |
           zk server --components "api,tree,eth,state_keeper,housekeeper"
           cd core/tests/ts-integration && yarn test evm-contracts-test.ts
+        env:
+          RUSTFLAGS: ""
 
       # - name: Run integration tests
       #   run: |
