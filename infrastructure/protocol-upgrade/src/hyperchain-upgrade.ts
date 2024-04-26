@@ -10,11 +10,13 @@ import { getFacetsFileName, getCryptoFileName, getPostUpgradeCalldataFileName, g
 import { IZkSyncHyperchainFactory } from 'l1-contracts/typechain/IZkSyncHyperchainFactory';
 import { getWallet } from './transaction';
 
+const privateKey = '';
+
 async function hyperchainUpgrade1() {
     const cwd = process.cwd();
     process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
 
-    await spawn(`yarn hyperchain-upgrade-1 --private-key  | tee deployHyperchainUpgradeContracts.log`);
+    await spawn(`yarn hyperchain-upgrade-1 --private-key ${privateKey} | tee deployHyperchainUpgradeContracts.log`);
     process.chdir(cwd);
 
     const deployLog = fs
@@ -86,7 +88,31 @@ async function hyperchainUpgrade2() {
     await spawn(
         `yarn hyperchain-upgrade-2 --print-file-path ${getUpgradePath(
             environment
-        )} | tee deploydeployHyperchainUpgrade2.log`
+        )} --private-key  ${privateKey} --gas-price 200 | tee deploydeployHyperchainUpgrade2.log`
+    );
+    process.chdir(cwd);
+}
+
+async function hyperchainUpgradeValidators() {
+    const cwd = process.cwd();
+    process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
+    const environment = 'stage'; //process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : 'localhost';
+    await spawn(
+        `yarn hyperchain-upgrade-validator --print-file-path ${getUpgradePath(
+            environment
+        )} --private-key  ${privateKey} | tee deploydeployHyperchainUpgradeValidator.log`
+    );
+    process.chdir(cwd);
+}
+
+async function hyperchainWhatever() {
+    const cwd = process.cwd();
+    process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
+    const environment = 'stage'; //process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : 'localhost';
+    await spawn(
+        `yarn whatever --print-file-path ${getUpgradePath(
+            environment
+        )} --private-key  ${privateKey} | tee deployWhatever.log`
     );
     process.chdir(cwd);
 }
@@ -94,19 +120,25 @@ async function hyperchainUpgrade2() {
 async function hyperchainUpgrade3() {
     const cwd = process.cwd();
     process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
-
-    await spawn(`yarn hyperchain-upgrade-3 | tee deploydeployHyperchainUpgrade3.log`);
+    const environment = 'stage'; //process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : 'localhost';
+    await spawn(
+        `yarn hyperchain-upgrade-3 --print-file-path ${getUpgradePath(
+            environment
+        )} --private-key  ${privateKey} | tee deploydeployHyperchainUpgrade3.log`
+    );
     process.chdir(cwd);
 }
 
 async function preparePostUpgradeCalldata(environment?: string) {
     let calldata = new ethers.utils.AbiCoder().encode(
-        ['uint256', 'address', 'address', 'address'],
+        ['uint256', 'address', 'address', 'address', 'address', 'address'],
         [
             process.env.CONTRACTS_ERA_CHAIN_ID,
             process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR,
             process.env.CONTRACTS_STATE_TRANSITION_PROXY_ADDR,
-            process.env.CONTRACTS_L1_SHARED_BRIDGE_PROXY_ADDR
+            process.env.CONTRACTS_L1_SHARED_BRIDGE_PROXY_ADDR,
+            process.env.CONTRACTS_GOVERNANCE_ADDR,
+            process.env.CONTRACTS_VALIDATOR_TIMELOCK_ADDR
         ]
     );
     let postUpgradeCalldataFileName = getPostUpgradeCalldataFileName(environment);
@@ -119,7 +151,7 @@ async function deploySharedBridgeL2Implementation() {
     process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/`);
 
     await spawn(
-        `yarn deploy-shared-bridge-l2-implementation  --private-key  | tee deploySharedBridgeImplementation.log`
+        `yarn deploy-shared-bridge-l2-implementation  --private-key ${privateKey} | tee deploySharedBridgeImplementation.log`
     );
     process.chdir(cwd);
 
@@ -169,7 +201,7 @@ async function hyperchainFullUpgrade() {
     env.reload('stage_migration');
 
     // await spawn('zk f yarn  workspace protocol-upgrade-tool start facets generate-facet-cuts --environment stage ');
-    // await spawn('zk f yarn  workspace protocol-upgrade-tool start system-contracts publish-all  --environment stage --private-key ');
+    // await spawn('zk f yarn  workspace protocol-upgrade-tool start system-contracts publish-all  --environment stage --private-key ${privateKey} ');
     // await spawn(
     //     'zk f yarn  workspace protocol-upgrade-tool start l2-transaction complex-upgrader-calldata --use-forced-deployments --use-contract-deployer --environment stage'
     // );
@@ -203,6 +235,8 @@ command
     .option('--full-start')
     .option('--post-propose')
     .option('--execute-upgrade')
+    .option('--add-validators')
+    .option('--whatever')
     .action(async (options) => {
         if (options.phase1) {
             await hyperchainUpgrade1();
@@ -253,5 +287,9 @@ command
             // this is the batch number that the last deposit is processed in ( this is tied to a tx, so commit vs executed is not relevant)
             // we will print the priority tx queue id as part of phase 2 script for local testing, and we can use that to find the batch number
             // for the mainnet upgrade we will have to manually check the priority queue at the given block, since governance is signing the txs
+        } else if (options.addValidators) {
+            await hyperchainUpgradeValidators();
+        } else if (options.whatever) {
+            await hyperchainWhatever();
         }
     });
