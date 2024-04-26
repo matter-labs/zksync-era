@@ -93,7 +93,9 @@ jobs:
       #     ci_localnet_up
 
       - name: Start service
-        run: docker compose up -d
+        run: |
+          mkdir -p ./volumes/postgres ./volumes/reth/data
+          docker compose up -d
       
       - name: Init
         run: |
