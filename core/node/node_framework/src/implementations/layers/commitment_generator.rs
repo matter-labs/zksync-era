@@ -7,7 +7,15 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
-pub struct CommitmentGeneratorLayer;
+pub struct CommitmentGeneratorLayer {
+    pub is_validium: bool,
+}
+
+impl CommitmentGeneratorLayer {
+    pub fn new(is_validium: bool) -> Self {
+        Self { is_validium }
+    }
+}
 
 #[async_trait::async_trait]
 impl WiringLayer for CommitmentGeneratorLayer {
@@ -28,6 +36,7 @@ impl WiringLayer for CommitmentGeneratorLayer {
 
         context.add_task(Box::new(CommitmentGeneratorTask {
             commitment_generator,
+            is_validium: self.is_validium,
         }));
 
         Ok(())
@@ -37,6 +46,7 @@ impl WiringLayer for CommitmentGeneratorLayer {
 #[derive(Debug)]
 struct CommitmentGeneratorTask {
     commitment_generator: CommitmentGenerator,
+    is_validium: bool,
 }
 
 #[async_trait::async_trait]
@@ -46,6 +56,8 @@ impl Task for CommitmentGeneratorTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.commitment_generator.run(stop_receiver.0, false).await
+        self.commitment_generator
+            .run(stop_receiver.0, self.is_validium)
+            .await
     }
 }

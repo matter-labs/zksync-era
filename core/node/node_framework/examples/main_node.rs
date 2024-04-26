@@ -6,8 +6,8 @@ use anyhow::Context;
 use zksync_config::{
     configs::{
         chain::{
-            CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
-            StateKeeperConfig,
+            CircuitBreakerConfig, L1BatchCommitDataGeneratorMode, MempoolConfig, NetworkConfig,
+            OperationsManagerConfig, StateKeeperConfig,
         },
         consensus::{ConsensusConfig, ConsensusSecrets},
         fri_prover_group::FriProverGroupConfig,
@@ -335,7 +335,11 @@ impl MainNodeBuilder {
     }
 
     fn add_commitment_generator_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(CommitmentGeneratorLayer);
+        let genesis = GenesisConfig::from_env()?;
+        let is_validium =
+            genesis.l1_batch_commit_data_generator_mode == L1BatchCommitDataGeneratorMode::Validium;
+        self.node
+            .add_layer(CommitmentGeneratorLayer::new(is_validium));
 
         Ok(self)
     }
