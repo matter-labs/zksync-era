@@ -295,7 +295,10 @@ mod tests {
         let private_key = K256PrivateKey::from_bytes(private_key_bytes).unwrap();
         assert_eq!(
             private_key.public(),
-            "8ce0db0b0359ffc5866ba61903cc2518c3675ef2cf380a7e54bde7ea20e6fa1ab45b7617346cd11b7610001ee6ae5b0155c41cad9527cbcdff44ec67848943a4".parse().unwrap()
+            "8ce0db0b0359ffc5866ba61903cc2518c3675ef2cf380a7e54bde7ea20e6fa1a\
+             b45b7617346cd11b7610001ee6ae5b0155c41cad9527cbcdff44ec67848943a4"
+                .parse()
+                .unwrap()
         );
         assert_eq!(
             private_key.address(),
