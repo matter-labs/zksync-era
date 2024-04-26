@@ -15,7 +15,7 @@ use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::tx_execution_info::TxExecutionStatus,
     vm_trace::{Call, VmExecutionTrace, VmTrace},
-    L1BatchNumber, VmEvent, VmVersion, H256, U256,
+    L1BatchNumber, VmEvent, H256, U256,
 };
 
 use crate::{
