@@ -163,6 +163,7 @@ mod tests {
                 &[mock_execution_result(tx.clone())],
                 1.into(),
                 ProtocolVersionId::latest(),
+                false,
             )
             .await
             .unwrap();

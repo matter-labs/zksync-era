@@ -934,6 +934,7 @@ mod tests {
                 &tx_results,
                 1.into(),
                 ProtocolVersionId::latest(),
+                false,
             )
             .await
             .unwrap();

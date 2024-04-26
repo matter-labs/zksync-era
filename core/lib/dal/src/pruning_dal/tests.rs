@@ -487,6 +487,7 @@ async fn transactions_are_handled_correctly_after_pruning() {
             &[mock_execution_result(tx.clone())],
             1.into(),
             ProtocolVersionId::latest(),
+            false,
         )
         .await
         .unwrap();

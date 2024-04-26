@@ -254,7 +254,6 @@ pub(super) enum L2BlockQueueStage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
 #[metrics(rename_all = "snake_case")]
 pub(super) enum L2BlockSealStage {
-    PreInsertTxs,
     #[metrics(name = "insert_miniblock_header")]
     InsertL2BlockHeader,
     #[metrics(name = "mark_transactions_in_miniblock")]

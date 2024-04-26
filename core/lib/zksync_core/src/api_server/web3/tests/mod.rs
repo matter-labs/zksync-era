@@ -434,6 +434,7 @@ async fn store_l2_block(
             transaction_results,
             1.into(),
             ProtocolVersionId::latest(),
+            false,
         )
         .await?;
     Ok(new_l2_block)

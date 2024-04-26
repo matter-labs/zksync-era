@@ -455,6 +455,7 @@ mod tests {
                 &tx_results,
                 U256::from(1),
                 ProtocolVersionId::latest(),
+                false,
             )
             .await
             .unwrap();
@@ -631,6 +632,7 @@ mod tests {
                 &executed_txs,
                 1.into(),
                 ProtocolVersionId::latest(),
+                false,
             )
             .await
             .unwrap();
