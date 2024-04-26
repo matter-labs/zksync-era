@@ -3,7 +3,7 @@ use clap::Args as ClapArgs;
 use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
-use super::utils::{BatchData, Task, TaskStatus};
+use super::utils::{AggregationRoundInfo, BatchData, Task, TaskStatus};
 use crate::commands::status::utils::postgres_config;
 
 #[derive(ClapArgs)]
@@ -46,7 +46,7 @@ async fn get_batches_data(batches: Vec<L1BatchNumber>) -> anyhow::Result<Vec<Bat
             batch_number: batch,
             basic_witness_generator: Task::BasicWitnessGenerator {
                 status: get_proof_basic_witness_generator_status_for_batch(batch, &mut conn).await,
-                prover_jobs_status: get_prover_jobs_data_for_batch(
+                aggregation_round_info: get_prover_jobs_data_for_batch(
                     batch,
                     AggregationRound::BasicCircuits,
                     &mut conn,
@@ -66,13 +66,19 @@ async fn get_batches_data(batches: Vec<L1BatchNumber>) -> anyhow::Result<Vec<Bat
 
 async fn get_prover_jobs_data_for_batch<'a>(
     batch_number: L1BatchNumber,
-    aggation_round: AggregationRound,
+    aggregation_round: AggregationRound,
     conn: &mut Connection<'a, Prover>,
-) -> TaskStatus {
-    conn.fri_prover_jobs_dal()
-        .get_prover_jobs_stats_for_batch(batch_number, aggation_round)
+) -> AggregationRoundInfo {
+    let status: TaskStatus = conn
+        .fri_prover_jobs_dal()
+        .get_prover_jobs_stats_for_batch(batch_number, aggregation_round)
         .await
-        .into()
+        .into();
+
+    AggregationRoundInfo {
+        round: AggregationRound::BasicCircuits,
+        prover_jobs_status: status,
+    }
 }
 
 async fn get_proof_basic_witness_generator_status_for_batch<'a>(
@@ -83,9 +89,7 @@ async fn get_proof_basic_witness_generator_status_for_batch<'a>(
         .get_basic_witness_generator_job_for_batch(batch_number)
         .await
         .map(|job| TaskStatus::from(job.status))
-        .unwrap_or(TaskStatus::Custom(
-            "Basic witness generator job not found 🚫".to_owned(),
-        ))
+        .unwrap_or_default()
 }
 
 async fn get_proof_compression_job_status_for_batch<'a>(
@@ -96,5 +100,5 @@ async fn get_proof_compression_job_status_for_batch<'a>(
         .get_proof_compression_job_for_batch(batch_number)
         .await
         .map(|job| TaskStatus::from(job.status))
-        .unwrap_or(TaskStatus::Custom("Compressor job not found 🚫".to_owned()))
+        .unwrap_or_default()
 }
