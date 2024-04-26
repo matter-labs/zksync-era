@@ -88,6 +88,7 @@ jobs:
 
       - name: Start services
         run: |
+          sed -i 's/ --wait//' $ZKSYNC_HOME/bin/ci_localnet_up
           ci_localnet_up
 
       - name: Init
