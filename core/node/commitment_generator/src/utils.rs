@@ -36,14 +36,16 @@ pub fn events_queue_commitment(
                     .collect(),
             ),
         )),
-        VmVersion::Vm1_5_0 => Some(H256(
-            circuit_sequencer_api_1_5_0::commitments::events_queue_commitment_fixed(
-                &events_queue
-                    .iter()
-                    .map(|x| to_log_query_1_5_0(*x))
-                    .collect(),
-            ),
-        )),
+        VmVersion::Vm1_5_0SmallBootloaderMemory | VmVersion::Vm1_5_0IncreasedBootloaderMemory => {
+            Some(H256(
+                circuit_sequencer_api_1_5_0::commitments::events_queue_commitment_fixed(
+                    &events_queue
+                        .iter()
+                        .map(|x| to_log_query_1_5_0(*x))
+                        .collect(),
+                ),
+            ))
+        }
         _ => None,
     }
 }
@@ -72,11 +74,13 @@ pub fn bootloader_initial_content_commitment(
                 &full_bootloader_memory,
             ),
         )),
-        VmVersion::Vm1_5_0 => Some(H256(
-            circuit_sequencer_api_1_5_0::commitments::initial_heap_content_commitment_fixed(
-                &full_bootloader_memory,
-            ),
-        )),
+        VmVersion::Vm1_5_0SmallBootloaderMemory | VmVersion::Vm1_5_0IncreasedBootloaderMemory => {
+            Some(H256(
+                circuit_sequencer_api_1_5_0::commitments::initial_heap_content_commitment_fixed(
+                    &full_bootloader_memory,
+                ),
+            ))
+        }
         _ => unreachable!(),
     }
 }

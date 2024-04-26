@@ -1,4 +1,4 @@
-// Everywhere in this module the word "block" actually means "miniblock".
+// Everywhere in this module the word "block" actually means "L2 block".
 
 pub mod contract_verification;
 pub mod execution_sandbox;

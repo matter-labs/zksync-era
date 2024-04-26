@@ -30,22 +30,23 @@ pub(crate) struct DebugNamespace {
 }
 
 impl DebugNamespace {
-    pub async fn new(state: RpcState) -> Self {
+    pub async fn new(state: RpcState) -> anyhow::Result<Self> {
         let api_contracts = ApiContracts::load_from_disk();
-        Self {
+        let fee_input_provider = &state.tx_sender.0.batch_fee_input_provider;
+        let batch_fee_input = fee_input_provider
+            .get_batch_fee_input_scaled(
+                state.api_config.estimate_gas_scale_factor,
+                state.api_config.estimate_gas_scale_factor,
+            )
+            .await
+            .context("cannot get batch fee input")?;
+
+        Ok(Self {
             // For now, the same scaling is used for both the L1 gas price and the pubdata price
-            batch_fee_input: state
-                .tx_sender
-                .0
-                .batch_fee_input_provider
-                .get_batch_fee_input_scaled(
-                    state.api_config.estimate_gas_scale_factor,
-                    state.api_config.estimate_gas_scale_factor,
-                )
-                .await,
+            batch_fee_input,
             state,
             api_contracts,
-        }
+        })
     }
 
     fn sender_config(&self) -> &TxSenderConfig {
@@ -70,7 +71,7 @@ impl DebugNamespace {
         let mut connection = self.state.acquire_connection().await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         self.current_method()
-            .set_block_diff(self.state.last_sealed_miniblock.diff(block_number));
+            .set_block_diff(self.state.last_sealed_l2_block.diff(block_number));
 
         let call_traces = connection
             .blocks_web3_dal()
@@ -148,7 +149,7 @@ impl DebugNamespace {
 
         self.current_method().set_block_diff(
             self.state
-                .last_sealed_miniblock
+                .last_sealed_l2_block
                 .diff_with_block_args(&block_args),
         );
         let tx = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;

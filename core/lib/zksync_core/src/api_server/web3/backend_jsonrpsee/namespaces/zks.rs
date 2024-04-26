@@ -95,8 +95,8 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn get_miniblock_range(&self, batch: L1BatchNumber) -> RpcResult<Option<(U64, U64)>> {
-        self.get_miniblock_range_impl(batch)
+    async fn get_l2_block_range(&self, batch: L1BatchNumber) -> RpcResult<Option<(U64, U64)>> {
+        self.get_l2_block_range_impl(batch)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
@@ -141,7 +141,9 @@ impl ZksNamespaceServer for ZksNamespace {
     }
 
     async fn get_l1_gas_price(&self) -> RpcResult<U64> {
-        Ok(self.get_l1_gas_price_impl().await)
+        self.get_l1_gas_price_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
     }
 
     async fn get_fee_params(&self) -> RpcResult<FeeParams> {

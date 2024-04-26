@@ -159,6 +159,16 @@ impl dyn ObjectStore + '_ {
         Ok(key)
     }
 
+    /// Removes a value associated with the key.
+    ///
+    /// # Errors
+    ///
+    /// Returns I/O errors specific to the storage.
+    pub async fn remove<V: StoredObject>(&self, key: V::Key<'_>) -> Result<(), ObjectStoreError> {
+        let key = V::encode_key(key);
+        self.remove_raw(V::BUCKET, &key).await
+    }
+
     pub fn get_storage_prefix<V: StoredObject>(&self) -> String {
         self.storage_prefix_raw(V::BUCKET)
     }
