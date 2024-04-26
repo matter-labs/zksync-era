@@ -673,7 +673,10 @@ impl TxSender {
         }
     }
 
-    #[tracing::instrument(level = "debug", skip_all, fields(tx.hash = ?tx.hash()))]
+    #[tracing::instrument(level = "debug", skip_all, fields(
+        initiator = ?tx.initiator_account(),
+        nonce = ?tx.nonce(),
+    ))]
     pub async fn get_txs_fee_in_wei(
         &self,
         mut tx: Transaction,
@@ -792,15 +795,9 @@ impl TxSender {
         // the transaction succeeds
         let mut lower_bound = 0;
         let mut upper_bound = MAX_L2_TX_GAS_LIMIT;
-        let tx_id = format!(
-            "{:?}-{}",
-            tx.initiator_account(),
-            tx.nonce().unwrap_or(Nonce(0))
-        );
         tracing::trace!(
-            "fee estimation tx {:?}: preparation took {:?}, starting binary search",
-            tx_id,
-            estimation_started_at.elapsed(),
+            "preparation took {:?}, starting binary search",
+            estimation_started_at.elapsed()
         );
 
         let mut number_of_iterations = 0usize;
@@ -832,12 +829,8 @@ impl TxSender {
             }
 
             tracing::trace!(
-                "fee estimation tx {:?}: iteration {} took {:?}. lower_bound: {}, upper_bound: {}",
-                tx_id,
-                number_of_iterations,
-                iteration_started_at.elapsed(),
-                lower_bound,
-                upper_bound,
+                "iteration {number_of_iterations} took {:?}. lower_bound: {lower_bound}, upper_bound: {upper_bound}",
+                iteration_started_at.elapsed()
             );
             number_of_iterations += 1;
         }
@@ -896,10 +889,8 @@ impl TxSender {
         let estimated_gas_for_pubdata =
             (gas_for_pubdata as f64 * estimated_fee_scale_factor) as u64;
 
-        tracing::info!(
-            initiator = ?tx.initiator_account(),
-            nonce = %tx.nonce().unwrap_or(Nonce(0)),
-            "fee estimation: gas for pubdata: {estimated_gas_for_pubdata}, computational gas: {}, overhead gas: {overhead} \
+        tracing::debug!(
+            "gas for pubdata: {estimated_gas_for_pubdata}, computational gas: {}, overhead gas: {overhead} \
             (with params base_fee: {base_fee}, gas_per_pubdata_byte: {gas_per_pubdata_byte}) \
             estimated_fee_scale_factor: {estimated_fee_scale_factor}",
             suggested_gas_limit - estimated_gas_for_pubdata,
