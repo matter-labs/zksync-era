@@ -441,16 +441,10 @@ impl ZksNamespace {
             .map_err(DalError::generalize)?)
     }
 
-    pub async fn get_l1_gas_price_impl(&self) -> U64 {
-        let gas_price = self
-            .state
-            .tx_sender
-            .0
-            .batch_fee_input_provider
-            .get_batch_fee_input()
-            .await
-            .l1_gas_price();
-        gas_price.into()
+    pub async fn get_l1_gas_price_impl(&self) -> Result<U64, Web3Error> {
+        let fee_input_provider = &self.state.tx_sender.0.batch_fee_input_provider;
+        let fee_input = fee_input_provider.get_batch_fee_input().await?;
+        Ok(fee_input.l1_gas_price().into())
     }
 
     pub fn get_fee_params_impl(&self) -> FeeParams {
