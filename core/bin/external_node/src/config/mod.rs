@@ -299,6 +299,14 @@ pub(crate) struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_gas_price_scale_factor")]
     pub gas_price_scale_factor: f64,
 
+    // State keeper cache config
+    /// Block cache capacity of the state keeper RocksDB cache. The default value is 128 MB.
+    #[serde(default = "OptionalENConfig::default_state_keeper_db_block_cache_capacity_mb")]
+    state_keeper_db_block_cache_capacity_mb: usize,
+    /// Maximum number of files concurrently opened by state keeper cache RocksDB. Useful to fit into OS limits; can be used
+    /// as a rudimentary way to control RAM usage of the cache.
+    pub state_keeper_db_max_open_files: Option<NonZeroU32>,
+
     // Merkle tree config
     #[serde(default = "OptionalENConfig::default_metadata_calculator_delay")]
     metadata_calculator_delay: u64,
@@ -460,6 +468,10 @@ impl OptionalENConfig {
         128
     }
 
+    const fn default_state_keeper_db_block_cache_capacity_mb() -> usize {
+        128
+    }
+
     const fn default_merkle_tree_multi_get_chunk_size() -> usize {
         500
     }
@@ -545,6 +557,11 @@ impl OptionalENConfig {
     /// Returns the size of latest values cache in bytes.
     pub fn latest_values_cache_size(&self) -> usize {
         self.latest_values_cache_size_mb * BYTES_IN_MEGABYTE
+    }
+
+    /// Returns the size of block cache for the state keeper RocksDB cache in bytes.
+    pub fn state_keeper_db_block_cache_capacity(&self) -> usize {
+        self.state_keeper_db_block_cache_capacity_mb * BYTES_IN_MEGABYTE
     }
 
     /// Returns the size of block cache for Merkle tree in bytes.

@@ -867,7 +867,6 @@ async fn add_state_keeper_to_task_futures(
         .build()
         .await
         .context("failed to build async_cache_pool")?;
-    // FIXME: make configurable
     let (async_cache, async_catchup_task) = AsyncRocksdbCache::new(
         async_cache_pool,
         db_config.state_keeper_db_path.clone(),

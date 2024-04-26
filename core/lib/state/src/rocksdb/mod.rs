@@ -22,6 +22,7 @@ use std::{
     collections::HashMap,
     convert::TryInto,
     mem,
+    num::NonZeroU32,
     path::{Path, PathBuf},
     time::Instant,
 };
@@ -129,12 +130,16 @@ impl From<anyhow::Error> for RocksdbSyncError {
 pub struct RocksdbStorageOptions {
     /// Size of the RocksDB block cache in bytes. The default value is 128 MiB.
     pub block_cache_capacity: usize,
+    /// Number of open files that can be simultaneously opened by RocksDB. Default is `None`, for no limit.
+    /// Can be used to restrict memory usage of RocksDB.
+    pub max_open_files: Option<NonZeroU32>,
 }
 
 impl Default for RocksdbStorageOptions {
     fn default() -> Self {
         Self {
             block_cache_capacity: 128 << 20,
+            max_open_files: None,
         }
     }
 }
@@ -143,6 +148,7 @@ impl RocksdbStorageOptions {
     fn into_generic(self) -> RocksDBOptions {
         RocksDBOptions {
             block_cache_capacity: Some(self.block_cache_capacity),
+            max_open_files: self.max_open_files,
             ..RocksDBOptions::default()
         }
     }

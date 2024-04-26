@@ -36,7 +36,6 @@ impl WiringLayer for MainBatchExecutorLayer {
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let master_pool = context.get_resource::<MasterPoolResource>().await?;
 
-        // FIXME: make configurable
         let (storage_factory, task) = AsyncRocksdbCache::new(
             master_pool.get_singleton().await?,
             self.db_config.state_keeper_db_path,

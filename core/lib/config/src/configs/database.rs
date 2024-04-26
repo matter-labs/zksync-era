@@ -110,7 +110,7 @@ pub struct DBConfig {
     /// Merkle tree configuration.
     #[serde(skip)]
     // ^ Filled in separately in `Self::from_env()`. We cannot use `serde(flatten)` because it
-    // doesn't work with 'envy`.
+    // doesn't work with `envy`.
     pub merkle_tree: MerkleTreeConfig,
 }
 
