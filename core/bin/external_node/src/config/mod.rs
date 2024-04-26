@@ -753,11 +753,11 @@ impl ExternalNodeConfig {
             .from_env::<OptionalENConfig>()
             .context("could not load external node config")?;
 
-        let api_component_config = envy::prefixed("EN_API")
+        let api_component_config = envy::prefixed("EN_API_")
             .from_env::<ApiComponentConfig>()
             .context("could not load external node config")?;
 
-        let tree_component_config = envy::prefixed("EN_TREE")
+        let tree_component_config = envy::prefixed("EN_TREE_")
             .from_env::<TreeComponentConfig>()
             .context("could not load external node config")?;
 
