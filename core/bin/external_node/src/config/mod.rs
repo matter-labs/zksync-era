@@ -825,7 +825,9 @@ impl ExternalNodeConfig {
             optional: OptionalENConfig::mock(),
             remote: RemoteENConfig::mock(),
             consensus: None,
-            api_component: ApiComponentConfig { tree_api_url: None },
+            api_component: ApiComponentConfig {
+                tree_api_remote_url: None,
+            },
             tree_component: TreeComponentConfig { api_port: None },
         }
     }
