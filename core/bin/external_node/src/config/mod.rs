@@ -393,7 +393,7 @@ pub struct ApiComponentConfig {
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct TreeComponentConfig {
-    pub local_port: Option<u16>,
+    pub api_port: Option<u16>,
 }
 
 impl OptionalENConfig {
