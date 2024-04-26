@@ -2,16 +2,17 @@ syntax = "proto3";
 
 package zksync.config.general;
 
-import "zksync/config/prover.proto";
 import "zksync/config/api.proto";
 import "zksync/config/chain.proto";
+import "zksync/config/circuit_breaker.proto";
 import "zksync/config/contract_verifier.proto";
 import "zksync/config/database.proto";
-import "zksync/config/circuit_breaker.proto";
 import "zksync/config/eth_sender.proto";
 import "zksync/config/house_keeper.proto";
 import "zksync/config/observability.proto";
+import "zksync/config/prover.proto";
 import "zksync/config/snapshots_creator.proto";
+import "zksync/config/tx_sink.proto";
 import "zksync/config/utils.proto";
 
 message GeneralConfig {
@@ -35,4 +36,5 @@ message GeneralConfig {
   optional config.prover.ProverGateway prover_gateway = 30;
   optional config.snapshot_creator.SnapshotsCreator snapshot_creator = 31;
   optional config.observability.Observability observability = 32;
+  optional config.tx_sink.TxSink tx_sink = 33;
 }

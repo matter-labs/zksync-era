@@ -1,5 +1,4 @@
 //! Tests for the transaction sender.
-
 use zksync_config::configs::wallets::Wallets;
 use zksync_types::{get_nonce_key, L1BatchNumber, L2BlockNumber, StorageLog};
 
@@ -27,10 +26,16 @@ pub(crate) async fn create_test_tx_sender(
 
     let storage_caches = PostgresStorageCaches::new(1, 1);
     let batch_fee_model_input_provider = Arc::new(MockBatchFeeParamsProvider::default());
+
+    let config = crate::TxSenderBuilderConfigs {
+        tx_sender_config: tx_sender_config.clone(),
+        web3_json_config: web3_config.clone(),
+        state_keeper_config: state_keeper_config.clone(),
+        tx_sink_config: None,
+    };
+
     let (mut tx_sender, vm_barrier) = crate::build_tx_sender(
-        &tx_sender_config,
-        &web3_config,
-        &state_keeper_config,
+        config,
         pool.clone(),
         pool,
         batch_fee_model_input_provider,

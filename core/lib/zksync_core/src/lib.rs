@@ -1,6 +1,7 @@
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
 use std::{
+    collections::HashSet,
     net::Ipv4Addr,
     str::FromStr,
     sync::Arc,
@@ -8,7 +9,9 @@ use std::{
 };
 
 use anyhow::Context as _;
-use api_server::tx_sender::master_pool_sink::MasterPoolSink;
+use api_server::tx_sender::{
+    deny_list_pool_sink::DenyListPoolSink, master_pool_sink::MasterPoolSink,
+};
 use fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInputProvider};
 use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::Prover;
@@ -32,6 +35,7 @@ use zksync_config::{
         },
         consensus::ConsensusConfig,
         database::{MerkleTreeConfig, MerkleTreeMode},
+        tx_sink::TxSinkConfig,
         wallets,
         wallets::Wallets,
         ContractsConfig, GeneralConfig,
@@ -115,6 +119,13 @@ pub mod temp_config_store;
 pub mod utils;
 pub mod vm_runner;
 
+pub struct TxSenderBuilderConfigs {
+    tx_sender_config: TxSenderConfig,
+    web3_json_config: Web3JsonRpcConfig,
+    state_keeper_config: StateKeeperConfig,
+    tx_sink_config: Option<TxSinkConfig>,
+}
+
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
     genesis_config: GenesisConfig,
@@ -191,6 +202,8 @@ pub enum Component {
     Consensus,
     /// Component generating commitment for L1 batches.
     CommitmentGenerator,
+    /// Component for filtering L2 transacions by denylist
+    TxSinkDenyList,
 }
 
 #[derive(Debug)]
@@ -227,6 +240,7 @@ impl FromStr for Components {
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
             "consensus" => Ok(Components(vec![Component::Consensus])),
             "commitment_generator" => Ok(Components(vec![Component::CommitmentGenerator])),
+            "txsink_denylist" => Ok(Components(vec![Component::TxSinkDenyList])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
@@ -385,6 +399,12 @@ pub async fn initialize_components(
             mempool_cache_update_task.run(stop_receiver.clone()),
         ));
 
+        let tx_sink_config = if components.contains(&Component::TxSinkDenyList) {
+            Some(configs.tx_sink_config.clone().context("tx_sink_config")?)
+        } else {
+            None
+        };
+
         if components.contains(&Component::HttpApi) {
             storage_caches = Some(
                 build_storage_caches(
@@ -421,6 +441,7 @@ pub async fn initialize_components(
                 state_keeper_config.save_call_traces,
                 storage_caches.clone().unwrap(),
                 mempool_cache.clone(),
+                tx_sink_config.clone(),
             )
             .await
             .context("run_http_api")?;
@@ -469,6 +490,7 @@ pub async fn initialize_components(
                 stop_receiver.clone(),
                 storage_caches,
                 mempool_cache,
+                tx_sink_config.clone(),
             )
             .await
             .context("run_ws_api")?;
@@ -1244,24 +1266,38 @@ fn build_storage_caches(
 }
 
 async fn build_tx_sender(
-    tx_sender_config: &TxSenderConfig,
-    web3_json_config: &Web3JsonRpcConfig,
-    state_keeper_config: &StateKeeperConfig,
+    builder_config: TxSenderBuilderConfigs,
     replica_pool: ConnectionPool<Core>,
     master_pool: ConnectionPool<Core>,
     batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     storage_caches: PostgresStorageCaches,
 ) -> (TxSender, VmConcurrencyBarrier) {
-    let sequencer_sealer = SequencerSealer::new(state_keeper_config.clone());
-    let master_pool_sink = MasterPoolSink::new(master_pool);
-    let tx_sender_builder = TxSenderBuilder::new(
-        tx_sender_config.clone(),
-        replica_pool.clone(),
-        Arc::new(master_pool_sink),
-    )
-    .with_sealer(Arc::new(sequencer_sealer));
+    let sequencer_sealer = SequencerSealer::new(builder_config.state_keeper_config);
 
-    let max_concurrency = web3_json_config.vm_concurrency_limit();
+    let tx_sender_builder = if let Some(config) = builder_config.tx_sink_config {
+        let deny_list_pool_sink = if let Some(list) = config.deny_list() {
+            DenyListPoolSink::new(master_pool, list)
+        } else {
+            DenyListPoolSink::new(master_pool, HashSet::<Address>::new())
+        };
+
+        TxSenderBuilder::new(
+            builder_config.tx_sender_config.clone(),
+            replica_pool.clone(),
+            Arc::new(deny_list_pool_sink),
+        )
+        .with_sealer(Arc::new(sequencer_sealer))
+    } else {
+        let master_pool_sink = MasterPoolSink::new(master_pool);
+        TxSenderBuilder::new(
+            builder_config.tx_sender_config.clone(),
+            replica_pool.clone(),
+            Arc::new(master_pool_sink),
+        )
+        .with_sealer(Arc::new(sequencer_sealer))
+    };
+
+    let max_concurrency = builder_config.web3_json_config.vm_concurrency_limit();
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
 
     let batch_fee_input_provider =
@@ -1294,11 +1330,17 @@ async fn run_http_api(
     with_debug_namespace: bool,
     storage_caches: PostgresStorageCaches,
     mempool_cache: MempoolCache,
+    tx_sink_config: Option<TxSinkConfig>,
 ) -> anyhow::Result<()> {
+    let config = TxSenderBuilderConfigs {
+        tx_sender_config: tx_sender_config.clone(),
+        web3_json_config: api_config.web3_json_rpc.clone(),
+        state_keeper_config: state_keeper_config.clone(),
+        tx_sink_config,
+    };
+
     let (tx_sender, vm_barrier) = build_tx_sender(
-        tx_sender_config,
-        &api_config.web3_json_rpc,
-        state_keeper_config,
+        config,
         replica_connection_pool.clone(),
         master_connection_pool,
         batch_fee_model_input_provider,
@@ -1359,11 +1401,17 @@ async fn run_ws_api(
     stop_receiver: watch::Receiver<bool>,
     storage_caches: PostgresStorageCaches,
     mempool_cache: MempoolCache,
+    tx_sink_config: Option<TxSinkConfig>,
 ) -> anyhow::Result<()> {
+    let config = TxSenderBuilderConfigs {
+        tx_sender_config: tx_sender_config.clone(),
+        web3_json_config: api_config.web3_json_rpc.clone(),
+        state_keeper_config: state_keeper_config.clone(),
+        tx_sink_config,
+    };
+
     let (tx_sender, vm_barrier) = build_tx_sender(
-        tx_sender_config,
-        &api_config.web3_json_rpc,
-        state_keeper_config,
+        config,
         replica_connection_pool.clone(),
         master_connection_pool,
         batch_fee_model_input_provider,

@@ -11,6 +11,7 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
+        tx_sink::TxSinkConfig,
         ContractsConfig, FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
         PrometheusConfig, ProofDataHandlerConfig,
@@ -272,5 +273,6 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         object_store_config: ObjectStoreConfig::from_env().ok(),
         observability: ObservabilityConfig::from_env().ok(),
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
+        tx_sink_config: TxSinkConfig::from_env().ok(),
     })
 }

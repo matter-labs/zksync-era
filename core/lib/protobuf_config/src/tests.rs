@@ -39,6 +39,7 @@ fn test_encoding() {
     test_encode_all_formats::<ReprConv<proto::prover::ProofDataHandler>>(rng);
     test_encode_all_formats::<ReprConv<proto::snapshot_creator::SnapshotsCreator>>(rng);
     test_encode_all_formats::<ReprConv<proto::observability::Observability>>(rng);
+    test_encode_all_formats::<ReprConv<proto::tx_sink::TxSink>>(rng);
 }
 
 pub fn decode_yaml_repr<T: ProtoRepr>(

@@ -12,7 +12,7 @@ use zksync_config::{
         wallets::{AddressWallet, EthSender, StateKeeper, Wallet, Wallets},
         FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
-        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
+        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, TxSinkConfig,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
@@ -66,6 +66,7 @@ pub struct TempConfigStore {
     pub object_store_config: Option<ObjectStoreConfig>,
     pub observability: Option<ObservabilityConfig>,
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
+    pub tx_sink_config: Option<TxSinkConfig>,
 }
 
 #[derive(Debug)]
@@ -111,6 +112,7 @@ impl TempConfigStore {
             eth: self.eth_sender_config.clone(),
             snapshot_creator: self.snapshot_creator.clone(),
             observability: self.observability.clone(),
+            tx_sink_config: self.tx_sink_config.clone(),
         }
     }
 

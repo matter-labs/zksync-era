@@ -1,6 +1,9 @@
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
-use zksync_core::api_server::tx_sender::{master_pool_sink::MasterPoolSink, proxy::TxProxy};
+use zksync_core::api_server::tx_sender::{
+    deny_list_pool_sink::DenyListPoolSink, master_pool_sink::MasterPoolSink, proxy::TxProxy,
+};
+use zksync_types::Address;
 
 use crate::{
     implementations::resources::{
@@ -16,6 +19,7 @@ use crate::{
 pub enum TxSinkLayer {
     MasterPoolSink,
     ProxySink,
+    DenyListPoolSink { deny_list: HashSet<Address> },
 }
 
 #[async_trait::async_trait]
@@ -37,6 +41,14 @@ impl WiringLayer for TxSinkLayer {
             TxSinkLayer::ProxySink => {
                 let MainNodeClientResource(client) = context.get_resource().await?;
                 TxSinkResource(Arc::new(TxProxy::new(client)))
+            }
+            TxSinkLayer::DenyListPoolSink { deny_list } => {
+                let pool = context
+                    .get_resource::<MasterPoolResource>()
+                    .await?
+                    .get()
+                    .await?;
+                TxSinkResource(Arc::new(DenyListPoolSink::new(pool, deny_list.clone())))
             }
         };
         context.insert_resource(tx_sink)?;
