@@ -36,10 +36,17 @@ impl WiringLayer for MainBatchExecutorLayer {
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let master_pool = context.get_resource::<MasterPoolResource>().await?;
 
+        let cache_options = RocksdbStorageOptions {
+            block_cache_capacity: self
+                .db_config
+                .experimental
+                .state_keeper_db_block_cache_capacity(),
+            max_open_files: self.db_config.experimental.state_keeper_db_max_open_files,
+        };
         let (storage_factory, task) = AsyncRocksdbCache::new(
             master_pool.get_singleton().await?,
             self.db_config.state_keeper_db_path,
-            RocksdbStorageOptions::default(),
+            cache_options,
         );
         let builder = MainBatchExecutor::new(
             Arc::new(storage_factory),

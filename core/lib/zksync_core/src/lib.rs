@@ -867,10 +867,16 @@ async fn add_state_keeper_to_task_futures(
         .build()
         .await
         .context("failed to build async_cache_pool")?;
+    let cache_options = RocksdbStorageOptions {
+        block_cache_capacity: db_config
+            .experimental
+            .state_keeper_db_block_cache_capacity(),
+        max_open_files: db_config.experimental.state_keeper_db_max_open_files,
+    };
     let (async_cache, async_catchup_task) = AsyncRocksdbCache::new(
         async_cache_pool,
         db_config.state_keeper_db_path.clone(),
-        RocksdbStorageOptions::default(),
+        cache_options,
     );
     let state_keeper = create_state_keeper(
         state_keeper_config,

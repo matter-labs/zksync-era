@@ -28,4 +28,8 @@ impl ExperimentalDBConfig {
     const fn default_state_keeper_db_block_cache_capacity_mb() -> usize {
         128
     }
+
+    pub fn state_keeper_db_block_cache_capacity(&self) -> usize {
+        self.state_keeper_db_block_cache_capacity_mb * super::BYTES_IN_MEGABYTE
+    }
 }
