@@ -11,7 +11,7 @@ use super::{
     BlockArgs,
 };
 
-type TxResponseFn = dyn Fn(&Transaction, &BlockArgs) -> ExecutionResult + Send + Sync;
+type TxResponseFn = dyn Fn(&Transaction, &BlockArgs) -> VmExecutionResultAndLogs + Send + Sync;
 
 pub(crate) struct MockTransactionExecutor {
     call_responses: Box<TxResponseFn>,
@@ -47,19 +47,42 @@ impl MockTransactionExecutor {
     where
         F: Fn(&Transaction, &BlockArgs) -> ExecutionResult + 'static + Send + Sync,
     {
-        self.call_responses = Box::new(responses);
+        self.call_responses = self.wrap_responses(responses);
     }
 
     pub fn set_tx_responses<F>(&mut self, responses: F)
     where
         F: Fn(&Transaction, &BlockArgs) -> ExecutionResult + 'static + Send + Sync,
     {
+        self.tx_responses = self.wrap_responses(responses);
+    }
+
+    fn wrap_responses<F>(&mut self, responses: F) -> Box<TxResponseFn>
+    where
+        F: Fn(&Transaction, &BlockArgs) -> ExecutionResult + 'static + Send + Sync,
+    {
+        Box::new(
+            move |tx: &Transaction, ba: &BlockArgs| -> VmExecutionResultAndLogs {
+                VmExecutionResultAndLogs {
+                    result: responses(tx, ba),
+                    logs: Default::default(),
+                    statistics: Default::default(),
+                    refunds: Default::default(),
+                }
+            },
+        )
+    }
+
+    pub fn set_tx_responses_with_logs<F>(&mut self, responses: F)
+    where
+        F: Fn(&Transaction, &BlockArgs) -> VmExecutionResultAndLogs + 'static + Send + Sync,
+    {
         self.tx_responses = Box::new(responses);
     }
 
     pub fn validate_tx(&self, tx: L2Tx, block_args: &BlockArgs) -> Result<(), ValidationError> {
         let result = (self.tx_responses)(&tx.into(), block_args);
-        match result {
+        match result.result {
             ExecutionResult::Success { .. } => Ok(()),
             other => Err(ValidationError::Internal(anyhow::anyhow!(
                 "transaction validation failed: {other:?}"
@@ -74,19 +97,19 @@ impl MockTransactionExecutor {
     ) -> anyhow::Result<TransactionExecutionOutput> {
         let result = self.get_execution_result(tx, block_args);
         let output = TransactionExecutionOutput {
-            vm: VmExecutionResultAndLogs {
-                result,
-                logs: Default::default(),
-                statistics: Default::default(),
-                refunds: Default::default(),
-            },
+            vm: result,
             metrics: TransactionExecutionMetrics::default(),
             are_published_bytecodes_ok: true,
         };
+
         Ok(output)
     }
 
-    fn get_execution_result(&self, tx: &Transaction, block_args: &BlockArgs) -> ExecutionResult {
+    fn get_execution_result(
+        &self,
+        tx: &Transaction,
+        block_args: &BlockArgs,
+    ) -> VmExecutionResultAndLogs {
         if let ExecuteTransactionCommon::L2(data) = &tx.common_data {
             if data.input.is_none() {
                 return (self.call_responses)(tx, block_args);

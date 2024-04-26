@@ -749,7 +749,7 @@ pub struct OptimisticTransactionResult {
     pub events: Vec<ApiVmEvent>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApiVmEvent {
     #[serde(rename = "l1BatchNumber")]
@@ -762,7 +762,7 @@ pub struct ApiVmEvent {
     pub value: Vec<u8>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApiStorageLogQuery {
     pub timestamp: Timestamp,
