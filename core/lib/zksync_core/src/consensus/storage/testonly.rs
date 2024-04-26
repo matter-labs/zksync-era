@@ -1,4 +1,5 @@
 //! Storage test helpers.
+
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::validator;
@@ -11,7 +12,7 @@ use crate::{
 };
 
 impl Store {
-    /// Waits for the `number` miniblock to have a certificate.
+    /// Waits for the `number` L2 block to have a certificate.
     pub async fn wait_for_certificate(
         &self,
         ctx: &ctx::Ctx,
@@ -60,7 +61,7 @@ impl Store {
         Self(pool)
     }
 
-    /// Waits for `want_last` block to have certificate then fetches all miniblocks with certificates.
+    /// Waits for `want_last` block to have certificate then fetches all L2 blocks with certificates.
     pub async fn wait_for_certificates(
         &self,
         ctx: &ctx::Ctx,

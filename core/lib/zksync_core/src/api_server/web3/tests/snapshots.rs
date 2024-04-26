@@ -30,7 +30,7 @@ impl SnapshotBasicsTest {
 impl HttpTest for SnapshotBasicsTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let mut storage = pool.connection().await.unwrap();
-        store_miniblock(
+        store_l2_block(
             &mut storage,
             L2BlockNumber(1),
             &[execute_l2_transaction(create_l2_transaction(1, 2))],

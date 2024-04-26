@@ -78,7 +78,7 @@ pub trait ZksNamespace {
     async fn get_l1_batch_number(&self) -> RpcResult<U64>;
 
     #[method(name = "getL1BatchBlockRange")]
-    async fn get_miniblock_range(&self, batch: L1BatchNumber) -> RpcResult<Option<(U64, U64)>>;
+    async fn get_l2_block_range(&self, batch: L1BatchNumber) -> RpcResult<Option<(U64, U64)>>;
 
     #[method(name = "getBlockDetails")]
     async fn get_block_details(

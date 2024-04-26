@@ -37,13 +37,13 @@ impl HttpTest for TraceBlockTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let tx_results = [0, 1, 2].map(execute_l2_transaction_with_traces);
         let mut storage = pool.connection().await?;
-        let new_miniblock = store_miniblock(&mut storage, self.0, &tx_results).await?;
+        let new_l2_block = store_l2_block(&mut storage, self.0, &tx_results).await?;
         drop(storage);
 
         let block_ids = [
             api::BlockId::Number((*self.0).into()),
             api::BlockId::Number(api::BlockNumber::Latest),
-            api::BlockId::Hash(new_miniblock.hash),
+            api::BlockId::Hash(new_l2_block.hash),
         ];
 
         for block_id in block_ids {
@@ -100,7 +100,7 @@ impl HttpTest for TraceBlockFlatTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let tx_results = [0, 1, 2].map(execute_l2_transaction_with_traces);
         let mut storage = pool.connection().await?;
-        let _new_miniblock = store_miniblock(&mut storage, self.0, &tx_results).await?;
+        store_l2_block(&mut storage, self.0, &tx_results).await?;
         drop(storage);
 
         let block_ids = [
@@ -176,7 +176,7 @@ impl HttpTest for TraceTransactionTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let tx_results = [execute_l2_transaction_with_traces(0)];
         let mut storage = pool.connection().await?;
-        store_miniblock(&mut storage, L2BlockNumber(1), &tx_results).await?;
+        store_l2_block(&mut storage, L2BlockNumber(1), &tx_results).await?;
         drop(storage);
 
         let expected_calls: Vec<_> = tx_results[0]
@@ -213,22 +213,22 @@ impl HttpTest for TraceBlockTestWithSnapshotRecovery {
     }
 
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
-        let snapshot_miniblock_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK;
-        let missing_miniblock_numbers = [
+        let snapshot_l2_block_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK;
+        let missing_l2_block_numbers = [
             L2BlockNumber(0),
-            snapshot_miniblock_number - 1,
-            snapshot_miniblock_number,
+            snapshot_l2_block_number - 1,
+            snapshot_l2_block_number,
         ];
 
-        for number in missing_miniblock_numbers {
+        for number in missing_l2_block_numbers {
             let error = client
                 .trace_block_by_number(number.0.into(), None)
                 .await
                 .unwrap_err();
-            assert_pruned_block_error(&error, snapshot_miniblock_number + 1);
+            assert_pruned_block_error(&error, snapshot_l2_block_number + 1);
         }
 
-        TraceBlockTest(snapshot_miniblock_number + 2)
+        TraceBlockTest(snapshot_l2_block_number + 2)
             .test(client, pool)
             .await?;
         Ok(())
