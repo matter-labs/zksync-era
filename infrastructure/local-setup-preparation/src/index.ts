@@ -57,8 +57,6 @@ async function depositWithRichAccounts() {
                 await (await l1Erc20Contract.mint(wallet.address, AMOUNT_TO_DEPOSIT.mul(2))).wait();
             }
 
-            // TODO: Currently we're providing zero as an operator fee, which works right now,
-            // but will be changed in the future.
             handles.push(
                 // We have to implement the deposit manually because we run this script before running the server,
                 // deposit method from wallet requires a running server
