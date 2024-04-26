@@ -11,7 +11,10 @@ on:
     # (unless we improve our github setup).
     # Therefore on post-merge we will execute the
     # compatibility check as well (TODO: alerting).
-    branches: ["main"]
+    branches: [ "main" ]
+
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
@@ -21,18 +24,27 @@ env:
   SCCACHE_GHA_ENABLED: "true"
   RUST_BACKTRACE: "1"
   SQLX_OFFLINE: true,
+  # github.base_ref -> github.head_ref for pull_request
+  BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+  # github.event.before -> github.event.after for push
+  HEAD: ${{ github.event.pull_request.head.sha || github.event.after }}
 
 jobs:
   compatibility:
     runs-on: [ubuntu-22.04-github-hosted-16core]
     steps:
-      # github.base_ref -> github.head_ref for pull_request
-      # github.event.before -> github.event.after for push
       - uses: mozilla-actions/sccache-action@v0.0.3
+
+      # before
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.base_ref || github.event.before }}
+          ref: ${{ env.BASE }}
           path: before
+          fetch-depth: 0 # fetches all branches and tags, which is needed to compute the LCA.
+      - name: checkout LCA
+        run:
+          git checkout $(git merge-base $BASE $HEAD)
+        working-directory: ./before
       - name: compile before
         run: cargo check --all-targets
         working-directory: ./before/
@@ -41,9 +53,11 @@ jobs:
           perl -ne 'print "$1\n" if /PROTOBUF_DESCRIPTOR="(.*)"/'
           `find ./before/target/debug/build/*/output`
           | xargs cat > ./before.binpb
+
+      # after
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref || github.event.after }}
+          ref: ${{ env.HEAD }}
           path: after
       - name: compile after
         run: cargo check --all-targets
@@ -53,8 +67,10 @@ jobs:
           perl -ne 'print "$1\n" if /PROTOBUF_DESCRIPTOR="(.*)"/'
           `find ./after/target/debug/build/*/output`
           | xargs cat > ./after.binpb
+
+      # compare
       - uses: bufbuild/buf-setup-action@v1
         with:
           github_token: ${{ github.token }}
       - name: buf breaking
-        run: buf breaking './after.binpb' --against './before.binpb' --config '{"version":"v1","breaking":{"use":["WIRE_JSON"]}}' --error-format 'github-actions'
+        run: buf breaking './after.binpb' --against './before.binpb' --config '{"version":"v1","breaking":{"use":["WIRE_JSON","WIRE"]}}' --error-format 'github-actions'
