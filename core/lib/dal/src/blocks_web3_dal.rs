@@ -12,9 +12,9 @@ use zksync_types::{
 };
 use zksync_utils::bigdecimal_to_u256;
 
-use crate::models::parse_protocol_version;
 use crate::{
     models::{
+        parse_protocol_version,
         storage_block::{
             ResolvedL1BatchForL2Block, StorageBlockDetails, StorageL1BatchDetails,
             LEGACY_BLOCK_GAS_LIMIT,
