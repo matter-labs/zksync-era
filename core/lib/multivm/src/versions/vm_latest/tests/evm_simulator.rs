@@ -182,6 +182,22 @@ fn test_evm_logs(mut bytecode: Vec<u8>) -> crate::vm_latest::VmExecutionLogs {
     tx_result.logs
 }
 
+fn get_actual_initial_gas() -> U256 {
+    let evm_output = test_evm_vector(
+        vec![
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    evm_output + 3
+}
+
 #[test]
 fn test_basic_evm_vectors() {
     // Here we just try to test some small EVM contracts and ensure that they work.
