@@ -9,7 +9,7 @@ pub struct L2BlockEnv {
 }
 
 impl L2BlockEnv {
-    pub fn from_miniblock_data(miniblock_execution_data: &L2BlockExecutionData) -> Self {
+    pub fn from_l2_block_data(miniblock_execution_data: &L2BlockExecutionData) -> Self {
         Self {
             number: miniblock_execution_data.number.0,
             timestamp: miniblock_execution_data.timestamp,

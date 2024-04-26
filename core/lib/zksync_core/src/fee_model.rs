@@ -1,5 +1,6 @@
 use std::{fmt, sync::Arc};
 
+use anyhow::Context as _;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
     fee_model::{
@@ -21,10 +22,10 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
         &self,
         l1_gas_price_scale_factor: f64,
         l1_pubdata_price_scale_factor: f64,
-    ) -> BatchFeeInput {
+    ) -> anyhow::Result<BatchFeeInput> {
         let params = self.get_fee_model_params();
 
-        match params {
+        Ok(match params {
             FeeParams::V1(params) => BatchFeeInput::L1Pegged(compute_batch_fee_model_input_v1(
                 params,
                 l1_gas_price_scale_factor,
@@ -36,16 +37,18 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
                     l1_pubdata_price_scale_factor,
                 ))
             }
-        }
-    }
-
-    /// Returns the batch fee input as-is, i.e. without any scaling for the L1 gas and pubdata prices.
-    async fn get_batch_fee_input(&self) -> BatchFeeInput {
-        self.get_batch_fee_input_scaled(1.0, 1.0).await
+        })
     }
 
     /// Returns the fee model parameters.
     fn get_fee_model_params(&self) -> FeeParams;
+}
+
+impl dyn BatchFeeModelInputProvider {
+    /// Returns the batch fee input as-is, i.e. without any scaling for the L1 gas and pubdata prices.
+    pub async fn get_batch_fee_input(&self) -> anyhow::Result<BatchFeeInput> {
+        self.get_batch_fee_input_scaled(1.0, 1.0).await
+    }
 }
 
 /// The struct that represents the batch fee input provider to be used in the main node of the server, i.e.
@@ -79,8 +82,8 @@ impl MainNodeFeeInputProvider {
     }
 }
 
-/// The fee model provider to be used in the API. It returns the maximal batch fee input between the projected main node one and
-/// the one from the last sealed miniblock.
+/// The fee model provider to be used in the API. It returns the maximum batch fee input between the projected main node one and
+/// the one from the last sealed L2 block.
 #[derive(Debug)]
 pub(crate) struct ApiFeeInputProvider {
     inner: Arc<dyn BatchFeeModelInputProvider>,
@@ -105,24 +108,23 @@ impl BatchFeeModelInputProvider for ApiFeeInputProvider {
         &self,
         l1_gas_price_scale_factor: f64,
         l1_pubdata_price_scale_factor: f64,
-    ) -> BatchFeeInput {
+    ) -> anyhow::Result<BatchFeeInput> {
         let inner_input = self
             .inner
             .get_batch_fee_input_scaled(l1_gas_price_scale_factor, l1_pubdata_price_scale_factor)
-            .await;
-        let last_miniblock_params = self
+            .await
+            .context("cannot get batch fee input from base provider")?;
+        let last_l2_block_params = self
             .connection_pool
             .connection_tagged("api_fee_input_provider")
-            .await
-            .unwrap()
+            .await?
             .blocks_dal()
             .get_last_sealed_l2_block_header()
-            .await
-            .unwrap();
+            .await?;
 
-        last_miniblock_params
+        Ok(last_l2_block_params
             .map(|header| inner_input.stricter(header.batch_fee_input))
-            .unwrap_or(inner_input)
+            .unwrap_or(inner_input))
     }
 
     /// Returns the fee model parameters.

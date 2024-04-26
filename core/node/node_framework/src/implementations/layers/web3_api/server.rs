@@ -154,7 +154,9 @@ impl WiringLayer for Web3ServerLayer {
         // Insert healthcheck.
         let api_health_check = server.health_check();
         let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
-        app_health.insert_component(api_health_check);
+        app_health
+            .insert_component(api_health_check)
+            .map_err(WiringError::internal)?;
 
         // Insert circuit breaker.
         let circuit_breaker_resource = context
