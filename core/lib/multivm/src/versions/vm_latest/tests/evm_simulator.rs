@@ -3354,6 +3354,8 @@ fn test_basic_environment4_vectors() {
         H256(U256::from("0000006003300270000000d6033001970000000102200190000000230000c13d").into())
     );
 
+    println!("Last test");
+
     // returndatacopy
     let evm_output = test_evm_vector(
         vec![
