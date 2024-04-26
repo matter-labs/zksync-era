@@ -7647,6 +7647,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "hex",
+ "rand 0.8.5",
  "secp256k1",
  "serde",
  "serde_json",
