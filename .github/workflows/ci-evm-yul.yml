@@ -53,6 +53,11 @@ jobs:
           curl -L -o bin/zksolc https://github.com/matter-labs/zksolc-bin/releases/download/v1.4.0/zksolc-linux-amd64-musl-v1.4.0 \
             && chmod +x bin/zksolc
 
+      - name: Setup environment
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+
       - name: Build system contracts
         run: |
           cd contracts/system-contracts \
@@ -73,7 +78,7 @@ jobs:
             && yarn build
 
       - name: Compile EVM interpreter
-        run: ZKSYNC_HOME=$(pwd) PATH=$(pwd)/bin:$PATH bash recompile_interpreter.sh
+        run: bash recompile_interpreter.sh
 
       # - name: Run unit tests
       #   run: ZKSYNC_HOME=$(pwd) cargo test evm_simulator
@@ -82,20 +87,18 @@ jobs:
 
       - name: Init
         run: |
-          export ZKSYNC_HOME=$(pwd)
-          export PATH=$(pwd)/bin:$PATH
+          ci_run git config --global --add safe.directory /usr/src/zksync
+          ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
           ci_run zk init
 
       - name: Run server
         run: |
-          export ZKSYNC_HOME=$(pwd)
-          export PATH=$(pwd)/bin:$PATH
           ci_run zk server --components "api,tree,eth,state_keeper,housekeeper" &
-          sleep 5
+          ci_run sleep 5
       
       - name: Run integration tests
         run: |
-          export ZKSYNC_HOME=$(pwd)
-          export PATH=$(pwd)/bin:$PATH
           cd core/tests/ts-integration && yarn test evm-contracts-test.ts
