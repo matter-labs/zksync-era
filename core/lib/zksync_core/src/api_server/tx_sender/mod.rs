@@ -71,7 +71,7 @@ pub struct MultiVMBaseSystemContracts {
     /// Contracts to be used during the `v23` upgrade. This upgrade was done on an internal staging environment only.
     pub(crate) vm_1_5_0_small_memory: BaseSystemContracts,
     /// Contracts to be used after the 1.5.0 upgrade
-    pub(crate) post_1_5_0: BaseSystemContracts,
+    pub(crate) vm_1_5_0_increased_memory: BaseSystemContracts,
 }
 
 impl MultiVMBaseSystemContracts {
@@ -100,7 +100,9 @@ impl MultiVMBaseSystemContracts {
             ProtocolVersionId::Version20 => self.post_1_4_1,
             ProtocolVersionId::Version21 | ProtocolVersionId::Version22 => self.post_1_4_2,
             ProtocolVersionId::Version23 => self.vm_1_5_0_small_memory,
-            ProtocolVersionId::Version24 | ProtocolVersionId::Version25 => self.post_1_5_0,
+            ProtocolVersionId::Version24 | ProtocolVersionId::Version25 => {
+                self.vm_1_5_0_increased_memory
+            }
         }
     }
 }
@@ -135,7 +137,8 @@ impl ApiContracts {
                 post_1_4_1: BaseSystemContracts::estimate_gas_post_1_4_1(),
                 post_1_4_2: BaseSystemContracts::estimate_gas_post_1_4_2(),
                 vm_1_5_0_small_memory: BaseSystemContracts::playground_1_5_0_small_memory(),
-                post_1_5_0: BaseSystemContracts::estimate_gas_post_1_5_0(),
+                vm_1_5_0_increased_memory:
+                    BaseSystemContracts::estimate_gas_post_1_5_0_increased_memory(),
             },
             eth_call: MultiVMBaseSystemContracts {
                 pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
@@ -147,7 +150,8 @@ impl ApiContracts {
                 post_1_4_1: BaseSystemContracts::playground_post_1_4_1(),
                 post_1_4_2: BaseSystemContracts::playground_post_1_4_2(),
                 vm_1_5_0_small_memory: BaseSystemContracts::playground_1_5_0_small_memory(),
-                post_1_5_0: BaseSystemContracts::playground_post_1_5_0(),
+                vm_1_5_0_increased_memory:
+                    BaseSystemContracts::playground_post_1_5_0_increased_memory(),
             },
         }
     }

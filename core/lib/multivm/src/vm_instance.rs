@@ -216,21 +216,21 @@ impl<S: WriteStorage, H: HistoryMode> VmInstance<S, H> {
                 let vm = crate::vm_1_4_2::Vm::new(l1_batch_env, system_env, storage_view);
                 VmInstance::Vm1_4_2(vm)
             }
-            VmVersion::Vm1_5_0 => {
+            VmVersion::Vm1_5_0SmallBootloaderMemory => {
                 let vm = crate::vm_latest::Vm::new_with_subversion(
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    crate::vm_latest::MultiVMSubversion::InitialVm1_5_0,
+                    crate::vm_latest::MultiVMSubversion::SmallBootloaderMemory,
                 );
                 VmInstance::Vm1_5_0(vm)
             }
-            VmVersion::Vm_1_5_0_IncreaedBootloaderMemory => {
+            VmVersion::Vm1_5_0IncreasedBootloaderMemory => {
                 let vm = crate::vm_latest::Vm::new_with_subversion(
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    crate::vm_latest::MultiVMSubversion::IncreasedMemory,
+                    crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory,
                 );
                 VmInstance::Vm1_5_0(vm)
             }

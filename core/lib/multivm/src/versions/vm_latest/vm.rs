@@ -28,15 +28,16 @@ use crate::{
 /// After the release in the In the second version an issue that led to smaller used bootloader memory was fixed.
 #[derive(Debug, Copy, Clone)]
 pub(crate) enum MultiVMSubversion {
-    /// Initial v1.5.0
-    InitialVm1_5_0,
-    /// The bootloader memory was increased to get more space for encoding transactions.
-    IncreasedMemory,
+    /// The initial version of v1.5.0, available only on staging environments.
+    SmallBootloaderMemory,
+    /// The final correct version of v1.5.0
+    IncreasedBootloaderMemory,
 }
 
 impl MultiVMSubversion {
+    #[cfg(test)]
     pub(crate) fn latest() -> Self {
-        Self::IncreasedMemory
+        Self::IncreasedBootloaderMemory
     }
 }
 
@@ -46,8 +47,8 @@ impl TryFrom<VmVersion> for MultiVMSubversion {
     type Error = VmVersionIsNotVm150Error;
     fn try_from(value: VmVersion) -> Result<Self, Self::Error> {
         match value {
-            VmVersion::Vm1_5_0 => Ok(Self::InitialVm1_5_0),
-            VmVersion::Vm_1_5_0_IncreaedBootloaderMemory => Ok(Self::IncreasedMemory),
+            VmVersion::Vm1_5_0SmallBootloaderMemory => Ok(Self::SmallBootloaderMemory),
+            VmVersion::Vm1_5_0IncreasedBootloaderMemory => Ok(Self::IncreasedBootloaderMemory),
             _ => Err(VmVersionIsNotVm150Error),
         }
     }

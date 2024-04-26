@@ -4,7 +4,6 @@ pub use zk_evm_1_5_0::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 use zksync_system_constants::{MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS};
-use zksync_types::VmVersion;
 
 use super::vm::MultiVMSubversion;
 use crate::vm_latest::old_vm::utils::heap_page_from_base;
@@ -25,8 +24,8 @@ pub(crate) const MAX_BASE_LAYER_CIRCUITS: usize = 34100;
 /// and then to `63_800_000` in a subsequent upgrade.
 pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVMSubversion) -> usize {
     match subversion {
-        MultiVMSubversion::InitialVm1_5_0 => 59_000_000,
-        MultiVMSubversion::IncreasedMemory => 63_800_000,
+        MultiVMSubversion::SmallBootloaderMemory => 59_000_000,
+        MultiVMSubversion::IncreasedBootloaderMemory => 63_800_000,
     }
 }
 

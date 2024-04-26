@@ -87,9 +87,9 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
             ProtocolVersionId::Version21 => VmVersion::Vm1_4_2,
             ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
-            ProtocolVersionId::Version23 => VmVersion::Vm1_5_0,
-            ProtocolVersionId::Version24 => VmVersion::Vm_1_5_0_IncreaedBootloaderMemory,
-            ProtocolVersionId::Version25 => VmVersion::Vm_1_5_0_IncreaedBootloaderMemory,
+            ProtocolVersionId::Version23 => VmVersion::Vm1_5_0SmallBootloaderMemory,
+            ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
         }
     }
 
@@ -226,9 +226,9 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
             ProtocolVersionId::Version21 => VmVersion::Vm1_4_2,
             ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
-            ProtocolVersionId::Version23 => VmVersion::Vm1_5_0,
-            ProtocolVersionId::Version24 => VmVersion::Vm_1_5_0_IncreaedBootloaderMemory,
-            ProtocolVersionId::Version25 => VmVersion::Vm_1_5_0_IncreaedBootloaderMemory,
+            ProtocolVersionId::Version23 => VmVersion::Vm1_5_0SmallBootloaderMemory,
+            ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
         }
     }
 }
