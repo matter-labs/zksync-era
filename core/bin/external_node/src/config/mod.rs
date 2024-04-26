@@ -388,12 +388,12 @@ pub struct ApiComponentConfig {
     /// Address of the tree API used by this EN in case it does not have a
     /// local tree component running and in this case needs to send requests
     /// to some external tree API.
-    pub tree_api_url: Option<String>,
+    pub tree_api_remote_url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct TreeComponentConfig {
-    pub api_port: Option<u16>,
+    pub local_port: Option<u16>,
 }
 
 impl OptionalENConfig {
