@@ -397,7 +397,7 @@ async fn run_api(
 ) -> anyhow::Result<()> {
     let tree_reader = match tree_reader {
         Some(tree_reader) => {
-            if let Some(url) = &config.api_component.tree_api_url {
+            if let Some(url) = &config.api_component.tree_api_remote_url {
                 tracing::warn!(
                     "Tree component is run locally; the specified tree API URL {url} is ignored"
                 );
@@ -406,7 +406,7 @@ async fn run_api(
         }
         None => config
             .api_component
-            .tree_api_url
+            .tree_api_remote_url
             .as_ref()
             .map(|url| Arc::new(TreeApiHttpClient::new(url)) as Arc<dyn TreeApiClient>),
     };
