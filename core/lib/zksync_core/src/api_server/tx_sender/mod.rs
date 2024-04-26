@@ -305,7 +305,7 @@ impl TxSender {
             .context("failed acquiring connection to replica DB")
     }
 
-    #[tracing::instrument(skip(self, tx))]
+    #[tracing::instrument(level = "debug", skip_all, fields(tx.hash = ?tx.hash()))]
     pub async fn submit_tx(&self, tx: L2Tx) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let tx_hash = tx.hash();
         let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::Validate);
@@ -673,6 +673,7 @@ impl TxSender {
         }
     }
 
+    #[tracing::instrument(level = "debug", skip_all, fields(tx.hash = ?tx.hash()))]
     pub async fn get_txs_fee_in_wei(
         &self,
         mut tx: Transaction,
