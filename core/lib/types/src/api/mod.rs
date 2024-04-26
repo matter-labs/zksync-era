@@ -759,7 +759,7 @@ pub struct ApiVmEvent {
     pub address: Address,
     #[serde(rename = "indexedTopics")]
     pub indexed_topics: Vec<H256>,
-    pub value: Vec<u8>,
+    pub value: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

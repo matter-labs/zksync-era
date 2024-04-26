@@ -49,7 +49,7 @@ impl From<&VmEvent> for ApiVmEvent {
             tx_batch_index: vm_event.location.1,
             address: vm_event.address,
             indexed_topics: vm_event.indexed_topics.clone(),
-            value: vm_event.value.clone(),
+            value: hex::encode(&vm_event.value),
         }
     }
 }
