@@ -58,25 +58,26 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
+          echo ZKSYNC_DEBUG_LOGS=true >> .env
 
-      - name: Build system contracts
-        run: |
-          cd contracts/system-contracts \
-            && yarn install \
-            && yarn build
+      # - name: Build system contracts
+      #   run: |
+      #     cd contracts/system-contracts \
+      #       && yarn install \
+      #       && yarn build
 
-      - name: Build EVM test contracts
-        run: |
-          cd etc/evm-contracts-test-data \
-            && yarn install \
-            && yarn build
+      # - name: Build EVM test contracts
+      #   run: |
+      #     cd etc/evm-contracts-test-data \
+      #       && yarn install \
+      #       && yarn build
 
-      - name: Build zkEVM test contracts
-        run: |
-          cd etc/contracts-test-data \
-            && sed -i 's/zksolc-macosx-arm64/zksolc-linux-amd64-musl/' hardhat.config.ts \
-            && yarn install \
-            && yarn build
+      # - name: Build zkEVM test contracts
+      #   run: |
+      #     cd etc/contracts-test-data \
+      #       && sed -i 's/zksolc-macosx-arm64/zksolc-linux-amd64-musl/' hardhat.config.ts \
+      #       && yarn install \
+      #       && yarn build
 
       - name: Compile EVM interpreter
         run: bash recompile_interpreter.sh
@@ -86,25 +87,31 @@ jobs:
       #   env:
       #     RUSTFLAGS: ""
 
-      - name: Start services
-        run: |
-          sed -i 's/ --wait//' $ZKSYNC_HOME/bin/ci_localnet_up
-          ci_localnet_up
+      # - name: Start services
+      #   run: |
+      #     sed -i 's/ --wait//' $ZKSYNC_HOME/bin/ci_localnet_up
+      #     ci_localnet_up
 
       - name: Init
         run: |
-          ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-          ci_run zk
-          ci_run zk init
+          zk
+          zk env dev
+          zk config compile dev
+          zk init
+      # - name: Init
+      #   run: |
+      #     ci_run git config --global --add safe.directory /usr/src/zksync
+      #     ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
+      #     ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
+      #     ci_run git config --global --add safe.directory /usr/src/zksync/contracts
+      #     ci_run zk
+      #     ci_run zk init
 
       - name: Run server
         run: |
-          ci_run zk server --components "api,tree,eth,state_keeper,housekeeper" &
-          ci_run sleep 5
-      
+          zk server --components "api,tree,eth,state_keeper,housekeeper" &
+          sleep 5
+
       - name: Run integration tests
         run: |
           cd core/tests/ts-integration && yarn test evm-contracts-test.ts
