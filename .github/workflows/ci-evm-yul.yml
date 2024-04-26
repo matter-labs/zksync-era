@@ -85,6 +85,11 @@ jobs:
       #   env:
       #     RUSTFLAGS: ""
 
+      - name: Start services
+        run: |
+          ci_localnet_up
+          ci_run sccache --start-server
+
       - name: Init
         run: |
           ci_run git config --global --add safe.directory /usr/src/zksync
