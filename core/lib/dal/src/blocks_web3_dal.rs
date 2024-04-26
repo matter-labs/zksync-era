@@ -21,7 +21,7 @@ use crate::{
         },
         storage_transaction::CallTrace,
     },
-    Core, CoreDal,
+    Core,
 };
 
 #[derive(Debug)]
@@ -711,7 +711,7 @@ mod tests {
             create_l2_block_header, create_snapshot_recovery, mock_execution_result,
             mock_l2_transaction,
         },
-        ConnectionPool, Core,
+        ConnectionPool, Core, CoreDal,
     };
 
     #[tokio::test]
