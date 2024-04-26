@@ -104,6 +104,9 @@ jobs:
           zk env dev
           zk config compile dev
           zk init
+        env:
+          RUSTFLAGS: ""
+
       # - name: Init
       #   run: |
       #     ci_run git config --global --add safe.directory /usr/src/zksync
