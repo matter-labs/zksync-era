@@ -45,7 +45,7 @@ pub enum ProtocolVersionId {
     Version21,
     Version22,
     // Version `23` is only present on the internal staging networks.
-    // All the user-facing environments were switched from 22 to 24 rightaway.
+    // All the user-facing environments were switched from 22 to 24 right away.
     Version23,
     Version24,
     Version25,
