@@ -95,15 +95,9 @@ const deployTestTokens = async (options?: DeployTestTokensOptions) => {
 };
 
 // Deploys and verifies L1 contracts and initializes governance
-const initBridgehubStateTransition = async (deploymentMode: DeploymentMode) => {
+const initBridgehubStateTransition = async () => {
     await announced('Running server genesis setup', server.genesisFromSources());
-    if (deploymentMode == DeploymentMode.Validium) {
-        await announced('Deploying L1 contracts', contract.deployL1(['--validium-mode']));
-    } else if (deploymentMode == DeploymentMode.Rollup) {
-        await announced('Deploying L1 contracts', contract.deployL1(['']));
-    } else {
-        throw new Error('Invalid deployment mode');
-    }
+    await announced('Deploying L1 contracts', contract.deployL1());
     await announced('Verifying L1 contracts', contract.verifyL1Contracts());
     await announced('Initializing governance', contract.initializeGovernance());
     await announced('Reloading env', env.reload());
@@ -166,7 +160,7 @@ export const initDevCmdAction = async ({
     if (!skipTestTokenDeployment) {
         await deployTestTokens(testTokenOptions);
     }
-    await initBridgehubStateTransition(deploymentMode);
+    await initBridgehubStateTransition();
     await initDatabase({ skipVerifierDeployment: true });
     await initHyperchain({ includePaymaster: true, baseTokenName, localLegacyBridgeTesting, deploymentMode });
 };
@@ -178,8 +172,7 @@ const lightweightInitCmdAction = async (): Promise<void> => {
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromBinary());
     await announced('Deploying localhost ERC20 and Weth tokens', run.deployERC20AndWeth({ command: 'dev' }));
-    // TODO(EVM-573): support Validium mode
-    await announced('Deploying L1 contracts', contract.redeployL1(false, DeploymentMode.Rollup));
+    await announced('Deploying L1 contracts', contract.redeployL1(false));
     await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster: true }));
     await announced('Initializing governance', contract.initializeGovernance());
 };
@@ -188,7 +181,7 @@ type InitSharedBridgeCmdActionOptions = InitSetupOptions;
 const initSharedBridgeCmdAction = async (options: InitSharedBridgeCmdActionOptions): Promise<void> => {
     await initSetup(options);
     await initDatabase({ skipVerifierDeployment: false });
-    await initBridgehubStateTransition(options.deploymentMode);
+    await initBridgehubStateTransition();
 };
 
 type InitHyperCmdActionOptions = {

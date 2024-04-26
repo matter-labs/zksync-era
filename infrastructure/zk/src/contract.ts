@@ -130,7 +130,7 @@ export async function deployL2ThroughL1({
     );
 }
 
-async function _deployL1(onlyVerifier: boolean, _deploymentMode: DeploymentMode): Promise<void> {
+async function _deployL1(onlyVerifier: boolean): Promise<void> {
     await utils.confirmAction();
 
     const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
@@ -196,8 +196,8 @@ export enum DeploymentMode {
     Validium = 1
 }
 
-export async function redeployL1(verifierOnly: boolean, deploymentMode: DeploymentMode) {
-    await _deployL1(verifierOnly, deploymentMode);
+export async function redeployL1(verifierOnly: boolean) {
+    await _deployL1(verifierOnly);
     await verifyL1Contracts();
 }
 
@@ -245,18 +245,11 @@ export async function registerHyperchain({
 }
 
 export async function deployVerifier(): Promise<void> {
-    // Deploy mode doesn't matter here
-    await _deployL1(true, DeploymentMode.Rollup);
+    await _deployL1(true);
 }
 
-export async function deployL1(args: [string]): Promise<void> {
-    let mode;
-    if (args.includes('--validium-mode')) {
-        mode = DeploymentMode.Validium;
-    } else {
-        mode = DeploymentMode.Rollup;
-    }
-    await _deployL1(false, mode);
+export async function deployL1(): Promise<void> {
+    await _deployL1(false);
 }
 
 async function setupLegacyBridgeEra(): Promise<void> {

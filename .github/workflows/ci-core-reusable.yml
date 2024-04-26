@@ -124,7 +124,7 @@ jobs:
           ci_run cat /tmp/sccache_log.txt
 
   integration:
-    name: Integration (consensus=${{ matrix.consensus }}, base_token=${{ matrix.base_token }}), deployment_mode=${{ matrix.deployment_mode }})
+    name: Integration (consensus=${{ matrix.consensus }}, base_token=${{ matrix.base_token }}, deployment_mode=${{ matrix.deployment_mode }})
     strategy:
       # In matrix jobs, fail-fast is true by default.
       # To be consistent with the rest of the workflow we disable it explicitly.
@@ -194,7 +194,6 @@ jobs:
           if [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
             ci_run zk env dev_validium_docker
             ci_run zk config compile dev_validium_docker
-            ci_run zk init --validium-mode
           else
             ci_run zk config compile
           fi
