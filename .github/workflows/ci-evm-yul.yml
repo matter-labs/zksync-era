@@ -92,6 +92,9 @@ jobs:
       #     sed -i 's/ --wait//' $ZKSYNC_HOME/bin/ci_localnet_up
       #     ci_localnet_up
 
+      - name: Start service
+        run: docker compose up -d
+      
       - name: Init
         run: |
           sed -i 's/zksolc-macosx-arm64/zksolc-linux-amd64-musl/' etc/contracts-test-data/hardhat.config.ts
