@@ -1,12 +1,11 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::fmt::Debug;
 
 use colored::*;
 use strum::{Display, EnumString};
-use zksync_basic_types::{basic_fri_types::AggregationRound, prover_dal::JobCountStatistics};
 use zksync_config::PostgresConfig;
 use zksync_env_config::FromEnv;
 use zksync_types::{
-    prover_dal::{ProofCompressionJobStatus, WitnessJobStatus},
+    prover_dal::{ProofCompressionJobStatus, ProverJobFriInfo, ProverJobStatus, WitnessJobStatus},
     L1BatchNumber,
 };
 
@@ -54,18 +53,21 @@ impl Default for BatchData {
     fn default() -> Self {
         BatchData {
             batch_number: L1BatchNumber::default(),
-            basic_witness_generator: Task::BasicWitnessGenerator(TaskStatus::Stuck),
+            basic_witness_generator: Task::BasicWitnessGenerator {
+                status: TaskStatus::WaitingForProofs,
+                prover_jobs_status: TaskStatus::default(),
+            },
             leaf_witness_generator: Task::LeafWitnessGenerator {
                 status: TaskStatus::WaitingForProofs,
-                aggregation_round_0_prover_jobs_data: ProverJobsData::default(),
+                prover_jobs_status: TaskStatus::default(),
             },
             node_witness_generator: Task::NodeWitnessGenerator {
                 status: TaskStatus::WaitingForProofs,
-                aggregation_round_1_prover_jobs_data: ProverJobsData::default(),
+                prover_jobs_status: TaskStatus::default(),
             },
             recursion_tip: Task::RecursionTip {
                 status: TaskStatus::WaitingForProofs,
-                aggregation_round_2_prover_jobs_data: ProverJobsData::default(),
+                prover_jobs_status: TaskStatus::default(),
             },
             scheduler: Task::Scheduler(TaskStatus::WaitingForProofs),
             compressor: Task::Compressor(TaskStatus::WaitingForProofs),
@@ -101,6 +103,28 @@ impl Default for TaskStatus {
     }
 }
 
+impl From<Vec<ProverJobFriInfo>> for TaskStatus {
+    fn from(jobs_vector: Vec<ProverJobFriInfo>) -> Self {
+        if jobs_vector.is_empty() {
+            return TaskStatus::Custom("No Jobs found ".to_owned());
+        }
+
+        if jobs_vector
+            .iter()
+            .all(|job| job.status == ProverJobStatus::Queued)
+        {
+            return TaskStatus::Queued;
+        } else if jobs_vector.iter().all(|job| match job.status {
+            ProverJobStatus::Successful(_) => true,
+            _ => false,
+        }) {
+            return TaskStatus::Successful;
+        }
+
+        TaskStatus::InProgress
+    }
+}
+
 impl From<ProofCompressionJobStatus> for TaskStatus {
     fn from(status: ProofCompressionJobStatus) -> Self {
         match status {
@@ -116,30 +140,31 @@ impl From<ProofCompressionJobStatus> for TaskStatus {
     }
 }
 
-type ProverJobsData = HashMap<(L1BatchNumber, AggregationRound), JobCountStatistics>;
-
 #[derive(EnumString, Clone, Display)]
 pub enum Task {
     /// Represents the basic witness generator task and its status.
     #[strum(to_string = "Basic Witness Generator")]
-    BasicWitnessGenerator(TaskStatus),
+    BasicWitnessGenerator {
+        status: TaskStatus,
+        prover_jobs_status: TaskStatus,
+    },
     /// Represents the leaf witness generator task, its status and the aggregation round 0 prover jobs data.
     #[strum(to_string = "Leaf Witness Generator")]
     LeafWitnessGenerator {
         status: TaskStatus,
-        aggregation_round_0_prover_jobs_data: ProverJobsData,
+        prover_jobs_status: TaskStatus,
     },
     /// Represents the node witness generator task, its status and the aggregation round 1 prover jobs data.
     #[strum(to_string = "Node Witness Generator")]
     NodeWitnessGenerator {
         status: TaskStatus,
-        aggregation_round_1_prover_jobs_data: ProverJobsData,
+        prover_jobs_status: TaskStatus,
     },
     /// Represents the recursion tip task, its status and the aggregation round 2 prover jobs data.
     #[strum(to_string = "Recursion Tip")]
     RecursionTip {
         status: TaskStatus,
-        aggregation_round_2_prover_jobs_data: ProverJobsData,
+        prover_jobs_status: TaskStatus,
     },
     /// Represents the scheduler task and its status.
     #[strum(to_string = "Scheduler")]
@@ -152,7 +177,7 @@ pub enum Task {
 impl Task {
     fn status(&self) -> TaskStatus {
         match self {
-            Task::BasicWitnessGenerator(status)
+            Task::BasicWitnessGenerator { status, .. }
             | Task::LeafWitnessGenerator { status, .. }
             | Task::NodeWitnessGenerator { status, .. }
             | Task::RecursionTip { status, .. }
@@ -162,14 +187,43 @@ impl Task {
     }
 }
 
+impl Task {
+    fn prover_jobs_status(&self) -> Option<TaskStatus> {
+        match self {
+            Task::BasicWitnessGenerator {
+                prover_jobs_status, ..
+            }
+            | Task::LeafWitnessGenerator {
+                prover_jobs_status, ..
+            }
+            | Task::NodeWitnessGenerator {
+                prover_jobs_status, ..
+            }
+            | Task::RecursionTip {
+                prover_jobs_status, ..
+            } => Some(prover_jobs_status.clone()),
+            Task::Scheduler(_) => None,
+            Task::Compressor(_) => None,
+        }
+    }
+}
+
 impl Debug for Task {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "-- {} --", self.to_string().bold())?;
-        if let TaskStatus::Custom(msg) = self.status() {
-            writeln!(f, "> {msg}")
-        } else {
-            writeln!(f, "> {}", self.status().to_string())
+        match self.status() {
+            TaskStatus::InProgress | TaskStatus::Successful => {
+                writeln!(f, "> {}", self.status().to_string())?;
+                if let Some(status) = self.prover_jobs_status() {
+                    writeln!(f, "> {}", status.to_string())?;
+                }
+            }
+            TaskStatus::Queued | TaskStatus::WaitingForProofs | TaskStatus::Stuck => {
+                writeln!(f, "> {}", self.status().to_string())?
+            }
+            TaskStatus::Custom(msg) => writeln!(f, "> {msg}")?,
         }
+        Ok(())
     }
 }
 

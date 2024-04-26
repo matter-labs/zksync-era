@@ -1,7 +1,7 @@
 use anyhow::{ensure, Context as _};
 use clap::Args as ClapArgs;
 use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
-use zksync_types::L1BatchNumber;
+use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use super::utils::{BatchData, Task, TaskStatus};
 use crate::commands::status::utils::postgres_config;
@@ -43,9 +43,16 @@ async fn get_batches_data(batches: Vec<L1BatchNumber>) -> anyhow::Result<Vec<Bat
     let mut batches_data = Vec::new();
     for batch in batches {
         let current_batch_data = BatchData {
-            basic_witness_generator: Task::BasicWitnessGenerator(
-                get_proof_basic_witness_generator_status_for_batch(batch, &mut conn).await,
-            ),
+            batch_number: batch,
+            basic_witness_generator: Task::BasicWitnessGenerator {
+                status: get_proof_basic_witness_generator_status_for_batch(batch, &mut conn).await,
+                prover_jobs_status: get_prover_jobs_data_for_batch(
+                    batch,
+                    AggregationRound::BasicCircuits,
+                    &mut conn,
+                )
+                .await,
+            },
             compressor: Task::Compressor(
                 get_proof_compression_job_status_for_batch(batch, &mut conn).await,
             ),
@@ -55,6 +62,17 @@ async fn get_batches_data(batches: Vec<L1BatchNumber>) -> anyhow::Result<Vec<Bat
     }
 
     Ok(batches_data)
+}
+
+async fn get_prover_jobs_data_for_batch<'a>(
+    batch_number: L1BatchNumber,
+    aggation_round: AggregationRound,
+    conn: &mut Connection<'a, Prover>,
+) -> TaskStatus {
+    conn.fri_prover_jobs_dal()
+        .get_prover_jobs_stats_for_batch(batch_number, aggation_round)
+        .await
+        .into()
 }
 
 async fn get_proof_basic_witness_generator_status_for_batch<'a>(

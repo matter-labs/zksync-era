@@ -6,6 +6,7 @@ use strum::{Display, EnumString};
 
 use crate::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
+    protocol_version::ProtocolVersionId,
     L1BatchNumber,
 };
 
@@ -97,13 +98,13 @@ pub struct JobPosition {
     pub sequence_number: usize,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub struct ProverJobStatusFailed {
     pub started_at: DateTime<Utc>,
     pub error: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ProverJobStatusSuccessful {
     pub started_at: DateTime<Utc>,
     pub time_taken: Duration,
@@ -118,7 +119,7 @@ impl Default for ProverJobStatusSuccessful {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub struct ProverJobStatusInProgress {
     pub started_at: DateTime<Utc>,
 }
@@ -144,7 +145,7 @@ pub struct WitnessJobStatusFailed {
     pub error: String,
 }
 
-#[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr)]
+#[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr, PartialEq)]
 pub enum ProverJobStatus {
     #[strum(serialize = "queued")]
     Queued,
@@ -233,6 +234,29 @@ impl FromStr for GpuProverInstanceStatus {
         }
     }
 }
+
+pub struct ProverJobFriInfo {
+    pub id: u32,
+    pub l1_batch_number: L1BatchNumber,
+    pub circuit_id: u32,
+    pub circuit_blob_url: String,
+    pub aggregation_round: AggregationRound,
+    pub sequence_number: u32,
+    pub status: ProverJobStatus,
+    pub error: Option<String>,
+    pub attempts: u8,
+    pub processing_started_at: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub time_taken: Option<NaiveTime>,
+    pub is_blob_cleaned: Option<bool>,
+    pub depth: u32,
+    pub is_node_final_proof: bool,
+    pub proof_blob_url: Option<String>,
+    pub protocol_version: Option<ProtocolVersionId>,
+    pub picked_by: Option<String>,
+}
+
 pub struct BasicWitnessGeneratorJobInfo {
     pub l1_batch_number: L1BatchNumber,
     pub merkle_tree_paths_blob_url: Option<String>,

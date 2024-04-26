@@ -1,10 +1,13 @@
 #![doc = include_str!("../doc/FriProverDal.md")]
-use std::{collections::HashMap, convert::TryFrom, time::Duration};
+use std::{collections::HashMap, convert::TryFrom, str::FromStr, time::Duration};
 
 use zksync_basic_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     protocol_version::ProtocolVersionId,
-    prover_dal::{FriProverJobMetadata, JobCountStatistics, StuckJobs, EIP_4844_CIRCUIT_ID},
+    prover_dal::{
+        FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo, ProverJobStatus, StuckJobs,
+        EIP_4844_CIRCUIT_ID,
+    },
     L1BatchNumber,
 };
 use zksync_db_connection::{
@@ -597,66 +600,49 @@ impl FriProverDal<'_, '_> {
 
     pub async fn get_prover_jobs_stats_for_batch(
         &mut self,
-        l1_batches_numbers: Vec<L1BatchNumber>,
-    ) -> HashMap<(L1BatchNumber, AggregationRound), JobCountStatistics> {
-        {
-            sqlx::query!(
-                r#"
-                SELECT
-                    COUNT(*) AS "count!",
-                    l1_batch_number AS "l1_batch_number!",
-                    aggregation_round AS "aggregation_round!",
-                    status AS "status!"
-                FROM
-                    prover_jobs_fri
-                WHERE
-                    l1_batch_number = ANY ($1)
-                GROUP BY
-                    l1_batch_number,
-                    aggregation_round,
-                    status
-                "#,
-                &l1_batches_numbers
-                    .into_iter()
-                    .map(|x| i64::from(x.0))
-                    .collect::<Vec<i64>>()
-            )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| {
-                (
-                    row.l1_batch_number,
-                    row.aggregation_round,
-                    row.status,
-                    row.count as usize,
-                )
-            })
-            .fold(
-                HashMap::new(),
-                |mut acc, (l1_batch_number, aggregation_round, status, value)| {
-                    let stats = acc
-                        .entry((
-                            L1BatchNumber(l1_batch_number as u32),
-                            AggregationRound::from(aggregation_round as u8),
-                        ))
-                        .or_insert(JobCountStatistics {
-                            queued: 0,
-                            in_progress: 0,
-                            failed: 0,
-                            successful: 0,
-                        });
-                    match status.as_ref() {
-                        "queued" => stats.queued = value,
-                        "in_progress" => stats.in_progress = value,
-                        "failed" => stats.failed = value,
-                        "successful" => stats.successful = value,
-                        _ => (),
-                    }
-                    acc
-                },
-            )
-        }
+        l1_batch_number: L1BatchNumber,
+        aggregation_round: AggregationRound,
+    ) -> Vec<ProverJobFriInfo> {
+        sqlx::query!(
+            r#"
+            SELECT
+                *
+            FROM
+                prover_jobs_fri
+            WHERE
+                l1_batch_number = $1
+                AND aggregation_round = $2
+            "#,
+            i64::from(l1_batch_number.0),
+            aggregation_round as i16
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .iter()
+        .map(|row| ProverJobFriInfo {
+            id: row.id as u32,
+            l1_batch_number: l1_batch_number,
+            circuit_id: row.circuit_id as u32,
+            circuit_blob_url: row.circuit_blob_url.clone(),
+            aggregation_round: aggregation_round,
+            sequence_number: row.sequence_number as u32,
+            status: ProverJobStatus::from_str(&row.status).unwrap(),
+            error: row.error.clone(),
+            attempts: row.attempts as u8,
+            processing_started_at: row.processing_started_at,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            time_taken: row.time_taken,
+            is_blob_cleaned: row.is_blob_cleaned,
+            depth: row.depth as u32,
+            is_node_final_proof: row.is_node_final_proof,
+            proof_blob_url: row.proof_blob_url.clone(),
+            protocol_version: row.protocol_version.map(|protocol_version| {
+                ProtocolVersionId::try_from(protocol_version as u16).unwrap()
+            }),
+            picked_by: row.picked_by.clone(),
+        })
+        .collect()
     }
 }
