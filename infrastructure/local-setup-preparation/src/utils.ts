@@ -1,3 +1,4 @@
+import { utils } from 'zksync-ethers';
 import { ethers } from 'ethers';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -5,6 +6,55 @@ import * as path from 'path';
 interface WalletKey {
     address: string;
     privateKey: string;
+}
+
+// Cache object for storing contract instances
+const contractCache = {
+    contractMain: null,
+    stm: null,
+    validatorTimelock: null
+};
+
+// Function to get contract instances
+async function getContractInstances() {
+    const ethProvider = getEthersProvider();
+
+    if (!contractCache.contractMain) {
+        contractCache.contractMain = new ethers.Contract(
+            process.env.CONTRACTS_DIAMOND_PROXY_ADDR,
+            utils.ZKSYNC_MAIN_ABI,
+            ethProvider
+        );
+    }
+
+    if (!contractCache.stm) {
+        const stateTransitionManagerAddr = await contractCache.contractMain.getStateTransitionManager();
+        const stmABI = ['function validatorTimelock() view returns (address)'];
+        contractCache.stm = new ethers.Contract(stateTransitionManagerAddr, stmABI, ethProvider);
+    }
+
+    if (!contractCache.validatorTimelock) {
+        const validatorTimelockAddr = await contractCache.stm.validatorTimelock();
+        const validatorTimelockABI = ['function validators(uint256, address) view returns (bool)'];
+        contractCache.validatorTimelock = new ethers.Contract(validatorTimelockAddr, validatorTimelockABI, ethProvider);
+    }
+
+    return {
+        contractMain: contractCache.contractMain,
+        stm: contractCache.stm,
+        validatorTimelock: contractCache.validatorTimelock
+    };
+}
+
+export async function isOperator(chainId: string, walletAddress: string): Promise<boolean> {
+    try {
+        const { validatorTimelock } = await getContractInstances();
+        const isOperator = await validatorTimelock.validators(chainId, walletAddress);
+        return isOperator;
+    } catch (error) {
+        console.error('Error checking if address is an operator:', error);
+        throw error;
+    }
 }
 
 export function getWalletKeys(): WalletKey[] {

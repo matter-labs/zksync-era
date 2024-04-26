@@ -1,10 +1,9 @@
 import { utils } from 'zksync-ethers';
 import { ethers } from 'ethers';
-import { getEthersProvider, getWalletKeys } from './utils';
+import { getEthersProvider, getWalletKeys, isOperator } from './utils';
 
 // 10**12 ether
 const AMOUNT_TO_DEPOSIT = ethers.utils.parseEther('1000000000000');
-const OPERATOR = '0x4F9133D1d3F50011A6859807C837bdCB31Aaab13'; // We do not want to perform any L1 tx from operator address
 const CALLDATA = '0x';
 
 async function depositWithRichAccounts() {
@@ -34,7 +33,7 @@ async function depositWithRichAccounts() {
     );
 
     for (const wallet of wallets) {
-        if (!(wallet.address === OPERATOR)) {
+        if (!(await isOperator(chainId, wallet.address))) {
             const contract = new ethers.Contract(
                 process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR,
                 utils.BRIDGEHUB_ABI,
