@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use zksync_basic_types::AccountTreeId;
 use zksync_utils::u256_to_h256;
 
-use crate::api::ApiStorageLogQuery;
 use crate::{
+    api::ApiStorageLogQuery,
     zk_evm_types::{LogQuery, Timestamp},
     StorageKey, StorageValue, U256,
 };

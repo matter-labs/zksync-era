@@ -10,11 +10,11 @@ use zksync_contracts::BaseSystemContractsHashes;
 pub use crate::transaction_request::{
     Eip712Meta, SerializationTransactionError, TransactionRequest,
 };
-use crate::zk_evm_types::Timestamp;
 use crate::{
     protocol_version::L1VerifierConfig,
     vm_trace::{Call, CallType},
     web3::types::{AccessList, Index, H2048},
+    zk_evm_types::Timestamp,
     Address, L2BlockNumber, ProtocolVersionId, StorageLogQueryType,
 };
 

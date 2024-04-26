@@ -3,15 +3,14 @@ use std::collections::HashMap;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use zksync_types::{
     api::{
-        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
-        TransactionDetails,
+        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, OptimisticTransactionResult,
+        Proof, ProtocolVersion, TransactionDetails,
     },
     fee::Fee,
     fee_model::FeeParams,
     transaction_request::CallRequest,
     Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
-use zksync_types::api::OptimisticTransactionResult;
 
 use crate::types::{Bytes, Token};
 

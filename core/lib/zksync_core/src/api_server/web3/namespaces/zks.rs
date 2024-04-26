@@ -5,10 +5,22 @@ use multivm::interface::VmExecutionResultAndLogs;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
-use zksync_types::{api::{
-    BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof,
-    ProtocolVersion, StorageProof, TransactionDetails,
-}, fee::Fee, fee_model::FeeParams, l1::L1Tx, l2::L2Tx, l2_to_l1_log::{l2_to_l1_logs_tree_size, L2ToL1Log}, tokens::ETHEREUM_ADDRESS, transaction_request::CallRequest, utils::storage_key_for_standard_token_balance, AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction, L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64, Bytes};
+use zksync_types::{
+    api::{
+        BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof,
+        ProtocolVersion, StorageProof, TransactionDetails,
+    },
+    fee::Fee,
+    fee_model::FeeParams,
+    l1::L1Tx,
+    l2::L2Tx,
+    l2_to_l1_log::{l2_to_l1_logs_tree_size, L2ToL1Log},
+    tokens::ETHEREUM_ADDRESS,
+    transaction_request::CallRequest,
+    utils::storage_key_for_standard_token_balance,
+    AccountTreeId, Bytes, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction,
+    L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+};
 use zksync_utils::{address_to_h256, h256_to_u256};
 use zksync_web3_decl::{
     error::Web3Error,
@@ -17,9 +29,8 @@ use zksync_web3_decl::{
 
 use crate::api_server::{
     tree::TreeApiError,
-    web3::{backend_jsonrpsee::MethodTracer, RpcState},
+    web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, RpcState},
 };
-use crate::api_server::web3::metrics::API_METRICS;
 
 #[derive(Debug)]
 pub(crate) struct ZksNamespace {

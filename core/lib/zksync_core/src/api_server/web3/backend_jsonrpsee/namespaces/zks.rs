@@ -1,11 +1,16 @@
 use std::collections::HashMap;
-use itertools::Itertools;
 
-use zksync_types::{api::{
-    BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
-    TransactionDetails,
-}, fee::Fee, fee_model::FeeParams, transaction_request::CallRequest, Address, L1BatchNumber, L2BlockNumber, H256, U256, U64, Bytes};
-use zksync_types::api::{ApiStorageLogQuery, ApiVmEvent, OptimisticTransactionResult};
+use itertools::Itertools;
+use zksync_types::{
+    api::{
+        ApiStorageLogQuery, ApiVmEvent, BlockDetails, BridgeAddresses, L1BatchDetails,
+        L2ToL1LogProof, OptimisticTransactionResult, Proof, ProtocolVersion, TransactionDetails,
+    },
+    fee::Fee,
+    fee_model::FeeParams,
+    transaction_request::CallRequest,
+    Address, Bytes, L1BatchNumber, L2BlockNumber, H256, U256, U64,
+};
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
     namespaces::zks::ZksNamespaceServer,
@@ -169,7 +174,6 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-
     async fn send_raw_transaction_optimistic(
         &self,
         tx_bytes: Bytes,
@@ -195,5 +199,4 @@ impl ZksNamespaceServer for ZksNamespace {
             })
             .map_err(|err| self.current_method().map_err(err))
     }
-
 }

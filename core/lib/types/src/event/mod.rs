@@ -9,8 +9,8 @@ use zksync_utils::{
     address_to_u256, h256_to_account_address, h256_to_u256, u256_to_bytes_be, u256_to_h256,
 };
 
-use crate::api::ApiVmEvent;
 use crate::{
+    api::ApiVmEvent,
     ethabi,
     l2_to_l1_log::L2ToL1Log,
     tokens::{TokenInfo, TokenMetadata},
