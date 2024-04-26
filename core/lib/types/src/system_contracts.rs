@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{env, path::PathBuf};
 
 use once_cell::sync::Lazy;
 use zksync_basic_types::{AccountTreeId, Address, H256, U256};
@@ -176,12 +176,20 @@ static SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new(|| {
 });
 
 static EVM_INTERPRETER_HASH: Lazy<H256> = Lazy::new(|| {
-    hash_bytecode(&read_sys_contract_bytecode(
-        "",
-        "EvmInterpreterPreprocessed",
-        // ContractLanguage::Sol,
-        ContractLanguage::Yul,
-    ))
+    let evm_simulator_version = env::var("EVM_SIMULATOR").unwrap_or_else(|_| "yul".to_string());
+    if evm_simulator_version.to_lowercase() == "yul" {
+        hash_bytecode(&read_sys_contract_bytecode(
+            "",
+            "EvmInterpreterPreprocessed",
+            ContractLanguage::Yul,
+        ))
+    } else {
+        hash_bytecode(&read_sys_contract_bytecode(
+            "",
+            "EvmInterpreter",
+            ContractLanguage::Sol,
+        ))
+    }
 });
 
 /// Gets default set of system contracts, based on ZKSYNC_HOME environment variable.
