@@ -378,36 +378,36 @@ impl ApiServer {
         let mut rpc = RpcModule::new(());
         if let Some(pub_sub) = pub_sub {
             rpc.merge(pub_sub.into_rpc())
-                .expect("Can't merge eth pubsub namespace");
+                .context("cannot merge eth pubsub namespace")?;
         }
 
+        if namespaces.contains(&Namespace::Debug) {
+            rpc.merge(DebugNamespace::new(rpc_state.clone()).await?.into_rpc())
+                .context("cannot merge debug namespace")?;
+        }
         if namespaces.contains(&Namespace::Eth) {
             rpc.merge(EthNamespace::new(rpc_state.clone()).into_rpc())
-                .expect("Can't merge eth namespace");
+                .context("cannot merge eth namespace")?;
         }
         if namespaces.contains(&Namespace::Net) {
             rpc.merge(NetNamespace::new(zksync_network_id).into_rpc())
-                .expect("Can't merge net namespace");
+                .context("cannot merge net namespace")?;
         }
         if namespaces.contains(&Namespace::Web3) {
             rpc.merge(Web3Namespace.into_rpc())
-                .expect("Can't merge web3 namespace");
+                .context("cannot merge web3 namespace")?;
         }
         if namespaces.contains(&Namespace::Zks) {
             rpc.merge(ZksNamespace::new(rpc_state.clone()).into_rpc())
-                .expect("Can't merge zks namespace");
+                .context("cannot merge zks namespace")?;
         }
         if namespaces.contains(&Namespace::En) {
             rpc.merge(EnNamespace::new(rpc_state.clone()).into_rpc())
-                .expect("Can't merge en namespace");
-        }
-        if namespaces.contains(&Namespace::Debug) {
-            rpc.merge(DebugNamespace::new(rpc_state.clone()).await.into_rpc())
-                .expect("Can't merge debug namespace");
+                .context("cannot merge en namespace")?;
         }
         if namespaces.contains(&Namespace::Snapshots) {
             rpc.merge(SnapshotsNamespace::new(rpc_state).into_rpc())
-                .expect("Can't merge snapshots namespace");
+                .context("cannot merge snapshots namespace")?;
         }
         Ok(rpc)
     }
