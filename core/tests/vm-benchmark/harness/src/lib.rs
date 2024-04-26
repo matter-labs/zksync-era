@@ -5,7 +5,8 @@ use multivm::{
         L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
     },
     utils::get_max_gas_per_pubdata_byte,
-    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryEnabled, TracerDispatcher, Vm},
+    vm_fast::Vm,
+    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryEnabled, TracerDispatcher},
 };
 use once_cell::sync::Lazy;
 use zksync_contracts::{deployer_contract, BaseSystemContracts};
@@ -60,7 +61,7 @@ static CREATE_FUNCTION_SIGNATURE: Lazy<[u8; 4]> = Lazy::new(|| {
 });
 const PRIVATE_KEY: H256 = H256([42; 32]);
 
-pub struct BenchmarkingVm(Vm<StorageView<&'static InMemoryStorage>, HistoryEnabled>);
+pub struct BenchmarkingVm(Vm<StorageView<&'static InMemoryStorage>>);
 
 impl BenchmarkingVm {
     #[allow(clippy::new_without_default)]
@@ -103,7 +104,7 @@ impl BenchmarkingVm {
         self.0.execute(VmExecutionMode::OneTx)
     }
 
-    pub fn instruction_count(&mut self, tx: &Transaction) -> usize {
+    /*pub fn instruction_count(&mut self, tx: &Transaction) -> usize {
         self.0.push_transaction(tx.clone());
 
         let count = Rc::new(RefCell::new(0));
@@ -116,7 +117,7 @@ impl BenchmarkingVm {
         );
 
         count.take()
-    }
+    }*/
 }
 
 pub fn get_deploy_tx(code: &[u8]) -> Transaction {

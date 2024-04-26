@@ -139,7 +139,7 @@ impl<S: ReadStorage + 'static> Vm<S> {
                 }
                 NotifyAboutRefund => {
                     let refund = self.get_hook_params()[0];
-                    dbg!(refund);
+                    //dbg!(refund);
                 }
                 PostResult => {
                     let result = self.get_hook_params()[0];
@@ -424,7 +424,7 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
         }
 
         let result = self.run(execution_mode);
-        dbg!(&result);
+        //dbg!(&result);
 
         VmExecutionResultAndLogs {
             result,

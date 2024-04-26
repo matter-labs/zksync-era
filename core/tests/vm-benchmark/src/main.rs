@@ -11,7 +11,7 @@ fn main() {
     let code = cut_to_allowed_bytecode_size(&test_contract).unwrap();
     let tx = get_deploy_tx(code);
 
-    for _ in 0..100 {
+    for _ in 0..1 {
         let mut vm = BenchmarkingVm::new();
         vm.run_transaction(&tx);
     }
