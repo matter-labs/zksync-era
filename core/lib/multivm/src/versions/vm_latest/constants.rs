@@ -135,6 +135,12 @@ pub(crate) const fn get_vm_hook_params_start_position(subversion: MultiVMSubvers
     get_vm_hook_position(subversion) - VM_HOOK_PARAMS_COUNT
 }
 
+/// Method that provides the start position of the vm hook in the memory for the latest version of v1.5.0.
+/// This method is used only in `test_infra` in the bootloader tests and that's why it should be exposed.
+pub const fn get_vm_hook_start_position_latest() -> u32 {
+    get_vm_hook_params_start_position(MultiVMSubversion::IncreasedBootloaderMemory)
+}
+
 /// Arbitrary space in memory closer to the end of the page
 pub(crate) const fn get_result_success_first_slot(subversion: MultiVMSubversion) -> u32 {
     ((get_used_bootloader_memory_bytes(subversion) as u32) - (MAX_TXS_IN_BATCH as u32) * 32) / 32
