@@ -6,10 +6,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use serde::Serialize;
 use tokio::sync::watch;
-use zksync_dal::{
-    pruning_dal::{HardPruningStats, PruningInfo},
-    Connection, ConnectionPool, Core, CoreDal,
-};
+use zksync_dal::{pruning_dal::PruningInfo, Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{L1BatchNumber, L2BlockNumber};
 
@@ -228,7 +225,7 @@ impl DbPruner {
             .pruning_dal()
             .hard_prune_batches_range(last_soft_pruned_l1_batch, last_soft_pruned_l2_block)
             .await?;
-        Self::report_hard_pruning_stats(stats);
+        METRICS.observe_hard_pruning(stats);
         transaction.commit().await?;
 
         let mut storage = self.connection_pool.connection_tagged("db_pruner").await?;
@@ -246,26 +243,6 @@ impl DbPruner {
         current_pruning_info.last_hard_pruned_l2_block = Some(last_soft_pruned_l2_block);
         self.update_health(current_pruning_info);
         Ok(())
-    }
-
-    fn report_hard_pruning_stats(stats: HardPruningStats) {
-        let HardPruningStats {
-            deleted_l1_batches,
-            deleted_l2_blocks,
-            deleted_storage_logs_from_past_batches,
-            deleted_storage_logs_from_pruned_batches,
-            deleted_events,
-            deleted_call_traces,
-            deleted_l2_to_l1_logs,
-        } = stats;
-        let deleted_storage_logs =
-            deleted_storage_logs_from_past_batches + deleted_storage_logs_from_pruned_batches;
-        tracing::info!(
-            "Performed pruning of database, deleted {deleted_l1_batches} L1 batches, {deleted_l2_blocks} L2 blocks, \
-             {deleted_storage_logs} storage logs ({deleted_storage_logs_from_pruned_batches} from pruned batches + \
-             {deleted_storage_logs_from_past_batches} from past batches), \
-             {deleted_events} events, {deleted_call_traces} call traces, {deleted_l2_to_l1_logs} L2-to-L1 logs"
-        );
     }
 
     async fn run_single_iteration(&self) -> anyhow::Result<bool> {
