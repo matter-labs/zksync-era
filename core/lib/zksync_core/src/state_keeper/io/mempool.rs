@@ -179,7 +179,9 @@ impl StateKeeperIO for MempoolIO {
                 self.batch_fee_input_provider.as_ref(),
                 protocol_version.into(),
             )
-            .await;
+            .await
+            .context("failed creating L2 transaction filter")?;
+
             if !self.mempool.has_next(&self.filter) {
                 tokio::time::sleep(self.delay_interval).await;
                 continue;

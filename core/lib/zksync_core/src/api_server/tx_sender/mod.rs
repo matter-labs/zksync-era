@@ -68,8 +68,10 @@ pub struct MultiVMBaseSystemContracts {
     pub(crate) post_1_4_1: BaseSystemContracts,
     /// Contracts to be used after the 1.4.2 upgrade
     pub(crate) post_1_4_2: BaseSystemContracts,
+    /// Contracts to be used during the `v23` upgrade. This upgrade was done on an internal staging environment only.
+    pub(crate) vm_1_5_0_small_memory: BaseSystemContracts,
     /// Contracts to be used after the 1.5.0 upgrade
-    pub(crate) post_1_5_0: BaseSystemContracts,
+    pub(crate) vm_1_5_0_increased_memory: BaseSystemContracts,
 }
 
 impl MultiVMBaseSystemContracts {
@@ -97,7 +99,10 @@ impl MultiVMBaseSystemContracts {
             ProtocolVersionId::Version19 => self.post_allowlist_removal,
             ProtocolVersionId::Version20 => self.post_1_4_1,
             ProtocolVersionId::Version21 | ProtocolVersionId::Version22 => self.post_1_4_2,
-            ProtocolVersionId::Version23 | ProtocolVersionId::Version24 => self.post_1_5_0,
+            ProtocolVersionId::Version23 => self.vm_1_5_0_small_memory,
+            ProtocolVersionId::Version24 | ProtocolVersionId::Version25 => {
+                self.vm_1_5_0_increased_memory
+            }
         }
     }
 }
@@ -131,7 +136,9 @@ impl ApiContracts {
                 post_allowlist_removal: BaseSystemContracts::estimate_gas_post_allowlist_removal(),
                 post_1_4_1: BaseSystemContracts::estimate_gas_post_1_4_1(),
                 post_1_4_2: BaseSystemContracts::estimate_gas_post_1_4_2(),
-                post_1_5_0: BaseSystemContracts::estimate_gas_post_1_5_0(),
+                vm_1_5_0_small_memory: BaseSystemContracts::playground_1_5_0_small_memory(),
+                vm_1_5_0_increased_memory:
+                    BaseSystemContracts::estimate_gas_post_1_5_0_increased_memory(),
             },
             eth_call: MultiVMBaseSystemContracts {
                 pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
@@ -142,7 +149,9 @@ impl ApiContracts {
                 post_allowlist_removal: BaseSystemContracts::playground_post_allowlist_removal(),
                 post_1_4_1: BaseSystemContracts::playground_post_1_4_1(),
                 post_1_4_2: BaseSystemContracts::playground_post_1_4_2(),
-                post_1_5_0: BaseSystemContracts::playground_post_1_5_0(),
+                vm_1_5_0_small_memory: BaseSystemContracts::playground_1_5_0_small_memory(),
+                vm_1_5_0_increased_memory:
+                    BaseSystemContracts::playground_post_1_5_0_increased_memory(),
             },
         }
     }
@@ -312,14 +321,16 @@ impl TxSender {
     ) -> Result<(L2TxSubmissionResult, VmExecutionResultAndLogs), SubmitTxError> {
         let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::Validate].start();
         let mut connection = self.acquire_replica_connection().await?;
-        let protocol_verison = pending_protocol_version(&mut connection).await?;
-        self.validate_tx(&tx, protocol_verison).await?;
+        let protocol_version = pending_protocol_version(&mut connection).await?;
+        drop(connection);
+        self.validate_tx(&tx, protocol_version).await?;
         stage_latency.observe();
 
         let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::DryRun].start();
-        let shared_args = self.shared_args().await;
+        let shared_args = self.shared_args().await?;
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
+        let mut connection = self.acquire_replica_connection().await?;
         let block_args = BlockArgs::pending(&mut connection).await?;
         drop(connection);
 
@@ -409,10 +420,18 @@ impl TxSender {
         }
     }
 
-    async fn shared_args(&self) -> TxSharedArgs {
-        TxSharedArgs {
+    /// **Important.** For the main node, this method acquires a DB connection inside `get_batch_fee_input()`.
+    /// Thus, you shouldn't call it if you're holding a DB connection already.
+    async fn shared_args(&self) -> anyhow::Result<TxSharedArgs> {
+        let fee_input = self
+            .0
+            .batch_fee_input_provider
+            .get_batch_fee_input()
+            .await
+            .context("cannot get batch fee input")?;
+        Ok(TxSharedArgs {
             operator_account: AccountTreeId::new(self.0.sender_config.fee_account_addr),
-            fee_input: self.0.batch_fee_input_provider.get_batch_fee_input().await,
+            fee_input,
             base_system_contracts: self.0.api_contracts.eth_call.clone(),
             caches: self.storage_caches(),
             validation_computational_gas_limit: self
@@ -421,7 +440,7 @@ impl TxSender {
                 .validation_computational_gas_limit,
             chain_id: self.0.sender_config.chain_id,
             whitelisted_tokens_for_aa: self.read_whitelisted_tokens_for_aa_cache().await,
-        }
+        })
     }
 
     async fn validate_tx(
@@ -442,7 +461,11 @@ impl TxSender {
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
 
-        let fee_input = self.0.batch_fee_input_provider.get_batch_fee_input().await;
+        let fee_input = self
+            .0
+            .batch_fee_input_provider
+            .get_batch_fee_input()
+            .await?;
 
         // TODO (SMA-1715): do not subsidize the overhead for the transaction
 
@@ -679,25 +702,14 @@ impl TxSender {
         let max_gas_limit = get_max_batch_gas_limit(protocol_version.into());
         drop(connection);
 
-        let fee_input = {
-            // For now, both L1 gas price and pubdata price are scaled with the same coefficient
-            let fee_input = self
-                .0
-                .batch_fee_input_provider
-                .get_batch_fee_input_scaled(
-                    self.0.sender_config.gas_price_scale_factor,
-                    self.0.sender_config.gas_price_scale_factor,
-                )
-                .await;
-            adjust_pubdata_price_for_tx(
-                fee_input,
-                tx.gas_per_pubdata_byte_limit(),
-                // We do not have to adjust the params to the `gasPrice` of the transaction, since
-                // its gas price will be amended later on to suit the `fee_input`
-                None,
-                protocol_version.into(),
-            )
-        };
+        let fee_input = adjust_pubdata_price_for_tx(
+            self.scaled_batch_fee_input().await?,
+            tx.gas_per_pubdata_byte_limit(),
+            // We do not have to adjust the params to the `gasPrice` of the transaction, since
+            // its gas price will be amended later on to suit the `fee_input`
+            None,
+            protocol_version.into(),
+        );
 
         let (base_fee, gas_per_pubdata_byte) =
             derive_base_fee_and_gas_per_pubdata(fee_input, protocol_version.into());
@@ -913,6 +925,17 @@ impl TxSender {
         })
     }
 
+    // For now, both L1 gas price and pubdata price are scaled with the same coefficient
+    async fn scaled_batch_fee_input(&self) -> anyhow::Result<BatchFeeInput> {
+        self.0
+            .batch_fee_input_provider
+            .get_batch_fee_input_scaled(
+                self.0.sender_config.gas_price_scale_factor,
+                self.0.sender_config.gas_price_scale_factor,
+            )
+            .await
+    }
+
     pub(super) async fn eth_call(
         &self,
         block_args: BlockArgs,
@@ -926,7 +949,7 @@ impl TxSender {
             .executor
             .execute_tx_eth_call(
                 vm_permit,
-                self.shared_args().await,
+                self.shared_args().await?,
                 self.0.replica_connection_pool.clone(),
                 tx,
                 block_args,
@@ -945,14 +968,7 @@ impl TxSender {
         drop(connection);
 
         let (base_fee, _) = derive_base_fee_and_gas_per_pubdata(
-            // For now, both the L1 gas price and the L1 pubdata price are scaled with the same coefficient
-            self.0
-                .batch_fee_input_provider
-                .get_batch_fee_input_scaled(
-                    self.0.sender_config.gas_price_scale_factor,
-                    self.0.sender_config.gas_price_scale_factor,
-                )
-                .await,
+            self.scaled_batch_fee_input().await?,
             protocol_version.into(),
         );
         Ok(base_fee)
