@@ -12,6 +12,7 @@ use zksync_types::{
 };
 use zksync_utils::bigdecimal_to_u256;
 
+use crate::models::parse_protocol_version;
 use crate::{
     models::{
         storage_block::{
@@ -486,12 +487,27 @@ impl BlocksWeb3Dal<'_, '_> {
         &mut self,
         block_number: L2BlockNumber,
     ) -> DalResult<Vec<Call>> {
-        let protocol_version = self
-            .storage
-            .blocks_dal()
-            .get_l2_block_protocol_version_id(block_number)
-            .await?
-            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
+        let protocol_version = sqlx::query!(
+            r#"
+            SELECT
+                protocol_version
+            FROM
+                miniblocks
+            WHERE
+                number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .try_map(|row| row.protocol_version.map(parse_protocol_version).transpose())
+        .instrument("get_traces_for_l2_block#get_l2_block_protocol_version_id")
+        .with_arg("l2_block_number", &block_number)
+        .fetch_optional(self.storage)
+        .await?;
+        let Some(protocol_version) = protocol_version else {
+            return Ok(Vec::new());
+        };
+        let protocol_version =
+            protocol_version.unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
         Ok(sqlx::query_as!(
             CallTrace,
