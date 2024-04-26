@@ -1,0 +1,111 @@
+name: CI Yul equivalent EVM
+
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches:
+      - staging
+      - trying
+      - main
+      - evm-equivalence-yul
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    name: Run tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          submodules: "recursive"
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Install node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 21.7
+
+      - name: Install yarn
+        run: corepack enable
+        # https://yarnpkg.com/corepack
+
+      - name: Install preprocessor
+        run: npm install -g preprocess-cli-tool
+
+      - name: Install sqlx
+        run: cargo install sqlx-cli@^0.5 --locked
+
+      - name: Download solc
+        run: |
+          curl -L -o bin/solc https://github.com/ethereum/solidity/releases/download/v0.8.24/solc-static-linux \
+            && chmod +x bin/solc
+
+      - name: Download zksolc
+        run: |
+          curl -L -o bin/zksolc https://github.com/matter-labs/zksolc-bin/releases/download/v1.4.0/zksolc-linux-amd64-musl-v1.4.0 \
+            && chmod +x bin/zksolc
+
+      - name: Setup environment
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo IN_DOCKER=1 >> .env
+          echo ZKSYNC_DEBUG_LOGS=true >> .env
+
+      - name: Build system contracts
+        run: |
+          cd contracts/system-contracts \
+            && yarn install \
+            && yarn build
+
+      - name: Build EVM test contracts
+        run: |
+          cd etc/evm-contracts-test-data \
+            && yarn install \
+            && yarn build
+
+      - name: Build zkEVM test contracts
+        run: |
+          cd etc/contracts-test-data \
+            && sed -i 's/zksolc-macosx-arm64/zksolc-linux-amd64-musl/' hardhat.config.ts \
+            && yarn install \
+            && yarn build
+
+      - name: Compile EVM interpreter
+        run: bash recompile_interpreter.sh
+
+      - name: Run unit tests
+        run: ZKSYNC_HOME=$(pwd) cargo test evm_simulator
+        env:
+          RUSTFLAGS: ""
+
+      - name: Start services
+        run: |
+          mkdir -p ./volumes/postgres ./volumes/reth/data
+          docker compose up -d
+      
+      - name: Init
+        run: |
+          sed -i 's/zksolc-macosx-arm64/zksolc-linux-amd64-musl/' etc/contracts-test-data/hardhat.config.ts
+          zk
+          zk env dev
+          zk config compile dev
+          zk init
+        env:
+          RUSTFLAGS: ""
+
+      - name: Run integration tests
+        run: |
+          zk server --components "api,tree,eth,state_keeper,housekeeper" >/dev/null &
+          sleep 10
+          cd core/tests/ts-integration && yarn test evm-contracts-test.ts
+        env:
+          RUSTFLAGS: ""
