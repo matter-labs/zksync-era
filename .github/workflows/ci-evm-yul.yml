@@ -94,7 +94,7 @@ jobs:
 
       - name: Init
         run: |
-          sed -i 's/zksolc-macosx-arm64/zksolc-linux-amd64-musl/' etc/contracts-test-data/hardhat.config.ts \
+          sed -i 's/zksolc-macosx-arm64/zksolc-linux-amd64-musl/' etc/contracts-test-data/hardhat.config.ts
           zk
           zk env dev
           zk config compile dev
