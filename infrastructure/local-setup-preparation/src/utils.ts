@@ -2,6 +2,8 @@ import { utils } from 'zksync-ethers';
 import { ethers } from 'ethers';
 import * as fs from 'fs';
 import * as path from 'path';
+import { ValidatorTimelockFactory } from '../../../contracts/l1-contracts/typechain/ValidatorTimelockFactory';
+import { StateTransitionManagerFactory } from '../../../contracts/l1-contracts/typechain/StateTransitionManagerFactory';
 
 interface WalletKey {
     address: string;
@@ -29,14 +31,12 @@ async function getContractInstances() {
 
     if (!contractCache.stm) {
         const stateTransitionManagerAddr = await contractCache.contractMain.getStateTransitionManager();
-        const stmABI = ['function validatorTimelock() view returns (address)'];
-        contractCache.stm = new ethers.Contract(stateTransitionManagerAddr, stmABI, ethProvider);
+        contractCache.stm = StateTransitionManagerFactory.connect(stateTransitionManagerAddr, ethProvider);
     }
 
     if (!contractCache.validatorTimelock) {
         const validatorTimelockAddr = await contractCache.stm.validatorTimelock();
-        const validatorTimelockABI = ['function validators(uint256, address) view returns (bool)'];
-        contractCache.validatorTimelock = new ethers.Contract(validatorTimelockAddr, validatorTimelockABI, ethProvider);
+        contractCache.validatorTimelock = ValidatorTimelockFactory.connect(validatorTimelockAddr, ethProvider);
     }
 
     return {
