@@ -187,14 +187,14 @@ impl ZksNamespaceServer for ZksNamespace {
                     .logs
                     .storage_logs
                     .iter()
-                    .map(|m| ApiStorageLogQuery::from(m))
+                    .map(ApiStorageLogQuery::from)
                     .collect_vec(),
                 events: result
                     .1
                     .logs
                     .events
                     .iter()
-                    .map(|m| ApiVmEvent::from(m))
+                    .map(ApiVmEvent::from)
                     .collect_vec(),
             })
             .map_err(|err| self.current_method().map_err(err))
