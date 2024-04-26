@@ -57,6 +57,7 @@ jobs:
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
+          echo IN_DOCKER=1 >> .env
 
       - name: Build system contracts
         run: |
@@ -88,7 +89,6 @@ jobs:
       - name: Start services
         run: |
           ci_localnet_up
-          ci_run sccache --start-server
 
       - name: Init
         run: |
