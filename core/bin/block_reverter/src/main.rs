@@ -101,7 +101,6 @@ async fn main() -> anyhow::Result<()> {
             .default_priority_fee_per_gas,
     );
     let contracts = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
-    // FIXME: is it correct to parse the entire `NetworkConfig`?
     let network = NetworkConfig::from_env().context("NetworkConfig::from_env()")?;
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
     let era_chain_id = env::var("CONTRACTS_ERA_CHAIN_ID")
