@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package zksync.config.experimental;
+
+// Experimental part of the database configuration.
+message DB {
+  optional uint64 state_keeper_db_block_cache_capacity_mb = 1; // MB; required
+  optional uint32 state_keeper_db_max_open_files = 2; // optional
+}

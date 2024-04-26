@@ -6,6 +6,7 @@ pub use self::{
     database::{DBConfig, PostgresConfig},
     eth_sender::{EthConfig, GasAdjusterConfig},
     eth_watch::EthWatchConfig,
+    experimental::ExperimentalDBConfig,
     fri_proof_compressor::FriProofCompressorConfig,
     fri_prover::FriProverConfig,
     fri_prover_gateway::FriProverGatewayConfig,
@@ -28,6 +29,7 @@ pub mod contracts;
 pub mod database;
 pub mod eth_sender;
 pub mod eth_watch;
+mod experimental;
 pub mod fri_proof_compressor;
 pub mod fri_prover;
 pub mod fri_prover_gateway;
