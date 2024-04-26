@@ -30,7 +30,7 @@ use crate::{
 pub(crate) enum MultiVMSubversion {
     /// Initial v1.5.0
     InitialVm1_5_0,
-    /// Bug with code compression was fixed.
+    /// The bootloader memory was increased to get more space for encoding transactions.
     IncreasedMemory,
 }
 
