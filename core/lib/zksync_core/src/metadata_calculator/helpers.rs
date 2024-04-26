@@ -25,7 +25,7 @@ use zksync_merkle_tree::{
     Database, Key, MerkleTreeColumnFamily, NoVersionError, RocksDBWrapper, TreeEntry,
     TreeEntryWithProof, TreeInstruction,
 };
-use zksync_storage::{db::Weak, RocksDB, RocksDBOptions, StalledWritesRetries};
+use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries, WeakRocksDB};
 use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageKey, H256};
 
 use super::{
@@ -331,7 +331,7 @@ impl AsyncTreeReader {
 /// Version of async tree reader that holds a weak reference to RocksDB. Used in [`MerkleTreeHealthCheck`].
 #[derive(Debug)]
 struct WeakAsyncTreeReader {
-    db: RocksDB<MerkleTreeColumnFamily, Weak>,
+    db: WeakRocksDB<MerkleTreeColumnFamily>,
     mode: MerkleTreeMode,
 }
 
