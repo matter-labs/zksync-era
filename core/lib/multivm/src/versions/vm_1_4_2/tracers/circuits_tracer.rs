@@ -79,6 +79,7 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
                 self.statistics.code_decommitter_sorter_cycles +=
                     FAR_CALL_CODE_DECOMMITTER_SORTER_CYCLES;
                 self.statistics.storage_sorter_cycles += FAR_CALL_STORAGE_SORTER_CYCLES;
+                self.statistics.log_demuxer_cycles += FAR_CALL_LOG_DEMUXER_CYCLES;
             }
             Opcode::UMA(UMAOpcode::AuxHeapWrite | UMAOpcode::HeapWrite) => {
                 self.statistics.ram_permutation_cycles += UMA_WRITE_RAM_CYCLES;

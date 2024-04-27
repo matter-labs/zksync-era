@@ -46,7 +46,7 @@ interface Health<T> {
 
 interface SnapshotRecoveryDetails {
     readonly snapshot_l1_batch: number;
-    readonly snapshot_miniblock: number;
+    readonly snapshot_l2_block: number;
     readonly factory_deps_recovered: boolean;
     readonly tokens_recovered: boolean;
     readonly storage_logs_chunks_left_to_process: number;
@@ -59,11 +59,11 @@ interface ConsistencyCheckerDetails {
 
 interface ReorgDetectorDetails {
     readonly last_correct_l1_batch?: number;
-    readonly last_correct_miniblock?: number;
+    readonly last_correct_l2_block?: number;
 }
 
 interface HealthCheckResponse {
-    components: {
+    readonly components: {
         snapshot_recovery?: Health<SnapshotRecoveryDetails>;
         consistency_checker?: Health<ConsistencyCheckerDetails>;
         reorg_detector?: Health<ReorgDetectorDetails>;
@@ -82,18 +82,15 @@ describe('snapshot recovery', () => {
 
     const homeDir = process.env.ZKSYNC_HOME!!;
 
-    let zkscynEnv: string;
-    if (process.env.DEPLOYMENT_MODE == 'Validium') {
-        zkscynEnv = process.env.IN_DOCKER ? 'ext-node-validium-docker' : 'ext-node-validium';
-    } else if (process.env.DEPLOYMENT_MODE == 'Rollup') {
-        zkscynEnv = process.env.IN_DOCKER ? 'ext-node-docker' : 'ext-node';
-    } else {
-        throw new Error(`Unknown deployment mode: ${process.env.DEPLOYMENT_MODE}`);
-    }
-
+    const externalNodeEnvProfile =
+        'ext-node' +
+        (process.env.DEPLOYMENT_MODE === 'Validium' ? '-validium' : '') +
+        (process.env.IN_DOCKER ? '-docker' : '');
+    console.log('Using external node env profile', externalNodeEnvProfile);
     const externalNodeEnv = {
         ...process.env,
-        ZKSYNC_ENV: zkscynEnv
+        ZKSYNC_ENV: externalNodeEnvProfile,
+        EN_SNAPSHOTS_RECOVERY_ENABLED: 'true'
     };
 
     let snapshotMetadata: GetSnapshotResponse;
@@ -156,7 +153,7 @@ describe('snapshot recovery', () => {
         const l1BatchNumber = Math.max(...newBatchNumbers);
         snapshotMetadata = await getSnapshot(l1BatchNumber);
         console.log('Obtained latest snapshot', snapshotMetadata);
-        const miniblockNumber = snapshotMetadata.miniblockNumber;
+        const l2BlockNumber = snapshotMetadata.miniblockNumber;
 
         const protoPath = path.join(homeDir, 'core/lib/types/src/proto/mod.proto');
         const root = await protobuf.load(protoPath);
@@ -185,7 +182,7 @@ describe('snapshot recovery', () => {
                 const valueOnBlockchain = await mainNode.getStorageAt(
                     snapshotAccountAddress,
                     snapshotKey,
-                    miniblockNumber
+                    l2BlockNumber
                 );
                 expect(snapshotValue).to.equal(valueOnBlockchain);
                 expect(snapshotL1BatchNumber).to.be.lessThanOrEqual(l1BatchNumber);
@@ -226,7 +223,7 @@ describe('snapshot recovery', () => {
         externalNodeLogs = await fs.open('snapshot-recovery.log', 'w');
 
         const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
-        let args = ['external-node', '--', '--enable-snapshots-recovery'];
+        let args = ['external-node', '--'];
         if (enableConsensus) {
             args.push('--enable-consensus');
         }
@@ -250,12 +247,12 @@ describe('snapshot recovery', () => {
 
             if (!recoveryFinished) {
                 const status = health.components.snapshot_recovery?.status;
-                expect(status).to.be.oneOf([undefined, 'ready']);
+                expect(status).to.be.oneOf([undefined, 'affected', 'ready']);
                 const details = health.components.snapshot_recovery?.details;
                 if (details !== undefined) {
                     console.log('Received snapshot recovery health details', details);
                     expect(details.snapshot_l1_batch).to.equal(snapshotMetadata.l1BatchNumber);
-                    expect(details.snapshot_miniblock).to.equal(snapshotMetadata.miniblockNumber);
+                    expect(details.snapshot_l2_block).to.equal(snapshotMetadata.miniblockNumber);
 
                     if (
                         details.factory_deps_recovered &&
@@ -270,9 +267,9 @@ describe('snapshot recovery', () => {
 
             if (!consistencyCheckerSucceeded) {
                 const status = health.components.consistency_checker?.status;
-                expect(status).to.be.oneOf([undefined, 'ready']);
+                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready']);
                 const details = health.components.consistency_checker?.details;
-                if (details !== undefined) {
+                if (status === 'ready' && details !== undefined) {
                     console.log('Received consistency checker health details', details);
                     if (details.first_checked_batch !== undefined && details.last_checked_batch !== undefined) {
                         expect(details.first_checked_batch).to.equal(snapshotMetadata.l1BatchNumber + 1);
@@ -284,13 +281,13 @@ describe('snapshot recovery', () => {
 
             if (!reorgDetectorSucceeded) {
                 const status = health.components.reorg_detector?.status;
-                expect(status).to.be.oneOf([undefined, 'ready']);
+                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready']);
                 const details = health.components.reorg_detector?.details;
-                if (details !== undefined) {
+                if (status === 'ready' && details !== undefined) {
                     console.log('Received reorg detector health details', details);
-                    if (details.last_correct_l1_batch !== undefined && details.last_correct_miniblock !== undefined) {
+                    if (details.last_correct_l1_batch !== undefined && details.last_correct_l2_block !== undefined) {
                         expect(details.last_correct_l1_batch).to.be.greaterThan(snapshotMetadata.l1BatchNumber);
-                        expect(details.last_correct_miniblock).to.be.greaterThan(snapshotMetadata.miniblockNumber);
+                        expect(details.last_correct_l2_block).to.be.greaterThan(snapshotMetadata.miniblockNumber);
                         reorgDetectorSucceeded = true;
                     }
                 }
@@ -374,7 +371,10 @@ async function getExternalNodeHealth() {
         if (e instanceof FetchError && e.code === 'ECONNREFUSED') {
             displayedError = '(connection refused)'; // Don't spam logs with "connection refused" messages
         }
-        console.log('Request to EN health check server failed', displayedError);
+        console.log(
+            `Request to EN health check server failed ${displayedError}, in CI you can see more details 
+            in "Show snapshot-creator.log logs" and "Show contract_verifier.log logs" steps`
+        );
         return null;
     }
 }

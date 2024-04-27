@@ -11,7 +11,7 @@ use crate::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     priority_op_onchain_data::PriorityOpOnchainData,
     web3::signing::keccak256,
-    AccountTreeId, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction,
+    AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
 };
 
 /// Represents a successfully deployed smart contract.
@@ -59,29 +59,43 @@ pub struct L1BatchHeader {
     pub pubdata_input: Option<Vec<u8>>,
 }
 
-/// Holder for the miniblock metadata that is not available from transactions themselves.
+/// Holder for the L2 block metadata that is not available from transactions themselves.
 #[derive(Debug, Clone, PartialEq)]
-pub struct MiniblockHeader {
-    pub number: MiniblockNumber,
+pub struct L2BlockHeader {
+    pub number: L2BlockNumber,
     pub timestamp: u64,
     pub hash: H256,
     pub l1_tx_count: u16,
     pub l2_tx_count: u16,
     pub fee_account_address: Address,
-    pub base_fee_per_gas: u64, // Min wei per gas that txs in this miniblock need to have.
+    pub base_fee_per_gas: u64, // Min wei per gas that txs in this L2 block need to have.
 
     pub batch_fee_input: BatchFeeInput,
     pub gas_per_pubdata_limit: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub protocol_version: Option<ProtocolVersionId>,
-    /// The maximal number of virtual blocks to be created in the miniblock.
+    /// The maximal number of virtual blocks to be created in the L2 block.
     pub virtual_blocks: u32,
+
+    /// The formal value of the gas limit for the L2 block.
+    /// This value should bound the maximal amount of gas that can be spent by transactions in the L2 block.
+    /// Note, that it is an `u64`, i.e. while the computational limit for the bootloader is an `u32` a much larger
+    /// amount of gas can be spent on pubdata.
+    pub gas_limit: u64,
 }
 
-/// Data needed to execute a miniblock in the VM.
-#[derive(Debug)]
-pub struct MiniblockExecutionData {
-    pub number: MiniblockNumber,
+/// Structure that represents the data is returned by the storage oracle during batch execution.
+pub struct StorageOracleInfo {
+    /// The refunds returned by the storage oracle.
+    pub storage_refunds: Vec<u32>,
+    // Pubdata costs are available only since v1.5.0, so we allow them to be optional.
+    pub pubdata_costs: Option<Vec<i32>>,
+}
+
+/// Data needed to execute an L2 block in the VM.
+#[derive(Debug, PartialEq, Clone)]
+pub struct L2BlockExecutionData {
+    pub number: L2BlockNumber,
     pub timestamp: u64,
     pub prev_block_hash: H256,
     pub virtual_blocks: u32,
@@ -176,29 +190,29 @@ impl ops::AddAssign for BlockGasCount {
     }
 }
 
-/// Hasher of miniblock contents used by the VM.
+/// Hasher of L2 block contents used by the VM.
 #[derive(Debug)]
-pub struct MiniblockHasher {
-    number: MiniblockNumber,
+pub struct L2BlockHasher {
+    number: L2BlockNumber,
     timestamp: u64,
-    prev_miniblock_hash: H256,
+    prev_l2_block_hash: H256,
     txs_rolling_hash: H256,
 }
 
-impl MiniblockHasher {
+impl L2BlockHasher {
     /// At the beginning of the zkSync, the hashes of the blocks could be calculated as the hash of their number.
-    /// This method returns the hash of such miniblocks.
-    pub fn legacy_hash(miniblock_number: MiniblockNumber) -> H256 {
-        H256(keccak256(&miniblock_number.0.to_be_bytes()))
+    /// This method returns the hash of such L2 blocks.
+    pub fn legacy_hash(l2_block_number: L2BlockNumber) -> H256 {
+        H256(keccak256(&l2_block_number.0.to_be_bytes()))
     }
 
-    /// Creates a new hasher with the specified params. This assumes a miniblock without transactions;
+    /// Creates a new hasher with the specified params. This assumes a L2 block without transactions;
     /// transaction hashes can be supplied using [`Self::push_tx_hash()`].
-    pub fn new(number: MiniblockNumber, timestamp: u64, prev_miniblock_hash: H256) -> Self {
+    pub fn new(number: L2BlockNumber, timestamp: u64, prev_l2_block_hash: H256) -> Self {
         Self {
             number,
             timestamp,
-            prev_miniblock_hash,
+            prev_l2_block_hash,
             txs_rolling_hash: H256::zero(),
         }
     }
@@ -209,26 +223,26 @@ impl MiniblockHasher {
         self.txs_rolling_hash = concat_and_hash(self.txs_rolling_hash, tx_hash);
     }
 
-    /// Returns the hash of the miniblock.
+    /// Returns the hash of the L2 block.
     ///
     /// For newer protocol versions, the hash is computed as
     ///
     /// ```text
-    /// keccak256(u256_be(number) ++ u256_be(timestamp) ++ prev_miniblock_hash ++ txs_rolling_hash)
+    /// keccak256(u256_be(number) ++ u256_be(timestamp) ++ prev_l2_block_hash ++ txs_rolling_hash)
     /// ```
     ///
     /// Here, `u256_be` is the big-endian 256-bit serialization of a number, and `txs_rolling_hash`
-    /// is *the rolling hash* of miniblock transactions. `txs_rolling_hash` is calculated the following way:
+    /// is *the rolling hash* of L2 block transactions. `txs_rolling_hash` is calculated the following way:
     ///
-    /// - If the miniblock has 0 transactions, then `txs_rolling_hash` is equal to `H256::zero()`.
-    /// - If the miniblock has i transactions, then `txs_rolling_hash` is equal to `H(H_{i-1}, H(tx_i))`, where
-    ///   `H_{i-1}` is the `txs_rolling_hash` of the first i-1 transactions.
+    /// - If the L2 block has 0 transactions, then `txs_rolling_hash` is equal to `H256::zero()`.
+    /// - If the L2 block has i transactions, then `txs_rolling_hash` is equal to `H(H_{i-1}, H(tx_i))`, where
+    ///   `H_{i-1}` is the `txs_rolling_hash` of the first `i - 1` transactions.
     pub fn finalize(self, protocol_version: ProtocolVersionId) -> H256 {
         if protocol_version >= ProtocolVersionId::Version13 {
             let mut digest = [0_u8; 128];
             U256::from(self.number.0).to_big_endian(&mut digest[0..32]);
             U256::from(self.timestamp).to_big_endian(&mut digest[32..64]);
-            digest[64..96].copy_from_slice(self.prev_miniblock_hash.as_bytes());
+            digest[64..96].copy_from_slice(self.prev_l2_block_hash.as_bytes());
             digest[96..128].copy_from_slice(self.txs_rolling_hash.as_bytes());
             H256(keccak256(&digest))
         } else {
@@ -261,37 +275,36 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_legacy_miniblock_hashes() {
+    fn test_legacy_l2_block_hashes() {
         // The comparing with the hash taken from explorer
         let expected_hash = "6a13b75b5982035ebb28999fbf6f54e7d7fad9e290d5c5f99e7c7d75d42b6099"
             .parse()
             .unwrap();
         assert_eq!(
-            MiniblockHasher::legacy_hash(MiniblockNumber(11470850)),
+            L2BlockHasher::legacy_hash(L2BlockNumber(11470850)),
             expected_hash
         )
     }
 
     #[test]
-    fn test_miniblock_hash() {
+    fn test_l2_block_hash() {
         // Comparing with a constant hash generated from a contract:
         let expected_hash: H256 =
             "c4e184fa9dde8d81aa085f3d1831b00be0a2f4e40218ff1b3456684e7eeccdfe"
                 .parse()
                 .unwrap();
-        let prev_miniblock_hash =
-            "9b14f83c434b860168ed4081f7b2a65f432f68bfea86ddf3351c02bc855dd721"
-                .parse()
-                .unwrap();
+        let prev_l2_block_hash = "9b14f83c434b860168ed4081f7b2a65f432f68bfea86ddf3351c02bc855dd721"
+            .parse()
+            .unwrap();
         let txs_rolling_hash = "67506e289f13aee79b8de3bfd99f460f46135028b85eee9da760a17a4453fb64"
             .parse()
             .unwrap();
         assert_eq!(
             expected_hash,
-            MiniblockHasher {
-                number: MiniblockNumber(1),
+            L2BlockHasher {
+                number: L2BlockNumber(1),
                 timestamp: 12,
-                prev_miniblock_hash,
+                prev_l2_block_hash,
                 txs_rolling_hash,
             }
             .finalize(ProtocolVersionId::latest())

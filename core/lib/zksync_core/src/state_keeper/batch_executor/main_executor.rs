@@ -15,18 +15,15 @@ use tokio::{
     runtime::Handle,
     sync::{mpsc, watch},
 };
-use zksync_state::{ReadStorage, StorageView, WriteStorage};
+use zksync_shared_metrics::{InteractionType, TxStage, APP_METRICS};
+use zksync_state::{ReadStorage, ReadStorageFactory, StorageView, WriteStorage};
 use zksync_types::{vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
-use crate::{
-    metrics::{InteractionType, TxStage, APP_METRICS},
-    state_keeper::{
-        metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
-        state_keeper_storage::ReadStorageFactory,
-        types::ExecutionMetricsForCriteria,
-    },
+use crate::state_keeper::{
+    metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
+    types::ExecutionMetricsForCriteria,
 };
 
 /// The default implementation of [`BatchExecutor`].
@@ -73,7 +70,9 @@ impl BatchExecutor for MainBatchExecutor {
         let stop_receiver = stop_receiver.clone();
         let handle = tokio::task::spawn_blocking(move || {
             if let Some(storage) = Handle::current()
-                .block_on(storage_factory.access_storage(&stop_receiver))
+                .block_on(
+                    storage_factory.access_storage(&stop_receiver, l1_batch_params.number - 1),
+                )
                 .expect("failed getting access to state keeper storage")
             {
                 executor.run(storage, l1_batch_params, system_env);
@@ -108,7 +107,7 @@ impl CommandReceiver {
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
     ) {
-        tracing::info!("Starting executing batch #{:?}", &l1_batch_params.number);
+        tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
 
         let storage_view = StorageView::new(secondary_storage).to_rc_ptr();
 
@@ -124,8 +123,8 @@ impl CommandReceiver {
                     self.rollback_last_tx(&mut vm);
                     resp.send(()).unwrap();
                 }
-                Command::StartNextMiniblock(l2_block_env, resp) => {
-                    self.start_next_miniblock(l2_block_env, &mut vm);
+                Command::StartNextL2Block(l2_block_env, resp) => {
+                    self.start_next_l2_block(l2_block_env, &mut vm);
                     resp.send(()).unwrap();
                 }
                 Command::FinishBatch(resp) => {
@@ -144,7 +143,7 @@ impl CommandReceiver {
             }
         }
         // State keeper can exit because of stop signal, so it's OK to exit mid-batch.
-        tracing::info!("State keeper exited with an unfinished batch");
+        tracing::info!("State keeper exited with an unfinished L1 batch");
     }
 
     fn execute_tx<S: WriteStorage>(
@@ -192,7 +191,7 @@ impl CommandReceiver {
         latency.observe();
     }
 
-    fn start_next_miniblock<S: WriteStorage>(
+    fn start_next_l2_block<S: WriteStorage>(
         &self,
         l2_block_env: L2BlockEnv,
         vm: &mut VmInstance<S, HistoryEnabled>,

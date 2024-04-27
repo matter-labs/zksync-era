@@ -12,8 +12,6 @@ impl FromEnv for ApiConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             web3_json_rpc: Web3JsonRpcConfig::from_env().context("Web3JsonRpcConfig")?,
-            contract_verification: ContractVerificationApiConfig::from_env()
-                .context("ContractVerificationApiConfig")?,
             prometheus: PrometheusConfig::from_env().context("PrometheusConfig")?,
             healthcheck: HealthCheckConfig::from_env().context("HealthCheckConfig")?,
             merkle_tree: MerkleTreeApiConfig::from_env().context("MerkleTreeApiConfig")?,
@@ -48,10 +46,10 @@ impl FromEnv for MerkleTreeApiConfig {
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU32;
+    use std::num::{NonZeroU32, NonZeroUsize};
 
     use super::*;
-    use crate::test_utils::{hash, EnvMutex};
+    use crate::test_utils::{addr, hash, EnvMutex};
 
     static MUTEX: EnvMutex = EnvMutex::new();
 
@@ -76,7 +74,6 @@ mod tests {
                 estimate_gas_scale_factor: 1.0f64,
                 gas_price_scale_factor: 1.2,
                 estimate_gas_acceptable_overestimation: 1000,
-                l1_to_l2_transactions_compatibility_mode: true,
                 max_tx_size: 1000000,
                 vm_execution_cache_misses_limit: None,
                 vm_concurrency_limit: Some(512),
@@ -86,14 +83,21 @@ mod tests {
                 fee_history_limit: Some(100),
                 max_batch_request_size: Some(200),
                 max_response_body_size_mb: Some(10),
+                max_response_body_size_overrides_mb: [
+                    ("eth_call", NonZeroUsize::new(1).unwrap()),
+                    ("eth_getTransactionReceipt", NonZeroUsize::MAX),
+                    ("zks_getProof", NonZeroUsize::new(32).unwrap()),
+                ]
+                .into_iter()
+                .collect(),
                 websocket_requests_per_minute_limit: Some(NonZeroU32::new(10).unwrap()),
                 tree_api_url: None,
                 mempool_cache_update_interval: Some(50),
                 mempool_cache_size: Some(10000),
-            },
-            contract_verification: ContractVerificationApiConfig {
-                port: 3070,
-                url: "http://127.0.0.1:3070".into(),
+                whitelisted_tokens_for_aa: vec![
+                    addr("0x0000000000000000000000000000000000000001"),
+                    addr("0x0000000000000000000000000000000000000002"),
+                ],
             },
             prometheus: PrometheusConfig {
                 listener_port: 3312,
@@ -126,9 +130,9 @@ mod tests {
             API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR=1.2
             API_WEB3_JSON_RPC_REQUEST_TIMEOUT=10
             API_WEB3_JSON_RPC_ACCOUNT_PKS="0x0000000000000000000000000000000000000000000000000000000000000001,0x0000000000000000000000000000000000000000000000000000000000000002"
+            API_WEB3_JSON_RPC_WHITELISTED_TOKENS_FOR_AA="0x0000000000000000000000000000000000000001,0x0000000000000000000000000000000000000002"
             API_WEB3_JSON_RPC_ESTIMATE_GAS_SCALE_FACTOR=1.0
             API_WEB3_JSON_RPC_ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION=1000
-            API_WEB3_JSON_RPC_L1_TO_L2_TRANSACTIONS_COMPATIBILITY_MODE=true
             API_WEB3_JSON_RPC_MAX_TX_SIZE=1000000
             API_WEB3_JSON_RPC_VM_CONCURRENCY_LIMIT=512
             API_WEB3_JSON_RPC_FACTORY_DEPS_CACHE_SIZE_MB=128
@@ -142,6 +146,7 @@ mod tests {
             API_CONTRACT_VERIFICATION_PORT="3070"
             API_CONTRACT_VERIFICATION_URL="http://127.0.0.1:3070"
             API_WEB3_JSON_RPC_MAX_RESPONSE_BODY_SIZE_MB=10
+            API_WEB3_JSON_RPC_MAX_RESPONSE_BODY_SIZE_OVERRIDES_MB="eth_call=1, eth_getTransactionReceipt=None, zks_getProof=32"
             API_PROMETHEUS_LISTENER_PORT="3312"
             API_PROMETHEUS_PUSHGATEWAY_URL="http://127.0.0.1:9091"
             API_PROMETHEUS_PUSH_INTERVAL_MS=100

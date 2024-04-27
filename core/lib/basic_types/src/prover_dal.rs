@@ -1,5 +1,5 @@
 //! Types exposed by the prover DAL for general-purpose use.
-use std::{net::IpAddr, ops::Add};
+use std::{net::IpAddr, ops::Add, str::FromStr};
 
 use chrono::{DateTime, Duration, Utc};
 
@@ -204,7 +204,7 @@ pub struct JobExtendedStatistics {
     pub active_area: Vec<ProverJobInfo>,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum GpuProverInstanceStatus {
     // The instance is available for processing.
     Available,
@@ -214,4 +214,18 @@ pub enum GpuProverInstanceStatus {
     Reserved,
     // The instance is not alive anymore.
     Dead,
+}
+
+impl FromStr for GpuProverInstanceStatus {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "available" => Ok(Self::Available),
+            "full" => Ok(Self::Full),
+            "reserved" => Ok(Self::Reserved),
+            "dead" => Ok(Self::Dead),
+            _ => Err(()),
+        }
+    }
 }

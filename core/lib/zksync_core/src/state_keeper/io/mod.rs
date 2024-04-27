@@ -6,19 +6,18 @@ use multivm::interface::{L1BatchEnv, SystemEnv};
 use vm_utils::storage::l1_batch_params;
 use zksync_contracts::BaseSystemContracts;
 use zksync_types::{
-    block::MiniblockExecutionData, fee_model::BatchFeeInput, protocol_upgrade::ProtocolUpgradeTx,
+    block::L2BlockExecutionData, fee_model::BatchFeeInput, protocol_upgrade::ProtocolUpgradeTx,
     Address, L1BatchNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 
 pub use self::{
     common::IoCursor,
     output_handler::{OutputHandler, StateKeeperOutputHandler},
-    persistence::{MiniblockSealerTask, StateKeeperPersistence},
+    persistence::{L2BlockSealerTask, StateKeeperPersistence},
 };
 use super::seal_criteria::IoSealCriteria;
 
 pub(crate) mod common;
-pub(crate) mod fee_address_migration;
 pub(crate) mod mempool;
 mod output_handler;
 mod persistence;
@@ -40,21 +39,21 @@ pub struct PendingBatchData {
     /// (e.g. timestamp) are the same, so transaction would have the same result after re-execution.
     pub(crate) l1_batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
-    /// List of miniblocks and corresponding transactions that were executed within batch.
-    pub(crate) pending_miniblocks: Vec<MiniblockExecutionData>,
+    /// List of L2 blocks and corresponding transactions that were executed within batch.
+    pub(crate) pending_l2_blocks: Vec<L2BlockExecutionData>,
 }
 
 #[derive(Debug, Copy, Clone, Default)]
-pub struct MiniblockParams {
-    /// The timestamp of the miniblock
+pub struct L2BlockParams {
+    /// The timestamp of the L2 block.
     pub(crate) timestamp: u64,
-    /// The maximal number of virtual blocks that can be created within this miniblock.
-    /// During the migration from displaying users batch.number to L2 block (i.e. miniblock) number in Q3 2023
+    /// The maximal number of virtual blocks that can be created within this L2 block.
+    /// During the migration from displaying users `batch.number` to L2 block number in Q3 2023
     /// in order to make the process smoother for users, we temporarily display the virtual blocks for users.
     ///
-    /// Virtual blocks start their number with batch number and will increase until they reach the miniblock number.
-    /// Note that it is the *maximal* number of virtual blocks that can be created within this miniblock since
-    /// once the virtual blocks' number reaches the miniblock number, they will never be allowed to exceed those, i.e.
+    /// Virtual blocks start their number with batch number and will increase until they reach the L2 block number.
+    /// Note that it is the *maximal* number of virtual blocks that can be created within this L2 block since
+    /// once the virtual blocks' number reaches the L2 block number, they will never be allowed to exceed those, i.e.
     /// any "excess" created blocks will be ignored.
     pub(crate) virtual_blocks: u32,
 }
@@ -70,8 +69,8 @@ pub struct L1BatchParams {
     pub(crate) operator_address: Address,
     /// Fee parameters to be used in the new L1 batch.
     pub(crate) fee_input: BatchFeeInput,
-    /// Parameters of the first miniblock in the batch.
-    pub(crate) first_miniblock: MiniblockParams,
+    /// Parameters of the first L2 block in the batch.
+    pub(crate) first_l2_block: L2BlockParams,
 }
 
 impl L1BatchParams {
@@ -85,15 +84,15 @@ impl L1BatchParams {
         l1_batch_params(
             cursor.l1_batch,
             self.operator_address,
-            self.first_miniblock.timestamp,
+            self.first_l2_block.timestamp,
             previous_batch_hash,
             self.fee_input,
-            cursor.next_miniblock,
-            cursor.prev_miniblock_hash,
+            cursor.next_l2_block,
+            cursor.prev_l2_block_hash,
             contracts,
             self.validation_computational_gas_limit,
             self.protocol_version,
-            self.first_miniblock.virtual_blocks,
+            self.first_l2_block.virtual_blocks,
             chain_id,
         )
     }
@@ -101,7 +100,7 @@ impl L1BatchParams {
 
 /// Provides the interactive layer for the state keeper:
 /// it's used to receive volatile parameters (such as batch parameters) and sequence transactions
-/// providing miniblock and L1 batch boundaries for them.
+/// providing L2 block and L1 batch boundaries for them.
 ///
 /// All errors returned from this method are treated as unrecoverable.
 #[async_trait]
@@ -121,12 +120,12 @@ pub trait StateKeeperIO: 'static + Send + fmt::Debug + IoSealCriteria {
         max_wait: Duration,
     ) -> anyhow::Result<Option<L1BatchParams>>;
 
-    /// Blocks for up to `max_wait` until the parameters for the next miniblock are available.
-    async fn wait_for_new_miniblock_params(
+    /// Blocks for up to `max_wait` until the parameters for the next L2 block are available.
+    async fn wait_for_new_l2_block_params(
         &mut self,
         cursor: &IoCursor,
         max_wait: Duration,
-    ) -> anyhow::Result<Option<MiniblockParams>>;
+    ) -> anyhow::Result<Option<L2BlockParams>>;
 
     /// Blocks for up to `max_wait` until the next transaction is available for execution.
     /// Returns `None` if no transaction became available until the timeout.

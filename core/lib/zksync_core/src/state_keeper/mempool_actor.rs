@@ -21,15 +21,14 @@ use crate::{fee_model::BatchFeeModelInputProvider, utils::pending_protocol_versi
 pub async fn l2_tx_filter(
     batch_fee_input_provider: &dyn BatchFeeModelInputProvider,
     vm_version: VmVersion,
-) -> L2TxFilter {
-    let fee_input = batch_fee_input_provider.get_batch_fee_input().await;
-
+) -> anyhow::Result<L2TxFilter> {
+    let fee_input = batch_fee_input_provider.get_batch_fee_input().await?;
     let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(fee_input, vm_version);
-    L2TxFilter {
+    Ok(L2TxFilter {
         fee_input,
         fee_per_gas: base_fee,
         gas_per_pubdata: gas_per_pubdata as u32,
-    }
+    })
 }
 
 #[derive(Debug)]
@@ -73,11 +72,7 @@ impl MempoolFetcher {
                 .context("failed removing stuck transactions")?;
             tracing::info!("Number of stuck txs was removed: {removed_txs}");
         }
-        storage
-            .transactions_dal()
-            .reset_mempool()
-            .await
-            .context("failed resetting mempool")?;
+        storage.transactions_dal().reset_mempool().await?;
         drop(storage);
 
         loop {
@@ -96,7 +91,8 @@ impl MempoolFetcher {
                 self.batch_fee_input_provider.as_ref(),
                 protocol_version.into(),
             )
-            .await;
+            .await
+            .context("failed creating L2 transaction filter")?;
 
             let transactions = storage
                 .transactions_dal()
@@ -161,7 +157,7 @@ async fn get_transaction_nonces(
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        fee::TransactionExecutionMetrics, MiniblockNumber, PriorityOpId, ProtocolVersionId,
+        fee::TransactionExecutionMetrics, L2BlockNumber, PriorityOpId, ProtocolVersionId,
         StorageLog, H256,
     };
     use zksync_utils::u256_to_h256;
@@ -192,7 +188,7 @@ mod tests {
         let nonce_log = StorageLog::new_write_log(nonce_key, u256_to_h256(42.into()));
         storage
             .storage_logs_dal()
-            .insert_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![nonce_log])])
+            .insert_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![nonce_log])])
             .await
             .unwrap();
 
@@ -217,7 +213,7 @@ mod tests {
 
     #[tokio::test]
     async fn syncing_mempool_basics() {
-        let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+        let pool = ConnectionPool::constrained_test_pool(1).await;
         let mut storage = pool.connection().await.unwrap();
         insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
@@ -225,8 +221,9 @@ mod tests {
         drop(storage);
 
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
-        let fee_params_provider = Arc::new(MockBatchFeeParamsProvider::default());
-        let fee_input = fee_params_provider.get_batch_fee_input().await;
+        let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
+            Arc::new(MockBatchFeeParamsProvider::default());
+        let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
         let (base_fee, gas_per_pubdata) =
             derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
 
@@ -247,7 +244,7 @@ mod tests {
         let mut storage = pool.connection().await.unwrap();
         storage
             .transactions_dal()
-            .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&transaction, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         drop(storage);
@@ -283,8 +280,9 @@ mod tests {
         drop(storage);
 
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
-        let fee_params_provider = Arc::new(MockBatchFeeParamsProvider::default());
-        let fee_input = fee_params_provider.get_batch_fee_input().await;
+        let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
+            Arc::new(MockBatchFeeParamsProvider::default());
+        let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
         let (base_fee, gas_per_pubdata) =
             derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
 
@@ -302,7 +300,7 @@ mod tests {
         let mut storage = pool.connection().await.unwrap();
         storage
             .transactions_dal()
-            .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&transaction, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         drop(storage);
@@ -324,8 +322,9 @@ mod tests {
         drop(storage);
 
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
-        let fee_params_provider = Arc::new(MockBatchFeeParamsProvider::default());
-        let fee_input = fee_params_provider.get_batch_fee_input().await;
+        let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
+            Arc::new(MockBatchFeeParamsProvider::default());
+        let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
         let (base_fee, gas_per_pubdata) =
             derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
 
@@ -349,12 +348,12 @@ mod tests {
         let mut storage = pool.connection().await.unwrap();
         storage
             .storage_logs_dal()
-            .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![nonce_log])])
+            .append_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![nonce_log])])
             .await
             .unwrap();
         storage
             .transactions_dal()
-            .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&transaction, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         drop(storage);

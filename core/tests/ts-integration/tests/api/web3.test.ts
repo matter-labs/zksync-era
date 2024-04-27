@@ -2,14 +2,14 @@
  * This suite contains tests for the Web3 API compatibility and zkSync-specific extensions.
  */
 import { TestMaster } from '../../src';
-import * as zksync from 'zksync-web3';
-import { types } from 'zksync-web3';
-import { ethers, Event } from 'ethers';
+import * as zksync from 'zksync-ethers';
+import { types } from 'zksync-ethers';
+import { BigNumberish, ethers, Event } from 'ethers';
 import { serialize } from '@ethersproject/transactions';
 import { deployContract, getTestContract, waitForNewL1Batch, anyTransaction } from '../../src/helpers';
 import { shouldOnlyTakeFee } from '../../src/modifiers/balance-checker';
 import fetch, { RequestInit } from 'node-fetch';
-import { EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE } from 'zksync-web3/build/src/utils';
+import { EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE } from 'zksync-ethers/build/src/utils';
 // Regular expression to match variable-length hex number.
 const HEX_VALUE_REGEX = /^0x[\da-fA-F]*$/;
 const DATE_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6})?/;
@@ -23,11 +23,13 @@ describe('web3 API compatibility tests', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let l2Token: string;
+    let chainId: BigNumberish;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         l2Token = testMaster.environment().erc20Token.l2Address;
+        chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
     });
 
     test('Should test block/transaction web3 methods', async () => {
@@ -140,7 +142,7 @@ describe('web3 API compatibility tests', () => {
     test('Should check the network version', async () => {
         // Valid network IDs for zkSync are greater than 270.
         // This test suite may run on different envs, so we don't expect a particular ID.
-        await expect(alice.provider.send('net_version', [])).resolves.toMatch(/^27\d|28\d$/);
+        await expect(alice.provider.send('net_version', [])).resolves.toMatch(chainId.toString());
     });
 
     // @ts-ignore
@@ -212,11 +214,6 @@ describe('web3 API compatibility tests', () => {
         });
     });
 
-    test('Should test various token methods', async () => {
-        const tokens = await alice.provider.getConfirmedTokens();
-        expect(tokens).not.toHaveLength(0); // Should not be an empty array.
-    });
-
     test('Should check transactions from API / Legacy tx', async () => {
         const LEGACY_TX_TYPE = 0;
         const legacyTx = await alice.sendTransaction({
@@ -244,23 +241,30 @@ describe('web3 API compatibility tests', () => {
 
     test('Should test getFilterChanges for pending transactions', async () => {
         if (process.env.EN_MAIN_NODE_URL) {
-            // Pending transactions logic doesn't work on EN since we don't have proper mempool -
+            // Pending transactions logic doesn't work on EN since we don't have a proper mempool -
             // transactions only appear in the DB after they are included in the block.
             return;
         }
 
         // We will need to wait until the mempool cache on the server is updated.
         // The default update period is 50 ms, so we will wait for 75 ms to be sure.
-        const mempoolCacheWait = 50 + 25;
+        const MEMPOOL_CACHE_WAIT = 50 + 25;
 
-        let filterId = await alice.provider.send('eth_newPendingTransactionFilter', []);
-        let changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
+        const filterId = await alice.provider.send('eth_newPendingTransactionFilter', []);
+        let changes: string[] = await alice.provider.send('eth_getFilterChanges', [filterId]);
+
         const tx1 = await alice.sendTransaction({
             to: alice.address
         });
-        await zksync.utils.sleep(mempoolCacheWait);
-        changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
+        testMaster.reporter.debug(`Sent a transaction ${tx1.hash}`);
+
+        while (!changes.includes(tx1.hash)) {
+            await zksync.utils.sleep(MEMPOOL_CACHE_WAIT);
+            changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
+            testMaster.reporter.debug('Received filter changes', changes);
+        }
         expect(changes).toContain(tx1.hash);
+
         const tx2 = await alice.sendTransaction({
             to: alice.address
         });
@@ -270,12 +274,19 @@ describe('web3 API compatibility tests', () => {
         const tx4 = await alice.sendTransaction({
             to: alice.address
         });
-        await zksync.utils.sleep(mempoolCacheWait);
-        changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
-        expect(changes).not.toContain(tx1.hash);
-        expect(changes).toContain(tx2.hash);
-        expect(changes).toContain(tx3.hash);
-        expect(changes).toContain(tx4.hash);
+        const remainingHashes = new Set([tx2.hash, tx3.hash, tx4.hash]);
+        testMaster.reporter.debug('Sent new transactions with hashes', remainingHashes);
+
+        while (remainingHashes.size > 0) {
+            await zksync.utils.sleep(MEMPOOL_CACHE_WAIT);
+            changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
+            testMaster.reporter.debug('Received filter changes', changes);
+
+            expect(changes).not.toContain(tx1.hash);
+            for (const receivedHash of changes) {
+                remainingHashes.delete(receivedHash);
+            }
+        }
     });
 
     test('Should test pub-sub API: blocks', async () => {
@@ -481,7 +492,8 @@ describe('web3 API compatibility tests', () => {
 
         const sentTx = await alice.deposit({
             token: zksync.utils.ETH_ADDRESS,
-            amount
+            amount,
+            approveBaseERC20: true
         });
         const receipt = await sentTx.wait();
 
@@ -689,12 +701,11 @@ describe('web3 API compatibility tests', () => {
             from: alice.address,
             nonce: senderNonce,
             gasLimit: ethers.BigNumber.from(300000),
+            gasPrice,
             data: '0x',
             value: 0,
             chainId,
             type: 113,
-            maxPriorityFeePerGas: gasPrice,
-            maxFeePerGas: gasPrice,
             customData: {
                 gasPerPubdata: '0'
             }

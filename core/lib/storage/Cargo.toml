@@ -17,6 +17,7 @@ once_cell.workspace = true
 rocksdb = { workspace = true, features = [
     "snappy",
 ] }
+thread_local.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]

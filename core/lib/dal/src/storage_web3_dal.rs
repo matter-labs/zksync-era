@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 
-use zksync_db_connection::{connection::Connection, instrument::InstrumentExt};
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, storage_key_for_standard_token_balance},
-    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, Nonce, StorageKey,
+    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, Nonce, StorageKey,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
 };
 use zksync_utils::h256_to_u256;
 
-use crate::{models::storage_block::ResolvedL1BatchForMiniblock, Core, CoreDal, SqlxError};
+use crate::{models::storage_block::ResolvedL1BatchForL2Block, Core, CoreDal};
 
 #[derive(Debug)]
 pub struct StorageWeb3Dal<'a, 'c> {
@@ -20,8 +20,8 @@ impl StorageWeb3Dal<'_, '_> {
     pub async fn get_address_historical_nonce(
         &mut self,
         address: Address,
-        block_number: MiniblockNumber,
-    ) -> sqlx::Result<U256> {
+        block_number: L2BlockNumber,
+    ) -> DalResult<U256> {
         let nonce_key = get_nonce_key(&address);
         let nonce_value = self
             .get_historical_value_unchecked(&nonce_key, block_number)
@@ -34,7 +34,7 @@ impl StorageWeb3Dal<'_, '_> {
     pub async fn get_nonces_for_addresses(
         &mut self,
         addresses: &[Address],
-    ) -> sqlx::Result<HashMap<Address, Nonce>> {
+    ) -> DalResult<HashMap<Address, Nonce>> {
         let nonce_keys: HashMap<_, _> = addresses
             .iter()
             .map(|address| (get_nonce_key(address).hashed_key(), *address))
@@ -58,8 +58,8 @@ impl StorageWeb3Dal<'_, '_> {
         &mut self,
         token_id: AccountTreeId,
         account_id: AccountTreeId,
-        block_number: MiniblockNumber,
-    ) -> sqlx::Result<U256> {
+        block_number: L2BlockNumber,
+    ) -> DalResult<U256> {
         let key = storage_key_for_standard_token_balance(token_id, account_id.address());
         let balance = self
             .get_historical_value_unchecked(&key, block_number)
@@ -68,18 +68,18 @@ impl StorageWeb3Dal<'_, '_> {
     }
 
     /// Gets the current value for the specified `key`.
-    pub async fn get_value(&mut self, key: &StorageKey) -> sqlx::Result<H256> {
-        self.get_historical_value_unchecked(key, MiniblockNumber(u32::MAX))
+    pub async fn get_value(&mut self, key: &StorageKey) -> DalResult<H256> {
+        self.get_historical_value_unchecked(key, L2BlockNumber(u32::MAX))
             .await
     }
 
     /// Gets the current values for the specified `hashed_keys`. The returned map has requested hashed keys as keys
     /// and current storage values as values.
-    pub async fn get_values(&mut self, hashed_keys: &[H256]) -> sqlx::Result<HashMap<H256, H256>> {
+    pub async fn get_values(&mut self, hashed_keys: &[H256]) -> DalResult<HashMap<H256, H256>> {
         let storage_map = self
             .storage
             .storage_logs_dal()
-            .get_storage_values(hashed_keys, MiniblockNumber(u32::MAX))
+            .get_storage_values(hashed_keys, L2BlockNumber(u32::MAX))
             .await?;
         Ok(storage_map
             .into_iter()
@@ -92,8 +92,8 @@ impl StorageWeb3Dal<'_, '_> {
     pub async fn get_historical_value_unchecked(
         &mut self,
         key: &StorageKey,
-        block_number: MiniblockNumber,
-    ) -> sqlx::Result<H256> {
+        block_number: L2BlockNumber,
+    ) -> DalResult<H256> {
         let hashed_key = key.hashed_key();
 
         sqlx::query!(
@@ -117,6 +117,7 @@ impl StorageWeb3Dal<'_, '_> {
         .instrument("get_historical_value_unchecked")
         .report_latency()
         .with_arg("key", &hashed_key)
+        .with_arg("block_number", &block_number)
         .fetch_optional(self.storage)
         .await
         .map(|option_row| {
@@ -126,13 +127,13 @@ impl StorageWeb3Dal<'_, '_> {
         })
     }
 
-    /// Provides information about the L1 batch that the specified miniblock is a part of.
-    /// Assumes that the miniblock is present in the DB; this is not checked, and if this is false,
+    /// Provides information about the L1 batch that the specified L2 block is a part of.
+    /// Assumes that the L2 block is present in the DB; this is not checked, and if this is false,
     /// the returned value will be meaningless.
-    pub async fn resolve_l1_batch_number_of_miniblock(
+    pub async fn resolve_l1_batch_number_of_l2_block(
         &mut self,
-        miniblock_number: MiniblockNumber,
-    ) -> Result<ResolvedL1BatchForMiniblock, SqlxError> {
+        l2_block_number: L2BlockNumber,
+    ) -> DalResult<ResolvedL1BatchForL2Block> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -160,13 +161,15 @@ impl StorageWeb3Dal<'_, '_> {
                     0
                 ) AS "pending_batch!"
             "#,
-            i64::from(miniblock_number.0)
+            i64::from(l2_block_number.0)
         )
-        .fetch_one(self.storage.conn())
+        .instrument("resolve_l1_batch_number_of_l2_block")
+        .with_arg("l2_block_number", &l2_block_number)
+        .fetch_one(self.storage)
         .await?;
 
-        Ok(ResolvedL1BatchForMiniblock {
-            miniblock_l1_batch: row.block_batch.map(|n| L1BatchNumber(n as u32)),
+        Ok(ResolvedL1BatchForL2Block {
+            block_l1_batch: row.block_batch.map(|n| L1BatchNumber(n as u32)),
             pending_l1_batch: L1BatchNumber(row.pending_batch as u32),
         })
     }
@@ -174,7 +177,7 @@ impl StorageWeb3Dal<'_, '_> {
     pub async fn get_l1_batch_number_for_initial_write(
         &mut self,
         key: &StorageKey,
-    ) -> Result<Option<L1BatchNumber>, SqlxError> {
+    ) -> DalResult<Option<L1BatchNumber>> {
         let hashed_key = key.hashed_key();
         let row = sqlx::query!(
             r#"
@@ -202,8 +205,8 @@ impl StorageWeb3Dal<'_, '_> {
     pub async fn get_contract_code_unchecked(
         &mut self,
         address: Address,
-        block_number: MiniblockNumber,
-    ) -> sqlx::Result<Option<Vec<u8>>> {
+        block_number: L2BlockNumber,
+    ) -> DalResult<Option<Vec<u8>>> {
         let hashed_key = get_code_key(&address).hashed_key();
         let row = sqlx::query!(
             r#"
@@ -232,35 +235,37 @@ impl StorageWeb3Dal<'_, '_> {
             i64::from(block_number.0),
             FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_contract_code_unchecked")
+        .with_arg("address", &address)
+        .with_arg("block_number", &block_number)
+        .fetch_optional(self.storage)
         .await?;
         Ok(row.map(|row| row.bytecode))
     }
 
-    /// This method doesn't check if block with number equals to `block_number`
-    /// is present in the database. For such blocks `None` will be returned.
-    pub async fn get_factory_dep_unchecked(
+    /// Given bytecode hash, returns bytecode and L2 block number at which it was inserted.
+    pub async fn get_factory_dep(
         &mut self,
         hash: H256,
-        block_number: MiniblockNumber,
-    ) -> sqlx::Result<Option<Vec<u8>>> {
+    ) -> DalResult<Option<(Vec<u8>, L2BlockNumber)>> {
         let row = sqlx::query!(
             r#"
             SELECT
-                bytecode
+                bytecode,
+                miniblock_number
             FROM
                 factory_deps
             WHERE
                 bytecode_hash = $1
-                AND miniblock_number <= $2
             "#,
             hash.as_bytes(),
-            i64::from(block_number.0)
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_factory_dep")
+        .with_arg("hash", &hash)
+        .fetch_optional(self.storage)
         .await?;
 
-        Ok(row.map(|row| row.bytecode))
+        Ok(row.map(|row| (row.bytecode, L2BlockNumber(row.miniblock_number as u32))))
     }
 }
 
@@ -270,19 +275,20 @@ mod tests {
 
     use super::*;
     use crate::{
-        tests::{create_miniblock_header, create_snapshot_recovery},
+        tests::{create_l2_block_header, create_snapshot_recovery},
         ConnectionPool, Core, CoreDal,
     };
 
     #[tokio::test]
-    async fn resolving_l1_batch_number_of_miniblock() {
+    async fn resolving_l1_batch_number_of_l2_block() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         conn.blocks_dal()
-            .insert_miniblock(&create_miniblock_header(0))
+            .insert_l2_block(&create_l2_block_header(0))
             .await
             .unwrap();
         let l1_batch_header = L1BatchHeader::new(
@@ -296,22 +302,22 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(0))
+            .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
             .await
             .unwrap();
 
-        let first_miniblock = create_miniblock_header(1);
+        let first_l2_block = create_l2_block_header(1);
         conn.blocks_dal()
-            .insert_miniblock(&first_miniblock)
+            .insert_l2_block(&first_l2_block)
             .await
             .unwrap();
 
         let resolved = conn
             .storage_web3_dal()
-            .resolve_l1_batch_number_of_miniblock(MiniblockNumber(0))
+            .resolve_l1_batch_number_of_l2_block(L2BlockNumber(0))
             .await
             .unwrap();
-        assert_eq!(resolved.miniblock_l1_batch, Some(L1BatchNumber(0)));
+        assert_eq!(resolved.block_l1_batch, Some(L1BatchNumber(0)));
         assert_eq!(resolved.pending_l1_batch, L1BatchNumber(1));
         assert_eq!(resolved.expected_l1_batch(), L1BatchNumber(0));
 
@@ -322,13 +328,13 @@ mod tests {
             .unwrap();
         assert_eq!(timestamp, Some(0));
 
-        for pending_miniblock_number in [1, 2] {
+        for pending_l2_block_number in [1, 2] {
             let resolved = conn
                 .storage_web3_dal()
-                .resolve_l1_batch_number_of_miniblock(MiniblockNumber(pending_miniblock_number))
+                .resolve_l1_batch_number_of_l2_block(L2BlockNumber(pending_l2_block_number))
                 .await
                 .unwrap();
-            assert_eq!(resolved.miniblock_l1_batch, None);
+            assert_eq!(resolved.block_l1_batch, None);
             assert_eq!(resolved.pending_l1_batch, L1BatchNumber(1));
             assert_eq!(resolved.expected_l1_batch(), L1BatchNumber(1));
 
@@ -337,35 +343,36 @@ mod tests {
                 .get_expected_l1_batch_timestamp(&resolved)
                 .await
                 .unwrap();
-            assert_eq!(timestamp, Some(first_miniblock.timestamp));
+            assert_eq!(timestamp, Some(first_l2_block.timestamp));
         }
     }
 
     #[tokio::test]
-    async fn resolving_l1_batch_number_of_miniblock_with_snapshot_recovery() {
+    async fn resolving_l1_batch_number_of_l2_block_with_snapshot_recovery() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         let snapshot_recovery = create_snapshot_recovery();
         conn.snapshot_recovery_dal()
             .insert_initial_recovery_status(&snapshot_recovery)
             .await
             .unwrap();
 
-        let first_miniblock = create_miniblock_header(snapshot_recovery.miniblock_number.0 + 1);
+        let first_l2_block = create_l2_block_header(snapshot_recovery.l2_block_number.0 + 1);
         conn.blocks_dal()
-            .insert_miniblock(&first_miniblock)
+            .insert_l2_block(&first_l2_block)
             .await
             .unwrap();
 
         let resolved = conn
             .storage_web3_dal()
-            .resolve_l1_batch_number_of_miniblock(snapshot_recovery.miniblock_number + 1)
+            .resolve_l1_batch_number_of_l2_block(snapshot_recovery.l2_block_number + 1)
             .await
             .unwrap();
-        assert_eq!(resolved.miniblock_l1_batch, None);
+        assert_eq!(resolved.block_l1_batch, None);
         assert_eq!(
             resolved.pending_l1_batch,
             snapshot_recovery.l1_batch_number + 1
@@ -380,7 +387,7 @@ mod tests {
             .get_expected_l1_batch_timestamp(&resolved)
             .await
             .unwrap();
-        assert_eq!(timestamp, Some(first_miniblock.timestamp));
+        assert_eq!(timestamp, Some(first_l2_block.timestamp));
 
         let l1_batch_header = L1BatchHeader::new(
             snapshot_recovery.l1_batch_number + 1,
@@ -393,16 +400,16 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(l1_batch_header.number)
+            .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_header.number)
             .await
             .unwrap();
 
         let resolved = conn
             .storage_web3_dal()
-            .resolve_l1_batch_number_of_miniblock(snapshot_recovery.miniblock_number + 1)
+            .resolve_l1_batch_number_of_l2_block(snapshot_recovery.l2_block_number + 1)
             .await
             .unwrap();
-        assert_eq!(resolved.miniblock_l1_batch, Some(l1_batch_header.number));
+        assert_eq!(resolved.block_l1_batch, Some(l1_batch_header.number));
         assert_eq!(resolved.pending_l1_batch, l1_batch_header.number + 1);
         assert_eq!(resolved.expected_l1_batch(), l1_batch_header.number);
 
@@ -411,6 +418,6 @@ mod tests {
             .get_expected_l1_batch_timestamp(&resolved)
             .await
             .unwrap();
-        assert_eq!(timestamp, Some(first_miniblock.timestamp));
+        assert_eq!(timestamp, Some(first_l2_block.timestamp));
     }
 }

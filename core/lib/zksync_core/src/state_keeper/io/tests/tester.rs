@@ -2,23 +2,23 @@
 
 use std::{slice, sync::Arc, time::Duration};
 
-use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
+use multivm::vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT;
 use zksync_config::{
-    configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode},
+    configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode, wallets::Wallets},
     GasAdjusterConfig,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::clients::MockEthereum;
 use zksync_types::{
-    block::MiniblockHeader,
+    block::L2BlockHeader,
     fee::TransactionExecutionMetrics,
     fee_model::{BatchFeeInput, FeeModelConfig, FeeModelConfigV1},
     l2::L2Tx,
     protocol_version::L1VerifierConfig,
     system_contracts::get_system_smart_contracts,
     tx::TransactionExecutionResult,
-    Address, L2ChainId, MiniblockNumber, PriorityOpId, ProtocolVersionId, H256,
+    L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, H256,
 };
 
 use crate::{
@@ -27,7 +27,7 @@ use crate::{
     l1_gas_price::{GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing},
     state_keeper::{MempoolGuard, MempoolIO},
     utils::testonly::{
-        create_l1_batch, create_l2_transaction, create_miniblock, execute_l2_transaction,
+        create_l1_batch, create_l2_block, create_l2_transaction, execute_l2_transaction,
         DeploymentMode,
     },
 };
@@ -66,6 +66,7 @@ impl Tester {
             pricing_formula_parameter_b: 1.0,
             internal_l1_pricing_multiplier: 1.0,
             internal_enforced_l1_gas_price: None,
+            internal_enforced_pubdata_price: None,
             poll_period: 10,
             max_l1_gas_price: None,
             num_samples_for_blob_base_fee_estimate: 10,
@@ -113,17 +114,16 @@ impl Tester {
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
         let config = StateKeeperConfig {
             minimal_l2_gas_price: self.minimal_l2_gas_price(),
-            virtual_blocks_interval: 1,
-            virtual_blocks_per_miniblock: 1,
-            fee_account_addr: Address::repeat_byte(0x11), // Maintain implicit invariant: fee address is never `Address::zero()`
-            validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+            validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             ..StateKeeperConfig::for_tests()
         };
+        let wallets = Wallets::for_tests();
         let io = MempoolIO::new(
             mempool.clone(),
             Arc::new(batch_fee_input_provider),
             pool,
             &config,
+            wallets.state_keeper.unwrap().fee_account.address(),
             Duration::from_secs(1),
             L2ChainId::from(270),
         )
@@ -142,8 +142,6 @@ impl Tester {
         if storage.blocks_dal().is_genesis_needed().await.unwrap() {
             create_genesis_l1_batch(
                 &mut storage,
-                Address::repeat_byte(0x01),
-                L2ChainId::from(270),
                 ProtocolVersionId::latest(),
                 &self.base_system_contracts,
                 &get_system_smart_contracts(),
@@ -154,7 +152,7 @@ impl Tester {
         }
     }
 
-    pub(super) async fn insert_miniblock(
+    pub(super) async fn insert_l2_block(
         &self,
         pool: &ConnectionPool<Core>,
         number: u32,
@@ -165,29 +163,30 @@ impl Tester {
         let tx = create_l2_transaction(10, 100);
         storage
             .transactions_dal()
-            .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         storage
             .blocks_dal()
-            .insert_miniblock(&MiniblockHeader {
+            .insert_l2_block(&L2BlockHeader {
                 timestamp: self.current_timestamp,
                 base_fee_per_gas,
                 batch_fee_input: fee_input,
                 base_system_contracts_hashes: self.base_system_contracts.hashes(),
-                ..create_miniblock(number)
+                ..create_l2_block(number)
             })
             .await
             .unwrap();
         let tx_result = execute_l2_transaction(tx.clone());
         storage
             .transactions_dal()
-            .mark_txs_as_executed_in_miniblock(
-                MiniblockNumber(number),
+            .mark_txs_as_executed_in_l2_block(
+                L2BlockNumber(number),
                 slice::from_ref(&tx_result),
                 1.into(),
             )
-            .await;
+            .await
+            .unwrap();
         tx_result
     }
 
@@ -206,13 +205,14 @@ impl Tester {
             .unwrap();
         storage
             .blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(batch_header.number)
+            .mark_l2_blocks_as_executed_in_l1_batch(batch_header.number)
             .await
             .unwrap();
         storage
             .transactions_dal()
             .mark_txs_as_executed_in_l1_batch(batch_header.number, tx_results)
-            .await;
+            .await
+            .unwrap();
         storage
             .blocks_dal()
             .set_l1_batch_hash(batch_header.number, H256::default())

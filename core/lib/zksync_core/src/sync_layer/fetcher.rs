@@ -1,18 +1,15 @@
-use anyhow::Context as _;
 use zksync_dal::{Connection, Core, CoreDal};
+use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_types::{
-    api::en::SyncBlock, block::MiniblockHasher, fee_model::BatchFeeInput,
-    helpers::unix_timestamp_ms, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
+    api::en::SyncBlock, block::L2BlockHasher, fee_model::BatchFeeInput, helpers::unix_timestamp_ms,
+    Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
 };
 
 use super::{
     metrics::{L1BatchStage, FETCHER_METRICS},
     sync_action::SyncAction,
 };
-use crate::{
-    metrics::{TxStage, APP_METRICS},
-    state_keeper::io::{common::IoCursor, L1BatchParams, MiniblockParams},
-};
+use crate::state_keeper::io::{common::IoCursor, L1BatchParams, L2BlockParams};
 
 /// Same as [`zksync_types::Transaction`], just with additional guarantees that the "received at" timestamp was set locally.
 /// We cannot transfer `Transaction`s without these timestamps, because this would break backward compatibility.
@@ -42,7 +39,7 @@ impl From<FetchedTransaction> for zksync_types::Transaction {
 /// Common denominator for blocks fetched by an external node.
 #[derive(Debug)]
 pub(crate) struct FetchedBlock {
-    pub number: MiniblockNumber,
+    pub number: L2BlockNumber,
     pub l1_batch_number: L1BatchNumber,
     pub last_in_batch: bool,
     pub protocol_version: ProtocolVersionId,
@@ -57,8 +54,8 @@ pub(crate) struct FetchedBlock {
 }
 
 impl FetchedBlock {
-    fn compute_hash(&self, prev_miniblock_hash: H256) -> H256 {
-        let mut hasher = MiniblockHasher::new(self.number, self.timestamp, prev_miniblock_hash);
+    fn compute_hash(&self, prev_l2_block_hash: H256) -> H256 {
+        let mut hasher = L2BlockHasher::new(self.number, self.timestamp, prev_l2_block_hash);
         for tx in &self.transactions {
             hasher.push_tx_hash(tx.hash());
         }
@@ -76,7 +73,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
 
         if transactions.is_empty() && !block.last_in_batch {
             return Err(anyhow::anyhow!(
-                "Only last miniblock of the batch can be empty"
+                "Only last L2 block of the batch can be empty"
             ));
         }
 
@@ -106,11 +103,7 @@ impl IoCursor {
         let mut this = Self::new(storage).await?;
         // It's important to know whether we have opened a new batch already or just sealed the previous one.
         // Depending on it, we must either insert `OpenBatch` item into the queue, or not.
-        let was_new_batch_open = storage
-            .blocks_dal()
-            .pending_batch_exists()
-            .await
-            .context("Failed checking whether pending L1 batch exists")?;
+        let was_new_batch_open = storage.blocks_dal().pending_batch_exists().await?;
         if !was_new_batch_open {
             this.l1_batch -= 1; // Should continue from the last L1 batch present in the storage
         }
@@ -118,16 +111,16 @@ impl IoCursor {
     }
 
     pub(crate) fn advance(&mut self, block: FetchedBlock) -> Vec<SyncAction> {
-        assert_eq!(block.number, self.next_miniblock);
-        let local_block_hash = block.compute_hash(self.prev_miniblock_hash);
+        assert_eq!(block.number, self.next_l2_block);
+        let local_block_hash = block.compute_hash(self.prev_l2_block_hash);
         if let Some(reference_hash) = block.reference_hash {
             if local_block_hash != reference_hash {
                 // This is a warning, not an assertion because hash mismatch may occur after a reorg.
-                // Indeed, `self.prev_miniblock_hash` may differ from the hash of the updated previous miniblock.
+                // Indeed, `self.prev_l2_block_hash` may differ from the hash of the updated previous L2 block.
                 tracing::warn!(
-                    "Mismatch between the locally computed and received miniblock hash for {block:?}; \
-                     local_block_hash = {local_block_hash:?}, prev_miniblock_hash = {:?}",
-                    self.prev_miniblock_hash
+                    "Mismatch between the locally computed and received L2 block hash for {block:?}; \
+                     local_block_hash = {local_block_hash:?}, prev_l2_block_hash = {:?}",
+                    self.prev_l2_block_hash
                 );
             }
         }
@@ -137,7 +130,7 @@ impl IoCursor {
             assert_eq!(
                 block.l1_batch_number,
                 self.l1_batch.next(),
-                "Unexpected batch number in the next received miniblock"
+                "Unexpected batch number in the next received L2 block"
             );
 
             tracing::info!(
@@ -157,21 +150,21 @@ impl IoCursor {
                         block.fair_pubdata_price,
                         block.l1_gas_price,
                     ),
-                    first_miniblock: MiniblockParams {
+                    first_l2_block: L2BlockParams {
                         timestamp: block.timestamp,
                         virtual_blocks: block.virtual_blocks,
                     },
                 },
                 number: block.l1_batch_number,
-                first_miniblock_number: block.number,
+                first_l2_block_number: block.number,
             });
             FETCHER_METRICS.l1_batch[&L1BatchStage::Open].set(block.l1_batch_number.0.into());
             self.l1_batch += 1;
         } else {
-            // New batch implicitly means a new miniblock, so we only need to push the miniblock action
+            // New batch implicitly means a new L2 block, so we only need to push the L2 block action
             // if it's not a new batch.
-            new_actions.push(SyncAction::Miniblock {
-                params: MiniblockParams {
+            new_actions.push(SyncAction::L2Block {
+                params: L2BlockParams {
                     timestamp: block.timestamp,
                     virtual_blocks: block.virtual_blocks,
                 },
@@ -184,15 +177,15 @@ impl IoCursor {
             .inc_by(block.transactions.len() as u64);
         new_actions.extend(block.transactions.into_iter().map(Into::into));
 
-        // Last miniblock of the batch is a "fictive" miniblock and would be replicated locally.
-        // We don't need to seal it explicitly, so we only put the seal miniblock command if it's not the last miniblock.
+        // Last L2 block of the batch is a "fictive" L2 block and would be replicated locally.
+        // We don't need to seal it explicitly, so we only put the seal L2 block command if it's not the last L2 block.
         if block.last_in_batch {
             new_actions.push(SyncAction::SealBatch);
         } else {
-            new_actions.push(SyncAction::SealMiniblock);
+            new_actions.push(SyncAction::SealL2Block);
         }
-        self.next_miniblock += 1;
-        self.prev_miniblock_hash = local_block_hash;
+        self.next_l2_block += 1;
+        self.prev_l2_block_hash = local_block_hash;
 
         new_actions
     }

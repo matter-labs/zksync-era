@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map::DefaultHasher, HashMap, HashSet},
+    collections::{hash_map::DefaultHasher, HashSet},
     hash::{Hash, Hasher},
     sync::Arc,
     time::Instant,
@@ -15,23 +15,19 @@ use circuit_definitions::{
     encodings::recursion_request::RecursionQueueSimulator,
     zkevm_circuits::fsm_input_output::ClosedFormInputCompactFormWitness,
 };
-use multivm::vm_latest::{
+// TODO: Switch to `vm_latest` once the prover supports v1.5.0
+use multivm::vm_1_4_2::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
 };
-use prover_dal::{
-    fri_witness_generator_dal::FriWitnessJobStatus, ConnectionPool, Prover, ProverDal,
-};
-use rand::Rng;
-use serde::{Deserialize, Serialize};
+use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tracing::Instrument;
 use zkevm_test_harness::{
-    geometry_config::get_geometry_config, toolset::GeometryConfig,
-    utils::generate_eip4844_circuit_and_witness,
+    geometry_config::get_geometry_config, utils::generate_eip4844_circuit_and_witness,
     zkevm_circuits::eip_4844::input::EIP4844OutputDataWitness,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::{Core, CoreDal};
-use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory, StoredObject};
+use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{
@@ -55,7 +51,7 @@ use zksync_types::{
         AggregationRound, Eip4844Blobs, EIP_4844_BLOB_SIZE, MAX_4844_BLOBS_PER_BLOCK,
     },
     protocol_version::ProtocolVersionId,
-    Address, L1BatchNumber, BOOTLOADER_ADDRESS, H256, U256,
+    Address, L1BatchNumber, BOOTLOADER_ADDRESS, H256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
@@ -133,49 +129,15 @@ impl BasicWitnessGenerator {
     async fn process_job_impl(
         object_store: Arc<dyn ObjectStore>,
         connection_pool: ConnectionPool<Core>,
-        prover_connection_pool: ConnectionPool<Prover>,
         basic_job: BasicWitnessGeneratorJob,
         started_at: Instant,
-        config: Arc<FriWitnessGeneratorConfig>,
     ) -> Option<BasicCircuitArtifacts> {
         let BasicWitnessGeneratorJob {
             block_number,
             job,
             eip_4844_blobs,
         } = basic_job;
-        let shall_force_process_block = config
-            .force_process_block
-            .map_or(false, |block| block == block_number.0);
 
-        if let Some(blocks_proving_percentage) = config.blocks_proving_percentage {
-            // Generate random number in (0; 100).
-            let threshold = rand::thread_rng().gen_range(1..100);
-            // We get value higher than `blocks_proving_percentage` with prob = `1 - blocks_proving_percentage`.
-            // In this case job should be skipped.
-            if threshold > blocks_proving_percentage && !shall_force_process_block {
-                WITNESS_GENERATOR_METRICS.skipped_blocks.inc();
-                tracing::info!(
-                    "Skipping witness generation for block {}, blocks_proving_percentage: {}",
-                    block_number.0,
-                    blocks_proving_percentage
-                );
-
-                let mut prover_storage = prover_connection_pool.connection().await.unwrap();
-                let mut transaction = prover_storage.start_transaction().await.unwrap();
-                transaction
-                    .fri_proof_compressor_dal()
-                    .skip_proof_compression_job(block_number)
-                    .await;
-                transaction
-                    .fri_witness_generator_dal()
-                    .mark_witness_job(FriWitnessJobStatus::Skipped, block_number)
-                    .await;
-                transaction.commit().await.unwrap();
-                return None;
-            }
-        }
-
-        WITNESS_GENERATOR_METRICS.sampled_blocks.inc();
         tracing::info!(
             "Starting witness generation of type {:?} for block {}",
             AggregationRound::BasicCircuits,
@@ -185,7 +147,6 @@ impl BasicWitnessGenerator {
         Some(
             process_basic_circuits_job(
                 &*object_store,
-                config,
                 connection_pool,
                 started_at,
                 block_number,
@@ -253,22 +214,15 @@ impl JobProcessor for BasicWitnessGenerator {
         job: BasicWitnessGeneratorJob,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<Option<BasicCircuitArtifacts>>> {
-        let config = Arc::clone(&self.config);
         let object_store = Arc::clone(&self.object_store);
         let connection_pool = self.connection_pool.clone();
-        let prover_connection_pool = self.prover_connection_pool.clone();
         tokio::spawn(async move {
             let block_number = job.block_number;
-            Ok(Self::process_job_impl(
-                object_store,
-                connection_pool,
-                prover_connection_pool,
-                job,
-                started_at,
-                config,
+            Ok(
+                Self::process_job_impl(object_store, connection_pool, job, started_at)
+                    .instrument(tracing::info_span!("basic_circuit", %block_number))
+                    .await,
             )
-            .instrument(tracing::info_span!("basic_circuit", %block_number))
-            .await)
         })
     }
 
@@ -334,7 +288,6 @@ impl JobProcessor for BasicWitnessGenerator {
 #[allow(clippy::too_many_arguments)]
 async fn process_basic_circuits_job(
     object_store: &dyn ObjectStore,
-    config: Arc<FriWitnessGeneratorConfig>,
     connection_pool: ConnectionPool<Core>,
     started_at: Instant,
     block_number: L1BatchNumber,
@@ -347,7 +300,6 @@ async fn process_basic_circuits_job(
         generate_witness(
             block_number,
             object_store,
-            config,
             connection_pool,
             witness_gen_input,
             eip_4844_blobs,
@@ -534,7 +486,6 @@ async fn build_basic_circuits_witness_generator_input(
 async fn generate_witness(
     block_number: L1BatchNumber,
     object_store: &dyn ObjectStore,
-    config: Arc<FriWitnessGeneratorConfig>,
     connection_pool: ConnectionPool<Core>,
     input: BasicCircuitWitnessGeneratorInput,
     eip_4844_blobs: Eip4844Blobs,
@@ -598,10 +549,11 @@ async fn generate_witness(
 
     let storage_refunds = connection
         .blocks_dal()
-        .get_storage_refunds(input.block_number)
+        .get_storage_oracle_info(input.block_number)
         .await
         .unwrap()
-        .unwrap();
+        .unwrap()
+        .storage_refunds;
 
     let mut used_bytecodes = connection
         .factory_deps_dal()
@@ -622,7 +574,7 @@ async fn generate_witness(
     // Probably, we should make it work with L1 batch numbers too.
     let (_, last_miniblock_number) = connection
         .blocks_dal()
-        .get_miniblock_range_of_l1_batch(input.block_number - 1)
+        .get_l2_block_range_of_l1_batch(input.block_number - 1)
         .await
         .unwrap()
         .expect("L1 batch should contain at least one miniblock");
@@ -640,29 +592,6 @@ async fn generate_witness(
         input.block_number.0,
         hasher.finish()
     );
-
-    let should_dump_arguments = config
-        .dump_arguments_for_blocks
-        .contains(&input.block_number.0);
-    if should_dump_arguments {
-        save_run_with_fixed_params_args_to_gcs(
-            object_store,
-            input.block_number.0,
-            last_miniblock_number.0,
-            Address::zero(),
-            BOOTLOADER_ADDRESS,
-            bootloader_code.clone(),
-            bootloader_contents.clone(),
-            false,
-            account_code_hash,
-            used_bytecodes.clone(),
-            Vec::default(),
-            MAX_CYCLES_FOR_TX as usize,
-            geometry_config,
-            tree.clone(),
-        )
-        .await;
-    }
 
     // The following part is CPU-heavy, so we move it to a separate thread.
     let rt_handle = tokio::runtime::Handle::current();
@@ -778,70 +707,4 @@ async fn generate_witness(
         scheduler_witness,
         block_aux_witness,
     )
-}
-
-#[allow(clippy::too_many_arguments)]
-async fn save_run_with_fixed_params_args_to_gcs(
-    object_store: &dyn ObjectStore,
-    l1_batch_number: u32,
-    last_miniblock_number: u32,
-    caller: Address,
-    entry_point_address: Address,
-    entry_point_code: Vec<[u8; 32]>,
-    initial_heap_content: Vec<u8>,
-    zk_porter_is_available: bool,
-    default_aa_code_hash: U256,
-    used_bytecodes: HashMap<U256, Vec<[u8; 32]>>,
-    ram_verification_queries: Vec<(u32, U256)>,
-    cycle_limit: usize,
-    geometry: GeometryConfig,
-    tree: PrecalculatedMerklePathsProvider,
-) {
-    let run_with_fixed_params_input = RunWithFixedParamsInput {
-        l1_batch_number,
-        last_miniblock_number,
-        caller,
-        entry_point_address,
-        entry_point_code,
-        initial_heap_content,
-        zk_porter_is_available,
-        default_aa_code_hash,
-        used_bytecodes,
-        ram_verification_queries,
-        cycle_limit,
-        geometry,
-        tree,
-    };
-    object_store
-        .put(L1BatchNumber(l1_batch_number), &run_with_fixed_params_input)
-        .await
-        .unwrap();
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct RunWithFixedParamsInput {
-    pub l1_batch_number: u32,
-    pub last_miniblock_number: u32,
-    pub caller: Address,
-    pub entry_point_address: Address,
-    pub entry_point_code: Vec<[u8; 32]>,
-    pub initial_heap_content: Vec<u8>,
-    pub zk_porter_is_available: bool,
-    pub default_aa_code_hash: U256,
-    pub used_bytecodes: HashMap<U256, Vec<[u8; 32]>>,
-    pub ram_verification_queries: Vec<(u32, U256)>,
-    pub cycle_limit: usize,
-    pub geometry: GeometryConfig,
-    pub tree: PrecalculatedMerklePathsProvider,
-}
-
-impl StoredObject for RunWithFixedParamsInput {
-    const BUCKET: Bucket = Bucket::WitnessInput;
-    type Key<'a> = L1BatchNumber;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!("run_with_fixed_params_input_{}.bin", key)
-    }
-
-    zksync_object_store::serialize_using_bincode!();
 }

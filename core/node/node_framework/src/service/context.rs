@@ -1,6 +1,8 @@
+use std::any::type_name;
+
 use crate::{
     precondition::Precondition,
-    resource::{Resource, StoredResource},
+    resource::{Resource, ResourceId, StoredResource},
     service::ZkStackService,
     task::{OneshotTask, Task, UnconstrainedOneshotTask, UnconstrainedTask},
     wiring_layer::WiringError,
@@ -108,29 +110,37 @@ impl<'a> ServiceContext<'a> {
                 .unwrap_or_else(|| {
                     panic!(
                         "Resource {} is not of type {}",
-                        T::resource_id(),
+                        T::name(),
                         std::any::type_name::<T>()
                     )
                 })
                 .clone()
         };
 
-        let name = T::resource_id();
         // Check whether the resource is already available.
-        if let Some(resource) = self.service.resources.get(&name) {
-            tracing::info!("Layer {} has requested resource {}", self.layer, name);
+        if let Some(resource) = self.service.resources.get(&ResourceId::of::<T>()) {
+            tracing::info!(
+                "Layer {} has requested resource {} of type {}",
+                self.layer,
+                T::name(),
+                type_name::<T>()
+            );
             return Ok(downcast_clone(resource));
         }
 
         tracing::info!(
-            "Layer {} has requested resource {}, but it is not available",
+            "Layer {} has requested resource {} of type {}, but it is not available",
             self.layer,
-            name
+            T::name(),
+            type_name::<T>()
         );
 
         // No such resource.
         // The requester is allowed to decide whether this is an error or not.
-        Err(WiringError::ResourceLacking(T::resource_id()))
+        Err(WiringError::ResourceLacking {
+            name: T::name(),
+            id: ResourceId::of::<T>(),
+        })
     }
 
     /// Attempts to retrieve the resource with the specified name.
@@ -147,11 +157,11 @@ impl<'a> ServiceContext<'a> {
         let resource = f();
         self.service
             .resources
-            .insert(T::resource_id(), Box::new(resource.clone()));
+            .insert(ResourceId::of::<T>(), Box::new(resource.clone()));
         tracing::info!(
             "Layer {} has created a new resource {}",
             self.layer,
-            T::resource_id()
+            T::name()
         );
         resource
     }
@@ -165,20 +175,24 @@ impl<'a> ServiceContext<'a> {
     /// Adds a resource to the service.
     /// If the resource with the same name is already provided, the method will return an error.
     pub fn insert_resource<T: Resource>(&mut self, resource: T) -> Result<(), WiringError> {
-        let name = T::resource_id();
-        if self.service.resources.contains_key(&name) {
+        let id = ResourceId::of::<T>();
+        if self.service.resources.contains_key(&id) {
             tracing::warn!(
-                "Layer {} has attempted to provide resource {}, but it is already available",
+                "Layer {} has attempted to provide resource {} of type {}, but it is already available",
                 self.layer,
-                name
+                T::name(),
+                type_name::<T>()
             );
-            return Err(WiringError::ResourceAlreadyProvided(name));
+            return Err(WiringError::ResourceAlreadyProvided {
+                id: ResourceId::of::<T>(),
+                name: T::name(),
+            });
         }
-        self.service.resources.insert(name, Box::new(resource));
+        self.service.resources.insert(id, Box::new(resource));
         tracing::info!(
             "Layer {} has provided a new resource {}",
             self.layer,
-            T::resource_id()
+            T::name()
         );
         Ok(())
     }

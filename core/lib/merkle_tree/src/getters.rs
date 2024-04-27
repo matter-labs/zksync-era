@@ -4,7 +4,7 @@ use crate::{
     hasher::HasherWithStats,
     recovery::MerkleTreeRecovery,
     storage::{LoadAncestorsResult, SortedKeys, WorkingPatchSet},
-    types::{Nibbles, Node, TreeEntry, TreeEntryWithProof},
+    types::{Nibbles, Node, ProfiledTreeOperation, TreeEntry, TreeEntryWithProof},
     Database, HashTree, Key, MerkleTree, NoVersionError, PruneDatabase, ValueHash,
 };
 
@@ -21,6 +21,7 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
         version: u64,
         leaf_keys: &[Key],
     ) -> Result<Vec<TreeEntry>, NoVersionError> {
+        let _profiling_guard = self.db.start_profiling(ProfiledTreeOperation::GetEntries);
         load_and_transform_entries(&self.db, version, leaf_keys, extract_entry)
     }
 
@@ -36,6 +37,9 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
         leaf_keys: &[Key],
     ) -> Result<Vec<TreeEntryWithProof>, NoVersionError> {
         let mut hasher = HasherWithStats::new(&self.hasher);
+        let _profiling_guard = self
+            .db
+            .start_profiling(ProfiledTreeOperation::GetEntriesWithProofs);
         load_and_transform_entries(
             &self.db,
             version,

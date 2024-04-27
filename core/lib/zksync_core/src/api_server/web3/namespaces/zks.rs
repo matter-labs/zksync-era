@@ -1,7 +1,7 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use anyhow::Context as _;
-use zksync_dal::{Connection, Core, CoreDal};
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
@@ -17,8 +17,8 @@ use zksync_types::{
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
     utils::storage_key_for_standard_token_balance,
-    AccountTreeId, L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey, Transaction,
-    L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+    AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction,
+    L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_utils::{address_to_h256, h256_to_u256};
 use zksync_web3_decl::{
@@ -43,10 +43,6 @@ impl ZksNamespace {
 
     pub(crate) fn current_method(&self) -> &MethodTracer {
         &self.state.current_method
-    }
-
-    async fn connection(&self) -> Result<Connection<'_, Core>, Web3Error> {
-        Ok(self.state.connection_pool.connection_tagged("api").await?)
     }
 
     #[tracing::instrument(skip(self, request))]
@@ -102,7 +98,7 @@ impl ZksNamespace {
         Ok(self
             .state
             .tx_sender
-            .get_txs_fee_in_wei(tx, scale_factor, acceptable_overestimation)
+            .get_txs_fee_in_wei(tx, scale_factor, acceptable_overestimation as u64)
             .await?)
     }
 
@@ -127,6 +123,11 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
+    pub fn get_base_token_l1_address(&self) -> Option<Address> {
+        self.state.api_config.base_token_address
+    }
+
+    #[tracing::instrument(skip(self))]
     pub fn l1_chain_id_impl(&self) -> U64 {
         U64::from(*self.state.api_config.l1_chain_id)
     }
@@ -137,12 +138,12 @@ impl ZksNamespace {
         from: u32,
         limit: u8,
     ) -> Result<Vec<Token>, Web3Error> {
-        let mut storage = self.connection().await?;
+        let mut storage = self.state.acquire_connection().await?;
         let tokens = storage
             .tokens_web3_dal()
             .get_well_known_tokens()
             .await
-            .context("get_well_known_tokens")?;
+            .map_err(DalError::generalize)?;
 
         let tokens = tokens
             .into_iter()
@@ -164,15 +165,15 @@ impl ZksNamespace {
         &self,
         address: Address,
     ) -> Result<HashMap<Address, U256>, Web3Error> {
-        let mut storage = self.connection().await?;
+        let mut storage = self.state.acquire_connection().await?;
         let tokens = storage
             .tokens_dal()
             .get_all_l2_token_addresses()
             .await
-            .context("get_all_l2_token_addresses")?;
+            .map_err(DalError::generalize)?;
         let hashed_balance_keys = tokens.iter().map(|&token_address| {
             let token_account = AccountTreeId::new(if token_address == ETHEREUM_ADDRESS {
-                L2_ETH_TOKEN_ADDRESS
+                L2_BASE_TOKEN_ADDRESS
             } else {
                 token_address
             });
@@ -187,7 +188,7 @@ impl ZksNamespace {
             .storage_web3_dal()
             .get_values(&hashed_balance_keys)
             .await
-            .context("get_values")?;
+            .map_err(DalError::generalize)?;
 
         let balances = balance_values
             .into_iter()
@@ -205,27 +206,31 @@ impl ZksNamespace {
     #[tracing::instrument(skip(self))]
     pub async fn get_l2_to_l1_msg_proof_impl(
         &self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
         sender: Address,
         msg: H256,
         l2_log_position: Option<usize>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
-        self.state.start_info.ensure_not_pruned(block_number)?;
-        let mut storage = self.connection().await?;
+        let mut storage = self.state.acquire_connection().await?;
+        self.state
+            .start_info
+            .ensure_not_pruned(block_number, &mut storage)
+            .await?;
+
         let Some(l1_batch_number) = storage
             .blocks_web3_dal()
-            .get_l1_batch_number_of_miniblock(block_number)
+            .get_l1_batch_number_of_l2_block(block_number)
             .await
-            .context("get_l1_batch_number_of_miniblock")?
+            .map_err(DalError::generalize)?
         else {
             return Ok(None);
         };
-        let (first_miniblock_of_l1_batch, _) = storage
+        let (first_l2_block_of_l1_batch, _) = storage
             .blocks_web3_dal()
-            .get_miniblock_range_of_l1_batch(l1_batch_number)
+            .get_l2_block_range_of_l1_batch(l1_batch_number)
             .await
-            .context("get_miniblock_range_of_l1_batch")?
-            .context("L1 batch should contain at least one miniblock")?;
+            .map_err(DalError::generalize)?
+            .context("L1 batch should contain at least one L2 block")?;
 
         // Position of l1 log in L1 batch relative to logs with identical data
         let l1_log_relative_position = if let Some(l2_log_position) = l2_log_position {
@@ -233,7 +238,7 @@ impl ZksNamespace {
                 .events_web3_dal()
                 .get_logs(
                     GetLogsFilter {
-                        from_block: first_miniblock_of_l1_batch,
+                        from_block: first_l2_block_of_l1_batch,
                         to_block: block_number,
                         addresses: vec![L1_MESSENGER_ADDRESS],
                         topics: vec![(2, vec![address_to_h256(&sender)]), (3, vec![msg])],
@@ -241,7 +246,7 @@ impl ZksNamespace {
                     self.state.api_config.req_entities_limit,
                 )
                 .await
-                .context("get_logs")?;
+                .map_err(DalError::generalize)?;
             let maybe_pos = logs.iter().position(|event| {
                 event.block_number == Some(block_number.0.into())
                     && event.log_index == Some(l2_log_position.into())
@@ -280,7 +285,7 @@ impl ZksNamespace {
             .blocks_web3_dal()
             .get_l2_to_l1_logs(l1_batch_number)
             .await
-            .context("get_l2_to_l1_logs")?;
+            .map_err(DalError::generalize)?;
 
         let Some((l1_log_index, _)) = all_l1_logs_in_batch
             .iter()
@@ -295,7 +300,7 @@ impl ZksNamespace {
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
             .await
-            .context("get_l1_batch_header")?
+            .map_err(DalError::generalize)?
         else {
             return Ok(None);
         };
@@ -322,12 +327,12 @@ impl ZksNamespace {
         tx_hash: H256,
         index: Option<usize>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
-        let mut storage = self.connection().await?;
+        let mut storage = self.state.acquire_connection().await?;
         let Some((l1_batch_number, l1_batch_tx_index)) = storage
             .blocks_web3_dal()
             .get_l1_batch_info_for_tx(tx_hash)
             .await
-            .context("get_l1_batch_info_for_tx")?
+            .map_err(DalError::generalize)?
         else {
             return Ok(None);
         };
@@ -345,57 +350,68 @@ impl ZksNamespace {
 
     #[tracing::instrument(skip(self))]
     pub async fn get_l1_batch_number_impl(&self) -> Result<U64, Web3Error> {
-        let mut storage = self.connection().await?;
+        let mut storage = self.state.acquire_connection().await?;
         let l1_batch_number = storage
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .context("get_sealed_l1_batch_number")?
+            .map_err(DalError::generalize)?
             .ok_or(Web3Error::NoBlock)?;
         Ok(l1_batch_number.0.into())
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn get_miniblock_range_impl(
+    pub async fn get_l2_block_range_impl(
         &self,
         batch: L1BatchNumber,
     ) -> Result<Option<(U64, U64)>, Web3Error> {
-        self.state.start_info.ensure_not_pruned(batch)?;
-        let mut storage = self.connection().await?;
+        let mut storage = self.state.acquire_connection().await?;
+        self.state
+            .start_info
+            .ensure_not_pruned(batch, &mut storage)
+            .await?;
         let range = storage
             .blocks_web3_dal()
-            .get_miniblock_range_of_l1_batch(batch)
+            .get_l2_block_range_of_l1_batch(batch)
             .await
-            .context("get_miniblock_range_of_l1_batch")?;
+            .map_err(DalError::generalize)?;
         Ok(range.map(|(min, max)| (U64::from(min.0), U64::from(max.0))))
     }
 
     #[tracing::instrument(skip(self))]
     pub async fn get_block_details_impl(
         &self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> Result<Option<BlockDetails>, Web3Error> {
-        self.state.start_info.ensure_not_pruned(block_number)?;
-        let mut storage = self.connection().await?;
+        let mut storage = self.state.acquire_connection().await?;
+        self.state
+            .start_info
+            .ensure_not_pruned(block_number, &mut storage)
+            .await?;
+
         Ok(storage
             .blocks_web3_dal()
             .get_block_details(block_number)
             .await
-            .context("get_block_details")?)
+            .map_err(DalError::generalize)?)
     }
 
     #[tracing::instrument(skip(self))]
     pub async fn get_raw_block_transactions_impl(
         &self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> Result<Vec<Transaction>, Web3Error> {
-        self.state.start_info.ensure_not_pruned(block_number)?;
-        let mut storage = self.connection().await?;
+        let mut storage = self.state.acquire_connection().await?;
+        self.state
+            .start_info
+            .ensure_not_pruned(block_number, &mut storage)
+            .await?;
+
         Ok(storage
             .transactions_web3_dal()
-            .get_raw_miniblock_transactions(block_number)
+            .get_raw_l2_block_transactions(block_number)
             .await
-            .context("get_raw_miniblock_transactions")?)
+            .map_err(DalError::generalize)?)
     }
 
     #[tracing::instrument(skip(self))]
@@ -403,12 +419,12 @@ impl ZksNamespace {
         &self,
         hash: H256,
     ) -> Result<Option<TransactionDetails>, Web3Error> {
-        let mut storage = self.connection().await?;
+        let mut storage = self.state.acquire_connection().await?;
         let mut tx_details = storage
             .transactions_web3_dal()
             .get_transaction_details(hash)
             .await
-            .context("get_transaction_details")?;
+            .map_err(DalError::generalize)?;
         drop(storage);
 
         if tx_details.is_none() {
@@ -422,13 +438,17 @@ impl ZksNamespace {
         &self,
         batch_number: L1BatchNumber,
     ) -> Result<Option<L1BatchDetails>, Web3Error> {
-        self.state.start_info.ensure_not_pruned(batch_number)?;
-        let mut storage = self.connection().await?;
+        let mut storage = self.state.acquire_connection().await?;
+        self.state
+            .start_info
+            .ensure_not_pruned(batch_number, &mut storage)
+            .await?;
+
         Ok(storage
             .blocks_web3_dal()
             .get_l1_batch_details(batch_number)
             .await
-            .context("get_l1_batch_details")?)
+            .map_err(DalError::generalize)?)
     }
 
     #[tracing::instrument(skip(self))]
@@ -436,25 +456,19 @@ impl ZksNamespace {
         &self,
         hash: H256,
     ) -> Result<Option<Vec<u8>>, Web3Error> {
-        let mut storage = self.connection().await?;
+        let mut storage = self.state.acquire_connection().await?;
         Ok(storage
             .factory_deps_dal()
             .get_factory_dep(hash)
             .await
-            .context("get_factory_dep")?)
+            .map_err(DalError::generalize)?)
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn get_l1_gas_price_impl(&self) -> U64 {
-        let gas_price = self
-            .state
-            .tx_sender
-            .0
-            .batch_fee_input_provider
-            .get_batch_fee_input()
-            .await
-            .l1_gas_price();
-        gas_price.into()
+    pub async fn get_l1_gas_price_impl(&self) -> Result<U64, Web3Error> {
+        let fee_input_provider = &self.state.tx_sender.0.batch_fee_input_provider;
+        let fee_input = fee_input_provider.get_batch_fee_input().await?;
+        Ok(fee_input.l1_gas_price().into())
     }
 
     #[tracing::instrument(skip(self))]
@@ -471,20 +485,21 @@ impl ZksNamespace {
         &self,
         version_id: Option<u16>,
     ) -> Result<Option<ProtocolVersion>, Web3Error> {
-        let mut storage = self.connection().await?;
-        let protocol_version = match version_id {
-            Some(id) => {
-                storage
-                    .protocol_versions_web3_dal()
-                    .get_protocol_version_by_id(id)
-                    .await
-            }
-            None => Some(
+        let mut storage = self.state.acquire_connection().await?;
+        let protocol_version = if let Some(id) = version_id {
+            storage
+                .protocol_versions_web3_dal()
+                .get_protocol_version_by_id(id)
+                .await
+                .map_err(DalError::generalize)?
+        } else {
+            Some(
                 storage
                     .protocol_versions_web3_dal()
                     .get_latest_protocol_version()
-                    .await,
-            ),
+                    .await
+                    .map_err(DalError::generalize)?,
+            )
         };
         Ok(protocol_version)
     }
@@ -496,7 +511,11 @@ impl ZksNamespace {
         keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
     ) -> Result<Option<Proof>, Web3Error> {
-        self.state.start_info.ensure_not_pruned(l1_batch_number)?;
+        let mut storage = self.state.acquire_connection().await?;
+        self.state
+            .start_info
+            .ensure_not_pruned(l1_batch_number, &mut storage)
+            .await?;
         let hashed_keys = keys
             .iter()
             .map(|key| StorageKey::new(AccountTreeId::new(address), *key).hashed_key_u256())
@@ -537,5 +556,13 @@ impl ZksNamespace {
             address,
             storage_proof,
         }))
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub fn get_base_token_l1_address_impl(&self) -> Result<Address, Web3Error> {
+        self.state
+            .api_config
+            .base_token_address
+            .ok_or(Web3Error::NotImplemented)
     }
 }

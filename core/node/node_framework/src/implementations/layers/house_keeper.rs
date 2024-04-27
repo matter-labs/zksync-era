@@ -4,11 +4,13 @@ use zksync_config::configs::{
     fri_prover_group::FriProverGroupConfig, house_keeper::HouseKeeperConfig,
     FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig,
 };
-use zksync_core::house_keeper::{
-    blocks_state_reporter::L1BatchMetricsReporter,
+use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core};
+use zksync_house_keeper::{
+    blocks_state_reporter::L1BatchMetricsReporter, fri_gpu_prover_archiver::FriGpuProverArchiver,
     fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
     fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter,
     fri_prover_job_retry_manager::FriProverJobRetryManager,
+    fri_prover_jobs_archiver::FriProverJobArchiver,
     fri_prover_queue_monitor::FriProverStatsReporter,
     fri_scheduler_circuit_queuer::SchedulerCircuitQueuer,
     fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager,
@@ -16,7 +18,6 @@ use zksync_core::house_keeper::{
     periodic_job::PeriodicJob,
     waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
 };
-use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core};
 
 use crate::{
     implementations::resources::pools::{ProverPoolResource, ReplicaPoolResource},
@@ -69,8 +70,8 @@ impl WiringLayer for HouseKeeperLayer {
         let prover_pool = prover_pool_resource.get().await?;
 
         // initialize and add tasks
-        let pool_for_metrics = replica_pool.clone();
-        context.add_task(Box::new(PoolForMetricsTask { pool_for_metrics }));
+        let pool_for_metrics = replica_pool_resource.get_singleton().await?;
+        context.add_task(Box::new(PostgresMetricsScrapingTask { pool_for_metrics }));
 
         let l1_batch_metrics_reporter = L1BatchMetricsReporter::new(
             self.house_keeper_config
@@ -84,7 +85,7 @@ impl WiringLayer for HouseKeeperLayer {
         let fri_prover_job_retry_manager = FriProverJobRetryManager::new(
             self.fri_prover_config.max_attempts,
             self.fri_prover_config.proof_generation_timeout(),
-            self.house_keeper_config.fri_prover_job_retrying_interval_ms,
+            self.house_keeper_config.prover_job_retrying_interval_ms,
             prover_pool.clone(),
         );
         context.add_task(Box::new(FriProverJobRetryManagerTask {
@@ -96,7 +97,7 @@ impl WiringLayer for HouseKeeperLayer {
             self.fri_witness_generator_config
                 .witness_generation_timeouts(),
             self.house_keeper_config
-                .fri_witness_generator_job_retrying_interval_ms,
+                .witness_generator_job_retrying_interval_ms,
             prover_pool.clone(),
         );
         context.add_task(Box::new(FriWitnessGeneratorJobRetryManagerTask {
@@ -104,15 +105,35 @@ impl WiringLayer for HouseKeeperLayer {
         }));
 
         let waiting_to_queued_fri_witness_job_mover = WaitingToQueuedFriWitnessJobMover::new(
-            self.house_keeper_config.fri_witness_job_moving_interval_ms,
+            self.house_keeper_config.witness_job_moving_interval_ms,
             prover_pool.clone(),
         );
         context.add_task(Box::new(WaitingToQueuedFriWitnessJobMoverTask {
             waiting_to_queued_fri_witness_job_mover,
         }));
 
+        if let Some((archiving_interval, archive_after)) =
+            self.house_keeper_config.prover_job_archiver_params()
+        {
+            let fri_prover_job_archiver =
+                FriProverJobArchiver::new(prover_pool.clone(), archiving_interval, archive_after);
+            context.add_task(Box::new(FriProverJobArchiverTask {
+                fri_prover_job_archiver,
+            }));
+        }
+
+        if let Some((archiving_interval, archive_after)) =
+            self.house_keeper_config.fri_gpu_prover_archiver_params()
+        {
+            let fri_prover_gpu_archiver =
+                FriGpuProverArchiver::new(prover_pool.clone(), archiving_interval, archive_after);
+            context.add_task(Box::new(FriProverGpuArchiverTask {
+                fri_prover_gpu_archiver,
+            }));
+        }
+
         let scheduler_circuit_queuer = SchedulerCircuitQueuer::new(
-            self.house_keeper_config.fri_witness_job_moving_interval_ms,
+            self.house_keeper_config.witness_job_moving_interval_ms,
             prover_pool.clone(),
         );
         context.add_task(Box::new(SchedulerCircuitQueuerTask {
@@ -129,8 +150,7 @@ impl WiringLayer for HouseKeeperLayer {
         }));
 
         let fri_prover_stats_reporter = FriProverStatsReporter::new(
-            self.house_keeper_config
-                .fri_prover_stats_reporting_interval_ms,
+            self.house_keeper_config.prover_stats_reporting_interval_ms,
             prover_pool.clone(),
             replica_pool.clone(),
             self.fri_prover_group_config,
@@ -141,7 +161,7 @@ impl WiringLayer for HouseKeeperLayer {
 
         let fri_proof_compressor_stats_reporter = FriProofCompressorStatsReporter::new(
             self.house_keeper_config
-                .fri_proof_compressor_stats_reporting_interval_ms,
+                .proof_compressor_stats_reporting_interval_ms,
             prover_pool.clone(),
         );
         context.add_task(Box::new(FriProofCompressorStatsReporterTask {
@@ -152,7 +172,7 @@ impl WiringLayer for HouseKeeperLayer {
             self.fri_proof_compressor_config.max_attempts,
             self.fri_proof_compressor_config.generation_timeout(),
             self.house_keeper_config
-                .fri_proof_compressor_job_retrying_interval_ms,
+                .proof_compressor_job_retrying_interval_ms,
             prover_pool.clone(),
         );
         context.add_task(Box::new(FriProofCompressorJobRetryManagerTask {
@@ -164,18 +184,25 @@ impl WiringLayer for HouseKeeperLayer {
 }
 
 #[derive(Debug)]
-struct PoolForMetricsTask {
+struct PostgresMetricsScrapingTask {
     pool_for_metrics: ConnectionPool<Core>,
 }
 
 #[async_trait::async_trait]
-impl Task for PoolForMetricsTask {
+impl Task for PostgresMetricsScrapingTask {
     fn name(&self) -> &'static str {
-        "pool_for_metrics"
+        "postgres_metrics_scraping"
     }
 
-    async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        PostgresMetrics::run_scraping(self.pool_for_metrics, SCRAPE_INTERVAL).await;
+    async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        tokio::select! {
+            () = PostgresMetrics::run_scraping(self.pool_for_metrics, SCRAPE_INTERVAL) => {
+                tracing::warn!("Postgres metrics scraping unexpectedly stopped");
+            }
+            _ = stop_receiver.0.changed() => {
+                tracing::info!("Stop signal received, Postgres metrics scraping is shutting down");
+            }
+        }
         Ok(())
     }
 }
@@ -331,5 +358,36 @@ impl Task for FriProofCompressorJobRetryManagerTask {
         self.fri_proof_compressor_retry_manager
             .run(stop_receiver.0)
             .await
+    }
+}
+
+#[derive(Debug)]
+struct FriProverJobArchiverTask {
+    fri_prover_job_archiver: FriProverJobArchiver,
+}
+
+#[async_trait::async_trait]
+impl Task for FriProverJobArchiverTask {
+    fn name(&self) -> &'static str {
+        "fri_prover_job_archiver"
+    }
+
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.fri_prover_job_archiver.run(stop_receiver.0).await
+    }
+}
+
+struct FriProverGpuArchiverTask {
+    fri_prover_gpu_archiver: FriGpuProverArchiver,
+}
+
+#[async_trait::async_trait]
+impl Task for FriProverGpuArchiverTask {
+    fn name(&self) -> &'static str {
+        "fri_prover_gpu_archiver"
+    }
+
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.fri_prover_gpu_archiver.run(stop_receiver.0).await
     }
 }

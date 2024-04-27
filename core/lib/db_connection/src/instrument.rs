@@ -14,15 +14,16 @@
 use std::{fmt, future::Future, panic::Location};
 
 use sqlx::{
-    postgres::{PgQueryResult, PgRow},
-    query::{Map, Query, QueryAs},
-    FromRow, IntoArguments, Postgres,
+    postgres::{PgCopyIn, PgQueryResult, PgRow},
+    query::{Map, Query, QueryAs, QueryScalar},
+    FromRow, IntoArguments, PgConnection, Postgres,
 };
 use tokio::time::Instant;
 
 use crate::{
     connection::{Connection, ConnectionTags, DbMarker},
     connection_pool::ConnectionPool,
+    error::{DalError, DalRequestError, DalResult},
     metrics::REQUEST_METRICS,
     utils::InternalMarker,
 };
@@ -33,6 +34,15 @@ type ThreadSafeDebug<'a> = dyn fmt::Debug + Send + Sync + 'a;
 #[derive(Debug, Default)]
 struct QueryArgs<'a> {
     inner: Vec<(&'static str, &'a ThreadSafeDebug<'a>)>,
+}
+
+impl QueryArgs<'_> {
+    fn to_owned(&self) -> Vec<(&'static str, String)> {
+        self.inner
+            .iter()
+            .map(|(name, value)| (*name, format!("{value:?}")))
+            .collect()
+    }
 }
 
 impl fmt::Display for QueryArgs<'_> {
@@ -84,6 +94,19 @@ where
     }
 }
 
+impl<'q, O, A> InstrumentExt for QueryScalar<'q, Postgres, O, A>
+where
+    A: 'q + IntoArguments<'q, Postgres>,
+{
+    #[track_caller]
+    fn instrument(self, name: &'static str) -> Instrumented<'static, Self> {
+        Instrumented {
+            query: self,
+            data: InstrumentedData::new(name, Location::caller()),
+        }
+    }
+}
+
 impl<'q, F, O, A> InstrumentExt for Map<'q, Postgres, F, A>
 where
     F: FnMut(PgRow) -> Result<O, sqlx::Error> + Send,
@@ -96,6 +119,64 @@ where
             query: self,
             data: InstrumentedData::new(name, Location::caller()),
         }
+    }
+}
+
+/// Wrapper for a `COPY` SQL statement. To actually do something on a statement, it should be instrumented.
+#[derive(Debug)]
+pub struct CopyStatement {
+    statement: &'static str,
+}
+
+impl CopyStatement {
+    /// Creates a new statement wrapping the specified SQL.
+    pub fn new(statement: &'static str) -> Self {
+        Self { statement }
+    }
+}
+
+impl InstrumentExt for CopyStatement {
+    #[track_caller]
+    fn instrument(self, name: &'static str) -> Instrumented<'static, Self> {
+        Instrumented {
+            query: self,
+            data: InstrumentedData::new(name, Location::caller()),
+        }
+    }
+}
+
+/// Result of `start()`ing copying on a [`CopyStatement`].
+#[must_use = "Data should be sent to database using `send()`"]
+pub struct ActiveCopy<'a> {
+    raw: PgCopyIn<&'a mut PgConnection>,
+    data: InstrumentedData<'a>,
+    tags: Option<&'a ConnectionTags>,
+}
+
+impl fmt::Debug for ActiveCopy<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ActiveCopy")
+            .field("data", &self.data)
+            .field("tags", &self.tags)
+            .finish_non_exhaustive()
+    }
+}
+
+impl ActiveCopy<'_> {
+    /// Sends the specified bytes to the database and finishes the copy statement.
+    // FIXME: measure latency?
+    pub async fn send(mut self, data: &[u8]) -> DalResult<()> {
+        let inner_send = async {
+            self.raw.send(data).await?;
+            self.raw.finish().await.map(drop)
+        };
+        inner_send.await.map_err(|err| {
+            DalRequestError::new(err, self.data.name, self.data.location)
+                .with_args(self.data.args.to_owned())
+                .with_connection_tags(self.tags.cloned())
+                .into()
+        })
     }
 }
 
@@ -123,7 +204,7 @@ impl<'a> InstrumentedData<'a> {
         self,
         connection_tags: Option<&ConnectionTags>,
         query_future: impl Future<Output = Result<R, sqlx::Error>>,
-    ) -> Result<R, sqlx::Error> {
+    ) -> DalResult<R> {
         let Self {
             name,
             location,
@@ -161,22 +242,28 @@ impl<'a> InstrumentedData<'a> {
             REQUEST_METRICS.request[&name].observe(elapsed);
         }
 
-        let connection_tags = ConnectionTags::display(connection_tags);
+        let connection_tags_display = ConnectionTags::display(connection_tags);
         if let Err(err) = &output {
             tracing::warn!(
-                "Query {name}{args} called at {file}:{line} [{connection_tags}] has resulted in error: {err}",
+                "Query {name}{args} called at {file}:{line} [{connection_tags_display}] has resulted in error: {err}",
                 file = location.file(),
                 line = location.line()
             );
             REQUEST_METRICS.request_error[&name].inc();
         } else if is_slow {
             tracing::info!(
-                "Slow query {name}{args} called at {file}:{line} [{connection_tags}] has finished after {elapsed:?}",
+                "Slow query {name}{args} called at {file}:{line} [{connection_tags_display}] has finished after {elapsed:?}",
                 file = location.file(),
                 line = location.line()
             );
         }
-        output
+
+        output.map_err(|err| {
+            DalRequestError::new(err, name, location)
+                .with_args(args.to_owned())
+                .with_connection_tags(connection_tags.cloned())
+                .into()
+        })
     }
 }
 
@@ -195,6 +282,53 @@ impl<'a> InstrumentedData<'a> {
 pub struct Instrumented<'a, Q> {
     query: Q,
     data: InstrumentedData<'a>,
+}
+
+impl<'a> Instrumented<'a, ()> {
+    /// Creates an empty instrumentation information. This is useful if you need to validate query arguments
+    /// before invoking a query.
+    #[track_caller]
+    pub fn new(name: &'static str) -> Self {
+        Self {
+            query: (),
+            data: InstrumentedData::new(name, Location::caller()),
+        }
+    }
+
+    /// Wraps a provided argument validation error.
+    pub fn arg_error<E>(&self, arg_name: &str, err: E) -> DalError
+    where
+        E: Into<anyhow::Error>,
+    {
+        let err: anyhow::Error = err.into();
+        let err = err.context(format!("failed validating query argument `{arg_name}`"));
+        DalRequestError::new(
+            sqlx::Error::Decode(err.into()),
+            self.data.name,
+            self.data.location,
+        )
+        .with_args(self.data.args.to_owned())
+        .into()
+    }
+
+    /// Wraps a provided application-level data constraint error.
+    pub fn constraint_error(&self, err: anyhow::Error) -> DalError {
+        let err = err.context("application-level data constraint violation");
+        DalRequestError::new(
+            sqlx::Error::Decode(err.into()),
+            self.data.name,
+            self.data.location,
+        )
+        .with_args(self.data.args.to_owned())
+        .into()
+    }
+
+    pub fn with<Q>(self, query: Q) -> Instrumented<'a, Q> {
+        Instrumented {
+            query,
+            data: self.data,
+        }
+    }
 }
 
 impl<'a, Q> Instrumented<'a, Q> {
@@ -225,7 +359,7 @@ where
     pub async fn execute<DB: DbMarker>(
         self,
         storage: &mut Connection<'_, DB>,
-    ) -> sqlx::Result<PgQueryResult> {
+    ) -> DalResult<PgQueryResult> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.execute(conn)).await
     }
@@ -234,7 +368,7 @@ where
     pub async fn fetch_optional<DB: DbMarker>(
         self,
         storage: &mut Connection<'_, DB>,
-    ) -> Result<Option<PgRow>, sqlx::Error> {
+    ) -> DalResult<Option<PgRow>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_optional(conn)).await
     }
@@ -249,9 +383,31 @@ where
     pub async fn fetch_all<DB: DbMarker>(
         self,
         storage: &mut Connection<'_, DB>,
-    ) -> sqlx::Result<Vec<O>> {
+    ) -> DalResult<Vec<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_all(conn)).await
+    }
+}
+
+impl<'q, O, A> Instrumented<'_, QueryScalar<'q, Postgres, O, A>>
+where
+    A: 'q + IntoArguments<'q, Postgres>,
+    O: Send + Unpin,
+    (O,): for<'r> FromRow<'r, PgRow>,
+{
+    /// Fetches an optional row using this query.
+    pub async fn fetch_optional<DB: DbMarker>(
+        self,
+        storage: &mut Connection<'_, DB>,
+    ) -> DalResult<Option<O>> {
+        let (conn, tags) = storage.conn_and_tags();
+        self.data.fetch(tags, self.query.fetch_optional(conn)).await
+    }
+
+    /// Fetches a single row using this query.
+    pub async fn fetch_one<DB: DbMarker>(self, storage: &mut Connection<'_, DB>) -> DalResult<O> {
+        let (conn, tags) = storage.conn_and_tags();
+        self.data.fetch(tags, self.query.fetch_one(conn)).await
     }
 }
 
@@ -265,16 +421,13 @@ where
     pub async fn fetch_optional<DB: DbMarker>(
         self,
         storage: &mut Connection<'_, DB>,
-    ) -> sqlx::Result<Option<O>> {
+    ) -> DalResult<Option<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_optional(conn)).await
     }
 
     /// Fetches a single row using this query.
-    pub async fn fetch_one<DB: DbMarker>(
-        self,
-        storage: &mut Connection<'_, DB>,
-    ) -> sqlx::Result<O> {
+    pub async fn fetch_one<DB: DbMarker>(self, storage: &mut Connection<'_, DB>) -> DalResult<O> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_one(conn)).await
     }
@@ -283,15 +436,38 @@ where
     pub async fn fetch_all<DB: DbMarker>(
         self,
         storage: &mut Connection<'_, DB>,
-    ) -> sqlx::Result<Vec<O>> {
+    ) -> DalResult<Vec<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_all(conn)).await
     }
 }
 
+impl<'a> Instrumented<'a, CopyStatement> {
+    /// Starts `COPY`ing data using this statement.
+    pub async fn start<DB: DbMarker>(
+        self,
+        storage: &'a mut Connection<'_, DB>,
+    ) -> DalResult<ActiveCopy<'a>> {
+        let (conn, tags) = storage.conn_and_tags();
+        match conn.copy_in_raw(self.query.statement).await {
+            Ok(raw) => Ok(ActiveCopy {
+                raw,
+                data: self.data,
+                tags,
+            }),
+            Err(err) => Err(
+                DalRequestError::new(err, self.data.name, self.data.location)
+                    .with_args(self.data.args.to_owned())
+                    .with_connection_tags(tags.cloned())
+                    .into(),
+            ),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::{MiniblockNumber, H256};
+    use zksync_basic_types::{L2BlockNumber, H256};
 
     use super::*;
     use crate::{connection_pool::ConnectionPool, utils::InternalMarker};
@@ -305,7 +481,7 @@ mod tests {
         sqlx::query("WHAT")
             .map(drop)
             .instrument("erroneous")
-            .with_arg("miniblock", &MiniblockNumber(1))
+            .with_arg("l2_block", &L2BlockNumber(1))
             .with_arg("hash", &H256::zero())
             .fetch_optional(&mut conn)
             .await
@@ -321,7 +497,7 @@ mod tests {
         sqlx::query("SELECT pg_sleep(1.5)")
             .map(drop)
             .instrument("slow")
-            .with_arg("miniblock", &MiniblockNumber(1))
+            .with_arg("l2_block", &L2BlockNumber(1))
             .with_arg("hash", &H256::zero())
             .fetch_optional(&mut conn)
             .await

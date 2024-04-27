@@ -1,6 +1,6 @@
 [package]
 name = "zksync_external_node"
-version = "0.1.0"
+version = "23.1.0" # x-release-please-version
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -12,9 +12,11 @@ publish = false
 
 [dependencies]
 zksync_core.workspace = true
+zksync_commitment_generator.workspace = true
 zksync_dal.workspace = true
 zksync_db_connection.workspace = true
 zksync_config.workspace = true
+zksync_protobuf_config.workspace = true
 zksync_eth_client.workspace = true
 zksync_storage.workspace = true
 zksync_utils.workspace = true
@@ -28,6 +30,8 @@ prometheus_exporter.workspace = true
 zksync_health_check.workspace = true
 zksync_web3_decl.workspace = true
 zksync_types.workspace = true
+zksync_block_reverter.workspace = true
+zksync_shared_metrics.workspace = true
 vlog.workspace = true
 
 zksync_concurrency.workspace = true
@@ -44,3 +48,11 @@ clap = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 semver.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+assert_matches.workspace = true
+tempfile.workspace = true
+test-casing.workspace = true
+
+[build-dependencies]
+rustc_version.workspace = true

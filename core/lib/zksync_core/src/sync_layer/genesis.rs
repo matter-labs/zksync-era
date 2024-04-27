@@ -32,8 +32,8 @@ async fn create_genesis_params(
 ) -> anyhow::Result<GenesisParams> {
     let config = client.fetch_genesis_config().await?;
     let base_system_contracts_hashes = BaseSystemContractsHashes {
-        bootloader: config.bootloader_hash,
-        default_aa: config.default_aa_hash,
+        bootloader: config.bootloader_hash.context("Genesis is not finished")?,
+        default_aa: config.default_aa_hash.context("Genesis is not finished")?,
     };
 
     if zksync_chain_id != config.l2_chain_id {

@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
+use anyhow::Context;
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::{
     chain::{L1BatchCommitDataGeneratorMode, NetworkConfig},
-    eth_sender::ETHSenderConfig,
-    ContractsConfig, ETHClientConfig,
+    eth_sender::EthConfig,
+    wallets, ContractsConfig,
 };
 use zksync_core::eth_sender::{
     l1_batch_commit_data_generator::{
@@ -14,6 +15,7 @@ use zksync_core::eth_sender::{
     Aggregator, EthTxAggregator, EthTxManager,
 };
 use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface};
+use zksync_types::L1ChainId;
 
 use crate::{
     implementations::resources::{
@@ -30,26 +32,29 @@ use crate::{
 
 #[derive(Debug)]
 pub struct EthSenderLayer {
-    eth_sender_config: ETHSenderConfig,
+    eth_sender_config: EthConfig,
     contracts_config: ContractsConfig,
-    eth_client_config: ETHClientConfig,
     network_config: NetworkConfig,
+    l1chain_id: L1ChainId,
+    wallets: wallets::EthSender,
     l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
 
 impl EthSenderLayer {
     pub fn new(
-        eth_sender_config: ETHSenderConfig,
+        eth_sender_config: EthConfig,
         contracts_config: ContractsConfig,
-        eth_client_config: ETHClientConfig,
         network_config: NetworkConfig,
+        l1chain_id: L1ChainId,
+        wallets: wallets::EthSender,
         l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
     ) -> Self {
         Self {
             eth_sender_config,
             contracts_config,
-            eth_client_config,
             network_config,
+            l1chain_id,
+            wallets,
             l1_batch_commit_data_generator_mode,
         }
     }
@@ -74,11 +79,15 @@ impl WiringLayer for EthSenderLayer {
         let object_store = context.get_resource::<ObjectStoreResource>().await?.0;
 
         // Create and add tasks.
-        let eth_client_blobs = PKSigningClient::from_config_blobs(
-            &self.eth_sender_config,
-            &self.contracts_config,
-            &self.eth_client_config,
-        );
+
+        let eth_client_blobs = self.wallets.blob_operator.map(|wallet| {
+            PKSigningClient::from_config(
+                &self.eth_sender_config,
+                &self.contracts_config,
+                self.l1chain_id,
+                wallet.private_key(),
+            )
+        });
         let eth_client_blobs_addr = eth_client_blobs.clone().map(|k| k.sender_account());
 
         let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> =
@@ -91,15 +100,13 @@ impl WiringLayer for EthSenderLayer {
                 }
             };
 
+        let config = self.eth_sender_config.sender.context("sender")?;
         let aggregator = Aggregator::new(
-            self.eth_sender_config.sender.clone(),
+            config.clone(),
             object_store,
             eth_client_blobs_addr.is_some(),
-            self.eth_sender_config.sender.pubdata_sending_mode.into(),
             l1_batch_commit_data_generator.clone(),
         );
-
-        let config = self.eth_sender_config.sender;
 
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             master_pool.clone(),

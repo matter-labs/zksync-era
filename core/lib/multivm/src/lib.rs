@@ -2,8 +2,8 @@
 #![warn(unused_extern_crates)]
 #![warn(unused_imports)]
 
-pub use circuit_sequencer_api_1_4_1 as circuit_sequencer_api_latest;
-pub use zk_evm_1_4_1 as zk_evm_latest;
+pub use circuit_sequencer_api_1_5_0 as circuit_sequencer_api_latest;
+pub use zk_evm_1_5_0 as zk_evm_latest;
 pub use zksync_types::vm_version::VmVersion;
 
 pub use self::versions::{

@@ -5,21 +5,21 @@ use multivm::{
         L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
     },
     utils::get_max_gas_per_pubdata_byte,
-    vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryEnabled, TracerDispatcher, Vm},
+    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryEnabled, TracerDispatcher, Vm},
 };
 use once_cell::sync::Lazy;
 use zksync_contracts::{deployer_contract, BaseSystemContracts};
 use zksync_state::{InMemoryStorage, StorageView};
 use zksync_types::{
-    block::MiniblockHasher,
+    block::L2BlockHasher,
     ethabi::{encode, Token},
     fee::Fee,
     fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms,
     l2::L2Tx,
     utils::storage_key_for_eth_balance,
-    Address, L1BatchNumber, L2ChainId, MiniblockNumber, Nonce, PackedEthSignature,
-    ProtocolVersionId, Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, PackedEthSignature, ProtocolVersionId,
+    Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
 use zksync_utils::bytecode::hash_bytecode;
 
@@ -81,7 +81,7 @@ impl BenchmarkingVm {
                 first_l2_block: L2BlockEnv {
                     number: 1,
                     timestamp,
-                    prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+                    prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
                     max_virtual_blocks_to_create: 100,
                 },
             },
@@ -89,9 +89,9 @@ impl BenchmarkingVm {
                 zk_porter_available: false,
                 version: ProtocolVersionId::latest(),
                 base_system_smart_contracts: SYSTEM_CONTRACTS.clone(),
-                gas_limit: BLOCK_GAS_LIMIT,
+                bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
                 execution_mode: TxExecutionMode::VerifyExecute,
-                default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+                default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
                 chain_id: L2ChainId::from(270),
             },
             Rc::new(RefCell::new(StorageView::new(&*STORAGE))),

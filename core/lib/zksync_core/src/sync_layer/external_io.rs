@@ -6,7 +6,7 @@ use vm_utils::storage::L1BatchParamsProvider;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
-    protocol_upgrade::ProtocolUpgradeTx, L1BatchNumber, L2ChainId, MiniblockNumber,
+    protocol_upgrade::ProtocolUpgradeTx, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersionId, Transaction, H256,
 };
 use zksync_utils::bytes_to_be_words;
@@ -17,16 +17,13 @@ use super::{
 };
 use crate::state_keeper::{
     io::{
-        common::{load_pending_batch, poll_iters, IoCursor},
-        fee_address_migration, L1BatchParams, MiniblockParams, PendingBatchData, StateKeeperIO,
+        common::{load_pending_batch, IoCursor},
+        L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
     },
     metrics::KEEPER_METRICS,
     seal_criteria::IoSealCriteria,
     updates::UpdatesManager,
 };
-
-/// The interval between the action queue polling attempts for the new actions.
-const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 /// ExternalIO is the IO abstraction for the state keeper that is used in the external node.
 /// It receives a sequence of actions from the fetcher via the action queue and propagates it
@@ -54,9 +51,6 @@ impl ExternalIO {
         let l1_batch_params_provider = L1BatchParamsProvider::new(&mut storage)
             .await
             .context("failed initializing L1 batch params provider")?;
-        // We must run the migration for pending miniblocks synchronously, since we use `fee_account_address`
-        // from a pending miniblock in `load_pending_batch()` implementation.
-        fee_address_migration::migrate_pending_miniblocks(&mut storage).await?;
         drop(storage);
 
         Ok(Self {
@@ -71,7 +65,7 @@ impl ExternalIO {
     async fn get_base_system_contract(
         &self,
         hash: H256,
-        current_miniblock_number: MiniblockNumber,
+        current_l2_block_number: L2BlockNumber,
     ) -> anyhow::Result<SystemContractCode> {
         let bytecode = self
             .pool
@@ -79,8 +73,7 @@ impl ExternalIO {
             .await?
             .factory_deps_dal()
             .get_factory_dep(hash)
-            .await
-            .with_context(|| format!("failed getting bytecode for hash {hash:?}"))?;
+            .await?;
 
         Ok(match bytecode {
             Some(bytecode) => SystemContractCode {
@@ -95,19 +88,17 @@ impl ExternalIO {
                 let contract_bytecode = self
                     .main_node_client
                     .fetch_system_contract_by_hash(hash)
-                    .await
-                    .context("failed to fetch base system contract bytecode from the main node")?
+                    .await?
                     .context("base system contract is missing on the main node")?;
                 self.pool
                     .connection_tagged("sync_layer")
                     .await?
                     .factory_deps_dal()
                     .insert_factory_deps(
-                        current_miniblock_number,
+                        current_l2_block_number,
                         &HashMap::from([(hash, contract_bytecode.clone())]),
                     )
-                    .await
-                    .context("failed persisting system contract")?;
+                    .await?;
                 SystemContractCode {
                     code: bytes_to_be_words(contract_bytecode),
                     hash,
@@ -126,8 +117,8 @@ impl IoSealCriteria for ExternalIO {
         true
     }
 
-    fn should_seal_miniblock(&mut self, _manager: &UpdatesManager) -> bool {
-        if !matches!(self.actions.peek_action(), Some(SyncAction::SealMiniblock)) {
+    fn should_seal_l2_block(&mut self, _manager: &UpdatesManager) -> bool {
+        if !matches!(self.actions.peek_action(), Some(SyncAction::SealL2Block)) {
             return false;
         }
         self.actions.pop_action();
@@ -145,35 +136,35 @@ impl StateKeeperIO for ExternalIO {
         let mut storage = self.pool.connection_tagged("sync_layer").await?;
         let cursor = IoCursor::new(&mut storage).await?;
         tracing::info!(
-            "Initialized the ExternalIO: current L1 batch number {}, current miniblock number {}",
+            "Initialized the ExternalIO: current L1 batch number {}, current L2 block number {}",
             cursor.l1_batch,
-            cursor.next_miniblock,
+            cursor.next_l2_block,
         );
 
-        let pending_miniblock_header = self
+        let pending_l2_block_header = self
             .l1_batch_params_provider
-            .load_first_miniblock_in_batch(&mut storage, cursor.l1_batch)
+            .load_first_l2_block_in_batch(&mut storage, cursor.l1_batch)
             .await
             .with_context(|| {
                 format!(
-                    "failed loading first miniblock for L1 batch #{}",
+                    "failed loading first L2 block for L1 batch #{}",
                     cursor.l1_batch
                 )
             })?;
-        let Some(mut pending_miniblock_header) = pending_miniblock_header else {
+        let Some(mut pending_l2_block_header) = pending_l2_block_header else {
             return Ok((cursor, None));
         };
 
-        if !pending_miniblock_header.has_protocol_version() {
-            let pending_miniblock_number = pending_miniblock_header.number();
-            // Fetch protocol version ID for pending miniblocks to know which VM to use to re-execute them.
+        if !pending_l2_block_header.has_protocol_version() {
+            let pending_l2_block_number = pending_l2_block_header.number();
+            // Fetch protocol version ID for pending L2 blocks to know which VM to use to re-execute them.
             let sync_block = self
                 .main_node_client
-                .fetch_l2_block(pending_miniblock_number, false)
+                .fetch_l2_block(pending_l2_block_number, false)
                 .await
                 .context("failed to fetch block from the main node")?
                 .with_context(|| {
-                    format!("pending miniblock #{pending_miniblock_number} is missing on main node")
+                    format!("pending L2 block #{pending_l2_block_number} is missing on main node")
                 })?;
             // Loading base system contracts will insert protocol version in the database if it's not present there.
             let protocol_version = sync_block.protocol_version;
@@ -186,17 +177,17 @@ impl StateKeeperIO for ExternalIO {
             storage = self.pool.connection_tagged("sync_layer").await?;
             storage
                 .blocks_dal()
-                .set_protocol_version_for_pending_miniblocks(protocol_version)
+                .set_protocol_version_for_pending_l2_blocks(protocol_version)
                 .await
-                .context("failed setting protocol version for pending miniblocks")?;
-            pending_miniblock_header.set_protocol_version(protocol_version);
+                .context("failed setting protocol version for pending L2 blocks")?;
+            pending_l2_block_header.set_protocol_version(protocol_version);
         }
 
         let (system_env, l1_batch_env) = self
             .l1_batch_params_provider
             .load_l1_batch_params(
                 &mut storage,
-                &pending_miniblock_header,
+                &pending_l2_block_header,
                 super::VALIDATION_COMPUTATIONAL_GAS_LIMIT,
                 self.chain_id,
             )
@@ -224,98 +215,85 @@ impl StateKeeperIO for ExternalIO {
         max_wait: Duration,
     ) -> anyhow::Result<Option<L1BatchParams>> {
         tracing::debug!("Waiting for the new batch params");
-        for _ in 0..poll_iters(POLL_INTERVAL, max_wait) {
-            match self.actions.pop_action() {
-                Some(SyncAction::OpenBatch {
-                    params,
-                    number,
-                    first_miniblock_number,
-                }) => {
-                    anyhow::ensure!(
-                        number == cursor.l1_batch,
-                        "Batch number mismatch: expected {}, got {number}",
-                        cursor.l1_batch
-                    );
-                    anyhow::ensure!(
-                        first_miniblock_number == cursor.next_miniblock,
-                        "Miniblock number mismatch: expected {}, got {first_miniblock_number}",
-                        cursor.next_miniblock
-                    );
-                    return Ok(Some(params));
-                }
-                Some(other) => {
-                    anyhow::bail!("unexpected action in the action queue: {other:?}");
-                }
-                None => {
-                    tokio::time::sleep(POLL_INTERVAL).await;
-                }
+        let Some(action) = self.actions.recv_action(max_wait).await else {
+            return Ok(None);
+        };
+        match action {
+            SyncAction::OpenBatch {
+                params,
+                number,
+                first_l2_block_number,
+            } => {
+                anyhow::ensure!(
+                    number == cursor.l1_batch,
+                    "Batch number mismatch: expected {}, got {number}",
+                    cursor.l1_batch
+                );
+                anyhow::ensure!(
+                    first_l2_block_number == cursor.next_l2_block,
+                    "L2 block number mismatch: expected {}, got {first_l2_block_number}",
+                    cursor.next_l2_block
+                );
+                return Ok(Some(params));
+            }
+            other => {
+                anyhow::bail!("unexpected action in the action queue: {other:?}");
             }
         }
-        Ok(None)
     }
 
-    async fn wait_for_new_miniblock_params(
+    async fn wait_for_new_l2_block_params(
         &mut self,
         cursor: &IoCursor,
         max_wait: Duration,
-    ) -> anyhow::Result<Option<MiniblockParams>> {
-        // Wait for the next miniblock to appear in the queue.
-        let actions = &mut self.actions;
-        for _ in 0..poll_iters(POLL_INTERVAL, max_wait) {
-            match actions.pop_action() {
-                Some(SyncAction::Miniblock { params, number }) => {
-                    anyhow::ensure!(
-                        number == cursor.next_miniblock,
-                        "Miniblock number mismatch: expected {}, got {number}",
-                        cursor.next_miniblock
-                    );
-                    return Ok(Some(params));
-                }
-                Some(other) => {
-                    anyhow::bail!(
-                        "Unexpected action in the queue while waiting for the next miniblock: {other:?}"
-                    );
-                }
-                None => {
-                    tokio::time::sleep(POLL_INTERVAL).await;
-                }
+    ) -> anyhow::Result<Option<L2BlockParams>> {
+        // Wait for the next L2 block to appear in the queue.
+        let Some(action) = self.actions.recv_action(max_wait).await else {
+            return Ok(None);
+        };
+        match action {
+            SyncAction::L2Block { params, number } => {
+                anyhow::ensure!(
+                    number == cursor.next_l2_block,
+                    "L2 block number mismatch: expected {}, got {number}",
+                    cursor.next_l2_block
+                );
+                return Ok(Some(params));
+            }
+            other => {
+                anyhow::bail!(
+                    "Unexpected action in the queue while waiting for the next L2 block: {other:?}"
+                );
             }
         }
-        Ok(None)
     }
 
     async fn wait_for_next_tx(
         &mut self,
         max_wait: Duration,
     ) -> anyhow::Result<Option<Transaction>> {
-        let actions = &mut self.actions;
         tracing::debug!(
             "Waiting for the new tx, next action is {:?}",
-            actions.peek_action()
+            self.actions.peek_action()
         );
-        for _ in 0..poll_iters(POLL_INTERVAL, max_wait) {
-            match actions.peek_action() {
-                Some(SyncAction::Tx(_)) => {
-                    let SyncAction::Tx(tx) = actions.pop_action().unwrap() else {
-                        unreachable!()
-                    };
-                    return Ok(Some(Transaction::from(*tx)));
-                }
-                Some(SyncAction::SealMiniblock | SyncAction::SealBatch) => {
-                    // No more transactions in the current miniblock; the state keeper should seal it.
-                    return Ok(None);
-                }
-                Some(other) => {
-                    anyhow::bail!(
-                        "Unexpected action in the queue while waiting for the next transaction: {other:?}"
-                    );
-                }
-                _ => {
-                    tokio::time::sleep(POLL_INTERVAL).await;
-                }
+        let Some(action) = self.actions.peek_action_async(max_wait).await else {
+            return Ok(None);
+        };
+        match action {
+            SyncAction::Tx(tx) => {
+                self.actions.pop_action().unwrap();
+                return Ok(Some(Transaction::from(*tx)));
+            }
+            SyncAction::SealL2Block | SyncAction::SealBatch => {
+                // No more transactions in the current L2 block; the state keeper should seal it.
+                return Ok(None);
+            }
+            other => {
+                anyhow::bail!(
+                    "Unexpected action in the queue while waiting for the next transaction: {other:?}"
+                );
             }
         }
-        Ok(None)
     }
 
     async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()> {
@@ -331,7 +309,6 @@ impl StateKeeperIO for ExternalIO {
             tx.hash()
         );
     }
-
     async fn load_base_system_contracts(
         &mut self,
         protocol_version: ProtocolVersionId,
@@ -371,18 +348,18 @@ impl StateKeeperIO for ExternalIO {
                 protocol_version.base_system_contracts,
                 protocol_version.l2_system_upgrade_tx_hash,
             )
-            .await;
+            .await?;
 
         let BaseSystemContractsHashes {
             bootloader,
             default_aa,
         } = protocol_version.base_system_contracts;
         let bootloader = self
-            .get_base_system_contract(bootloader, cursor.next_miniblock)
+            .get_base_system_contract(bootloader, cursor.next_l2_block)
             .await
             .with_context(|| format!("cannot fetch bootloader code for {protocol_version:?}"))?;
         let default_aa = self
-            .get_base_system_contract(default_aa, cursor.next_miniblock)
+            .get_base_system_contract(default_aa, cursor.next_l2_block)
             .await
             .with_context(|| format!("cannot fetch default AA code for {protocol_version:?}"))?;
         Ok(BaseSystemContracts {

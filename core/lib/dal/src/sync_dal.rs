@@ -1,7 +1,7 @@
 use zksync_db_connection::{
-    connection::Connection, instrument::InstrumentExt, metrics::MethodLatency,
+    connection::Connection, error::DalResult, instrument::InstrumentExt, metrics::MethodLatency,
 };
-use zksync_types::{api::en, MiniblockNumber};
+use zksync_types::{api::en, L2BlockNumber};
 
 use crate::{
     models::storage_sync::{StorageSyncBlock, SyncBlock},
@@ -17,9 +17,9 @@ pub struct SyncDal<'a, 'c> {
 impl SyncDal<'_, '_> {
     pub(super) async fn sync_block_inner(
         &mut self,
-        block_number: MiniblockNumber,
-    ) -> anyhow::Result<Option<SyncBlock>> {
-        let Some(block) = sqlx::query_as!(
+        block_number: L2BlockNumber,
+    ) -> DalResult<Option<SyncBlock>> {
+        let block = sqlx::query_as!(
             StorageSyncBlock,
             r#"
             SELECT
@@ -64,29 +64,20 @@ impl SyncDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
+        .try_map(SyncBlock::try_from)
         .instrument("sync_dal_sync_block.block")
         .with_arg("block_number", &block_number)
         .fetch_optional(self.storage)
-        .await?
-        else {
-            return Ok(None);
-        };
+        .await?;
 
-        let mut block = SyncBlock::try_from(block)?;
-        // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
-        #[allow(deprecated)]
-        self.storage
-            .blocks_dal()
-            .maybe_load_fee_address(&mut block.fee_account_address, block.number)
-            .await?;
-        Ok(Some(block))
+        Ok(block)
     }
 
     pub async fn sync_block(
         &mut self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
         include_transactions: bool,
-    ) -> anyhow::Result<Option<en::SyncBlock>> {
+    ) -> DalResult<Option<en::SyncBlock>> {
         let _latency = MethodLatency::new("sync_dal_sync_block");
         let Some(block) = self.sync_block_inner(block_number).await? else {
             return Ok(None);
@@ -95,7 +86,7 @@ impl SyncDal<'_, '_> {
             let transactions = self
                 .storage
                 .transactions_web3_dal()
-                .get_raw_miniblock_transactions(block_number)
+                .get_raw_l2_block_transactions(block_number)
                 .await?;
             Some(transactions)
         } else {
@@ -108,7 +99,7 @@ impl SyncDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        block::{L1BatchHeader, MiniblockHeader},
+        block::{L1BatchHeader, L2BlockHeader},
         fee::TransactionExecutionMetrics,
         Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction,
     };
@@ -116,7 +107,7 @@ mod tests {
     use super::*;
     use crate::{
         tests::{
-            create_miniblock_header, create_snapshot_recovery, mock_execution_result,
+            create_l2_block_header, create_snapshot_recovery, mock_execution_result,
             mock_l2_transaction,
         },
         ConnectionPool, Core,
@@ -129,10 +120,11 @@ mod tests {
 
         // Simulate genesis.
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         conn.blocks_dal()
-            .insert_miniblock(&create_miniblock_header(0))
+            .insert_l2_block(&create_l2_block_header(0))
             .await
             .unwrap();
         let mut l1_batch_header = L1BatchHeader::new(
@@ -146,46 +138,47 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(0))
+            .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
             .await
             .unwrap();
 
         assert!(conn
             .sync_dal()
-            .sync_block(MiniblockNumber(1), false)
+            .sync_block(L2BlockNumber(1), false)
             .await
             .unwrap()
             .is_none());
 
         // Insert another block in the store.
-        let miniblock_header = MiniblockHeader {
+        let miniblock_header = L2BlockHeader {
             fee_account_address: Address::repeat_byte(0x42),
-            ..create_miniblock_header(1)
+            ..create_l2_block_header(1)
         };
         let tx = mock_l2_transaction();
         conn.transactions_dal()
-            .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_miniblock(&miniblock_header)
+            .insert_l2_block(&miniblock_header)
             .await
             .unwrap();
         conn.transactions_dal()
-            .mark_txs_as_executed_in_miniblock(
-                MiniblockNumber(1),
+            .mark_txs_as_executed_in_l2_block(
+                L2BlockNumber(1),
                 &[mock_execution_result(tx.clone())],
                 1.into(),
             )
-            .await;
+            .await
+            .unwrap();
 
         let block = conn
             .sync_dal()
-            .sync_block(MiniblockNumber(1), false)
+            .sync_block(L2BlockNumber(1), false)
             .await
             .unwrap()
             .expect("no sync block");
-        assert_eq!(block.number, MiniblockNumber(1));
+        assert_eq!(block.number, L2BlockNumber(1));
         assert_eq!(block.l1_batch_number, L1BatchNumber(1));
         assert!(!block.last_in_batch);
         assert_eq!(block.timestamp, miniblock_header.timestamp);
@@ -210,7 +203,7 @@ mod tests {
 
         let block = conn
             .sync_dal()
-            .sync_block(MiniblockNumber(1), true)
+            .sync_block(L2BlockNumber(1), true)
             .await
             .unwrap()
             .expect("no sync block");
@@ -224,13 +217,13 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(1))
+            .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(1))
             .await
             .unwrap();
 
         let block = conn
             .sync_dal()
-            .sync_block(MiniblockNumber(1), true)
+            .sync_block(L2BlockNumber(1), true)
             .await
             .unwrap()
             .expect("no sync block");
@@ -246,8 +239,9 @@ mod tests {
 
         // Simulate snapshot recovery.
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         let snapshot_recovery = create_snapshot_recovery();
         conn.snapshot_recovery_dal()
             .insert_initial_recovery_status(&snapshot_recovery)
@@ -256,14 +250,14 @@ mod tests {
 
         assert!(conn
             .sync_dal()
-            .sync_block(snapshot_recovery.miniblock_number, false)
+            .sync_block(snapshot_recovery.l2_block_number, false)
             .await
             .unwrap()
             .is_none());
 
-        let miniblock_header = create_miniblock_header(snapshot_recovery.miniblock_number.0 + 1);
+        let miniblock_header = create_l2_block_header(snapshot_recovery.l2_block_number.0 + 1);
         conn.blocks_dal()
-            .insert_miniblock(&miniblock_header)
+            .insert_l2_block(&miniblock_header)
             .await
             .unwrap();
 

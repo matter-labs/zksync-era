@@ -126,6 +126,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                 .map(GlueInto::glue_into)
                 .collect(),
             storage_refunds: Vec::new(),
+            pubdata_costs: Vec::new(),
         }
     }
 

@@ -1,4 +1,4 @@
-use zksync_core::commitment_generator::CommitmentGenerator;
+use zksync_commitment_generator::CommitmentGenerator;
 
 use crate::{
     implementations::resources::{healthcheck::AppHealthCheckResource, pools::MasterPoolResource},
@@ -22,7 +22,9 @@ impl WiringLayer for CommitmentGeneratorLayer {
         let commitment_generator = CommitmentGenerator::new(main_pool);
 
         let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
-        app_health.insert_component(commitment_generator.health_check());
+        app_health
+            .insert_component(commitment_generator.health_check())
+            .map_err(WiringError::internal)?;
 
         context.add_task(Box::new(CommitmentGeneratorTask {
             commitment_generator,

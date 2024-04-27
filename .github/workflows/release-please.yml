@@ -12,21 +12,17 @@ name: release-please
 jobs:
   release-please:
     runs-on: ubuntu-latest
-    outputs:
-      release_please_output: ${{ toJSON(steps.release.outputs) }}
     steps:
       - name: Run release-please
         id: release
-        uses: google-github-actions/release-please-action@v3
+        uses: google-github-actions/release-please-action@v4
         with:
             token: ${{ secrets.RELEASE_TOKEN }}
-            command: manifest
             config-file: .github/release-please/config.json
             manifest-file: .github/release-please/manifest.json
-            monorepo-tags: true
 
       - name: Send Release Info
-        if: ${{ steps.release.outputs.releases_created }}
+        if: ${{ steps.release.outputs.releases_created == 'true' }}
         uses: matter-labs/format-release-please-for-slack-action@69e6fe9e4ec531b7b5fb0d826f73c190db83cf42 # v2.1.0
         with:
           release-please-output: ${{ toJSON(steps.release.outputs) }}

@@ -11,17 +11,18 @@ use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
+use zksync_shared_metrics::EN_METRICS;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, api, L1BatchNumber, MiniblockNumber, H256,
+    aggregated_operations::AggregatedActionType, api, L1BatchNumber, L2BlockNumber, H256,
 };
 use zksync_web3_decl::{
+    client::BoxedL2Client,
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
-    jsonrpsee::http_client::HttpClient,
     namespaces::ZksNamespaceClient,
 };
 
 use super::metrics::{FetchStage, FETCHER_METRICS};
-use crate::{metrics::EN_METRICS, utils::projected_first_l1_batch};
+use crate::utils::projected_first_l1_batch;
 
 #[cfg(test)]
 mod tests;
@@ -65,46 +66,46 @@ enum UpdaterError {
     Internal(#[from] anyhow::Error),
 }
 
-impl From<zksync_dal::SqlxError> for UpdaterError {
-    fn from(err: zksync_dal::SqlxError) -> Self {
+impl From<zksync_dal::DalError> for UpdaterError {
+    fn from(err: zksync_dal::DalError) -> Self {
         Self::Internal(err.into())
     }
 }
 
 #[async_trait]
 trait MainNodeClient: fmt::Debug + Send + Sync {
-    /// Returns any miniblock in the specified L1 batch.
-    async fn resolve_l1_batch_to_miniblock(
+    /// Returns any L2 block in the specified L1 batch.
+    async fn resolve_l1_batch_to_l2_block(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<MiniblockNumber>>;
+    ) -> EnrichedClientResult<Option<L2BlockNumber>>;
 
     async fn block_details(
         &self,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
     ) -> EnrichedClientResult<Option<api::BlockDetails>>;
 }
 
 #[async_trait]
-impl MainNodeClient for HttpClient {
-    async fn resolve_l1_batch_to_miniblock(
+impl MainNodeClient for BoxedL2Client {
+    async fn resolve_l1_batch_to_l2_block(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<MiniblockNumber>> {
-        let request_latency = FETCHER_METRICS.requests[&FetchStage::GetMiniblockRange].start();
+    ) -> EnrichedClientResult<Option<L2BlockNumber>> {
+        let request_latency = FETCHER_METRICS.requests[&FetchStage::GetL2BlockRange].start();
         let number = self
-            .get_miniblock_range(number)
-            .rpc_context("resolve_l1_batch_to_miniblock")
+            .get_l2_block_range(number)
+            .rpc_context("resolve_l1_batch_to_l2_block")
             .with_arg("number", &number)
             .await?
-            .map(|(start, _)| MiniblockNumber(start.as_u32()));
+            .map(|(start, _)| L2BlockNumber(start.as_u32()));
         request_latency.observe();
         Ok(number)
     }
 
     async fn block_details(
         &self,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
     ) -> EnrichedClientResult<Option<api::BlockDetails>> {
         let request_latency = FETCHER_METRICS.requests[&FetchStage::GetBlockDetails].start();
         let details = self
@@ -254,8 +255,12 @@ pub struct BatchStatusUpdater {
 impl BatchStatusUpdater {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(client: HttpClient, pool: ConnectionPool<Core>) -> Self {
-        Self::from_parts(Box::new(client), pool, Self::DEFAULT_SLEEP_INTERVAL)
+    pub fn new(client: BoxedL2Client, pool: ConnectionPool<Core>) -> Self {
+        Self::from_parts(
+            Box::new(client.for_component("batch_status_updater")),
+            pool,
+            Self::DEFAULT_SLEEP_INTERVAL,
+        )
     }
 
     fn from_parts(
@@ -277,7 +282,7 @@ impl BatchStatusUpdater {
         self.health_updater.subscribe()
     }
 
-    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut storage = self.pool.connection_tagged("sync_layer").await?;
         let mut cursor = UpdaterCursor::new(&mut storage).await?;
         drop(storage);
@@ -285,12 +290,7 @@ impl BatchStatusUpdater {
         self.health_updater
             .update(Health::from(HealthStatus::Ready).with_details(cursor));
 
-        loop {
-            if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, exiting the batch status updater routine");
-                return Ok(());
-            }
-
+        while !*stop_receiver.borrow_and_update() {
             // Status changes are created externally, so that even if we will receive a network error
             // while requesting the changes, we will be able to process what we already fetched.
             let mut status_changes = StatusChanges::default();
@@ -304,7 +304,12 @@ impl BatchStatusUpdater {
             }
 
             if status_changes.is_empty() {
-                tokio::time::sleep(self.sleep_interval).await;
+                if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
+                    .await
+                    .is_ok()
+                {
+                    break;
+                }
             } else {
                 self.apply_status_changes(&mut cursor, status_changes)
                     .await?;
@@ -312,6 +317,9 @@ impl BatchStatusUpdater {
                     .update(Health::from(HealthStatus::Ready).with_details(cursor));
             }
         }
+
+        tracing::info!("Stop signal received, exiting the batch status updater routine");
+        Ok(())
     }
 
     /// Goes through the already fetched batches trying to update their statuses.
@@ -343,16 +351,16 @@ impl BatchStatusUpdater {
         while batch <= last_sealed_batch {
             // While we may receive `None` for the `self.current_l1_batch`, it's OK: open batch is guaranteed to not
             // be sent to L1.
-            let miniblock_number = self.client.resolve_l1_batch_to_miniblock(batch).await?;
-            let Some(miniblock_number) = miniblock_number else {
+            let l2_block_number = self.client.resolve_l1_batch_to_l2_block(batch).await?;
+            let Some(l2_block_number) = l2_block_number else {
                 return Ok(());
             };
 
-            let Some(batch_info) = self.client.block_details(miniblock_number).await? else {
+            let Some(batch_info) = self.client.block_details(l2_block_number).await? else {
                 // We cannot recover from an external API inconsistency.
                 let err = anyhow::anyhow!(
-                    "Node API is inconsistent: miniblock {miniblock_number} was reported to be a part of {batch} L1 batch, \
-                    but API has no information about this miniblock",
+                    "Node API is inconsistent: L2 block {l2_block_number} was reported to be a part of {batch} L1 batch, \
+                    but API has no information about this L2 block",
                 );
                 return Err(err.into());
             };

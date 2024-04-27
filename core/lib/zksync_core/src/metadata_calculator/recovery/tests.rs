@@ -1,6 +1,6 @@
 //! Tests for metadata calculator snapshot recovery.
 
-use std::{path::PathBuf, time::Duration};
+use std::path::Path;
 
 use assert_matches::assert_matches;
 use tempfile::TempDir;
@@ -21,8 +21,8 @@ use crate::{
     metadata_calculator::{
         helpers::create_db,
         tests::{
-            extend_db_state, extend_db_state_from_l1_batch, gen_storage_logs, run_calculator,
-            setup_calculator,
+            extend_db_state, extend_db_state_from_l1_batch, gen_storage_logs, mock_config,
+            run_calculator, setup_calculator,
         },
         MetadataCalculator, MetadataCalculatorConfig,
     },
@@ -32,7 +32,7 @@ use crate::{
 #[test]
 fn calculating_chunk_count() {
     let mut snapshot = SnapshotParameters {
-        miniblock: MiniblockNumber(1),
+        l2_block: L2BlockNumber(1),
         log_count: 160_000_000,
         expected_root_hash: H256::zero(),
     };
@@ -45,16 +45,8 @@ fn calculating_chunk_count() {
     assert_eq!(snapshot.chunk_count(), 1);
 }
 
-async fn create_tree_recovery(path: PathBuf, l1_batch: L1BatchNumber) -> AsyncTreeRecovery {
-    let db = create_db(
-        path,
-        0,
-        16 << 20,       // 16 MiB,
-        Duration::ZERO, // writes should never be stalled in tests
-        500,
-    )
-    .await
-    .unwrap();
+async fn create_tree_recovery(path: &Path, l1_batch: L1BatchNumber) -> AsyncTreeRecovery {
+    let db = create_db(mock_config(path)).await.unwrap();
     AsyncTreeRecovery::new(db, l1_batch.0.into(), MerkleTreeMode::Full)
 }
 
@@ -62,7 +54,7 @@ async fn create_tree_recovery(path: PathBuf, l1_batch: L1BatchNumber) -> AsyncTr
 async fn basic_recovery_workflow() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let snapshot_recovery = prepare_recovery_snapshot_with_genesis(&pool, &temp_dir).await;
+    let snapshot_recovery = prepare_recovery_snapshot_with_genesis(pool.clone(), &temp_dir).await;
     let snapshot = SnapshotParameters::new(&pool, &snapshot_recovery)
         .await
         .unwrap();
@@ -74,7 +66,7 @@ async fn basic_recovery_workflow() {
         println!("Recovering tree with {chunk_count} chunks");
 
         let tree_path = temp_dir.path().join(format!("recovery-{chunk_count}"));
-        let tree = create_tree_recovery(tree_path, L1BatchNumber(1)).await;
+        let tree = create_tree_recovery(&tree_path, L1BatchNumber(1)).await;
         let (health_check, health_updater) = ReactiveHealthCheck::new("tree");
         let recovery_options = RecoveryOptions {
             chunk_count,
@@ -89,12 +81,12 @@ async fn basic_recovery_workflow() {
 
         assert_eq!(tree.root_hash(), snapshot_recovery.l1_batch_root_hash);
         let health = health_check.check_health().await;
-        assert_matches!(health.status(), HealthStatus::Ready);
+        assert_matches!(health.status(), HealthStatus::Affected);
     }
 }
 
 async fn prepare_recovery_snapshot_with_genesis(
-    pool: &ConnectionPool<Core>,
+    pool: ConnectionPool<Core>,
     temp_dir: &TempDir,
 ) -> SnapshotRecoveryStatus {
     let mut storage = pool.connection().await.unwrap();
@@ -118,15 +110,15 @@ async fn prepare_recovery_snapshot_with_genesis(
 
     // Ensure that metadata for L1 batch #1 is present in the DB.
     let (calculator, _) = setup_calculator(&temp_dir.path().join("init"), pool).await;
-    let l1_batch_root_hash = run_calculator(calculator, pool.clone()).await;
+    let l1_batch_root_hash = run_calculator(calculator).await;
 
     SnapshotRecoveryStatus {
         l1_batch_number: L1BatchNumber(1),
         l1_batch_timestamp: 1,
         l1_batch_root_hash,
-        miniblock_number: MiniblockNumber(1),
-        miniblock_timestamp: 1,
-        miniblock_hash: H256::zero(), // not used
+        l2_block_number: L2BlockNumber(1),
+        l2_block_timestamp: 1,
+        l2_block_hash: H256::zero(), // not used
         protocol_version: ProtocolVersionId::latest(),
         storage_logs_chunks_processed: vec![],
     }
@@ -175,10 +167,10 @@ impl HandleRecoveryEvent for TestEventListener {
 async fn recovery_fault_tolerance(chunk_count: u64) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let snapshot_recovery = prepare_recovery_snapshot_with_genesis(&pool, &temp_dir).await;
+    let snapshot_recovery = prepare_recovery_snapshot_with_genesis(pool.clone(), &temp_dir).await;
 
     let tree_path = temp_dir.path().join("recovery");
-    let tree = create_tree_recovery(tree_path.clone(), L1BatchNumber(1)).await;
+    let tree = create_tree_recovery(&tree_path, L1BatchNumber(1)).await;
     let (stop_sender, stop_receiver) = watch::channel(false);
     let recovery_options = RecoveryOptions {
         chunk_count,
@@ -195,7 +187,7 @@ async fn recovery_fault_tolerance(chunk_count: u64) {
         .is_none());
 
     // Emulate a restart and recover 2 more chunks.
-    let mut tree = create_tree_recovery(tree_path.clone(), L1BatchNumber(1)).await;
+    let mut tree = create_tree_recovery(&tree_path, L1BatchNumber(1)).await;
     assert_ne!(tree.root_hash().await, snapshot_recovery.l1_batch_root_hash);
     let (stop_sender, stop_receiver) = watch::channel(false);
     let recovery_options = RecoveryOptions {
@@ -210,7 +202,7 @@ async fn recovery_fault_tolerance(chunk_count: u64) {
         .is_none());
 
     // Emulate another restart and recover remaining chunks.
-    let mut tree = create_tree_recovery(tree_path.clone(), L1BatchNumber(1)).await;
+    let mut tree = create_tree_recovery(&tree_path, L1BatchNumber(1)).await;
     assert_ne!(tree.root_hash().await, snapshot_recovery.l1_batch_root_hash);
     let (stop_sender, stop_receiver) = watch::channel(false);
     let recovery_options = RecoveryOptions {
@@ -246,7 +238,7 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
     let snapshot_recovery = prepare_recovery_snapshot(
         &mut storage,
         L1BatchNumber(23),
-        MiniblockNumber(42),
+        L2BlockNumber(42),
         &snapshot_logs,
     )
     .await;
@@ -260,7 +252,7 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
         &merkle_tree_config,
         &OperationsManagerConfig { delay_interval: 50 },
     );
-    let mut calculator = MetadataCalculator::new(calculator_config, None)
+    let mut calculator = MetadataCalculator::new(calculator_config, None, pool.clone())
         .await
         .unwrap();
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
@@ -268,7 +260,7 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let tree_reader = calculator.tree_reader();
-    let calculator_task = tokio::spawn(calculator.run(pool.clone(), stop_receiver));
+    let calculator_task = tokio::spawn(calculator.run(stop_receiver));
 
     match case {
         // Wait until the tree is fully initialized and stop the calculator.

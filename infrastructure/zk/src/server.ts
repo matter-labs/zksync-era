@@ -2,9 +2,9 @@ import { Command } from 'commander';
 import * as utils from './utils';
 import { clean } from './clean';
 import fs from 'fs';
-import { unloadInit } from './env';
 import * as path from 'path';
 import * as db from './database';
+import * as env from './env';
 
 export async function server(rebuildTree: boolean, uring: boolean, components?: string) {
     let options = '';
@@ -34,13 +34,10 @@ export async function externalNode(reinit: boolean = false, args: string[]) {
     process.env.EN_BOOTLOADER_HASH = process.env.CHAIN_STATE_KEEPER_BOOTLOADER_HASH;
     process.env.EN_DEFAULT_AA_HASH = process.env.CHAIN_STATE_KEEPER_DEFAULT_AA_HASH;
 
-    // We don't need to have server-native variables in the config.
-    unloadInit();
-
     // On --reinit we want to reset RocksDB and Postgres before we start.
     if (reinit) {
         await utils.confirmAction();
-        await db.reset({ server: true, prover: false });
+        await db.reset({ core: true, prover: false });
         clean(path.dirname(process.env.EN_MERKLE_TREE_PATH!));
     }
 
@@ -66,6 +63,8 @@ async function create_genesis(cmd: string) {
 }
 
 export async function genesisFromSources() {
+    // Note that that all the chains have the same chainId at genesis. It will be changed
+    // via an upgrade transaction during the registration of the chain.
     await create_genesis('cargo run --bin zksync_server --release -- --genesis');
 }
 
@@ -79,7 +78,9 @@ export const serverCommand = new Command('server')
     .option('--rebuild-tree', 'rebuilds merkle tree from database logs', 'rebuild_tree')
     .option('--uring', 'enables uring support for RocksDB')
     .option('--components <components>', 'comma-separated list of components to run')
+    .option('--chain-name <chain-name>', 'environment name')
     .action(async (cmd: Command) => {
+        cmd.chainName ? env.reload(cmd.chainName) : env.load();
         if (cmd.genesis) {
             await genesisFromSources();
         } else {

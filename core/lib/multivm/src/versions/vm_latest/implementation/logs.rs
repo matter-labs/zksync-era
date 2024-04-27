@@ -1,4 +1,4 @@
-use zk_evm_1_4_1::aux_structures::Timestamp;
+use zk_evm_1_5_0::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 use zksync_types::{
     event::extract_l2tol1logs_from_l1_messenger,

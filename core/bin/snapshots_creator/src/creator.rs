@@ -5,14 +5,14 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use tokio::sync::Semaphore;
 use zksync_config::SnapshotsCreatorConfig;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalResult};
 use zksync_object_store::ObjectStore;
 use zksync_types::{
     snapshots::{
         uniform_hashed_keys_chunk, SnapshotFactoryDependencies, SnapshotFactoryDependency,
         SnapshotMetadata, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey, SnapshotVersion,
     },
-    L1BatchNumber, MiniblockNumber,
+    L1BatchNumber, L2BlockNumber,
 };
 
 use crate::metrics::{FactoryDepsStage, StorageChunkStage, METRICS};
@@ -67,7 +67,7 @@ pub(crate) struct SnapshotCreator {
 }
 
 impl SnapshotCreator {
-    async fn connect_to_replica(&self) -> anyhow::Result<Connection<'_, Core>> {
+    async fn connect_to_replica(&self) -> DalResult<Connection<'_, Core>> {
         self.replica_pool
             .connection_tagged("snapshots_creator")
             .await
@@ -76,7 +76,7 @@ impl SnapshotCreator {
     async fn process_storage_logs_single_chunk(
         &self,
         semaphore: &Semaphore,
-        miniblock_number: MiniblockNumber,
+        l2_block_number: L2BlockNumber,
         l1_batch_number: L1BatchNumber,
         chunk_id: u64,
         chunk_count: u64,
@@ -94,7 +94,7 @@ impl SnapshotCreator {
             METRICS.storage_logs_processing_duration[&StorageChunkStage::LoadFromPostgres].start();
         let logs = conn
             .snapshots_creator_dal()
-            .get_storage_logs_chunk(miniblock_number, l1_batch_number, hashed_keys_range)
+            .get_storage_logs_chunk(l2_block_number, l1_batch_number, hashed_keys_range)
             .await
             .context("Error fetching storage logs count")?;
         drop(conn);
@@ -143,7 +143,7 @@ impl SnapshotCreator {
 
     async fn process_factory_deps(
         &self,
-        miniblock_number: MiniblockNumber,
+        l2_block_number: L2BlockNumber,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<String> {
         let mut conn = self.connect_to_replica().await?;
@@ -153,7 +153,7 @@ impl SnapshotCreator {
             METRICS.factory_deps_processing_duration[&FactoryDepsStage::LoadFromPostgres].start();
         let factory_deps = conn
             .snapshots_creator_dal()
-            .get_all_factory_deps(miniblock_number)
+            .get_all_factory_deps(l2_block_number)
             .await?;
         drop(conn);
         let latency = latency.observe();
@@ -194,7 +194,7 @@ impl SnapshotCreator {
         latest_snapshot: Option<&SnapshotMetadata>,
         conn: &mut Connection<'_, Core>,
     ) -> anyhow::Result<Option<SnapshotProgress>> {
-        // We subtract 1 so that after restore, EN node has at least one L1 batch to fetch
+        // We subtract 1 so that after restore, EN node has at least one L1 batch to fetch.
         let sealed_l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await?;
         let sealed_l1_batch_number = sealed_l1_batch_number.context("No L1 batches in Postgres")?;
         anyhow::ensure!(
@@ -202,6 +202,18 @@ impl SnapshotCreator {
             "Cannot create snapshot when only the genesis L1 batch is present in Postgres"
         );
         let l1_batch_number = sealed_l1_batch_number - 1;
+
+        // Sanity check: the selected L1 batch should have Merkle tree data; otherwise, it could be impossible
+        // to recover from the generated snapshot.
+        conn.blocks_dal()
+            .get_l1_batch_tree_data(l1_batch_number)
+            .await?
+            .with_context(|| {
+                format!(
+                    "Snapshot L1 batch #{l1_batch_number} doesn't have tree data, meaning recovery from the snapshot \
+                     could be impossible. This should never happen"
+                )
+            })?;
 
         let latest_snapshot_l1_batch_number =
             latest_snapshot.map(|snapshot| snapshot.l1_batch_number);
@@ -281,23 +293,23 @@ impl SnapshotCreator {
         };
 
         let mut conn = self.connect_to_replica().await?;
-        let (_, last_miniblock_number_in_batch) = conn
+        let (_, last_l2_block_number_in_batch) = conn
             .blocks_dal()
-            .get_miniblock_range_of_l1_batch(progress.l1_batch_number)
+            .get_l2_block_range_of_l1_batch(progress.l1_batch_number)
             .await?
-            .context("Error fetching last miniblock number")?;
+            .context("No L2 blocks for L1 batch")?;
         drop(conn);
 
         METRICS.storage_logs_chunks_count.set(progress.chunk_count);
         tracing::info!(
-            "Creating snapshot for storage logs up to miniblock {last_miniblock_number_in_batch}, \
+            "Creating snapshot for storage logs up to L2 block {last_l2_block_number_in_batch}, \
             L1 batch {}",
             progress.l1_batch_number
         );
 
         if progress.is_new_snapshot {
             let factory_deps_output_file = self
-                .process_factory_deps(last_miniblock_number_in_batch, progress.l1_batch_number)
+                .process_factory_deps(last_l2_block_number_in_batch, progress.l1_batch_number)
                 .await?;
 
             let mut master_conn = self
@@ -322,7 +334,7 @@ impl SnapshotCreator {
         let tasks = progress.remaining_chunk_ids.into_iter().map(|chunk_id| {
             self.process_storage_logs_single_chunk(
                 &semaphore,
-                last_miniblock_number_in_batch,
+                last_l2_block_number_in_batch,
                 progress.l1_batch_number,
                 chunk_id,
                 progress.chunk_count,

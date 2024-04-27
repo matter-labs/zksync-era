@@ -1,10 +1,16 @@
+use std::ops;
+
 use anyhow::Context as _;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::ReplicaState;
-use zksync_db_connection::connection::Connection;
-use zksync_types::MiniblockNumber;
+use zksync_db_connection::{
+    connection::Connection,
+    error::{DalResult, SqlxContext},
+    instrument::{InstrumentExt, Instrumented},
+};
+use zksync_types::L2BlockNumber;
 
-pub use crate::models::consensus::Payload;
+pub use crate::consensus::Payload;
 use crate::{Core, CoreDal};
 
 /// Storage access methods for `zksync_core::consensus` module.
@@ -15,8 +21,8 @@ pub struct ConsensusDal<'a, 'c> {
 
 impl ConsensusDal<'_, '_> {
     /// Fetches genesis.
-    pub async fn genesis(&mut self) -> anyhow::Result<Option<validator::Genesis>> {
-        let Some(row) = sqlx::query!(
+    pub async fn genesis(&mut self) -> DalResult<Option<validator::Genesis>> {
+        Ok(sqlx::query!(
             r#"
             SELECT
                 genesis
@@ -26,15 +32,17 @@ impl ConsensusDal<'_, '_> {
                 fake_key
             "#
         )
-        .fetch_optional(self.storage.conn())
+        .try_map(|row| {
+            row.genesis
+                .map(|genesis| {
+                    zksync_protobuf::serde::deserialize(genesis).decode_column("genesis")
+                })
+                .transpose()
+        })
+        .instrument("genesis")
+        .fetch_optional(self.storage)
         .await?
-        else {
-            return Ok(None);
-        };
-        let Some(genesis) = row.genesis else {
-            return Ok(None);
-        };
-        Ok(Some(zksync_protobuf::serde::deserialize(genesis)?))
+        .flatten())
     }
 
     /// Attempts to update the genesis.
@@ -92,34 +100,28 @@ impl ConsensusDal<'_, '_> {
         Ok(())
     }
 
-    /// Fetches the range of miniblocks present in storage.
+    /// Fetches the range of L2 blocks present in storage.
     /// If storage was recovered from snapshot, the range doesn't need to start at 0.
-    pub async fn block_range(&mut self) -> anyhow::Result<std::ops::Range<validator::BlockNumber>> {
-        let mut txn = self
-            .storage
-            .start_transaction()
-            .await
-            .context("start_transaction")?;
+    pub async fn block_range(&mut self) -> DalResult<ops::Range<validator::BlockNumber>> {
+        let mut txn = self.storage.start_transaction().await?;
         let snapshot = txn
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
-            .await
-            .context("get_applied_snapshot_status()")?;
-        // `snapshot.miniblock_number` indicates the last block processed.
-        // This block is NOT present in storage. Therefore the first block
-        // that will appear in storage is `snapshot.miniblock_number+1`.
-        let start = validator::BlockNumber(snapshot.map_or(0, |s| s.miniblock_number.0 + 1).into());
+            .await?;
+        // `snapshot.l2_block_number` indicates the last block processed.
+        // This block is NOT present in storage. Therefore, the first block
+        // that will appear in storage is `snapshot.l2_block_number + 1`.
+        let start = validator::BlockNumber(snapshot.map_or(0, |s| s.l2_block_number.0 + 1).into());
         let end = txn
             .blocks_dal()
-            .get_sealed_miniblock_number()
-            .await
-            .context("get_sealed_miniblock_number")?
+            .get_sealed_l2_block_number()
+            .await?
             .map_or(start, |last| validator::BlockNumber(last.0.into()).next());
         Ok(start..end)
     }
 
     /// [Main node only] creates a new consensus fork starting at
-    /// the last sealed miniblock. Resets the state of the consensus
+    /// the last sealed L2 block. Resets the state of the consensus
     /// by calling `try_update_genesis()`.
     pub async fn fork(&mut self) -> anyhow::Result<()> {
         let mut txn = self
@@ -149,8 +151,8 @@ impl ConsensusDal<'_, '_> {
     }
 
     /// Fetches the current BFT replica state.
-    pub async fn replica_state(&mut self) -> anyhow::Result<ReplicaState> {
-        let row = sqlx::query!(
+    pub async fn replica_state(&mut self) -> DalResult<ReplicaState> {
+        sqlx::query!(
             r#"
             SELECT
                 state AS "state!"
@@ -160,14 +162,15 @@ impl ConsensusDal<'_, '_> {
                 fake_key
             "#
         )
-        .fetch_one(self.storage.conn())
-        .await?;
-        Ok(zksync_protobuf::serde::deserialize(row.state)?)
+        .try_map(|row| zksync_protobuf::serde::deserialize(row.state).decode_column("state"))
+        .instrument("replica_state")
+        .fetch_one(self.storage)
+        .await
     }
 
     /// Sets the current BFT replica state.
-    pub async fn set_replica_state(&mut self, state: &ReplicaState) -> sqlx::Result<()> {
-        let state =
+    pub async fn set_replica_state(&mut self, state: &ReplicaState) -> DalResult<()> {
+        let state_json =
             zksync_protobuf::serde::serialize(state, serde_json::value::Serializer).unwrap();
         sqlx::query!(
             r#"
@@ -177,18 +180,20 @@ impl ConsensusDal<'_, '_> {
             WHERE
                 fake_key
             "#,
-            state
+            state_json
         )
-        .execute(self.storage.conn())
+        .instrument("set_replica_state")
+        .with_arg("state.view", &state.view)
+        .execute(self.storage)
         .await?;
         Ok(())
     }
 
     /// Fetches the first consensus certificate.
-    /// It might NOT be the certificate for the first miniblock:
+    /// It might NOT be the certificate for the first L2 block:
     /// see `validator::Genesis.first_block`.
-    pub async fn first_certificate(&mut self) -> anyhow::Result<Option<validator::CommitQC>> {
-        let Some(row) = sqlx::query!(
+    pub async fn first_certificate(&mut self) -> DalResult<Option<validator::CommitQC>> {
+        sqlx::query!(
             r#"
             SELECT
                 certificate
@@ -200,19 +205,19 @@ impl ConsensusDal<'_, '_> {
                 1
             "#
         )
-        .fetch_optional(self.storage.conn())
-        .await?
-        else {
-            return Ok(None);
-        };
-        Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
+        .try_map(|row| {
+            zksync_protobuf::serde::deserialize(row.certificate).decode_column("certificate")
+        })
+        .instrument("first_certificate")
+        .fetch_optional(self.storage)
+        .await
     }
 
     /// Fetches the last consensus certificate.
-    /// Currently certificates are NOT generated synchronously with miniblocks,
-    /// so it might NOT be the certificate for the last miniblock.
-    pub async fn last_certificate(&mut self) -> anyhow::Result<Option<validator::CommitQC>> {
-        let Some(row) = sqlx::query!(
+    /// Currently, certificates are NOT generated synchronously with L2 blocks,
+    /// so it might NOT be the certificate for the last L2 block.
+    pub async fn last_certificate(&mut self) -> DalResult<Option<validator::CommitQC>> {
+        sqlx::query!(
             r#"
             SELECT
                 certificate
@@ -224,20 +229,22 @@ impl ConsensusDal<'_, '_> {
                 1
             "#
         )
-        .fetch_optional(self.storage.conn())
-        .await?
-        else {
-            return Ok(None);
-        };
-        Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
+        .try_map(|row| {
+            zksync_protobuf::serde::deserialize(row.certificate).decode_column("certificate")
+        })
+        .instrument("last_certificate")
+        .fetch_optional(self.storage)
+        .await
     }
 
-    /// Fetches the consensus certificate for the miniblock with the given `block_number`.
+    /// Fetches the consensus certificate for the L2 block with the given `block_number`.
     pub async fn certificate(
         &mut self,
         block_number: validator::BlockNumber,
-    ) -> anyhow::Result<Option<validator::CommitQC>> {
-        let Some(row) = sqlx::query!(
+    ) -> DalResult<Option<validator::CommitQC>> {
+        let instrumentation =
+            Instrumented::new("certificate").with_arg("block_number", &block_number);
+        let query = sqlx::query!(
             r#"
             SELECT
                 certificate
@@ -246,24 +253,32 @@ impl ConsensusDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            i64::try_from(block_number.0)?
+            i64::try_from(block_number.0)
+                .map_err(|err| { instrumentation.arg_error("block_number", err) })?
         )
-        .fetch_optional(self.storage.conn())
-        .await?
-        else {
-            return Ok(None);
-        };
-        Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
+        .try_map(|row| {
+            zksync_protobuf::serde::deserialize(row.certificate).decode_column("certificate")
+        });
+
+        instrumentation
+            .with(query)
+            .fetch_optional(self.storage)
+            .await
     }
 
-    /// Converts the miniblock `block_number` into consensus payload. `Payload` is an
-    /// opaque format for the miniblock that consensus understands and generates a
+    /// Converts the L2 block `block_number` into consensus payload. `Payload` is an
+    /// opaque format for the L2 block that consensus understands and generates a
     /// certificate for it.
     pub async fn block_payload(
         &mut self,
         block_number: validator::BlockNumber,
-    ) -> anyhow::Result<Option<Payload>> {
-        let block_number = MiniblockNumber(block_number.0.try_into()?);
+    ) -> DalResult<Option<Payload>> {
+        let instrumentation =
+            Instrumented::new("block_payload").with_arg("block_number", &block_number);
+        let block_number = u32::try_from(block_number.0)
+            .map_err(|err| instrumentation.arg_error("block_number", err))?;
+        let block_number = L2BlockNumber(block_number);
+
         let Some(block) = self
             .storage
             .sync_dal()
@@ -275,16 +290,17 @@ impl ConsensusDal<'_, '_> {
         let transactions = self
             .storage
             .transactions_web3_dal()
-            .get_raw_miniblock_transactions(block_number)
+            .get_raw_l2_block_transactions(block_number)
             .await?;
         Ok(Some(block.into_payload(transactions)))
     }
 
-    /// Inserts a certificate for the miniblock `cert.header().number`.
-    /// It verifies that
-    /// * the certified payload matches the miniblock in storage
-    /// * the `cert.header().parent` matches the parent miniblock.
-    /// * the parent block already has a certificate.
+    /// Inserts a certificate for the L2 block `cert.header().number`. It verifies that
+    ///
+    /// - the certified payload matches the L2 block in storage
+    /// - the `cert.header().parent` matches the parent L2 block.
+    /// - the parent block already has a certificate.
+    ///
     /// NOTE: This is an extra secure way of storing a certificate,
     /// which will help us to detect bugs in the consensus implementation
     /// while it is "fresh". If it turns out to take too long,
@@ -302,10 +318,10 @@ impl ConsensusDal<'_, '_> {
             .consensus_dal()
             .block_payload(cert.message.proposal.number)
             .await?
-            .context("corresponding miniblock is missing")?;
+            .context("corresponding L2 block is missing")?;
         anyhow::ensure!(
             header.payload == want_payload.encode().hash(),
-            "consensus block payload doesn't match the miniblock"
+            "consensus block payload doesn't match the L2 block"
         );
         sqlx::query!(
             r#"

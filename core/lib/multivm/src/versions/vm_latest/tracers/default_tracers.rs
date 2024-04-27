@@ -3,7 +3,7 @@ use std::{
     marker::PhantomData,
 };
 
-use zk_evm_1_4_1::{
+use zk_evm_1_5_0::{
     aux_structures::Timestamp,
     tracing::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
@@ -18,8 +18,8 @@ use super::PubdataTracer;
 use crate::{
     glue::GlueInto,
     interface::{
+        dyn_tracers::vm_1_5_0::DynTracer,
         tracer::{TracerExecutionStopReason, VmExecutionStopReason},
-        traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
         types::tracer::TracerExecutionStatus,
         Halt, VmExecutionMode,
     },
@@ -29,13 +29,11 @@ use crate::{
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::{
             dispatcher::TracerDispatcher,
-            utils::{
-                computational_gas_price, gas_spent_on_bytecodes_and_long_messages_this_opcode,
-                print_debug_if_needed, VmHook,
-            },
+            utils::{computational_gas_price, print_debug_if_needed, VmHook},
             CircuitsTracer, RefundsTracer, ResultTracer,
         },
         types::internals::ZkSyncVmState,
+        vm::MultiVMSubversion,
         VmTracer,
     },
 };
@@ -45,7 +43,6 @@ pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     tx_has_been_processed: bool,
     execution_mode: VmExecutionMode,
 
-    pub(crate) gas_spent_on_bytecodes_and_long_messages: u32,
     // Amount of gas used during account validation.
     pub(crate) computational_gas_used: u32,
     // Maximum number of gas that we're allowed to use during account validation.
@@ -67,6 +64,7 @@ pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     // It only takes into account circuits that are generated for actual execution. It doesn't
     // take into account e.g circuits produced by the initial bootloader memory commitment.
     pub(crate) circuits_tracer: CircuitsTracer<S, H>,
+    subversion: MultiVMSubversion,
     storage: StoragePtr<S>,
     _phantom: PhantomData<H>,
 }
@@ -79,16 +77,17 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         storage: StoragePtr<S>,
         refund_tracer: Option<RefundsTracer<S>>,
         pubdata_tracer: Option<PubdataTracer<S>>,
+        subversion: MultiVMSubversion,
     ) -> Self {
         Self {
             tx_has_been_processed: false,
             execution_mode,
-            gas_spent_on_bytecodes_and_long_messages: 0,
             computational_gas_used: 0,
             tx_validation_gas_limit: computational_gas_limit,
             in_account_validation: false,
             final_batch_info_requested: false,
-            result_tracer: ResultTracer::new(execution_mode),
+            subversion,
+            result_tracer: ResultTracer::new(execution_mode, subversion),
             refund_tracer,
             dispatcher,
             pubdata_tracer,
@@ -105,10 +104,6 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
 
     pub(crate) fn validation_run_out_of_gas(&self) -> bool {
         self.computational_gas_used > self.tx_validation_gas_limit
-    }
-
-    pub(crate) fn gas_spent_on_pubdata(&self, vm_local_state: &VmLocalState) -> u32 {
-        self.gas_spent_on_bytecodes_and_long_messages + vm_local_state.spent_pubdata_counter
     }
 
     fn set_fictive_l2_block(
@@ -216,8 +211,14 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
                 .saturating_add(computational_gas_price(state, &data));
         }
 
-        let hook = VmHook::from_opcode_memory(&state, &data);
-        print_debug_if_needed(&hook, &state, memory);
+        let hook = VmHook::from_opcode_memory(&state, &data, self.subversion);
+        print_debug_if_needed(
+            &hook,
+            &state,
+            memory,
+            self.result_tracer.get_latest_result_ptr(),
+            self.subversion,
+        );
 
         match hook {
             VmHook::TxHasEnded => self.tx_has_been_processed = true,
@@ -226,9 +227,6 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
             VmHook::FinalBatchInfo => self.final_batch_info_requested = true,
             _ => {}
         }
-
-        self.gas_spent_on_bytecodes_and_long_messages +=
-            gas_spent_on_bytecodes_and_long_messages_this_opcode(&state, &data);
 
         dispatch_tracers!(self.before_execution(state, data, memory, self.storage.clone()));
     }
@@ -240,7 +238,7 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
         memory: &Self::SupportedMemory,
     ) {
         if let VmExecutionMode::Bootloader = self.execution_mode {
-            let (next_opcode, _, _) = zk_evm_1_4_1::vm_state::read_and_decode(
+            let (next_opcode, _, _) = zk_evm_1_5_0::vm_state::read_and_decode(
                 state.vm_local_state,
                 memory,
                 &mut DummyTracer,

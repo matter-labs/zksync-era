@@ -1,6 +1,6 @@
-use zksync_db_connection::connection::Connection;
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{
-    snapshots::SnapshotRecoveryStatus, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
+    snapshots::SnapshotRecoveryStatus, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
 };
 
 use crate::Core;
@@ -14,7 +14,7 @@ impl SnapshotRecoveryDal<'_, '_> {
     pub async fn insert_initial_recovery_status(
         &mut self,
         status: &SnapshotRecoveryStatus,
-    ) -> sqlx::Result<()> {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -36,21 +36,21 @@ impl SnapshotRecoveryDal<'_, '_> {
             i64::from(status.l1_batch_number.0),
             status.l1_batch_timestamp as i64,
             status.l1_batch_root_hash.as_bytes(),
-            i64::from(status.miniblock_number.0),
-            status.miniblock_timestamp as i64,
-            status.miniblock_hash.as_bytes(),
+            i64::from(status.l2_block_number.0),
+            status.l2_block_timestamp as i64,
+            status.l2_block_hash.as_bytes(),
             status.protocol_version as i32,
             &status.storage_logs_chunks_processed,
         )
-        .execute(self.storage.conn())
+        .instrument("insert_initial_recovery_status")
+        .with_arg("status.l1_batch_number", &status.l1_batch_number)
+        .with_arg("status.l2_block_number", &status.l2_block_number)
+        .execute(self.storage)
         .await?;
         Ok(())
     }
 
-    pub async fn mark_storage_logs_chunk_as_processed(
-        &mut self,
-        chunk_id: u64,
-    ) -> sqlx::Result<()> {
+    pub async fn mark_storage_logs_chunk_as_processed(&mut self, chunk_id: u64) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE snapshot_recovery
@@ -60,7 +60,9 @@ impl SnapshotRecoveryDal<'_, '_> {
             "#,
             chunk_id as i32 + 1
         )
-        .execute(self.storage.conn())
+        .instrument("mark_storage_logs_chunk_as_processed")
+        .with_arg("chunk_id", &chunk_id)
+        .execute(self.storage)
         .await?;
 
         Ok(())
@@ -68,7 +70,7 @@ impl SnapshotRecoveryDal<'_, '_> {
 
     pub async fn get_applied_snapshot_status(
         &mut self,
-    ) -> sqlx::Result<Option<SnapshotRecoveryStatus>> {
+    ) -> DalResult<Option<SnapshotRecoveryStatus>> {
         let record = sqlx::query!(
             r#"
             SELECT
@@ -84,16 +86,17 @@ impl SnapshotRecoveryDal<'_, '_> {
                 snapshot_recovery
             "#,
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_applied_snapshot_status")
+        .fetch_optional(self.storage)
         .await?;
 
         Ok(record.map(|row| SnapshotRecoveryStatus {
             l1_batch_number: L1BatchNumber(row.l1_batch_number as u32),
             l1_batch_timestamp: row.l1_batch_timestamp as u64,
             l1_batch_root_hash: H256::from_slice(&row.l1_batch_root_hash),
-            miniblock_number: MiniblockNumber(row.miniblock_number as u32),
-            miniblock_timestamp: row.miniblock_timestamp as u64,
-            miniblock_hash: H256::from_slice(&row.miniblock_hash),
+            l2_block_number: L2BlockNumber(row.miniblock_number as u32),
+            l2_block_timestamp: row.miniblock_timestamp as u64,
+            l2_block_hash: H256::from_slice(&row.miniblock_hash),
             protocol_version: ProtocolVersionId::try_from(row.protocol_version as u16).unwrap(),
             storage_logs_chunks_processed: row.storage_logs_chunks_processed,
         }))
@@ -103,7 +106,7 @@ impl SnapshotRecoveryDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        snapshots::SnapshotRecoveryStatus, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
+        snapshots::SnapshotRecoveryStatus, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
     };
 
     use crate::{ConnectionPool, Core, CoreDal};
@@ -122,9 +125,9 @@ mod tests {
             l1_batch_number: L1BatchNumber(123),
             l1_batch_timestamp: 123,
             l1_batch_root_hash: H256::random(),
-            miniblock_number: MiniblockNumber(234),
-            miniblock_timestamp: 234,
-            miniblock_hash: H256::random(),
+            l2_block_number: L2BlockNumber(234),
+            l2_block_timestamp: 234,
+            l2_block_hash: H256::random(),
             protocol_version: ProtocolVersionId::latest(),
             storage_logs_chunks_processed: vec![false, false, true, false],
         };

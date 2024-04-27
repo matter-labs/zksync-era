@@ -1,15 +1,13 @@
-use std::{convert::TryFrom, ops};
+use std::ops;
 
 use anyhow::Context;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{AccountTreeId, L1BatchNumber, MiniblockNumber, H256};
+use zksync_basic_types::{AccountTreeId, L1BatchNumber, L2BlockNumber, H256};
 use zksync_protobuf::{required, ProtoFmt};
 use zksync_utils::u256_to_h256;
 
-use crate::{
-    commitment::L1BatchWithMetadata, Bytes, ProtocolVersionId, StorageKey, StorageValue, U256,
-};
+use crate::{utils, Bytes, ProtocolVersionId, StorageKey, StorageValue, U256};
 
 /// Information about all snapshots persisted by the node.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,11 +56,11 @@ pub struct SnapshotHeader {
     #[serde(default)]
     pub version: u16,
     pub l1_batch_number: L1BatchNumber,
-    pub miniblock_number: MiniblockNumber,
+    #[serde(rename = "miniblockNumber")] // legacy naming
+    pub l2_block_number: L2BlockNumber,
     /// Ordered by chunk IDs.
     pub storage_logs_chunks: Vec<SnapshotStorageLogsChunkMetadata>,
     pub factory_deps_filepath: String,
-    pub last_l1_batch_with_metadata: L1BatchWithMetadata,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -205,15 +203,22 @@ impl ProtoFmt for SnapshotStorageLogsChunk {
 }
 
 /// Status of snapshot recovery process stored in Postgres.
-#[derive(Debug, PartialEq)]
+#[derive(derive_more::Debug, PartialEq)]
 pub struct SnapshotRecoveryStatus {
     pub l1_batch_number: L1BatchNumber,
     pub l1_batch_root_hash: H256,
+    #[debug("{} (raw: {})", utils::display_timestamp(**l1_batch_timestamp), l1_batch_timestamp)]
     pub l1_batch_timestamp: u64,
-    pub miniblock_number: MiniblockNumber,
-    pub miniblock_hash: H256,
-    pub miniblock_timestamp: u64,
+    pub l2_block_number: L2BlockNumber,
+    pub l2_block_hash: H256,
+    #[debug("{} (raw: {})", utils::display_timestamp(**l2_block_timestamp), l2_block_timestamp)]
+    pub l2_block_timestamp: u64,
     pub protocol_version: ProtocolVersionId,
+    #[debug(
+        "{{ len: {}, left: {} }}",
+        storage_logs_chunks_processed.len(),
+        self.storage_logs_chunks_left_to_process()
+    )]
     pub storage_logs_chunks_processed: Vec<bool>,
 }
 

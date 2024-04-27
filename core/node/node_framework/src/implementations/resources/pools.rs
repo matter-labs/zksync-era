@@ -17,7 +17,7 @@ pub struct MasterPoolResource {
 }
 
 impl Resource for MasterPoolResource {
-    fn resource_id() -> crate::resource::ResourceId {
+    fn name() -> String {
         "common/master_pool".into()
     }
 }
@@ -72,7 +72,7 @@ pub struct ReplicaPoolResource {
 }
 
 impl Resource for ReplicaPoolResource {
-    fn resource_id() -> crate::resource::ResourceId {
+    fn name() -> String {
         "common/replica_pool".into()
     }
 }
@@ -111,7 +111,7 @@ impl ReplicaPoolResource {
             let old_count = self.connections_count.fetch_add(size, Ordering::Relaxed);
             let total_connections = old_count + size;
             tracing::info!(
-                "Created a new replica pool. Master pool total connections count: {total_connections}"
+                "Created a new replica pool. Replica pool total connections count: {total_connections}"
             );
         }
 
@@ -127,7 +127,7 @@ pub struct ProverPoolResource {
 }
 
 impl Resource for ProverPoolResource {
-    fn resource_id() -> crate::resource::ResourceId {
+    fn name() -> String {
         "common/prover_pool".into()
     }
 }

@@ -14,7 +14,7 @@ pub(crate) enum ApiTracer {
 impl ApiTracer {
     pub fn into_boxed<
         S: WriteStorage,
-        H: HistoryMode + multivm::HistoryMode<VmLatest = H> + 'static,
+        H: HistoryMode + multivm::HistoryMode<Vm1_5_0 = H> + 'static,
     >(
         self,
     ) -> MultiVmTracerPointer<S, H> {

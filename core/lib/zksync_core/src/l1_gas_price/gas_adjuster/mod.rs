@@ -171,6 +171,10 @@ impl GasAdjuster {
     }
 
     pub(crate) fn estimate_effective_pubdata_price(&self) -> u64 {
+        if let Some(price) = self.config.internal_enforced_pubdata_price {
+            return price;
+        }
+
         match self.pubdata_sending_mode {
             PubdataSendingMode::Blobs => {
                 const BLOB_GAS_PER_BYTE: u64 = 1; // `BYTES_PER_BLOB` = `GAS_PER_BLOB` = 2 ^ 17.

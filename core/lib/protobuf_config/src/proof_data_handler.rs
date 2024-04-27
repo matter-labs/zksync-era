@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::proto::proof_data_handler as proto;
+use crate::proto::prover as proto;
 
 impl ProtoRepr for proto::ProofDataHandler {
     type Type = configs::ProofDataHandlerConfig;

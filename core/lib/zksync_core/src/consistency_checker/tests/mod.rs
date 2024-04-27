@@ -37,6 +37,7 @@ pub(crate) fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata 
 const PRE_BOOJUM_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version10;
 const DIAMOND_PROXY_ADDR: Address = Address::repeat_byte(1);
 const VALIDATOR_TIMELOCK_ADDR: Address = Address::repeat_byte(23);
+const CHAIN_ID: u32 = 270;
 
 pub(crate) fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
     let mut l1_batch = L1BatchWithMetadata {
@@ -56,24 +57,35 @@ pub(crate) fn build_commit_tx_input_data(
 ) -> Vec<u8> {
     let pubdata_da = PubdataDA::Calldata;
 
-    let is_pre_boojum = batches[0].header.protocol_version.unwrap().is_pre_boojum();
-    let contract;
-    let commit_function = if is_pre_boojum {
-        &*PRE_BOOJUM_COMMIT_FUNCTION
-    } else {
-        contract = zksync_contracts::zksync_contract();
-        contract.function("commitBatches").unwrap()
-    };
+    let protocol_version = batches[0].header.protocol_version.unwrap();
+    let contract = zksync_contracts::hyperchain_contract();
 
-    let mut encoded = vec![];
-    encoded.extend_from_slice(&commit_function.short_signature());
     // Mock an additional argument used in real `commitBlocks` / `commitBatches`. In real transactions,
     // it's taken from the L1 batch previous to `batches[0]`, but since this argument is not checked,
     // it's OK to use `batches[0]`.
-    encoded.extend_from_slice(&ethabi::encode(
-        &l1_batch_commit_data_generator.l1_commit_batches(&batches[0], batches, &pubdata_da),
-    ));
-    encoded
+    let tokens =
+        l1_batch_commit_data_generator.l1_commit_batches(&batches[0], batches, &pubdata_da);
+
+    if protocol_version.is_pre_boojum() {
+        PRE_BOOJUM_COMMIT_FUNCTION.encode_input(&tokens).unwrap()
+    } else if protocol_version.is_pre_shared_bridge() {
+        contract
+            .function("commitBatches")
+            .unwrap()
+            .encode_input(&tokens)
+            .unwrap()
+    } else {
+        // Post shared bridge transactions also require chain id
+        let tokens: Vec<_> = vec![Token::Uint(CHAIN_ID.into())]
+            .into_iter()
+            .chain(tokens)
+            .collect();
+        contract
+            .function("commitBatchesSharedBridge")
+            .unwrap()
+            .encode_input(&tokens)
+            .unwrap()
+    }
 }
 
 pub(crate) fn create_mock_checker(
@@ -83,11 +95,11 @@ pub(crate) fn create_mock_checker(
 ) -> ConsistencyChecker {
     let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
     ConsistencyChecker {
-        contract: zksync_contracts::zksync_contract(),
+        contract: zksync_contracts::hyperchain_contract(),
         diamond_proxy_addr: Some(DIAMOND_PROXY_ADDR),
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
-        l1_client: Box::new(client),
+        l1_client: Arc::new(client),
         event_handler: Box::new(health_updater),
         l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
         pool,
@@ -132,8 +144,8 @@ fn build_commit_tx_input_data_is_correct(deployment_mode: DeploymentMode) {
         DeploymentMode::Rollup => Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
     };
 
-    let contract = zksync_contracts::zksync_contract();
-    let commit_function = contract.function("commitBatches").unwrap();
+    let contract = zksync_contracts::hyperchain_contract();
+    let commit_function = contract.function("commitBatchesSharedBridge").unwrap();
     let batches = vec![
         create_l1_batch_with_metadata(1),
         create_l1_batch_with_metadata(2),
@@ -158,7 +170,7 @@ fn build_commit_tx_input_data_is_correct(deployment_mode: DeploymentMode) {
 
 #[test]
 fn extracting_commit_data_for_boojum_batch() {
-    let contract = zksync_contracts::zksync_contract();
+    let contract = zksync_contracts::hyperchain_contract();
     let commit_function = contract.function("commitBatches").unwrap();
     // Calldata taken from the commit transaction for `https://sepolia.explorer.zksync.io/batch/4470`;
     // `https://sepolia.etherscan.io/tx/0x300b9115037028b1f8aa2177abf98148c3df95c9b04f95a4e25baf4dfee7711f`
@@ -188,7 +200,7 @@ fn extracting_commit_data_for_boojum_batch() {
 
 #[test]
 fn extracting_commit_data_for_multiple_batches() {
-    let contract = zksync_contracts::zksync_contract();
+    let contract = zksync_contracts::hyperchain_contract();
     let commit_function = contract.function("commitBatches").unwrap();
     // Calldata taken from the commit transaction for `https://explorer.zksync.io/batch/351000`;
     // `https://etherscan.io/tx/0xbd8dfe0812df0da534eb95a2d2a4382d65a8172c0b648a147d60c1c2921227fd`
@@ -344,7 +356,7 @@ const SAVE_ACTION_MAPPERS: [(&str, SaveActionMapper); 4] = [
 
 fn l1_batch_commit_log(l1_batch: &L1BatchWithMetadata) -> Log {
     static BLOCK_COMMIT_EVENT_HASH: Lazy<H256> = Lazy::new(|| {
-        zksync_contracts::zksync_contract()
+        zksync_contracts::hyperchain_contract()
             .event("BlockCommit")
             .unwrap()
             .signature()
@@ -466,7 +478,7 @@ async fn checker_processes_pre_boojum_batches(
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::load_genesis_params(GenesisConfig {
-        protocol_version: PRE_BOOJUM_PROTOCOL_VERSION as u16,
+        protocol_version: Some(PRE_BOOJUM_PROTOCOL_VERSION as u16),
         ..mock_genesis_config()
     })
     .unwrap();
@@ -475,8 +487,9 @@ async fn checker_processes_pre_boojum_batches(
         .unwrap();
     storage
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion::default())
-        .await;
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
 
     let l1_batches: Vec<_> = (1..=5)
         .map(create_pre_boojum_l1_batch_with_metadata)
@@ -553,8 +566,9 @@ async fn checker_functions_after_snapshot_recovery(
     let mut storage = pool.connection().await.unwrap();
     storage
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion::default())
-        .await;
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
 
     let l1_batch = create_l1_batch_with_metadata(99);
 
@@ -774,8 +788,9 @@ async fn checker_detects_incorrect_tx_data(
     if snapshot_recovery {
         storage
             .protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
     } else {
         insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await

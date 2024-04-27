@@ -25,16 +25,24 @@ pub enum ContractLanguage {
     Yul,
 }
 
+const BRIDGEHUB_CONTRACT_FILE: &str =
+    "contracts/l1-contracts/artifacts/contracts/bridgehub/IBridgehub.sol/IBridgehub.json";
+const STATE_TRANSITION_CONTRACT_FILE: &str =
+    "contracts/l1-contracts/artifacts/contracts/state-transition/IStateTransitionManager.sol/IStateTransitionManager.json";
+const ZKSYNC_HYPERCHAIN_CONTRACT_FILE: &str =
+    "contracts/l1-contracts/artifacts/contracts/state-transition/chain-interfaces/IZkSyncHyperchain.sol/IZkSyncHyperchain.json";
+const DIAMOND_INIT_CONTRACT_FILE: &str =
+    "contracts/l1-contracts/artifacts/contracts/state-transition/chain-interfaces/IDiamondInit.sol/IDiamondInit.json";
 const GOVERNANCE_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/governance/IGovernance.sol/IGovernance.json";
-const ZKSYNC_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/interfaces/IZkSync.sol/IZkSync.json";
+    "contracts/l1-contracts/artifacts/contracts/governance/IGovernance.sol/IGovernance.json";
 const MULTICALL3_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/dev-contracts/Multicall3.sol/Multicall3.json";
+    "contracts/l1-contracts/artifacts/contracts/dev-contracts/Multicall3.sol/Multicall3.json";
 const VERIFIER_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/Verifier.sol/Verifier.json";
-const L2_BRIDGE_CONTRACT_FILE: &str =
-    "contracts/l2-contracts/artifacts-zk/contracts-preprocessed/bridge/interfaces/IL2Bridge.sol/IL2Bridge.json";
+    "contracts/l1-contracts/artifacts/contracts/state-transition/Verifier.sol/Verifier.json";
+const _IERC20_CONTRACT_FILE: &str =
+    "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
+const _FAIL_ON_RECEIVE_CONTRACT_FILE: &str =
+    "contracts/l1-contracts/artifacts/contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
 const LOADNEXT_CONTRACT_FILE: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json";
 const LOADNEXT_SIMPLE_CONTRACT_FILE: &str =
@@ -71,20 +79,35 @@ pub fn load_sys_contract(contract_name: &str) -> Contract {
     ))
 }
 
+pub fn read_contract_abi(path: impl AsRef<Path>) -> String {
+    read_file_to_json_value(path)["abi"]
+        .as_str()
+        .expect("Failed to parse abi")
+        .to_string()
+}
+
+pub fn bridgehub_contract() -> Contract {
+    load_contract(BRIDGEHUB_CONTRACT_FILE)
+}
+
 pub fn governance_contract() -> Contract {
     load_contract_if_present(GOVERNANCE_CONTRACT_FILE).expect("Governance contract not found")
 }
 
-pub fn zksync_contract() -> Contract {
-    load_contract(ZKSYNC_CONTRACT_FILE)
+pub fn state_transition_manager_contract() -> Contract {
+    load_contract(STATE_TRANSITION_CONTRACT_FILE)
+}
+
+pub fn hyperchain_contract() -> Contract {
+    load_contract(ZKSYNC_HYPERCHAIN_CONTRACT_FILE)
+}
+
+pub fn diamond_init_contract() -> Contract {
+    load_contract(DIAMOND_INIT_CONTRACT_FILE)
 }
 
 pub fn multicall_contract() -> Contract {
     load_contract(MULTICALL3_CONTRACT_FILE)
-}
-
-pub fn l2_bridge_contract() -> Contract {
-    load_contract(L2_BRIDGE_CONTRACT_FILE)
 }
 
 pub fn verifier_contract() -> Contract {
@@ -124,6 +147,14 @@ pub fn deployer_contract() -> Contract {
 
 pub fn l1_messenger_contract() -> Contract {
     load_sys_contract("L1Messenger")
+}
+
+pub fn eth_contract() -> Contract {
+    load_sys_contract("L2BaseToken")
+}
+
+pub fn known_codes_contract() -> Contract {
+    load_sys_contract("KnownCodesStorage")
 }
 
 /// Reads bytecode from the path RELATIVE to the ZKSYNC_HOME environment variable.
@@ -319,6 +350,20 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
+    pub fn playground_1_5_0_small_memory() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_1_5_0_small_memory/playground_batch.yul/playground_batch.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn playground_post_1_5_0_increased_memory() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_1_5_0_increased_memory/playground_batch.yul/playground_batch.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
     pub fn estimate_gas_pre_virtual_blocks() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_1_3_2/fee_estimate.yul/fee_estimate.yul.zbin",
@@ -364,6 +409,20 @@ impl BaseSystemContracts {
     pub fn estimate_gas_post_1_4_2() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_1_4_2/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn estimate_gas_1_5_0_small_memory() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_1_5_0_small_memory/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn estimate_gas_post_1_5_0_increased_memory() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_1_5_0_increased_memory/fee_estimate.yul/fee_estimate.yul.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }

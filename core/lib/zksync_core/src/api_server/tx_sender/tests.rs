@@ -1,12 +1,19 @@
 //! Tests for the transaction sender.
 
-use zksync_types::{get_nonce_key, L1BatchNumber, StorageLog};
+use assert_matches::assert_matches;
+use multivm::interface::ExecutionResult;
+use zksync_config::configs::wallets::Wallets;
+use zksync_types::{get_nonce_key, L1BatchNumber, L2BlockNumber, StorageLog};
+use zksync_utils::u256_to_h256;
 
 use super::*;
 use crate::{
     api_server::execution_sandbox::{testonly::MockTransactionExecutor, VmConcurrencyBarrier},
     genesis::{insert_genesis_batch, GenesisParams},
-    utils::testonly::{create_miniblock, prepare_recovery_snapshot, MockBatchFeeParamsProvider},
+    utils::testonly::{
+        create_l2_block, create_l2_transaction, prepare_recovery_snapshot,
+        MockBatchFeeParamsProvider,
+    },
 };
 
 pub(crate) async fn create_test_tx_sender(
@@ -16,7 +23,13 @@ pub(crate) async fn create_test_tx_sender(
 ) -> (TxSender, VmConcurrencyBarrier) {
     let web3_config = Web3JsonRpcConfig::for_tests();
     let state_keeper_config = StateKeeperConfig::for_tests();
-    let tx_sender_config = TxSenderConfig::new(&state_keeper_config, &web3_config, l2_chain_id);
+    let wallets = Wallets::for_tests();
+    let tx_sender_config = TxSenderConfig::new(
+        &state_keeper_config,
+        &web3_config,
+        wallets.state_keeper.unwrap().fee_account.address(),
+        l2_chain_id,
+    );
 
     let storage_caches = PostgresStorageCaches::new(1, 1);
     let batch_fee_model_input_provider = Arc::new(MockBatchFeeParamsProvider::default());
@@ -49,7 +62,7 @@ async fn getting_nonce_for_account() {
     let nonce_log = StorageLog::new_write_log(nonce_key, H256::from_low_u64_be(123));
     storage
         .storage_logs_dal()
-        .append_storage_logs(MiniblockNumber(0), &[(H256::default(), vec![nonce_log])])
+        .append_storage_logs(L2BlockNumber(0), &[(H256::default(), vec![nonce_log])])
         .await
         .unwrap();
 
@@ -59,10 +72,10 @@ async fn getting_nonce_for_account() {
     let nonce = tx_sender.get_expected_nonce(test_address).await.unwrap();
     assert_eq!(nonce, Nonce(123));
 
-    // Insert another miniblock with a new nonce log.
+    // Insert another L2 block with a new nonce log.
     storage
         .blocks_dal()
-        .insert_miniblock(&create_miniblock(1))
+        .insert_l2_block(&create_l2_block(1))
         .await
         .unwrap();
     let nonce_log = StorageLog {
@@ -71,7 +84,7 @@ async fn getting_nonce_for_account() {
     };
     storage
         .storage_logs_dal()
-        .insert_storage_logs(MiniblockNumber(1), &[(H256::default(), vec![nonce_log])])
+        .insert_storage_logs(L2BlockNumber(1), &[(H256::default(), vec![nonce_log])])
         .await
         .unwrap();
 
@@ -84,7 +97,7 @@ async fn getting_nonce_for_account() {
 
 #[tokio::test]
 async fn getting_nonce_for_account_after_snapshot_recovery() {
-    const SNAPSHOT_MINIBLOCK_NUMBER: MiniblockNumber = MiniblockNumber(42);
+    const SNAPSHOT_L2_BLOCK_NUMBER: L2BlockNumber = L2BlockNumber(42);
 
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
@@ -97,7 +110,7 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
     prepare_recovery_snapshot(
         &mut storage,
         L1BatchNumber(23),
-        SNAPSHOT_MINIBLOCK_NUMBER,
+        SNAPSHOT_L2_BLOCK_NUMBER,
         &nonce_logs,
     )
     .await;
@@ -106,17 +119,9 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
     let tx_executor = MockTransactionExecutor::default().into();
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
 
-    let nonce = tx_sender.get_expected_nonce(test_address).await.unwrap();
-    assert_eq!(nonce, Nonce(123));
-    let nonce = tx_sender.get_expected_nonce(other_address).await.unwrap();
-    assert_eq!(nonce, Nonce(25));
-    let missing_address = Address::repeat_byte(0xff);
-    let nonce = tx_sender.get_expected_nonce(missing_address).await.unwrap();
-    assert_eq!(nonce, Nonce(0));
-
     storage
         .blocks_dal()
-        .insert_miniblock(&create_miniblock(SNAPSHOT_MINIBLOCK_NUMBER.0 + 1))
+        .insert_l2_block(&create_l2_block(SNAPSHOT_L2_BLOCK_NUMBER.0 + 1))
         .await
         .unwrap();
     let new_nonce_logs = vec![StorageLog::new_write_log(
@@ -126,7 +131,7 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
     storage
         .storage_logs_dal()
         .insert_storage_logs(
-            SNAPSHOT_MINIBLOCK_NUMBER + 1,
+            SNAPSHOT_L2_BLOCK_NUMBER + 1,
             &[(H256::default(), new_nonce_logs)],
         )
         .await
@@ -136,6 +141,55 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
     assert_eq!(nonce, Nonce(321));
     let nonce = tx_sender.get_expected_nonce(other_address).await.unwrap();
     assert_eq!(nonce, Nonce(25));
+    let missing_address = Address::repeat_byte(0xff);
     let nonce = tx_sender.get_expected_nonce(missing_address).await.unwrap();
     assert_eq!(nonce, Nonce(0));
+}
+
+#[tokio::test]
+async fn submitting_tx_requires_one_connection() {
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut storage = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
+
+    let l2_chain_id = L2ChainId::default();
+    let fee_input = MockBatchFeeParamsProvider::default()
+        .get_batch_fee_input_scaled(1.0, 1.0)
+        .await
+        .unwrap();
+    let (base_fee, gas_per_pubdata) =
+        derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
+    let tx = create_l2_transaction(base_fee, gas_per_pubdata);
+    let tx_hash = tx.hash();
+
+    // Manually set sufficient balance for the tx initiator.
+    let balance_key = storage_key_for_eth_balance(&tx.initiator_account());
+    let storage_log = StorageLog::new_write_log(balance_key, u256_to_h256(U256::one() << 64));
+    storage
+        .storage_logs_dal()
+        .append_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![storage_log])])
+        .await
+        .unwrap();
+    drop(storage);
+
+    let mut tx_executor = MockTransactionExecutor::default();
+    tx_executor.set_tx_responses(move |received_tx, _| {
+        assert_eq!(received_tx.hash(), tx_hash);
+        ExecutionResult::Success { output: vec![] }
+    });
+    let tx_executor = tx_executor.into();
+    let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
+
+    let submission_result = tx_sender.submit_tx(tx).await.unwrap();
+    assert_matches!(submission_result, L2TxSubmissionResult::Added);
+
+    let mut storage = pool.connection().await.unwrap();
+    storage
+        .transactions_web3_dal()
+        .get_transaction_by_hash(tx_hash, l2_chain_id)
+        .await
+        .unwrap()
+        .expect("transaction is not persisted");
 }

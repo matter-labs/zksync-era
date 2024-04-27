@@ -1,12 +1,12 @@
 use zksync_core::sync_layer::SyncState;
 
-use crate::resource::{Resource, ResourceId};
+use crate::resource::Resource;
 
 #[derive(Debug, Clone)]
 pub struct SyncStateResource(pub SyncState);
 
 impl Resource for SyncStateResource {
-    fn resource_id() -> ResourceId {
+    fn name() -> String {
         "sync_state".into()
     }
 }

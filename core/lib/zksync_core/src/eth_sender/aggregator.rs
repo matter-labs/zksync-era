@@ -42,9 +42,10 @@ impl Aggregator {
         config: SenderConfig,
         blob_store: Arc<dyn ObjectStore>,
         operate_4844_mode: bool,
-        pubdata_da: PubdataDA,
         l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> Self {
+        let pubdata_da = config.pubdata_sending_mode.into();
+
         Self {
             commit_criteria: vec![
                 Box::from(NumberCriterion {

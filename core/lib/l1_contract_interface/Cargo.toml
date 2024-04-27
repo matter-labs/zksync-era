@@ -15,8 +15,6 @@ zksync_prover_interface.workspace = true
 
 # Used to serialize proof data
 crypto_codegen.workspace = true
-# Used to calculate commitment for vk from the old L1 verifier contract (backward comatibility needs)
-circuit_sequencer_api_1_3_3.workspace = true
 # Used to calculate the kzg commitment and proofs
 kzg.workspace = true
 

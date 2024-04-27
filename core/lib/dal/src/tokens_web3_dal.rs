@@ -1,7 +1,7 @@
-use zksync_db_connection::connection::Connection;
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{
     tokens::{TokenInfo, TokenMetadata},
-    Address, MiniblockNumber,
+    Address, L2BlockNumber,
 };
 
 use crate::{Core, CoreDal};
@@ -36,7 +36,7 @@ pub struct TokensWeb3Dal<'a, 'c> {
 
 impl TokensWeb3Dal<'_, '_> {
     /// Returns information about well-known tokens.
-    pub async fn get_well_known_tokens(&mut self) -> sqlx::Result<Vec<TokenInfo>> {
+    pub async fn get_well_known_tokens(&mut self) -> DalResult<Vec<TokenInfo>> {
         let records = sqlx::query_as!(
             StorageTokenInfo,
             r#"
@@ -54,7 +54,8 @@ impl TokensWeb3Dal<'_, '_> {
                 symbol
             "#
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_well_known_tokens")
+        .fetch_all(self.storage)
         .await?;
 
         Ok(records.into_iter().map(Into::into).collect())
@@ -63,8 +64,8 @@ impl TokensWeb3Dal<'_, '_> {
     /// Returns information about all tokens.
     pub async fn get_all_tokens(
         &mut self,
-        at_miniblock: Option<MiniblockNumber>,
-    ) -> sqlx::Result<Vec<TokenInfo>> {
+        at_l2_block: Option<L2BlockNumber>,
+    ) -> DalResult<Vec<TokenInfo>> {
         let records = sqlx::query_as!(
             StorageTokenInfo,
             r#"
@@ -80,11 +81,14 @@ impl TokensWeb3Dal<'_, '_> {
                 symbol
             "#
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_all_tokens")
+        .with_arg("at_l2_block", &at_l2_block)
+        .report_latency()
+        .fetch_all(self.storage)
         .await?;
 
         let mut all_tokens: Vec<_> = records.into_iter().map(TokenInfo::from).collect();
-        let Some(at_miniblock) = at_miniblock else {
+        let Some(at_l2_block) = at_l2_block else {
             return Ok(all_tokens); // No additional filtering is required
         };
 
@@ -92,7 +96,7 @@ impl TokensWeb3Dal<'_, '_> {
         let filtered_addresses = self
             .storage
             .storage_logs_dal()
-            .filter_deployed_contracts(token_addresses, Some(at_miniblock))
+            .filter_deployed_contracts(token_addresses, Some(at_l2_block))
             .await?;
 
         all_tokens.retain(|token| filtered_addresses.contains_key(&token.l2_address));

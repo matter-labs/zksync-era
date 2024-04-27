@@ -5,7 +5,7 @@ use once_cell::sync::Lazy;
 use test_casing::{test_casing, Product};
 use zksync_config::{
     configs::eth_sender::{ProofSendingMode, PubdataSendingMode, SenderConfig},
-    ContractsConfig, ETHSenderConfig, GasAdjusterConfig,
+    ContractsConfig, EthConfig, GasAdjusterConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{clients::MockEthereum, EthInterface};
@@ -18,7 +18,7 @@ use zksync_types::{
     helpers::unix_timestamp_ms,
     pubdata_da::PubdataDA,
     web3::contract::Error,
-    Address, L1BatchNumber, L1BlockNumber, ProtocolVersionId, H256,
+    Address, L1BatchNumber, L1BlockNumber, ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use super::l1_batch_commit_data_generator::{
@@ -84,11 +84,11 @@ impl EthSenderTester {
         aggregator_operate_4844_mode: bool,
         deployment_mode: &DeploymentMode,
     ) -> Self {
-        let eth_sender_config = ETHSenderConfig::for_tests();
+        let eth_sender_config = EthConfig::for_tests();
         let contracts_config = ContractsConfig::for_tests();
         let aggregator_config = SenderConfig {
             aggregated_proof_sizes: vec![1],
-            ..eth_sender_config.sender.clone()
+            ..eth_sender_config.clone().sender.unwrap()
         };
 
         let gateway = MockEthereum::default()
@@ -118,7 +118,7 @@ impl EthSenderTester {
                     max_base_fee_samples: Self::MAX_BASE_FEE_SAMPLES,
                     pricing_formula_parameter_a: 3.0,
                     pricing_formula_parameter_b: 2.0,
-                    ..eth_sender_config.gas_adjuster
+                    ..eth_sender_config.gas_adjuster.unwrap()
                 },
                 PubdataSendingMode::Calldata,
                 pubdata_pricing,
@@ -134,18 +134,19 @@ impl EthSenderTester {
                 DeploymentMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
             };
 
+        let eth_sender = eth_sender_config.sender.clone().unwrap();
         let aggregator = EthTxAggregator::new(
             connection_pool.clone(),
             SenderConfig {
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
-                ..eth_sender_config.sender.clone()
+                pubdata_sending_mode: PubdataSendingMode::Calldata,
+                ..eth_sender.clone()
             },
             // Aggregator - unused
             Aggregator::new(
                 aggregator_config.clone(),
                 store_factory.create_store().await,
                 aggregator_operate_4844_mode,
-                PubdataDA::Calldata,
                 l1_batch_commit_data_generator.clone(),
             ),
             gateway.clone(),
@@ -161,7 +162,7 @@ impl EthSenderTester {
 
         let manager = EthTxManager::new(
             connection_pool.clone(),
-            eth_sender_config.sender,
+            eth_sender.clone(),
             gas_adjuster.clone(),
             gateway.clone(),
             None,
@@ -202,7 +203,6 @@ fn default_l1_batch_metadata() -> L1BatchMetadata {
     L1BatchMetadata {
         root_hash: Default::default(),
         rollup_last_leaf_index: 0,
-        merkle_root_hash: Default::default(),
         initial_writes_compressed: Some(vec![]),
         repeated_writes_compressed: Some(vec![]),
         commitment: Default::default(),
@@ -211,6 +211,7 @@ fn default_l1_batch_metadata() -> L1BatchMetadata {
             zkporter_is_available: false,
             bootloader_code_hash: Default::default(),
             default_aa_code_hash: Default::default(),
+            protocol_version: Default::default(),
         },
         aux_data_hash: Default::default(),
         meta_parameters_hash: Default::default(),
@@ -246,7 +247,7 @@ async fn confirm_many(
             .save_eth_tx(
                 &mut tester.conn.connection().await.unwrap(),
                 &DUMMY_OPERATION,
-                true,
+                false,
             )
             .await?;
         let hash = tester
@@ -331,7 +332,7 @@ async fn resend_each_block(deployment_mode: DeploymentMode) -> anyhow::Result<()
         .save_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
             &DUMMY_OPERATION,
-            true,
+            false,
         )
         .await?;
 
@@ -436,7 +437,7 @@ async fn dont_resend_already_mined(deployment_mode: DeploymentMode) -> anyhow::R
         .save_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
             &DUMMY_OPERATION,
-            true,
+            false,
         )
         .await
         .unwrap();
@@ -518,7 +519,7 @@ async fn three_scenarios(deployment_mode: DeploymentMode) -> anyhow::Result<()> 
             .save_eth_tx(
                 &mut tester.conn.connection().await.unwrap(),
                 &DUMMY_OPERATION,
-                true,
+                false,
             )
             .await
             .unwrap();
@@ -595,7 +596,7 @@ async fn failed_eth_tx(deployment_mode: DeploymentMode) {
         .save_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
             &DUMMY_OPERATION,
-            true,
+            false,
         )
         .await
         .unwrap();
@@ -982,8 +983,9 @@ async fn insert_genesis_protocol_version(tester: &EthSenderTester) {
         .storage()
         .await
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(Default::default())
-        .await;
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
 }
 
 async fn insert_l1_batch(tester: &EthSenderTester, number: L1BatchNumber) -> L1BatchHeader {
@@ -1068,7 +1070,7 @@ async fn send_operation(
         .save_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
             &aggregated_operation,
-            true,
+            false,
         )
         .await
         .unwrap();
