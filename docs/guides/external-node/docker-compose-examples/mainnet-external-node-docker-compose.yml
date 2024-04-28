@@ -41,7 +41,7 @@ services:
     healthcheck:
       interval: 1s
       timeout: 3s
-      test: psql -U postgres -c "select exists (select * from pg_stat_activity where datname = '{{ database_name }}' and application_name = 'pg_restore')" | grep -e ".f$"
+      test: psql -U postgres -c "select exists (select * from pg_stat_activity where datname = '{{ database_name }}' and application_name = 'pg_restore')" | grep -e ".f$$"
     environment:
       - POSTGRES_PASSWORD=notsecurepassword
       - PGPORT=5430
