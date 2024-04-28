@@ -13,13 +13,15 @@ use zksync_utils::u256_to_h256;
 
 use crate::vm_latest::{
     constants::{
-        BOOTLOADER_HEAP_PAGE, VM_HOOK_PARAMS_COUNT, VM_HOOK_PARAMS_START_POSITION, VM_HOOK_POSITION,
+        get_vm_hook_params_start_position, get_vm_hook_position, BOOTLOADER_HEAP_PAGE,
+        VM_HOOK_PARAMS_COUNT,
     },
     old_vm::{
         history_recorder::HistoryMode,
         memory::SimpleMemory,
         utils::{aux_heap_page_from_base, heap_page_from_base},
     },
+    vm::MultiVMSubversion,
 };
 
 #[derive(Clone, Debug, Copy)]
@@ -45,6 +47,7 @@ impl VmHook {
     pub(crate) fn from_opcode_memory(
         state: &VmLocalStateData<'_>,
         data: &BeforeExecutionData,
+        subversion: MultiVMSubversion,
     ) -> Self {
         let opcode_variant = data.opcode.variant;
         let heap_page =
@@ -59,7 +62,7 @@ impl VmHook {
         // Only `UMA` opcodes in the bootloader serve for vm hooks
         if !matches!(opcode_variant.opcode, Opcode::UMA(UMAOpcode::HeapWrite))
             || heap_page != BOOTLOADER_HEAP_PAGE
-            || fat_ptr.offset != VM_HOOK_POSITION * 32
+            || fat_ptr.offset != get_vm_hook_position(subversion) * 32
         {
             return Self::NoHook;
         }
@@ -86,8 +89,9 @@ impl VmHook {
 pub(crate) fn get_debug_log<H: HistoryMode>(
     state: &VmLocalStateData<'_>,
     memory: &SimpleMemory<H>,
+    subversion: MultiVMSubversion,
 ) -> String {
-    let vm_hook_params: Vec<_> = get_vm_hook_params(memory)
+    let vm_hook_params: Vec<_> = get_vm_hook_params(memory, subversion)
         .into_iter()
         .map(u256_to_h256)
         .collect();
@@ -156,9 +160,10 @@ pub(crate) fn print_debug_if_needed<H: HistoryMode>(
     state: &VmLocalStateData<'_>,
     memory: &SimpleMemory<H>,
     latest_returndata_ptr: Option<FatPointer>,
+    subversion: MultiVMSubversion,
 ) {
     let log = match hook {
-        VmHook::DebugLog => get_debug_log(state, memory),
+        VmHook::DebugLog => get_debug_log(state, memory, subversion),
         VmHook::DebugReturnData => get_debug_returndata(memory, latest_returndata_ptr),
         _ => return,
     };
@@ -202,9 +207,13 @@ pub(crate) fn get_calldata_page_via_abi(far_call_abi: &FarCallABI, base_page: Me
         FarCallForwardPageType::UseHeap => heap_page_from_base(base_page).0,
     }
 }
-pub(crate) fn get_vm_hook_params<H: HistoryMode>(memory: &SimpleMemory<H>) -> Vec<U256> {
+pub(crate) fn get_vm_hook_params<H: HistoryMode>(
+    memory: &SimpleMemory<H>,
+    subversion: MultiVMSubversion,
+) -> Vec<U256> {
+    let start_position = get_vm_hook_params_start_position(subversion);
     memory.dump_page_content_as_u256_words(
         BOOTLOADER_HEAP_PAGE,
-        VM_HOOK_PARAMS_START_POSITION..VM_HOOK_PARAMS_START_POSITION + VM_HOOK_PARAMS_COUNT,
+        start_position..start_position + VM_HOOK_PARAMS_COUNT,
     )
 }

@@ -23,7 +23,7 @@ use super::{BatchExecuteData, VmRunnerStorage, VmRunnerStorageLoader};
 use crate::{
     genesis::{insert_genesis_batch, GenesisParams},
     utils::testonly::{
-        create_l1_batch_metadata, create_l2_transaction, create_miniblock, execute_l2_transaction,
+        create_l1_batch_metadata, create_l2_block, create_l2_transaction, execute_l2_transaction,
         l1_batch_metadata_to_commitment_artifacts,
     },
 };
@@ -194,7 +194,7 @@ async fn store_l2_blocks(
         conn.factory_deps_dal()
             .insert_factory_deps(l2_block_number, &factory_deps)
             .await?;
-        let mut new_l2_block = create_miniblock(l2_block_number.0);
+        let mut new_l2_block = create_l2_block(l2_block_number.0);
         l2_block_number += 1;
         new_l2_block.base_system_contracts_hashes = contract_hashes;
         new_l2_block.l2_tx_count = 1;
@@ -205,7 +205,7 @@ async fn store_l2_blocks(
             .await?;
 
         // Insert a fictive L2 block at the end of the batch
-        let fictive_l2_block = create_miniblock(l2_block_number.0);
+        let fictive_l2_block = create_l2_block(l2_block_number.0);
         l2_block_number += 1;
         conn.blocks_dal().insert_l2_block(&fictive_l2_block).await?;
 

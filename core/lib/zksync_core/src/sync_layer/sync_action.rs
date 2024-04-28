@@ -10,8 +10,8 @@ pub struct ActionQueueSender(mpsc::Sender<SyncAction>);
 impl ActionQueueSender {
     /// Pushes a set of actions to the queue.
     ///
-    /// Requires that the actions are in the correct order: starts with a new open batch/miniblock,
-    /// followed by 0 or more transactions, have mandatory `SealMiniblock` and optional `SealBatch` at the end.
+    /// Requires that the actions are in the correct order: starts with a new open L1 batch / L2 block,
+    /// followed by 0 or more transactions, have mandatory `SealL2Block` and optional `SealBatch` at the end.
     /// Would panic if the order is incorrect.
     pub(crate) async fn push_actions(&self, actions: Vec<SyncAction>) {
         Self::check_action_sequence(&actions).unwrap();
@@ -28,48 +28,48 @@ impl ActionQueueSender {
     /// error. This function itself does not panic for the ease of testing.
     fn check_action_sequence(actions: &[SyncAction]) -> Result<(), String> {
         // Rules for the sequence:
-        // 1. Must start with either `OpenBatch` or `Miniblock`, both of which may be met only once.
+        // 1. Must start with either `OpenBatch` or `L2Block`, both of which may be met only once.
         // 2. Followed by a sequence of `Tx` actions which consists of 0 or more elements.
-        // 3. Must have either `SealMiniblock` or `SealBatch` at the end.
+        // 3. Must have either `SealL2Block` or `SealBatch` at the end.
 
         let mut batch_open = false;
-        let mut miniblock_open = false;
+        let mut l2_block_open = false;
 
         for action in actions {
             match action {
                 SyncAction::OpenBatch { .. } => {
-                    if batch_open || miniblock_open {
+                    if batch_open || l2_block_open {
                         return Err(format!("Unexpected OpenBatch: {:?}", actions));
                     }
                     batch_open = true;
-                    miniblock_open = true;
+                    l2_block_open = true;
                 }
-                SyncAction::Miniblock { .. } => {
-                    if miniblock_open {
-                        return Err(format!("Unexpected Miniblock: {:?}", actions));
+                SyncAction::L2Block { .. } => {
+                    if l2_block_open {
+                        return Err(format!("Unexpected L2Block: {:?}", actions));
                     }
-                    miniblock_open = true;
+                    l2_block_open = true;
                 }
                 SyncAction::Tx(_) => {
-                    if !batch_open && !miniblock_open {
+                    if !batch_open && !l2_block_open {
                         return Err(format!("Unexpected Tx: {:?}", actions));
                     }
                 }
-                SyncAction::SealMiniblock => {
-                    if !miniblock_open {
-                        return Err(format!("Unexpected SealMiniblock: {:?}", actions));
+                SyncAction::SealL2Block => {
+                    if !l2_block_open {
+                        return Err(format!("Unexpected SealL2Block: {:?}", actions));
                     }
-                    miniblock_open = false;
+                    l2_block_open = false;
                 }
                 SyncAction::SealBatch => {
-                    if !batch_open && !miniblock_open {
+                    if !batch_open && !l2_block_open {
                         return Err(format!("Unexpected SealBatch: {:?}", actions));
                     }
                     batch_open = false;
                 }
             }
         }
-        if batch_open && miniblock_open {
+        if batch_open && l2_block_open {
             return Err(format!("Incomplete sequence: {:?}", actions));
         }
         Ok(())
@@ -154,20 +154,20 @@ pub(crate) enum SyncAction {
         params: L1BatchParams,
         // Additional parameters used only for sanity checks
         number: L1BatchNumber,
-        first_miniblock_number: L2BlockNumber,
+        first_l2_block_number: L2BlockNumber,
     },
-    Miniblock {
+    L2Block {
         params: L2BlockParams,
         // Additional parameters used only for sanity checks
         number: L2BlockNumber,
     },
     Tx(Box<FetchedTransaction>),
-    /// We need an explicit action for the miniblock sealing, since we fetch the whole miniblocks and already know
-    /// that they are sealed, but at the same time the next miniblock may not exist yet.
-    /// By having a dedicated action for that we prevent a situation where the miniblock is kept open on the EN until
+    /// We need an explicit action for the L2 block sealing, since we fetch the whole L2 blocks and already know
+    /// that they are sealed, but at the same time the next L2 block may not exist yet.
+    /// By having a dedicated action for that we prevent a situation where the L2 block is kept open on the EN until
     /// the next one is sealed on the main node.
-    SealMiniblock,
-    /// Similarly to `SealMiniblock` we must be able to seal the batch even if there is no next miniblock yet.
+    SealL2Block,
+    /// Similarly to `SealL2Block` we must be able to seal the batch even if there is no next L2 block yet.
     SealBatch,
 }
 
@@ -196,12 +196,12 @@ mod tests {
                 },
             },
             number: L1BatchNumber(1),
-            first_miniblock_number: L2BlockNumber(1),
+            first_l2_block_number: L2BlockNumber(1),
         }
     }
 
-    fn miniblock() -> SyncAction {
-        SyncAction::Miniblock {
+    fn l2_block() -> SyncAction {
+        SyncAction::L2Block {
             params: L2BlockParams {
                 timestamp: 1,
                 virtual_blocks: 1,
@@ -226,8 +226,8 @@ mod tests {
         FetchedTransaction::new(tx.into()).into()
     }
 
-    fn seal_miniblock() -> SyncAction {
-        SyncAction::SealMiniblock
+    fn seal_l2_block() -> SyncAction {
+        SyncAction::SealL2Block
     }
 
     fn seal_batch() -> SyncAction {
@@ -237,19 +237,19 @@ mod tests {
     #[test]
     fn correct_sequence() {
         let test_vector = vec![
-            vec![open_batch(), seal_miniblock()],
+            vec![open_batch(), seal_l2_block()],
             vec![open_batch(), seal_batch()],
-            vec![open_batch(), tx(), seal_miniblock()],
-            vec![open_batch(), tx(), tx(), tx(), seal_miniblock()],
+            vec![open_batch(), tx(), seal_l2_block()],
+            vec![open_batch(), tx(), tx(), tx(), seal_l2_block()],
             vec![open_batch(), tx(), seal_batch()],
-            vec![miniblock(), seal_miniblock()],
-            vec![miniblock(), seal_batch()],
-            vec![miniblock(), tx(), seal_miniblock()],
-            vec![miniblock(), tx(), seal_batch()],
+            vec![l2_block(), seal_l2_block()],
+            vec![l2_block(), seal_batch()],
+            vec![l2_block(), tx(), seal_l2_block()],
+            vec![l2_block(), tx(), seal_batch()],
         ];
         for (idx, sequence) in test_vector.into_iter().enumerate() {
             ActionQueueSender::check_action_sequence(&sequence)
-                .unwrap_or_else(|_| panic!("Valid sequence #{} failed", idx));
+                .unwrap_or_else(|_| panic!("Valid sequence #{idx} failed"));
         }
     }
 
@@ -261,53 +261,47 @@ mod tests {
             // Incomplete sequences.
             (vec![open_batch()], "Incomplete sequence"),
             (vec![open_batch(), tx()], "Incomplete sequence"),
-            (vec![miniblock()], "Incomplete sequence"),
-            (vec![miniblock(), tx()], "Incomplete sequence"),
+            (vec![l2_block()], "Incomplete sequence"),
+            (vec![l2_block(), tx()], "Incomplete sequence"),
             // Unexpected tx
             (vec![tx()], "Unexpected Tx"),
-            (vec![open_batch(), seal_miniblock(), tx()], "Unexpected Tx"),
-            // Unexpected `OpenBatch/Miniblock`
+            (vec![open_batch(), seal_l2_block(), tx()], "Unexpected Tx"),
+            // Unexpected `OpenBatch / L2Block`
             (
-                vec![miniblock(), miniblock()],
-                "Unexpected OpenBatch/Miniblock",
+                vec![l2_block(), l2_block()],
+                "Unexpected OpenBatch / L2Block",
             ),
             (
-                vec![miniblock(), open_batch()],
-                "Unexpected OpenBatch/Miniblock",
+                vec![l2_block(), open_batch()],
+                "Unexpected OpenBatch / L2Block",
             ),
             (
-                vec![open_batch(), miniblock()],
-                "Unexpected OpenBatch/Miniblock",
+                vec![open_batch(), l2_block()],
+                "Unexpected OpenBatch / L2Block",
             ),
-            // Unexpected `SealMiniblock`
-            (vec![seal_miniblock()], "Unexpected SealMiniblock"),
+            // Unexpected `SealL2Block`
+            (vec![seal_l2_block()], "Unexpected SealL2Block"),
             (
-                vec![miniblock(), seal_miniblock(), seal_miniblock()],
-                "Unexpected SealMiniblock",
-            ),
-            (
-                vec![open_batch(), seal_miniblock(), seal_batch(), seal_batch()],
-                "Unexpected SealMiniblock/SealBatch",
+                vec![l2_block(), seal_l2_block(), seal_l2_block()],
+                "Unexpected SealL2Block",
             ),
             (
-                vec![miniblock(), seal_miniblock(), seal_batch(), seal_batch()],
-                "Unexpected SealMiniblock/SealBatch",
+                vec![open_batch(), seal_l2_block(), seal_batch(), seal_batch()],
+                "Unexpected SealL2Block / SealBatch",
             ),
-            (vec![seal_batch()], "Unexpected SealMiniblock/SealBatch"),
+            (
+                vec![l2_block(), seal_l2_block(), seal_batch(), seal_batch()],
+                "Unexpected SealL2Block / SealBatch",
+            ),
+            (vec![seal_batch()], "Unexpected SealL2Block / SealBatch"),
         ];
         for (idx, (sequence, expected_err)) in test_vector.into_iter().enumerate() {
             let Err(err) = ActionQueueSender::check_action_sequence(&sequence) else {
-                panic!(
-                    "Invalid sequence passed the test. Sequence #{}, expected error: {}",
-                    idx, expected_err
-                );
+                panic!("Invalid sequence passed the test. Sequence #{idx}, expected error: {expected_err}");
             };
             assert!(
                 err.starts_with(expected_err),
-                "Sequence #{} failed. Expected error: {}, got: {}",
-                idx,
-                expected_err,
-                err
+                "Sequence #{idx} failed. Expected error: {expected_err}, got: {err}"
             );
         }
     }

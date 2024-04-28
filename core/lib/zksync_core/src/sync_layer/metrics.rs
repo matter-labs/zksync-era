@@ -8,7 +8,9 @@ use zksync_types::aggregated_operations::AggregatedActionType;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
 pub(super) enum FetchStage {
-    GetMiniblockRange,
+    // uses legacy naming for L2 blocks for compatibility reasons
+    #[metrics(name = "get_miniblock_range")]
+    GetL2BlockRange,
     GetBlockDetails,
 }
 
@@ -40,6 +42,7 @@ pub(super) struct FetcherMetrics {
     #[metrics(buckets = Buckets::LATENCIES)]
     pub requests: Family<FetchStage, Histogram<Duration>>,
     pub l1_batch: Family<L1BatchStage, Gauge<u64>>,
+    // uses legacy naming for L2 blocks for compatibility reasons
     pub miniblock: Gauge<u64>,
 }
 
