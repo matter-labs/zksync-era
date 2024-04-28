@@ -258,17 +258,20 @@ impl StateKeeper {
         self.batch_sealed = true;
     }
 
-    /// Pushes `count` random miniblocks to the StateKeeper.
-    pub async fn push_random_blocks(&mut self, rng: &mut impl Rng, count: usize) {
-        for _ in 0..count {
-            // 20% chance to seal an L1 batch.
+    /// Pushes `count` random miniblocks to the StateKeeper and seals the L1 batch.
+    pub async fn push_random_blocks_and_seal(&mut self, rng: &mut impl Rng, count: usize) {
+        for _ in 0..(count - 1) {
+            self.push_block(rng.gen_range(3..8)).await;
+
+            // 20% chance to seal an intermediate L1 batch.
             // `seal_batch()` also produces a (fictive) block.
             if rng.gen_range(0..100) < 20 {
                 self.seal_batch().await;
-            } else {
-                self.push_block(rng.gen_range(3..8)).await;
             }
         }
+
+        self.push_block(rng.gen_range(3..8)).await;
+        self.seal_batch().await;
     }
 
     /// Last block that has been pushed to the `StateKeeper` via `ActionQueue`.

@@ -32,31 +32,44 @@ impl ActionQueueSender {
         // 2. Followed by a sequence of `Tx` actions which consists of 0 or more elements.
         // 3. Must have either `SealMiniblock` or `SealBatch` at the end.
 
-        let mut opened = false;
-        let mut miniblock_sealed = false;
+        let mut batch_open = false;
+        let mut miniblock_open = false;
 
         for action in actions {
             match action {
-                SyncAction::OpenBatch { .. } | SyncAction::Miniblock { .. } => {
-                    if opened {
-                        return Err(format!("Unexpected OpenBatch/Miniblock: {:?}", actions));
+                SyncAction::OpenBatch { .. } => {
+                    if batch_open || miniblock_open {
+                        return Err(format!("Unexpected OpenBatch: {:?}", actions));
                     }
-                    opened = true;
+                    batch_open = true;
+                    miniblock_open = true;
+                }
+                SyncAction::Miniblock { .. } => {
+                    if miniblock_open {
+                        return Err(format!("Unexpected Miniblock: {:?}", actions));
+                    }
+                    miniblock_open = true;
                 }
                 SyncAction::Tx(_) => {
-                    if !opened || miniblock_sealed {
+                    if !batch_open && !miniblock_open {
                         return Err(format!("Unexpected Tx: {:?}", actions));
                     }
                 }
-                SyncAction::SealMiniblock | SyncAction::SealBatch => {
-                    if !opened || miniblock_sealed {
-                        return Err(format!("Unexpected SealMiniblock/SealBatch: {:?}", actions));
+                SyncAction::SealMiniblock => {
+                    if !miniblock_open {
+                        return Err(format!("Unexpected SealMiniblock: {:?}", actions));
                     }
-                    miniblock_sealed = true;
+                    miniblock_open = false;
+                }
+                SyncAction::SealBatch => {
+                    if !batch_open && !miniblock_open {
+                        return Err(format!("Unexpected SealBatch: {:?}", actions));
+                    }
+                    batch_open = false;
                 }
             }
         }
-        if !miniblock_sealed {
+        if batch_open && miniblock_open {
             return Err(format!("Incomplete sequence: {:?}", actions));
         }
         Ok(())

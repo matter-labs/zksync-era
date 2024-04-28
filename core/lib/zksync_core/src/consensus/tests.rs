@@ -34,7 +34,7 @@ async fn test_validator_block_store() {
         // Start state keeper.
         let (mut sk, runner) = testonly::StateKeeper::new(ctx, store.clone()).await?;
         s.spawn_bg(runner.run(ctx));
-        sk.push_random_blocks(rng, 10).await;
+        sk.push_random_blocks_and_seal(rng, 10).await;
         store.wait_for_payload(ctx, sk.last_block()).await?;
         let fork = validator::Fork {
             number: validator::ForkNumber(rng.gen()),
@@ -113,7 +113,7 @@ async fn test_validator(from_snapshot: bool) {
         s.spawn_bg(runner.run(ctx));
 
         tracing::info!("Populate storage with a bunch of blocks.");
-        sk.push_random_blocks(rng, 5).await;
+        sk.push_random_blocks_and_seal(rng, 5).await;
         store
             .wait_for_payload(ctx, sk.last_block())
             .await
@@ -132,7 +132,7 @@ async fn test_validator(from_snapshot: bool) {
                 s.spawn_bg(cfg.run(ctx, store.clone()));
 
                 tracing::info!("Generate couple more blocks and wait for consensus to catch up.");
-                sk.push_random_blocks(rng, 3).await;
+                sk.push_random_blocks_and_seal(rng, 3).await;
                 store
                     .wait_for_certificate(ctx, sk.last_block())
                     .await
@@ -140,7 +140,7 @@ async fn test_validator(from_snapshot: bool) {
 
                 tracing::info!("Synchronously produce blocks one by one, and wait for consensus.");
                 for _ in 0..2 {
-                    sk.push_random_blocks(rng, 1).await;
+                    sk.push_random_blocks_and_seal(rng, 1).await;
                     store
                         .wait_for_certificate(ctx, sk.last_block())
                         .await
@@ -185,8 +185,7 @@ async fn test_nodes_from_various_snapshots() {
         s.spawn_bg(cfg.run(ctx, validator_store.clone()));
 
         tracing::info!("produce some batches");
-        validator.push_random_blocks(rng, 5).await;
-        validator.seal_batch().await;
+        validator.push_random_blocks_and_seal(rng, 5).await;
         validator_store
             .wait_for_certificate(ctx, validator.last_block())
             .await?;
@@ -200,8 +199,7 @@ async fn test_nodes_from_various_snapshots() {
         s.spawn_bg(node.run_p2p_fetcher(ctx, validator.connect(ctx).await?, node_cfg));
 
         tracing::info!("produce more batches");
-        validator.push_random_blocks(rng, 5).await;
-        validator.seal_batch().await;
+        validator.push_random_blocks_and_seal(rng, 5).await;
         node_store
             .wait_for_certificate(ctx, validator.last_block())
             .await?;
@@ -215,7 +213,7 @@ async fn test_nodes_from_various_snapshots() {
         s.spawn_bg(node.run_p2p_fetcher(ctx, validator.connect(ctx).await?, node_cfg));
 
         tracing::info!("produce more blocks and compare storages");
-        validator.push_random_blocks(rng, 5).await;
+        validator.push_random_blocks_and_seal(rng, 5).await;
         let want = validator_store
             .wait_for_certificates_and_verify(ctx, validator.last_block())
             .await?;
@@ -273,7 +271,7 @@ async fn test_full_nodes(from_snapshot: bool) {
                 .context("validator")
         });
         // Generate a couple of blocks, before initializing consensus genesis.
-        validator.push_random_blocks(rng, 5).await;
+        validator.push_random_blocks_and_seal(rng, 5).await;
         validator_store
             .wait_for_payload(ctx, validator.last_block())
             .await
@@ -310,7 +308,7 @@ async fn test_full_nodes(from_snapshot: bool) {
 
         // Make validator produce blocks and wait for fetchers to get them.
         // Note that block from before and after genesis have to be fetched.
-        validator.push_random_blocks(rng, 5).await;
+        validator.push_random_blocks_and_seal(rng, 5).await;
         let want_last = validator.last_block();
         let want = validator_store
             .wait_for_certificates_and_verify(ctx, want_last)
@@ -354,6 +352,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
             .run(ctx, validator_store.clone()),
         );
         // API server needs at least 1 L1 batch to start.
+        validator.push_block(1).await;
         validator.seal_batch().await;
         let client = validator.connect(ctx).await?;
 
@@ -364,7 +363,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
             let (node, runner) = testonly::StateKeeper::new(ctx, node_store.clone()).await?;
             s.spawn_bg(runner.run(ctx));
             s.spawn_bg(node.run_p2p_fetcher(ctx, client.clone(), node_cfg.clone()));
-            validator.push_random_blocks(rng, 3).await;
+            validator.push_random_blocks_and_seal(rng, 3).await;
             node_store
                 .wait_for_certificate(ctx, validator.last_block())
                 .await?;
@@ -378,7 +377,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
             let (node, runner) = testonly::StateKeeper::new(ctx, node_store.clone()).await?;
             s.spawn_bg(runner.run(ctx));
             s.spawn_bg(node.run_centralized_fetcher(ctx, client.clone()));
-            validator.push_random_blocks(rng, 3).await;
+            validator.push_random_blocks_and_seal(rng, 3).await;
             node_store
                 .wait_for_payload(ctx, validator.last_block())
                 .await?;
@@ -392,7 +391,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
             let (node, runner) = testonly::StateKeeper::new(ctx, node_store.clone()).await?;
             s.spawn_bg(runner.run(ctx));
             s.spawn_bg(node.run_p2p_fetcher(ctx, client.clone(), node_cfg.clone()));
-            validator.push_random_blocks(rng, 3).await;
+            validator.push_random_blocks_and_seal(rng, 3).await;
             let want = validator_store
                 .wait_for_certificates_and_verify(ctx, validator.last_block())
                 .await?;
@@ -435,7 +434,7 @@ async fn test_centralized_fetcher(from_snapshot: bool) {
         s.spawn_bg(node.run_centralized_fetcher(ctx, validator.connect(ctx).await?));
 
         tracing::info!("Produce some blocks and wait for node to fetch them");
-        validator.push_random_blocks(rng, 10).await;
+        validator.push_random_blocks_and_seal(rng, 10).await;
         let want = validator_store
             .wait_for_payload(ctx, validator.last_block())
             .await?;
