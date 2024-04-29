@@ -93,7 +93,7 @@ impl EthHttpQueryClient {
             .to_block(to)
             .topics(Some(topics), None, None, None)
             .build();
-        self.client.logs(filter, "watch").await
+        self.client.logs(filter).await
     }
 }
 
@@ -147,7 +147,7 @@ impl EthClient for EthHttpQueryClient {
                 };
                 let to_number = match to {
                     BlockNumber::Number(num) => num,
-                    BlockNumber::Latest => self.client.block_number("watch").await?,
+                    BlockNumber::Latest => self.client.block_number().await?,
                     _ => {
                         // invalid variant
                         return result;
@@ -184,12 +184,12 @@ impl EthClient for EthHttpQueryClient {
 
     async fn finalized_block_number(&self) -> Result<u64, EthClientError> {
         if let Some(confirmations) = self.confirmations_for_eth_event {
-            let latest_block_number = self.client.block_number("watch").await?.as_u64();
+            let latest_block_number = self.client.block_number().await?.as_u64();
             Ok(latest_block_number.saturating_sub(confirmations))
         } else {
             let block = self
                 .client
-                .block(BlockId::Number(BlockNumber::Finalized), "watch")
+                .block(BlockId::Number(BlockNumber::Finalized))
                 .await?
                 .ok_or_else(|| {
                     web3::Error::InvalidResponse("Finalized block must be present on L1".into())

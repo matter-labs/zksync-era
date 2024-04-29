@@ -108,7 +108,6 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         data: Vec<u8>,
         contract_addr: H160,
         options: Options,
-        component: &'static str,
     ) -> Result<SignedCallResult, Error> {
         let latency = LATENCIES.direct[&Method::SignPreparedTx].start();
         // Fetch current max priority fee per gas
@@ -130,10 +129,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         let max_fee_per_gas = match options.max_fee_per_gas {
             Some(max_fee_per_gas) => max_fee_per_gas,
             None => {
-                self.as_ref()
-                    .get_pending_block_base_fee_per_gas(component)
-                    .await?
-                    + max_priority_fee_per_gas
+                self.as_ref().get_pending_block_base_fee_per_gas().await? + max_priority_fee_per_gas
             }
         };
 
@@ -146,7 +142,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
 
         let nonce = match options.nonce {
             Some(nonce) => nonce,
-            None => self.pending_nonce(component).await?,
+            None => self.pending_nonce().await?,
         };
 
         let gas = options.gas.unwrap_or_else(|| {

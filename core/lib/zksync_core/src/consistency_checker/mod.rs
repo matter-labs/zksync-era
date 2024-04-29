@@ -362,7 +362,7 @@ impl ConsistencyChecker {
 
         let commit_tx_status = self
             .l1_client
-            .get_tx_status(commit_tx_hash, "consistency_checker")
+            .get_tx_status(commit_tx_hash)
             .await?
             .with_context(|| format!("receipt for tx {commit_tx_hash:?} not found on L1"))
             .map_err(CheckError::Validation)?;
@@ -374,7 +374,7 @@ impl ConsistencyChecker {
         // We can't get tx calldata from the DB because it can be fake.
         let commit_tx = self
             .l1_client
-            .get_tx(commit_tx_hash, "consistency_checker")
+            .get_tx(commit_tx_hash)
             .await?
             .with_context(|| format!("commit transaction {commit_tx_hash:?} not found on L1"))
             .map_err(CheckError::Internal)?; // we've got a transaction receipt previously, thus an internal error

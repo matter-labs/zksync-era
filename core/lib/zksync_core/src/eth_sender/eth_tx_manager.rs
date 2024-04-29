@@ -88,7 +88,7 @@ impl EthTxManager {
         tx_hash: H256,
     ) -> Result<Option<ExecutedTxStatus>, ETHSenderError> {
         self.query_client()
-            .get_tx_status(tx_hash, "eth_tx_manager")
+            .get_tx_status(tx_hash)
             .await
             .map_err(Into::into)
     }
@@ -333,14 +333,14 @@ impl EthTxManager {
     ) -> Result<OperatorNonce, ETHSenderError> {
         let finalized = self
             .ethereum_gateway
-            .nonce_at(block_numbers.finalized.0.into(), "eth_tx_manager")
+            .nonce_at(block_numbers.finalized.0.into())
             .await?
             .as_u32()
             .into();
 
         let latest = self
             .ethereum_gateway
-            .nonce_at(block_numbers.latest.0.into(), "eth_tx_manager")
+            .nonce_at(block_numbers.latest.0.into())
             .await?
             .as_u32()
             .into();
@@ -355,13 +355,13 @@ impl EthTxManager {
             None => Ok(None),
             Some(gateway) => {
                 let finalized = gateway
-                    .nonce_at(block_numbers.finalized.0.into(), "eth_tx_manager")
+                    .nonce_at(block_numbers.finalized.0.into())
                     .await?
                     .as_u32()
                     .into();
 
                 let latest = gateway
-                    .nonce_at(block_numbers.latest.0.into(), "eth_tx_manager")
+                    .nonce_at(block_numbers.latest.0.into())
                     .await?
                     .as_u32()
                     .into();
@@ -372,18 +372,14 @@ impl EthTxManager {
 
     async fn get_l1_block_numbers(&self) -> Result<L1BlockNumbers, ETHSenderError> {
         let (finalized, safe) = if let Some(confirmations) = self.config.wait_confirmations {
-            let latest_block_number = self
-                .query_client()
-                .block_number("eth_tx_manager")
-                .await?
-                .as_u64();
+            let latest_block_number = self.query_client().block_number().await?.as_u64();
 
             let finalized = (latest_block_number.saturating_sub(confirmations) as u32).into();
             (finalized, finalized)
         } else {
             let finalized = self
                 .query_client()
-                .block(BlockId::Number(BlockNumber::Finalized), "eth_tx_manager")
+                .block(BlockId::Number(BlockNumber::Finalized))
                 .await?
                 .expect("Finalized block must be present on L1")
                 .number
@@ -393,7 +389,7 @@ impl EthTxManager {
 
             let safe = self
                 .query_client()
-                .block(BlockId::Number(BlockNumber::Safe), "eth_tx_manager")
+                .block(BlockId::Number(BlockNumber::Safe))
                 .await?
                 .expect("Safe block must be present on L1")
                 .number
@@ -403,12 +399,7 @@ impl EthTxManager {
             (finalized, safe)
         };
 
-        let latest = self
-            .query_client()
-            .block_number("eth_tx_manager")
-            .await?
-            .as_u32()
-            .into();
+        let latest = self.query_client().block_number().await?.as_u32().into();
 
         Ok(L1BlockNumbers {
             finalized,
@@ -578,7 +569,6 @@ impl EthTxManager {
                             .collect(),
                     });
                 }),
-                "eth_tx_manager",
             )
             .await
             .expect("Failed to sign transaction")

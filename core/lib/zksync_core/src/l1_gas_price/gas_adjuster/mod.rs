@@ -46,12 +46,12 @@ impl GasAdjuster {
         // the info about the latest block is not yet present on the node.
         // This sometimes happens on Infura.
         let current_block = eth_client
-            .block_number("gas_adjuster")
+            .block_number()
             .await?
             .as_usize()
             .saturating_sub(1);
         let base_fee_history = eth_client
-            .base_fee_history(current_block, config.max_base_fee_samples, "gas_adjuster")
+            .base_fee_history(current_block, config.max_base_fee_samples)
             .await?;
 
         // Web3 API doesn't provide a method to fetch blob fees for multiple blocks using single request,
@@ -85,7 +85,7 @@ impl GasAdjuster {
         // This sometimes happens on Infura.
         let current_block = self
             .eth_client
-            .block_number("gas_adjuster")
+            .block_number()
             .await?
             .as_usize()
             .saturating_sub(1);
@@ -212,9 +212,7 @@ impl GasAdjuster {
         let mut base_fee_history = Vec::new();
         let mut blob_base_fee_history = Vec::new();
         for block_number in block_range {
-            let header = eth_client
-                .block(U64::from(block_number).into(), "gas_adjuster")
-                .await?;
+            let header = eth_client.block(U64::from(block_number).into()).await?;
             if let Some(base_fee_per_gas) =
                 header.as_ref().and_then(|header| header.base_fee_per_gas)
             {

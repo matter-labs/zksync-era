@@ -296,19 +296,15 @@ impl MockEthereum {
 
 #[async_trait]
 impl EthInterface for MockEthereum {
-    async fn fetch_chain_id(&self, _: &'static str) -> Result<L1ChainId, Error> {
+    async fn fetch_chain_id(&self) -> Result<L1ChainId, Error> {
         Ok(L1ChainId(9))
     }
 
-    async fn get_tx_status(
-        &self,
-        hash: H256,
-        _: &'static str,
-    ) -> Result<Option<ExecutedTxStatus>, Error> {
+    async fn get_tx_status(&self, hash: H256) -> Result<Option<ExecutedTxStatus>, Error> {
         Ok(self.inner.read().unwrap().tx_statuses.get(&hash).cloned())
     }
 
-    async fn block_number(&self, _: &'static str) -> Result<U64, Error> {
+    async fn block_number(&self) -> Result<U64, Error> {
         Ok(self.inner.read().unwrap().block_number.into())
     }
 
@@ -336,12 +332,11 @@ impl EthInterface for MockEthereum {
         &self,
         _account: Address,
         _block: BlockNumber,
-        _: &'static str,
     ) -> Result<U256, Error> {
         unimplemented!("Getting nonce for custom account is not supported")
     }
 
-    async fn get_gas_price(&self, _: &'static str) -> Result<U256, Error> {
+    async fn get_gas_price(&self) -> Result<U256, Error> {
         Ok(self.max_fee_per_gas)
     }
 
@@ -349,21 +344,17 @@ impl EthInterface for MockEthereum {
         &self,
         from_block: usize,
         block_count: usize,
-        _component: &'static str,
     ) -> Result<Vec<u64>, Error> {
         let start_block = from_block.saturating_sub(block_count - 1);
         Ok(self.base_fee_history[start_block..=from_block].to_vec())
     }
 
-    async fn get_pending_block_base_fee_per_gas(
-        &self,
-        _component: &'static str,
-    ) -> Result<U256, Error> {
+    async fn get_pending_block_base_fee_per_gas(&self) -> Result<U256, Error> {
         Ok(U256::from(*self.base_fee_history.last().unwrap()))
     }
 
     async fn failure_reason(&self, tx_hash: H256) -> Result<Option<FailureInfo>, Error> {
-        let tx_status = self.get_tx_status(tx_hash, "failure_reason").await.unwrap();
+        let tx_status = self.get_tx_status(tx_hash).await.unwrap();
 
         Ok(tx_status.map(|status| FailureInfo {
             revert_code: status.success as i64,
@@ -380,11 +371,7 @@ impl EthInterface for MockEthereum {
         (self.call_handler)(&call).map(|token| vec![token])
     }
 
-    async fn get_tx(
-        &self,
-        hash: H256,
-        _component: &'static str,
-    ) -> Result<Option<Transaction>, Error> {
+    async fn get_tx(&self, hash: H256) -> Result<Option<Transaction>, Error> {
         let txs = &self.inner.read().unwrap().sent_txs;
         let Some(tx) = txs.get(&hash) else {
             return Ok(None);
@@ -392,31 +379,19 @@ impl EthInterface for MockEthereum {
         Ok(Some(tx.clone().into()))
     }
 
-    async fn tx_receipt(
-        &self,
-        _tx_hash: H256,
-        _component: &'static str,
-    ) -> Result<Option<TransactionReceipt>, Error> {
+    async fn tx_receipt(&self, _tx_hash: H256) -> Result<Option<TransactionReceipt>, Error> {
         unimplemented!("Not needed right now")
     }
 
-    async fn eth_balance(
-        &self,
-        _address: Address,
-        _component: &'static str,
-    ) -> Result<U256, Error> {
+    async fn eth_balance(&self, _address: Address) -> Result<U256, Error> {
         unimplemented!("Not needed right now")
     }
 
-    async fn logs(&self, _filter: Filter, _component: &'static str) -> Result<Vec<Log>, Error> {
+    async fn logs(&self, _filter: Filter) -> Result<Vec<Log>, Error> {
         unimplemented!("Not needed right now")
     }
 
-    async fn block(
-        &self,
-        block_id: BlockId,
-        _component: &'static str,
-    ) -> Result<Option<Block<H256>>, Error> {
+    async fn block(&self, block_id: BlockId) -> Result<Option<Block<H256>>, Error> {
         match block_id {
             BlockId::Number(BlockNumber::Number(number)) => {
                 let excess_blob_gas = self
@@ -469,7 +444,6 @@ impl BoundEthInterface for MockEthereum {
         data: Vec<u8>,
         contract_addr: H160,
         options: Options,
-        _component: &'static str,
     ) -> Result<SignedCallResult, Error> {
         self.sign_prepared_tx(data, contract_addr, options)
     }
@@ -483,7 +457,7 @@ impl BoundEthInterface for MockEthereum {
         unimplemented!("Not needed right now")
     }
 
-    async fn nonce_at(&self, block: BlockNumber, _component: &'static str) -> Result<U256, Error> {
+    async fn nonce_at(&self, block: BlockNumber) -> Result<U256, Error> {
         if let BlockNumber::Number(block_number) = block {
             let inner = self.inner.read().unwrap();
             let mut nonce_range = inner.nonces.range(..=block_number.as_u64());
@@ -494,11 +468,11 @@ impl BoundEthInterface for MockEthereum {
         }
     }
 
-    async fn pending_nonce(&self, _: &'static str) -> Result<U256, Error> {
+    async fn pending_nonce(&self) -> Result<U256, Error> {
         Ok(self.inner.read().unwrap().pending_nonce.into())
     }
 
-    async fn current_nonce(&self, _: &'static str) -> Result<U256, Error> {
+    async fn current_nonce(&self) -> Result<U256, Error> {
         Ok(self.inner.read().unwrap().current_nonce.into())
     }
 }
@@ -510,11 +484,11 @@ mod tests {
     #[tokio::test]
     async fn managing_block_number() {
         let client = MockEthereum::default();
-        let block_number = client.block_number("test").await.unwrap();
+        let block_number = client.block_number().await.unwrap();
         assert_eq!(block_number, 0.into());
 
         client.advance_block_number(5);
-        let block_number = client.block_number("test").await.unwrap();
+        let block_number = client.block_number().await.unwrap();
         assert_eq!(block_number, 5.into());
     }
 
@@ -542,7 +516,7 @@ mod tests {
 
         client.execute_tx(tx_hash, true, 3);
         let returned_tx = client
-            .get_tx(tx_hash, "test")
+            .get_tx(tx_hash)
             .await
             .unwrap()
             .expect("no transaction");
@@ -554,7 +528,7 @@ mod tests {
         assert!(returned_tx.max_fee_per_gas.is_some());
 
         let tx_status = client
-            .get_tx_status(tx_hash, "test")
+            .get_tx_status(tx_hash)
             .await
             .unwrap()
             .expect("no transaction status");

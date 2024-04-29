@@ -85,17 +85,13 @@ impl EthTxAggregator {
         l1_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> Self {
         let functions = ZkSyncFunctions::default();
-        let base_nonce = eth_client
-            .pending_nonce("eth_sender")
-            .await
-            .unwrap()
-            .as_u64();
+        let base_nonce = eth_client.pending_nonce().await.unwrap().as_u64();
 
         let base_nonce_custom_commit_sender = match custom_commit_sender_addr {
             Some(addr) => Some(
                 (*eth_client)
                     .as_ref()
-                    .nonce_at_for_account(addr, BlockNumber::Pending, "eth_sender")
+                    .nonce_at_for_account(addr, BlockNumber::Pending)
                     .await
                     .unwrap()
                     .as_u64(),
