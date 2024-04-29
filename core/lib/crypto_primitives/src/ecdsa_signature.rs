@@ -17,8 +17,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-// Copied from parity-crypto 0.9.0 src/publickey/keypair.rs
-// Key pair (public + secret) description.
+// Partially copied from parity-crypto 0.9.0 src/publickey/keypair.rs
 
 use std::{
     cmp::PartialEq,
@@ -41,6 +40,9 @@ type Message = H256;
 type Public = H512;
 
 /// secp256k1 private key wrapper.
+///
+/// Provides a safe to use `Debug` implementation (outputting the address corresponding to the key).
+/// The key is zeroized on drop.
 #[derive(Clone)]
 pub struct K256PrivateKey(SecretKey);
 
@@ -54,14 +56,22 @@ impl fmt::Debug for K256PrivateKey {
 }
 
 impl K256PrivateKey {
+    /// Converts a 32-byte array into a key.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the deserialized scalar (as a big-endian number) is zero or is greater or equal
+    /// than the secp256k1 group order. The probability of this is negligible if the bytes are random.
     pub fn from_bytes(bytes: H256) -> Result<Self, Error> {
         Ok(Self(SecretKey::from_slice(bytes.as_bytes())?))
     }
 
+    /// Generates a random private key using the OS RNG.
     pub fn random() -> Self {
         Self::random_using(&mut rand::rngs::OsRng)
     }
 
+    /// Generates a random private key using the provided RNG.
     pub fn random_using(rng: &mut impl rand::Rng) -> Self {
         loop {
             if let Ok(this) = Self::from_bytes(H256::random_using(rng)) {
@@ -70,10 +80,13 @@ impl K256PrivateKey {
         }
     }
 
+    /// Exposes the underlying secret key. This is the only way to get it.
     pub fn expose_secret(&self) -> &SecretKey {
         &self.0
     }
 
+    /// Returns uncompressed bytes for the secp256k1 public key corresponding to this key, without
+    /// the first key type byte.
     pub fn public(&self) -> Public {
         let pub_key = PublicKey::from_secret_key(SECP256K1, &self.0);
         let mut public = Public::zero();
@@ -83,6 +96,7 @@ impl K256PrivateKey {
         public
     }
 
+    /// Returns the Ethereum-like address corresponding to this key.
     pub fn address(&self) -> Address {
         let pub_key = PublicKey::from_secret_key(SECP256K1, &self.0);
         let hash = keccak256(&pub_key.serialize_uncompressed()[1..]);
