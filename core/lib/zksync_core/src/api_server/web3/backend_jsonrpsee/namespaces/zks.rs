@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use zksync_types::{
     api::{
-        ApiStorageLogQuery, BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Log,
-        Proof, ProtocolVersion, TransactionDetailedResult, TransactionDetails,
+        ApiStorageLog, BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Log, Proof,
+        ProtocolVersion, TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
     fee_model::FeeParams,
@@ -190,7 +190,7 @@ impl ZksNamespaceServer for ZksNamespace {
                     .storage_logs
                     .iter()
                     .filter(|x| x.log_type != StorageLogQueryType::Read)
-                    .map(ApiStorageLogQuery::from)
+                    .map(ApiStorageLog::from)
                     .collect_vec(),
                 events: result
                     .1

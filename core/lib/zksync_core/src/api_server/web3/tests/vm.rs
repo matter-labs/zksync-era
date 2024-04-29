@@ -8,7 +8,7 @@ use multivm::{
     vm_latest::VmExecutionLogs,
 };
 use zksync_types::{
-    api::{ApiStorageLogQuery, Log},
+    api::{ApiStorageLog, Log},
     get_intrinsic_constants,
     transaction_request::CallRequest,
     zk_evm_types::{LogQuery, Timestamp},
@@ -366,7 +366,7 @@ impl HttpTest for SendTransactionWithDetailedOutputTest {
             self.storage_logs()
                 .iter()
                 .filter(|x| x.log_type != StorageLogQueryType::Read)
-                .map(ApiStorageLogQuery::from)
+                .map(ApiStorageLog::from)
                 .collect_vec()
         );
         Ok(())

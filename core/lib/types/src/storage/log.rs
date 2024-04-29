@@ -5,7 +5,7 @@ use zksync_basic_types::AccountTreeId;
 use zksync_utils::u256_to_h256;
 
 use crate::{
-    api::ApiStorageLogQuery,
+    api::ApiStorageLog,
     zk_evm_types::{LogQuery, Timestamp},
     StorageKey, StorageValue, U256,
 };
@@ -95,9 +95,9 @@ pub struct StorageLogQuery {
     pub log_type: StorageLogQueryType,
 }
 
-impl From<&StorageLogQuery> for ApiStorageLogQuery {
+impl From<&StorageLogQuery> for ApiStorageLog {
     fn from(log_query: &StorageLogQuery) -> Self {
-        ApiStorageLogQuery {
+        ApiStorageLog {
             address: log_query.log_query.address,
             key: log_query.log_query.key,
             written_value: log_query.log_query.written_value,

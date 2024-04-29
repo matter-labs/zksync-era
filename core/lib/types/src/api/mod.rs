@@ -741,13 +741,13 @@ pub struct Proof {
 #[serde(rename_all = "camelCase")]
 pub struct TransactionDetailedResult {
     pub transaction_hash: H256,
-    pub storage_logs: Vec<ApiStorageLogQuery>,
+    pub storage_logs: Vec<ApiStorageLog>,
     pub events: Vec<Log>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ApiStorageLogQuery {
+pub struct ApiStorageLog {
     pub address: Address,
     pub key: U256,
     pub written_value: U256,
