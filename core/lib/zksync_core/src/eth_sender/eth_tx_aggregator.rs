@@ -47,7 +47,7 @@ pub struct MulticallData {
 #[derive(Debug)]
 pub struct EthTxAggregator {
     aggregator: Aggregator,
-    eth_client: Arc<dyn BoundEthInterface>,
+    eth_client: Box<dyn BoundEthInterface>,
     config: SenderConfig,
     timelock_contract_address: Address,
     l1_multicall3_address: Address,
@@ -76,7 +76,7 @@ impl EthTxAggregator {
         pool: ConnectionPool<Core>,
         config: SenderConfig,
         aggregator: Aggregator,
-        eth_client: Arc<dyn BoundEthInterface>,
+        eth_client: Box<dyn BoundEthInterface>,
         timelock_contract_address: Address,
         l1_multicall3_address: Address,
         state_transition_chain_contract: Address,
@@ -84,6 +84,7 @@ impl EthTxAggregator {
         custom_commit_sender_addr: Option<Address>,
         l1_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> Self {
+        let eth_client = eth_client.for_component("eth_tx_aggregator");
         let functions = ZkSyncFunctions::default();
         let base_nonce = eth_client.pending_nonce().await.unwrap().as_u64();
 

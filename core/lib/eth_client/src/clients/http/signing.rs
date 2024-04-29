@@ -28,7 +28,7 @@ impl PKSigningClient {
         diamond_proxy_addr: Address,
         default_priority_fee_per_gas: u64,
         l1_chain_id: L1ChainId,
-        query_client: Arc<dyn EthInterface>,
+        query_client: Box<dyn EthInterface>,
     ) -> Self {
         let operator_address = operator_private_key.address();
         let signer = PrivateKeySigner::new(operator_private_key);
@@ -55,7 +55,7 @@ const FALLBACK_GAS_LIMIT: u64 = 3_000_000;
 #[derive(Clone)]
 pub struct SigningClient<S: EthereumSigner> {
     inner: Arc<EthDirectClientInner<S>>,
-    query_client: Arc<dyn EthInterface>,
+    query_client: Box<dyn EthInterface>,
 }
 
 struct EthDirectClientInner<S: EthereumSigner> {
@@ -87,6 +87,17 @@ impl<S: EthereumSigner> AsRef<dyn EthInterface> for SigningClient<S> {
 
 #[async_trait]
 impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
+    fn clone_boxed(&self) -> Box<dyn BoundEthInterface> {
+        Box::new(self.clone())
+    }
+
+    fn for_component(self: Box<Self>, component_name: &'static str) -> Box<dyn BoundEthInterface> {
+        Box::new(Self {
+            query_client: self.query_client.for_component(component_name),
+            ..*self
+        })
+    }
+
     fn contract(&self) -> &ethabi::Contract {
         &self.inner.contract
     }
@@ -207,7 +218,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
 
 impl<S: EthereumSigner> SigningClient<S> {
     pub fn new(
-        query_client: Arc<dyn EthInterface>,
+        query_client: Box<dyn EthInterface>,
         contract: ethabi::Contract,
         operator_eth_addr: H160,
         eth_signer: S,

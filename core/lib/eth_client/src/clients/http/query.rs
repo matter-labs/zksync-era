@@ -56,6 +56,15 @@ impl QueryClient {
 
 #[async_trait]
 impl EthInterface for QueryClient {
+    fn clone_boxed(&self) -> Box<dyn EthInterface> {
+        Box::new(self.clone())
+    }
+
+    fn for_component(mut self: Box<Self>, component_name: &'static str) -> Box<dyn EthInterface> {
+        self.component = component_name;
+        self
+    }
+
     async fn fetch_chain_id(&self) -> Result<L1ChainId, Error> {
         COUNTERS.call[&(Method::ChainId, self.component)].inc();
         let latency = LATENCIES.direct[&Method::ChainId].start();

@@ -73,6 +73,10 @@ impl Options {
 /// contract or account address. For that, you can use the `BoundEthInterface` trait.
 #[async_trait]
 pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
+    fn clone_boxed(&self) -> Box<dyn EthInterface>;
+
+    fn for_component(self: Box<Self>, component_name: &'static str) -> Box<dyn EthInterface>;
+
     /// Fetches the L1 chain ID (in contrast to [`BoundEthInterface::chain_id()`] which returns
     /// the *expected* L1 chain ID).
     async fn fetch_chain_id(&self) -> Result<L1ChainId, Error>;
@@ -140,6 +144,12 @@ pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
     async fn block(&self, block_id: BlockId) -> Result<Option<Block<H256>>, Error>;
 }
 
+impl Clone for Box<dyn EthInterface> {
+    fn clone(&self) -> Self {
+        self.clone_boxed()
+    }
+}
+
 #[cfg(test)]
 static_assertions::assert_obj_safe!(EthInterface);
 
@@ -156,6 +166,11 @@ static_assertions::assert_obj_safe!(EthInterface);
 /// implementation that invokes `contract` / `contract_addr` / `sender_account` methods.
 #[async_trait]
 pub trait BoundEthInterface: AsRef<dyn EthInterface> + 'static + Sync + Send + fmt::Debug {
+    /// Clones this client.
+    fn clone_boxed(&self) -> Box<dyn BoundEthInterface>;
+
+    fn for_component(self: Box<Self>, component_name: &'static str) -> Box<dyn BoundEthInterface>;
+
     /// ABI of the contract that is used by the implementer.
     fn contract(&self) -> &ethabi::Contract;
 
@@ -253,5 +268,11 @@ pub trait BoundEthInterface: AsRef<dyn EthInterface> + 'static + Sync + Send + f
 
         f.encode_input(&params)
             .expect("failed to encode parameters")
+    }
+}
+
+impl Clone for Box<dyn BoundEthInterface> {
+    fn clone(&self) -> Self {
+        self.clone_boxed()
     }
 }

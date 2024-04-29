@@ -1,10 +1,6 @@
 //! Utilities for the on-chain operations, such as `Deposit` and `FullExit`.
 
-use std::{
-    convert::TryFrom,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use serde_json::{Map, Value};
 use zksync_eth_client::{
@@ -105,7 +101,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         let query_client = QueryClient::new(eth_web3_url)
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
         let eth_client = SigningClient::new(
-            Arc::new(query_client),
+            Box::new(query_client).for_component("provider"),
             hyperchain_contract(),
             eth_addr,
             eth_signer,

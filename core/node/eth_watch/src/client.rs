@@ -1,4 +1,4 @@
-use std::{fmt, sync::Arc};
+use std::fmt;
 
 use zksync_contracts::verifier_contract;
 pub(super) use zksync_eth_client::Error as EthClientError;
@@ -38,7 +38,7 @@ const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
 /// Implementation of [`EthClient`] based on HTTP JSON-RPC (encapsulated via [`EthInterface`]).
 #[derive(Debug)]
 pub struct EthHttpQueryClient {
-    client: Arc<dyn EthInterface>,
+    client: Box<dyn EthInterface>,
     topics: Vec<H256>,
     diamond_proxy_addr: Address,
     governance_address: Address,
@@ -50,7 +50,7 @@ pub struct EthHttpQueryClient {
 
 impl EthHttpQueryClient {
     pub fn new(
-        client: Arc<dyn EthInterface>,
+        client: Box<dyn EthInterface>,
         diamond_proxy_addr: Address,
         state_transition_manager_address: Option<Address>,
         governance_address: Address,
@@ -62,7 +62,7 @@ impl EthHttpQueryClient {
             governance_address
         );
         Self {
-            client,
+            client: client.for_component("watch"),
             topics: Vec::new(),
             diamond_proxy_addr,
             state_transition_manager_address,

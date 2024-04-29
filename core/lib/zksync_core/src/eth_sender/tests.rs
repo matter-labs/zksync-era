@@ -67,7 +67,7 @@ fn mock_multicall_response() -> Token {
 #[derive(Debug)]
 struct EthSenderTester {
     conn: ConnectionPool<Core>,
-    gateway: Arc<MockEthereum>,
+    gateway: Box<MockEthereum>,
     manager: MockEthTxManager,
     aggregator: EthTxAggregator,
     gas_adjuster: Arc<GasAdjuster>,
@@ -104,7 +104,7 @@ impl EthSenderTester {
                 mock_multicall_response()
             });
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
-        let gateway = Arc::new(gateway);
+        let gateway = Box::new(gateway);
 
         let pubdata_pricing: Arc<dyn PubdataPricing> = match deployment_mode {
             DeploymentMode::Validium => Arc::new(ValidiumPubdataPricing {}),

@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, HashMap},
     fmt,
-    sync::{RwLock, RwLockWriteGuard},
+    sync::{Arc, RwLock, RwLockWriteGuard},
 };
 
 use async_trait::async_trait;
@@ -134,6 +134,7 @@ impl MockExecutedTxHandle<'_> {
 type CallHandler = dyn Fn(&ContractCall) -> Result<ethabi::Token, Error> + Send + Sync;
 
 /// Mock Ethereum client is capable of recording all the incoming requests for the further analysis.
+#[derive(Clone)]
 pub struct MockEthereum {
     max_fee_per_gas: U256,
     max_priority_fee_per_gas: U256,
@@ -142,8 +143,8 @@ pub struct MockEthereum {
     /// If true, the mock will not check the ordering nonces of the transactions.
     /// This is useful for testing the cases when the transactions are executed out of order.
     non_ordering_confirmations: bool,
-    inner: RwLock<MockEthereumInner>,
-    call_handler: Box<CallHandler>,
+    inner: Arc<RwLock<MockEthereumInner>>,
+    call_handler: Arc<CallHandler>,
 }
 
 impl fmt::Debug for MockEthereum {
@@ -171,8 +172,8 @@ impl Default for MockEthereum {
             base_fee_history: vec![],
             excess_blob_gas_history: vec![],
             non_ordering_confirmations: false,
-            inner: RwLock::default(),
-            call_handler: Box::new(|call| {
+            inner: Arc::default(),
+            call_handler: Arc::new(|call| {
                 panic!("Unexpected eth_call: {call:?}");
             }),
         }
@@ -278,7 +279,7 @@ impl MockEthereum {
         F: 'static + Send + Sync + Fn(&ContractCall) -> ethabi::Token,
     {
         Self {
-            call_handler: Box::new(move |call| Ok(call_handler(call))),
+            call_handler: Arc::new(move |call| Ok(call_handler(call))),
             ..self
         }
     }
@@ -288,7 +289,7 @@ impl MockEthereum {
         F: 'static + Send + Sync + Fn(&ContractCall) -> Result<ethabi::Token, Error>,
     {
         Self {
-            call_handler: Box::new(call_handler),
+            call_handler: Arc::new(call_handler),
             ..self
         }
     }
@@ -296,6 +297,14 @@ impl MockEthereum {
 
 #[async_trait]
 impl EthInterface for MockEthereum {
+    fn clone_boxed(&self) -> Box<dyn EthInterface> {
+        Box::new(self.clone())
+    }
+
+    fn for_component(self: Box<Self>, _component_name: &'static str) -> Box<dyn EthInterface> {
+        self
+    }
+
     async fn fetch_chain_id(&self) -> Result<L1ChainId, Error> {
         Ok(L1ChainId(9))
     }
@@ -423,6 +432,14 @@ impl AsRef<dyn EthInterface> for MockEthereum {
 
 #[async_trait::async_trait]
 impl BoundEthInterface for MockEthereum {
+    fn clone_boxed(&self) -> Box<dyn BoundEthInterface> {
+        Box::new(self.clone())
+    }
+
+    fn for_component(self: Box<Self>, _component_name: &'static str) -> Box<dyn BoundEthInterface> {
+        self
+    }
+
     fn contract(&self) -> &ethabi::Contract {
         unimplemented!("Not needed right now")
     }

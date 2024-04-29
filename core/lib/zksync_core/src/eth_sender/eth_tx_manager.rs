@@ -53,10 +53,10 @@ pub(super) struct L1BlockNumbers {
 #[derive(Debug)]
 pub struct EthTxManager {
     /// A gateway through which the operator normally sends all its transactions.
-    ethereum_gateway: Arc<dyn BoundEthInterface>,
+    ethereum_gateway: Box<dyn BoundEthInterface>,
     /// If the operator is in 4844 mode this is sent to `Some` and used to send
     /// commit transactions.
-    ethereum_gateway_blobs: Option<Arc<dyn BoundEthInterface>>,
+    ethereum_gateway_blobs: Option<Box<dyn BoundEthInterface>>,
     config: SenderConfig,
     gas_adjuster: Arc<dyn L1TxParamsProvider>,
     pool: ConnectionPool<Core>,
@@ -67,12 +67,13 @@ impl EthTxManager {
         pool: ConnectionPool<Core>,
         config: SenderConfig,
         gas_adjuster: Arc<dyn L1TxParamsProvider>,
-        ethereum_gateway: Arc<dyn BoundEthInterface>,
-        ethereum_gateway_blobs: Option<Arc<dyn BoundEthInterface>>,
+        ethereum_gateway: Box<dyn BoundEthInterface>,
+        ethereum_gateway_blobs: Option<Box<dyn BoundEthInterface>>,
     ) -> Self {
         Self {
-            ethereum_gateway,
-            ethereum_gateway_blobs,
+            ethereum_gateway: ethereum_gateway.for_component("eth_tx_manager"),
+            ethereum_gateway_blobs: ethereum_gateway_blobs
+                .map(|eth| eth.for_component("eth_tx_manager")),
             config,
             gas_adjuster,
             pool,

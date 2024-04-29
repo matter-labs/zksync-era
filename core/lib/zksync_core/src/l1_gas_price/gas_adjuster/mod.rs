@@ -31,17 +31,19 @@ pub struct GasAdjuster {
     pub(super) blob_base_fee_statistics: GasStatistics<U256>,
     pub(super) config: GasAdjusterConfig,
     pubdata_sending_mode: PubdataSendingMode,
-    eth_client: Arc<dyn EthInterface>,
+    eth_client: Box<dyn EthInterface>,
     pubdata_pricing: Arc<dyn PubdataPricing>,
 }
 
 impl GasAdjuster {
     pub async fn new(
-        eth_client: Arc<dyn EthInterface>,
+        eth_client: Box<dyn EthInterface>,
         config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
         pubdata_pricing: Arc<dyn PubdataPricing>,
     ) -> Result<Self, Error> {
+        let eth_client = eth_client.for_component("gas_adjuster");
+
         // Subtracting 1 from the "latest" block number to prevent errors in case
         // the info about the latest block is not yet present on the node.
         // This sometimes happens on Infura.
@@ -57,7 +59,7 @@ impl GasAdjuster {
         // Web3 API doesn't provide a method to fetch blob fees for multiple blocks using single request,
         // so we request blob base fee only for the latest block.
         let (_, last_block_blob_base_fee) =
-            Self::get_base_fees_history(&eth_client, current_block..=current_block).await?;
+            Self::get_base_fees_history(eth_client.as_ref(), current_block..=current_block).await?;
 
         Ok(Self {
             base_fee_statistics: GasStatistics::new(
@@ -94,7 +96,7 @@ impl GasAdjuster {
 
         if current_block > last_processed_block {
             let (base_fee_history, blob_base_fee_history) = Self::get_base_fees_history(
-                &self.eth_client,
+                self.eth_client.as_ref(),
                 (last_processed_block + 1)..=current_block,
             )
             .await?;
@@ -206,7 +208,7 @@ impl GasAdjuster {
     /// Returns vector of base fees and blob base fees for given block range.
     /// Note, that data for pre-dencun blocks won't be included in the vector returned.
     async fn get_base_fees_history(
-        eth_client: &Arc<dyn EthInterface>,
+        eth_client: &dyn EthInterface,
         block_range: RangeInclusive<usize>,
     ) -> Result<(Vec<u64>, Vec<U256>), Error> {
         let mut base_fee_history = Vec::new();
