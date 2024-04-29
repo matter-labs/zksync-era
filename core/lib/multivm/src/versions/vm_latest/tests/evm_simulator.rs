@@ -3035,6 +3035,132 @@ fn test_basic_keccak_vectors() {
 }
 
 #[test]
+fn test_delegatecall_gas() {
+    let consumed_gas_solidity = 67634;
+    let actual_initial_gas = get_actual_initial_gas();
+    let evm_output = test_evm_vector(
+        vec![
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("6080604052348015600e575f80fd5b5060af80601a5f395ff3fe608060405234")
+                .unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("8015600e575f80fd5b50600436106026575f3560e01c80636d4ce63c14602a57")
+                .unwrap(),
+            // push1 32
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("5b5f80fd5b60306044565b604051603b91906062565b60405180910390f35b5f")
+                .unwrap(),
+            // push1 64
+            hex::decode("60").unwrap(),
+            hex::decode("40").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("6007905090565b5f819050919050565b605c81604c565b82525050565b5f6020")
+                .unwrap(),
+            // push1 96
+            hex::decode("60").unwrap(),
+            hex::decode("60").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("8201905060735f8301846055565b9291505056fea26469706673582212201357")
+                .unwrap(),
+            // push1 128
+            hex::decode("60").unwrap(),
+            hex::decode("80").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("3db24498d07df7d6344f02fa1ccf8e15038b10c382a6d71537a002ad4e736473")
+                .unwrap(),
+            // push1 160
+            hex::decode("60").unwrap(),
+            hex::decode("A0").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("6f6c634300081900330000000000000000000000000000000000000000000000")
+                .unwrap(),
+            // push1 192
+            hex::decode("60").unwrap(),
+            hex::decode("C0").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 201
+            hex::decode("60").unwrap(),
+            hex::decode("C9").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // create
+            hex::decode("F0").unwrap(),
+            // DELEGATECALL
+            //--------------------------
+            // push4 funcsel
+            hex::decode("63").unwrap(),
+            hex::decode("6d4ce63c").unwrap(), // func selector
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // mem[0] = funcsel
+            // push1 retSize // 4 byte
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 retOff
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 argSize 4bytes -> func selector
+            hex::decode("60").unwrap(),
+            hex::decode("04").unwrap(),
+            // push1 argOff 4bytes
+            hex::decode("60").unwrap(),
+            hex::decode("1C").unwrap(),
+            // du5 address of created contract
+            hex::decode("84").unwrap(),
+            // push4 gas
+            hex::decode("63").unwrap(),
+            hex::decode("FFFFFFFF").unwrap(),
+            // delegatecall
+            hex::decode("F4").unwrap(),
+            // push1 memOffset
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // mload
+            hex::decode("51").unwrap(),
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    let actual_consumed_gas = actual_initial_gas - evm_output;
+    println!("actual_consumed_gas: {}", actual_consumed_gas);
+    assert_eq!(actual_consumed_gas, consumed_gas_solidity.into());
+}
+
+#[test]
 fn test_basic_environment3_vectors() {
     // Here we just try to test some small EVM contracts and ensure that they work.
     // gasprice
