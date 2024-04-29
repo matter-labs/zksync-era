@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use zksync_types::web3::{
     self,
@@ -24,13 +22,13 @@ use crate::{
 /// tied to a particular account.
 #[derive(Debug, Clone)]
 pub struct QueryClient {
-    web3: Arc<Web3<Http>>, // FIXME: Arc is not necessary
+    web3: Web3<Http>,
 }
 
 impl From<Http> for QueryClient {
     fn from(transport: Http) -> Self {
         Self {
-            web3: Arc::new(Web3::new(transport)),
+            web3: Web3::new(transport),
         }
     }
 }
