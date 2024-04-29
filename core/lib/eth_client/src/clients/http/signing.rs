@@ -8,19 +8,15 @@ use zksync_types::{
         self,
         contract::tokens::Detokenize,
         ethabi,
-        types::{
-            Address, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, H160,
-            H256, U256, U64,
-        },
+        types::{Address, H160, H256, U256},
     },
     L1ChainId, PackedEthSignature, EIP_4844_TX_TYPE,
 };
 
 use super::{Method, LATENCIES};
 use crate::{
-    types::{encode_blob_tx_with_sidecar, Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
-    Block, BoundEthInterface, CallFunctionArgs, ContractCall, EthInterface, Options,
-    RawTransactionBytes,
+    types::{encode_blob_tx_with_sidecar, Error, SignedCallResult},
+    BoundEthInterface, CallFunctionArgs, EthInterface, Options, RawTransactionBytes,
 };
 
 /// HTTP-based Ethereum client, backed by a private key to sign transactions.
@@ -84,104 +80,9 @@ impl<S: EthereumSigner> fmt::Debug for SigningClient<S> {
     }
 }
 
-#[async_trait]
-impl<S: EthereumSigner> EthInterface for SigningClient<S> {
-    async fn fetch_chain_id(&self, component: &'static str) -> Result<L1ChainId, Error> {
-        self.query_client.fetch_chain_id(component).await
-    }
-
-    async fn nonce_at_for_account(
-        &self,
-        account: Address,
-        block: BlockNumber,
-        component: &'static str,
-    ) -> Result<U256, Error> {
-        self.query_client
-            .nonce_at_for_account(account, block, component)
-            .await
-    }
-
-    async fn block_number(&self, component: &'static str) -> Result<U64, Error> {
-        self.query_client.block_number(component).await
-    }
-
-    async fn get_gas_price(&self, component: &'static str) -> Result<U256, Error> {
-        self.query_client.get_gas_price(component).await
-    }
-
-    async fn send_raw_tx(&self, tx: RawTransactionBytes) -> Result<H256, Error> {
-        self.query_client.send_raw_tx(tx).await
-    }
-
-    async fn base_fee_history(
-        &self,
-        upto_block: usize,
-        block_count: usize,
-        component: &'static str,
-    ) -> Result<Vec<u64>, Error> {
-        self.query_client
-            .base_fee_history(upto_block, block_count, component)
-            .await
-    }
-
-    async fn get_pending_block_base_fee_per_gas(
-        &self,
-        component: &'static str,
-    ) -> Result<U256, Error> {
-        self.query_client
-            .get_pending_block_base_fee_per_gas(component)
-            .await
-    }
-
-    async fn get_tx_status(
-        &self,
-        hash: H256,
-        component: &'static str,
-    ) -> Result<Option<ExecutedTxStatus>, Error> {
-        self.query_client.get_tx_status(hash, component).await
-    }
-
-    async fn failure_reason(&self, tx_hash: H256) -> Result<Option<FailureInfo>, Error> {
-        self.query_client.failure_reason(tx_hash).await
-    }
-
-    async fn get_tx(
-        &self,
-        hash: H256,
-        component: &'static str,
-    ) -> Result<Option<Transaction>, Error> {
-        self.query_client.get_tx(hash, component).await
-    }
-
-    async fn call_contract_function(
-        &self,
-        call: ContractCall,
-    ) -> Result<Vec<ethabi::Token>, Error> {
-        self.query_client.call_contract_function(call).await
-    }
-
-    async fn tx_receipt(
-        &self,
-        tx_hash: H256,
-        component: &'static str,
-    ) -> Result<Option<TransactionReceipt>, Error> {
-        self.query_client.tx_receipt(tx_hash, component).await
-    }
-
-    async fn eth_balance(&self, address: Address, component: &'static str) -> Result<U256, Error> {
-        self.query_client.eth_balance(address, component).await
-    }
-
-    async fn logs(&self, filter: Filter, component: &'static str) -> Result<Vec<Log>, Error> {
-        self.query_client.logs(filter, component).await
-    }
-
-    async fn block(
-        &self,
-        block_id: BlockId,
-        component: &'static str,
-    ) -> Result<Option<Block<H256>>, Error> {
-        self.query_client.block(block_id, component).await
+impl<S: EthereumSigner> AsRef<dyn EthInterface> for SigningClient<S> {
+    fn as_ref(&self) -> &dyn EthInterface {
+        self.query_client.as_ref()
     }
 }
 
@@ -230,7 +131,10 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         let max_fee_per_gas = match options.max_fee_per_gas {
             Some(max_fee_per_gas) => max_fee_per_gas,
             None => {
-                self.get_pending_block_base_fee_per_gas(component).await? + max_priority_fee_per_gas
+                self.as_ref()
+                    .get_pending_block_base_fee_per_gas(component)
+                    .await?
+                    + max_priority_fee_per_gas
             }
         };
 
@@ -300,7 +204,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         let latency = LATENCIES.direct[&Method::Allowance].start();
         let args = CallFunctionArgs::new("allowance", (self.inner.sender_account, address))
             .for_contract(token_address, erc20_abi);
-        let res = self.call_contract_function(args).await?;
+        let res = self.as_ref().call_contract_function(args).await?;
         latency.observe();
         Ok(U256::from_tokens(res)?)
     }

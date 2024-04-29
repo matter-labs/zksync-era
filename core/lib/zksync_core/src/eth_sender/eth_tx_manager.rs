@@ -5,7 +5,7 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
-    encode_blob_tx_with_sidecar, BoundEthInterface, Error, ExecutedTxStatus, Options,
+    encode_blob_tx_with_sidecar, BoundEthInterface, Error, EthInterface, ExecutedTxStatus, Options,
     RawTransactionBytes, SignedCallResult,
 };
 use zksync_shared_metrics::BlockL1Stage;
@@ -79,11 +79,15 @@ impl EthTxManager {
         }
     }
 
+    fn query_client(&self) -> &dyn EthInterface {
+        (*self.ethereum_gateway).as_ref()
+    }
+
     async fn get_tx_status(
         &self,
         tx_hash: H256,
     ) -> Result<Option<ExecutedTxStatus>, ETHSenderError> {
-        self.ethereum_gateway
+        self.query_client()
             .get_tx_status(tx_hash, "eth_tx_manager")
             .await
             .map_err(Into::into)
@@ -303,7 +307,7 @@ impl EthTxManager {
         raw_tx: RawTransactionBytes,
         current_block: L1BlockNumber,
     ) -> Result<H256, ETHSenderError> {
-        match self.ethereum_gateway.send_raw_tx(raw_tx).await {
+        match self.query_client().send_raw_tx(raw_tx).await {
             Ok(tx_hash) => {
                 storage
                     .eth_sender_dal()
@@ -369,7 +373,7 @@ impl EthTxManager {
     async fn get_l1_block_numbers(&self) -> Result<L1BlockNumbers, ETHSenderError> {
         let (finalized, safe) = if let Some(confirmations) = self.config.wait_confirmations {
             let latest_block_number = self
-                .ethereum_gateway
+                .query_client()
                 .block_number("eth_tx_manager")
                 .await?
                 .as_u64();
@@ -378,7 +382,7 @@ impl EthTxManager {
             (finalized, finalized)
         } else {
             let finalized = self
-                .ethereum_gateway
+                .query_client()
                 .block(BlockId::Number(BlockNumber::Finalized), "eth_tx_manager")
                 .await?
                 .expect("Finalized block must be present on L1")
@@ -388,7 +392,7 @@ impl EthTxManager {
                 .into();
 
             let safe = self
-                .ethereum_gateway
+                .query_client()
                 .block(BlockId::Number(BlockNumber::Safe), "eth_tx_manager")
                 .await?
                 .expect("Safe block must be present on L1")
@@ -400,7 +404,7 @@ impl EthTxManager {
         };
 
         let latest = self
-            .ethereum_gateway
+            .query_client()
             .block_number("eth_tx_manager")
             .await?
             .as_u32()
@@ -657,7 +661,7 @@ impl EthTxManager {
             .await
             .unwrap();
         let failure_reason = self
-            .ethereum_gateway
+            .query_client()
             .failure_reason(tx_status.receipt.transaction_hash)
             .await
             .expect(

@@ -131,6 +131,10 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         &self.eth_client
     }
 
+    pub fn query_client(&self) -> &dyn EthInterface {
+        self.eth_client.as_ref()
+    }
+
     /// Returns the zkSync contract address.
     pub fn contract_address(&self) -> H160 {
         self.client().contract_addr()
@@ -153,7 +157,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         let args = CallFunctionArgs::new("balanceOf", address)
             .for_contract(token_address, self.erc20_abi.clone());
         let res = self
-            .eth_client
+            .query_client()
             .call_contract_function(args)
             .await
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
@@ -188,7 +192,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         let args = CallFunctionArgs::new("l2TokenAddress", l1_token_address)
             .for_contract(bridge, self.l1_erc20_bridge_abi.clone());
         let res = self
-            .eth_client
+            .query_client()
             .call_contract_function(args)
             .await
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
@@ -256,7 +260,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .map_err(|_| ClientError::IncorrectCredentials)?;
 
         let transaction_hash = self
-            .client()
+            .query_client()
             .send_raw_tx(signed_tx.raw_tx)
             .await
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
@@ -308,7 +312,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         };
 
         let transaction_hash = self
-            .client()
+            .query_client()
             .send_raw_tx(signed_tx.raw_tx)
             .await
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
@@ -347,7 +351,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         };
 
         let transaction_hash = self
-            .eth_client
+            .query_client()
             .send_raw_tx(signed_tx.raw_tx)
             .await
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
@@ -364,7 +368,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         let gas_price = if let Some(gas_price) = gas_price {
             gas_price
         } else {
-            self.eth_client.get_gas_price("zksync-rs").await?
+            self.query_client().get_gas_price("zksync-rs").await?
         };
         let args = CallFunctionArgs::new(
             "l2TransactionBaseCost",
@@ -391,7 +395,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         let gas_price = if let Some(gas_price) = gas_price {
             gas_price
         } else {
-            self.eth_client
+            self.query_client()
                 .get_gas_price("zksync-rs")
                 .await
                 .map_err(|e| ClientError::NetworkError(e.to_string()))?
@@ -430,7 +434,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .map_err(|e| ClientError::NetworkError(e.to_string()))?;
 
         let tx_hash = self
-            .eth_client
+            .query_client()
             .send_raw_tx(tx.raw_tx)
             .await
             .map_err(|e| ClientError::NetworkError(e.to_string()))?;
@@ -483,7 +487,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             gas_price
         } else {
             let gas_price = self
-                .eth_client
+                .query_client()
                 .get_gas_price("zksync-rs")
                 .await
                 .map_err(|e| ClientError::NetworkError(e.to_string()))?;
@@ -553,7 +557,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                 .sign_prepared_tx_for_addr(data, bridge_address, options, "provider")
                 .await
                 .map_err(|_| ClientError::IncorrectCredentials)?;
-            self.eth_client
+            self.query_client()
                 .send_raw_tx(signed_tx.raw_tx)
                 .await
                 .map_err(|err| ClientError::NetworkError(err.to_string()))?
@@ -579,7 +583,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         let start = Instant::now();
         loop {
             if let Some(receipt) = self
-                .client()
+                .query_client()
                 .tx_receipt(tx_hash, "provider")
                 .await
                 .map_err(|err| ClientError::NetworkError(err.to_string()))?

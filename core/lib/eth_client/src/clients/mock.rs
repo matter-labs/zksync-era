@@ -440,6 +440,12 @@ impl EthInterface for MockEthereum {
     }
 }
 
+impl AsRef<dyn EthInterface> for MockEthereum {
+    fn as_ref(&self) -> &dyn EthInterface {
+        self
+    }
+}
+
 #[async_trait::async_trait]
 impl BoundEthInterface for MockEthereum {
     fn contract(&self) -> &ethabi::Contract {

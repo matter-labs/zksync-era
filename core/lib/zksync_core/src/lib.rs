@@ -648,7 +648,7 @@ pub async fn initialize_components(
         ensure_l1_batch_commit_data_generation_mode(
             l1_batch_commit_data_generator_mode,
             contracts_config.diamond_proxy_addr,
-            &eth_client,
+            eth_client.as_ref(),
         )
         .await?;
 

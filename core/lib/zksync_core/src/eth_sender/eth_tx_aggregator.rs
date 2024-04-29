@@ -95,7 +95,8 @@ impl EthTxAggregator {
 
         let base_nonce_custom_commit_sender = match custom_commit_sender_addr {
             Some(addr) => Some(
-                eth_client
+                (*eth_client)
+                    .as_ref()
                     .nonce_at_for_account(addr, BlockNumber::Pending, "eth_sender")
                     .await
                     .unwrap()
@@ -147,7 +148,10 @@ impl EthTxAggregator {
             self.l1_multicall3_address,
             self.functions.multicall_contract.clone(),
         );
-        let aggregate3_result = self.eth_client.call_contract_function(args).await?;
+        let aggregate3_result = (*self.eth_client)
+            .as_ref()
+            .call_contract_function(args)
+            .await?;
         self.parse_multicall_data(Token::from_tokens(aggregate3_result)?)
     }
 
@@ -339,7 +343,10 @@ impl EthTxAggregator {
         let get_vk_hash = &self.functions.verification_key_hash;
         let args = CallFunctionArgs::new(&get_vk_hash.name, ())
             .for_contract(verifier_address, self.functions.verifier_contract.clone());
-        let vk_hash = self.eth_client.call_contract_function(args).await?;
+        let vk_hash = (*self.eth_client)
+            .as_ref()
+            .call_contract_function(args)
+            .await?;
         Ok(H256::from_tokens(vk_hash)?)
     }
 
