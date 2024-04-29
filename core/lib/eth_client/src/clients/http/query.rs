@@ -24,7 +24,7 @@ use crate::{
 /// tied to a particular account.
 #[derive(Debug, Clone)]
 pub struct QueryClient {
-    web3: Arc<Web3<Http>>,
+    web3: Arc<Web3<Http>>, // FIXME: Arc is not necessary
 }
 
 impl From<Http> for QueryClient {

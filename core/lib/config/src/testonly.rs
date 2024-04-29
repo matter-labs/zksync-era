@@ -316,7 +316,7 @@ impl Distribution<configs::EthConfig> for EncodeDist {
             sender: self.sample(rng),
             gas_adjuster: self.sample(rng),
             watcher: self.sample(rng),
-            web3_url: self.sample(rng),
+            web3_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
         }
     }
 }

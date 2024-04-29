@@ -1,7 +1,6 @@
 use std::{fmt, sync::Arc};
 
 use async_trait::async_trait;
-use zksync_config::{configs::ContractsConfig, EthConfig};
 use zksync_contracts::hyperchain_contract;
 use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
 use zksync_types::{
@@ -9,7 +8,6 @@ use zksync_types::{
         self,
         contract::tokens::Detokenize,
         ethabi,
-        transports::Http,
         types::{
             Address, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, H160,
             H256, U256, U64,
@@ -29,63 +27,25 @@ use crate::{
 pub type PKSigningClient = SigningClient<PrivateKeySigner>;
 
 impl PKSigningClient {
-    pub fn from_config(
-        eth_sender: &EthConfig,
-        contracts_config: &ContractsConfig,
-        l1_chain_id: L1ChainId,
-        operator_private_key: H256,
-    ) -> Self {
-        Self::from_config_inner(
-            eth_sender,
-            contracts_config,
-            l1_chain_id,
-            operator_private_key,
-        )
-    }
-
     pub fn new_raw(
         operator_private_key: H256,
         diamond_proxy_addr: Address,
         default_priority_fee_per_gas: u64,
         l1_chain_id: L1ChainId,
-        web3_url: &str,
+        query_client: QueryClient, // FIXME: replace with Arc<dyn EthInterface>
     ) -> Self {
-        let transport = Http::new(web3_url).expect("Failed to create transport");
         let operator_address = PackedEthSignature::address_from_private_key(&operator_private_key)
             .expect("Failed to get address from private key");
-
         let signer = PrivateKeySigner::new(operator_private_key);
         tracing::info!("Operator address: {:?}", operator_address);
         SigningClient::new(
-            transport,
+            query_client,
             hyperchain_contract(),
             operator_address,
             signer,
             diamond_proxy_addr,
             default_priority_fee_per_gas.into(),
             l1_chain_id,
-        )
-    }
-
-    fn from_config_inner(
-        eth_sender: &EthConfig,
-        contracts_config: &ContractsConfig,
-        l1_chain_id: L1ChainId,
-        operator_private_key: H256,
-    ) -> Self {
-        let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
-        let default_priority_fee_per_gas = eth_sender
-            .gas_adjuster
-            .expect("Gas adjuster")
-            .default_priority_fee_per_gas;
-        let main_node_url = &eth_sender.web3_url;
-
-        SigningClient::new_raw(
-            operator_private_key,
-            diamond_proxy_addr,
-            default_priority_fee_per_gas,
-            l1_chain_id,
-            main_node_url,
         )
     }
 }
@@ -345,7 +305,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
 
 impl<S: EthereumSigner> SigningClient<S> {
     pub fn new(
-        transport: Http,
+        query_client: QueryClient,
         contract: ethabi::Contract,
         operator_eth_addr: H160,
         eth_signer: S,
@@ -362,7 +322,7 @@ impl<S: EthereumSigner> SigningClient<S> {
                 contract,
                 default_priority_fee_per_gas,
             }),
-            query_client: transport.into(),
+            query_client,
         }
     }
 }

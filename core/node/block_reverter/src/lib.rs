@@ -3,7 +3,7 @@ use std::{path::Path, sync::Arc, time::Duration};
 use anyhow::Context as _;
 use serde::Serialize;
 use tokio::fs;
-use zksync_config::{configs::chain::NetworkConfig, ContractsConfig, EthConfig};
+use zksync_config::{configs::chain::NetworkConfig, ContractsConfig, EthConfig, SensitiveUrl};
 use zksync_contracts::hyperchain_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
@@ -32,7 +32,7 @@ mod tests;
 
 #[derive(Debug)]
 pub struct BlockReverterEthConfig {
-    eth_client_url: String,
+    eth_client_url: SensitiveUrl,
     reverter_private_key: Option<H256>,
     diamond_proxy_addr: H160,
     validator_timelock_addr: H160,
@@ -455,8 +455,14 @@ impl BlockReverter {
         priority_fee_per_gas: U256,
         nonce: u64,
     ) -> anyhow::Result<()> {
-        let web3 =
-            Web3::new(Http::new(&eth_config.eth_client_url).context("cannot create L1 client")?);
+        tracing::info!(
+            "Sending Ethereum revert transaction for L1 batch #{last_l1_batch_to_keep} with config {eth_config:?}, \
+             priority fee: {priority_fee_per_gas}, nonce: {nonce}"
+        );
+
+        let transport =
+            Http::new(eth_config.eth_client_url.expose_str()).context("cannot create L1 client")?;
+        let web3 = Web3::new(transport);
         let contract = hyperchain_contract();
         let signer = PrivateKeySigner::new(
             eth_config
@@ -587,8 +593,11 @@ impl BlockReverter {
         eth_config: &BlockReverterEthConfig,
         reverter_address: Address,
     ) -> anyhow::Result<SuggestedRevertValues> {
-        let web3 =
-            Web3::new(Http::new(&eth_config.eth_client_url).context("cannot create L1 client")?);
+        tracing::info!("Computing suggested revert values for config {eth_config:?}");
+
+        let transport =
+            Http::new(eth_config.eth_client_url.expose_str()).context("cannot create L1 client")?;
+        let web3 = Web3::new(transport);
         let contract_address = eth_config.diamond_proxy_addr;
         let contract = Contract::new(web3.eth(), contract_address, hyperchain_contract());
 

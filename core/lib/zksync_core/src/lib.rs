@@ -306,7 +306,7 @@ pub async fn initialize_components(
         panic!("Circuit breaker triggered: {}", err);
     });
 
-    let query_client = QueryClient::new(&eth.web3_url).unwrap();
+    let query_client = QueryClient::new(eth.web3_url.expose_str()).context("Ethereum client")?;
     let gas_adjuster_config = eth.gas_adjuster.context("gas_adjuster")?;
     let sender = eth.sender.as_ref().context("sender")?;
     let pubdata_pricing: Arc<dyn PubdataPricing> =
@@ -633,14 +633,13 @@ pub async fn initialize_components(
             .context("gas_adjuster")?
             .default_priority_fee_per_gas;
         let l1_chain_id = genesis_config.l1_chain_id;
-        let web3_url = &eth.web3_url;
 
         let eth_client = PKSigningClient::new_raw(
             operator_private_key,
             diamond_proxy_addr,
             default_priority_fee_per_gas,
             l1_chain_id,
-            web3_url,
+            query_client.clone(),
         );
 
         let l1_batch_commit_data_generator_mode =
@@ -708,14 +707,13 @@ pub async fn initialize_components(
             .context("gas_adjuster")?
             .default_priority_fee_per_gas;
         let l1_chain_id = genesis_config.l1_chain_id;
-        let web3_url = &eth.web3_url;
 
         let eth_client = PKSigningClient::new_raw(
             operator_private_key,
             diamond_proxy_addr,
             default_priority_fee_per_gas,
             l1_chain_id,
-            web3_url,
+            query_client.clone(),
         );
 
         let eth_client_blobs = if let Some(blob_operator) = eth_sender_wallets.blob_operator {
@@ -725,7 +723,7 @@ pub async fn initialize_components(
                 diamond_proxy_addr,
                 default_priority_fee_per_gas,
                 l1_chain_id,
-                web3_url,
+                query_client,
             ))
         } else {
             None

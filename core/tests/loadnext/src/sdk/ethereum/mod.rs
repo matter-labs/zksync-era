@@ -100,7 +100,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
 
         let eth_client = SigningClient::new(
-            transport,
+            transport.into(),
             hyperchain_contract(),
             eth_addr,
             eth_signer,
