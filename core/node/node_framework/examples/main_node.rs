@@ -385,6 +385,7 @@ impl MainNodeBuilder {
             ))
         }
 
+        let genesis = GenesisConfig::from_env()?;
         let config = read_consensus_config().context("read_consensus_config()")?;
         let secrets = read_consensus_secrets().context("read_consensus_secrets()")?;
 
@@ -392,6 +393,7 @@ impl MainNodeBuilder {
             mode: ConsensusMode::Main,
             config,
             secrets,
+            chain_id: genesis.l2_chain_id,
         });
 
         Ok(self)
