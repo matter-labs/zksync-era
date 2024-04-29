@@ -1,5 +1,6 @@
 use anyhow::Context;
 use clap::Args as ClapArgs;
+use dialoguer::{theme::ColorfulTheme, Input};
 use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_config::PostgresConfig;
 use zksync_env_config::FromEnv;
@@ -16,6 +17,17 @@ pub(crate) struct Args {
 }
 
 pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
+    let confirmation = Input::<String>::with_theme(&ColorfulTheme::default())
+        .with_prompt("Are you sure you want to delete the data?")
+        .default("yes".to_owned())
+        .interact_text()
+        .unwrap();
+
+    if confirmation != "yes" {
+        println!("Aborted");
+        return Ok(());
+    }
+
     let config = PostgresConfig::from_env()?;
     let prover_connection_pool =
         ConnectionPool::<Prover>::builder(config.prover_url()?, config.max_connections()?)
