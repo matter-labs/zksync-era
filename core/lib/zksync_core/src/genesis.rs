@@ -12,7 +12,6 @@ use multivm::{
         LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp,
     },
 };
-use std::env;
 use zksync_contracts::{
     read_sys_contract_bytecode, BaseSystemContracts, ContractLanguage, SET_CHAIN_ID_EVENT,
 };
