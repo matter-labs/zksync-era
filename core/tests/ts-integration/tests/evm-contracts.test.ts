@@ -73,11 +73,11 @@ describe('EVM equivalence contract', () => {
             await alice.provider.getTransactionReceipt(benchmarkContract.deployTransaction.hash);
 
             let filename = await startBenchmark();
-            
+
             let contracts = [];
 
-            const counterContract = await deployBenchmarkContract(alice,artifacts.counterFallback);
-            contracts.push({name: "counterFallback",contract:counterContract});
+            const counterContract = await deployBenchmarkContract(alice, artifacts.counterFallback);
+            contracts.push({ name: 'counterFallback', contract: counterContract });
             // Add your tests here
 
             let result;
@@ -86,8 +86,8 @@ describe('EVM equivalence contract', () => {
                 await saveBenchmark(contract.name, filename, result);
             }
         });
-    }); 
-/*
+    });
+    /*
     describe('Contract creation', () => {
         describe('Create from EOA', () => {
             test('Should create evm contract from EOA and allow view and non-view calls', async () => {
@@ -509,7 +509,7 @@ type BenchmarkResult = {
     used_circuits: string;
 };
 
-async function saveBenchmark(name:string, filename: string, result: string) {
+async function saveBenchmark(name: string, filename: string, result: string) {
     try {
         const resultWithName = {
             name: name,
@@ -530,7 +530,7 @@ async function saveBenchmark(name:string, filename: string, result: string) {
                     .on('end', () => resolve(results))
                     .on('error', reject);
             });
-            results = existingResults.map(result => ({
+            results = existingResults.map((result) => ({
                 name: result.name,
                 used_zkevm_ergs: result.used_zkevm_ergs,
                 used_evm_gas: result.used_evm_gas,
@@ -573,12 +573,12 @@ async function startBenchmark(): Promise<string> {
         const second = zeroPad(now.getUTCSeconds(), 2);
         const formattedTime = `${year}-${month}-${day}-${hour}-${minute}-${second}`;
         const directoryPath = 'benchmarks';
-        
+
         if (!fs.existsSync(directoryPath)) {
             // If it doesn't exist, create it
             fs.mkdirSync(directoryPath);
         }
-        
+
         const filename = `benchmarks/benchmark_integration_${formattedTime}.csv`;
         return filename;
     } catch (error) {
@@ -593,7 +593,7 @@ async function deployBenchmarkContract(alice: zksync.Wallet, contract: any) {
     await counterContract.deployTransaction.wait();
     await alice.provider.getTransactionReceipt(counterContract.deployTransaction.hash);
 
-    return counterContract
+    return counterContract;
 }
 
 async function assertStoredBytecodeHash(
