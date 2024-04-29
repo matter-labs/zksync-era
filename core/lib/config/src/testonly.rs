@@ -539,6 +539,14 @@ impl Distribution<configs::fri_prover_group::FriProverGroupConfig> for EncodeDis
                 .sample_range(rng)
                 .map(|_| Sample::sample(rng))
                 .collect(),
+            group_13: self
+                .sample_range(rng)
+                .map(|_| Sample::sample(rng))
+                .collect(),
+            group_14: self
+                .sample_range(rng)
+                .map(|_| Sample::sample(rng))
+                .collect(),
         }
     }
 }
@@ -550,6 +558,7 @@ impl Distribution<configs::FriWitnessGeneratorConfig> for EncodeDist {
             basic_generation_timeout_in_secs: self.sample(rng),
             leaf_generation_timeout_in_secs: self.sample(rng),
             node_generation_timeout_in_secs: self.sample(rng),
+            recursion_tip_generation_timeout_in_secs: self.sample(rng),
             scheduler_generation_timeout_in_secs: self.sample(rng),
             max_attempts: self.sample(rng),
             last_l1_batch_to_process: self.sample(rng),

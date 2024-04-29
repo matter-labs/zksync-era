@@ -73,13 +73,15 @@ impl TransactionExecutor {
                 &connection_pool,
                 tx,
                 block_args,
-                |vm, tx| {
+                |vm, tx, protocol_version| {
                     let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Validation].start();
                     let span = tracing::debug_span!("validation").entered();
                     vm.push_transaction(tx);
 
-                    let (tracer, validation_result) =
-                        ValidationTracer::<HistoryDisabled>::new(validation_params);
+                    let (tracer, validation_result) = ValidationTracer::<HistoryDisabled>::new(
+                        validation_params,
+                        protocol_version.into(),
+                    );
 
                     let result = vm.inspect(
                         vec![

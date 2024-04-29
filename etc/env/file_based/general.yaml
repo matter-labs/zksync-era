@@ -164,7 +164,7 @@ prover:
     file_backed:
       file_backed_base_path: artifacts
     max_retries: 10
-  setup_data_path: /usr/src/setup-data
+  setup_data_path: vk_setup_data_generator_server_fri/data
   prometheus_port: 3315
   max_attempts: 10
   generation_timeout_in_secs: 600
@@ -206,9 +206,11 @@ proof_compressor:
 prover_group:
   group_0:
     - circuit_id: 1
-      aggregation_round: 3
+      aggregation_round: 4
     - circuit_id: 2
       aggregation_round: 2
+    - circuit_id: 255
+      aggregation_round: 0
   group_1:
     - circuit_id: 1
       aggregation_round: 0
@@ -230,8 +232,6 @@ prover_group:
     - circuit_id: 12
       aggregation_round: 0
     - circuit_id: 13
-      aggregation_round: 0
-    - circuit_id: 255
       aggregation_round: 0
   group_5:
     - circuit_id: 5
@@ -274,6 +274,20 @@ prover_group:
     - circuit_id: 6
       aggregation_round: 1
     - circuit_id: 9
+      aggregation_round: 1
+  group_13:
+    - circuit_id: 14
+      aggregation_round: 0
+    - circuit_id: 15
+      aggregation_round: 0
+    - circuit_id: 255
+      aggregation_round: 0
+  group_14:
+    - circuit_id: 16
+      aggregation_round: 1
+    - circuit_id: 17
+      aggregation_round: 1
+    - circuit_id: 18
       aggregation_round: 1
 
 house_keeper:

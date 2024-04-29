@@ -754,7 +754,7 @@ pub struct ApiComponentConfig {
     /// Address of the tree API used by this EN in case it does not have a
     /// local tree component running and in this case needs to send requests
     /// to some external tree API.
-    pub tree_api_url: Option<String>,
+    pub tree_api_remote_url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -790,10 +790,10 @@ impl ExternalNodeConfig {
             .from_env::<ExperimentalENConfig>()
             .context("could not load external node config (experimental params)")?;
 
-        let api_component_config = envy::prefixed("EN_API")
+        let api_component_config = envy::prefixed("EN_API_")
             .from_env::<ApiComponentConfig>()
             .context("could not load external node config (API component params)")?;
-        let tree_component_config = envy::prefixed("EN_TREE")
+        let tree_component_config = envy::prefixed("EN_TREE_")
             .from_env::<TreeComponentConfig>()
             .context("could not load external node config (tree component params)")?;
 
@@ -863,7 +863,9 @@ impl ExternalNodeConfig {
             remote: RemoteENConfig::mock(),
             experimental: ExperimentalENConfig::mock(),
             consensus: None,
-            api_component: ApiComponentConfig { tree_api_url: None },
+            api_component: ApiComponentConfig {
+                tree_api_remote_url: None,
+            },
             tree_component: TreeComponentConfig { api_port: None },
         }
     }

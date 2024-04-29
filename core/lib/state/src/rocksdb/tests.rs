@@ -241,7 +241,7 @@ async fn rocksdb_storage_revert() {
         }
     }
 
-    storage.rollback(&mut conn, L1BatchNumber(1)).await.unwrap();
+    storage.revert(&mut conn, L1BatchNumber(1)).await.unwrap();
     assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(2)));
     {
         for log in &inserted_storage_logs {
