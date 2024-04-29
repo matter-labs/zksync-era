@@ -742,9 +742,7 @@ pub struct Proof {
 #[serde(rename_all = "camelCase")]
 pub struct OptimisticTransactionResult {
     /// Transaction hash.
-    #[serde(rename = "transactionHash")]
     pub transaction_hash: H256,
-    #[serde(rename = "storageLogs")]
     pub storage_logs: Vec<ApiStorageLogQuery>,
     pub events: Vec<ApiVmEvent>,
 }
@@ -752,12 +750,9 @@ pub struct OptimisticTransactionResult {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApiVmEvent {
-    #[serde(rename = "l1BatchNumber")]
     pub l1_batch_number: L1BatchNumber,
-    #[serde(rename = "txBatchIndex")]
     pub tx_batch_index: u32,
     pub address: Address,
-    #[serde(rename = "indexedTopics")]
     pub indexed_topics: Vec<H256>,
     pub value: String,
 }
@@ -766,23 +761,15 @@ pub struct ApiVmEvent {
 #[serde(rename_all = "camelCase")]
 pub struct ApiStorageLogQuery {
     pub timestamp: Timestamp,
-    #[serde(rename = "txNumberInBlock")]
     pub tx_number_in_block: u16,
-    #[serde(rename = "auxByte")]
     pub aux_byte: u8,
-    #[serde(rename = "shardId")]
     pub shard_id: u8,
     pub address: Address,
     pub key: U256,
-    #[serde(rename = "readValue")]
     pub read_value: U256,
-    #[serde(rename = "writtenValue")]
     pub written_value: U256,
-    #[serde(rename = "rwFlag")]
     pub rw_flag: bool,
     pub rollback: bool,
-    #[serde(rename = "isService")]
     pub is_service: bool,
-    #[serde(rename = "logType")]
     pub log_type: StorageLogQueryType,
 }
