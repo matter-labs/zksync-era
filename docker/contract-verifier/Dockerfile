@@ -28,6 +28,10 @@ RUN for VERSION in $(seq -f "v1.4.%g" 0 1); do \
     chmod +x /etc/zksolc-bin/$VERSION/zksolc; \
     done
 
+# install zksolc vm1.5.0
+RUB mkdir -p /etc/zksolc-bin/vm-1.5.0-a167aa3 && \
+    wget https://github.com/matter-labs/era-compiler-solidity/releases/download/prerelease-a167aa3-code4rena/zksolc-linux-amd64-musl-v1.5.0 -O /etc/zksolc-bin/vm-1.5.0-a167aa3/zksolc && \
+    chmod +x /etc/zksolc-bin/vm-1.5.0-a167aa3/zksolc
 
 # install zkvyper 1.3.x
 RUN for VERSION in $(seq -f "v1.3.%g" 9 17); do \
