@@ -526,6 +526,19 @@ impl TransactionsDal<'_, '_> {
         }
 
         if insert_txs {
+            let tx_hashes: Vec<_> = transactions.iter().map(|tx| tx.hash.as_bytes()).collect();
+            sqlx::query!(
+                r#"
+                DELETE FROM transactions
+                WHERE
+                    hash = ANY ($1)
+                "#,
+                &tx_hashes as &[&[u8]],
+            )
+            .instrument("mark_txs_as_executed_in_l2_block#remove_old_txs")
+            .execute(&mut transaction)
+            .await?;
+
             transaction
                 .transactions_dal()
                 .insert_executed_l2_transactions(
@@ -748,49 +761,29 @@ impl TransactionsDal<'_, '_> {
                 NOW(),
                 NOW()
             FROM
-                UNNEST(
-                    $1::bytea[],
-                    $2::bytea[],
-                    $3::INT[],
-                    $4::bytea[],
-                    $5::NUMERIC[],
-                    $6::NUMERIC[],
-                    $7::NUMERIC[],
-                    $8::NUMERIC[],
-                    $9::bytea[],
-                    $10::jsonb[],
-                    $11::INT[],
-                    $12::bytea[],
-                    $13::NUMERIC[],
-                    $14::bytea[],
-                    $15::bytea[],
-                    $16::jsonb[],
-                    $17::INTEGER[],
-                    $18::VARCHAR[],
-                    $19::NUMERIC[],
-                    $20::BIGINT[]
-                ) AS data_table (
-                    hash,
-                    initiator_address,
-                    nonce,
-                    signature,
-                    gas_limit,
-                    max_fee_per_gas,
-                    max_priority_fee_per_gas,
-                    gas_per_pubdata_limit,
-                    input,
-                    data,
-                    tx_format,
-                    contract_address,
-                    value,
-                    paymaster,
-                    paymaster_input,
-                    new_execution_info,
-                    index_in_block,
-                    error,
-                    effective_gas_price,
-                    refunded_gas
-                )
+                (
+                    SELECT
+                        UNNEST($1::bytea[]) AS hash,
+                        UNNEST($2::bytea[]) AS initiator_address,
+                        UNNEST($3::INT[]) AS nonce,
+                        UNNEST($4::bytea[]) AS signature,
+                        UNNEST($5::NUMERIC[]) AS gas_limit,
+                        UNNEST($6::NUMERIC[]) AS max_fee_per_gas,
+                        UNNEST($7::NUMERIC[]) AS max_priority_fee_per_gas,
+                        UNNEST($8::NUMERIC[]) AS gas_per_pubdata_limit,
+                        UNNEST($9::bytea[]) AS input,
+                        UNNEST($10::jsonb[]) AS data,
+                        UNNEST($11::INT[]) AS tx_format,
+                        UNNEST($12::bytea[]) AS contract_address,
+                        UNNEST($13::NUMERIC[]) AS value,
+                        UNNEST($14::bytea[]) AS paymaster,
+                        UNNEST($15::bytea[]) AS paymaster_input,
+                        UNNEST($16::jsonb[]) AS new_execution_info,
+                        UNNEST($17::INTEGER[]) AS index_in_block,
+                        UNNEST($18::VARCHAR[]) AS error,
+                        UNNEST($19::NUMERIC[]) AS effective_gas_price,
+                        UNNEST($20::BIGINT[]) AS refunded_gas
+                ) AS data_table
             "#,
             &l2_hashes as &[&[u8]],
             &l2_initiators as &[[u8; 20]],
@@ -1155,49 +1148,29 @@ impl TransactionsDal<'_, '_> {
                 NOW(),
                 NOW()
             FROM
-                UNNEST(
-                    $1::BYTEA[],
-                    $2::BYTEA[],
-                    $3::NUMERIC[],
-                    $4::NUMERIC[],
-                    $5::NUMERIC[],
-                    $6::JSONB[],
-                    $7::BIGINT[],
-                    $8::NUMERIC[],
-                    $9::NUMERIC[],
-                    $10::BYTEA[],
-                    $11::INT[],
-                    $12::NUMERIC[],
-                    $13::INTEGER[],
-                    $14::NUMERIC[],
-                    $15::BYTEA[],
-                    $16::INT[],
-                    $17::VARCHAR[],
-                    $18::JSONB[],
-                    $19::BIGINT[],
-                    $20::NUMERIC[]
-                ) AS data_table (
-                    hash,
-                    initiator_address,
-                    gas_limit,
-                    max_fee_per_gas,
-                    gas_per_pubdata_limit,
-                    data,
-                    priority_op_id,
-                    full_fee,
-                    layer_2_tip_fee,
-                    contract_address,
-                    l1_block_number,
-                    value,
-                    tx_format,
-                    l1_tx_mint,
-                    l1_tx_refund_recipient,
-                    index_in_block,
-                    error,
-                    execution_info,
-                    refunded_gas,
-                    effective_gas_price
-                )
+                (
+                    SELECT
+                        UNNEST($1::BYTEA[]) AS hash,
+                        UNNEST($2::BYTEA[]) AS initiator_address,
+                        UNNEST($3::NUMERIC[]) AS gas_limit,
+                        UNNEST($4::NUMERIC[]) AS max_fee_per_gas,
+                        UNNEST($5::NUMERIC[]) AS gas_per_pubdata_limit,
+                        UNNEST($6::JSONB[]) AS data,
+                        UNNEST($7::BIGINT[]) AS priority_op_id,
+                        UNNEST($8::NUMERIC[]) AS full_fee,
+                        UNNEST($9::NUMERIC[]) AS layer_2_tip_fee,
+                        UNNEST($10::BYTEA[]) AS contract_address,
+                        UNNEST($11::INT[]) AS l1_block_number,
+                        UNNEST($12::NUMERIC[]) AS value,
+                        UNNEST($13::INTEGER[]) AS tx_format,
+                        UNNEST($14::NUMERIC[]) AS l1_tx_mint,
+                        UNNEST($15::BYTEA[]) AS l1_tx_refund_recipient,
+                        UNNEST($16::INT[]) AS index_in_block,
+                        UNNEST($17::VARCHAR[]) AS error,
+                        UNNEST($18::JSONB[]) AS execution_info,
+                        UNNEST($19::BIGINT[]) AS refunded_gas,
+                        UNNEST($20::NUMERIC[]) AS effective_gas_price
+                ) AS data_table
             "#,
             &l1_hashes as &[&[u8]],
             &l1_initiator_address as &[&[u8]],
@@ -1460,45 +1433,27 @@ impl TransactionsDal<'_, '_> {
                 NOW(),
                 NOW()
             FROM
-                UNNEST(
-                    $1::BYTEA[],
-                    $2::BYTEA[],
-                    $3::NUMERIC[],
-                    $4::NUMERIC[],
-                    $5::NUMERIC[],
-                    $6::JSONB[],
-                    $7::INT[],
-                    $8::BYTEA[],
-                    $9::INT[],
-                    $10::NUMERIC[],
-                    $11::INTEGER[],
-                    $12::NUMERIC[],
-                    $13::BYTEA[],
-                    $14::INT[],
-                    $15::VARCHAR[],
-                    $16::JSONB[],
-                    $17::BIGINT[],
-                    $18::NUMERIC[]
-                ) AS data_table (
-                    hash,
-                    initiator_address,
-                    gas_limit,
-                    max_fee_per_gas,
-                    gas_per_pubdata_limit,
-                    data,
-                    upgrade_id,
-                    contract_address,
-                    l1_block_number,
-                    value,
-                    tx_format,
-                    l1_tx_mint,
-                    l1_tx_refund_recipient,
-                    index_in_block,
-                    error,
-                    execution_info,
-                    refunded_gas,
-                    effective_gas_price
-                )
+                (
+                    SELECT
+                        UNNEST($1::BYTEA[]) AS hash,
+                        UNNEST($2::BYTEA[]) AS initiator_address,
+                        UNNEST($3::NUMERIC[]) AS gas_limit,
+                        UNNEST($4::NUMERIC[]) AS max_fee_per_gas,
+                        UNNEST($5::NUMERIC[]) AS gas_per_pubdata_limit,
+                        UNNEST($6::JSONB[]) AS data,
+                        UNNEST($7::INT[]) AS upgrade_id,
+                        UNNEST($8::BYTEA[]) AS contract_address,
+                        UNNEST($9::INT[]) AS l1_block_number,
+                        UNNEST($10::NUMERIC[]) AS value,
+                        UNNEST($11::INTEGER[]) AS tx_format,
+                        UNNEST($12::NUMERIC[]) AS l1_tx_mint,
+                        UNNEST($13::BYTEA[]) AS l1_tx_refund_recipient,
+                        UNNEST($14::INT[]) AS index_in_block,
+                        UNNEST($15::VARCHAR[]) AS error,
+                        UNNEST($16::JSONB[]) AS execution_info,
+                        UNNEST($17::BIGINT[]) AS refunded_gas,
+                        UNNEST($18::NUMERIC[]) AS effective_gas_price
+                ) AS data_table
             "#,
             &upgrade_hashes as &[&[u8]],
             &upgrade_initiator_address as &[&[u8]],
