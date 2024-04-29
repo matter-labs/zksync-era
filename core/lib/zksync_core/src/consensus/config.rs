@@ -7,6 +7,7 @@ use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets, Host,
 use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::{node, validator};
+use zksync_types::L2ChainId;
 
 use crate::consensus::{fetcher::P2PConfig, MainNodeConfig};
 
@@ -27,7 +28,7 @@ pub struct Config {
     pub public_addr: net::Host,
 
     /// Validators participating in consensus.
-    pub validators: validator::ValidatorSet,
+    pub committee: validator::Committee,
 
     /// Maximal allowed size of the payload in bytes.
     pub max_payload_size: usize,
@@ -54,10 +55,12 @@ fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<node::SecretKey> {
 pub fn main_node(
     cfg: &ConsensusConfig,
     secrets: &ConsensusSecrets,
+    chain_id: L2ChainId,
 ) -> anyhow::Result<MainNodeConfig> {
     Ok(MainNodeConfig {
         executor: executor(cfg, secrets)?,
         validator_key: validator_key(secrets).context("validator_key")?,
+        chain_id: validator::ChainId(chain_id.as_u64()),
     })
 }
 
