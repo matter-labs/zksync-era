@@ -6,6 +6,7 @@ use zksync_vk_setup_data_server_fri::keystore::Keystore;
 use zksync_witness_vector_generator::generator::WitnessVectorGenerator;
 
 #[test]
+#[ignore] // re-enable with new artifacts
 fn test_generate_witness_vector() {
     let filename = "./tests/data/base_layer_main_vm.bin";
     let file = fs::read(filename).expect("failed reading circuit");
