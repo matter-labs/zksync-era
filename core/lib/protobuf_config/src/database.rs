@@ -73,7 +73,13 @@ impl ProtoRepr for proto::Db {
                 .context("state_keeper_db_path")?
                 .clone(),
             merkle_tree: read_required_repr(&self.merkle_tree).context("merkle_tree")?,
-            experimental: read_required_repr(&self.experimental).context("experimental")?,
+            experimental: self
+                .experimental
+                .as_ref()
+                .map(ProtoRepr::read)
+                .transpose()
+                .context("experimental")?
+                .unwrap_or_default(),
         })
     }
 

@@ -11,15 +11,16 @@ impl ProtoRepr for proto::Db {
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         let state_keeper_db_block_cache_capacity_mb =
-            *required(&self.state_keeper_db_block_cache_capacity_mb)
+            required(&self.state_keeper_db_block_cache_capacity_mb)
+                .and_then(|&capacity| Ok(capacity.try_into()?))
                 .context("state_keeper_db_block_cache_capacity_mb")?;
         Ok(configs::ExperimentalDBConfig {
-            state_keeper_db_block_cache_capacity_mb: state_keeper_db_block_cache_capacity_mb
-                .try_into()
-                .context("state_keeper_db_block_cache_capacity_mb")?,
+            state_keeper_db_block_cache_capacity_mb,
             state_keeper_db_max_open_files: self
                 .state_keeper_db_max_open_files
-                .and_then(NonZeroU32::new),
+                .map(|count| NonZeroU32::new(count).context("cannot be 0"))
+                .transpose()
+                .context("state_keeper_db_max_open_files")?,
         })
     }
 

@@ -1,3 +1,5 @@
+// Experimental configuration types. Unlike other types, experimental types are unstable and do not undergo Protobuf compatibility checks in CI.
+
 syntax = "proto3";
 
 package zksync.config.experimental;
