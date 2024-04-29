@@ -1,15 +1,20 @@
 use std::time::Duration;
 
 use multivm::interface::{VmExecutionResultAndLogs, VmMemoryMetrics};
-use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
+use vise::{
+    Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver, Metrics,
+};
 use zksync_shared_metrics::InteractionType;
 use zksync_state::StorageViewMetrics;
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
     fee::TransactionExecutionMetrics,
     storage_writes_deduplicator::StorageWritesDeduplicator,
+    H256,
 };
 use zksync_utils::bytecode::bytecode_len_in_bytes;
+
+use crate::api_server::utils::ReportFilter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "type", rename_all = "snake_case")]
@@ -95,6 +100,49 @@ pub(in crate::api_server) enum SubmitTxStage {
     DbInsert,
 }
 
+#[must_use = "should be `observe()`d"]
+#[derive(Debug)]
+pub(in crate::api_server) struct SubmitTxLatencyObserver<'a> {
+    inner: Option<LatencyObserver<'a>>,
+    tx_hash: H256,
+    stage: SubmitTxStage,
+}
+
+impl SubmitTxLatencyObserver<'_> {
+    pub fn set_stage(&mut self, stage: SubmitTxStage) {
+        self.stage = stage;
+    }
+
+    pub fn observe(mut self) {
+        static FILTER: ReportFilter = report_filter!(Duration::from_secs(10));
+        const MIN_LOGGED_LATENCY: Duration = Duration::from_secs(1);
+
+        let latency = self.inner.take().unwrap().observe();
+        // ^ `unwrap()` is safe: `LatencyObserver` is only taken out in this method.
+        if latency > MIN_LOGGED_LATENCY && FILTER.should_report() {
+            tracing::info!(
+                "Transaction {:?} submission stage {:?} has high latency: {latency:?}",
+                self.tx_hash,
+                self.stage
+            );
+        }
+    }
+}
+
+impl Drop for SubmitTxLatencyObserver<'_> {
+    fn drop(&mut self) {
+        static FILTER: ReportFilter = report_filter!(Duration::from_secs(10));
+
+        if self.inner.is_some() && FILTER.should_report() {
+            tracing::info!(
+                "Transaction {:?} submission was dropped at stage {:?} due to error or client disconnecting",
+                self.tx_hash,
+                self.stage
+            );
+        }
+    }
+}
+
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "api_web3")]
 pub(in crate::api_server) struct SandboxMetrics {
@@ -103,9 +151,23 @@ pub(in crate::api_server) struct SandboxMetrics {
     #[metrics(buckets = Buckets::linear(0.0..=2_000.0, 200.0))]
     pub(super) sandbox_execution_permits: Histogram<usize>,
     #[metrics(buckets = Buckets::LATENCIES)]
-    pub submit_tx: Family<SubmitTxStage, Histogram<Duration>>,
+    submit_tx: Family<SubmitTxStage, Histogram<Duration>>,
     #[metrics(buckets = Buckets::linear(0.0..=30.0, 3.0))]
     pub estimate_gas_binary_search_iterations: Histogram<usize>,
+}
+
+impl SandboxMetrics {
+    pub fn start_tx_submit_stage(
+        &self,
+        tx_hash: H256,
+        stage: SubmitTxStage,
+    ) -> SubmitTxLatencyObserver<'_> {
+        SubmitTxLatencyObserver {
+            inner: Some(self.submit_tx[&stage].start()),
+            tx_hash,
+            stage,
+        }
+    }
 }
 
 #[vise::register]

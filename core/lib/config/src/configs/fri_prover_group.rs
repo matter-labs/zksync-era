@@ -109,7 +109,14 @@ impl FriProverGroupConfig {
         ];
         for group in groups {
             for circuit_round in group {
-                rounds[circuit_round.aggregation_round as usize].push(circuit_round.clone());
+                let round = match rounds.get_mut(circuit_round.aggregation_round as usize) {
+                    Some(round) => round,
+                    None => anyhow::bail!(
+                        "Invalid aggregation round {}.",
+                        circuit_round.aggregation_round
+                    ),
+                };
+                round.push(circuit_round.clone());
             }
         }
 

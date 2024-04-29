@@ -3,17 +3,12 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use itertools::Itertools;
-use multivm::{
-    interface::{ExecutionResult, VmExecutionResultAndLogs, VmRevertReason},
-    vm_latest::VmExecutionLogs,
-};
-use zksync_types::{
-    api::{ApiStorageLog, Log},
-    get_intrinsic_constants,
-    transaction_request::CallRequest,
-    zk_evm_types::{LogQuery, Timestamp},
-    L2ChainId, PackedEthSignature, StorageLogQuery, StorageLogQueryType, U256,
-};
+
+use multivm::interface::{ExecutionResult, VmRevertReason};
+use multivm::vm_latest::{VmExecutionLogs, VmExecutionResultAndLogs};
+use zksync_types::{get_intrinsic_constants, K256PrivateKey, L2ChainId, PackedEthSignature, StorageLogQuery, StorageLogQueryType, transaction_request::CallRequest, U256};
+use zksync_types::api::{ApiStorageLog, Log};
+use zksync_types::zk_evm_types::{LogQuery, Timestamp};
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::namespaces::DebugNamespaceClient;
 
@@ -159,10 +154,10 @@ struct SendRawTransactionTest {
 
 impl SendRawTransactionTest {
     fn transaction_bytes_and_hash() -> (Vec<u8>, H256) {
-        let (private_key, address) = Self::private_key_and_address();
+        let private_key = Self::private_key();
         let tx_request = api::TransactionRequest {
             chain_id: Some(L2ChainId::default().as_u64()),
-            from: Some(address),
+            from: Some(private_key.address()),
             to: Some(Address::repeat_byte(2)),
             value: 123_456.into(),
             gas: (get_intrinsic_constants().l2_tx_intrinsic_gas * 2).into(),
@@ -184,15 +179,12 @@ impl SendRawTransactionTest {
         (data.into(), tx_hash)
     }
 
-    fn private_key_and_address() -> (H256, Address) {
-        let private_key = H256::repeat_byte(11);
-        let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
-        (private_key, address)
+    fn private_key() -> K256PrivateKey {
+        K256PrivateKey::from_bytes(H256::repeat_byte(11)).unwrap()
     }
 
     fn balance_storage_log() -> StorageLog {
-        let (_, address) = Self::private_key_and_address();
-        let balance_key = storage_key_for_eth_balance(&address);
+        let balance_key = storage_key_for_eth_balance(&Self::private_key().address());
         StorageLog::new_write_log(balance_key, u256_to_h256(U256::one() << 64))
     }
 }
@@ -583,7 +575,7 @@ impl HttpTest for EstimateGasTest {
                 .await?;
         }
         let mut call_request = CallRequest::from(l2_transaction);
-        call_request.from = Some(SendRawTransactionTest::private_key_and_address().1);
+        call_request.from = Some(SendRawTransactionTest::private_key().address());
         call_request.value = Some(1_000_000.into());
         client.estimate_gas(call_request.clone(), None).await?;
 
