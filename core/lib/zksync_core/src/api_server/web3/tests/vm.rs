@@ -285,14 +285,14 @@ impl SendTransactionWithDetailedOutputTest {
             StorageLogQuery {
                 log_query: LogQuery {
                     tx_number_in_block: 2,
-                    ..log_query.clone()
+                    ..log_query
                 },
                 log_type: StorageLogQueryType::InitialWrite,
             },
             StorageLogQuery {
                 log_query: LogQuery {
                     tx_number_in_block: 3,
-                    ..log_query.clone()
+                    ..log_query
                 },
                 log_type: StorageLogQueryType::RepeatedWrite,
             },
