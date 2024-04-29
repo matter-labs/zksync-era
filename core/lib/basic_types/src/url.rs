@@ -25,6 +25,12 @@ impl fmt::Debug for SensitiveUrl {
     }
 }
 
+impl From<Url> for SensitiveUrl {
+    fn from(url: Url) -> Self {
+        Self(url)
+    }
+}
+
 impl FromStr for SensitiveUrl {
     type Err = url::ParseError;
 
@@ -34,6 +40,11 @@ impl FromStr for SensitiveUrl {
 }
 
 impl SensitiveUrl {
+    /// Exposes the underlying URL.
+    pub fn expose_url(&self) -> &Url {
+        &self.0
+    }
+
     /// Exposes the underlying URL string.
     pub fn expose_str(&self) -> &str {
         self.0.as_str()

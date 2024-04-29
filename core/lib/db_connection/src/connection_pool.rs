@@ -1,5 +1,5 @@
 use std::{
-    env, fmt,
+    env,
     future::Future,
     marker::PhantomData,
     panic::Location,
@@ -16,6 +16,7 @@ use sqlx::{
     pool::PoolConnection,
     postgres::{PgConnectOptions, PgPool, PgPoolOptions, Postgres},
 };
+use zksync_basic_types::url::SensitiveUrl;
 
 use crate::{
     connection::{Connection, ConnectionTags, DbMarker, TracedConnections},
@@ -24,25 +25,13 @@ use crate::{
 };
 
 /// Builder for [`ConnectionPool`]s.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ConnectionPoolBuilder<DB: DbMarker> {
-    database_url: String,
+    database_url: SensitiveUrl,
     max_size: u32,
     acquire_timeout: Duration,
     statement_timeout: Option<Duration>,
     _marker: PhantomData<DB>,
-}
-
-impl<DB: DbMarker> fmt::Debug for ConnectionPoolBuilder<DB> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Database URL is potentially sensitive, thus we omit it.
-        formatter
-            .debug_struct("ConnectionPoolBuilder")
-            .field("max_size", &self.max_size)
-            .field("acquire_timeout", &self.acquire_timeout)
-            .field("statement_timeout", &self.statement_timeout)
-            .finish()
-    }
 }
 
 impl<DB: DbMarker> ConnectionPoolBuilder<DB> {
@@ -82,6 +71,7 @@ impl<DB: DbMarker> ConnectionPoolBuilder<DB> {
             .acquire_timeout(self.acquire_timeout);
         let mut connect_options: PgConnectOptions = self
             .database_url
+            .expose_str()
             .parse()
             .context("Failed parsing database URL")?;
         if let Some(timeout) = self.statement_timeout {
@@ -116,24 +106,24 @@ impl<DB: DbMarker> ConnectionPoolBuilder<DB> {
 }
 
 #[derive(Debug)]
-pub struct TestTemplate(url::Url);
+pub struct TestTemplate(SensitiveUrl);
 
 impl TestTemplate {
     fn db_name(&self) -> &str {
-        self.0.path().strip_prefix('/').unwrap()
+        self.0.expose_url().path().strip_prefix('/').unwrap()
     }
 
-    fn url(&self, db_name: &str) -> url::Url {
-        let mut url = self.0.clone();
+    fn url(&self, db_name: &str) -> SensitiveUrl {
+        let mut url = self.0.expose_url().clone();
         url.set_path(db_name);
-        url
+        url.into()
     }
 
-    async fn connect_to(db_url: &url::Url) -> sqlx::Result<sqlx::PgConnection> {
+    async fn connect_to(db_url: &SensitiveUrl) -> sqlx::Result<sqlx::PgConnection> {
         use sqlx::Connection as _;
         let mut attempts = 20;
         loop {
-            match sqlx::PgConnection::connect(db_url.as_ref()).await {
+            match sqlx::PgConnection::connect(db_url.expose_str()).await {
                 Ok(conn) => return Ok(conn),
                 Err(err) => {
                     attempts -= 1;
@@ -167,7 +157,7 @@ impl TestTemplate {
         .context("SET dataallowconn = false")?;
         drop(conn);
         pool.inner.close().await;
-        Ok(Self(pool.database_url.parse()?))
+        Ok(Self(pool.database_url))
     }
 
     /// Constructs a new temporary database (with a randomized name)
@@ -194,7 +184,7 @@ impl TestTemplate {
             .context("CREATE DATABASE")?;
 
         Ok(ConnectionPool::<DB>::builder(
-            self.url(&db_new).as_ref(),
+            self.url(&db_new),
             connections,
         ))
     }
@@ -245,24 +235,13 @@ impl GlobalConnectionPoolConfig {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ConnectionPool<DB: DbMarker> {
     pub(crate) inner: PgPool,
-    database_url: String,
+    database_url: SensitiveUrl,
     max_size: u32,
     pub(crate) traced_connections: Option<Arc<TracedConnections>>,
     _marker: PhantomData<DB>,
-}
-
-impl<DB: DbMarker> fmt::Debug for ConnectionPool<DB> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // We don't print the `database_url`, as is may contain
-        // sensitive information (e.g. database password).
-        formatter
-            .debug_struct("ConnectionPool")
-            .field("max_size", &self.max_size)
-            .finish_non_exhaustive()
-    }
 }
 
 impl<DB: DbMarker> ConnectionPool<DB> {
@@ -303,9 +282,9 @@ impl<DB: DbMarker> ConnectionPool<DB> {
     }
 
     /// Initializes a builder for connection pools.
-    pub fn builder(database_url: &str, max_pool_size: u32) -> ConnectionPoolBuilder<DB> {
+    pub fn builder(database_url: SensitiveUrl, max_pool_size: u32) -> ConnectionPoolBuilder<DB> {
         ConnectionPoolBuilder {
-            database_url: database_url.to_string(),
+            database_url,
             max_size: max_pool_size,
             acquire_timeout: Duration::from_secs(30), // Default value used by `sqlx`
             statement_timeout: None,
@@ -315,13 +294,13 @@ impl<DB: DbMarker> ConnectionPool<DB> {
 
     /// Initializes a builder for connection pools with a single connection. This is equivalent
     /// to calling `Self::builder(db_url, 1)`.
-    pub fn singleton(database_url: &str) -> ConnectionPoolBuilder<DB> {
+    pub fn singleton(database_url: SensitiveUrl) -> ConnectionPoolBuilder<DB> {
         Self::builder(database_url, 1)
     }
 
     /// Returns database URL for this pool. It may include authentication info, so be mindful of
     /// outputting it into logs etc.
-    pub fn database_url(&self) -> &str {
+    pub fn database_url(&self) -> &SensitiveUrl {
         &self.database_url
     }
 
@@ -441,7 +420,7 @@ mod tests {
             .unwrap()
             .database_url;
 
-        let pool = ConnectionPool::<InternalMarker>::singleton(&db_url)
+        let pool = ConnectionPool::<InternalMarker>::singleton(db_url)
             .set_statement_timeout(Some(Duration::from_secs(1)))
             .build()
             .await

@@ -153,7 +153,7 @@ async fn run_tree(
         format!("snapshot recovery max concurrency ({max_concurrency}) is too large")
     })?;
     let recovery_pool = ConnectionPool::builder(
-        tree_pool.database_url(),
+        tree_pool.database_url().clone(),
         max_concurrency.min(config.postgres.max_connections),
     )
     .build()
@@ -799,9 +799,9 @@ async fn main() -> anyhow::Result<()> {
     RUST_METRICS.initialize();
     EN_METRICS.observe_config(&config);
 
-    let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
+    let singleton_pool_builder = ConnectionPool::singleton(config.postgres.database_url());
     let connection_pool = ConnectionPool::<Core>::builder(
-        &config.postgres.database_url,
+        config.postgres.database_url(),
         config.postgres.max_connections,
     )
     .build()

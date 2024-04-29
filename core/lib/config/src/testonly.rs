@@ -295,9 +295,9 @@ impl Distribution<configs::database::DBConfig> for EncodeDist {
 impl Distribution<configs::database::PostgresConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::database::PostgresConfig {
         configs::database::PostgresConfig {
-            master_url: self.sample(rng),
-            replica_url: self.sample(rng),
-            prover_url: self.sample(rng),
+            master_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
+            replica_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
+            prover_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
             max_connections: self.sample(rng),
             max_connections_master: self.sample(rng),
             acquire_timeout_sec: self.sample(rng),

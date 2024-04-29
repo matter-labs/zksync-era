@@ -7701,8 +7701,8 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "url",
  "vise",
+ "zksync_basic_types",
  "zksync_health_check",
 ]
 

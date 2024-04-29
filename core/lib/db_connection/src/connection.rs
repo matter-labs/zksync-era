@@ -147,7 +147,7 @@ enum ConnectionInner<'a> {
 }
 
 /// Marker trait for restricting using all possible types as a storage marker.
-pub trait DbMarker {}
+pub trait DbMarker: fmt::Debug {}
 
 /// Storage processor is the main storage interaction point.
 /// It holds down the connection (either direct or pooled) to the database

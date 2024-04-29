@@ -655,7 +655,7 @@ impl RequiredENConfig {
 /// Thus it is kept separately for backward compatibility and ease of deserialization.
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 pub(crate) struct PostgresConfig {
-    pub database_url: String,
+    database_url: SensitiveUrl,
     pub max_connections: u32,
 }
 
@@ -663,7 +663,9 @@ impl PostgresConfig {
     pub fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             database_url: env::var("DATABASE_URL")
-                .context("DATABASE_URL env variable is not set")?,
+                .context("DATABASE_URL env variable is not set")?
+                .parse()
+                .context("DATABASE_URL env variable is not a valid Postgres URL")?,
             max_connections: env::var("DATABASE_POOL_SIZE")
                 .context("DATABASE_POOL_SIZE env variable is not set")?
                 .parse()
@@ -671,10 +673,14 @@ impl PostgresConfig {
         })
     }
 
+    pub fn database_url(&self) -> SensitiveUrl {
+        self.database_url.clone()
+    }
+
     #[cfg(test)]
     fn mock(test_pool: &ConnectionPool<Core>) -> Self {
         Self {
-            database_url: test_pool.database_url().to_owned(),
+            database_url: test_pool.database_url().clone(),
             max_connections: test_pool.max_size(),
         }
     }
