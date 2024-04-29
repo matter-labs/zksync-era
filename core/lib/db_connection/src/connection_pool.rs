@@ -286,7 +286,7 @@ impl<DB: DbMarker> ConnectionPool<DB> {
     /// Initializes a builder for connection pools.
     pub fn builder(database_url: SensitiveUrl, max_pool_size: u32) -> ConnectionPoolBuilder<DB> {
         ConnectionPoolBuilder {
-            database_url,
+            database_url: database_url.with_sensitive_query_params(&["user", "password"]),
             max_size: max_pool_size,
             acquire_timeout: Duration::from_secs(30), // Default value used by `sqlx`
             statement_timeout: None,
