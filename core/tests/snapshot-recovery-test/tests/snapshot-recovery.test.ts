@@ -95,7 +95,7 @@ interface HealthCheckResponse {
 describe('snapshot recovery', () => {
     const STORAGE_LOG_SAMPLE_PROBABILITY = 0.1;
     // Number of L1 batches awaited to be pruned.
-    const PRUNED_BATCH_COUNT = 2;
+    const PRUNED_BATCH_COUNT = 1;
 
     const homeDir = process.env.ZKSYNC_HOME!!;
 
@@ -354,7 +354,7 @@ describe('snapshot recovery', () => {
 
         const pruningParams = {
             EN_PRUNING_ENABLED: 'true',
-            EN_PRUNING_REMOVAL_DELAY_SEC: '2',
+            EN_PRUNING_REMOVAL_DELAY_SEC: '1',
             EN_PRUNING_DATA_RETENTION_SEC: '0', // immediately prune executed batches
             EN_PRUNING_CHUNK_SIZE: '1'
         };
