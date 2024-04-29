@@ -425,6 +425,7 @@ async fn test_centralized_fetcher(from_snapshot: bool) {
 
         tracing::info!("Produce a batch (to make api server start)");
         // TODO: ensure at least L1 batch in `testonly::StateKeeper::new()` to make it fool proof.
+        validator.push_block(1).await;
         validator.seal_batch().await;
 
         tracing::info!("Spawn a node.");
