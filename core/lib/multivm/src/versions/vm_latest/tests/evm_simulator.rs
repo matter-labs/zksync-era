@@ -2219,6 +2219,42 @@ fn test_basic_calldatacopy_vectors() {
 }
 
 #[test]
+fn test_basic_calldatacopy_gas() {
+    let consumed_gas_solidity = 26;
+    let actual_initial_gas = get_actual_initial_gas();
+    let evm_output = test_evm_vector(
+        vec![
+            // push1 9
+            hex::decode("60").unwrap(),
+            hex::decode("09").unwrap(),
+            // push1 31
+            hex::decode("60").unwrap(),
+            hex::decode("1F").unwrap(),
+            // push1 2
+            hex::decode("60").unwrap(),
+            hex::decode("02").unwrap(),
+            // calldatacopy
+            hex::decode("37").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mload
+            hex::decode("51").unwrap(),
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    let actual_consumed_gas = actual_initial_gas - evm_output;
+
+    assert_eq!(actual_consumed_gas, consumed_gas_solidity.into());
+}
+
+#[test]
 fn test_basic_address_vectors() {
     assert_eq!(
         test_evm_vector(
