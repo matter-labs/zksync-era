@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreError, ObjectStoreFactory};
 use zksync_types::{
     api,
+    block::L2BlockHeader,
     snapshots::{
         SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotHeader,
         SnapshotRecoveryStatus, SnapshotStorageLog, SnapshotStorageLogsChunk,
@@ -102,6 +103,24 @@ impl ObjectStore for ObjectStoreWithErrors {
 
     fn storage_prefix_raw(&self, bucket: Bucket) -> String {
         self.inner.storage_prefix_raw(bucket)
+    }
+}
+
+pub(super) fn mock_l2_block_header(l2_block_number: L2BlockNumber) -> L2BlockHeader {
+    L2BlockHeader {
+        number: l2_block_number,
+        timestamp: 0,
+        hash: H256::from_low_u64_be(u64::from(l2_block_number.0)),
+        l1_tx_count: 0,
+        l2_tx_count: 0,
+        fee_account_address: Address::repeat_byte(1),
+        base_fee_per_gas: 0,
+        gas_per_pubdata_limit: 0,
+        batch_fee_input: Default::default(),
+        base_system_contracts_hashes: Default::default(),
+        protocol_version: Some(Default::default()),
+        virtual_blocks: 0,
+        gas_limit: 0,
     }
 }
 

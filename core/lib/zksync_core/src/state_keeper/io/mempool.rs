@@ -44,7 +44,7 @@ pub struct MempoolIO {
     mempool: MempoolGuard,
     pool: ConnectionPool<Core>,
     timeout_sealer: TimeoutSealer,
-    miniblock_max_payload_size_sealer: L2BlockMaxPayloadSizeSealer,
+    l2_block_max_payload_size_sealer: L2BlockMaxPayloadSizeSealer,
     filter: L2TxFilter,
     l1_batch_params_provider: L1BatchParamsProvider,
     fee_account: Address,
@@ -66,7 +66,7 @@ impl IoSealCriteria for MempoolIO {
         if self.timeout_sealer.should_seal_l2_block(manager) {
             return true;
         }
-        self.miniblock_max_payload_size_sealer
+        self.l2_block_max_payload_size_sealer
             .should_seal_l2_block(manager)
     }
 }
@@ -179,7 +179,9 @@ impl StateKeeperIO for MempoolIO {
                 self.batch_fee_input_provider.as_ref(),
                 protocol_version.into(),
             )
-            .await;
+            .await
+            .context("failed creating L2 transaction filter")?;
+
             if !self.mempool.has_next(&self.filter) {
                 tokio::time::sleep(self.delay_interval).await;
                 continue;
@@ -417,7 +419,7 @@ impl MempoolIO {
             mempool,
             pool,
             timeout_sealer: TimeoutSealer::new(config),
-            miniblock_max_payload_size_sealer: L2BlockMaxPayloadSizeSealer::new(config),
+            l2_block_max_payload_size_sealer: L2BlockMaxPayloadSizeSealer::new(config),
             filter: L2TxFilter::default(),
             // ^ Will be initialized properly on the first newly opened batch
             l1_batch_params_provider,

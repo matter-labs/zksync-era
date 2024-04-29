@@ -34,7 +34,9 @@ impl WiringLayer for PrometheusExporterLayer {
             ReactiveHealthCheck::new("prometheus_exporter");
 
         let AppHealthCheckResource(app_health) = node.get_resource_or_default().await;
-        app_health.insert_component(prometheus_health_check);
+        app_health
+            .insert_component(prometheus_health_check)
+            .map_err(WiringError::internal)?;
 
         let task = Box::new(PrometheusExporterTask {
             config: self.0,

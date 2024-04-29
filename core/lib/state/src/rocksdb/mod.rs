@@ -11,6 +11,8 @@
 //! | Column       | Key                             | Value                           | Description                               |
 //! | ------------ | ------------------------------- | ------------------------------- | ----------------------------------------- |
 //! | State        | 'block_number'                  | serialized block number         | Last processed L1 batch number (u32)      |
+//! | State        | 'enum_index_migration_cursor'   | serialized hashed key or empty  | Deprecated                                |
+//! |              |                                 | bytes                           |                                           |
 //! | State        | hashed `StorageKey`             | 32 bytes value ++ 8 bytes index | State value for the given key             |
 //! |              |                                 |                    (big-endian) |                                           |
 //! | Contracts    | address (20 bytes)              | `Vec<u8>`                       | Contract contents                         |
@@ -31,9 +33,9 @@ use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_storage::{db::NamedColumnFamily, RocksDB};
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
 
-use self::metrics::METRICS;
 #[cfg(test)]
 use self::tests::RocksdbStorageEventListener;
+use self::{metrics::METRICS, recovery::Strategy};
 use crate::{InMemoryStorage, ReadStorage};
 
 mod metrics;
@@ -123,7 +125,7 @@ impl From<anyhow::Error> for RocksdbSyncError {
 }
 
 /// [`ReadStorage`] implementation backed by RocksDB.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RocksdbStorage {
     db: RocksDB<StateKeeperColumnFamily>,
     pending_patch: InMemoryStorage,
@@ -157,6 +159,35 @@ impl RocksdbStorageBuilder {
         self.0.l1_batch_number().await
     }
 
+    /// Ensures that the storage is ready to process L1 batches (i.e., has completed snapshot recovery).
+    ///
+    /// # Return value
+    ///
+    /// Returns a flag indicating whether snapshot recovery was performed.
+    ///
+    /// # Errors
+    ///
+    /// Returns I/O RocksDB and Postgres errors.
+    pub async fn ensure_ready(
+        &mut self,
+        storage: &mut Connection<'_, Core>,
+        stop_receiver: &watch::Receiver<bool>,
+    ) -> anyhow::Result<bool> {
+        let ready_result = self
+            .0
+            .ensure_ready(
+                storage,
+                RocksdbStorage::DESIRED_LOG_CHUNK_SIZE,
+                stop_receiver,
+            )
+            .await;
+        match ready_result {
+            Ok((strategy, _)) => Ok(matches!(strategy, Strategy::Recovery)),
+            Err(RocksdbSyncError::Interrupted) => Ok(false),
+            Err(RocksdbSyncError::Internal(err)) => Err(err),
+        }
+    }
+
     /// Synchronizes this storage with Postgres using the provided connection.
     ///
     /// # Return value
@@ -171,36 +202,47 @@ impl RocksdbStorageBuilder {
         self,
         storage: &mut Connection<'_, Core>,
         stop_receiver: &watch::Receiver<bool>,
+        to_l1_batch_number: Option<L1BatchNumber>,
     ) -> anyhow::Result<Option<RocksdbStorage>> {
         let mut inner = self.0;
-        match inner.update_from_postgres(storage, stop_receiver).await {
+        match inner
+            .update_from_postgres(storage, stop_receiver, to_l1_batch_number)
+            .await
+        {
             Ok(()) => Ok(Some(inner)),
             Err(RocksdbSyncError::Interrupted) => Ok(None),
             Err(RocksdbSyncError::Internal(err)) => Err(err),
         }
     }
 
-    /// Rolls back the state to a previous L1 batch number.
+    /// Reverts the state to a previous L1 batch number.
     ///
     /// # Errors
     ///
     /// Propagates RocksDB and Postgres errors.
-    pub async fn rollback(
+    pub async fn roll_back(
         mut self,
         storage: &mut Connection<'_, Core>,
         last_l1_batch_to_keep: L1BatchNumber,
     ) -> anyhow::Result<()> {
-        self.0.rollback(storage, last_l1_batch_to_keep).await
+        self.0.revert(storage, last_l1_batch_to_keep).await
     }
 }
 
 impl RocksdbStorage {
     const L1_BATCH_NUMBER_KEY: &'static [u8] = b"block_number";
+    #[allow(dead_code)]
+    const ENUM_INDEX_MIGRATION_CURSOR: &'static [u8] = b"enum_index_migration_cursor";
 
     /// Desired size of log chunks loaded from Postgres during snapshot recovery.
     /// This is intentionally not configurable because chunks must be the same for the entire recovery
     /// (i.e., not changed after a node restart).
     const DESIRED_LOG_CHUNK_SIZE: u64 = 200_000;
+
+    #[allow(dead_code)]
+    fn is_special_key(key: &[u8]) -> bool {
+        key == Self::L1_BATCH_NUMBER_KEY || key == Self::ENUM_INDEX_MIGRATION_CURSOR
+    }
 
     /// Creates a new storage builder with the provided RocksDB `path`.
     ///
@@ -230,8 +272,9 @@ impl RocksdbStorage {
         &mut self,
         storage: &mut Connection<'_, Core>,
         stop_receiver: &watch::Receiver<bool>,
+        to_l1_batch_number: Option<L1BatchNumber>,
     ) -> Result<(), RocksdbSyncError> {
-        let mut current_l1_batch_number = self
+        let (_, mut current_l1_batch_number) = self
             .ensure_ready(storage, Self::DESIRED_LOG_CHUNK_SIZE, stop_receiver)
             .await?;
 
@@ -245,21 +288,33 @@ impl RocksdbStorage {
             // No L1 batches are persisted in Postgres; update is not necessary.
             return Ok(());
         };
-        tracing::debug!("Loading storage for l1 batch number {latest_l1_batch_number}");
+        let to_l1_batch_number = if let Some(to_l1_batch_number) = to_l1_batch_number {
+            if to_l1_batch_number > latest_l1_batch_number {
+                let err = anyhow::anyhow!(
+                    "Requested to update RocksDB to L1 batch number ({current_l1_batch_number}) that \
+                     is greater than the last sealed L1 batch number in Postgres ({latest_l1_batch_number})"
+                );
+                return Err(err.into());
+            }
+            to_l1_batch_number
+        } else {
+            latest_l1_batch_number
+        };
+        tracing::debug!("Loading storage for l1 batch number {to_l1_batch_number}");
 
-        if current_l1_batch_number > latest_l1_batch_number + 1 {
+        if current_l1_batch_number > to_l1_batch_number + 1 {
             let err = anyhow::anyhow!(
                 "L1 batch number in state keeper cache ({current_l1_batch_number}) is greater than \
-                 the last sealed L1 batch number in Postgres ({latest_l1_batch_number})"
+                 the requested batch number ({to_l1_batch_number})"
             );
             return Err(err.into());
         }
 
-        while current_l1_batch_number <= latest_l1_batch_number {
+        while current_l1_batch_number <= to_l1_batch_number {
             if *stop_receiver.borrow() {
                 return Err(RocksdbSyncError::Interrupted);
             }
-            let current_lag = latest_l1_batch_number.0 - current_l1_batch_number.0 + 1;
+            let current_lag = to_l1_batch_number.0 - current_l1_batch_number.0 + 1;
             METRICS.lag.set(current_lag.into());
 
             tracing::debug!("Loading state changes for l1 batch {current_l1_batch_number}");
@@ -285,7 +340,7 @@ impl RocksdbStorage {
                 .await
                 .with_context(|| format!("failed saving L1 batch #{current_l1_batch_number}"))?;
             #[cfg(test)]
-            (self.listener.on_l1_batch_synced)(current_l1_batch_number - 1);
+            (self.listener.on_l1_batch_synced.write().await)(current_l1_batch_number - 1);
         }
 
         latency.observe();
@@ -293,7 +348,7 @@ impl RocksdbStorage {
         let estimated_size = self.estimated_map_size();
         METRICS.size.set(estimated_size);
         tracing::info!(
-            "Secondary storage for L1 batch #{latest_l1_batch_number} initialized, size is {estimated_size}"
+            "Secondary storage for L1 batch #{to_l1_batch_number} initialized, size is {estimated_size}"
         );
 
         Ok(())
@@ -375,20 +430,20 @@ impl RocksdbStorage {
         self.pending_patch.factory_deps.insert(hash, bytecode);
     }
 
-    async fn rollback(
+    async fn revert(
         &mut self,
         connection: &mut Connection<'_, Core>,
         last_l1_batch_to_keep: L1BatchNumber,
     ) -> anyhow::Result<()> {
-        tracing::info!("Rolling back state keeper storage to L1 batch #{last_l1_batch_to_keep}...");
+        tracing::info!("Reverting state keeper storage to L1 batch #{last_l1_batch_to_keep}...");
 
-        tracing::info!("Getting logs that should be applied to rollback state...");
+        tracing::info!("Getting logs that should be applied to revert the state...");
         let stage_start = Instant::now();
         let logs = connection
             .storage_logs_dal()
             .get_storage_logs_for_revert(last_l1_batch_to_keep)
             .await
-            .context("failed getting logs for rollback")?;
+            .context("failed getting logs for revert")?;
         tracing::info!("Got {} logs, took {:?}", logs.len(), stage_start.elapsed());
 
         tracing::info!("Getting number of last L2 block for L1 batch #{last_l1_batch_to_keep}...");

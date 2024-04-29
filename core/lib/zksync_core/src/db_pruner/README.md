@@ -1,7 +1,7 @@
 # Db pruner
 
 Database pruner is a component that regularly removes the oldest l1 batches from the database together with
-corresponding miniblocks, events, etc.
+corresponding L2 blocks, events, etc.
 
 **There are two types of objects that are not fully cleaned:**
 

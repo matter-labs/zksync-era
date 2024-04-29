@@ -16,6 +16,7 @@ on:
     tags:
       - core-v**
       - prover-v**
+      - contract_verifier-v**
 
 concurrency: docker-build
 
@@ -51,6 +52,17 @@ jobs:
     needs: [setup]
     uses: ./.github/workflows/build-core-template.yml
     if: contains(github.ref_name, 'core')
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+
+  build-push-contract-verifier:
+    name: Build and push image
+    needs: [ setup ]
+    uses: ./.github/workflows/build-contract-verifier-template.yml
+    if: contains(github.ref_name, 'contract_verifier')
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

@@ -24,7 +24,7 @@ use zksync_utils::u32_to_h256;
 use super::{GenericAsyncTree, L1BatchWithLogs, MetadataCalculator, MetadataCalculatorConfig};
 use crate::{
     genesis::{insert_genesis_batch, GenesisParams},
-    utils::testonly::{create_l1_batch, create_miniblock},
+    utils::testonly::{create_l1_batch, create_l2_block},
 };
 
 const RUN_TIMEOUT: Duration = Duration::from_secs(30);
@@ -424,7 +424,7 @@ async fn setup_calculator_with_options(
 
     let calculator_config =
         MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_config);
-    MetadataCalculator::new(calculator_config, object_store, pool.clone(), pool)
+    MetadataCalculator::new(calculator_config, object_store, pool)
         .await
         .unwrap()
 }
@@ -459,7 +459,7 @@ pub(crate) async fn reset_db_state(pool: &ConnectionPool<Core>, num_batches: usi
     // Drops all L1 batches (except the L1 batch with number 0) and their storage logs.
     storage
         .storage_logs_dal()
-        .rollback_storage_logs(L2BlockNumber(0))
+        .roll_back_storage_logs(L2BlockNumber(0))
         .await
         .unwrap();
     storage
@@ -512,9 +512,9 @@ pub(super) async fn extend_db_state_from_l1_batch(
     for (idx, batch_logs) in (next_l1_batch.0..).zip(new_logs) {
         let header = create_l1_batch(idx);
         let batch_number = header.number;
-        // Assumes that L1 batch consists of only one miniblock.
-        let miniblock_header = create_miniblock(idx);
-        let miniblock_number = miniblock_header.number;
+        // Assumes that L1 batch consists of only one L2 block.
+        let l2_block_header = create_l2_block(idx);
+        let l2_block_number = l2_block_header.number;
 
         storage
             .blocks_dal()
@@ -523,12 +523,12 @@ pub(super) async fn extend_db_state_from_l1_batch(
             .unwrap();
         storage
             .blocks_dal()
-            .insert_l2_block(&miniblock_header)
+            .insert_l2_block(&l2_block_header)
             .await
             .unwrap();
         storage
             .storage_logs_dal()
-            .insert_storage_logs(miniblock_number, &[(H256::zero(), batch_logs)])
+            .insert_storage_logs(l2_block_number, &[(H256::zero(), batch_logs)])
             .await
             .unwrap();
         storage

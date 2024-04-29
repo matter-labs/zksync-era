@@ -11,7 +11,7 @@ use zksync_web3_decl::{
 
 #[cfg(test)]
 use super::testonly::RecordedMethodCalls;
-use crate::api_server::web3::metrics::API_METRICS;
+use crate::api_server::web3::metrics::{ObservedRpcParams, API_METRICS};
 
 /// Metadata assigned to a JSON-RPC method call.
 #[derive(Debug, Clone)]
@@ -77,7 +77,7 @@ impl MethodTracer {
         }
     }
 
-    /// Sets the difference between the latest sealed miniblock and the requested miniblock for the current JSON-RPC method call.
+    /// Sets the difference between the latest sealed L2 block and the requested L2 block for the current JSON-RPC method call.
     /// It will be used as a metric label for method latency etc.
     ///
     /// This should be called inside JSON-RPC method handlers; otherwise, this method is a no-op.
@@ -88,9 +88,14 @@ impl MethodTracer {
         }
     }
 
-    pub(super) fn new_call(self: &Arc<Self>, name: &'static str) -> MethodCall {
+    pub(super) fn new_call<'a>(
+        self: &Arc<Self>,
+        name: &'static str,
+        raw_params: ObservedRpcParams<'a>,
+    ) -> MethodCall<'a> {
         MethodCall {
             tracer: self.clone(),
+            params: raw_params,
             meta: MethodMetadata::new(name),
             is_completed: false,
         }
@@ -118,21 +123,22 @@ impl MethodTracer {
 }
 
 #[derive(Debug)]
-pub(super) struct MethodCall {
+pub(super) struct MethodCall<'a> {
     tracer: Arc<MethodTracer>,
     meta: MethodMetadata,
+    params: ObservedRpcParams<'a>,
     is_completed: bool,
 }
 
-impl Drop for MethodCall {
+impl Drop for MethodCall<'_> {
     fn drop(&mut self) {
         if !self.is_completed {
-            API_METRICS.observe_dropped_call(&self.meta);
+            API_METRICS.observe_dropped_call(&self.meta, &self.params);
         }
     }
 }
 
-impl MethodCall {
+impl MethodCall<'_> {
     pub(super) fn set_as_current(&mut self) -> CurrentMethodGuard<'_> {
         let meta = &mut self.meta;
         let cell = self.tracer.inner.get_or_default();
@@ -147,15 +153,21 @@ impl MethodCall {
     pub(super) fn observe_response(&mut self, response: &MethodResponse) {
         self.is_completed = true;
         let meta = &self.meta;
+        let params = &self.params;
         match response.success_or_error {
             MethodResponseResult::Success => {
-                API_METRICS.observe_response_size(meta.name, response.result.len());
+                API_METRICS.observe_response_size(meta.name, params, response.result.len());
             }
             MethodResponseResult::Failed(error_code) => {
-                API_METRICS.observe_protocol_error(meta.name, error_code, meta.has_app_error);
+                API_METRICS.observe_protocol_error(
+                    meta.name,
+                    params,
+                    error_code,
+                    meta.has_app_error,
+                );
             }
         }
-        API_METRICS.observe_latency(meta);
+        API_METRICS.observe_latency(meta, params);
         #[cfg(test)]
         self.tracer.recorder.observe_response(meta, response);
     }

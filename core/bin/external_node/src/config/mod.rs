@@ -11,6 +11,7 @@ use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
 use zksync_config::{
     configs::{
+        api::{MaxResponseSize, MaxResponseSizeOverrides},
         chain::L1BatchCommitDataGeneratorMode,
         consensus::{ConsensusConfig, ConsensusSecrets},
     },
@@ -47,6 +48,9 @@ pub(crate) struct RemoteENConfig {
     pub state_transition_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Option<Address>,
     pub diamond_proxy_addr: Address,
+    // While on L1 shared bridge and legacy bridge are different contracts with different addresses,
+    // the `l2_erc20_bridge_addr` and `l2_shared_bridge_addr` are basically the same contract, but with
+    // a different name, with names adapted only for consistency.
     pub l1_shared_bridge_proxy_addr: Option<Address>,
     pub l2_shared_bridge_addr: Option<Address>,
     pub l1_erc20_bridge_proxy_addr: Option<Address>,
@@ -117,6 +121,23 @@ impl RemoteENConfig {
             FeeParams::V2(params) => params.config.max_pubdata_per_batch,
         };
 
+        // These two config variables should always have the same value.
+        // TODO(EVM-578): double check and potentially forbid both of them being `None`.
+        let l2_erc20_default_bridge = bridges
+            .l2_erc20_default_bridge
+            .or(bridges.l2_shared_default_bridge);
+        let l2_erc20_shared_bridge = bridges
+            .l2_shared_default_bridge
+            .or(bridges.l2_erc20_default_bridge);
+
+        if let (Some(legacy_addr), Some(shared_addr)) =
+            (l2_erc20_default_bridge, l2_erc20_shared_bridge)
+        {
+            if legacy_addr != shared_addr {
+                panic!("L2 erc20 bridge address and L2 shared bridge address are different.");
+            }
+        }
+
         Ok(Self {
             bridgehub_proxy_addr: ecosystem_contracts.as_ref().map(|a| a.bridgehub_proxy_addr),
             state_transition_proxy_addr: ecosystem_contracts
@@ -128,9 +149,9 @@ impl RemoteENConfig {
             diamond_proxy_addr,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
-            l2_erc20_bridge_addr: bridges.l2_erc20_default_bridge,
+            l2_erc20_bridge_addr: l2_erc20_default_bridge,
             l1_shared_bridge_proxy_addr: bridges.l1_shared_default_bridge,
-            l2_shared_bridge_addr: bridges.l2_shared_default_bridge,
+            l2_shared_bridge_addr: l2_erc20_shared_bridge,
             l1_weth_bridge_addr: bridges.l1_weth_bridge,
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
             l2_chain_id,
@@ -210,6 +231,9 @@ pub(crate) struct OptionalENConfig {
     /// Maximum response body size in MiBs. Default is 10 MiB.
     #[serde(default = "OptionalENConfig::default_max_response_body_size_mb")]
     pub max_response_body_size_mb: usize,
+    /// Method-specific overrides in MiBs for the maximum response body size.
+    #[serde(default = "MaxResponseSizeOverrides::empty")]
+    max_response_body_size_overrides_mb: MaxResponseSizeOverrides,
 
     // Other API config settings
     /// Interval between polling DB for pubsub (in ms).
@@ -254,6 +278,10 @@ pub(crate) struct OptionalENConfig {
     /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
     #[serde(default = "OptionalENConfig::default_mempool_cache_size")]
     pub mempool_cache_size: usize,
+    /// Enables extended tracing of RPC calls. This may negatively impact performance for nodes under high load
+    /// (hundreds or thousands RPS).
+    #[serde(default = "OptionalENConfig::default_extended_api_tracing")]
+    pub extended_rpc_tracing: bool,
 
     // Health checks
     /// Time limit in milliseconds to mark a health check as slow and log the corresponding warning.
@@ -364,7 +392,7 @@ pub struct ApiComponentConfig {
     /// Address of the tree API used by this EN in case it does not have a
     /// local tree component running and in this case needs to send requests
     /// to some external tree API.
-    pub tree_api_url: Option<String>,
+    pub tree_api_remote_url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -480,6 +508,10 @@ impl OptionalENConfig {
         10_000
     }
 
+    const fn default_extended_api_tracing() -> bool {
+        true
+    }
+
     fn default_main_node_rate_limit_rps() -> NonZeroUsize {
         NonZeroUsize::new(100).unwrap()
     }
@@ -550,8 +582,12 @@ impl OptionalENConfig {
             .unwrap_or_else(|| Namespace::DEFAULT.to_vec())
     }
 
-    pub fn max_response_body_size(&self) -> usize {
-        self.max_response_body_size_mb * BYTES_IN_MEGABYTE
+    pub fn max_response_body_size(&self) -> MaxResponseSize {
+        let scale = NonZeroUsize::new(BYTES_IN_MEGABYTE).unwrap();
+        MaxResponseSize {
+            global: self.max_response_body_size_mb * BYTES_IN_MEGABYTE,
+            overrides: self.max_response_body_size_overrides_mb.scale(scale),
+        }
     }
 
     pub fn healthcheck_slow_time_limit(&self) -> Option<Duration> {
@@ -721,11 +757,11 @@ impl ExternalNodeConfig {
             .from_env::<OptionalENConfig>()
             .context("could not load external node config")?;
 
-        let api_component_config = envy::prefixed("EN_API")
+        let api_component_config = envy::prefixed("EN_API_")
             .from_env::<ApiComponentConfig>()
             .context("could not load external node config")?;
 
-        let tree_component_config = envy::prefixed("EN_TREE")
+        let tree_component_config = envy::prefixed("EN_TREE_")
             .from_env::<TreeComponentConfig>()
             .context("could not load external node config")?;
 
@@ -793,7 +829,9 @@ impl ExternalNodeConfig {
             optional: OptionalENConfig::mock(),
             remote: RemoteENConfig::mock(),
             consensus: None,
-            api_component: ApiComponentConfig { tree_api_url: None },
+            api_component: ApiComponentConfig {
+                tree_api_remote_url: None,
+            },
             tree_component: TreeComponentConfig { api_port: None },
         }
     }

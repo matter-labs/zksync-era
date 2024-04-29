@@ -29,7 +29,7 @@ const BRIDGEHUB_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/bridgehub/IBridgehub.sol/IBridgehub.json";
 const STATE_TRANSITION_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/state-transition/IStateTransitionManager.sol/IStateTransitionManager.json";
-const STATE_TRANSITION_CHAIN_CONTRACT_FILE: &str =
+const ZKSYNC_HYPERCHAIN_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/state-transition/chain-interfaces/IZkSyncHyperchain.sol/IZkSyncHyperchain.json";
 const DIAMOND_INIT_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/state-transition/chain-interfaces/IDiamondInit.sol/IDiamondInit.json";
@@ -98,8 +98,8 @@ pub fn state_transition_manager_contract() -> Contract {
     load_contract(STATE_TRANSITION_CONTRACT_FILE)
 }
 
-pub fn state_transition_chain_contract() -> Contract {
-    load_contract(STATE_TRANSITION_CHAIN_CONTRACT_FILE)
+pub fn hyperchain_contract() -> Contract {
+    load_contract(ZKSYNC_HYPERCHAIN_CONTRACT_FILE)
 }
 
 pub fn diamond_init_contract() -> Contract {
@@ -350,9 +350,16 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
-    pub fn playground_post_1_5_0() -> Self {
+    pub fn playground_1_5_0_small_memory() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
-            "etc/multivm_bootloaders/vm_1_5_0/playground_batch.yul/playground_batch.yul.zbin",
+            "etc/multivm_bootloaders/vm_1_5_0_small_memory/playground_batch.yul/playground_batch.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn playground_post_1_5_0_increased_memory() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_1_5_0_increased_memory/playground_batch.yul/playground_batch.yul.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
@@ -406,9 +413,16 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
-    pub fn estimate_gas_post_1_5_0() -> Self {
+    pub fn estimate_gas_1_5_0_small_memory() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
-            "etc/multivm_bootloaders/vm_1_5_0/fee_estimate.yul/fee_estimate.yul.zbin",
+            "etc/multivm_bootloaders/vm_1_5_0_small_memory/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn estimate_gas_post_1_5_0_increased_memory() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_1_5_0_increased_memory/fee_estimate.yul/fee_estimate.yul.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
