@@ -125,7 +125,7 @@ impl WiringLayer for EthSenderLayer {
             config,
             gas_adjuster,
             eth_client,
-            eth_client_blobs.map(|c| Arc::new(c) as Arc<dyn BoundEthInterface>),
+            eth_client_blobs,
         );
 
         context.add_task(Box::new(EthTxManagerTask {
