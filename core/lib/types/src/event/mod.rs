@@ -10,13 +10,14 @@ use zksync_utils::{
 };
 
 use crate::{
-    api::ApiVmEvent,
+    api::Log,
     ethabi,
     l2_to_l1_log::L2ToL1Log,
     tokens::{TokenInfo, TokenMetadata},
+    web3::types::Index,
     zk_evm_types::{LogQuery, Timestamp},
-    Address, L1BatchNumber, CONTRACT_DEPLOYER_ADDRESS, H256, KNOWN_CODES_STORAGE_ADDRESS,
-    L1_MESSENGER_ADDRESS, U256,
+    Address, Bytes, L1BatchNumber, CONTRACT_DEPLOYER_ADDRESS, H256, KNOWN_CODES_STORAGE_ADDRESS,
+    L1_MESSENGER_ADDRESS, U256, U64,
 };
 
 #[cfg(test)]
@@ -42,14 +43,21 @@ impl VmEvent {
     }
 }
 
-impl From<&VmEvent> for ApiVmEvent {
+impl From<&VmEvent> for Log {
     fn from(vm_event: &VmEvent) -> Self {
-        ApiVmEvent {
-            l1_batch_number: vm_event.location.0,
-            tx_batch_index: vm_event.location.1,
+        Log {
             address: vm_event.address,
-            indexed_topics: vm_event.indexed_topics.clone(),
-            value: hex::encode(&vm_event.value),
+            topics: vm_event.indexed_topics.clone(),
+            data: Bytes::from(vm_event.value.clone()),
+            block_hash: None,
+            block_number: None,
+            l1_batch_number: Some(U64::from(vm_event.location.0 .0)),
+            transaction_hash: None,
+            transaction_index: Some(Index::from(vm_event.location.1)),
+            log_index: None,
+            transaction_log_index: None,
+            log_type: None,
+            removed: Some(false),
         }
     }
 }

@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use zksync_types::{
     api::{
-        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, OptimisticTransactionResult,
-        Proof, ProtocolVersion, TransactionDetails,
+        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
+        TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
     fee_model::FeeParams,
@@ -122,9 +122,9 @@ pub trait ZksNamespace {
         l1_batch_number: L1BatchNumber,
     ) -> RpcResult<Option<Proof>>;
 
-    #[method(name = "sendRawTransactionOptimistic")]
-    async fn send_raw_transaction_optimistic(
+    #[method(name = "sendRawTransactionWithDetailedOutput")]
+    async fn send_raw_transaction_with_detailed_output(
         &self,
         tx_bytes: Bytes,
-    ) -> RpcResult<OptimisticTransactionResult>;
+    ) -> RpcResult<TransactionDetailedResult>;
 }

@@ -8,7 +8,7 @@ use multivm::{
     vm_latest::VmExecutionLogs,
 };
 use zksync_types::{
-    api::{ApiStorageLogQuery, ApiVmEvent},
+    api::{ApiStorageLogQuery, Log},
     get_intrinsic_constants,
     transaction_request::CallRequest,
     zk_evm_types::{LogQuery, Timestamp},
@@ -263,26 +263,43 @@ async fn send_raw_transaction_after_snapshot_recovery() {
 }
 
 #[derive(Debug)]
-struct SendTransactionOptimisticTest;
+struct SendTransactionWithDetailedOutputTest;
 
-impl SendTransactionOptimisticTest {
+impl SendTransactionWithDetailedOutputTest {
     fn storage_logs(&self) -> Vec<StorageLogQuery> {
-        vec![StorageLogQuery {
-            log_query: LogQuery {
-                timestamp: Timestamp(100),
-                tx_number_in_block: 10,
-                aux_byte: 1,
-                shard_id: 2,
-                address: Address::zero(),
-                key: U256::one(),
-                read_value: U256::one(),
-                written_value: U256::one(),
-                rw_flag: false,
-                rollback: false,
-                is_service: false,
+        let log_query = LogQuery {
+            timestamp: Timestamp(100),
+            tx_number_in_block: 1,
+            aux_byte: 1,
+            shard_id: 2,
+            address: Address::zero(),
+            key: U256::one(),
+            read_value: U256::one(),
+            written_value: U256::one(),
+            rw_flag: false,
+            rollback: false,
+            is_service: false,
+        };
+        vec![
+            StorageLogQuery {
+                log_query: log_query.clone(),
+                log_type: StorageLogQueryType::Read,
             },
-            log_type: StorageLogQueryType::Read,
-        }]
+            StorageLogQuery {
+                log_query: LogQuery {
+                    tx_number_in_block: 2,
+                    ..log_query.clone()
+                },
+                log_type: StorageLogQueryType::InitialWrite,
+            },
+            StorageLogQuery {
+                log_query: LogQuery {
+                    tx_number_in_block: 3,
+                    ..log_query.clone()
+                },
+                log_type: StorageLogQueryType::RepeatedWrite,
+            },
+        ]
     }
 
     fn vm_events(&self) -> Vec<VmEvent> {
@@ -295,7 +312,7 @@ impl SendTransactionOptimisticTest {
     }
 }
 #[async_trait]
-impl HttpTest for SendTransactionOptimisticTest {
+impl HttpTest for SendTransactionWithDetailedOutputTest {
     fn transaction_executor(&self) -> MockTransactionExecutor {
         let mut tx_executor = MockTransactionExecutor::default();
         let tx_bytes_and_hash = SendRawTransactionTest::transaction_bytes_and_hash();
@@ -337,17 +354,18 @@ impl HttpTest for SendTransactionOptimisticTest {
 
         let (tx_bytes, tx_hash) = SendRawTransactionTest::transaction_bytes_and_hash();
         let send_result = client
-            .send_raw_transaction_optimistic(tx_bytes.into())
+            .send_raw_transaction_with_detailed_output(tx_bytes.into())
             .await?;
         assert_eq!(send_result.transaction_hash, tx_hash);
         assert_eq!(
             send_result.events,
-            self.vm_events().iter().map(ApiVmEvent::from).collect_vec()
+            self.vm_events().iter().map(Log::from).collect_vec()
         );
         assert_eq!(
             send_result.storage_logs,
             self.storage_logs()
                 .iter()
+                .filter(|x| x.log_type != StorageLogQueryType::Read)
                 .map(ApiStorageLogQuery::from)
                 .collect_vec()
         );
@@ -356,8 +374,8 @@ impl HttpTest for SendTransactionOptimisticTest {
 }
 
 #[tokio::test]
-async fn send_raw_transaction_optimistic() {
-    test_http_server(SendTransactionOptimisticTest).await;
+async fn send_raw_transaction_with_detailed_output() {
+    test_http_server(SendTransactionWithDetailedOutputTest).await;
 }
 
 #[derive(Debug)]

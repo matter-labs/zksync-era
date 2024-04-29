@@ -568,7 +568,7 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self, tx_bytes))]
-    pub async fn send_raw_transaction_optimistic_impl(
+    pub async fn send_raw_transaction_with_detailed_output_impl(
         &self,
         tx_bytes: Bytes,
     ) -> Result<(H256, VmExecutionResultAndLogs), Web3Error> {

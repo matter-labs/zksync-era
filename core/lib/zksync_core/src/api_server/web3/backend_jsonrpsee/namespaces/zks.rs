@@ -3,13 +3,13 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use zksync_types::{
     api::{
-        ApiStorageLogQuery, ApiVmEvent, BlockDetails, BridgeAddresses, L1BatchDetails,
-        L2ToL1LogProof, OptimisticTransactionResult, Proof, ProtocolVersion, TransactionDetails,
+        ApiStorageLogQuery, BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Log,
+        Proof, ProtocolVersion, TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
     fee_model::FeeParams,
     transaction_request::CallRequest,
-    Address, Bytes, L1BatchNumber, L2BlockNumber, H256, U256, U64,
+    Address, Bytes, L1BatchNumber, L2BlockNumber, StorageLogQueryType, H256, U256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
@@ -176,19 +176,20 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn send_raw_transaction_optimistic(
+    async fn send_raw_transaction_with_detailed_output(
         &self,
         tx_bytes: Bytes,
-    ) -> RpcResult<OptimisticTransactionResult> {
-        self.send_raw_transaction_optimistic_impl(tx_bytes)
+    ) -> RpcResult<TransactionDetailedResult> {
+        self.send_raw_transaction_with_detailed_output_impl(tx_bytes)
             .await
-            .map(|result| OptimisticTransactionResult {
+            .map(|result| TransactionDetailedResult {
                 transaction_hash: result.0,
                 storage_logs: result
                     .1
                     .logs
                     .storage_logs
                     .iter()
+                    .filter(|x| x.log_type != StorageLogQueryType::Read)
                     .map(ApiStorageLogQuery::from)
                     .collect_vec(),
                 events: result
@@ -196,7 +197,11 @@ impl ZksNamespaceServer for ZksNamespace {
                     .logs
                     .events
                     .iter()
-                    .map(ApiVmEvent::from)
+                    .map(|x| {
+                        let mut l = Log::from(x);
+                        l.transaction_hash = Some(result.0);
+                        l
+                    })
                     .collect_vec(),
             })
             .map_err(|err| self.current_method().map_err(err))

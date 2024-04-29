@@ -14,8 +14,7 @@ use crate::{
     protocol_version::L1VerifierConfig,
     vm_trace::{Call, CallType},
     web3::types::{AccessList, Index, H2048},
-    zk_evm_types::Timestamp,
-    Address, L2BlockNumber, ProtocolVersionId, StorageLogQueryType,
+    Address, L2BlockNumber, ProtocolVersionId,
 };
 
 pub mod en;
@@ -740,35 +739,16 @@ pub struct Proof {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct OptimisticTransactionResult {
+pub struct TransactionDetailedResult {
     pub transaction_hash: H256,
     pub storage_logs: Vec<ApiStorageLogQuery>,
-    pub events: Vec<ApiVmEvent>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ApiVmEvent {
-    pub l1_batch_number: L1BatchNumber,
-    pub tx_batch_index: u32,
-    pub address: Address,
-    pub indexed_topics: Vec<H256>,
-    pub value: String,
+    pub events: Vec<Log>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApiStorageLogQuery {
-    pub timestamp: Timestamp,
-    pub tx_number_in_block: u16,
-    pub aux_byte: u8,
-    pub shard_id: u8,
     pub address: Address,
     pub key: U256,
-    pub read_value: U256,
     pub written_value: U256,
-    pub rw_flag: bool,
-    pub rollback: bool,
-    pub is_service: bool,
-    pub log_type: StorageLogQueryType,
 }
