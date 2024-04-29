@@ -37,7 +37,6 @@ impl EnNamespace {
         &self.state.current_method
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn sync_l2_block_impl(
         &self,
         block_number: L2BlockNumber,
@@ -51,7 +50,6 @@ impl EnNamespace {
             .map_err(DalError::generalize)?)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn sync_tokens_impl(
         &self,
         block_number: Option<L2BlockNumber>,
@@ -154,7 +152,6 @@ impl EnNamespace {
         Ok(config)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn whitelisted_tokens_for_aa_impl(&self) -> Result<Vec<Address>, Web3Error> {
         Ok(self
             .state
