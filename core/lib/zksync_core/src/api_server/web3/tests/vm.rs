@@ -357,7 +357,7 @@ impl HttpTest for SendTransactionOptimisticTest {
 
 #[tokio::test]
 async fn send_raw_transaction_optimistic() {
-    test_http_server(SendTransactionOptimisticTest {}).await;
+    test_http_server(SendTransactionOptimisticTest).await;
 }
 
 #[derive(Debug)]
