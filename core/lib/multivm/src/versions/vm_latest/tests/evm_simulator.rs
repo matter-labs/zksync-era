@@ -1739,7 +1739,6 @@ fn test_basic_block_environment_vectors() {
         .into_iter()
         .concat(),
     );
-    println!("{:?}", evm_output);
     assert_eq!(
         evm_output,
         U256::from_dec_str("9500000000000000000").unwrap() - 37
@@ -1758,7 +1757,6 @@ fn test_basic_block_environment_vectors() {
         .into_iter()
         .concat(),
     );
-    println!("{:?}", evm_output);
     assert_eq!(evm_output, 37.into());
 }
 
