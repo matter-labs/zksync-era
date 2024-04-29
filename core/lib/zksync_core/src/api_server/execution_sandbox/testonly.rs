@@ -65,7 +65,9 @@ impl MockTransactionExecutor {
             move |tx: &Transaction, ba: &BlockArgs| -> VmExecutionResultAndLogs {
                 VmExecutionResultAndLogs {
                     result: responses(tx, ba),
-                    ..Default::default()
+                    logs: Default::default(),
+                    statistics: Default::default(),
+                    refunds: Default::default(),
                 }
             },
         )
