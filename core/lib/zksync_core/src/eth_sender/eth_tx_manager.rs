@@ -5,7 +5,7 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
-    encode_blob_tx_with_sidecar, BoundEthInterface, Error, EthInterface, ExecutedTxStatus, Options,
+    encode_blob_tx_with_sidecar, BoundEthInterface, Error, ExecutedTxStatus, Options,
     RawTransactionBytes, SignedCallResult,
 };
 use zksync_shared_metrics::BlockL1Stage;

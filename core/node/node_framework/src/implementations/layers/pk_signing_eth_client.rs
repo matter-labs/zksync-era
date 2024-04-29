@@ -5,12 +5,12 @@ use zksync_config::{
     configs::{wallets, ContractsConfig},
     EthConfig,
 };
-use zksync_eth_client::clients::{PKSigningClient, QueryClient};
+use zksync_eth_client::clients::PKSigningClient;
 use zksync_types::L1ChainId;
 
 use crate::{
     implementations::resources::eth_interface::{
-        BoundEthInterfaceForBlobsResource, BoundEthInterfaceResource,
+        BoundEthInterfaceForBlobsResource, BoundEthInterfaceResource, EthInterfaceResource,
     },
     service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
@@ -53,8 +53,7 @@ impl WiringLayer for PKSigningEthClientLayer {
             .gas_adjuster
             .as_ref()
             .context("gas_adjuster config is missing")?;
-        let query_client = QueryClient::new(self.eth_sender_config.web3_url.expose_str())
-            .context("cannot create Ethereum client")?; // FIXME: take from context
+        let EthInterfaceResource(query_client) = context.get_resource().await?;
 
         let signing_client = PKSigningClient::new_raw(
             private_key,

@@ -2,12 +2,14 @@
 
 use std::{
     convert::TryFrom,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
 use serde_json::{Map, Value};
 use zksync_eth_client::{
-    clients::SigningClient, BoundEthInterface, CallFunctionArgs, Error, EthInterface, Options,
+    clients::{QueryClient, SigningClient},
+    BoundEthInterface, CallFunctionArgs, Error, EthInterface, Options,
 };
 use zksync_eth_signer::EthereumSigner;
 use zksync_types::{
@@ -100,7 +102,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
 
         let eth_client = SigningClient::new(
-            transport.into(),
+            Arc::new(QueryClient::from(transport)),
             hyperchain_contract(),
             eth_addr,
             eth_signer,

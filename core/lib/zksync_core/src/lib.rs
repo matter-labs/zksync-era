@@ -307,6 +307,7 @@ pub async fn initialize_components(
     });
 
     let query_client = QueryClient::new(eth.web3_url.expose_str()).context("Ethereum client")?;
+    let query_client = Arc::new(query_client);
     let gas_adjuster_config = eth.gas_adjuster.context("gas_adjuster")?;
     let sender = eth.sender.as_ref().context("sender")?;
     let pubdata_pricing: Arc<dyn PubdataPricing> =
@@ -602,7 +603,7 @@ pub async fn initialize_components(
             start_eth_watch(
                 eth_watch_config,
                 eth_watch_pool,
-                Arc::new(query_client.clone()),
+                query_client.clone(),
                 diamond_proxy_addr,
                 state_transition_manager_addr,
                 governance,

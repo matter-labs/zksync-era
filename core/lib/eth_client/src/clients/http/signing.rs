@@ -16,7 +16,7 @@ use zksync_types::{
     L1ChainId, PackedEthSignature, EIP_4844_TX_TYPE,
 };
 
-use super::{query::QueryClient, Method, LATENCIES};
+use super::{Method, LATENCIES};
 use crate::{
     types::{encode_blob_tx_with_sidecar, Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
     Block, BoundEthInterface, CallFunctionArgs, ContractCall, EthInterface, Options,
@@ -32,7 +32,7 @@ impl PKSigningClient {
         diamond_proxy_addr: Address,
         default_priority_fee_per_gas: u64,
         l1_chain_id: L1ChainId,
-        query_client: QueryClient, // FIXME: replace with Arc<dyn EthInterface>
+        query_client: Arc<dyn EthInterface>,
     ) -> Self {
         let operator_address = PackedEthSignature::address_from_private_key(&operator_private_key)
             .expect("Failed to get address from private key");
@@ -56,15 +56,14 @@ impl PKSigningClient {
 /// This is an emergency value, which will not be used normally.
 const FALLBACK_GAS_LIMIT: u64 = 3_000_000;
 
-/// HTTP-based client, instantiated for a certain account.
-/// This client is capable of signing transactions.
+/// HTTP-based client, instantiated for a certain account. This client is capable of signing transactions.
 #[derive(Clone)]
 pub struct SigningClient<S: EthereumSigner> {
-    inner: Arc<ETHDirectClientInner<S>>,
-    query_client: QueryClient,
+    inner: Arc<EthDirectClientInner<S>>,
+    query_client: Arc<dyn EthInterface>,
 }
 
-struct ETHDirectClientInner<S: EthereumSigner> {
+struct EthDirectClientInner<S: EthereumSigner> {
     eth_signer: S,
     sender_account: Address,
     contract_addr: H160,
@@ -305,7 +304,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
 
 impl<S: EthereumSigner> SigningClient<S> {
     pub fn new(
-        query_client: QueryClient,
+        query_client: Arc<dyn EthInterface>,
         contract: ethabi::Contract,
         operator_eth_addr: H160,
         eth_signer: S,
@@ -314,7 +313,7 @@ impl<S: EthereumSigner> SigningClient<S> {
         chain_id: L1ChainId,
     ) -> Self {
         Self {
-            inner: Arc::new(ETHDirectClientInner {
+            inner: Arc::new(EthDirectClientInner {
                 sender_account: operator_eth_addr,
                 eth_signer,
                 contract_addr: contract_eth_addr,

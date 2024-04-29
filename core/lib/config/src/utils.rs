@@ -5,6 +5,8 @@ use std::{fmt, str::FromStr};
 use serde::{Deserialize, Deserializer};
 use url::Url;
 
+/// URL with potentially sensitive authentication info (username and password). Has a specialized
+/// `Debug` implementation to hide sensitive parts and explicit API to expose the underlying URL.
 #[derive(Clone, PartialEq)]
 pub struct SensitiveUrl(Url);
 
@@ -34,10 +36,7 @@ impl FromStr for SensitiveUrl {
 }
 
 impl SensitiveUrl {
-    pub fn expose_url(&self) -> &Url {
-        &self.0
-    }
-
+    /// Exposes the underlying URL string.
     pub fn expose_str(&self) -> &str {
         self.0.as_str()
     }
