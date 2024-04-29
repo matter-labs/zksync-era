@@ -62,6 +62,25 @@ async fn get_batches_data(batches: Vec<L1BatchNumber>) -> anyhow::Result<Vec<Bat
                 )
                 .await,
             },
+            node_witness_generator: Task::NodeWitnessGenerator {
+                status: get_proof_node_witness_generator_status_for_batch(batch, &mut conn).await,
+                aggregation_round_info: get_prover_jobs_data_for_batch(
+                    batch,
+                    AggregationRound::LeafAggregation,
+                    &mut conn,
+                )
+                .await,
+            },
+            scheduler_witness_generator: Task::SchedulerWitnessGenerator {
+                status: get_proof_scheduler_witness_generator_status_for_batch(batch, &mut conn)
+                    .await,
+                aggregation_round_info: get_prover_jobs_data_for_batch(
+                    batch,
+                    AggregationRound::LeafAggregation,
+                    &mut conn,
+                )
+                .await,
+            },
             compressor: Task::Compressor(
                 get_proof_compression_job_status_for_batch(batch, &mut conn).await,
             ),
@@ -107,6 +126,28 @@ async fn get_proof_leaf_witness_generator_status_for_batch<'a>(
 ) -> TaskStatus {
     conn.fri_witness_generator_dal()
         .get_leaf_witness_generator_job_for_batch(batch_number)
+        .await
+        .map(|job| TaskStatus::from(job.status))
+        .unwrap_or_default()
+}
+
+async fn get_proof_node_witness_generator_status_for_batch<'a>(
+    batch_number: L1BatchNumber,
+    conn: &mut Connection<'a, Prover>,
+) -> TaskStatus {
+    conn.fri_witness_generator_dal()
+        .get_node_witness_generator_job_for_batch(batch_number)
+        .await
+        .map(|job| TaskStatus::from(job.status))
+        .unwrap_or_default()
+}
+
+async fn get_proof_scheduler_witness_generator_status_for_batch<'a>(
+    batch_number: L1BatchNumber,
+    conn: &mut Connection<'a, Prover>,
+) -> TaskStatus {
+    conn.fri_witness_generator_dal()
+        .get_scheduler_witness_generator_job_for_batch(batch_number)
         .await
         .map(|job| TaskStatus::from(job.status))
         .unwrap_or_default()

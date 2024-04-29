@@ -27,7 +27,7 @@ pub struct BatchData {
     /// The recursion tip data.
     pub recursion_tip: Task,
     /// The scheduler data.
-    pub scheduler: Task,
+    pub scheduler_witness_generator: Task,
     /// The compressor data.
     pub compressor: Task,
 }
@@ -45,7 +45,7 @@ impl Debug for BatchData {
         writeln!(f, "{:?}", self.leaf_witness_generator)?;
         writeln!(f, "{:?}", self.node_witness_generator)?;
         writeln!(f, "{:?}", self.recursion_tip)?;
-        writeln!(f, "{:?}", self.scheduler)?;
+        writeln!(f, "{:?}", self.scheduler_witness_generator)?;
         writeln!(f, "{:?}", self.compressor)
     }
 }
@@ -82,7 +82,7 @@ impl Default for BatchData {
                     prover_jobs_status: TaskStatus::default(),
                 },
             },
-            scheduler: Task::Scheduler {
+            scheduler_witness_generator: Task::SchedulerWitnessGenerator {
                 status: TaskStatus::default(),
                 aggregation_round_info: AggregationRoundInfo {
                     round: AggregationRound::Scheduler,
@@ -185,7 +185,7 @@ pub enum Task {
     },
     /// Represents the scheduler task and its status.
     #[strum(to_string = "Scheduler")]
-    Scheduler {
+    SchedulerWitnessGenerator {
         status: TaskStatus,
         aggregation_round_info: AggregationRoundInfo,
     },
@@ -201,7 +201,7 @@ impl Task {
             | Task::LeafWitnessGenerator { status, .. }
             | Task::NodeWitnessGenerator { status, .. }
             | Task::RecursionTip { status, .. }
-            | Task::Scheduler { status, .. }
+            | Task::SchedulerWitnessGenerator { status, .. }
             | Task::Compressor(status) => status.clone(),
         }
     }
@@ -224,7 +224,7 @@ impl Task {
                 aggregation_round_info,
                 ..
             }
-            | Task::Scheduler {
+            | Task::SchedulerWitnessGenerator {
                 aggregation_round_info,
                 ..
             } => Some(aggregation_round_info.round),
@@ -254,7 +254,7 @@ impl Task {
                 status,
                 aggregation_round_info,
             }
-            | Task::Scheduler {
+            | Task::SchedulerWitnessGenerator {
                 status,
                 aggregation_round_info,
             } => match status {

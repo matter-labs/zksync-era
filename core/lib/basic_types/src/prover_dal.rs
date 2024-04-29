@@ -5,7 +5,7 @@ use chrono::{DateTime, Duration, NaiveDateTime, NaiveTime, Utc};
 use strum::{Display, EnumString};
 
 use crate::{
-    basic_fri_types::{AggregationRound, CircuitIdRoundTuple, Eip4844Blobs},
+    basic_fri_types::{AggregationRound, Eip4844Blobs},
     protocol_version::ProtocolVersionId,
     L1BatchNumber,
 };
@@ -286,6 +286,37 @@ pub struct LeafWitnessGeneratorJobInfo {
     pub time_taken: Option<NaiveTime>,
     pub is_blob_cleaned: Option<bool>,
     pub number_of_basic_circuits: Option<i32>,
+    pub protocol_version: Option<i32>,
+    pub picked_by: Option<String>,
+}
+
+pub struct NodeWitnessGeneratorJobInfo {
+    pub l1_batch_number: L1BatchNumber,
+    pub circuit_id: u32,
+    pub depth: u32,
+    pub status: WitnessJobStatus,
+    pub attempts: u32,
+    pub aggregations_url: Option<String>,
+    pub processing_started_at: Option<NaiveDateTime>,
+    pub time_taken: Option<NaiveTime>,
+    pub error: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub number_of_dependent_jobs: Option<i32>,
+    pub protocol_version: Option<i32>,
+    pub picked_by: Option<String>,
+}
+
+pub struct SchedulerWitnessGeneratorJobInfo {
+    pub l1_batch_number: L1BatchNumber,
+    pub scheduler_partial_input_blob_url: String,
+    pub status: WitnessJobStatus,
+    pub processing_started_at: Option<NaiveDateTime>,
+    pub time_taken: Option<NaiveTime>,
+    pub error: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub attempts: u32,
     pub protocol_version: Option<i32>,
     pub picked_by: Option<String>,
 }
