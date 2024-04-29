@@ -27,6 +27,6 @@ message Genesis {
   optional uint64 l2_chain_id = 8; // optional;
   optional string fee_account = 9; // h160
   optional Prover prover = 10;
-  // Note: 11 is reserved for the shared bridge
   optional L1BatchCommitDataGeneratorMode l1_batch_commit_data_generator_mode = 29; // optional, default to rollup
+  reserved 11; reserved "shared_bridge";
 }

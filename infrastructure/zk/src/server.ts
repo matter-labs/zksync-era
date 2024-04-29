@@ -21,7 +21,6 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
     if (components) {
         options += ` --components=${components}`;
     }
-    // await utils.spawn(`RUST_LOG=trace cargo run --bin zksync_server --release ${options}`);
     await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
 }
 

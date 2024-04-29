@@ -32,9 +32,14 @@ export async function rust(options: string[]) {
     await utils.spawn(cmd);
 }
 
+export async function l1Contracts() {
+    await utils.spawn('yarn l1-contracts test');
+}
+
 export const command = new Command('test').description('run test suites').addCommand(integration.command);
 
 command.command('prover').description('run unit-tests for the prover').action(prover);
+command.command('l1-contracts').description('run unit-tests for the layer 1 smart contracts').action(l1Contracts);
 command
     .command('rust [command...]')
     .allowUnknownOption()

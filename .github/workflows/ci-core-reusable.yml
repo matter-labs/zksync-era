@@ -13,7 +13,7 @@ jobs:
     name: lint
     uses: ./.github/workflows/ci-core-lint-reusable.yml
   unit-tests:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner ]
 
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
@@ -65,7 +65,7 @@ jobs:
         run: ci_run zk test rust
 
   loadtest:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner ]
 
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
@@ -110,9 +110,8 @@ jobs:
       - name: Deploy legacy era contracts
         run: ci_run zk contract setup-legacy-bridge-era
 
-      - name: Perform loadtest - DISABLED (EVM-541)
-        run: ls
-        # ci_run zk run loadtest
+      - name: Perform loadtest
+        run: ci_run zk run loadtest
 
       - name: Show server.log logs
         if: always()
@@ -131,12 +130,12 @@ jobs:
       # To be consistent with the rest of the workflow we disable it explicitly.
       fail-fast: false
       matrix:
-        consensus: [false, true]
-        base_token: ["Eth", "Custom"]
+        consensus: [ false, true ]
+        base_token: [ "Eth", "Custom" ]
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
 
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner ]
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
@@ -218,7 +217,7 @@ jobs:
       - name: Fee projection tests
         run: ci_run zk test i fees
 
-      - name: Run revert test - DISABLED (EVM-539)
+      - name: Run revert test
         run: |
           ci_run pkill zksync_server || true
           ci_run sleep 2
@@ -267,9 +266,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        consensus: [false, true]
-        base_token: ["Eth", "Custom"]
-    runs-on: [matterlabs-ci-runner]
+        consensus: [ false, true ]
+        base_token: [ "Eth", "Custom" ]
+    runs-on: [ matterlabs-ci-runner ]
 
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
@@ -321,7 +320,7 @@ jobs:
       - name: Integration tests
         run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|snapshots-creator'
 
-      - name: Run revert test - DISABLED (EVM-539)
+      - name: Run revert test
         run: |
           ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=Rollup PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert-en
           # test terminates the nodes, so we restart them.
