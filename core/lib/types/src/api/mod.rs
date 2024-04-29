@@ -741,7 +741,6 @@ pub struct Proof {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OptimisticTransactionResult {
-    /// Transaction hash.
     pub transaction_hash: H256,
     pub storage_logs: Vec<ApiStorageLogQuery>,
     pub events: Vec<ApiVmEvent>,
