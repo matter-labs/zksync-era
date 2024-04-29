@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "TRUNCATE TABLE prover_fri_protocol_versions",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "0b67b0551b13a8d61814d9921d7a750f999f2371e437b2b5042dfa9d11a28aa6"
+}

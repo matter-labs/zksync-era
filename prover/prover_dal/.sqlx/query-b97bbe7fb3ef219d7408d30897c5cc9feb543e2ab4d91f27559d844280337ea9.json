@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "TRUNCATE TABLE witness_inputs_fri, leaf_aggregation_witness_jobs_fri, node_aggregation_witness_jobs_fri, scheduler_witness_jobs_fri, scheduler_dependency_tracker_fri",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "b97bbe7fb3ef219d7408d30897c5cc9feb543e2ab4d91f27559d844280337ea9"
+}

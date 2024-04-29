@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "TRUNCATE TABLE gpu_prover_queue_fri, gpu_prover_queue_fri_archive",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "462e0028e7c5554676a7f59ce7119b39f44f231ca4e4f055a6491355070ff724"
+}

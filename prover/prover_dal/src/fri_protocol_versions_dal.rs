@@ -90,4 +90,11 @@ impl FriProtocolVersionsDal<'_, '_> {
         .map(|row| ProtocolVersionId::try_from(row.id as u16).unwrap())
         .collect()
     }
+
+    pub async fn delete_all(&mut self) {
+        sqlx::query!("TRUNCATE TABLE prover_fri_protocol_versions")
+            .execute(self.storage.conn())
+            .await
+            .unwrap();
+    }
 }

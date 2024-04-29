@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "TRUNCATE TABLE prover_jobs_fri, prover_jobs_fri_archive",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "a751f5e9f3677e1d61054b48dd1c9b2bb64b67d0273355c0847e2d99b1cb7d09"
+}

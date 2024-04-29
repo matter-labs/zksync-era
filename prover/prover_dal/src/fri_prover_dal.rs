@@ -636,4 +636,11 @@ impl FriProverDal<'_, '_> {
         self.delete_prover_jobs_fri_archive_batch_data(l1_batch_number)
             .await;
     }
+
+    pub async fn delete_all(&mut self) {
+        sqlx::query!("TRUNCATE TABLE prover_jobs_fri, prover_jobs_fri_archive")
+            .execute(self.storage.conn())
+            .await
+            .unwrap();
+    }
 }

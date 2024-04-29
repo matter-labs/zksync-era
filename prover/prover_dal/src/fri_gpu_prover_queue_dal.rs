@@ -209,4 +209,11 @@ impl FriGpuProverQueueDal<'_, '_> {
         .unwrap()
         .unwrap_or(0) as usize
     }
+
+    pub async fn delete_all(&mut self) {
+        sqlx::query!("TRUNCATE TABLE gpu_prover_queue_fri, gpu_prover_queue_fri_archive")
+            .execute(self.storage.conn())
+            .await
+            .unwrap();
+    }
 }

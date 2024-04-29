@@ -149,4 +149,11 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
         })
         .unwrap()
     }
+
+    pub async fn delete_all(&mut self) {
+        sqlx::query!("TRUNCATE TABLE scheduler_dependency_tracker_fri")
+            .execute(self.storage.conn())
+            .await
+            .unwrap();
+    }
 }

@@ -1218,4 +1218,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
         self.delete_node_aggregation_batch_data(block_number).await;
         self.delete_scheduler_batch_data(block_number).await;
     }
+
+    pub async fn delete_all(&mut self) {
+        sqlx::query!("TRUNCATE TABLE witness_inputs_fri, leaf_aggregation_witness_jobs_fri, node_aggregation_witness_jobs_fri, scheduler_witness_jobs_fri, scheduler_dependency_tracker_fri")
+            .execute(self.storage.conn())
+            .await
+            .unwrap();
+    }
 }
