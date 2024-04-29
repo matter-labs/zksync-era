@@ -18,8 +18,8 @@ use zksync_types::{
     snapshots::SnapshotRecoveryStatus,
     transaction_request::PaymasterParams,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersion, ProtocolVersionId,
-    StorageLog, H256, U256,
+    Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersion,
+    ProtocolVersionId, StorageLog, H256, U256,
 };
 
 use crate::{fee_model::BatchFeeModelInputProvider, genesis::GenesisParams};
@@ -122,7 +122,7 @@ pub(crate) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> L
         fee,
         U256::zero(),
         L2ChainId::from(271),
-        &H256::random(),
+        &K256PrivateKey::random(),
         None,
         PaymasterParams::default(),
     )
