@@ -263,7 +263,7 @@ async fn send_raw_transaction_after_snapshot_recovery() {
 }
 
 #[derive(Debug)]
-struct SendTransactionOptimisticTest {}
+struct SendTransactionOptimisticTest;
 
 impl SendTransactionOptimisticTest {
     fn storage_logs(&self) -> Vec<StorageLogQuery> {
