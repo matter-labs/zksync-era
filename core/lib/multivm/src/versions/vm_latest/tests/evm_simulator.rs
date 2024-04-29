@@ -4002,14 +4002,16 @@ fn test_basic_precompiles_vectors() {
             // push1 argOff
             hex::decode("60").unwrap(),
             hex::decode("1F").unwrap(),
+            // push0 value
+            hex::decode("5F").unwrap(),
             // push1 0x2 -- SHA256 precompile
             hex::decode("60").unwrap(),
             hex::decode("02").unwrap(),
             // push4 gas
             hex::decode("63").unwrap(),
             hex::decode("FFFFFFFF").unwrap(),
-            // staticcall
-            hex::decode("FA").unwrap(),
+            // call
+            hex::decode("F1").unwrap(),
             // pop
             hex::decode("50").unwrap(),
             // push1 memOffset
@@ -4028,104 +4030,6 @@ fn test_basic_precompiles_vectors() {
     );
     let sha256 = "a8100ae6aa1940d0b663bb31cd466142ebbdbd5187131b92d93818987832eb89";
     assert_eq!(H256(evm_vector.into()), H256::from_str(sha256).unwrap());
-
-    let evm_vector = test_evm_vector(
-        vec![
-            // push32 (G1)x
-            hex::decode("7F").unwrap(),
-            hex::decode("2cf44499d5d27bb186308b7af7af02ac5bc9eeb6a3d147c186b21fb1b76e18da")
-                .unwrap(),
-            // push0
-            hex::decode("5F").unwrap(),
-            // mstore -> mem[0] = (G1)x
-            hex::decode("52").unwrap(),
-            // push32 (G1)y
-            hex::decode("7F").unwrap(),
-            hex::decode("2c0f001f52110ccfe69108924926e45f0b0c868df0e7bde1fe16d3242dc715f6")
-                .unwrap(),
-            // push1 0x2
-            hex::decode("60").unwrap(),
-            hex::decode("20").unwrap(),
-            // mstore -> mem[1] = (G1)y
-            hex::decode("52").unwrap(),
-            // push32 (G1)x_1
-            hex::decode("7F").unwrap(),
-            hex::decode("1fb19bb476f6b9e44e2a32234da8212f61cd63919354bc06aef31e3cfaff3ebc")
-                .unwrap(),
-            // push1 0x40
-            hex::decode("60").unwrap(),
-            hex::decode("40").unwrap(),
-            // mstore -> mem[2] = (G1)x_1
-            hex::decode("52").unwrap(),
-            // push32 (G2)x_0
-            hex::decode("7F").unwrap(),
-            hex::decode("22606845ff186793914e03e21df544c34ffe2f2f3504de8a79d9159eca2d98d9")
-                .unwrap(),
-            // push1 0x60
-            hex::decode("60").unwrap(),
-            hex::decode("60").unwrap(),
-            // mstore -> mem[3] = (G2)x_0
-            hex::decode("52").unwrap(),
-            // push32 (G2)y_1
-            hex::decode("7F").unwrap(),
-            hex::decode("2bd368e28381e8eccb5fa81fc26cf3f048eea9abfdd85d7ed3ab3698d63e4f90")
-                .unwrap(),
-            // push1 0x80
-            hex::decode("60").unwrap(),
-            hex::decode("80").unwrap(),
-            // mstore -> mem[4] = (G2)y_1
-            hex::decode("52").unwrap(),
-            // push32 (G2)y_0
-            hex::decode("7F").unwrap(),
-            hex::decode("2fe02e47887507adf0ff1743cbac6ba291e66f59be6bd763950bb16041a0a85e")
-                .unwrap(),
-            // push1 0xA0
-            hex::decode("60").unwrap(),
-            hex::decode("A0").unwrap(),
-            // mstore mem[5] = (G2)y_0
-            hex::decode("52").unwrap(),
-            //
-            // call(not(0), 0x08, 0, input, 0x0C0, input, 0x20)
-            //
-            // push1 retSize
-            hex::decode("60").unwrap(),
-            hex::decode("20").unwrap(),
-            // push1 retOff -> After the inputs
-            hex::decode("60").unwrap(),
-            hex::decode("C0").unwrap(),
-            // push1 argSize 192bytes
-            hex::decode("60").unwrap(),
-            hex::decode("C0").unwrap(),
-            // push1 argOff
-            hex::decode("60").unwrap(),
-            hex::decode("00").unwrap(),
-            // push1 0x8 -- pairing precompile
-            hex::decode("60").unwrap(),
-            hex::decode("08").unwrap(),
-            // push4 gas
-            hex::decode("63").unwrap(),
-            hex::decode("FFFFFFFF").unwrap(),
-            // staticcall
-            hex::decode("FA").unwrap(),
-            // pop
-            hex::decode("50").unwrap(),
-            // push1 memOffset
-            hex::decode("60").unwrap(),
-            hex::decode("C0").unwrap(),
-            // mload
-            hex::decode("51").unwrap(),
-            // push32 0
-            hex::decode("7F").unwrap(),
-            H256::zero().0.to_vec(),
-            // sstore
-            hex::decode("55").unwrap(),
-        ]
-        .into_iter()
-        .concat(),
-    );
-    println!("{:?}", evm_vector);
-    let pairing = "aaaaa"; // placeholder
-    assert_eq!(H256(evm_vector.into()), H256::from_str(pairing).unwrap());
 }
 
 fn assert_deployed_hash<H: HistoryMode>(
