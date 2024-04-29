@@ -5,7 +5,7 @@ use chrono::{DateTime, Duration, NaiveDateTime, NaiveTime, Utc};
 use strum::{Display, EnumString};
 
 use crate::{
-    basic_fri_types::{AggregationRound, Eip4844Blobs},
+    basic_fri_types::{AggregationRound, CircuitIdRoundTuple, Eip4844Blobs},
     protocol_version::ProtocolVersionId,
     L1BatchNumber,
 };
@@ -271,6 +271,23 @@ pub struct BasicWitnessGeneratorJobInfo {
     pub protocol_version: Option<i32>,
     pub picked_by: Option<String>,
     pub eip_4844_blobs: Option<Eip4844Blobs>,
+}
+
+pub struct LeafWitnessGeneratorJobInfo {
+    pub l1_batch_number: L1BatchNumber,
+    pub circuit_id: u32,
+    pub closed_form_inputs_blob_url: Option<String>,
+    pub attempts: u32,
+    pub status: WitnessJobStatus,
+    pub error: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub processing_started_at: Option<NaiveDateTime>,
+    pub time_taken: Option<NaiveTime>,
+    pub is_blob_cleaned: Option<bool>,
+    pub number_of_basic_circuits: Option<i32>,
+    pub protocol_version: Option<i32>,
+    pub picked_by: Option<String>,
 }
 
 #[derive(Debug, EnumString, Display)]

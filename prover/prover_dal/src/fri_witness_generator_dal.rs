@@ -7,7 +7,7 @@ use zksync_basic_types::{
     protocol_version::ProtocolVersionId,
     prover_dal::{
         BasicWitnessGeneratorJobInfo, JobCountStatistics, LeafAggregationJobMetadata,
-        NodeAggregationJobMetadata, StuckJobs, WitnessJobStatus,
+        LeafWitnessGeneratorJobInfo, NodeAggregationJobMetadata, StuckJobs, WitnessJobStatus,
     },
     L1BatchNumber,
 };
@@ -1185,6 +1185,42 @@ impl FriWitnessGeneratorDal<'_, '_> {
             protocol_version: row.protocol_version,
             picked_by: row.picked_by,
             eip_4844_blobs: row.eip_4844_blobs.map(|vec_u8| Eip4844Blobs::from(vec_u8)),
+        })
+    }
+
+    pub async fn get_leaf_witness_generator_job_for_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Option<LeafWitnessGeneratorJobInfo> {
+        sqlx::query!(
+            r#"
+            SELECT
+                *
+            FROM
+                leaf_aggregation_witness_jobs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| LeafWitnessGeneratorJobInfo {
+            l1_batch_number: l1_batch_number,
+            circuit_id: row.circuit_id as u32,
+            closed_form_inputs_blob_url: row.closed_form_inputs_blob_url,
+            attempts: row.attempts as u32,
+            status: WitnessJobStatus::from_str(&row.status).unwrap(),
+            error: row.error,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            processing_started_at: row.processing_started_at,
+            time_taken: row.time_taken,
+            is_blob_cleaned: row.is_blob_cleaned,
+            protocol_version: row.protocol_version,
+            picked_by: row.picked_by,
+            number_of_basic_circuits: row.number_of_basic_circuits,
         })
     }
 }
