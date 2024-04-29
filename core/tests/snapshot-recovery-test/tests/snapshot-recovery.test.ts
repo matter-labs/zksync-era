@@ -354,7 +354,8 @@ describe('snapshot recovery', () => {
 
         const pruningParams = {
             EN_PRUNING_ENABLED: 'true',
-            EN_PRUNING_REMOVAL_DELAY_SEC: '3',
+            EN_PRUNING_REMOVAL_DELAY_SEC: '2',
+            EN_PRUNING_DATA_RETENTION_SEC: '0', // immediately prune executed batches
             EN_PRUNING_CHUNK_SIZE: '1'
         };
         externalNodeEnv = { ...externalNodeEnv, ...pruningParams };
