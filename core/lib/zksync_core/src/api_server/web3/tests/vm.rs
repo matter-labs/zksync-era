@@ -3,12 +3,17 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use itertools::Itertools;
-
-use multivm::interface::{ExecutionResult, VmRevertReason};
-use multivm::vm_latest::{VmExecutionLogs, VmExecutionResultAndLogs};
-use zksync_types::{get_intrinsic_constants, K256PrivateKey, L2ChainId, PackedEthSignature, StorageLogQuery, StorageLogQueryType, transaction_request::CallRequest, U256};
-use zksync_types::api::{ApiStorageLog, Log};
-use zksync_types::zk_evm_types::{LogQuery, Timestamp};
+use multivm::{
+    interface::{ExecutionResult, VmRevertReason},
+    vm_latest::{VmExecutionLogs, VmExecutionResultAndLogs},
+};
+use zksync_types::{
+    api::{ApiStorageLog, Log},
+    get_intrinsic_constants,
+    transaction_request::CallRequest,
+    zk_evm_types::{LogQuery, Timestamp},
+    K256PrivateKey, L2ChainId, PackedEthSignature, StorageLogQuery, StorageLogQueryType, U256,
+};
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::namespaces::DebugNamespaceClient;
 

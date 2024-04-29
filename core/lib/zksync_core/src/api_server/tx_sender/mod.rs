@@ -315,7 +315,10 @@ impl TxSender {
     }
 
     #[tracing::instrument(level = "debug", skip_all, fields(tx.hash = ?tx.hash()))]
-    pub async fn submit_tx(&self, tx: L2Tx) -> Result<(L2TxSubmissionResult, VmExecutionResultAndLogs), SubmitTxError> {
+    pub async fn submit_tx(
+        &self,
+        tx: L2Tx,
+    ) -> Result<(L2TxSubmissionResult, VmExecutionResultAndLogs), SubmitTxError> {
         let tx_hash = tx.hash();
         let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::Validate);
         let mut connection = self.acquire_replica_connection().await?;
