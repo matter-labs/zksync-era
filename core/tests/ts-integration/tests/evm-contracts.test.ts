@@ -12,6 +12,10 @@ import { deployContract, getEVMArtifact, getEVMContractFactory, getTestContract 
 import * as ethers from 'ethers';
 import * as zksync from 'zksync-web3';
 
+import fs, { PathLike } from 'fs';
+import csv from 'csv-parser';
+import { createObjectCsvWriter } from 'csv-writer';
+
 const contracts = {
     tester: getTestContract('TestEVMCreate'),
     erc20: getTestContract('ERC20'),
@@ -28,7 +32,9 @@ const artifacts = {
     uniswapV2Pair: getEVMArtifact('../contracts/uniswap-v2/UniswapV2Factory.sol', 'UniswapV2Pair.sol'),
     uniswapV2Factory: getEVMArtifact('../contracts/uniswap-v2/UniswapV2Factory.sol', 'UniswapV2Factory.sol'),
     opcodeTest: getEVMArtifact('../evm-contracts/OpcodeTest.sol'),
-    selfDestruct: getEVMArtifact('../evm-contracts/SelfDestruct.sol')
+    selfDestruct: getEVMArtifact('../evm-contracts/SelfDestruct.sol'),
+    benchmark: getEVMArtifact('../evm-contracts/BenchmarkCaller.sol'),
+    counterFallback: getEVMArtifact('../evm-contracts/CounterFallback.sol')
 };
 
 const initBytecode = '0x69602a60005260206000f3600052600a6016f3';
@@ -59,6 +65,29 @@ describe('EVM equivalence contract', () => {
         ).connect(alice);
     });
 
+    describe('Benchmarking', () => {
+        test("Should benchmark contract's call", async () => {
+            const benchmarkFactory = getEVMContractFactory(alice, artifacts.benchmark);
+            const benchmarkContract = await benchmarkFactory.deploy();
+            await benchmarkContract.deployTransaction.wait();
+            await alice.provider.getTransactionReceipt(benchmarkContract.deployTransaction.hash);
+
+            let filename = await startBenchmark();
+            
+            let contracts = [];
+
+            const counterContract = await deployBenchmarkContract(alice,artifacts.counterFallback);
+            contracts.push({name: "counterFallback",contract:counterContract});
+            // Add your tests here
+
+            let result;
+            for (const contract of contracts) {
+                result = (await benchmarkContract.callStatic.callAndBenchmark(contract.contract.address)).toString();
+                await saveBenchmark(contract.name, filename, result);
+            }
+        });
+    }); 
+/*
     describe('Contract creation', () => {
         describe('Create from EOA', () => {
             test('Should create evm contract from EOA and allow view and non-view calls', async () => {
@@ -463,7 +492,7 @@ describe('EVM equivalence contract', () => {
     //         // const receipt = await (await opcodeTest.execute()).wait()
     //         // dumpOpcodeLogs(receipt.transactionHash, alice.provider);
     //     });
-    // });
+    // });*/
 
     afterAll(async () => {
         await testMaster.deinitialize();
@@ -472,6 +501,100 @@ describe('EVM equivalence contract', () => {
         }
     });
 });
+
+type BenchmarkResult = {
+    name: string;
+    used_zkevm_ergs: string;
+    used_evm_gas: string;
+    used_circuits: string;
+};
+
+async function saveBenchmark(name:string, filename: string, result: string) {
+    try {
+        const resultWithName = {
+            name: name,
+            used_zkevm_ergs: result,
+            used_evm_gas: '0',
+            used_circuits: '0'
+        };
+
+        let results: BenchmarkResult[] = [];
+
+        // Read existing CSV file
+        if (fs.existsSync(filename)) {
+            const existingResults: BenchmarkResult[] = await new Promise((resolve, reject) => {
+                const results: BenchmarkResult[] = [];
+                fs.createReadStream(filename)
+                    .pipe(csv())
+                    .on('data', (data) => results.push(data))
+                    .on('end', () => resolve(results))
+                    .on('error', reject);
+            });
+            results = existingResults.map(result => ({
+                name: result.name,
+                used_zkevm_ergs: result.used_zkevm_ergs,
+                used_evm_gas: result.used_evm_gas,
+                used_circuits: result.used_circuits
+            }));
+        }
+
+        // Push the new result
+        results.push(resultWithName);
+
+        // Write results back to CSV
+        const csvWriter = createObjectCsvWriter({
+            path: filename,
+            header: [
+                { id: 'name', title: 'name' },
+                { id: 'used_zkevm_ergs', title: 'used_zkevm_ergs' },
+                { id: 'used_evm_gas', title: 'used_evm_gas' },
+                { id: 'used_circuits', title: 'used_circuits' }
+            ]
+        });
+        await csvWriter.writeRecords(results);
+
+        console.log('Benchmark saved successfully.');
+    } catch (error) {
+        console.error('Error saving benchmark:', error);
+    }
+}
+function zeroPad(num: number, places: number): string {
+    return String(num).padStart(places, '0');
+}
+
+async function startBenchmark(): Promise<string> {
+    try {
+        const now = new Date();
+        const year = now.getUTCFullYear();
+        const month = zeroPad(now.getUTCMonth() + 1, 2); // Months are zero-based, so add 1
+        const day = zeroPad(now.getUTCDate(), 2);
+        const hour = zeroPad(now.getUTCHours(), 2);
+        const minute = zeroPad(now.getUTCMinutes(), 2);
+        const second = zeroPad(now.getUTCSeconds(), 2);
+        const formattedTime = `${year}-${month}-${day}-${hour}-${minute}-${second}`;
+        const directoryPath = 'benchmarks';
+        
+        if (!fs.existsSync(directoryPath)) {
+            // If it doesn't exist, create it
+            fs.mkdirSync(directoryPath);
+        }
+        
+        const filename = `benchmarks/benchmark_integration_${formattedTime}.csv`;
+        return filename;
+    } catch (error) {
+        console.error('Error creating benchmark:', error);
+        return '';
+    }
+}
+
+async function deployBenchmarkContract(alice: zksync.Wallet, contract: any) {
+    const counterFactory = getEVMContractFactory(alice, contract);
+    const counterContract = await counterFactory.deploy();
+    await counterContract.deployTransaction.wait();
+    await alice.provider.getTransactionReceipt(counterContract.deployTransaction.hash);
+
+    return counterContract
+}
 
 async function assertStoredBytecodeHash(
     deployer: zksync.Contract,
