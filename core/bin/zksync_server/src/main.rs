@@ -24,8 +24,8 @@ use zksync_core::{
     Component, Components,
 };
 use zksync_env_config::FromEnv;
+use zksync_eth_client::clients::QueryClient;
 use zksync_storage::RocksDB;
-use zksync_types::web3::transports::Http;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
 mod config;
@@ -181,9 +181,8 @@ async fn main() -> anyhow::Result<()> {
 
         if let Some(shared_bridge) = &genesis.shared_bridge {
             let eth_config = configs.eth.as_ref().context("eth config")?;
-            let query_client = Http::new(eth_config.web3_url.expose_str())
-                .context("Ethereum client")?
-                .into();
+            let query_client =
+                QueryClient::new(eth_config.web3_url.clone()).context("Ethereum client")?;
             genesis::save_set_chain_id_tx(
                 &query_client,
                 contracts_config.diamond_proxy_addr,

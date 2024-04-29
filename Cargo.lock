@@ -8939,6 +8939,7 @@ dependencies = [
  "zksync_consensus_roles",
  "zksync_core",
  "zksync_env_config",
+ "zksync_eth_client",
  "zksync_protobuf_config",
  "zksync_storage",
  "zksync_types",

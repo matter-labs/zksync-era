@@ -7,7 +7,6 @@ use std::{
 
 use anyhow::Context;
 use serde::Deserialize;
-use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
 use zksync_config::{
     configs::{
@@ -15,7 +14,7 @@ use zksync_config::{
         chain::L1BatchCommitDataGeneratorMode,
         consensus::{ConsensusConfig, ConsensusSecrets},
     },
-    ObjectStoreConfig,
+    ObjectStoreConfig, SensitiveUrl,
 };
 use zksync_core::{
     api_server::{
@@ -617,11 +616,10 @@ pub(crate) struct RequiredENConfig {
     /// Port on which the healthcheck REST server is listening.
     pub healthcheck_port: u16,
     /// Address of the Ethereum node API.
-    /// Intentionally private: use getter method as it manages the missing port.
-    eth_client_url: String,
+    pub eth_client_url: SensitiveUrl,
     /// Main node URL - used by external node to proxy transactions to, query state from, etc.
     /// Intentionally private: use getter method as it manages the missing port.
-    main_node_url: String,
+    pub main_node_url: String,
     /// Path to the database data directory that serves state cache.
     pub state_cache_path: String,
     /// Fast SSD path. Used as a RocksDB dir for the Merkle tree (*new* implementation).
@@ -635,8 +633,9 @@ impl RequiredENConfig {
             http_port: 0,
             ws_port: 0,
             healthcheck_port: 0,
-            eth_client_url: "unused".to_owned(), // L1 and L2 clients must be instantiated before accessing mocks
-            main_node_url: "unused".to_owned(),
+            // L1 and L2 clients must be instantiated before accessing mocks, so these values don't matter
+            eth_client_url: "http://localhost".parse().unwrap(),
+            main_node_url: "http://localhost".to_owned(),
             state_cache_path: temp_dir
                 .path()
                 .join("state_keeper_cache")
@@ -645,19 +644,6 @@ impl RequiredENConfig {
                 .to_owned(),
             merkle_tree_path: temp_dir.path().join("tree").to_str().unwrap().to_owned(),
         }
-    }
-
-    pub fn main_node_url(&self) -> anyhow::Result<String> {
-        Self::get_url(&self.main_node_url).context("Could not parse main node URL")
-    }
-
-    pub fn eth_client_url(&self) -> anyhow::Result<String> {
-        Self::get_url(&self.eth_client_url).context("Could not parse L1 client URL")
-    }
-
-    fn get_url(url_str: &str) -> anyhow::Result<String> {
-        let url = Url::parse(url_str).context("URL can not be parsed")?;
-        format_url_with_port(&url)
     }
 }
 
@@ -761,7 +747,7 @@ impl ExternalNodeConfig {
             .from_env::<TreeComponentConfig>()
             .context("could not load external node config")?;
 
-        let client = L2Client::http(&required.main_node_url()?)
+        let client = L2Client::http(&required.main_node_url)
             .context("Unable to build HTTP client for main node")?
             .build();
         let remote = RemoteENConfig::fetch(&client)
@@ -770,8 +756,8 @@ impl ExternalNodeConfig {
         // We can query them from main node, but it's better to set them explicitly
         // as well to avoid connecting to wrong environment variables unintentionally.
         let eth_chain_id = HttpClientBuilder::default()
-            .build(required.eth_client_url()?)
-            .expect("Unable to build HTTP client for L1 client")
+            .build(required.eth_client_url.expose_str())
+            .context("Unable to build HTTP client for L1 client")?
             .chain_id()
             .await
             .context("Unable to check L1 chain ID through the configured L1 client")?;
@@ -898,29 +884,4 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
             whitelisted_tokens_for_aa: Default::default(),
         }
     }
-}
-
-/// Converts the URL into a String with port provided,
-/// even if it's the default one.
-///
-/// `url` library does not contain required functionality, yet the library we use for RPC
-/// requires the port to always explicitly be set.
-fn format_url_with_port(url: &Url) -> anyhow::Result<String> {
-    let scheme = url.scheme();
-    let host = url.host_str().context("No host in the URL")?;
-    let port_str = match url.port_or_known_default() {
-        Some(port) => format!(":{port}"),
-        None => String::new(),
-    };
-    let path = url.path();
-    let query_str = url.query().map(|q| format!("?{}", q)).unwrap_or_default();
-
-    Ok(format!(
-        "{scheme}://{host}{port}{path}{query_str}",
-        scheme = scheme,
-        host = host,
-        port = port_str,
-        path = path,
-        query_str = query_str
-    ))
 }

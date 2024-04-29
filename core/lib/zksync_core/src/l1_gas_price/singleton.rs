@@ -40,7 +40,7 @@ impl GasAdjusterSingleton {
             Ok(adjuster.clone())
         } else {
             let query_client =
-                QueryClient::new(self.web3_url.expose_str()).context("QueryClient::new()")?;
+                QueryClient::new(self.web3_url.clone()).context("QueryClient::new()")?;
             let adjuster = GasAdjuster::new(
                 Arc::new(query_client),
                 self.gas_adjuster_config,

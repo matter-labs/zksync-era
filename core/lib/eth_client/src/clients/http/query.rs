@@ -1,4 +1,7 @@
+use std::fmt;
+
 use async_trait::async_trait;
+use zksync_config::SensitiveUrl;
 use zksync_types::web3::{
     self,
     contract::Contract,
@@ -20,24 +23,29 @@ use crate::{
 
 /// An "anonymous" Ethereum client that can invoke read-only methods that aren't
 /// tied to a particular account.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct QueryClient {
     web3: Web3<Http>,
+    url: SensitiveUrl,
 }
 
-impl From<Http> for QueryClient {
-    fn from(transport: Http) -> Self {
-        Self {
-            web3: Web3::new(transport),
-        }
+impl fmt::Debug for QueryClient {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("QueryClient")
+            .field("url", &self.url)
+            .finish()
     }
 }
 
 impl QueryClient {
     /// Creates a new HTTP client.
-    pub fn new(node_url: &str) -> Result<Self, Error> {
-        let transport = Http::new(node_url)?;
-        Ok(transport.into())
+    pub fn new(url: SensitiveUrl) -> Result<Self, Error> {
+        let transport = Http::new(url.expose_str())?;
+        Ok(Self {
+            web3: Web3::new(transport),
+            url,
+        })
     }
 }
 

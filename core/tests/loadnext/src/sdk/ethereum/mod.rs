@@ -7,6 +7,7 @@ use std::{
 };
 
 use serde_json::{Map, Value};
+use zksync_config::SensitiveUrl;
 use zksync_eth_client::{
     clients::{QueryClient, SigningClient},
     BoundEthInterface, CallFunctionArgs, Error, EthInterface, Options,
@@ -19,7 +20,6 @@ use zksync_types::{
     web3::{
         contract::tokens::{Detokenize, Tokenize},
         ethabi,
-        transports::Http,
         types::{TransactionReceipt, H160, H256, U256},
     },
     Address, L1ChainId, L1TxCommonData, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
@@ -85,9 +85,6 @@ impl<S: EthereumSigner> EthereumProvider<S> {
     where
         P: ZksNamespaceClient + Sync,
     {
-        let transport = Http::new(eth_web3_url.as_ref())
-            .map_err(|err| ClientError::NetworkError(err.to_string()))?;
-
         let l1_chain_id = provider.l1_chain_id().await?;
         let l1_chain_id = u64::try_from(l1_chain_id).map_err(|_| {
             ClientError::MalformedResponse(
@@ -101,8 +98,14 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .await
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
 
+        let eth_web3_url = eth_web3_url
+            .as_ref()
+            .parse::<SensitiveUrl>()
+            .map_err(|err| ClientError::NetworkError(err.to_string()))?;
+        let query_client = QueryClient::new(eth_web3_url)
+            .map_err(|err| ClientError::NetworkError(err.to_string()))?;
         let eth_client = SigningClient::new(
-            Arc::new(QueryClient::from(transport)),
+            Arc::new(query_client),
             hyperchain_contract(),
             eth_addr,
             eth_signer,

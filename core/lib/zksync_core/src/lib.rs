@@ -306,7 +306,7 @@ pub async fn initialize_components(
         panic!("Circuit breaker triggered: {}", err);
     });
 
-    let query_client = QueryClient::new(eth.web3_url.expose_str()).context("Ethereum client")?;
+    let query_client = QueryClient::new(eth.web3_url.clone()).context("Ethereum client")?;
     let query_client = Arc::new(query_client);
     let gas_adjuster_config = eth.gas_adjuster.context("gas_adjuster")?;
     let sender = eth.sender.as_ref().context("sender")?;

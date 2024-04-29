@@ -28,8 +28,7 @@ impl WiringLayer for QueryEthClientLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let query_client =
-            QueryClient::new(self.web3_url.expose_str()).context("QueryClient::new()")?;
+        let query_client = QueryClient::new(self.web3_url.clone()).context("QueryClient::new()")?;
         context.insert_resource(EthInterfaceResource(Arc::new(query_client)))?;
         Ok(())
     }
