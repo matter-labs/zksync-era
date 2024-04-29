@@ -213,9 +213,14 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
         initAddress: upgradeAddress,
         initCalldata
     };
-     // Prepare calldata for STM
+    // Prepare calldata for STM
     let stm = new StateTransitionManagerFactory();
-    const stmUpgradeCalldata = stm.interface.encodeFunctionData('setNewVersionUpgrade', [transparentUpgrade, oldProtocolVersion, oldProtocolVersionDeadline, newProtocolVersion]);
+    const stmUpgradeCalldata = stm.interface.encodeFunctionData('setNewVersionUpgrade', [
+        transparentUpgrade,
+        oldProtocolVersion,
+        oldProtocolVersionDeadline,
+        newProtocolVersion
+    ]);
     const stmCall = {
         target: stmAddress,
         value: 0,
@@ -240,7 +245,10 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
 
     // Prepare calldata for upgrading diamond proxy
     let adminFacet = new AdminFacetFactory();
-    const diamondProxyUpgradeCalldata = adminFacet.interface.encodeFunctionData('upgradeChainFromVersion', [oldProtocolVersion, transparentUpgrade]);
+    const diamondProxyUpgradeCalldata = adminFacet.interface.encodeFunctionData('upgradeChainFromVersion', [
+        oldProtocolVersion,
+        transparentUpgrade
+    ]);
 
     const call = {
         target: zksyncAddress,
