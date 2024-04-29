@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use tokio::{sync::watch, task::JoinHandle};
-use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig, SensitiveUrl};
+use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::clients::QueryClient;
+use zksync_types::url::SensitiveUrl;
 
 use super::PubdataPricing;
 use crate::l1_gas_price::GasAdjuster;

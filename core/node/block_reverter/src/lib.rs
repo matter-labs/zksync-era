@@ -3,7 +3,7 @@ use std::{path::Path, sync::Arc, time::Duration};
 use anyhow::Context as _;
 use serde::Serialize;
 use tokio::fs;
-use zksync_config::{configs::chain::NetworkConfig, ContractsConfig, EthConfig, SensitiveUrl};
+use zksync_config::{configs::chain::NetworkConfig, ContractsConfig, EthConfig};
 use zksync_contracts::hyperchain_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
@@ -18,6 +18,7 @@ use zksync_types::{
         SnapshotFactoryDependencies, SnapshotMetadata, SnapshotStorageLogsChunk,
         SnapshotStorageLogsStorageKey,
     },
+    url::SensitiveUrl,
     web3::{
         contract::{Contract, Options},
         transports::Http,

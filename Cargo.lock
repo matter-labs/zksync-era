@@ -8119,6 +8119,7 @@ dependencies = [
  "serde",
  "serde_json",
  "strum",
+ "url",
  "web3",
 ]
 

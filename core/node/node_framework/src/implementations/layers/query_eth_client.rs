@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use zksync_config::SensitiveUrl;
 use zksync_eth_client::clients::QueryClient;
+use zksync_types::url::SensitiveUrl;
 
 use crate::{
     implementations::resources::eth_interface::EthInterfaceResource,

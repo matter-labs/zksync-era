@@ -7,7 +7,6 @@ use std::{
 };
 
 use serde_json::{Map, Value};
-use zksync_config::SensitiveUrl;
 use zksync_eth_client::{
     clients::{QueryClient, SigningClient},
     BoundEthInterface, CallFunctionArgs, Error, EthInterface, Options,
@@ -17,6 +16,7 @@ use zksync_types::{
     api::BridgeAddresses,
     l1::L1Tx,
     network::Network,
+    url::SensitiveUrl,
     web3::{
         contract::tokens::{Detokenize, Tokenize},
         ethabi,

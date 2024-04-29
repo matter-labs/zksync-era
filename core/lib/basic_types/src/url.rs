@@ -1,5 +1,3 @@
-//! Configuration-related utils.
-
 use std::{fmt, str::FromStr};
 
 use serde::{Deserialize, Deserializer};

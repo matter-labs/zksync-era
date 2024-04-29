@@ -1,18 +1,20 @@
 use std::fmt;
 
 use async_trait::async_trait;
-use zksync_config::SensitiveUrl;
-use zksync_types::web3::{
-    self,
-    contract::Contract,
-    ethabi, helpers,
-    helpers::CallFuture,
-    transports::Http,
-    types::{
-        Address, BlockId, BlockNumber, Bytes, Filter, Log, Transaction, TransactionId,
-        TransactionReceipt, H256, U256, U64,
+use zksync_types::{
+    url::SensitiveUrl,
+    web3::{
+        self,
+        contract::Contract,
+        ethabi, helpers,
+        helpers::CallFuture,
+        transports::Http,
+        types::{
+            Address, BlockId, BlockNumber, Bytes, Filter, Log, Transaction, TransactionId,
+            TransactionReceipt, H256, U256, U64,
+        },
+        Transport, Web3,
     },
-    Transport, Web3,
 };
 
 use crate::{

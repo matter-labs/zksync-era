@@ -14,7 +14,7 @@ use zksync_config::{
         chain::L1BatchCommitDataGeneratorMode,
         consensus::{ConsensusConfig, ConsensusSecrets},
     },
-    ObjectStoreConfig, SensitiveUrl,
+    ObjectStoreConfig,
 };
 use zksync_core::{
     api_server::{
@@ -27,7 +27,9 @@ use zksync_core::{
 use zksync_dal::{ConnectionPool, Core};
 use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
-use zksync_types::{api::BridgeAddresses, fee_model::FeeParams, ETHEREUM_ADDRESS};
+use zksync_types::{
+    api::BridgeAddresses, fee_model::FeeParams, url::SensitiveUrl, ETHEREUM_ADDRESS,
+};
 use zksync_web3_decl::{
     client::L2Client,
     error::ClientRpcContext,

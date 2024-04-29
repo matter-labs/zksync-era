@@ -1,9 +1,9 @@
 use std::time::Duration;
 
 use serde::Deserialize;
-use zksync_basic_types::H256;
+use zksync_basic_types::{url::SensitiveUrl, H256};
 
-use crate::{EthWatchConfig, SensitiveUrl};
+use crate::EthWatchConfig;
 
 /// Configuration for the Ethereum related components.
 #[derive(Debug, Deserialize, Clone, PartialEq)]

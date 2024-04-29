@@ -22,6 +22,7 @@ pub mod basic_fri_types;
 pub mod network;
 pub mod protocol_version;
 pub mod prover_dal;
+pub mod url;
 pub mod vm_version;
 
 /// Account place in the global state tree is uniquely identified by its address.
