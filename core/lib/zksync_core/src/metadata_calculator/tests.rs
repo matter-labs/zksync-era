@@ -459,7 +459,7 @@ pub(crate) async fn reset_db_state(pool: &ConnectionPool<Core>, num_batches: usi
     // Drops all L1 batches (except the L1 batch with number 0) and their storage logs.
     storage
         .storage_logs_dal()
-        .rollback_storage_logs(L2BlockNumber(0))
+        .roll_back_storage_logs(L2BlockNumber(0))
         .await
         .unwrap();
     storage

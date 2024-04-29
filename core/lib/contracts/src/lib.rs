@@ -350,9 +350,16 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
-    pub fn playground_post_1_5_0() -> Self {
+    pub fn playground_1_5_0_small_memory() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
-            "etc/multivm_bootloaders/vm_1_5_0/playground_batch.yul/playground_batch.yul.zbin",
+            "etc/multivm_bootloaders/vm_1_5_0_small_memory/playground_batch.yul/playground_batch.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn playground_post_1_5_0_increased_memory() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_1_5_0_increased_memory/playground_batch.yul/playground_batch.yul.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
@@ -406,9 +413,16 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
-    pub fn estimate_gas_post_1_5_0() -> Self {
+    pub fn estimate_gas_1_5_0_small_memory() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
-            "etc/multivm_bootloaders/vm_1_5_0/fee_estimate.yul/fee_estimate.yul.zbin",
+            "etc/multivm_bootloaders/vm_1_5_0_small_memory/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn estimate_gas_post_1_5_0_increased_memory() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_1_5_0_increased_memory/fee_estimate.yul/fee_estimate.yul.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }

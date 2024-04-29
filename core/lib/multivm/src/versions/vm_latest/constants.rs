@@ -5,6 +5,7 @@ pub use zk_evm_1_5_0::zkevm_opcode_defs::system_params::{
 };
 use zksync_system_constants::{MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS};
 
+use super::vm::MultiVMSubversion;
 use crate::vm_latest::old_vm::utils::heap_page_from_base;
 
 /// The amount of ergs to be reserved at the end of the batch to ensure that it has enough ergs to verify compression, etc.
@@ -19,9 +20,18 @@ pub(crate) const MAX_BASE_LAYER_CIRCUITS: usize = 34100;
 /// The size of the bootloader memory in bytes which is used by the protocol.
 /// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce
 /// the requirements on RAM.
-/// In this version of the VM the used bootloader memory bytes has increased from `30_000_000` to `59_000_000`.
-pub(crate) const USED_BOOTLOADER_MEMORY_BYTES: usize = 59_000_000;
-pub(crate) const USED_BOOTLOADER_MEMORY_WORDS: usize = USED_BOOTLOADER_MEMORY_BYTES / 32;
+/// In this version of the VM the used bootloader memory bytes has increased from `30_000_000` to `59_000_000`,
+/// and then to `63_800_000` in a subsequent upgrade.
+pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVMSubversion) -> usize {
+    match subversion {
+        MultiVMSubversion::SmallBootloaderMemory => 59_000_000,
+        MultiVMSubversion::IncreasedBootloaderMemory => 63_800_000,
+    }
+}
+
+pub(crate) const fn get_used_bootloader_memory_words(subversion: MultiVMSubversion) -> usize {
+    get_used_bootloader_memory_bytes(subversion) / 32
+}
 
 /// We want `MAX_GAS_PER_PUBDATA_BYTE` multiplied by the u32::MAX (i.e. the maximal possible value of the pubdata counter)
 /// to be a safe integer with a good enough margin.
@@ -94,8 +104,9 @@ pub(crate) const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
     OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS;
 
 /// The size of the bootloader memory dedicated to the encodings of transactions
-pub(crate) const BOOTLOADER_TX_ENCODING_SPACE: u32 =
-    (USED_BOOTLOADER_MEMORY_WORDS - TX_DESCRIPTION_OFFSET - MAX_TXS_IN_BATCH) as u32;
+pub(crate) const fn get_bootloader_tx_encoding_space(subversion: MultiVMSubversion) -> u32 {
+    (get_used_bootloader_memory_words(subversion) - TX_DESCRIPTION_OFFSET - MAX_TXS_IN_BATCH) as u32
+}
 
 // Size of the bootloader tx description in words
 pub(crate) const BOOTLOADER_TX_DESCRIPTION_SIZE: usize = 2;
@@ -116,13 +127,24 @@ pub const BOOTLOADER_HEAP_PAGE: u32 = heap_page_from_base(MemoryPage(INITIAL_BAS
 /// and VM_HOOKS_PARAMS_COUNT parameters (each 32 bytes) are put in the slots before.
 /// So the layout looks like this:
 /// `[param 0][param 1][param 2][vmhook opcode]`
-pub const VM_HOOK_POSITION: u32 = RESULT_SUCCESS_FIRST_SLOT - 1;
 pub const VM_HOOK_PARAMS_COUNT: u32 = 3;
-pub const VM_HOOK_PARAMS_START_POSITION: u32 = VM_HOOK_POSITION - VM_HOOK_PARAMS_COUNT;
+pub(crate) const fn get_vm_hook_position(subversion: MultiVMSubversion) -> u32 {
+    get_result_success_first_slot(subversion) - 1
+}
+pub(crate) const fn get_vm_hook_params_start_position(subversion: MultiVMSubversion) -> u32 {
+    get_vm_hook_position(subversion) - VM_HOOK_PARAMS_COUNT
+}
+
+/// Method that provides the start position of the vm hook in the memory for the latest version of v1.5.0.
+/// This method is used only in `test_infra` in the bootloader tests and that's why it should be exposed.
+pub const fn get_vm_hook_start_position_latest() -> u32 {
+    get_vm_hook_params_start_position(MultiVMSubversion::IncreasedBootloaderMemory)
+}
 
 /// Arbitrary space in memory closer to the end of the page
-pub const RESULT_SUCCESS_FIRST_SLOT: u32 =
-    ((USED_BOOTLOADER_MEMORY_BYTES as u32) - (MAX_TXS_IN_BATCH as u32) * 32) / 32;
+pub(crate) const fn get_result_success_first_slot(subversion: MultiVMSubversion) -> u32 {
+    ((get_used_bootloader_memory_bytes(subversion) as u32) - (MAX_TXS_IN_BATCH as u32) * 32) / 32
+}
 
 /// How many gas bootloader is allowed to spend within one block.
 /// Note that this value doesn't correspond to the gas limit of any particular transaction

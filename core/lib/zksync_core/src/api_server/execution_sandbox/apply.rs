@@ -298,6 +298,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     apply: impl FnOnce(
         &mut VmInstance<StorageView<PostgresStorage<'_>>, HistoryDisabled>,
         Transaction,
+        ProtocolVersionId,
     ) -> T,
 ) -> anyhow::Result<T> {
     let stage_started_at = Instant::now();
@@ -319,6 +320,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         execution_args,
         block_args,
     ))?;
+    let protocol_version = sandbox.system_env.version;
     let (mut vm, storage_view) = sandbox.into_vm(&tx, adjust_pubdata_price);
 
     SANDBOX_METRICS.sandbox[&SandboxStage::Initialization].observe(stage_started_at.elapsed());
@@ -330,7 +332,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         tx.nonce().unwrap_or(Nonce(0))
     );
     let execution_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Execution].start();
-    let result = apply(&mut vm, tx);
+    let result = apply(&mut vm, tx, protocol_version);
     let vm_execution_took = execution_latency.observe();
 
     let memory_metrics = vm.record_vm_memory_metrics();
