@@ -15,6 +15,7 @@ use zksync_types::{
         },
         Transport, Web3,
     },
+    L1ChainId,
 };
 
 use crate::{
@@ -53,6 +54,16 @@ impl QueryClient {
 
 #[async_trait]
 impl EthInterface for QueryClient {
+    async fn fetch_chain_id(&self, component: &'static str) -> Result<L1ChainId, Error> {
+        COUNTERS.call[&(Method::ChainId, component)].inc();
+        let latency = LATENCIES.direct[&Method::ChainId].start();
+        let raw_chain_id = self.web3.eth().chain_id().await?;
+        latency.observe();
+        let chain_id =
+            u64::try_from(raw_chain_id).map_err(|err| ethabi::Error::Other(err.into()))?;
+        Ok(L1ChainId(chain_id))
+    }
+
     async fn nonce_at_for_account(
         &self,
         account: Address,

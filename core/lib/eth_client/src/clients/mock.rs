@@ -284,6 +284,10 @@ impl MockEthereum {
 
 #[async_trait]
 impl EthInterface for MockEthereum {
+    async fn fetch_chain_id(&self, _: &'static str) -> Result<L1ChainId, Error> {
+        Ok(L1ChainId(9))
+    }
+
     async fn get_tx_status(
         &self,
         hash: H256,

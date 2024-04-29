@@ -86,6 +86,10 @@ impl<S: EthereumSigner> fmt::Debug for SigningClient<S> {
 
 #[async_trait]
 impl<S: EthereumSigner> EthInterface for SigningClient<S> {
+    async fn fetch_chain_id(&self, component: &'static str) -> Result<L1ChainId, Error> {
+        self.query_client.fetch_chain_id(component).await
+    }
+
     async fn nonce_at_for_account(
         &self,
         account: Address,

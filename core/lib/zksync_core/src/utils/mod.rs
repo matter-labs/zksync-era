@@ -222,7 +222,7 @@ mod tests {
     };
     use zksync_types::{
         web3::types::{BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt},
-        H160, H256, U256, U64,
+        L1ChainId, H160, H256, U256, U64,
     };
 
     use super::*;
@@ -323,8 +323,13 @@ mod tests {
         }
     }
 
+    // FIXME: remove
     #[async_trait]
     impl EthInterface for MockEthereumForCommitGenerationMode {
+        async fn fetch_chain_id(&self, _: &'static str) -> Result<L1ChainId, EthClientError> {
+            Ok(L1ChainId(9))
+        }
+
         async fn get_tx_status(
             &self,
             _: H256,

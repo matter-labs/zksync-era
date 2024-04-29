@@ -80,6 +80,10 @@ impl Options {
 /// per component and expose them to Prometheus.
 #[async_trait]
 pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
+    /// Fetches the L1 chain ID (in contrast to [`BoundEthInterface::chain_id()`] which returns
+    /// the *expected* L1 chain ID).
+    async fn fetch_chain_id(&self, component: &'static str) -> Result<L1ChainId, Error>;
+
     /// Returns the nonce of the provided account at the specified block.
     async fn nonce_at_for_account(
         &self,

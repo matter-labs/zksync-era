@@ -25,17 +25,19 @@ use zksync_core::{
 };
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
+use zksync_eth_client::EthInterface;
 use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
 use zksync_types::{
     api::BridgeAddresses, fee_model::FeeParams, url::SensitiveUrl, ETHEREUM_ADDRESS,
 };
 use zksync_web3_decl::{
-    client::L2Client,
+    client::BoxedL2Client,
     error::ClientRpcContext,
-    jsonrpsee::{core::ClientError, http_client::HttpClientBuilder, types::error::ErrorCode},
+    jsonrpsee::{core::ClientError, types::error::ErrorCode},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
+
 pub(crate) mod observability;
 #[cfg(test)]
 mod tests;
@@ -68,7 +70,7 @@ pub(crate) struct RemoteENConfig {
 }
 
 impl RemoteENConfig {
-    pub async fn fetch(client: &L2Client) -> anyhow::Result<Self> {
+    pub async fn fetch(client: &BoxedL2Client) -> anyhow::Result<Self> {
         let bridges = client
             .get_bridge_contracts()
             .rpc_context("get_bridge_contracts")
@@ -525,6 +527,12 @@ impl OptionalENConfig {
         10
     }
 
+    pub fn from_env() -> anyhow::Result<Self> {
+        envy::prefixed("EN_")
+            .from_env()
+            .context("could not load external node config")
+    }
+
     pub fn polling_interval(&self) -> Duration {
         Duration::from_millis(self.polling_interval)
     }
@@ -629,6 +637,12 @@ pub(crate) struct RequiredENConfig {
 }
 
 impl RequiredENConfig {
+    pub fn from_env() -> anyhow::Result<Self> {
+        envy::prefixed("EN_")
+            .from_env()
+            .context("could not load external node config")
+    }
+
     #[cfg(test)]
     fn mock(temp_dir: &tempfile::TempDir) -> Self {
         Self {
@@ -736,70 +750,55 @@ pub(crate) struct ExternalNodeConfig {
 }
 
 impl ExternalNodeConfig {
-    /// Loads config from the environment variables and
-    /// fetches contracts addresses from the main node.
-    pub async fn collect() -> anyhow::Result<Self> {
-        let required = envy::prefixed("EN_")
-            .from_env::<RequiredENConfig>()
-            .context("could not load external node config")?;
-
-        let optional = envy::prefixed("EN_")
-            .from_env::<OptionalENConfig>()
-            .context("could not load external node config")?;
-
+    /// Loads config from the environment variables and fetches contracts addresses from the main node.
+    pub async fn new(
+        required: RequiredENConfig,
+        optional: OptionalENConfig,
+        main_node_client: &BoxedL2Client,
+        eth_client: &dyn EthInterface,
+    ) -> anyhow::Result<Self> {
         let api_component_config = envy::prefixed("EN_API_")
             .from_env::<ApiComponentConfig>()
             .context("could not load external node config")?;
-
         let tree_component_config = envy::prefixed("EN_TREE_")
             .from_env::<TreeComponentConfig>()
             .context("could not load external node config")?;
 
-        let client = L2Client::http(&required.main_node_url)
-            .context("Unable to build HTTP client for main node")?
-            .build();
-        let remote = RemoteENConfig::fetch(&client)
+        let remote = RemoteENConfig::fetch(main_node_client)
             .await
             .context("Unable to fetch required config values from the main node")?;
         // We can query them from main node, but it's better to set them explicitly
         // as well to avoid connecting to wrong environment variables unintentionally.
-        let eth_chain_id = HttpClientBuilder::default()
-            .build(required.eth_client_url.expose_str())
-            .context("Unable to build HTTP client for L1 client")?
-            .chain_id()
+        let eth_chain_id = eth_client
+            .fetch_chain_id("en")
             .await
             .context("Unable to check L1 chain ID through the configured L1 client")?;
 
         let l2_chain_id: L2ChainId = env_var("EN_L2_CHAIN_ID")?;
-        let l1_chain_id: u64 = env_var("EN_L1_CHAIN_ID")?;
-        if l2_chain_id != remote.l2_chain_id {
-            anyhow::bail!(
-                "Configured L2 chain id doesn't match the one from main node.
-                Make sure your configuration is correct and you are corrected to the right main node.
-                Main node L2 chain id: {:?}. Local config value: {:?}",
-                remote.l2_chain_id, l2_chain_id
-            );
-        }
-        if l1_chain_id != remote.l1_chain_id.0 {
-            anyhow::bail!(
-                "Configured L1 chain id doesn't match the one from main node.
-                Make sure your configuration is correct and you are corrected to the right main node.
-                Main node L1 chain id: {}. Local config value: {}",
-                remote.l1_chain_id.0, l1_chain_id
-            );
-        }
-        if l1_chain_id != eth_chain_id.as_u64() {
-            anyhow::bail!(
-                "Configured L1 chain id doesn't match the one from eth node.
-                Make sure your configuration is correct and you are corrected to the right eth node.
-                Eth node chain id: {}. Local config value: {}",
-                eth_chain_id,
-                l1_chain_id
-            );
-        }
+        anyhow::ensure!(
+            l2_chain_id == remote.l2_chain_id,
+            "Configured L2 chain id doesn't match the one from main node.
+            Make sure your configuration is correct and you are corrected to the right main node.
+            Main node L2 chain id: {:?}. Local config value: {l2_chain_id:?}",
+            remote.l2_chain_id,
+        );
+
+        let l1_chain_id: L1ChainId = env_var("EN_L1_CHAIN_ID")?;
+        anyhow::ensure!(
+            l1_chain_id == remote.l1_chain_id,
+            "Configured L1 chain id doesn't match the one from main node.
+            Make sure your configuration is correct and you are corrected to the right main node.
+            Main node L1 chain id: {}. Local config value: {l1_chain_id}",
+            remote.l1_chain_id,
+        );
+        anyhow::ensure!(
+            l1_chain_id == eth_chain_id,
+            "Configured L1 chain id doesn't match the one from eth node.
+            Make sure your configuration is correct and you are corrected to the right eth node.
+            Eth node chain id: {eth_chain_id}. Local config value: {l1_chain_id}"
+        );
 
         let postgres = PostgresConfig::from_env()?;
-
         Ok(Self {
             remote,
             postgres,
