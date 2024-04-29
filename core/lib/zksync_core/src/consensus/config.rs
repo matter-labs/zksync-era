@@ -27,9 +27,6 @@ pub struct Config {
     /// node.
     pub public_addr: net::Host,
 
-    /// Validators participating in consensus.
-    pub committee: validator::Committee,
-
     /// Maximal allowed size of the payload in bytes.
     pub max_payload_size: usize,
 
