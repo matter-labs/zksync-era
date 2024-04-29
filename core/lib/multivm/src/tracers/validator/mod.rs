@@ -8,7 +8,7 @@ use zksync_system_constants::{
 };
 use zksync_types::{
     vm_trace::ViolatedValidationRule, web3::signing::keccak256, AccountTreeId, Address, StorageKey,
-    H256, U256,
+    VmVersion, H256, U256,
 };
 use zksync_utils::{be_bytes_to_safe_address, u256_to_account_address, u256_to_h256};
 
@@ -42,6 +42,7 @@ pub struct ValidationTracer<H> {
     trusted_address_slots: HashSet<(Address, U256)>,
     computational_gas_used: u32,
     computational_gas_limit: u32,
+    vm_version: VmVersion,
     pub result: Arc<OnceCell<ViolatedValidationRule>>,
     _marker: PhantomData<fn(H) -> H>,
 }
@@ -49,7 +50,10 @@ pub struct ValidationTracer<H> {
 type ValidationRoundResult = Result<NewTrustedValidationItems, ViolatedValidationRule>;
 
 impl<H> ValidationTracer<H> {
-    pub fn new(params: ValidationTracerParams) -> (Self, Arc<OnceCell<ViolatedValidationRule>>) {
+    pub fn new(
+        params: ValidationTracerParams,
+        vm_version: VmVersion,
+    ) -> (Self, Arc<OnceCell<ViolatedValidationRule>>) {
         let result = Arc::new(OnceCell::new());
         (
             Self {
@@ -64,6 +68,7 @@ impl<H> ValidationTracer<H> {
                 trusted_address_slots: params.trusted_address_slots,
                 computational_gas_used: 0,
                 computational_gas_limit: params.computational_gas_limit,
+                vm_version,
                 result: result.clone(),
                 _marker: Default::default(),
             },

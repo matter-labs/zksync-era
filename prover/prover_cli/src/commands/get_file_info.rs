@@ -68,7 +68,6 @@ fn pretty_print_scheduler_witness(
     );
 
     println!("  EIP 4844 - witnesses: {:?}", witness.eip4844_witnesses);
-    println!("  EIP 4844 - proofs: {:?}", witness.eip4844_proofs.len());
 }
 
 fn pretty_print_circuit_wrapper(circuit: &CircuitWrapper) {
@@ -100,6 +99,9 @@ fn pretty_print_circuit_wrapper(circuit: &CircuitWrapper) {
                 ZkSyncBaseLayerCircuit::EventsSorter(_) => todo!(),
                 ZkSyncBaseLayerCircuit::L1MessagesSorter(_) => todo!(),
                 ZkSyncBaseLayerCircuit::L1MessagesHasher(_) => todo!(),
+                ZkSyncBaseLayerCircuit::TransientStorageSorter(_) => todo!(),
+                ZkSyncBaseLayerCircuit::Secp256r1Verify(_) => todo!(),
+                ZkSyncBaseLayerCircuit::EIP4844Repack(_) => todo!(),
             }
         }
         CircuitWrapper::Recursive(circuit) => {
@@ -131,10 +133,13 @@ fn pretty_print_circuit_wrapper(circuit: &CircuitWrapper) {
                 ZkSyncRecursiveLayerCircuit::LeafLayerCircuitForEventsSorter(_) => todo!(),
                 ZkSyncRecursiveLayerCircuit::LeafLayerCircuitForL1MessagesSorter(_) => todo!(),
                 ZkSyncRecursiveLayerCircuit::LeafLayerCircuitForL1MessagesHasher(_) => todo!(),
+                ZkSyncRecursiveLayerCircuit::LeafLayerCircuitForTransientStorageSorter(_) => {
+                    todo!()
+                }
+                ZkSyncRecursiveLayerCircuit::LeafLayerCircuitForSecp256r1Verify(_) => todo!(),
+                ZkSyncRecursiveLayerCircuit::LeafLayerCircuitForEIP4844Repack(_) => todo!(),
+                ZkSyncRecursiveLayerCircuit::RecursionTipCircuit(_) => todo!(),
             }
-        }
-        CircuitWrapper::Eip4844(_) => {
-            println!("Type: eip4844")
         }
     }
 }
@@ -159,9 +164,6 @@ fn pretty_print_proof(result: &FriProofWrapper) {
             let proof = proof.clone().into_inner();
             println!("Proof config: {:?}", proof.proof_config);
             println!("Proof public inputs: {:?}", proof.public_inputs);
-        }
-        FriProofWrapper::Eip4844(_) => {
-            println!("4844 blob proof",);
         }
     }
 }
