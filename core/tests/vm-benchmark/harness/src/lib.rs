@@ -18,7 +18,7 @@ use zksync_types::{
     helpers::unix_timestamp_ms,
     l2::L2Tx,
     utils::storage_key_for_eth_balance,
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, PackedEthSignature, ProtocolVersionId,
+    Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId,
     Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
 use zksync_utils::bytecode::hash_bytecode;
@@ -42,9 +42,8 @@ pub fn cut_to_allowed_bytecode_size(bytes: &[u8]) -> Option<&[u8]> {
 static STORAGE: Lazy<InMemoryStorage> = Lazy::new(|| {
     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
 
-    // give `PRIVATE_KEY` some money
-    let my_addr = PackedEthSignature::address_from_private_key(&PRIVATE_KEY).unwrap();
-    let key = storage_key_for_eth_balance(&my_addr);
+    // Give `PRIVATE_KEY` some money
+    let key = storage_key_for_eth_balance(&PRIVATE_KEY.address());
     storage.set_value(key, zksync_utils::u256_to_h256(U256([0, 0, 1, 0])));
 
     storage
@@ -58,7 +57,9 @@ static CREATE_FUNCTION_SIGNATURE: Lazy<[u8; 4]> = Lazy::new(|| {
         .unwrap()
         .short_signature()
 });
-const PRIVATE_KEY: H256 = H256([42; 32]);
+
+static PRIVATE_KEY: Lazy<K256PrivateKey> =
+    Lazy::new(|| K256PrivateKey::from_bytes(H256([42; 32])).expect("invalid key bytes"));
 
 pub struct BenchmarkingVm(Vm<StorageView<&'static InMemoryStorage>, HistoryEnabled>);
 

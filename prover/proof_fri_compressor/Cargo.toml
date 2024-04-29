@@ -39,4 +39,3 @@ bincode.workspace = true
 reqwest = { workspace = true, features = ["blocking"] }
 serde_json.workspace = true
 serde = { workspace = true, features = ["derive"] }
-

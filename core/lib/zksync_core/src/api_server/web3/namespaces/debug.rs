@@ -57,7 +57,6 @@ impl DebugNamespace {
         &self.state.current_method
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn debug_trace_block_impl(
         &self,
         block_id: BlockId,
@@ -91,7 +90,6 @@ impl DebugNamespace {
         Ok(call_trace)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn debug_trace_block_flat_impl(
         &self,
         block_id: BlockId,
@@ -102,7 +100,6 @@ impl DebugNamespace {
         Ok(call_trace_flat)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn debug_trace_transaction_impl(
         &self,
         tx_hash: H256,
@@ -126,7 +123,6 @@ impl DebugNamespace {
         }))
     }
 
-    #[tracing::instrument(skip(self, request, block_id))]
     pub async fn debug_trace_call_impl(
         &self,
         request: CallRequest,
