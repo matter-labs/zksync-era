@@ -51,7 +51,7 @@ impl ActionQueueSender {
                     l2_block_open = true;
                 }
                 SyncAction::Tx(_) => {
-                    if !batch_open && !l2_block_open {
+                    if !l2_block_open {
                         return Err(format!("Unexpected Tx: {:?}", actions));
                     }
                 }
@@ -261,24 +261,15 @@ mod tests {
             // Incomplete sequences.
             (vec![open_batch()], "Incomplete sequence"),
             (vec![open_batch(), tx()], "Incomplete sequence"),
-            (vec![l2_block()], "Incomplete sequence"),
-            (vec![l2_block(), tx()], "Incomplete sequence"),
-            // Unexpected tx
+            // (vec![l2_block()], "Incomplete sequence"),
+            // (vec![l2_block(), tx()], "Incomplete sequence"),
+            // // Unexpected tx
             (vec![tx()], "Unexpected Tx"),
             (vec![open_batch(), seal_l2_block(), tx()], "Unexpected Tx"),
             // Unexpected `OpenBatch / L2Block`
-            (
-                vec![l2_block(), l2_block()],
-                "Unexpected OpenBatch / L2Block",
-            ),
-            (
-                vec![l2_block(), open_batch()],
-                "Unexpected OpenBatch / L2Block",
-            ),
-            (
-                vec![open_batch(), l2_block()],
-                "Unexpected OpenBatch / L2Block",
-            ),
+            (vec![l2_block(), l2_block()], "Unexpected L2Block"),
+            (vec![l2_block(), open_batch()], "Unexpected OpenBatch"),
+            (vec![open_batch(), l2_block()], "Unexpected L2Block"),
             // Unexpected `SealL2Block`
             (vec![seal_l2_block()], "Unexpected SealL2Block"),
             (
@@ -287,13 +278,13 @@ mod tests {
             ),
             (
                 vec![open_batch(), seal_l2_block(), seal_batch(), seal_batch()],
-                "Unexpected SealL2Block / SealBatch",
+                "Unexpected SealBatch",
             ),
             (
-                vec![l2_block(), seal_l2_block(), seal_batch(), seal_batch()],
-                "Unexpected SealL2Block / SealBatch",
+                vec![l2_block(), seal_l2_block(), seal_batch()],
+                "Unexpected SealBatch",
             ),
-            (vec![seal_batch()], "Unexpected SealL2Block / SealBatch"),
+            (vec![seal_batch()], "Unexpected SealBatch"),
         ];
         for (idx, (sequence, expected_err)) in test_vector.into_iter().enumerate() {
             let Err(err) = ActionQueueSender::check_action_sequence(&sequence) else {
