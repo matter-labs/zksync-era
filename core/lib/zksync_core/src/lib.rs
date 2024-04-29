@@ -60,9 +60,9 @@ use zksync_house_keeper::{
     periodic_job::PeriodicJob,
     waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
 };
+use zksync_node_shared::genesis::{ensure_genesis_state, GenesisParams};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_shared::genesis::GenesisParams;
 use zksync_shared_metrics::{InitStage, APP_METRICS};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
@@ -127,7 +127,7 @@ pub async fn genesis_init(
     let mut storage = pool.connection().await.context("connection()")?;
 
     let params = GenesisParams::load_genesis_params(genesis_config)?;
-    zksync_shared::genesis::ensure_genesis_state(&mut storage, &params).await?;
+    ensure_genesis_state(&mut storage, &params).await?;
 
     Ok(())
 }

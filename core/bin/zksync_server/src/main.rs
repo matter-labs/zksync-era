@@ -24,7 +24,7 @@ use zksync_core::{
     Component, Components,
 };
 use zksync_env_config::FromEnv;
-use zksync_shared::genesis;
+use zksync_node_shared::genesis;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 

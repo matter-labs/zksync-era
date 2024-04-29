@@ -248,7 +248,7 @@ mod tests {
     use futures::FutureExt;
     use multivm::zk_evm_latest::ethereum_types::{H256, U256};
     use zksync_dal::CoreDal;
-    use zksync_shared::genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_shared::genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{
         api::TransactionStatus, block::BlockGasCount, tx::ExecutionMetrics, L1BatchNumber,
         L2BlockNumber,

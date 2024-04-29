@@ -156,7 +156,7 @@ async fn get_transaction_nonces(
 
 #[cfg(test)]
 mod tests {
-    use zksync_shared::genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_shared::genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{
         fee::TransactionExecutionMetrics, L2BlockNumber, PriorityOpId, ProtocolVersionId,
         StorageLog, H256,
