@@ -54,7 +54,6 @@ use zksync_house_keeper::{
     fri_prover_job_retry_manager::FriProverJobRetryManager,
     fri_prover_jobs_archiver::FriProverJobArchiver,
     fri_prover_queue_monitor::FriProverStatsReporter,
-    fri_scheduler_circuit_queuer::SchedulerCircuitQueuer,
     fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager,
     fri_witness_generator_queue_monitor::FriWitnessGeneratorStatsReporter,
     periodic_job::PeriodicJob,
@@ -636,7 +635,7 @@ pub async fn initialize_components(
         let l1_chain_id = genesis_config.l1_chain_id;
 
         let eth_client = PKSigningClient::new_raw(
-            operator_private_key,
+            operator_private_key.clone(),
             diamond_proxy_addr,
             default_priority_fee_per_gas,
             l1_chain_id,
@@ -710,7 +709,7 @@ pub async fn initialize_components(
         let l1_chain_id = genesis_config.l1_chain_id;
 
         let eth_client = PKSigningClient::new_raw(
-            operator_private_key,
+            operator_private_key.clone(),
             diamond_proxy_addr,
             default_priority_fee_per_gas,
             l1_chain_id,
@@ -718,7 +717,7 @@ pub async fn initialize_components(
         );
 
         let eth_client_blobs = if let Some(blob_operator) = eth_sender_wallets.blob_operator {
-            let operator_blob_private_key = blob_operator.private_key();
+            let operator_blob_private_key = blob_operator.private_key().clone();
             Some(PKSigningClient::new_raw(
                 operator_blob_private_key,
                 diamond_proxy_addr,
@@ -1146,13 +1145,6 @@ async fn add_house_keeper_to_task_futures(
         prover_connection_pool.clone(),
     );
     let task = waiting_to_queued_fri_witness_job_mover.run(stop_receiver.clone());
-    task_futures.push(tokio::spawn(task));
-
-    let scheduler_circuit_queuer = SchedulerCircuitQueuer::new(
-        house_keeper_config.witness_job_moving_interval_ms,
-        prover_connection_pool.clone(),
-    );
-    let task = scheduler_circuit_queuer.run(stop_receiver.clone());
     task_futures.push(tokio::spawn(task));
 
     let fri_witness_generator_stats_reporter = FriWitnessGeneratorStatsReporter::new(

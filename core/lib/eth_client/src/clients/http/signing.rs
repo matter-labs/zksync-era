@@ -8,9 +8,9 @@ use zksync_types::{
         self,
         contract::tokens::Detokenize,
         ethabi,
-        types::{Address, H160, H256, U256},
+        types::{Address, H160, U256},
     },
-    L1ChainId, PackedEthSignature, EIP_4844_TX_TYPE,
+    K256PrivateKey, L1ChainId, EIP_4844_TX_TYPE,
 };
 
 use super::{Method, LATENCIES};
@@ -24,16 +24,15 @@ pub type PKSigningClient = SigningClient<PrivateKeySigner>;
 
 impl PKSigningClient {
     pub fn new_raw(
-        operator_private_key: H256,
+        operator_private_key: K256PrivateKey,
         diamond_proxy_addr: Address,
         default_priority_fee_per_gas: u64,
         l1_chain_id: L1ChainId,
         query_client: Arc<dyn EthInterface>,
     ) -> Self {
-        let operator_address = PackedEthSignature::address_from_private_key(&operator_private_key)
-            .expect("Failed to get address from private key");
+        let operator_address = operator_private_key.address();
         let signer = PrivateKeySigner::new(operator_private_key);
-        tracing::info!("Operator address: {:?}", operator_address);
+        tracing::info!("Operator address: {operator_address:?}");
         SigningClient::new(
             query_client,
             hyperchain_contract(),

@@ -130,9 +130,15 @@ mod tests {
 
         let actual = EthConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
+        let private_key = actual
+            .sender
+            .unwrap()
+            .private_key()
+            .unwrap()
+            .expect("no private key");
         assert_eq!(
-            actual.sender.unwrap().private_key().unwrap(),
-            hash("27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be")
+            private_key.expose_secret().secret_bytes(),
+            hash("27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be").as_bytes()
         );
     }
 }

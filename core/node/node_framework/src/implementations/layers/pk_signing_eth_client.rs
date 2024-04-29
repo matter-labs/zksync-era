@@ -56,7 +56,7 @@ impl WiringLayer for PKSigningEthClientLayer {
         let EthInterfaceResource(query_client) = context.get_resource().await?;
 
         let signing_client = PKSigningClient::new_raw(
-            private_key,
+            private_key.clone(),
             self.contracts_config.diamond_proxy_addr,
             gas_adjuster_config.default_priority_fee_per_gas,
             self.l1_chain_id,
@@ -67,7 +67,7 @@ impl WiringLayer for PKSigningEthClientLayer {
         if let Some(blob_operator) = &self.wallets.blob_operator {
             let private_key = blob_operator.private_key();
             let signing_client_for_blobs = PKSigningClient::new_raw(
-                private_key,
+                private_key.clone(),
                 self.contracts_config.diamond_proxy_addr,
                 gas_adjuster_config.default_priority_fee_per_gas,
                 self.l1_chain_id,

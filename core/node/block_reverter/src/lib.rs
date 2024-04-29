@@ -25,7 +25,7 @@ use zksync_types::{
         types::{BlockId, BlockNumber},
         Web3,
     },
-    Address, L1BatchNumber, L2ChainId, H160, H256, U256,
+    Address, K256PrivateKey, L1BatchNumber, L2ChainId, H160, H256, U256,
 };
 
 #[cfg(test)]
@@ -34,7 +34,7 @@ mod tests;
 #[derive(Debug)]
 pub struct BlockReverterEthConfig {
     eth_client_url: SensitiveUrl,
-    reverter_private_key: Option<H256>,
+    reverter_private_key: Option<K256PrivateKey>,
     diamond_proxy_addr: H160,
     validator_timelock_addr: H160,
     default_priority_fee_per_gas: u64,
@@ -51,14 +51,15 @@ impl BlockReverterEthConfig {
     ) -> anyhow::Result<Self> {
         #[allow(deprecated)]
         // `BlockReverter` doesn't support non env configs yet
-        let pk = eth_config
+        let reverter_private_key = eth_config
             .sender
             .context("eth_sender_config")?
-            .private_key();
+            .private_key()
+            .context("eth_sender_config.private_key")?;
 
         Ok(Self {
             eth_client_url: eth_config.web3_url,
-            reverter_private_key: pk,
+            reverter_private_key,
             diamond_proxy_addr: contract.diamond_proxy_addr,
             validator_timelock_addr: contract.validator_timelock_addr,
             default_priority_fee_per_gas: eth_config
@@ -468,6 +469,7 @@ impl BlockReverter {
         let signer = PrivateKeySigner::new(
             eth_config
                 .reverter_private_key
+                .clone()
                 .context("private key is required to send revert transaction")?,
         );
         let chain_id = web3

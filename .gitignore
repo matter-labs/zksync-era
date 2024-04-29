@@ -91,3 +91,6 @@ verified_sources
 hyperchain-*.yml
 /etc/hyperchains/prover-keys
 /etc/hyperchains/artifacts
+
+# Prover keys that should not be commited
+prover/vk_setup_data_generator_server_fri/data/setup_*
