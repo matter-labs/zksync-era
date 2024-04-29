@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   changed_files:
-    runs-on: [ matterlabs-default-infra-runners ]
+    runs-on: [matterlabs-default-infra-runners]
     name: Get changed files
     outputs:
       core: ${{ steps.changed-files.outputs.core_any_changed }}
@@ -146,7 +146,7 @@ jobs:
     name: Github Status Check
     runs-on: ubuntu-latest
     if: always() && !cancelled()
-    needs: [ ci-for-core-lint, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-prover-images ]
+    needs: [ci-for-core-lint, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-prover-images]
     steps:
       - name: Status
         run: |
