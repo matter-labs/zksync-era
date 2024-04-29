@@ -136,7 +136,7 @@ impl ApiContracts {
                 post_allowlist_removal: BaseSystemContracts::estimate_gas_post_allowlist_removal(),
                 post_1_4_1: BaseSystemContracts::estimate_gas_post_1_4_1(),
                 post_1_4_2: BaseSystemContracts::estimate_gas_post_1_4_2(),
-                vm_1_5_0_small_memory: BaseSystemContracts::playground_1_5_0_small_memory(),
+                vm_1_5_0_small_memory: BaseSystemContracts::estimate_gas_1_5_0_small_memory(),
                 vm_1_5_0_increased_memory:
                     BaseSystemContracts::estimate_gas_post_1_5_0_increased_memory(),
             },
