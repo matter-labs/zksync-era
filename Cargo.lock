@@ -8553,6 +8553,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_matches",
+ "derive_more 1.0.0-beta.6",
  "rand 0.8.5",
  "serde",
  "serde_json",

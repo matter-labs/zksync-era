@@ -33,6 +33,7 @@ anyhow.workspace = true
 rand.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+derive_more.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true

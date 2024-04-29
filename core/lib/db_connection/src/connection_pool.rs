@@ -25,13 +25,14 @@ use crate::{
 };
 
 /// Builder for [`ConnectionPool`]s.
-#[derive(Debug, Clone)]
+#[derive(derive_more::Debug, Clone)]
 pub struct ConnectionPoolBuilder<DB: DbMarker> {
     database_url: SensitiveUrl,
     max_size: u32,
     acquire_timeout: Duration,
     statement_timeout: Option<Duration>,
-    _marker: PhantomData<DB>,
+    #[debug("{}", std::any::type_name::<DB>())]
+    _db: PhantomData<DB>,
 }
 
 impl<DB: DbMarker> ConnectionPoolBuilder<DB> {
@@ -88,7 +89,7 @@ impl<DB: DbMarker> ConnectionPoolBuilder<DB> {
             inner: pool,
             max_size: self.max_size,
             traced_connections: None,
-            _marker: Default::default(),
+            _db: PhantomData,
         })
     }
 
@@ -99,7 +100,7 @@ impl<DB: DbMarker> ConnectionPoolBuilder<DB> {
             max_size: 1,
             acquire_timeout: self.acquire_timeout,
             statement_timeout: self.statement_timeout,
-            _marker: self._marker,
+            _db: PhantomData,
         };
         singleton_builder.build().await
     }
@@ -235,13 +236,14 @@ impl GlobalConnectionPoolConfig {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(derive_more::Debug, Clone)]
 pub struct ConnectionPool<DB: DbMarker> {
     pub(crate) inner: PgPool,
     database_url: SensitiveUrl,
     max_size: u32,
     pub(crate) traced_connections: Option<Arc<TracedConnections>>,
-    _marker: PhantomData<DB>,
+    #[debug("{}", std::any::type_name::<DB>())]
+    _db: PhantomData<DB>,
 }
 
 impl<DB: DbMarker> ConnectionPool<DB> {
@@ -288,7 +290,7 @@ impl<DB: DbMarker> ConnectionPool<DB> {
             max_size: max_pool_size,
             acquire_timeout: Duration::from_secs(30), // Default value used by `sqlx`
             statement_timeout: None,
-            _marker: Default::default(),
+            _db: PhantomData,
         }
     }
 
