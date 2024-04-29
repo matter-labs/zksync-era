@@ -279,7 +279,7 @@ impl SendTransactionWithDetailedOutputTest {
         };
         vec![
             StorageLogQuery {
-                log_query: log_query.clone(),
+                log_query,
                 log_type: StorageLogQueryType::Read,
             },
             StorageLogQuery {
