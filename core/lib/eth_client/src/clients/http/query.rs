@@ -38,6 +38,7 @@ impl fmt::Debug for QueryClient {
         formatter
             .debug_struct("QueryClient")
             .field("url", &self.url)
+            .field("component", &self.component)
             .finish()
     }
 }

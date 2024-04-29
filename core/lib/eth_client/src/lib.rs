@@ -73,8 +73,12 @@ impl Options {
 /// contract or account address. For that, you can use the `BoundEthInterface` trait.
 #[async_trait]
 pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
+    /// Clones this client.
     fn clone_boxed(&self) -> Box<dyn EthInterface>;
 
+    /// Tags this client as working for a specific component. The component name can be used in logging,
+    /// metrics etc. The component name should be the clones of this client, but should not be passed
+    /// to clients this one was cloned from.
     fn for_component(self: Box<Self>, component_name: &'static str) -> Box<dyn EthInterface>;
 
     /// Fetches the L1 chain ID (in contrast to [`BoundEthInterface::chain_id()`] which returns
@@ -169,6 +173,9 @@ pub trait BoundEthInterface: AsRef<dyn EthInterface> + 'static + Sync + Send + f
     /// Clones this client.
     fn clone_boxed(&self) -> Box<dyn BoundEthInterface>;
 
+    /// Tags this client as working for a specific component. The component name can be used in logging,
+    /// metrics etc. The component name should be the clones of this client, but should not be passed
+    /// to clients this one was cloned from.
     fn for_component(self: Box<Self>, component_name: &'static str) -> Box<dyn BoundEthInterface>;
 
     /// ABI of the contract that is used by the implementer.
