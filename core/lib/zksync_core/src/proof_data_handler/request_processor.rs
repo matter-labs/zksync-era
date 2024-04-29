@@ -132,12 +132,10 @@ impl RequestProcessor {
             .unwrap()
             .unwrap();
 
-        let eip_4844_blobs: Eip4844Blobs = storage_batch
-            .pubdata_input
-            .expect(&format!(
-                "expected pubdata, but it is not available for batch {l1_batch_number:?}"
-            ))
-            .into();
+        let eip_4844_blobs = Eip4844Blobs::decode(&storage_batch.pubdata_input.expect(&format!(
+            "expected pubdata, but it is not available for batch {l1_batch_number:?}"
+        )))
+        .expect("failed to decode EIP-4844 blobs");
 
         let proof_gen_data = ProofGenerationData {
             l1_batch_number,
@@ -146,9 +144,9 @@ impl RequestProcessor {
             l1_verifier_config,
             eip_4844_blobs,
         };
-        Ok(Json(ProofGenerationDataResponse::Success(Some(
+        Ok(Json(ProofGenerationDataResponse::Success(Some(Box::new(
             proof_gen_data,
-        ))))
+        )))))
     }
 
     pub(crate) async fn submit_proof(

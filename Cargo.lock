@@ -3306,15 +3306,15 @@ dependencies = [
 
 [[package]]
 name = "kzg"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2#012dcc678990c695f97e5dd1f136dfa8fe376c16"
+version = "0.1.50"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#466c89e05a4000f83249c001d825dea546d6f85f"
 dependencies = [
  "boojum",
  "derivative",
  "rayon",
  "serde",
  "serde_json",
- "zkevm_circuits 1.4.1",
+ "zkevm_circuits 1.5.0",
 ]
 
 [[package]]
@@ -8114,6 +8114,7 @@ dependencies = [
 name = "zksync_basic_types"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "chrono",
  "num_enum 0.7.2",
  "serde",
@@ -8885,7 +8886,7 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "chrono",
- "circuit_sequencer_api 0.1.42",
+ "circuit_sequencer_api 0.1.50",
  "serde",
  "serde_with",
  "strum",
