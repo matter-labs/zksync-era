@@ -7,6 +7,7 @@ use tokio::{
     task::JoinHandle,
     time::{interval, Duration},
 };
+use tracing::Instrument as _;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{L2BlockNumber, H128, H256};
 use zksync_web3_decl::{
@@ -344,7 +345,7 @@ impl EthSubscribe {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, pending_sink))]
+    #[tracing::instrument(level = "debug", skip(self, pending_sink))]
     pub async fn sub(
         &self,
         pending_sink: PendingSubscriptionSink,
@@ -357,12 +358,10 @@ impl EthSubscribe {
                     return;
                 };
                 let blocks_rx = self.blocks.subscribe();
-                tokio::spawn(Self::run_subscriber(
-                    sink,
-                    SubscriptionType::Blocks,
-                    blocks_rx,
-                    None,
-                ));
+                tokio::spawn(
+                    Self::run_subscriber(sink, SubscriptionType::Blocks, blocks_rx, None)
+                        .in_current_span(),
+                );
 
                 Some(SubscriptionType::Blocks)
             }
@@ -371,12 +370,10 @@ impl EthSubscribe {
                     return;
                 };
                 let transactions_rx = self.transactions.subscribe();
-                tokio::spawn(Self::run_subscriber(
-                    sink,
-                    SubscriptionType::Txs,
-                    transactions_rx,
-                    None,
-                ));
+                tokio::spawn(
+                    Self::run_subscriber(sink, SubscriptionType::Txs, transactions_rx, None)
+                        .in_current_span(),
+                );
                 Some(SubscriptionType::Txs)
             }
             "logs" => {
@@ -391,12 +388,10 @@ impl EthSubscribe {
                         return;
                     };
                     let logs_rx = self.logs.subscribe();
-                    tokio::spawn(Self::run_subscriber(
-                        sink,
-                        SubscriptionType::Logs,
-                        logs_rx,
-                        Some(filter),
-                    ));
+                    tokio::spawn(
+                        Self::run_subscriber(sink, SubscriptionType::Logs, logs_rx, Some(filter))
+                            .in_current_span(),
+                    );
                     Some(SubscriptionType::Logs)
                 }
             }

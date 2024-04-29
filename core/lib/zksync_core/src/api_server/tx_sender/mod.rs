@@ -314,16 +314,17 @@ impl TxSender {
             .context("failed acquiring connection to replica DB")
     }
 
-    #[tracing::instrument(skip(self, tx))]
+    #[tracing::instrument(level = "debug", skip_all, fields(tx.hash = ?tx.hash()))]
     pub async fn submit_tx(&self, tx: L2Tx) -> Result<L2TxSubmissionResult, SubmitTxError> {
-        let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::Validate].start();
+        let tx_hash = tx.hash();
+        let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::Validate);
         let mut connection = self.acquire_replica_connection().await?;
         let protocol_version = pending_protocol_version(&mut connection).await?;
         drop(connection);
         self.validate_tx(&tx, protocol_version).await?;
         stage_latency.observe();
 
-        let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::DryRun].start();
+        let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DryRun);
         let shared_args = self.shared_args().await?;
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
@@ -345,15 +346,14 @@ impl TxSender {
                 vec![],
             )
             .await?;
-
         tracing::info!(
-            "Submit tx {:?} with execution metrics {:?}",
-            tx.hash(),
+            "Submit tx {tx_hash:?} with execution metrics {:?}",
             execution_output.metrics
         );
         stage_latency.observe();
 
-        let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::VerifyExecute].start();
+        let stage_latency =
+            SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::VerifyExecute);
         let computational_gas_limit = self.0.sender_config.validation_computational_gas_limit;
         let validation_result = self
             .0
@@ -376,9 +376,9 @@ impl TxSender {
             return Err(SubmitTxError::FailedToPublishCompressedBytecodes);
         }
 
-        let stage_started_at = Instant::now();
+        let mut stage_latency =
+            SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DbInsert);
         self.ensure_tx_executable(&tx.clone().into(), &execution_output.metrics, true)?;
-
         let submission_res_handle = self
             .0
             .tx_sink
@@ -405,13 +405,12 @@ impl TxSender {
             }
             L2TxSubmissionResult::InsertionInProgress => Err(SubmitTxError::InsertionInProgress),
             L2TxSubmissionResult::Proxied => {
-                SANDBOX_METRICS.submit_tx[&SubmitTxStage::TxProxy]
-                    .observe(stage_started_at.elapsed());
+                stage_latency.set_stage(SubmitTxStage::TxProxy);
+                stage_latency.observe();
                 Ok(submission_res_handle)
             }
             _ => {
-                SANDBOX_METRICS.submit_tx[&SubmitTxStage::DbInsert]
-                    .observe(stage_started_at.elapsed());
+                stage_latency.observe();
                 Ok(submission_res_handle)
             }
         }
@@ -683,6 +682,10 @@ impl TxSender {
         }
     }
 
+    #[tracing::instrument(level = "debug", skip_all, fields(
+        initiator = ?tx.initiator_account(),
+        nonce = ?tx.nonce(),
+    ))]
     pub async fn get_txs_fee_in_wei(
         &self,
         mut tx: Transaction,
@@ -801,15 +804,9 @@ impl TxSender {
         // the transaction succeeds
         let mut lower_bound = 0;
         let mut upper_bound = MAX_L2_TX_GAS_LIMIT;
-        let tx_id = format!(
-            "{:?}-{}",
-            tx.initiator_account(),
-            tx.nonce().unwrap_or(Nonce(0))
-        );
         tracing::trace!(
-            "fee estimation tx {:?}: preparation took {:?}, starting binary search",
-            tx_id,
-            estimation_started_at.elapsed(),
+            "preparation took {:?}, starting binary search",
+            estimation_started_at.elapsed()
         );
 
         let mut number_of_iterations = 0usize;
@@ -841,12 +838,8 @@ impl TxSender {
             }
 
             tracing::trace!(
-                "fee estimation tx {:?}: iteration {} took {:?}. lower_bound: {}, upper_bound: {}",
-                tx_id,
-                number_of_iterations,
-                iteration_started_at.elapsed(),
-                lower_bound,
-                upper_bound,
+                "iteration {number_of_iterations} took {:?}. lower_bound: {lower_bound}, upper_bound: {upper_bound}",
+                iteration_started_at.elapsed()
             );
             number_of_iterations += 1;
         }
@@ -905,10 +898,8 @@ impl TxSender {
         let estimated_gas_for_pubdata =
             (gas_for_pubdata as f64 * estimated_fee_scale_factor) as u64;
 
-        tracing::info!(
-            initiator = ?tx.initiator_account(),
-            nonce = %tx.nonce().unwrap_or(Nonce(0)),
-            "fee estimation: gas for pubdata: {estimated_gas_for_pubdata}, computational gas: {}, overhead gas: {overhead} \
+        tracing::debug!(
+            "gas for pubdata: {estimated_gas_for_pubdata}, computational gas: {}, overhead gas: {overhead} \
             (with params base_fee: {base_fee}, gas_per_pubdata_byte: {gas_per_pubdata_byte}) \
             estimated_fee_scale_factor: {estimated_fee_scale_factor}",
             suggested_gas_limit - estimated_gas_for_pubdata,
