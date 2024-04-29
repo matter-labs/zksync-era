@@ -131,6 +131,8 @@ impl MockExecutedTxHandle<'_> {
     }
 }
 
+type CallHandler = dyn Fn(&ContractCall) -> Result<ethabi::Token, Error> + Send + Sync;
+
 /// Mock Ethereum client is capable of recording all the incoming requests for the further analysis.
 pub struct MockEthereum {
     max_fee_per_gas: U256,
@@ -141,7 +143,7 @@ pub struct MockEthereum {
     /// This is useful for testing the cases when the transactions are executed out of order.
     non_ordering_confirmations: bool,
     inner: RwLock<MockEthereumInner>,
-    call_handler: Box<dyn Fn(&ContractCall) -> ethabi::Token + Send + Sync>,
+    call_handler: Box<CallHandler>,
 }
 
 impl fmt::Debug for MockEthereum {
@@ -276,6 +278,16 @@ impl MockEthereum {
         F: 'static + Send + Sync + Fn(&ContractCall) -> ethabi::Token,
     {
         Self {
+            call_handler: Box::new(move |call| Ok(call_handler(call))),
+            ..self
+        }
+    }
+
+    pub fn with_fallible_call_handler<F>(self, call_handler: F) -> Self
+    where
+        F: 'static + Send + Sync + Fn(&ContractCall) -> Result<ethabi::Token, Error>,
+    {
+        Self {
             call_handler: Box::new(call_handler),
             ..self
         }
@@ -365,8 +377,7 @@ impl EthInterface for MockEthereum {
         &self,
         call: ContractCall,
     ) -> Result<Vec<ethabi::Token>, Error> {
-        let response = (self.call_handler)(&call);
-        Ok(vec![response])
+        (self.call_handler)(&call).map(|token| vec![token])
     }
 
     async fn get_tx(
