@@ -2186,4 +2186,35 @@ mod tests {
             .expect("no call trace");
         assert_eq!(call_trace, expected_call_trace);
     }
+
+    #[tokio::test]
+    async fn insert_l2_block_executed_txs() {
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
+        let tx = mock_l2_transaction();
+        let tx_hash = tx.hash();
+        let tx_result = mock_execution_result(tx);
+        conn.transactions_dal()
+            .mark_txs_as_executed_in_l2_block(
+                L2BlockNumber(1),
+                &[tx_result],
+                1.into(),
+                ProtocolVersionId::latest(),
+                true,
+            )
+            .await
+            .unwrap();
+
+        let tx_from_db = conn
+            .transactions_web3_dal()
+            .get_transactions(&[tx_hash], Default::default())
+            .await
+            .unwrap();
+        assert_eq!(tx_from_db[0].hash, tx_hash);
+    }
 }
