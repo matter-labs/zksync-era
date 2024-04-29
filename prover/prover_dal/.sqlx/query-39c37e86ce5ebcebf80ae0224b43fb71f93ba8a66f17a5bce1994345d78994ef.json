@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM node_aggregation_witness_jobs_fri",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "39c37e86ce5ebcebf80ae0224b43fb71f93ba8a66f17a5bce1994345d78994ef"
+}

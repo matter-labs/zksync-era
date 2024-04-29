@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM scheduler_witness_jobs_fri",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "98dca4e4565b8fe3b8fbeb19fceb5004ff11de1aae6d9639366dde9b7b42d800"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM gpu_prover_queue_fri_id_seq",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "5a69f8c1aff9f7d36ca7f67db1dd63d68859bc719313a30fbd399f1009a07fa3"
+}

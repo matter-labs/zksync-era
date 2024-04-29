@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM witness_inputs_fri",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "4d60b156ec6c7c55989f89ed92f155a63bf176555bf3da67a984eeb36def1e24"
+}

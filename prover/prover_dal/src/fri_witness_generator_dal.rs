@@ -1219,10 +1219,38 @@ impl FriWitnessGeneratorDal<'_, '_> {
         self.delete_scheduler_batch_data(block_number).await;
     }
 
-    pub async fn delete_all(&mut self) {
-        sqlx::query!("TRUNCATE TABLE witness_inputs_fri, leaf_aggregation_witness_jobs_fri, node_aggregation_witness_jobs_fri, scheduler_witness_jobs_fri, scheduler_dependency_tracker_fri")
+    pub async fn delete_basic_witness_generator_data(&mut self) {
+        sqlx::query!("DELETE FROM witness_inputs_fri")
             .execute(self.storage.conn())
             .await
             .unwrap();
+    }
+
+    pub async fn delete_leaf_aggregation_generator_data(&mut self) {
+        sqlx::query!("DELETE FROM leaf_aggregation_witness_jobs_fri")
+            .execute(self.storage.conn())
+            .await
+            .unwrap();
+    }
+
+    pub async fn delete_node_aggregation_generator_data(&mut self) {
+        sqlx::query!("DELETE FROM node_aggregation_witness_jobs_fri")
+            .execute(self.storage.conn())
+            .await
+            .unwrap();
+    }
+
+    pub async fn delete_scheduler_generator_data(&mut self) {
+        sqlx::query!("DELETE FROM scheduler_witness_jobs_fri")
+            .execute(self.storage.conn())
+            .await
+            .unwrap();
+    }
+
+    pub async fn delete(&mut self) {
+        self.delete_basic_witness_generator_data().await;
+        self.delete_leaf_aggregation_generator_data().await;
+        self.delete_node_aggregation_generator_data().await;
+        self.delete_scheduler_generator_data().await;
     }
 }

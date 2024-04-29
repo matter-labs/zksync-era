@@ -210,10 +210,22 @@ impl FriGpuProverQueueDal<'_, '_> {
         .unwrap_or(0) as usize
     }
 
-    pub async fn delete_all(&mut self) {
-        sqlx::query!("TRUNCATE TABLE gpu_prover_queue_fri, gpu_prover_queue_fri_archive")
+    pub async fn delete_gpu_prover_queue_fri(&mut self) {
+        sqlx::query!("DELETE FROM gpu_prover_queue_fri")
             .execute(self.storage.conn())
             .await
             .unwrap();
+    }
+
+    pub async fn delete_gpu_prover_queue_fri_archive(&mut self) {
+        sqlx::query!("DELETE FROM gpu_prover_queue_fri")
+            .execute(self.storage.conn())
+            .await
+            .unwrap();
+    }
+
+    pub async fn delete(&mut self) {
+        self.delete_gpu_prover_queue_fri().await;
+        self.delete_gpu_prover_queue_fri_archive().await;
     }
 }

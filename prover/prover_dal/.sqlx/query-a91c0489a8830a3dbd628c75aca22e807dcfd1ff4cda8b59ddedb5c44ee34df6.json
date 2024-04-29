@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "TRUNCATE TABLE proof_compression_jobs_fri",
+  "query": "DELETE FROM proof_compression_jobs_fri",
   "describe": {
     "columns": [],
     "parameters": {
@@ -8,5 +8,5 @@
     },
     "nullable": []
   },
-  "hash": "947aa12dde06dbc303d90b7be9763bb1c30ebeeec30089476d11ac957209398c"
+  "hash": "a91c0489a8830a3dbd628c75aca22e807dcfd1ff4cda8b59ddedb5c44ee34df6"
 }

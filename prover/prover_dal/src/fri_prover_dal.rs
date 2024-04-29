@@ -637,10 +637,22 @@ impl FriProverDal<'_, '_> {
             .await;
     }
 
-    pub async fn delete_all(&mut self) {
-        sqlx::query!("TRUNCATE TABLE prover_jobs_fri, prover_jobs_fri_archive")
+    pub async fn delete_prover_jobs_fri(&mut self) {
+        sqlx::query!("DELETE FROM prover_jobs_fri")
             .execute(self.storage.conn())
             .await
             .unwrap();
+    }
+
+    pub async fn delete_prover_jobs_fri_archive(&mut self) {
+        sqlx::query!("DELETE FROM prover_jobs_fri_archive")
+            .execute(self.storage.conn())
+            .await
+            .unwrap();
+    }
+
+    pub async fn delete(&mut self) {
+        self.delete_prover_jobs_fri().await;
+        self.delete_prover_jobs_fri_archive().await;
     }
 }

@@ -343,8 +343,8 @@ impl FriProofCompressorDal<'_, '_> {
         .unwrap();
     }
 
-    pub async fn delete_all(&mut self) {
-        sqlx::query!("TRUNCATE TABLE proof_compression_jobs_fri")
+    pub async fn delete(&mut self) {
+        sqlx::query!("DELETE FROM proof_compression_jobs_fri")
             .execute(self.storage.conn())
             .await
             .unwrap();

@@ -91,8 +91,8 @@ impl FriProtocolVersionsDal<'_, '_> {
         .collect()
     }
 
-    pub async fn delete_all(&mut self) {
-        sqlx::query!("TRUNCATE TABLE prover_fri_protocol_versions")
+    pub async fn delete(&mut self) {
+        sqlx::query!("DELETE FROM prover_fri_protocol_versions")
             .execute(self.storage.conn())
             .await
             .unwrap();
