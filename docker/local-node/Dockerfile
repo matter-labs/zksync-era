@@ -70,4 +70,5 @@ RUN mkdir /etc/env/l1-inits && mkdir /etc/env/l2-inits
 
 # setup entrypoint script
 COPY ./docker/local-node/entrypoint.sh /usr/bin/
+ENV LEGACY_BRIDGE_TESTING=true
 ENTRYPOINT ["entrypoint.sh"]
