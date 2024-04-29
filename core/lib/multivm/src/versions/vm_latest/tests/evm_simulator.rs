@@ -757,6 +757,76 @@ fn test_basic_gt_vectors() {
 }
 
 #[test]
+fn test_basic_sgt_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push32 -3
+                hex::decode("7F").unwrap(),
+                hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFD")
+                    .unwrap(),
+                // push1 13
+                hex::decode("60").unwrap(),
+                hex::decode("0D").unwrap(),
+                // sgt
+                hex::decode("13").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        1.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 7
+                hex::decode("60").unwrap(),
+                hex::decode("07").unwrap(),
+                // push32 -8
+                hex::decode("7F").unwrap(),
+                hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF8")
+                    .unwrap(),
+                // sgt
+                hex::decode("13").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push1 50
+                hex::decode("60").unwrap(),
+                hex::decode("3C").unwrap(),
+                // push1 50
+                hex::decode("60").unwrap(),
+                hex::decode("3C").unwrap(),
+                // sgt
+                hex::decode("13").unwrap(),
+                // push0
+                hex::decode("5F").unwrap(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        0.into()
+    );
+}
+
+#[test]
 fn test_basic_slt_vectors() {
     // Here we just try to test some small EVM contracts and ensure that they work.
     assert_eq!(
@@ -2147,10 +2217,7 @@ fn test_basic_address_vectors() {
             .into_iter()
             .concat()
         ),
-        h256_to_u256(H256::from(
-            Address::from_str(CONTRACT_ADDRESS).unwrap()
-        ))
-        .into()
+        h256_to_u256(H256::from(Address::from_str(CONTRACT_ADDRESS).unwrap())).into()
     );
 }
 
@@ -2200,7 +2267,8 @@ fn test_basic_balance_gas_vectors() {
     );
     assert_eq!(initial_gas - gas_left, U256::from_dec_str("105").unwrap());
 
-    let gas_left = test_evm_vector( // Random Address
+    let gas_left = test_evm_vector(
+        // Random Address
         vec![
             // push20 0xab03a0B5963f75f1C8485B355fF6D30f3093BDE8
             hex::decode("73").unwrap(),
@@ -2215,11 +2283,12 @@ fn test_basic_balance_gas_vectors() {
             hex::decode("55").unwrap(),
         ]
         .into_iter()
-        .concat()
+        .concat(),
     );
-    assert_eq!(initial_gas - gas_left,U256::from_dec_str("2605").unwrap());
+    assert_eq!(initial_gas - gas_left, U256::from_dec_str("2605").unwrap());
 
-    let gas_left = test_evm_vector( // Random Address accesed twice
+    let gas_left = test_evm_vector(
+        // Random Address accesed twice
         vec![
             // push20 0xab03a0B5963f75f1C8485B355fF6D30f3093BDE8
             hex::decode("73").unwrap(),
@@ -2239,9 +2308,9 @@ fn test_basic_balance_gas_vectors() {
             hex::decode("55").unwrap(),
         ]
         .into_iter()
-        .concat()
+        .concat(),
     );
-    assert_eq!(initial_gas - gas_left,U256::from_dec_str("2708").unwrap());
+    assert_eq!(initial_gas - gas_left, U256::from_dec_str("2708").unwrap());
 }
 
 #[test]
@@ -2471,14 +2540,16 @@ fn test_basic_create_vectors() {
             vec![
                 // push32
                 hex::decode("7F").unwrap(),
-                hex::decode("6080604052348015600e575f80fd5b5060af80601a5f395ff3fe608060405234").unwrap(),
+                hex::decode("6080604052348015600e575f80fd5b5060af80601a5f395ff3fe608060405234")
+                    .unwrap(),
                 // push0
                 hex::decode("5F").unwrap(),
                 // mstore
                 hex::decode("52").unwrap(),
                 // push32
                 hex::decode("7F").unwrap(),
-                hex::decode("8015600e575f80fd5b50600436106026575f3560e01c80636d4ce63c14602a57").unwrap(),
+                hex::decode("8015600e575f80fd5b50600436106026575f3560e01c80636d4ce63c14602a57")
+                    .unwrap(),
                 // push1 32
                 hex::decode("60").unwrap(),
                 hex::decode("20").unwrap(),
@@ -2486,7 +2557,8 @@ fn test_basic_create_vectors() {
                 hex::decode("52").unwrap(),
                 // push32
                 hex::decode("7F").unwrap(),
-                hex::decode("5b5f80fd5b60306044565b604051603b91906062565b60405180910390f35b5f").unwrap(),
+                hex::decode("5b5f80fd5b60306044565b604051603b91906062565b60405180910390f35b5f")
+                    .unwrap(),
                 // push1 64
                 hex::decode("60").unwrap(),
                 hex::decode("40").unwrap(),
@@ -2494,7 +2566,8 @@ fn test_basic_create_vectors() {
                 hex::decode("52").unwrap(),
                 // push32
                 hex::decode("7F").unwrap(),
-                hex::decode("6007905090565b5f819050919050565b605c81604c565b82525050565b5f6020").unwrap(),
+                hex::decode("6007905090565b5f819050919050565b605c81604c565b82525050565b5f6020")
+                    .unwrap(),
                 // push1 96
                 hex::decode("60").unwrap(),
                 hex::decode("60").unwrap(),
@@ -2502,7 +2575,8 @@ fn test_basic_create_vectors() {
                 hex::decode("52").unwrap(),
                 // push32
                 hex::decode("7F").unwrap(),
-                hex::decode("8201905060735f8301846055565b9291505056fea26469706673582212201357").unwrap(),
+                hex::decode("8201905060735f8301846055565b9291505056fea26469706673582212201357")
+                    .unwrap(),
                 // push1 128
                 hex::decode("60").unwrap(),
                 hex::decode("80").unwrap(),
@@ -2510,7 +2584,8 @@ fn test_basic_create_vectors() {
                 hex::decode("52").unwrap(),
                 // push32
                 hex::decode("7F").unwrap(),
-                hex::decode("3db24498d07df7d6344f02fa1ccf8e15038b10c382a6d71537a002ad4e736473").unwrap(),
+                hex::decode("3db24498d07df7d6344f02fa1ccf8e15038b10c382a6d71537a002ad4e736473")
+                    .unwrap(),
                 // push1 160
                 hex::decode("60").unwrap(),
                 hex::decode("A0").unwrap(),
@@ -2518,7 +2593,8 @@ fn test_basic_create_vectors() {
                 hex::decode("52").unwrap(),
                 // push32
                 hex::decode("7F").unwrap(),
-                hex::decode("6f6c634300081900330000000000000000000000000000000000000000000000").unwrap(),
+                hex::decode("6f6c634300081900330000000000000000000000000000000000000000000000")
+                    .unwrap(),
                 // push1 192
                 hex::decode("60").unwrap(),
                 hex::decode("C0").unwrap(),
@@ -2552,14 +2628,16 @@ fn test_basic_create2_vectors() {
             vec![
                 // push32
                 hex::decode("7F").unwrap(),
-                hex::decode("6080604052348015600e575f80fd5b50603e80601a5f395ff3fe60806040525f").unwrap(),
+                hex::decode("6080604052348015600e575f80fd5b50603e80601a5f395ff3fe60806040525f")
+                    .unwrap(),
                 // push0
                 hex::decode("5F").unwrap(),
                 // mstore
                 hex::decode("52").unwrap(),
                 // push32
                 hex::decode("7F").unwrap(),
-                hex::decode("80fdfea264697066735822122070e77c564e632657f44e4b3cb2d5d4f74255fc").unwrap(),
+                hex::decode("80fdfea264697066735822122070e77c564e632657f44e4b3cb2d5d4f74255fc")
+                    .unwrap(),
                 // push1 32
                 hex::decode("60").unwrap(),
                 hex::decode("20").unwrap(),
@@ -2567,7 +2645,8 @@ fn test_basic_create2_vectors() {
                 hex::decode("52").unwrap(),
                 // push32
                 hex::decode("7F").unwrap(),
-                hex::decode("64ca5fae813eb74275609e61e364736f6c634300081900330000000000000000").unwrap(),
+                hex::decode("64ca5fae813eb74275609e61e364736f6c634300081900330000000000000000")
+                    .unwrap(),
                 // push1 64
                 hex::decode("60").unwrap(),
                 hex::decode("40").unwrap(),
@@ -2592,7 +2671,11 @@ fn test_basic_create2_vectors() {
             .into_iter()
             .concat()
         ),
-        h256_to_u256(H256::from_str("0x000000000000000000000000f9ce5b3ccbbbe0ce1a33b39bd9c723d048514878").unwrap()).into()
+        h256_to_u256(
+            H256::from_str("0x000000000000000000000000f9ce5b3ccbbbe0ce1a33b39bd9c723d048514878")
+                .unwrap()
+        )
+        .into()
     );
 }
 
