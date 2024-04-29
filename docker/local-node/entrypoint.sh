@@ -37,6 +37,24 @@ update_config() {
     fi
 }
 
+# Reads the value of the parameter from the .toml config.
+read_value_from_config() {
+    local file="$1"
+    local parameter="$2"
+    local pattern="^${parameter} =.*$"
+
+    # Check if the parameter exists in the file
+    if grep -q "$pattern" "$file"; then
+        # The parameter exists, so extract its value
+        local value=$(grep "$pattern" "$file" | sed "s/${parameter} = //")
+        echo "$value"
+    else
+        # The parameter does not exist in the file, output error message and return non-zero status
+        echo "Error: '$parameter' not found in $file."
+        return 1  # Return with an error status
+    fi
+}
+
 
 # wait till db service is ready
 until psql ${DATABASE_URL%/*} -c '\q'; do
@@ -66,6 +84,21 @@ else
     update_config "/etc/env/base/database.toml" "state_keeper_db_path" "/var/lib/zksync/data/state_keeper"
     update_config "/etc/env/base/database.toml" "backup_path" "/var/lib/zksync/data/backups"
 
+    if [ "$LEGACY_BRIDGE_TESTING" = "true" ]; then
+      # making era chain id same as current chain id for legacy bridge testing
+      FILE_PATH="/etc/env/base/chain.toml"
+      PARAM_NAME="zksync_network_id"
+
+      CHAIN_ETH_ZKSYNC_NETWORK_ID=$(read_value_from_config "$FILE_PATH" "$PARAM_NAME")
+
+      if [ -z "$CHAIN_ETH_ZKSYNC_NETWORK_ID" ]; then
+        echo "ERROR: $PARAM_NAME is not set in $FILE_PATH."
+        exit 1
+      fi
+
+      update_config "/etc/env/base/contracts.toml" "ERA_CHAIN_ID" "$CHAIN_ETH_ZKSYNC_NETWORK_ID"
+    fi
+
     zk config compile
   
     zk db reset
@@ -85,13 +118,24 @@ else
     zk f zksync_server --genesis
 
 
-    zk contract deploy-l2-through-l1
+    DEPLOY_L2_PARAMS=""
+    if [ "$LEGACY_BRIDGE_TESTING" = "true" ]; then
+      # setting the flag for legacy bridge testing
+      DEPLOY_L2_PARAMS="--local-legacy-bridge-testing"
+    fi
+
+    zk contract deploy-l2-through-l1 $DEPLOY_L2_PARAMS
 
     zk f yarn --cwd /infrastructure/local-setup-preparation start
 
     # Create init file.
     echo "System initialized. Please remove this file if you want to reset the system" > $INIT_FILE
 
+fi
+
+if [ "$LEGACY_BRIDGE_TESTING" = "true" ]; then
+  # setup-legacy-bridge-era waits for the server to be ready, so starting it in the background
+  zk contract setup-legacy-bridge-era &
 fi
 
 # start server

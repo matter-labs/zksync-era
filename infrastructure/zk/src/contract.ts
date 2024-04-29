@@ -322,7 +322,11 @@ command
 command
     .command('deploy-l2-through-l1')
     .description('deploy l2 through l1')
-    .action(() => {
-        deployL2ThroughL1({ includePaymaster: true });
+    .option(
+        '--local-legacy-bridge-testing',
+        'used to test LegacyBridge compatibility. The chain will have the same id as the era chain id, while eraChainId in L2SharedBridge will be 0'
+    )
+    .action((localLegacyBridgeTesting?: boolean) => {
+        deployL2ThroughL1({ includePaymaster: true, localLegacyBridgeTesting });
     });
 command.command('deploy-verifier').description('deploy verifier to l1').action(deployVerifier);
