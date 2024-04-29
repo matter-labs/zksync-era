@@ -5,12 +5,13 @@ use strum::{Display, EnumString};
 use zksync_config::PostgresConfig;
 use zksync_env_config::FromEnv;
 use zksync_types::{
+    basic_fri_types::AggregationRound,
     prover_dal::{ProofCompressionJobStatus, ProverJobFriInfo, ProverJobStatus, WitnessJobStatus},
     L1BatchNumber,
 };
 
 pub fn postgres_config() -> anyhow::Result<PostgresConfig> {
-    Ok(PostgresConfig::from_env()?)
+    PostgresConfig::from_env()
 }
 
 /// Represents the proving data of a batch.
@@ -39,7 +40,7 @@ impl Debug for BatchData {
             format!("Batch {} Status", self.batch_number).bold()
         )?;
         writeln!(f)?;
-        writeln!(f, "= {} =", format!("Proving Stages").bold())?;
+        writeln!(f, "= {} =", "Proving Stages".to_owned().bold())?;
         writeln!(f, "{:?}", self.basic_witness_generator)?;
         writeln!(f, "{:?}", self.leaf_witness_generator)?;
         writeln!(f, "{:?}", self.node_witness_generator)?;
@@ -54,28 +55,46 @@ impl Default for BatchData {
         BatchData {
             batch_number: L1BatchNumber::default(),
             basic_witness_generator: Task::BasicWitnessGenerator {
-                status: TaskStatus::WaitingForProofs,
-                prover_jobs_status: TaskStatus::default(),
+                status: TaskStatus::default(),
+                aggregation_round_info: AggregationRoundInfo {
+                    round: AggregationRound::BasicCircuits,
+                    prover_jobs_status: TaskStatus::default(),
+                },
             },
             leaf_witness_generator: Task::LeafWitnessGenerator {
-                status: TaskStatus::WaitingForProofs,
-                prover_jobs_status: TaskStatus::default(),
+                status: TaskStatus::default(),
+                aggregation_round_info: AggregationRoundInfo {
+                    round: AggregationRound::LeafAggregation,
+                    prover_jobs_status: TaskStatus::default(),
+                },
             },
             node_witness_generator: Task::NodeWitnessGenerator {
-                status: TaskStatus::WaitingForProofs,
-                prover_jobs_status: TaskStatus::default(),
+                status: TaskStatus::default(),
+                aggregation_round_info: AggregationRoundInfo {
+                    round: AggregationRound::NodeAggregation,
+                    prover_jobs_status: TaskStatus::default(),
+                },
             },
             recursion_tip: Task::RecursionTip {
-                status: TaskStatus::WaitingForProofs,
-                prover_jobs_status: TaskStatus::default(),
+                status: TaskStatus::default(),
+                aggregation_round_info: AggregationRoundInfo {
+                    round: AggregationRound::Scheduler,
+                    prover_jobs_status: TaskStatus::default(),
+                },
             },
-            scheduler: Task::Scheduler(TaskStatus::WaitingForProofs),
-            compressor: Task::Compressor(TaskStatus::WaitingForProofs),
+            scheduler: Task::Scheduler {
+                status: TaskStatus::default(),
+                aggregation_round_info: AggregationRoundInfo {
+                    round: AggregationRound::Scheduler,
+                    prover_jobs_status: TaskStatus::default(),
+                },
+            },
+            compressor: Task::Compressor(TaskStatus::JobsNotFound),
         }
     }
 }
 
-#[derive(Debug, EnumString, Clone, Display)]
+#[derive(Default, Debug, EnumString, Clone, Display)]
 pub enum TaskStatus {
     /// A custom status that can be set manually.
     /// Mostly used when a task has singular status.
@@ -93,35 +112,33 @@ pub enum TaskStatus {
     #[strum(to_string = "Waiting for Proof ⏱️")]
     WaitingForProofs,
     /// A task is considered stuck when at least one of its jobs is stuck.
-    #[strum(to_string = "Stuck 🛑")]
+    #[strum(to_string = "Stuck ⛔️")]
     Stuck,
+    /// A task has no jobs.
+    #[default]
+    #[strum(to_string = "Jobs not found 🚫")]
+    JobsNotFound,
 }
 
-impl Default for TaskStatus {
-    fn default() -> Self {
-        TaskStatus::WaitingForProofs
-    }
-}
-
+// This implementation will change to From<Vec<ProverJobFriInfo>> for AggregationRoundInfo
+// once the --verbose flag is implemented.
 impl From<Vec<ProverJobFriInfo>> for TaskStatus {
     fn from(jobs_vector: Vec<ProverJobFriInfo>) -> Self {
         if jobs_vector.is_empty() {
-            return TaskStatus::Custom("No Jobs found ".to_owned());
-        }
-
-        if jobs_vector
+            TaskStatus::JobsNotFound
+        } else if jobs_vector
             .iter()
-            .all(|job| job.status == ProverJobStatus::Queued)
+            .all(|job| matches!(job.status, ProverJobStatus::Queued))
         {
-            return TaskStatus::Queued;
-        } else if jobs_vector.iter().all(|job| match job.status {
-            ProverJobStatus::Successful(_) => true,
-            _ => false,
-        }) {
-            return TaskStatus::Successful;
+            TaskStatus::Queued
+        } else if jobs_vector
+            .iter()
+            .all(|job| matches!(job.status, ProverJobStatus::InProgress(_)))
+        {
+            TaskStatus::Successful
+        } else {
+            TaskStatus::InProgress
         }
-
-        TaskStatus::InProgress
     }
 }
 
@@ -146,29 +163,32 @@ pub enum Task {
     #[strum(to_string = "Basic Witness Generator")]
     BasicWitnessGenerator {
         status: TaskStatus,
-        prover_jobs_status: TaskStatus,
+        aggregation_round_info: AggregationRoundInfo,
     },
     /// Represents the leaf witness generator task, its status and the aggregation round 0 prover jobs data.
     #[strum(to_string = "Leaf Witness Generator")]
     LeafWitnessGenerator {
         status: TaskStatus,
-        prover_jobs_status: TaskStatus,
+        aggregation_round_info: AggregationRoundInfo,
     },
     /// Represents the node witness generator task, its status and the aggregation round 1 prover jobs data.
     #[strum(to_string = "Node Witness Generator")]
     NodeWitnessGenerator {
         status: TaskStatus,
-        prover_jobs_status: TaskStatus,
+        aggregation_round_info: AggregationRoundInfo,
     },
     /// Represents the recursion tip task, its status and the aggregation round 2 prover jobs data.
     #[strum(to_string = "Recursion Tip")]
     RecursionTip {
         status: TaskStatus,
-        prover_jobs_status: TaskStatus,
+        aggregation_round_info: AggregationRoundInfo,
     },
     /// Represents the scheduler task and its status.
     #[strum(to_string = "Scheduler")]
-    Scheduler(TaskStatus),
+    Scheduler {
+        status: TaskStatus,
+        aggregation_round_info: AggregationRoundInfo,
+    },
     /// Represents the compressor task and its status.
     #[strum(to_string = "Compressor")]
     Compressor(TaskStatus),
@@ -181,28 +201,68 @@ impl Task {
             | Task::LeafWitnessGenerator { status, .. }
             | Task::NodeWitnessGenerator { status, .. }
             | Task::RecursionTip { status, .. }
-            | Task::Scheduler(status)
+            | Task::Scheduler { status, .. }
             | Task::Compressor(status) => status.clone(),
         }
     }
-}
 
-impl Task {
+    fn aggregation_round(&self) -> Option<AggregationRound> {
+        match self {
+            Task::BasicWitnessGenerator {
+                aggregation_round_info,
+                ..
+            }
+            | Task::LeafWitnessGenerator {
+                aggregation_round_info,
+                ..
+            }
+            | Task::NodeWitnessGenerator {
+                aggregation_round_info,
+                ..
+            }
+            | Task::RecursionTip {
+                aggregation_round_info,
+                ..
+            }
+            | Task::Scheduler {
+                aggregation_round_info,
+                ..
+            } => Some(aggregation_round_info.round),
+            Task::Compressor(_) => None,
+        }
+    }
+
+    /// Returns the status of the prover jobs.
+    /// If the task is not in progress or successful, returns None.
+    /// Otherwise, returns the status of the prover jobs if the task
+    /// has prover jobs.
     fn prover_jobs_status(&self) -> Option<TaskStatus> {
         match self {
             Task::BasicWitnessGenerator {
-                prover_jobs_status, ..
+                status,
+                aggregation_round_info,
             }
             | Task::LeafWitnessGenerator {
-                prover_jobs_status, ..
+                status,
+                aggregation_round_info,
             }
             | Task::NodeWitnessGenerator {
-                prover_jobs_status, ..
+                status,
+                aggregation_round_info,
             }
             | Task::RecursionTip {
-                prover_jobs_status, ..
-            } => Some(prover_jobs_status.clone()),
-            Task::Scheduler(_) => None,
+                status,
+                aggregation_round_info,
+            }
+            | Task::Scheduler {
+                status,
+                aggregation_round_info,
+            } => match status {
+                TaskStatus::InProgress | TaskStatus::Successful => {
+                    Some(aggregation_round_info.prover_jobs_status.clone())
+                }
+                _ => None,
+            },
             Task::Compressor(_) => None,
         }
     }
@@ -210,18 +270,23 @@ impl Task {
 
 impl Debug for Task {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "-- {} --", self.to_string().bold())?;
-        match self.status() {
-            TaskStatus::InProgress | TaskStatus::Successful => {
-                writeln!(f, "> {}", self.status().to_string())?;
-                if let Some(status) = self.prover_jobs_status() {
-                    writeln!(f, "   > Prover Jobs Status: {}", status.to_string())?;
-                }
+        if let Some(aggregation_round_number) = self.aggregation_round() {
+            writeln!(
+                f,
+                "-- {} --",
+                format!("Aggregation Round {}", aggregation_round_number as u8).bold()
+            )?;
+            if let TaskStatus::Custom(msg) = self.status() {
+                writeln!(f, "{}: {}", self.to_string().bold(), msg)?;
+            } else {
+                writeln!(f, "{}: {}", self.to_string().bold(), self.status())?;
             }
-            TaskStatus::Queued | TaskStatus::WaitingForProofs | TaskStatus::Stuck => {
-                writeln!(f, "> {}", self.status().to_string())?
+            if let Some(prover_jobs_status) = self.prover_jobs_status() {
+                writeln!(f, "> Prover Jobs: {prover_jobs_status}")?;
             }
-            TaskStatus::Custom(msg) => writeln!(f, "> {msg}")?,
+        } else {
+            writeln!(f, "-- {} --", self.to_string().bold())?;
+            writeln!(f, "{}", self.status())?;
         }
         Ok(())
     }
@@ -239,6 +304,21 @@ impl From<WitnessJobStatus> for TaskStatus {
             }
             WitnessJobStatus::Skipped => TaskStatus::Custom("Skipped ⏩".to_owned()),
             WitnessJobStatus::WaitingForProofs => TaskStatus::WaitingForProofs,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct AggregationRoundInfo {
+    pub round: AggregationRound,
+    pub prover_jobs_status: TaskStatus,
+}
+
+impl Default for AggregationRoundInfo {
+    fn default() -> Self {
+        AggregationRoundInfo {
+            round: AggregationRound::BasicCircuits,
+            prover_jobs_status: TaskStatus::default(),
         }
     }
 }
