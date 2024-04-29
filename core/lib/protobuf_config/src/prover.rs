@@ -102,6 +102,8 @@ impl ProtoRepr for proto::ProverGroup {
             group_10: read_vec(&self.group_10).context("group_10")?,
             group_11: read_vec(&self.group_11).context("group_11")?,
             group_12: read_vec(&self.group_12).context("group_12")?,
+            group_13: read_vec(&self.group_13).context("group_13")?,
+            group_14: read_vec(&self.group_14).context("group_14")?,
         })
     }
 
@@ -120,6 +122,8 @@ impl ProtoRepr for proto::ProverGroup {
             group_10: build_vec(&this.group_10),
             group_11: build_vec(&this.group_11),
             group_12: build_vec(&this.group_12),
+            group_13: build_vec(&this.group_13),
+            group_14: build_vec(&this.group_14),
         }
     }
 }
@@ -179,6 +183,11 @@ impl ProtoRepr for proto::WitnessGenerator {
                 .map(|x| x.try_into())
                 .transpose()
                 .context("node_generation_timeout_in_secs")?,
+            recursion_tip_generation_timeout_in_secs: self
+                .recursion_tip_timeout_in_secs
+                .map(|x| x.try_into())
+                .transpose()
+                .context("recursion_tip_generation_timeout_in_secs")?,
             scheduler_generation_timeout_in_secs: self
                 .scheduler_generation_timeout_in_secs
                 .map(|x| x.try_into())
@@ -198,6 +207,9 @@ impl ProtoRepr for proto::WitnessGenerator {
                 .map(|x| x.into()),
             leaf_generation_timeout_in_secs: this.leaf_generation_timeout_in_secs.map(|x| x.into()),
             node_generation_timeout_in_secs: this.node_generation_timeout_in_secs.map(|x| x.into()),
+            recursion_tip_timeout_in_secs: this
+                .recursion_tip_generation_timeout_in_secs
+                .map(|x| x.into()),
             scheduler_generation_timeout_in_secs: this
                 .scheduler_generation_timeout_in_secs
                 .map(|x| x.into()),
