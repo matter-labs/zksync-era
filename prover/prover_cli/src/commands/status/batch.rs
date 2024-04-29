@@ -55,7 +55,7 @@ async fn get_batches_data(batches: Vec<L1BatchNumber>) -> anyhow::Result<Vec<Bat
             },
             leaf_witness_generator: Task::LeafWitnessGenerator {
                 status: get_proof_leaf_witness_generator_status_for_batch(batch, &mut conn).await,
-                prover_jobs_status: get_prover_jobs_data_for_batch(
+                aggregation_round_info: get_prover_jobs_data_for_batch(
                     batch,
                     AggregationRound::LeafAggregation,
                     &mut conn,
@@ -109,9 +109,7 @@ async fn get_proof_leaf_witness_generator_status_for_batch<'a>(
         .get_leaf_witness_generator_job_for_batch(batch_number)
         .await
         .map(|job| TaskStatus::from(job.status))
-        .unwrap_or(TaskStatus::Custom(
-            "Leaf witness generator job not found 🚫".to_owned(),
-        ))
+        .unwrap_or_default()
 }
 
 async fn get_proof_compression_job_status_for_batch<'a>(
