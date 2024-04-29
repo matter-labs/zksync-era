@@ -636,7 +636,7 @@ pub async fn initialize_components(
         let web3_url = &eth.web3_url;
 
         let eth_client = PKSigningClient::new_raw(
-            operator_private_key,
+            operator_private_key.clone(),
             diamond_proxy_addr,
             default_priority_fee_per_gas,
             l1_chain_id,
@@ -711,7 +711,7 @@ pub async fn initialize_components(
         let web3_url = &eth.web3_url;
 
         let eth_client = PKSigningClient::new_raw(
-            operator_private_key,
+            operator_private_key.clone(),
             diamond_proxy_addr,
             default_priority_fee_per_gas,
             l1_chain_id,
@@ -719,7 +719,7 @@ pub async fn initialize_components(
         );
 
         let eth_client_blobs = if let Some(blob_operator) = eth_sender_wallets.blob_operator {
-            let operator_blob_private_key = blob_operator.private_key();
+            let operator_blob_private_key = blob_operator.private_key().clone();
             Some(PKSigningClient::new_raw(
                 operator_blob_private_key,
                 diamond_proxy_addr,
