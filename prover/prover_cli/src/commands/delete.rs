@@ -33,8 +33,15 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
     Ok(())
 }
 
-// This is a placeholder function to delete the batch data from the prover database.
-async fn delete_prover_db(_conn: Connection<'_, Prover>) -> anyhow::Result<()> {
+async fn delete_prover_db(mut conn: Connection<'_, Prover>) -> anyhow::Result<()> {
+    conn.fri_gpu_prover_queue_dal().delete_all().await;
+    conn.fri_prover_jobs_dal().delete_all().await;
+    conn.fri_scheduler_dependency_tracker_dal()
+        .delete_all()
+        .await;
+    conn.fri_protocol_versions_dal().delete_all().await;
+    conn.fri_proof_compressor_dal().delete_all().await;
+    conn.fri_witness_generator_dal().delete_all().await;
     Ok(())
 }
 
