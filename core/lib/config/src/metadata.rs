@@ -11,6 +11,8 @@ pub trait DescribeConfig {
 /// Metadata for a configuration (i.e., a group of related parameters).
 #[derive(Debug)]
 pub struct ConfigMetadata {
+    /// Help regarding the config itself.
+    pub help: &'static str,
     /// Parameters included in the config.
     pub params: Vec<ParamMetadata>,
 }
@@ -33,6 +35,16 @@ pub enum UnitOfMeasurement {
     Seconds,
     Milliseconds,
     Megabytes,
+}
+
+impl fmt::Display for UnitOfMeasurement {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Seconds => "seconds",
+            Self::Milliseconds => "milliseconds",
+            Self::Megabytes => "megabytes (IEC)",
+        })
+    }
 }
 
 impl UnitOfMeasurement {
@@ -78,7 +90,6 @@ impl RustType {
         self.canonical_name
     }
 
-    ///
     pub fn kind(self) -> Option<TypeKind> {
         match self.id {
             id if id == any::TypeId::of::<bool>() => Some(TypeKind::Bool),
@@ -105,6 +116,9 @@ impl RustType {
             {
                 Some(TypeKind::Integer)
             }
+            id if id == any::TypeId::of::<f32>() || id == any::TypeId::of::<f64>() => {
+                Some(TypeKind::Float)
+            }
             id if id == any::TypeId::of::<String>() => Some(TypeKind::String),
             _ => None,
         }
@@ -112,10 +126,23 @@ impl RustType {
 }
 
 /// Human-readable kind for a Rust type used in configuration parameter (Boolean value, integer, string etc.).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, PartialEq)]
 #[non_exhaustive]
 pub enum TypeKind {
     Bool,
     Integer,
+    Float,
     String,
+    // FIXME: support paths and URLs
+}
+
+impl fmt::Display for TypeKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Bool => formatter.write_str("Boolean"),
+            Self::Integer => formatter.write_str("integer"),
+            Self::Float => formatter.write_str("floating-point value"),
+            Self::String => formatter.write_str("string"),
+        }
+    }
 }

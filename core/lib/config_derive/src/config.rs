@@ -8,6 +8,40 @@ use syn::{
     Path, PathArguments, Type, TypePath,
 };
 
+fn parse_docs(attrs: &[Attribute]) -> String {
+    let doc_lines = attrs.iter().filter_map(|attr| {
+        if attr.meta.path().is_ident("doc") {
+            let name_value = attr.meta.require_name_value().ok()?;
+            let Expr::Lit(doc_literal) = &name_value.value else {
+                return None;
+            };
+            match &doc_literal.lit {
+                Lit::Str(doc_literal) => Some(doc_literal.value()),
+                _ => None,
+            }
+        } else {
+            None
+        }
+    });
+
+    let mut docs = String::new();
+    for line in doc_lines {
+        let line = line.trim();
+        if line.is_empty() {
+            if !docs.is_empty() {
+                // New paragraph; convert it to a new line.
+                docs.push('\n');
+            }
+        } else {
+            if !docs.is_empty() && !docs.ends_with(|ch: char| ch.is_ascii_whitespace()) {
+                docs.push(' ');
+            }
+            docs.push_str(line);
+        }
+    }
+    docs
+}
+
 /// Recognized subset of `serde` field attributes.
 #[derive(Debug)]
 struct SerdeData {
@@ -59,37 +93,11 @@ impl ConfigField {
         })?;
         let ty = raw.ty.clone();
 
-        let doc_lines = raw.attrs.iter().filter_map(|attr| {
-            if attr.meta.path().is_ident("doc") {
-                let name_value = attr.meta.require_name_value().ok()?;
-                let Expr::Lit(doc_literal) = &name_value.value else {
-                    return None;
-                };
-                match &doc_literal.lit {
-                    Lit::Str(doc_literal) => Some(doc_literal.value()),
-                    _ => None,
-                }
-            } else {
-                None
-            }
-        });
-
-        let mut docs = String::new();
-        for line in doc_lines {
-            let line = line.trim();
-            if !line.is_empty() {
-                if !docs.is_empty() {
-                    docs.push(' ');
-                }
-                docs.push_str(line);
-            }
-        }
-
         let serde_data = SerdeData::new(&raw.attrs)?;
         Ok(Self {
             name,
             ty,
-            docs,
+            docs: parse_docs(&raw.attrs),
             serde_data,
         })
     }
@@ -191,6 +199,7 @@ impl ConfigField {
 
 struct DescribeConfigImpl {
     name: Ident,
+    help: String,
     fields: Vec<ConfigField>,
 }
 
@@ -214,18 +223,24 @@ impl DescribeConfigImpl {
             .iter()
             .map(ConfigField::new)
             .collect::<syn::Result<_>>()?;
-        Ok(Self { name, fields })
+        Ok(Self {
+            name,
+            help: parse_docs(&raw.attrs),
+            fields,
+        })
     }
 
     fn derive_describe_config(&self) -> proc_macro2::TokenStream {
         let cr = quote!(::zksync_config::metadata);
         let name = &self.name;
+        let help = &self.help;
         let params = self.fields.iter().map(ConfigField::describe);
 
         quote! {
             impl #cr::DescribeConfig for #name {
                 fn describe_config() -> #cr::ConfigMetadata {
                     #cr::ConfigMetadata {
+                        help: #help,
                         params: ::std::vec![#(#params,)*],
                     }
                 }
