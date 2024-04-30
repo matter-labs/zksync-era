@@ -2,10 +2,10 @@
 
 pragma solidity ^0.8.0;
 
-contract BenchmarkCaller {
+contract gasCaller {
     uint256 _resultGas;
 
-    function callAndBenchmark(address _to) external returns (uint256){
+    function callAndGetGas(address _to) external returns (uint256){
         uint256 startGas = gasleft();
         // Just doing a call to an address
         (bool success, ) = _to.call("");
