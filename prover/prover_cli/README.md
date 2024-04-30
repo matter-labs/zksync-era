@@ -1,6 +1,4 @@
-# CLI to better understand and debug provers
-
-## Usage
+# Usage
 
 > Note: For now, its necessary to use the 'zk f' tool to set up the environment. The main command will later be changed
 > to `pli`.
@@ -10,7 +8,7 @@ Usage: zk f cargo run --release -- <COMMAND>
 
 Commands:
   file-info
-  status-jobs
+  status
   help       Print this message or the help of the given subcommand(s)
 
 Options:
@@ -18,35 +16,48 @@ Options:
   -V, --version  Print version
 ```
 
-### Status-jobs
+## Status
 
-You can get the progress for some batch proof, for a bunch of batches the `status-jobs` command:
+### Status batch
 
-```bash
-# Displays the proof progress of the batch 1
- zk f cargo run -- status-jobs --batch 1
-# Displays the proof progress of the batches 1 and 2
- zk f cargo run -- status-jobs --batch 1 2
-# Displays the proof progress of the batch 3, with additional information
- zk f cargo run -- status-jobs --batch 3 --verbose
-```
+Displays the proof status for a given batch or a set of batches.
 
 Example:
 
 ```bash
-$ zk f cargo run -- status-jobs --batch 1 --verbose
+$ zk f run --release -- status batch -n 1
 
-Batch number: 1
-Progress: 34.88% (45/129)
-In progress: 1
-Queued: 83
-Successful: 45
-Failed: 0
+== Batch 1 Status ==
+> In Progress ⌛️
+
+== Proving Stages ==
+-- Aggregaton Round 0 --
+Basic Witness Generator: Done ✅
+> Prover Jobs: In progress ⌛️
+
+-- Aggregaton Round 1 --
+Leaf Witness Generator: In progress ⌛️
+> Prover Jobs: Waiting for proofs ⏱️
+
+-- Aggregaton Round 2 --
+Node Witness Generator: In progress ⌛️
+> Prover Jobs: Waiting for proofs ⏱️
+
+-- Aggregaton Round 3 --
+Recursion Tip: In progress ⌛️
+> Prover Jobs: Waiting for proofs ⏱️
+
+-- Aggregaton Round 4 --
+Scheduler: In progress ⌛️
+> Prover Jobs: Waiting for proofs ⏱️
+
+-- Compressor --
+> Compressor job not found 🚫
 ```
 
-### File-Info
+## File-Info
 
-Displays the information about a given file:
+Displays de information about a given file:
 
 ```bash
 cargo run -- file-info --file-path /zksync-era/prover/artifacts/proofs_fri/l1_batch_proof_1.bin
