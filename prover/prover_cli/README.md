@@ -57,7 +57,7 @@ Scheduler: In progress ⌛️
 
 ## File-Info
 
-Displays de information about a given file:
+Displays the information about a given file:
 
 ```bash
 cargo run -- file-info --file-path /zksync-era/prover/artifacts/proofs_fri/l1_batch_proof_1.bin
