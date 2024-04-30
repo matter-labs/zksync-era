@@ -1,4 +1,4 @@
-## Usage
+# Usage
 
 > Note: For now, its necessary to use the 'zk f' tool to set up the environment. The main command will later be changed
 > to `pli`.
