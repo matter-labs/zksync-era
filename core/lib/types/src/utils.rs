@@ -1,3 +1,6 @@
+use std::fmt;
+
+use chrono::{DateTime, TimeZone, Utc};
 use zksync_basic_types::{Address, H256};
 use zksync_utils::{address_to_h256, u256_to_h256};
 
@@ -5,6 +8,30 @@ use crate::{
     system_contracts::DEPLOYMENT_NONCE_INCREMENT, web3::signing::keccak256, AccountTreeId,
     StorageKey, L2_ETH_TOKEN_ADDRESS, U256,
 };
+
+/// Displays a Unix timestamp (seconds since epoch) in human-readable form. Useful for logging.
+pub fn display_timestamp(timestamp: u64) -> impl fmt::Display {
+    enum DisplayedTimestamp {
+        Parsed(DateTime<Utc>),
+        Raw(u64),
+    }
+
+    impl fmt::Display for DisplayedTimestamp {
+        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::Parsed(timestamp) => fmt::Display::fmt(timestamp, formatter),
+                Self::Raw(raw) => write!(formatter, "(raw: {raw})"),
+            }
+        }
+    }
+
+    let parsed = i64::try_from(timestamp).ok();
+    let parsed = parsed.and_then(|ts| Utc.timestamp_opt(ts, 0).single());
+    parsed.map_or(
+        DisplayedTimestamp::Raw(timestamp),
+        DisplayedTimestamp::Parsed,
+    )
+}
 
 /// Transforms the *full* account nonce into an *account* nonce.
 /// Full nonce is a composite one: it includes both account nonce (number of transactions

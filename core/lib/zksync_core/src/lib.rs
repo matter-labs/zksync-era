@@ -21,6 +21,7 @@ use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker,
     CircuitBreakerChecker, CircuitBreakers,
 };
+use zksync_commitment_generator::CommitmentGenerator;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::{
     configs::{
@@ -29,27 +30,41 @@ use zksync_config::{
             CircuitBreakerConfig, L1BatchCommitDataGeneratorMode, MempoolConfig,
             OperationsManagerConfig, StateKeeperConfig,
         },
+        consensus::ConsensusConfig,
         database::{MerkleTreeConfig, MerkleTreeMode},
         wallets,
         wallets::Wallets,
         ContractsConfig, GeneralConfig,
     },
-    ApiConfig, DBConfig, GenesisConfig, PostgresConfig,
+    ApiConfig, DBConfig, EthWatchConfig, GenesisConfig, PostgresConfig,
 };
 use zksync_contracts::governance_contract;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
 use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},
-    BoundEthInterface,
+    BoundEthInterface, EthInterface,
 };
-use zksync_eth_watch::start_eth_watch;
+use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
+use zksync_house_keeper::{
+    blocks_state_reporter::L1BatchMetricsReporter, fri_gpu_prover_archiver::FriGpuProverArchiver,
+    fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
+    fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter,
+    fri_prover_job_retry_manager::FriProverJobRetryManager,
+    fri_prover_jobs_archiver::FriProverJobArchiver,
+    fri_prover_queue_monitor::FriProverStatsReporter,
+    fri_scheduler_circuit_queuer::SchedulerCircuitQueuer,
+    fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager,
+    fri_witness_generator_queue_monitor::FriWitnessGeneratorStatsReporter,
+    periodic_job::PeriodicJob,
+    waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
+};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_shared_metrics::{InitStage, APP_METRICS};
 use zksync_state::PostgresStorageCaches;
-use zksync_types::{fee_model::FeeModelConfig, L2ChainId};
+use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
 
 use crate::{
     api_server::{
@@ -58,11 +73,10 @@ use crate::{
         healthcheck::HealthCheckHandle,
         tree::TreeApiHttpClient,
         tx_sender::{ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
-        web3::{self, state::InternalApiConfig, Namespace},
+        web3::{self, mempool_cache::MempoolCache, state::InternalApiConfig, Namespace},
     },
     base_token_fetcher::{BaseTokenFetcher, ConversionRateFetcher, NoOpConversionRateFetcher},
     basic_witness_input_producer::BasicWitnessInputProducer,
-    commitment_generator::CommitmentGenerator,
     eth_sender::{
         l1_batch_commit_data_generator::{
             L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
@@ -71,20 +85,6 @@ use crate::{
         Aggregator, EthTxAggregator, EthTxManager,
     },
     genesis::GenesisParams,
-    house_keeper::{
-        blocks_state_reporter::L1BatchMetricsReporter,
-        fri_gpu_prover_archiver::FriGpuProverArchiver,
-        fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
-        fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter,
-        fri_prover_job_retry_manager::FriProverJobRetryManager,
-        fri_prover_jobs_archiver::FriProverJobArchiver,
-        fri_prover_queue_monitor::FriProverStatsReporter,
-        fri_scheduler_circuit_queuer::SchedulerCircuitQueuer,
-        fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager,
-        fri_witness_generator_queue_monitor::FriWitnessGeneratorStatsReporter,
-        periodic_job::PeriodicJob,
-        waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
-    },
     l1_gas_price::{
         GasAdjusterSingleton, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
     },
@@ -99,16 +99,14 @@ use crate::{
 pub mod api_server;
 pub mod base_token_fetcher;
 pub mod basic_witness_input_producer;
-pub mod block_reverter;
-pub mod commitment_generator;
 pub mod consensus;
 pub mod consistency_checker;
+pub mod db_pruner;
 pub mod dev_api_conversion_rate;
 pub mod eth_sender;
 pub mod fee_model;
 pub mod gas_tracker;
 pub mod genesis;
-pub mod house_keeper;
 pub mod l1_gas_price;
 pub mod metadata_calculator;
 pub mod proof_data_handler;
@@ -249,7 +247,7 @@ pub async fn initialize_components(
     contracts_config: &ContractsConfig,
     components: &[Component],
     secrets: &Secrets,
-    consensus_config: Option<consensus::Config>,
+    consensus_config: Option<ConsensusConfig>,
 ) -> anyhow::Result<(
     Vec<JoinHandle<anyhow::Result<()>>>,
     watch::Sender<bool>,
@@ -414,10 +412,19 @@ pub async fn initialize_components(
         // program termination.
         let mut storage_caches = None;
 
+        let mempool_cache = MempoolCache::new(api_config.web3_json_rpc.mempool_cache_size());
+        let mempool_cache_update_task = mempool_cache.update_task(
+            connection_pool.clone(),
+            api_config.web3_json_rpc.mempool_cache_update_interval(),
+        );
+        task_futures.push(tokio::spawn(
+            mempool_cache_update_task.run(stop_receiver.clone()),
+        ));
+
         if components.contains(&Component::HttpApi) {
             storage_caches = Some(
                 build_storage_caches(
-                    &configs.api_config.clone().context("api")?.web3_json_rpc,
+                    &api_config.web3_json_rpc,
                     &replica_connection_pool,
                     &mut task_futures,
                     stop_receiver.clone(),
@@ -449,6 +456,7 @@ pub async fn initialize_components(
                 batch_fee_input_provider,
                 state_keeper_config.save_call_traces,
                 storage_caches.clone().unwrap(),
+                mempool_cache.clone(),
             )
             .await
             .context("run_http_api")?;
@@ -496,6 +504,7 @@ pub async fn initialize_components(
                 replica_connection_pool.clone(),
                 stop_receiver.clone(),
                 storage_caches,
+                mempool_cache,
             )
             .await
             .context("run_ws_api")?;
@@ -581,10 +590,12 @@ pub async fn initialize_components(
 
     if components.contains(&Component::Consensus) {
         let secrets = secrets.consensus.as_ref().context("Secrets are missing")?;
-        let cfg = consensus_config
-            .clone()
-            .context("consensus component's config is missing")?
-            .main_node(secrets)?;
+        let cfg = consensus::config::main_node(
+            consensus_config
+                .as_ref()
+                .context("consensus component's config is missing")?,
+            secrets,
+        )?;
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");
         let pool = connection_pool.clone();
@@ -891,7 +902,7 @@ async fn add_state_keeper_to_task_futures(
         db_config,
         l2chain_id,
         mempool_config,
-        state_keeper_pool.clone(),
+        state_keeper_pool,
         mempool.clone(),
         batch_fee_input_provider.clone(),
         OutputHandler::new(Box::new(persistence)),
@@ -905,9 +916,6 @@ async fn add_state_keeper_to_task_futures(
         stop_receiver_clone.changed().await?;
         result
     }));
-    task_futures.push(tokio::spawn(
-        state_keeper.run_fee_address_migration(state_keeper_pool),
-    ));
     task_futures.push(tokio::spawn(state_keeper.run()));
 
     let mempool_fetcher_pool = pool_builder
@@ -923,6 +931,36 @@ async fn add_state_keeper_to_task_futures(
     let mempool_fetcher_handle = tokio::spawn(mempool_fetcher.run(stop_receiver));
     task_futures.push(mempool_fetcher_handle);
     Ok(())
+}
+
+pub async fn start_eth_watch(
+    config: EthWatchConfig,
+    pool: ConnectionPool<Core>,
+    eth_gateway: Arc<dyn EthInterface>,
+    diamond_proxy_addr: Address,
+    state_transition_manager_addr: Option<Address>,
+    governance: (Contract, Address),
+    stop_receiver: watch::Receiver<bool>,
+) -> anyhow::Result<JoinHandle<anyhow::Result<()>>> {
+    let eth_client = EthHttpQueryClient::new(
+        eth_gateway,
+        diamond_proxy_addr,
+        state_transition_manager_addr,
+        governance.1,
+        config.confirmations_for_eth_event,
+    );
+
+    let eth_watch = EthWatch::new(
+        diamond_proxy_addr,
+        state_transition_manager_addr,
+        &governance.0,
+        Box::new(eth_client),
+        pool,
+        config.poll_interval(),
+    )
+    .await?;
+
+    Ok(tokio::spawn(eth_watch.run(stop_receiver)))
 }
 
 async fn add_trees_to_task_futures(
@@ -995,9 +1033,20 @@ async fn run_tree(
     tracing::info!("Initializing Merkle tree in {mode_str} mode");
 
     let config = MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_manager);
-    let metadata_calculator = MetadataCalculator::new(config, object_store)
+    let pool = ConnectionPool::singleton(postgres_config.master_url()?)
+        .build()
+        .await
+        .context("failed to build connection pool for Merkle tree")?;
+    // The number of connections in a recovery pool is based on the mainnet recovery runs. It doesn't need
+    // to be particularly accurate at this point, since the main node isn't expected to recover from a snapshot.
+    let recovery_pool = ConnectionPool::builder(postgres_config.replica_url()?, 10)
+        .build()
+        .await
+        .context("failed to build connection pool for Merkle tree recovery")?;
+    let metadata_calculator = MetadataCalculator::new(config, object_store, pool, recovery_pool)
         .await
         .context("failed initializing metadata_calculator")?;
+
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
         let tree_reader = metadata_calculator.tree_reader();
@@ -1013,11 +1062,8 @@ async fn run_tree(
 
     let tree_health_check = metadata_calculator.tree_health_check();
     app_health.insert_component(tree_health_check);
-    let pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
-        .build()
-        .await
-        .context("failed to build connection pool")?;
-    let tree_task = tokio::spawn(metadata_calculator.run(pool, stop_receiver));
+
+    let tree_task = tokio::spawn(metadata_calculator.run(stop_receiver));
     task_futures.push(tree_task);
 
     let elapsed = started_at.elapsed();
@@ -1274,6 +1320,7 @@ async fn run_http_api(
     batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     with_debug_namespace: bool,
     storage_caches: PostgresStorageCaches,
+    mempool_cache: MempoolCache,
 ) -> anyhow::Result<()> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
@@ -1306,6 +1353,7 @@ async fn run_http_api(
             .with_response_body_size_limit(api_config.web3_json_rpc.max_response_body_size())
             .with_tx_sender(tx_sender)
             .with_vm_barrier(vm_barrier)
+            .with_mempool_cache(mempool_cache)
             .enable_api_namespaces(namespaces);
     if let Some(tree_api_url) = api_config.web3_json_rpc.tree_api_url() {
         let tree_api = Arc::new(TreeApiHttpClient::new(tree_api_url));
@@ -1337,6 +1385,7 @@ async fn run_ws_api(
     replica_connection_pool: ConnectionPool<Core>,
     stop_receiver: watch::Receiver<bool>,
     storage_caches: PostgresStorageCaches,
+    mempool_cache: MempoolCache,
 ) -> anyhow::Result<()> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
@@ -1372,6 +1421,7 @@ async fn run_ws_api(
             .with_polling_interval(api_config.web3_json_rpc.pubsub_interval())
             .with_tx_sender(tx_sender)
             .with_vm_barrier(vm_barrier)
+            .with_mempool_cache(mempool_cache)
             .enable_api_namespaces(namespaces);
     if let Some(tree_api_url) = api_config.web3_json_rpc.tree_api_url() {
         let tree_api = Arc::new(TreeApiHttpClient::new(tree_api_url));
@@ -1421,7 +1471,7 @@ async fn circuit_breakers_for_components(
         circuit_breakers
             .insert(Box::new(ReplicationLagChecker {
                 pool,
-                replication_lag_limit_sec: circuit_breaker_config.replication_lag_limit_sec,
+                replication_lag_limit: circuit_breaker_config.replication_lag_limit(),
             }))
             .await;
     }

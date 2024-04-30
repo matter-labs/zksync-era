@@ -20,7 +20,7 @@ fn test_postgres_storage_basics(
 ) {
     let mut connection = rt_handle.block_on(pool.connection()).unwrap();
     rt_handle.block_on(prepare_postgres(&mut connection));
-    let mut storage = PostgresStorage::new(rt_handle, connection, MiniblockNumber(0), true);
+    let mut storage = PostgresStorage::new(rt_handle, connection, L2BlockNumber(0), true);
     if cache_initial_writes {
         let caches = PostgresStorageCaches::new(1_024, 1_024);
         storage = storage.with_caches(caches);
@@ -45,7 +45,7 @@ fn test_postgres_storage_basics(
     // Add a new miniblock to the storage
     storage.rt_handle.block_on(create_miniblock(
         &mut storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         non_existing_logs.clone(),
     ));
 
@@ -58,7 +58,7 @@ fn test_postgres_storage_basics(
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         true,
     );
     storage.caches = caches;
@@ -80,7 +80,7 @@ fn test_postgres_storage_basics(
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(0),
+        L2BlockNumber(0),
         true,
     );
     storage.caches = caches;
@@ -95,7 +95,7 @@ fn test_postgres_storage_basics(
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         true,
     );
     storage.caches = caches;
@@ -110,7 +110,7 @@ fn test_postgres_storage_basics(
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         false,
     );
     storage.caches = caches;
@@ -155,14 +155,14 @@ fn test_postgres_storage_after_sealing_miniblock(
 
     rt_handle.block_on(create_miniblock(
         &mut connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         new_logs.clone(),
     ));
 
     let mut storage = PostgresStorage::new(
         rt_handle,
         connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         consider_new_l1_batch,
     );
     assert_eq!(storage.l1_batch_number_for_miniblock, L1BatchNumber(1));
@@ -181,7 +181,7 @@ fn test_postgres_storage_after_sealing_miniblock(
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         consider_new_l1_batch,
     );
     assert_eq!(storage.l1_batch_number_for_miniblock, L1BatchNumber(1));
@@ -208,7 +208,7 @@ fn test_factory_deps_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     rt_handle.block_on(prepare_postgres(&mut connection));
 
     let caches = PostgresStorageCaches::new(128 * 1_024 * 1_024, 1_024);
-    let mut storage = PostgresStorage::new(rt_handle, connection, MiniblockNumber(1), true)
+    let mut storage = PostgresStorage::new(rt_handle, connection, L2BlockNumber(1), true)
         .with_caches(caches.clone());
 
     let zero_addr = H256::zero();
@@ -227,7 +227,7 @@ fn test_factory_deps_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
             storage
                 .connection
                 .factory_deps_dal()
-                .insert_factory_deps(MiniblockNumber(0), &contracts),
+                .insert_factory_deps(L2BlockNumber(0), &contracts),
         )
         .unwrap();
 
@@ -239,7 +239,7 @@ fn test_factory_deps_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
             storage
                 .connection
                 .factory_deps_dal()
-                .insert_factory_deps(MiniblockNumber(1), &contracts),
+                .insert_factory_deps(L2BlockNumber(1), &contracts),
         )
         .unwrap();
 
@@ -247,7 +247,7 @@ fn test_factory_deps_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         true,
     )
     .with_caches(caches.clone());
@@ -259,7 +259,7 @@ fn test_factory_deps_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
         caches.factory_deps.get(&zero_addr),
         Some(TimestampedFactoryDep {
             bytecode: vec![1, 2, 3],
-            inserted_at: MiniblockNumber(0)
+            inserted_at: L2BlockNumber(0)
         })
     );
 
@@ -269,7 +269,7 @@ fn test_factory_deps_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
         caches.factory_deps.get(&H256::from_low_u64_be(1)),
         Some(TimestampedFactoryDep {
             bytecode: vec![1, 2, 3, 4],
-            inserted_at: MiniblockNumber(1)
+            inserted_at: L2BlockNumber(1)
         })
     );
 
@@ -277,7 +277,7 @@ fn test_factory_deps_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(0),
+        L2BlockNumber(0),
         true,
     )
     .with_caches(caches.clone());
@@ -303,7 +303,7 @@ async fn using_factory_deps_cache() {
 fn test_initial_writes_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     let connection = rt_handle.block_on(pool.connection()).unwrap();
     let caches = PostgresStorageCaches::new(1_024, 4 * 1_024 * 1_024);
-    let mut storage = PostgresStorage::new(rt_handle, connection, MiniblockNumber(0), false)
+    let mut storage = PostgresStorage::new(rt_handle, connection, L2BlockNumber(0), false)
         .with_caches(caches.clone());
     assert_eq!(storage.pending_l1_batch_number, L1BatchNumber(0));
 
@@ -330,7 +330,7 @@ fn test_initial_writes_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
 
     storage.rt_handle.block_on(create_miniblock(
         &mut storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         logs.clone(),
     ));
     storage.rt_handle.block_on(create_l1_batch(
@@ -342,7 +342,7 @@ fn test_initial_writes_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         false,
     )
     .with_caches(caches.clone());
@@ -367,7 +367,7 @@ fn test_initial_writes_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         true,
     )
     .with_caches(caches.clone());
@@ -387,7 +387,7 @@ fn test_initial_writes_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(2),
+        L2BlockNumber(2),
         false,
     )
     .with_caches(caches);
@@ -409,7 +409,7 @@ async fn using_initial_writes_cache() {
 #[derive(Debug)]
 struct ValueCacheAssertions<'a> {
     cache: &'a ValuesCache,
-    miniblock_number: MiniblockNumber,
+    miniblock_number: L2BlockNumber,
 }
 
 impl ValueCacheAssertions<'_> {
@@ -421,7 +421,7 @@ impl ValueCacheAssertions<'_> {
 }
 
 impl ValuesCache {
-    fn assertions(&self, miniblock_number: MiniblockNumber) -> ValueCacheAssertions<'_> {
+    fn assertions(&self, miniblock_number: L2BlockNumber) -> ValueCacheAssertions<'_> {
         ValueCacheAssertions {
             cache: self,
             miniblock_number,
@@ -429,7 +429,7 @@ impl ValuesCache {
     }
 }
 
-async fn wait_for_cache_update(values_cache: &ValuesCache, target_miniblock: MiniblockNumber) {
+async fn wait_for_cache_update(values_cache: &ValuesCache, target_miniblock: L2BlockNumber) {
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
             let valid_for = values_cache.0.read().unwrap().valid_for;
@@ -451,13 +451,13 @@ fn test_values_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     let update_task_handle = tokio::task::spawn(task.run(stop_receiver));
 
     let values_cache = caches.values.as_ref().unwrap().cache.clone();
-    let old_miniblock_assertions = values_cache.assertions(MiniblockNumber(0));
-    let new_miniblock_assertions = values_cache.assertions(MiniblockNumber(1));
+    let old_miniblock_assertions = values_cache.assertions(L2BlockNumber(0));
+    let new_miniblock_assertions = values_cache.assertions(L2BlockNumber(1));
 
     let mut connection = rt_handle.block_on(pool.connection()).unwrap();
     rt_handle.block_on(prepare_postgres(&mut connection));
 
-    let mut storage = PostgresStorage::new(rt_handle, connection, MiniblockNumber(0), false)
+    let mut storage = PostgresStorage::new(rt_handle, connection, L2BlockNumber(0), false)
         .with_caches(caches.clone());
 
     let initial_logs = gen_storage_logs(0..20);
@@ -484,14 +484,14 @@ fn test_values_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     ];
     storage.rt_handle.block_on(create_miniblock(
         &mut storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         logs,
     ));
 
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(1),
+        L2BlockNumber(1),
         true,
     )
     .with_caches(caches.clone());
@@ -512,10 +512,10 @@ fn test_values_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
         (non_existing_key, Some(H256::zero())),
     ]);
 
-    caches.schedule_values_update(MiniblockNumber(1));
+    caches.schedule_values_update(L2BlockNumber(1));
     storage
         .rt_handle
-        .block_on(wait_for_cache_update(&values_cache, MiniblockNumber(1)));
+        .block_on(wait_for_cache_update(&values_cache, L2BlockNumber(1)));
 
     assert_eq!(storage.read_value(&existing_key), H256::repeat_byte(1));
     assert_eq!(storage.read_value(&non_existing_key), H256::repeat_byte(2));
@@ -540,7 +540,7 @@ fn test_values_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     let mut storage = PostgresStorage::new(
         storage.rt_handle,
         storage.connection,
-        MiniblockNumber(0),
+        L2BlockNumber(0),
         true,
     )
     .with_caches(caches.clone());
@@ -559,7 +559,7 @@ fn test_values_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
         .expect("update task panicked")
         .unwrap();
     // Check that `schedule_values_update()` doesn't panic after the update task is finished.
-    caches.schedule_values_update(MiniblockNumber(2));
+    caches.schedule_values_update(L2BlockNumber(2));
 }
 
 #[tokio::test]
@@ -591,8 +591,7 @@ fn mini_fuzz_values_cache_inner(
         .collect();
 
     for latest_block_number in 0..=10 {
-        let mut all_block_numbers: Vec<_> =
-            (0..=latest_block_number).map(MiniblockNumber).collect();
+        let mut all_block_numbers: Vec<_> = (0..=latest_block_number).map(L2BlockNumber).collect();
         all_block_numbers.shuffle(rng);
 
         let mut cache_updated = latest_block_number == 0;
@@ -603,12 +602,12 @@ fn mini_fuzz_values_cache_inner(
             // must work both with and without the update.
             if !cache_updated && rng.gen_range(0..3) == 0 {
                 let cache_valid_for = values_cache.valid_for();
-                assert!(cache_valid_for < MiniblockNumber(latest_block_number));
+                assert!(cache_valid_for < L2BlockNumber(latest_block_number));
 
                 rt_handle
                     .block_on(values_cache.update(
                         cache_valid_for,
-                        MiniblockNumber(latest_block_number),
+                        L2BlockNumber(latest_block_number),
                         &mut connection,
                     ))
                     .unwrap();
@@ -643,7 +642,7 @@ fn mini_fuzz_values_cache_inner(
             );
         }
 
-        let next_block_number = MiniblockNumber(latest_block_number) + 1;
+        let next_block_number = L2BlockNumber(latest_block_number) + 1;
         // Choose logs so that there's a chance that some of them are new and some overwrite previous values.
         let logs = queried_keys
             .iter()

@@ -11,14 +11,14 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::clients::MockEthereum;
 use zksync_types::{
-    block::MiniblockHeader,
+    block::L2BlockHeader,
     fee::TransactionExecutionMetrics,
     fee_model::{BatchFeeInput, FeeModelConfig, FeeModelConfigV1},
     l2::L2Tx,
     protocol_version::L1VerifierConfig,
     system_contracts::get_system_smart_contracts,
     tx::TransactionExecutionResult,
-    L2ChainId, MiniblockNumber, PriorityOpId, ProtocolVersionId, H256,
+    L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, H256,
 };
 
 use crate::{
@@ -118,8 +118,6 @@ impl Tester {
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
         let config = StateKeeperConfig {
             minimal_l2_gas_price: self.minimal_l2_gas_price(),
-            virtual_blocks_interval: 1,
-            virtual_blocks_per_miniblock: 1,
             validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             ..StateKeeperConfig::for_tests()
         };
@@ -158,7 +156,7 @@ impl Tester {
         }
     }
 
-    pub(super) async fn insert_miniblock(
+    pub(super) async fn insert_l2_block(
         &self,
         pool: &ConnectionPool<Core>,
         number: u32,
@@ -174,7 +172,7 @@ impl Tester {
             .unwrap();
         storage
             .blocks_dal()
-            .insert_miniblock(&MiniblockHeader {
+            .insert_l2_block(&L2BlockHeader {
                 timestamp: self.current_timestamp,
                 base_fee_per_gas,
                 batch_fee_input: fee_input,
@@ -186,8 +184,8 @@ impl Tester {
         let tx_result = execute_l2_transaction(tx.clone());
         storage
             .transactions_dal()
-            .mark_txs_as_executed_in_miniblock(
-                MiniblockNumber(number),
+            .mark_txs_as_executed_in_l2_block(
+                L2BlockNumber(number),
                 slice::from_ref(&tx_result),
                 1.into(),
             )
@@ -211,7 +209,7 @@ impl Tester {
             .unwrap();
         storage
             .blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(batch_header.number)
+            .mark_l2_blocks_as_executed_in_l1_batch(batch_header.number)
             .await
             .unwrap();
         storage

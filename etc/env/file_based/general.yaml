@@ -38,7 +38,6 @@ api:
     pubsub_polling_interval: 200
     max_nonce_ahead: 50
     gas_price_scale_factor: 1.2
-    l1_to_l2_transactions_compatibility_mode: true
     request_timeout: 10
     account_pks:
       - 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
@@ -70,6 +69,7 @@ state_keeper:
   block_commit_deadline_ms: 2500
   miniblock_commit_deadline_ms: 1000
   miniblock_seal_queue_capacity: 10
+  miniblock_max_payload_size: 1000000
   max_single_tx_gas: 6000000
   close_block_at_geometry_percentage: 0.95
   close_block_at_eth_params_percentage: 0.95
@@ -86,8 +86,6 @@ state_keeper:
   fee_model_version: V1
   validation_computational_gas_limit: 300000
   save_call_traces: true
-  virtual_blocks_interval: 1
-  virtual_blocks_per_miniblock: 1
   max_circuits_per_batch: 24100
 mempool:
   delay_interval: 100
@@ -164,11 +162,8 @@ prover:
   prometheus_port: 3315
   max_attempts: 10
   generation_timeout_in_secs: 600
-  base_layer_circuit_ids_to_be_verified: [ 1 ]
-  recursive_layer_circuit_ids_to_be_verified: [ 1 ]
   setup_load_mode: FROM_DISK
   specialized_group_id: 100
-  witness_vector_generator_thread_count: 5
   queue_capacity: 10
   witness_vector_receiver_port: 3316
   availability_check_interval_in_secs: 10000

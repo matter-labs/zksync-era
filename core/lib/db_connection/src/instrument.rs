@@ -15,7 +15,7 @@ use std::{fmt, future::Future, panic::Location};
 
 use sqlx::{
     postgres::{PgCopyIn, PgQueryResult, PgRow},
-    query::{Map, Query, QueryAs},
+    query::{Map, Query, QueryAs, QueryScalar},
     FromRow, IntoArguments, PgConnection, Postgres,
 };
 use tokio::time::Instant;
@@ -82,6 +82,19 @@ where
 }
 
 impl<'q, O, A> InstrumentExt for QueryAs<'q, Postgres, O, A>
+where
+    A: 'q + IntoArguments<'q, Postgres>,
+{
+    #[track_caller]
+    fn instrument(self, name: &'static str) -> Instrumented<'static, Self> {
+        Instrumented {
+            query: self,
+            data: InstrumentedData::new(name, Location::caller()),
+        }
+    }
+}
+
+impl<'q, O, A> InstrumentExt for QueryScalar<'q, Postgres, O, A>
 where
     A: 'q + IntoArguments<'q, Postgres>,
 {
@@ -298,6 +311,18 @@ impl<'a> Instrumented<'a, ()> {
         .into()
     }
 
+    /// Wraps a provided application-level data constraint error.
+    pub fn constraint_error(&self, err: anyhow::Error) -> DalError {
+        let err = err.context("application-level data constraint violation");
+        DalRequestError::new(
+            sqlx::Error::Decode(err.into()),
+            self.data.name,
+            self.data.location,
+        )
+        .with_args(self.data.args.to_owned())
+        .into()
+    }
+
     pub fn with<Q>(self, query: Q) -> Instrumented<'a, Q> {
         Instrumented {
             query,
@@ -364,6 +389,28 @@ where
     }
 }
 
+impl<'q, O, A> Instrumented<'_, QueryScalar<'q, Postgres, O, A>>
+where
+    A: 'q + IntoArguments<'q, Postgres>,
+    O: Send + Unpin,
+    (O,): for<'r> FromRow<'r, PgRow>,
+{
+    /// Fetches an optional row using this query.
+    pub async fn fetch_optional<DB: DbMarker>(
+        self,
+        storage: &mut Connection<'_, DB>,
+    ) -> DalResult<Option<O>> {
+        let (conn, tags) = storage.conn_and_tags();
+        self.data.fetch(tags, self.query.fetch_optional(conn)).await
+    }
+
+    /// Fetches a single row using this query.
+    pub async fn fetch_one<DB: DbMarker>(self, storage: &mut Connection<'_, DB>) -> DalResult<O> {
+        let (conn, tags) = storage.conn_and_tags();
+        self.data.fetch(tags, self.query.fetch_one(conn)).await
+    }
+}
+
 impl<'q, F, O, A> Instrumented<'_, Map<'q, Postgres, F, A>>
 where
     F: FnMut(PgRow) -> Result<O, sqlx::Error> + Send,
@@ -420,7 +467,7 @@ impl<'a> Instrumented<'a, CopyStatement> {
 
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::{MiniblockNumber, H256};
+    use zksync_basic_types::{L2BlockNumber, H256};
 
     use super::*;
     use crate::{connection_pool::ConnectionPool, utils::InternalMarker};
@@ -434,7 +481,7 @@ mod tests {
         sqlx::query("WHAT")
             .map(drop)
             .instrument("erroneous")
-            .with_arg("miniblock", &MiniblockNumber(1))
+            .with_arg("miniblock", &L2BlockNumber(1))
             .with_arg("hash", &H256::zero())
             .fetch_optional(&mut conn)
             .await
@@ -450,7 +497,7 @@ mod tests {
         sqlx::query("SELECT pg_sleep(1.5)")
             .map(drop)
             .instrument("slow")
-            .with_arg("miniblock", &MiniblockNumber(1))
+            .with_arg("miniblock", &L2BlockNumber(1))
             .with_arg("hash", &H256::zero())
             .fetch_optional(&mut conn)
             .await

@@ -280,7 +280,7 @@ impl<DB: DbMarker> ConnectionPool<DB> {
     /// Test pools trace their active connections. If acquiring a connection fails (e.g., with a timeout),
     /// the returned error will contain information on all active connections.
     pub async fn test_pool() -> ConnectionPool<DB> {
-        const DEFAULT_CONNECTIONS: u32 = 50; // Expected to be enough for any unit test.
+        const DEFAULT_CONNECTIONS: u32 = 100; // Expected to be enough for any unit test.
         Self::constrained_test_pool(DEFAULT_CONNECTIONS).await
     }
 
@@ -317,6 +317,12 @@ impl<DB: DbMarker> ConnectionPool<DB> {
     /// to calling `Self::builder(db_url, 1)`.
     pub fn singleton(database_url: &str) -> ConnectionPoolBuilder<DB> {
         Self::builder(database_url, 1)
+    }
+
+    /// Returns database URL for this pool. It may include authentication info, so be mindful of
+    /// outputting it into logs etc.
+    pub fn database_url(&self) -> &str {
+        &self.database_url
     }
 
     /// Returns the maximum number of connections in this pool specified during its creation.

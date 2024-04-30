@@ -12,7 +12,7 @@ use tokio::{
     },
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_types::{L1BatchNumber, MiniblockNumber, StorageKey, StorageValue, H256};
+use zksync_types::{L1BatchNumber, L2BlockNumber, StorageKey, StorageValue, H256};
 
 use self::metrics::{Method, ValuesUpdateStage, CACHE_METRICS, STORAGE_METRICS};
 use crate::{
@@ -27,7 +27,7 @@ mod tests;
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct TimestampedFactoryDep {
     bytecode: Vec<u8>,
-    inserted_at: MiniblockNumber,
+    inserted_at: L2BlockNumber,
 }
 
 /// Type alias for smart contract source code cache.
@@ -35,7 +35,7 @@ type FactoryDepsCache = LruCache<H256, TimestampedFactoryDep>;
 
 impl CacheValue<H256> for TimestampedFactoryDep {
     fn cache_weight(&self) -> u32 {
-        (self.bytecode.len() + mem::size_of::<MiniblockNumber>())
+        (self.bytecode.len() + mem::size_of::<L2BlockNumber>())
             .try_into()
             .expect("Cached bytes are too large")
     }
@@ -65,7 +65,7 @@ impl CacheValue<StorageKey> for L1BatchNumber {
 #[derive(Debug, Clone, Copy)]
 struct TimestampedStorageValue {
     value: StorageValue,
-    loaded_at: MiniblockNumber,
+    loaded_at: L2BlockNumber,
 }
 
 impl CacheValue<H256> for TimestampedStorageValue {
@@ -83,7 +83,7 @@ struct ValuesCacheInner {
     /// Miniblock up to which `self.values` are valid. Has the same meaning as `miniblock_number`
     /// in `PostgresStorage` (i.e., the latest sealed miniblock for which storage logs should
     /// be taken into account).
-    valid_for: MiniblockNumber,
+    valid_for: L2BlockNumber,
     values: LruCache<H256, TimestampedStorageValue>,
 }
 
@@ -108,7 +108,7 @@ struct ValuesCache(Arc<RwLock<ValuesCacheInner>>);
 impl ValuesCache {
     fn new(capacity: u64) -> Self {
         let inner = ValuesCacheInner {
-            valid_for: MiniblockNumber(0),
+            valid_for: L2BlockNumber(0),
             values: LruCache::new("values_cache", capacity),
         };
         Self(Arc::new(RwLock::new(inner)))
@@ -116,13 +116,13 @@ impl ValuesCache {
 
     /// *NB.* The returned value should be considered immediately stale; at best, it can be
     /// the lower boundary on the current `valid_for` value.
-    fn valid_for(&self) -> MiniblockNumber {
+    fn valid_for(&self) -> L2BlockNumber {
         self.0.read().expect("values cache is poisoned").valid_for
     }
 
     /// Gets the cached value for `key` provided that the cache currently holds values
     /// for `miniblock_number`.
-    fn get(&self, miniblock_number: MiniblockNumber, key: &StorageKey) -> Option<StorageValue> {
+    fn get(&self, miniblock_number: L2BlockNumber, key: &StorageKey) -> Option<StorageValue> {
         let lock = self.0.read().expect("values cache is poisoned");
         if lock.valid_for < miniblock_number {
             // The request is from the future; we cannot say which values in the cache remain valid,
@@ -139,7 +139,7 @@ impl ValuesCache {
     }
 
     /// Caches `value` for `key`, but only if the cache currently holds values for `miniblock_number`.
-    fn insert(&self, miniblock_number: MiniblockNumber, key: StorageKey, value: StorageValue) {
+    fn insert(&self, miniblock_number: L2BlockNumber, key: StorageKey, value: StorageValue) {
         let lock = self.0.read().expect("values cache is poisoned");
         if lock.valid_for == miniblock_number {
             lock.values.insert(
@@ -156,8 +156,8 @@ impl ValuesCache {
 
     async fn update(
         &self,
-        from_miniblock: MiniblockNumber,
-        to_miniblock: MiniblockNumber,
+        from_miniblock: L2BlockNumber,
+        to_miniblock: L2BlockNumber,
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
         const MAX_MINIBLOCKS_LAG: u32 = 5;
@@ -192,7 +192,7 @@ impl ValuesCache {
             let miniblocks = (from_miniblock + 1)..=to_miniblock;
             let modified_keys = connection
                 .storage_logs_dal()
-                .modified_keys_in_miniblocks(miniblocks.clone())
+                .modified_keys_in_l2_blocks(miniblocks.clone())
                 .await?;
 
             let elapsed = update_latency.observe();
@@ -239,7 +239,7 @@ impl ValuesCache {
 #[derive(Debug, Clone)]
 struct ValuesCacheAndUpdater {
     cache: ValuesCache,
-    command_sender: mpsc::UnboundedSender<MiniblockNumber>,
+    command_sender: mpsc::UnboundedSender<L2BlockNumber>,
 }
 
 /// Caches used during VM execution.
@@ -266,8 +266,6 @@ pub struct PostgresStorageCaches {
 }
 
 impl PostgresStorageCaches {
-    const NEG_INITIAL_WRITES_NAME: &'static str = "negative_initial_writes_cache";
-
     /// Creates caches with the specified capacities measured in bytes.
     pub fn new(factory_deps_capacity: u64, initial_writes_capacity: u64) -> Self {
         tracing::debug!(
@@ -282,7 +280,7 @@ impl PostgresStorageCaches {
                 initial_writes_capacity / 2,
             ),
             negative_initial_writes: InitialWritesCache::new(
-                Self::NEG_INITIAL_WRITES_NAME,
+                "negative_initial_writes_cache",
                 initial_writes_capacity / 2,
             ),
             values: None,
@@ -332,7 +330,7 @@ impl PostgresStorageCaches {
     /// # Panics
     ///
     /// - Panics if the cache update task returned from `configure_storage_values_cache()` has panicked.
-    pub fn schedule_values_update(&self, to_miniblock: MiniblockNumber) {
+    pub fn schedule_values_update(&self, to_miniblock: L2BlockNumber) {
         let Some(values) = &self.values else {
             return;
         };
@@ -351,7 +349,7 @@ impl PostgresStorageCaches {
 pub struct PostgresStorageCachesTask {
     connection_pool: ConnectionPool<Core>,
     values_cache: ValuesCache,
-    command_receiver: UnboundedReceiver<MiniblockNumber>,
+    command_receiver: UnboundedReceiver<L2BlockNumber>,
 }
 
 impl PostgresStorageCachesTask {
@@ -397,7 +395,7 @@ impl PostgresStorageCachesTask {
 pub struct PostgresStorage<'a> {
     rt_handle: Handle,
     connection: Connection<'a, Core>,
-    miniblock_number: MiniblockNumber,
+    miniblock_number: L2BlockNumber,
     l1_batch_number_for_miniblock: L1BatchNumber,
     pending_l1_batch_number: L1BatchNumber,
     consider_new_l1_batch: bool,
@@ -413,7 +411,7 @@ impl<'a> PostgresStorage<'a> {
     pub fn new(
         rt_handle: Handle,
         connection: Connection<'a, Core>,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
         consider_new_l1_batch: bool,
     ) -> Self {
         rt_handle
@@ -435,12 +433,12 @@ impl<'a> PostgresStorage<'a> {
     pub async fn new_async(
         rt_handle: Handle,
         mut connection: Connection<'a, Core>,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
         consider_new_l1_batch: bool,
     ) -> anyhow::Result<PostgresStorage<'a>> {
         let resolved = connection
             .storage_web3_dal()
-            .resolve_l1_batch_number_of_miniblock(block_number)
+            .resolve_l1_batch_number_of_l2_block(block_number)
             .await
             .with_context(|| {
                 format!("failed resolving L1 batch number for miniblock #{block_number}")

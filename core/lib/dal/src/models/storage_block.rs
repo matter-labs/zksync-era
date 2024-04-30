@@ -6,11 +6,11 @@ use thiserror::Error;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,
-    block::{L1BatchHeader, MiniblockHeader},
+    block::{L1BatchHeader, L2BlockHeader},
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
-    Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H2048, H256,
+    Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H2048, H256,
 };
 
 /// This is the gas limit that was used inside blocks before we started saving block gas limit into the database.
@@ -119,7 +119,6 @@ pub struct StorageL1Batch {
     pub priority_ops_onchain_data: Vec<Vec<u8>>,
 
     pub hash: Option<Vec<u8>>,
-    pub merkle_root_hash: Option<Vec<u8>>,
     pub commitment: Option<Vec<u8>>,
     pub meta_parameters_hash: Option<Vec<u8>>,
     pub pass_through_data_hash: Option<Vec<u8>>,
@@ -197,11 +196,6 @@ impl TryInto<L1BatchMetadata> for StorageL1Batch {
                 .rollup_last_leaf_index
                 .ok_or(StorageL1BatchConvertError::Incomplete)?
                 as u64,
-            merkle_root_hash: H256::from_slice(
-                &self
-                    .merkle_root_hash
-                    .ok_or(StorageL1BatchConvertError::Incomplete)?,
-            ),
             initial_writes_compressed: self.compressed_initial_writes,
             repeated_writes_compressed: self.compressed_repeated_writes,
             l2_l1_merkle_root: H256::from_slice(
@@ -325,7 +319,7 @@ impl From<StorageBlockDetails> for api::BlockDetails {
         };
         api::BlockDetails {
             base,
-            number: MiniblockNumber(details.number as u32),
+            number: L2BlockNumber(details.number as u32),
             l1_batch_number: L1BatchNumber(details.l1_batch_number as u32),
             operator_address: Address::from_slice(&details.fee_account_address),
             protocol_version: details
@@ -403,7 +397,7 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
     }
 }
 
-pub struct StorageMiniblockHeader {
+pub struct StorageL2BlockHeader {
     pub number: i64,
     pub timestamp: i64,
     pub hash: Vec<u8>,
@@ -434,8 +428,8 @@ pub struct StorageMiniblockHeader {
     pub gas_limit: Option<i64>,
 }
 
-impl From<StorageMiniblockHeader> for MiniblockHeader {
-    fn from(row: StorageMiniblockHeader) -> Self {
+impl From<StorageL2BlockHeader> for L2BlockHeader {
+    fn from(row: StorageL2BlockHeader) -> Self {
         let protocol_version = row.protocol_version.map(|v| (v as u16).try_into().unwrap());
 
         let fee_input = protocol_version
@@ -457,8 +451,8 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
                 })
             });
 
-        MiniblockHeader {
-            number: MiniblockNumber(row.number as u32),
+        L2BlockHeader {
+            number: L2BlockNumber(row.number as u32),
             timestamp: row.timestamp as u64,
             hash: H256::from_slice(&row.hash),
             l1_tx_count: row.l1_tx_count as u16,
@@ -478,20 +472,20 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
     }
 }
 
-/// Information about L1 batch which a certain miniblock belongs to.
+/// Information about L1 batch which a certain L2 block belongs to.
 #[derive(Debug)]
-pub struct ResolvedL1BatchForMiniblock {
-    /// L1 batch which the miniblock belongs to. `None` if the miniblock is not explicitly attached
+pub struct ResolvedL1BatchForL2Block {
+    /// L1 batch which the L2 block belongs to. `None` if the L2 block is not explicitly attached
     /// (i.e., its L1 batch is not sealed).
-    pub miniblock_l1_batch: Option<L1BatchNumber>,
+    pub block_l1_batch: Option<L1BatchNumber>,
     /// Pending (i.e., unsealed) L1 batch.
     pub pending_l1_batch: L1BatchNumber,
 }
 
-impl ResolvedL1BatchForMiniblock {
-    /// Returns the L1 batch number that the miniblock has now or will have in the future (provided
+impl ResolvedL1BatchForL2Block {
+    /// Returns the L1 batch number that the L2 block has now or will have in the future (provided
     /// that the node will operate correctly).
     pub fn expected_l1_batch(&self) -> L1BatchNumber {
-        self.miniblock_l1_batch.unwrap_or(self.pending_l1_batch)
+        self.block_l1_batch.unwrap_or(self.pending_l1_batch)
     }
 }

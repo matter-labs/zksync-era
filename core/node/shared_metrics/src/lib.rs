@@ -120,7 +120,7 @@ impl TxStage {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
-pub enum MiniblockStage {
+pub enum L2BlockStage {
     Sealed,
 }
 
@@ -130,13 +130,11 @@ pub struct AppMetrics {
     /// Latency to initialize a specific server component.
     pub init_latency: Family<InitStage, Gauge<Duration>>,
     pub block_number: Family<BlockStage, Gauge<u64>>,
-    pub miniblock_number: Family<MiniblockStage, Gauge<u64>>,
+    pub miniblock_number: Family<L2BlockStage, Gauge<u64>>,
     #[metrics(buckets = Buckets::LATENCIES)]
     pub block_latency: Family<BlockStage, Histogram<Duration>>,
     #[metrics(buckets = Buckets::LATENCIES)]
-    pub miniblock_latency: Family<MiniblockStage, Histogram<Duration>>,
-    /// Latest virtual block number produced by the state keeper.
-    pub miniblock_virtual_block_number: Family<MiniblockStage, Gauge<u64>>,
+    pub miniblock_latency: Family<L2BlockStage, Histogram<Duration>>,
     pub processed_txs: Family<TxStage, Counter>,
     pub processed_l1_txs: Family<TxStage, Counter>,
 

@@ -74,6 +74,14 @@ async fn generate_new_config(
         .build()
         .await
         .context("failed to build connection_pool")?;
+
+    let mut storage = pool.connection().await.context("connection()")?;
+    let mut transaction = storage.start_transaction().await?;
+
+    if !transaction.blocks_dal().is_genesis_needed().await? {
+        anyhow::bail!("Please cleanup database for regenerating genesis")
+    }
+
     let base_system_contracts = BaseSystemContracts::load_from_disk().hashes();
     let mut updated_genesis = GenesisConfig {
         protocol_version: Some(ProtocolVersionId::latest() as u16),
@@ -84,16 +92,10 @@ async fn generate_new_config(
         default_aa_hash: Some(base_system_contracts.default_aa),
         ..genesis_config
     };
-    let params = GenesisParams::load_genesis_params(updated_genesis.clone())?;
-
-    let mut storage = pool.connection().await.context("connection()")?;
-    let mut transaction = storage.start_transaction().await?;
-    if !transaction.blocks_dal().is_genesis_needed().await? {
-        anyhow::bail!("Please cleanup database for regenerating genesis")
-    }
 
     // This tool doesn't really insert the batch. It doesn't commit the transaction,
     // so the database is clean after using the tool
+    let params = GenesisParams::load_genesis_params(updated_genesis.clone())?;
     let batch_params = insert_genesis_batch(&mut transaction, &params).await?;
 
     updated_genesis.genesis_commitment = Some(batch_params.commitment);
@@ -103,7 +105,7 @@ async fn generate_new_config(
     Ok(updated_genesis)
 }
 
-/// Encodes a generated proto message to json for arbitrary ProtoFmt.
+/// Encodes a generated proto message to json for arbitrary `ProtoFmt`.
 pub(crate) fn encode_yaml<T: ReflectMessage>(x: &T) -> anyhow::Result<String> {
     let mut serializer = Serializer::new(vec![]);
     let opts = prost_reflect::SerializeOptions::new()

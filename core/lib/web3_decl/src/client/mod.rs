@@ -1,4 +1,15 @@
-//! L2 HTTP client.
+//! L2 JSON-RPC clients, currently used for interaction between external nodes (from the client side)
+//! and the main node (from the server side).
+//!
+//! # Overview
+//!
+//! - [`L2Client`] is the main client implementation. It's parameterized by the transport (e.g., HTTP or WS),
+//!   with HTTP being the default option.
+//! - [`MockL2Client`] is a mock client useful for testing. Bear in mind that because of the client being generic,
+//!   mock tooling is fairly low-level. Prefer defining a domain-specific wrapper trait for the client functionality and mock it
+//!   where it's possible.
+//! - [`BoxedL2Client`] is a generic client (essentially, a wrapper around a trait object). Use it for dependency injection
+//!   instead of `L2Client`. Both `L2Client` and `MockL2Client` are convertible to `BoxedL2Client`.
 
 use std::{
     collections::HashSet,
@@ -21,8 +32,11 @@ use serde::de::DeserializeOwned;
 use tokio::time::Instant;
 
 use self::metrics::{L2ClientMetrics, METRICS};
+pub use self::{boxed::BoxedL2Client, mock::MockL2Client};
 
+mod boxed;
 mod metrics;
+mod mock;
 #[cfg(test)]
 mod tests;
 
@@ -71,6 +85,11 @@ pub trait L2ClientBase: SubscriptionClientT + Clone + fmt::Debug + Send + Sync +
 
 impl<T: SubscriptionClientT + Clone + fmt::Debug + Send + Sync + 'static> L2ClientBase for T {}
 
+pub trait TaggedClient {
+    /// Sets the component operating this client. This is used in logging etc.
+    fn for_component(self, component_name: &'static str) -> Self;
+}
+
 /// JSON-RPC client for the main node with built-in middleware support.
 ///
 /// The client should be used instead of `HttpClient` etc. A single instance of the client should be built
@@ -102,12 +121,6 @@ impl L2Client {
 }
 
 impl<C: L2ClientBase> L2Client<C> {
-    /// Sets the component operating this client. This is used in logging etc.
-    pub fn for_component(mut self, component_name: &'static str) -> Self {
-        self.component_name = component_name;
-        self
-    }
-
     async fn limit_rate(&self, origin: CallOrigin<'_>) -> Result<(), Error> {
         const RATE_LIMIT_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -156,6 +169,13 @@ impl<C: L2ClientBase> L2Client<C> {
             self.metrics.observe_error(self.component_name, origin, err);
         }
         call_result
+    }
+}
+
+impl<C: L2ClientBase> TaggedClient for L2Client<C> {
+    fn for_component(mut self, component_name: &'static str) -> Self {
+        self.component_name = component_name;
+        self
     }
 }
 
@@ -266,9 +286,12 @@ impl<C: L2ClientBase> L2ClientBuilder<C> {
             self.client,
             self.rate_limit
         );
+        let rate_limit = SharedRateLimit::new(self.rate_limit.0, self.rate_limit.1);
+        METRICS.observe_config(&rate_limit);
+
         L2Client {
             inner: self.client,
-            rate_limit: SharedRateLimit::new(self.rate_limit.0, self.rate_limit.1),
+            rate_limit,
             component_name: "",
             metrics: &METRICS,
         }

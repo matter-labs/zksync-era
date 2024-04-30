@@ -73,11 +73,7 @@ impl MempoolFetcher {
                 .context("failed removing stuck transactions")?;
             tracing::info!("Number of stuck txs was removed: {removed_txs}");
         }
-        storage
-            .transactions_dal()
-            .reset_mempool()
-            .await
-            .context("failed resetting mempool")?;
+        storage.transactions_dal().reset_mempool().await?;
         drop(storage);
 
         loop {
@@ -161,7 +157,7 @@ async fn get_transaction_nonces(
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        fee::TransactionExecutionMetrics, MiniblockNumber, PriorityOpId, ProtocolVersionId,
+        fee::TransactionExecutionMetrics, L2BlockNumber, PriorityOpId, ProtocolVersionId,
         StorageLog, H256,
     };
     use zksync_utils::u256_to_h256;
@@ -192,7 +188,7 @@ mod tests {
         let nonce_log = StorageLog::new_write_log(nonce_key, u256_to_h256(42.into()));
         storage
             .storage_logs_dal()
-            .insert_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![nonce_log])])
+            .insert_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![nonce_log])])
             .await
             .unwrap();
 
@@ -349,7 +345,7 @@ mod tests {
         let mut storage = pool.connection().await.unwrap();
         storage
             .storage_logs_dal()
-            .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![nonce_log])])
+            .append_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![nonce_log])])
             .await
             .unwrap();
         storage

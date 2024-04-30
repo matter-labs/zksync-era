@@ -11,9 +11,6 @@
 //! | Column       | Key                             | Value                           | Description                               |
 //! | ------------ | ------------------------------- | ------------------------------- | ----------------------------------------- |
 //! | State        | 'block_number'                  | serialized block number         | Last processed L1 batch number (u32)      |
-//! | State        | 'enum_index_migration_cursor'   | serialized hashed key or empty  | If key is not present it means that the migration hasn't started.                   |
-//! |              |                                 | bytes                           | If value is of length 32 then it represents hashed_key migration should start from. |
-//! |              |                                 |                                 | If value is empty then it means the migration has finished                          |
 //! | State        | hashed `StorageKey`             | 32 bytes value ++ 8 bytes index | State value for the given key             |
 //! |              |                                 |                    (big-endian) |                                           |
 //! | Contracts    | address (20 bytes)              | `Vec<u8>`                       | Contract contents                         |
@@ -32,8 +29,7 @@ use itertools::{Either, Itertools};
 use tokio::sync::watch;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_storage::{db::NamedColumnFamily, RocksDB};
-use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256, U256};
-use zksync_utils::{h256_to_u256, u256_to_h256};
+use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
 
 use self::metrics::METRICS;
 #[cfg(test)]
@@ -131,7 +127,6 @@ impl From<anyhow::Error> for RocksdbSyncError {
 pub struct RocksdbStorage {
     db: RocksDB<StateKeeperColumnFamily>,
     pending_patch: InMemoryStorage,
-    enum_index_migration_chunk_size: usize,
     /// Test-only listeners to events produced by the storage.
     #[cfg(test)]
     listener: RocksdbStorageEventListener,
@@ -148,15 +143,9 @@ impl RocksdbStorageBuilder {
         RocksdbStorageBuilder(RocksdbStorage {
             db: value,
             pending_patch: InMemoryStorage::default(),
-            enum_index_migration_chunk_size: 100,
             #[cfg(test)]
             listener: RocksdbStorageEventListener::default(),
         })
-    }
-
-    /// Enables enum indices migration.
-    pub fn enable_enum_index_migration(&mut self, chunk_size: usize) {
-        self.0.enum_index_migration_chunk_size = chunk_size;
     }
 
     /// Returns the last processed l1 batch number + 1.
@@ -207,16 +196,11 @@ impl RocksdbStorageBuilder {
 
 impl RocksdbStorage {
     const L1_BATCH_NUMBER_KEY: &'static [u8] = b"block_number";
-    const ENUM_INDEX_MIGRATION_CURSOR: &'static [u8] = b"enum_index_migration_cursor";
 
     /// Desired size of log chunks loaded from Postgres during snapshot recovery.
     /// This is intentionally not configurable because chunks must be the same for the entire recovery
     /// (i.e., not changed after a node restart).
     const DESIRED_LOG_CHUNK_SIZE: u64 = 200_000;
-
-    fn is_special_key(key: &[u8]) -> bool {
-        key == Self::L1_BATCH_NUMBER_KEY || key == Self::ENUM_INDEX_MIGRATION_CURSOR
-    }
 
     /// Creates a new storage builder with the provided RocksDB `path`.
     ///
@@ -234,7 +218,6 @@ impl RocksdbStorage {
             Ok(Self {
                 db: RocksDB::new(&path).context("failed initializing state keeper RocksDB")?,
                 pending_patch: InMemoryStorage::default(),
-                enum_index_migration_chunk_size: 100,
                 #[cfg(test)]
                 listener: RocksdbStorageEventListener::default(),
             })
@@ -313,14 +296,6 @@ impl RocksdbStorage {
             "Secondary storage for L1 batch #{latest_l1_batch_number} initialized, size is {estimated_size}"
         );
 
-        assert!(self.enum_index_migration_chunk_size > 0);
-        // Enum indices must be at the storage. Run migration till the end.
-        while self.enum_migration_start_from().await.is_some() {
-            if *stop_receiver.borrow() {
-                return Err(RocksdbSyncError::Interrupted);
-            }
-            self.save_missing_enum_indices(storage).await?;
-        }
         Ok(())
     }
 
@@ -363,96 +338,6 @@ impl RocksdbStorage {
                     .map(|(key, value)| (key, (value, enum_indices_and_batches[&key].1))),
             )
             .collect();
-        Ok(())
-    }
-
-    async fn save_missing_enum_indices(
-        &self,
-        storage: &mut Connection<'_, Core>,
-    ) -> anyhow::Result<()> {
-        let (true, Some(start_from)) = (
-            self.enum_index_migration_chunk_size > 0,
-            self.enum_migration_start_from().await,
-        ) else {
-            return Ok(());
-        };
-
-        let started_at = Instant::now();
-        tracing::info!(
-            "RocksDB enum index migration is not finished, starting from key {start_from:0>64x}"
-        );
-
-        let db = self.db.clone();
-        let enum_index_migration_chunk_size = self.enum_index_migration_chunk_size;
-        let (keys, values): (Vec<_>, Vec<_>) = tokio::task::spawn_blocking(move || {
-            db.from_iterator_cf(StateKeeperColumnFamily::State, start_from.as_bytes())
-                .filter_map(|(key, value)| {
-                    if Self::is_special_key(&key) {
-                        return None;
-                    }
-                    let state_value = StateValue::deserialize(&value);
-                    state_value
-                        .enum_index
-                        .is_none()
-                        .then(|| (H256::from_slice(&key), state_value.value))
-                })
-                .take(enum_index_migration_chunk_size)
-                .unzip()
-        })
-        .await
-        .unwrap();
-
-        let enum_indices_and_batches = storage
-            .storage_logs_dal()
-            .get_l1_batches_and_indices_for_initial_writes(&keys)
-            .await
-            .context("failed getting enumeration indices for storage logs")?;
-        assert_eq!(keys.len(), enum_indices_and_batches.len());
-        let key_count = keys.len();
-
-        let db = self.db.clone();
-        tokio::task::spawn_blocking(move || {
-            let mut write_batch = db.new_write_batch();
-            for (key, value) in keys.iter().zip(values) {
-                let index = enum_indices_and_batches[key].1;
-                write_batch.put_cf(
-                    StateKeeperColumnFamily::State,
-                    key.as_bytes(),
-                    &StateValue::new(value, Some(index)).serialize(),
-                );
-            }
-
-            let next_key = keys
-                .last()
-                .and_then(|last_key| h256_to_u256(*last_key).checked_add(U256::one()))
-                .map(u256_to_h256);
-            match (next_key, keys.len()) {
-                (Some(next_key), keys_len) if keys_len == enum_index_migration_chunk_size => {
-                    write_batch.put_cf(
-                        StateKeeperColumnFamily::State,
-                        Self::ENUM_INDEX_MIGRATION_CURSOR,
-                        next_key.as_bytes(),
-                    );
-                }
-                _ => {
-                    write_batch.put_cf(
-                        StateKeeperColumnFamily::State,
-                        Self::ENUM_INDEX_MIGRATION_CURSOR,
-                        &[],
-                    );
-                    tracing::info!("RocksDB enum index migration finished");
-                }
-            }
-            db.write(write_batch)
-                .context("failed saving enum indices to RocksDB")
-        })
-        .await
-        .context("panicked while saving enum indices to RocksDB")??;
-
-        tracing::info!(
-            "RocksDB enum index migration chunk took {:?}, migrated {key_count} keys",
-            started_at.elapsed()
-        );
         Ok(())
     }
 
@@ -510,7 +395,7 @@ impl RocksdbStorage {
         let stage_start = Instant::now();
         let (_, last_miniblock_to_keep) = connection
             .blocks_dal()
-            .get_miniblock_range_of_l1_batch(last_l1_batch_to_keep)
+            .get_l2_block_range_of_l1_batch(last_l1_batch_to_keep)
             .await?
             .context("L1 batch should contain at least one miniblock")?;
         tracing::info!(
@@ -523,10 +408,7 @@ impl RocksdbStorage {
         let factory_deps = connection
             .factory_deps_dal()
             .get_factory_deps_for_revert(last_miniblock_to_keep)
-            .await
-            .with_context(|| {
-                format!("failed fetching factory deps for miniblock #{last_miniblock_to_keep}")
-            })?;
+            .await?;
         tracing::info!(
             "Got {} factory deps, took {:?}",
             factory_deps.len(),
@@ -626,25 +508,6 @@ impl RocksdbStorage {
     fn estimated_map_size(&self) -> u64 {
         self.db
             .estimated_number_of_entries(StateKeeperColumnFamily::State)
-    }
-
-    async fn enum_migration_start_from(&self) -> Option<H256> {
-        let db = self.db.clone();
-        let value = tokio::task::spawn_blocking(move || {
-            db.get_cf(
-                StateKeeperColumnFamily::State,
-                Self::ENUM_INDEX_MIGRATION_CURSOR,
-            )
-            .expect("failed to read `ENUM_INDEX_MIGRATION_CURSOR`")
-        })
-        .await
-        .unwrap();
-
-        match value {
-            Some(value) if value.is_empty() => None,
-            Some(cursor) => Some(H256::from_slice(&cursor)),
-            None => Some(H256::zero()),
-        }
     }
 
     /// Converts self into the underlying RocksDB primitive

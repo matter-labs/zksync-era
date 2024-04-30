@@ -23,7 +23,6 @@ pub enum VmInstance<S: WriteStorage, H: HistoryMode> {
     Vm1_4_1(crate::vm_1_4_1::Vm<S, H>),
     Vm1_4_2(crate::vm_1_4_2::Vm<S, H>),
     Vm1_5_0(crate::vm_latest::Vm<S, H>),
-    VmLocal(crate::vm_latest::Vm<S, H>),
 }
 
 macro_rules! dispatch_vm {
@@ -38,7 +37,6 @@ macro_rules! dispatch_vm {
             VmInstance::Vm1_4_1(vm) => vm.$function($($params)*),
             VmInstance::Vm1_4_2(vm) => vm.$function($($params)*),
             VmInstance::Vm1_5_0(vm) => vm.$function($($params)*),
-            VmInstance::VmLocal(vm) => vm.$function($($params)*),
         }
     };
 }
@@ -221,10 +219,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInstance<S, H> {
             VmVersion::Vm1_5_0 => {
                 let vm = crate::vm_latest::Vm::new(l1_batch_env, system_env, storage_view);
                 VmInstance::Vm1_5_0(vm)
-            }
-            VmVersion::Local => {
-                let vm = crate::vm_latest::Vm::new(l1_batch_env, system_env, storage_view);
-                VmInstance::VmLocal(vm)
             }
         }
     }

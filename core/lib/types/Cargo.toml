@@ -21,6 +21,7 @@ zksync_crypto_primitives.workspace = true
 
 anyhow.workspace = true
 chrono = { workspace = true, features = ["serde"] }
+derive_more = { workspace = true, features = ["debug"] }
 num = { workspace = true, features = ["serde"] }
 once_cell.workspace = true
 rlp.workspace = true
@@ -34,7 +35,7 @@ prost.workspace = true
 itertools.workspace = true
 
 # Crypto stuff
-secp256k1 = { workspace = true, features = ["recovery", "global-context"] }
+secp256k1.workspace = true
 blake2.workspace = true
 
 [dev-dependencies]

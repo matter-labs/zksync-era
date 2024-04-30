@@ -5,7 +5,7 @@ import { BigNumberish } from 'ethers';
 import { TestContext, TestEnvironment, TestWallets } from './types';
 import { lookupPrerequisites } from './prerequisites';
 import { Reporter } from './reporter';
-import { additionalMultiplier, scaledGasPrice } from './helpers';
+import { scaledGasPrice } from './helpers';
 import { RetryProvider } from './retry-provider';
 
 // These amounts of ETH would be provided to each test suite through its "main" account.
@@ -137,11 +137,11 @@ export class TestContextOwner {
         this.reporter.debug(`Latest nonce is ${latestNonce}, pending nonce is ${pendingNonce}`);
         // For each transaction to override it, we need to provide greater fee.
         // We would manually provide a value high enough (for a testnet) to be both valid
-        // and higher than the previous one. It's OK as we'll only be charged for the bass fee
+        // and higher than the previous one. It's OK as we'll only be charged for the base fee
         // anyways. We will also set the miner's tip to 5 gwei, which is also much higher than the normal one.
         // Scaled gas price to be used to prevent transactions from being stuck.
-        const maxPriorityFeePerGas = ethers.utils.parseEther('0.000000005').mul(additionalMultiplier); // 5 gwei
-        const maxFeePerGas = ethers.utils.parseEther('0.00000025').mul(additionalMultiplier); // 250 gwei
+        const maxPriorityFeePerGas = ethers.utils.parseEther('0.000000005'); // 5 gwei
+        const maxFeePerGas = ethers.utils.parseEther('0.00000025'); // 250 gwei
         this.reporter.debug(`Max nonce is ${latestNonce}, pending nonce is ${pendingNonce}`);
 
         const cancellationTxs = [];
@@ -149,9 +149,7 @@ export class TestContextOwner {
             cancellationTxs.push(
                 ethWallet
                     .sendTransaction({ to: ethWallet.address, nonce, maxFeePerGas, maxPriorityFeePerGas })
-                    .then((tx) => {
-                        return tx.wait();
-                    })
+                    .then((tx) => tx.wait())
             );
         }
         if (cancellationTxs.length > 0) {
@@ -168,7 +166,6 @@ export class TestContextOwner {
         this.reporter.startAction(`Cancelling allowances transactions`);
         // Since some tx may be pending on stage, we don't want to get stuck because of it.
         // In order to not get stuck transactions, we manually cancel all the pending txs.
-        // const ethWallet = this.mainEthersWallet;
         const chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
 
         const bridgehub = await this.mainSyncWallet.getBridgehubContract();
@@ -210,9 +207,10 @@ export class TestContextOwner {
         const l2ETHAmountToDeposit = await this.ensureBalances(accountsAmount);
         const l2ERC20AmountToDeposit = ERC20_PER_ACCOUNT.mul(accountsAmount);
         const wallets = this.createTestWallets(suites);
-        await this.distributeL1BaseToken(wallets, l2ERC20AmountToDeposit);
+        const baseTokenAddress = await this.mainSyncWallet.provider.getBaseTokenContractAddress();
+        await this.distributeL1BaseToken(wallets, l2ERC20AmountToDeposit, baseTokenAddress);
         await this.cancelAllowances();
-        await this.distributeL1Tokens(wallets, l2ETHAmountToDeposit, l2ERC20AmountToDeposit);
+        await this.distributeL1Tokens(wallets, l2ETHAmountToDeposit, l2ERC20AmountToDeposit, baseTokenAddress);
         await this.distributeL2Tokens(wallets);
 
         this.reporter.finishAction();
@@ -271,9 +269,12 @@ export class TestContextOwner {
      * Sends L1 tokens to the test wallet accounts.
      * Additionally, deposits L1 tokens to the main account for further distribution on L2 (if required).
      */
-    private async distributeL1BaseToken(wallets: TestWallets, l2erc20DepositAmount: ethers.BigNumber) {
+    private async distributeL1BaseToken(
+        wallets: TestWallets,
+        l2erc20DepositAmount: ethers.BigNumber,
+        baseTokenAddress: zksync.types.Address
+    ) {
         this.reporter.startAction(`Distributing base tokens on L1`);
-        const baseTokenAddress = process.env.CONTRACTS_BASE_TOKEN_ADDR!;
         if (baseTokenAddress != zksync.utils.ETH_ADDRESS_IN_CONTRACTS) {
             const chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
             const l1startNonce = await this.mainEthersWallet.getTransactionCount();
@@ -362,7 +363,8 @@ export class TestContextOwner {
     private async distributeL1Tokens(
         wallets: TestWallets,
         l2ETHAmountToDeposit: ethers.BigNumber,
-        l2erc20DepositAmount: ethers.BigNumber
+        l2erc20DepositAmount: ethers.BigNumber,
+        baseTokenAddress: zksync.types.Address
     ) {
         const chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
         this.reporter.startAction(`Distributing tokens on L1`);
@@ -395,7 +397,9 @@ export class TestContextOwner {
                     overrides: {
                         nonce: nonce + (ethIsBaseToken ? 0 : 1), // if eth is base token the approve tx does not happen
                         gasPrice
-                    }
+                    },
+                    // specify gas limit manually, until EVM-554 is fixed
+                    l2GasLimit: 1000000
                 })
                 .then((tx) => {
                     const amount = ethers.utils.formatEther(l2ETHAmountToDeposit);
@@ -484,8 +488,8 @@ export class TestContextOwner {
 
         nonce += erc20Transfers.length;
         // Send ERC20 base token on L1.
-        const BaseErc20Transfers = await sendTransfers(
-            process.env.CONTRACTS_BASE_TOKEN_ADDR!,
+        const baseErc20Transfers = await sendTransfers(
+            baseTokenAddress,
             this.mainEthersWallet,
             wallets,
             ERC20_PER_ACCOUNT,
@@ -497,7 +501,7 @@ export class TestContextOwner {
         l1TxPromises.push(erc20DepositPromise);
         l1TxPromises.push(...ethTransfers);
         l1TxPromises.push(...erc20Transfers);
-        l1TxPromises.push(...BaseErc20Transfers);
+        l1TxPromises.push(...baseErc20Transfers);
 
         this.reporter.debug(`Sent ${l1TxPromises.length} initial transactions on L1`);
         await Promise.all(l1TxPromises);

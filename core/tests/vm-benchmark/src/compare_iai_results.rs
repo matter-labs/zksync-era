@@ -25,7 +25,7 @@ fn main() {
         .intersection(&iai_after.keys().collect())
         .flat_map(|&name| {
             let diff = percent_difference(iai_before[name], iai_after[name]);
-            if diff > 2. {
+            if diff.abs() > 2. {
                 Some((name, format!("{:+.1}%", diff)))
             } else {
                 None

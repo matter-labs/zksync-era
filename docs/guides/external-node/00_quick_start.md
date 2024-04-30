@@ -34,6 +34,9 @@ cd docker-compose-examples
 docker compose --file testnet-external-node-docker-compose.yml down --volumes
 ```
 
+You can see the status of the node (after recovery) in
+[local grafana dashboard](http://localhost:3000/d/0/external-node).
+
 Those commands start external node locally inside docker.
 
 The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be accessed on port `3061`.
@@ -49,11 +52,17 @@ The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be ac
 
 ### System Requirements
 
-- 32 GB of RAM and a relatively modern CPU
-- 50GB of storage for testnet instance
-- 700GB of storage for mainnet instance
+This configuration is approximate and should be considered as **minimal** requirements.
+
+- 32-core CPU
+- 64GB RAM
+- SSD storage (NVME recommended):
+  - Sepolia Testnet - 10GB EN + 50GB PostgreSQL (at the time of writing, will grow over time, so should be constantly
+    monitored)
+  - Mainnet - 3TB EN + 7TB PostgreSQL (at the time of writing, will grow over time, so should be constantly monitored)
+- 100 Mbps connection (1 Gbps+ recommended)
 
 ## Advanced setup
 
-If you need monitoring, backups, to recover from DB dump or a more customized postgres settings, etc, please see:
-[ansible-en-role repo](https://github.com/matter-labs/ansible-en-role)
+If you need monitoring, backups, to recover from DB dump/snapshot or a more customized PostgreSQL settings, etc, please
+see: [ansible-en-role repo](https://github.com/matter-labs/ansible-en-role)

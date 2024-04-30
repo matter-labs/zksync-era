@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use rand::{distributions::Distribution, Rng};
+use rand::Rng;
 use test_casing::test_casing;
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, scope};
@@ -7,11 +7,7 @@ use zksync_consensus_executor as executor;
 use zksync_consensus_network as network;
 use zksync_consensus_network::testonly::{new_configs, new_fullnode};
 use zksync_consensus_roles::validator::testonly::Setup;
-use zksync_consensus_storage as storage;
-use zksync_consensus_storage::PersistentBlockStore as _;
-use zksync_consensus_utils::EncodeDist;
-use zksync_protobuf::testonly::{test_encode_all_formats, FmtConv};
-use zksync_types::{L1BatchNumber, MiniblockNumber};
+use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 use super::*;
 use crate::utils::testonly::Snapshot;
@@ -19,7 +15,7 @@ use crate::utils::testonly::Snapshot;
 async fn new_store(from_snapshot: bool) -> Store {
     match from_snapshot {
         true => {
-            Store::from_snapshot(Snapshot::make(L1BatchNumber(23), MiniblockNumber(87), &[])).await
+            Store::from_snapshot(Snapshot::make(L1BatchNumber(23), L2BlockNumber(87), &[])).await
         }
         false => Store::from_genesis().await,
     }
@@ -66,9 +62,23 @@ async fn test_validator_block_store() {
 
     // Insert blocks one by one and check the storage state.
     for (i, block) in want.iter().enumerate() {
-        let store = store.clone().into_block_store();
-        store.store_next_block(ctx, block).await.unwrap();
-        assert_eq!(want[..i + 1], storage::testonly::dump(ctx, &store).await);
+        scope::run!(ctx, |ctx, s| async {
+            let (block_store, runner) = store.clone().into_block_store(ctx, None).await.unwrap();
+            s.spawn_bg(runner.run(ctx));
+            block_store.queue_block(ctx, block.clone()).await.unwrap();
+            block_store
+                .wait_until_persisted(ctx, block.number())
+                .await
+                .unwrap();
+            let got = store
+                .wait_for_certificates(ctx, block.number())
+                .await
+                .unwrap();
+            assert_eq!(want[..=i], got);
+            Ok(())
+        })
+        .await
+        .unwrap();
     }
 }
 
@@ -437,37 +447,4 @@ async fn test_centralized_fetcher(from_snapshot: bool) {
     })
     .await
     .unwrap();
-}
-
-impl Distribution<Config> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Config {
-        Config {
-            server_addr: self.sample(rng),
-            public_addr: self.sample(rng),
-            validators: rng.gen(),
-            max_payload_size: self.sample(rng),
-            gossip_dynamic_inbound_limit: self.sample(rng),
-            gossip_static_inbound: self.sample_range(rng).map(|_| rng.gen()).collect(),
-            gossip_static_outbound: self
-                .sample_range(rng)
-                .map(|_| (rng.gen(), self.sample(rng)))
-                .collect(),
-        }
-    }
-}
-
-impl Distribution<Secrets> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Secrets {
-        Secrets {
-            validator_key: self.sample_opt(|| rng.gen()),
-            node_key: self.sample_opt(|| rng.gen()),
-        }
-    }
-}
-
-#[test]
-fn test_schema_encoding() {
-    let ctx = ctx::test_root(&ctx::RealClock);
-    let rng = &mut ctx.rng();
-    test_encode_all_formats::<FmtConv<config::Config>>(rng);
 }

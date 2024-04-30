@@ -1,6 +1,6 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use zksync_config::GenesisConfig;
-use zksync_types::{api::en, tokens::TokenInfo, Address, MiniblockNumber};
+use zksync_types::{api::en, tokens::TokenInfo, Address, L2BlockNumber};
 
 #[cfg_attr(
     all(feature = "client", feature = "server"),
@@ -18,7 +18,7 @@ pub trait EnNamespace {
     #[method(name = "syncL2Block")]
     async fn sync_l2_block(
         &self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
         include_transactions: bool,
     ) -> RpcResult<Option<en::SyncBlock>>;
 
@@ -29,8 +29,7 @@ pub trait EnNamespace {
     ///
     /// This method is used by EN after snapshot recovery in order to recover token records.
     #[method(name = "syncTokens")]
-    async fn sync_tokens(&self, block_number: Option<MiniblockNumber>)
-        -> RpcResult<Vec<TokenInfo>>;
+    async fn sync_tokens(&self, block_number: Option<L2BlockNumber>) -> RpcResult<Vec<TokenInfo>>;
 
     /// Get genesis configuration
     #[method(name = "genesisConfig")]

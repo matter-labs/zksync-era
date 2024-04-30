@@ -13,7 +13,7 @@ use zksync_types::{
         self,
         types::{FeeHistory, SyncInfo, SyncState},
     },
-    AccountTreeId, Bytes, MiniblockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS, U256,
+    AccountTreeId, Bytes, L2BlockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
@@ -47,7 +47,7 @@ impl EthNamespace {
         let mut storage = self.state.acquire_connection().await?;
         let block_number = storage
             .blocks_dal()
-            .get_sealed_miniblock_number()
+            .get_sealed_l2_block_number()
             .await
             .map_err(DalError::generalize)?
             .ok_or(Web3Error::NoBlock)?;
@@ -163,7 +163,7 @@ impl EthNamespace {
         Ok(balance)
     }
 
-    fn set_block_diff(&self, block_number: MiniblockNumber) {
+    fn set_block_diff(&self, block_number: L2BlockNumber) {
         let diff = self.state.last_sealed_miniblock.diff(block_number);
         self.current_method().set_block_diff(diff);
     }
@@ -216,9 +216,13 @@ impl EthNamespace {
         full_transactions: bool,
     ) -> Result<Option<Block<TransactionVariant>>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        self.state.start_info.ensure_not_pruned(block_id)?;
-
         let mut storage = self.state.acquire_connection().await?;
+
+        self.state
+            .start_info
+            .ensure_not_pruned(block_id, &mut storage)
+            .await?;
+
         let Some(block_number) = self
             .state
             .resolve_block_unchecked(&mut storage, block_id)
@@ -230,7 +234,7 @@ impl EthNamespace {
             .blocks_web3_dal()
             .get_api_block(block_number)
             .await
-            .with_context(|| format!("get_api_block({block_number})"))?
+            .map_err(DalError::generalize)?
         else {
             return Ok(None);
         };
@@ -278,9 +282,13 @@ impl EthNamespace {
         block_id: BlockId,
     ) -> Result<Option<U256>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        self.state.start_info.ensure_not_pruned(block_id)?;
-
         let mut storage = self.state.acquire_connection().await?;
+
+        self.state
+            .start_info
+            .ensure_not_pruned(block_id, &mut storage)
+            .await?;
+
         let Some(block_number) = self
             .state
             .resolve_block_unchecked(&mut storage, block_id)
@@ -292,7 +300,7 @@ impl EthNamespace {
             .blocks_web3_dal()
             .get_block_tx_count(block_number)
             .await
-            .with_context(|| format!("get_block_tx_count({block_number})"))?;
+            .map_err(DalError::generalize)?;
 
         if tx_count.is_some() {
             self.set_block_diff(block_number); // only report block diff for existing miniblocks
@@ -306,9 +314,13 @@ impl EthNamespace {
         block_id: BlockId,
     ) -> Result<Option<Vec<TransactionReceipt>>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        self.state.start_info.ensure_not_pruned(block_id)?;
-
         let mut storage = self.state.acquire_connection().await?;
+
+        self.state
+            .start_info
+            .ensure_not_pruned(block_id, &mut storage)
+            .await?;
+
         let Some(block_number) = self
             .state
             .resolve_block_unchecked(&mut storage, block_id)
@@ -320,7 +332,7 @@ impl EthNamespace {
             .blocks_web3_dal()
             .get_api_block(block_number)
             .await
-            .with_context(|| format!("get_api_block({block_number})"))?
+            .map_err(DalError::generalize)?
         else {
             return Ok(None);
         };
@@ -494,7 +506,7 @@ impl EthNamespace {
         let mut storage = self.state.acquire_connection().await?;
         let last_block_number = storage
             .blocks_dal()
-            .get_sealed_miniblock_number()
+            .get_sealed_l2_block_number()
             .await
             .map_err(DalError::generalize)?
             .context("no miniblocks in storage")?;
@@ -698,27 +710,24 @@ impl EthNamespace {
             TypedFilter::PendingTransactions(from_timestamp_excluded) => {
                 // Attempt to get pending transactions from cache.
 
-                let tx_hashes_from_cache = self
-                    .state
-                    .mempool_cache
-                    .get_tx_hashes_after(*from_timestamp_excluded)
-                    .await;
-                let tx_hashes = match tx_hashes_from_cache {
-                    Some(mut result) => {
-                        result.truncate(self.state.api_config.req_entities_limit);
-                        result
-                    }
-                    None => {
-                        // On cache miss, query the database.
-                        let mut conn = self.state.acquire_connection().await?;
-                        conn.transactions_web3_dal()
-                            .get_pending_txs_hashes_after(
-                                *from_timestamp_excluded,
-                                Some(self.state.api_config.req_entities_limit),
-                            )
-                            .await
-                            .map_err(DalError::generalize)?
-                    }
+                let tx_hashes_from_cache = if let Some(cache) = &self.state.mempool_cache {
+                    cache.get_tx_hashes_after(*from_timestamp_excluded).await
+                } else {
+                    None
+                };
+                let tx_hashes = if let Some(mut result) = tx_hashes_from_cache {
+                    result.truncate(self.state.api_config.req_entities_limit);
+                    result
+                } else {
+                    // On cache miss, query the database.
+                    let mut conn = self.state.acquire_connection().await?;
+                    conn.transactions_web3_dal()
+                        .get_pending_txs_hashes_after(
+                            *from_timestamp_excluded,
+                            Some(self.state.api_config.req_entities_limit),
+                        )
+                        .await
+                        .map_err(DalError::generalize)?
                 };
 
                 // It's possible the `tx_hashes` vector is empty,

@@ -14,7 +14,7 @@ use crate::{
     protocol_version::L1VerifierConfig,
     vm_trace::{Call, CallType},
     web3::types::{AccessList, Index, H2048},
-    Address, MiniblockNumber, ProtocolVersionId,
+    Address, L2BlockNumber, ProtocolVersionId,
 };
 
 pub mod en;
@@ -581,8 +581,8 @@ pub struct TransactionDetails {
 
 #[derive(Debug, Clone)]
 pub struct GetLogsFilter {
-    pub from_block: MiniblockNumber,
-    pub to_block: MiniblockNumber,
+    pub from_block: L2BlockNumber,
+    pub to_block: L2BlockNumber,
     pub addresses: Vec<Address>,
     pub topics: Vec<(u32, Vec<H256>)>,
 }
@@ -705,7 +705,7 @@ pub struct BlockDetailsBase {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BlockDetails {
-    pub number: MiniblockNumber,
+    pub number: L2BlockNumber,
     pub l1_batch_number: L1BatchNumber,
     #[serde(flatten)]
     pub base: BlockDetailsBase,

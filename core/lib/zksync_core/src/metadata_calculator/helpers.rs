@@ -52,7 +52,13 @@ pub(super) enum MerkleTreeHealth {
 
 impl From<MerkleTreeHealth> for Health {
     fn from(details: MerkleTreeHealth) -> Self {
-        Self::from(HealthStatus::Ready).with_details(details)
+        let status = match &details {
+            MerkleTreeHealth::Initialization | MerkleTreeHealth::Recovery { .. } => {
+                HealthStatus::Affected
+            }
+            MerkleTreeHealth::MainLoop(_) => HealthStatus::Ready,
+        };
+        Self::from(status).with_details(details)
     }
 }
 
@@ -440,8 +446,7 @@ impl L1BatchWithLogs {
                 let protective_reads = storage
                     .storage_logs_dedup_dal()
                     .get_protective_reads_for_l1_batch(l1_batch_number)
-                    .await
-                    .context("cannot fetch protective reads")?;
+                    .await?;
                 if protective_reads.is_empty() {
                     tracing::warn!(
                         "Protective reads for L1 batch #{l1_batch_number} are empty. This is highly unlikely \

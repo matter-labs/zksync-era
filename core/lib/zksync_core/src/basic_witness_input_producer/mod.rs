@@ -54,7 +54,7 @@ impl BasicWitnessInputProducer {
         let miniblocks_execution_data = rt_handle.block_on(
             connection
                 .transactions_dal()
-                .get_miniblocks_to_execute_for_l1_batch(l1_batch_number),
+                .get_l2_blocks_to_execute_for_l1_batch(l1_batch_number),
         )?;
 
         let (mut vm, storage_view) =
@@ -174,23 +174,13 @@ impl JobProcessor for BasicWitnessInputProducer {
         METRICS
             .upload_input_time
             .observe(upload_started_at.elapsed());
-        let mut connection = self
-            .connection_pool
-            .connection()
-            .await
-            .context("failed to acquire DB connection for BasicWitnessInputProducer")?;
-        let mut transaction = connection
-            .start_transaction()
-            .await
-            .context("failed to acquire DB transaction for BasicWitnessInputProducer")?;
+        let mut connection = self.connection_pool.connection().await?;
+        let mut transaction = connection.start_transaction().await?;
         transaction
             .basic_witness_input_producer_dal()
             .mark_job_as_successful(job_id, started_at, &object_path)
             .await?;
-        transaction
-            .commit()
-            .await
-            .context("failed to commit DB transaction for BasicWitnessInputProducer")?;
+        transaction.commit().await?;
         METRICS.block_number_processed.set(job_id.0 as i64);
         Ok(())
     }
@@ -200,16 +190,11 @@ impl JobProcessor for BasicWitnessInputProducer {
     }
 
     async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
-        let mut connection = self
-            .connection_pool
-            .connection()
-            .await
-            .context("failed to acquire DB connection for BasicWitnessInputProducer")?;
-        connection
+        let mut connection = self.connection_pool.connection().await?;
+        Ok(connection
             .basic_witness_input_producer_dal()
             .get_basic_witness_input_producer_job_attempts(*job_id)
             .await
-            .map(|attempts| attempts.unwrap_or(0))
-            .context("failed to get job attempts for BasicWitnessInputProducer")
+            .map(|attempts| attempts.unwrap_or(0))?)
     }
 }

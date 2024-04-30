@@ -6,7 +6,7 @@ use sqlx::{
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{
     api::{GetLogsFilter, Log},
-    Address, MiniblockNumber, H256,
+    Address, L2BlockNumber, H256,
 };
 
 use crate::{models::storage_event::StorageWeb3Log, Core};
@@ -17,13 +17,13 @@ pub struct EventsWeb3Dal<'a, 'c> {
 }
 
 impl EventsWeb3Dal<'_, '_> {
-    /// Returns miniblock number of log for given filter and offset.
+    /// Returns L2 block number of log for given filter and offset.
     /// Used to determine if there is more than `offset` logs that satisfies filter.
     pub async fn get_log_block_number(
         &mut self,
         filter: &GetLogsFilter,
         offset: usize,
-    ) -> DalResult<Option<MiniblockNumber>> {
+    ) -> DalResult<Option<L2BlockNumber>> {
         let (where_sql, arg_index) = self.build_get_logs_where_clause(filter);
 
         let query = format!(
@@ -60,7 +60,7 @@ impl EventsWeb3Dal<'_, '_> {
             .fetch_optional(self.storage)
             .await?;
 
-        Ok(log.map(|row| MiniblockNumber(row.get::<i64, _>("miniblock_number") as u32)))
+        Ok(log.map(|row| L2BlockNumber(row.get::<i64, _>("miniblock_number") as u32)))
     }
 
     /// Returns logs for given filter.
@@ -183,63 +183,61 @@ impl EventsWeb3Dal<'_, '_> {
         }
     }
 
-    pub async fn get_all_logs(&mut self, from_block: MiniblockNumber) -> DalResult<Vec<Log>> {
-        {
-            let db_logs: Vec<StorageWeb3Log> = sqlx::query_as!(
-                StorageWeb3Log,
-                r#"
-                WITH
-                    events_select AS (
-                        SELECT
-                            address,
-                            topic1,
-                            topic2,
-                            topic3,
-                            topic4,
-                            value,
-                            miniblock_number,
-                            tx_hash,
-                            tx_index_in_block,
-                            event_index_in_block,
-                            event_index_in_tx
-                        FROM
-                            events
-                        WHERE
-                            miniblock_number > $1
-                        ORDER BY
-                            miniblock_number ASC,
-                            event_index_in_block ASC
-                    )
-                SELECT
-                    miniblocks.hash AS "block_hash?",
-                    address AS "address!",
-                    topic1 AS "topic1!",
-                    topic2 AS "topic2!",
-                    topic3 AS "topic3!",
-                    topic4 AS "topic4!",
-                    value AS "value!",
-                    miniblock_number AS "miniblock_number!",
-                    miniblocks.l1_batch_number AS "l1_batch_number?",
-                    tx_hash AS "tx_hash!",
-                    tx_index_in_block AS "tx_index_in_block!",
-                    event_index_in_block AS "event_index_in_block!",
-                    event_index_in_tx AS "event_index_in_tx!"
-                FROM
-                    events_select
-                    INNER JOIN miniblocks ON events_select.miniblock_number = miniblocks.number
-                ORDER BY
-                    miniblock_number ASC,
-                    event_index_in_block ASC
-                "#,
-                i64::from(from_block.0)
-            )
-            .instrument("get_all_logs")
-            .with_arg("from_block", &from_block)
-            .fetch_all(self.storage)
-            .await?;
-            let logs = db_logs.into_iter().map(Into::into).collect();
-            Ok(logs)
-        }
+    pub async fn get_all_logs(&mut self, from_block: L2BlockNumber) -> DalResult<Vec<Log>> {
+        let db_logs: Vec<StorageWeb3Log> = sqlx::query_as!(
+            StorageWeb3Log,
+            r#"
+            WITH
+                events_select AS (
+                    SELECT
+                        address,
+                        topic1,
+                        topic2,
+                        topic3,
+                        topic4,
+                        value,
+                        miniblock_number,
+                        tx_hash,
+                        tx_index_in_block,
+                        event_index_in_block,
+                        event_index_in_tx
+                    FROM
+                        events
+                    WHERE
+                        miniblock_number > $1
+                    ORDER BY
+                        miniblock_number ASC,
+                        event_index_in_block ASC
+                )
+            SELECT
+                miniblocks.hash AS "block_hash?",
+                address AS "address!",
+                topic1 AS "topic1!",
+                topic2 AS "topic2!",
+                topic3 AS "topic3!",
+                topic4 AS "topic4!",
+                value AS "value!",
+                miniblock_number AS "miniblock_number!",
+                miniblocks.l1_batch_number AS "l1_batch_number?",
+                tx_hash AS "tx_hash!",
+                tx_index_in_block AS "tx_index_in_block!",
+                event_index_in_block AS "event_index_in_block!",
+                event_index_in_tx AS "event_index_in_tx!"
+            FROM
+                events_select
+                INNER JOIN miniblocks ON events_select.miniblock_number = miniblocks.number
+            ORDER BY
+                miniblock_number ASC,
+                event_index_in_block ASC
+            "#,
+            i64::from(from_block.0)
+        )
+        .instrument("get_all_logs")
+        .with_arg("from_block", &from_block)
+        .fetch_all(self.storage)
+        .await?;
+        let logs = db_logs.into_iter().map(Into::into).collect();
+        Ok(logs)
     }
 }
 
@@ -256,8 +254,8 @@ mod tests {
         let storage = &mut connection_pool.connection().await.unwrap();
         let events_web3_dal = EventsWeb3Dal { storage };
         let filter = GetLogsFilter {
-            from_block: MiniblockNumber(100),
-            to_block: MiniblockNumber(200),
+            from_block: L2BlockNumber(100),
+            to_block: L2BlockNumber(200),
             addresses: vec![Address::from_low_u64_be(123)],
             topics: vec![(0, vec![H256::from_low_u64_be(456)])],
         };
@@ -277,8 +275,8 @@ mod tests {
         let storage = &mut connection_pool.connection().await.unwrap();
         let events_web3_dal = EventsWeb3Dal { storage };
         let filter = GetLogsFilter {
-            from_block: MiniblockNumber(10),
-            to_block: MiniblockNumber(400),
+            from_block: L2BlockNumber(10),
+            to_block: L2BlockNumber(400),
             addresses: vec![
                 Address::from_low_u64_be(123),
                 Address::from_low_u64_be(1233),
@@ -311,8 +309,8 @@ mod tests {
         let storage = &mut connection_pool.connection().await.unwrap();
         let events_web3_dal = EventsWeb3Dal { storage };
         let filter = GetLogsFilter {
-            from_block: MiniblockNumber(10),
-            to_block: MiniblockNumber(400),
+            from_block: L2BlockNumber(10),
+            to_block: L2BlockNumber(400),
             addresses: vec![],
             topics: vec![(2, vec![H256::from_low_u64_be(789)])],
         };

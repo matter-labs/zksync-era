@@ -6,9 +6,9 @@ use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_shared_metrics::{CheckerComponent, EN_METRICS};
-use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
+use zksync_types::{L1BatchNumber, L2BlockNumber, H256};
 use zksync_web3_decl::{
-    client::L2Client,
+    client::BoxedL2Client,
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
@@ -80,19 +80,19 @@ impl From<EnrichedClientError> for Error {
 
 #[async_trait]
 trait MainNodeClient: fmt::Debug + Send + Sync {
-    async fn sealed_miniblock_number(&self) -> EnrichedClientResult<MiniblockNumber>;
+    async fn sealed_miniblock_number(&self) -> EnrichedClientResult<L2BlockNumber>;
 
     async fn sealed_l1_batch_number(&self) -> EnrichedClientResult<L1BatchNumber>;
 
-    async fn miniblock_hash(&self, number: MiniblockNumber) -> EnrichedClientResult<Option<H256>>;
+    async fn miniblock_hash(&self, number: L2BlockNumber) -> EnrichedClientResult<Option<H256>>;
 
     async fn l1_batch_root_hash(&self, number: L1BatchNumber)
         -> EnrichedClientResult<Option<H256>>;
 }
 
 #[async_trait]
-impl MainNodeClient for L2Client {
-    async fn sealed_miniblock_number(&self) -> EnrichedClientResult<MiniblockNumber> {
+impl MainNodeClient for BoxedL2Client {
+    async fn sealed_miniblock_number(&self) -> EnrichedClientResult<L2BlockNumber> {
         let number = self
             .get_block_number()
             .rpc_context("sealed_miniblock_number")
@@ -100,7 +100,7 @@ impl MainNodeClient for L2Client {
         let number = u32::try_from(number).map_err(|err| {
             EnrichedClientError::custom(err, "u32::try_from").with_arg("number", &number)
         })?;
-        Ok(MiniblockNumber(number))
+        Ok(L2BlockNumber(number))
     }
 
     async fn sealed_l1_batch_number(&self) -> EnrichedClientResult<L1BatchNumber> {
@@ -114,7 +114,7 @@ impl MainNodeClient for L2Client {
         Ok(L1BatchNumber(number))
     }
 
-    async fn miniblock_hash(&self, number: MiniblockNumber) -> EnrichedClientResult<Option<H256>> {
+    async fn miniblock_hash(&self, number: L2BlockNumber) -> EnrichedClientResult<Option<H256>> {
         Ok(self
             .get_block_by_number(number.0.into(), false)
             .rpc_context("miniblock_hash")
@@ -141,7 +141,7 @@ trait HandleReorgDetectorEvent: fmt::Debug + Send + Sync {
 
     fn update_correct_block(
         &mut self,
-        last_correct_miniblock: MiniblockNumber,
+        last_correct_miniblock: L2BlockNumber,
         last_correct_l1_batch: L1BatchNumber,
     );
 
@@ -158,7 +158,7 @@ impl HandleReorgDetectorEvent for HealthUpdater {
 
     fn update_correct_block(
         &mut self,
-        last_correct_miniblock: MiniblockNumber,
+        last_correct_miniblock: L2BlockNumber,
         last_correct_l1_batch: L1BatchNumber,
     ) {
         let last_correct_miniblock = last_correct_miniblock.0.into();
@@ -221,7 +221,7 @@ pub struct ReorgDetector {
 impl ReorgDetector {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(client: L2Client, pool: ConnectionPool<Core>) -> Self {
+    pub fn new(client: BoxedL2Client, pool: ConnectionPool<Core>) -> Self {
         let (health_check, health_updater) = ReactiveHealthCheck::new("reorg_detector");
         Self {
             client: Box::new(client.for_component("reorg_detector")),
@@ -250,7 +250,7 @@ impl ReorgDetector {
         };
         let Some(local_miniblock) = storage
             .blocks_dal()
-            .get_sealed_miniblock_number()
+            .get_sealed_l2_block_number()
             .await
             .map_err(DalError::generalize)?
         else {
@@ -309,12 +309,12 @@ impl ReorgDetector {
     /// Compares hashes of the given local miniblock and the same miniblock from main node.
     async fn miniblock_hashes_match(
         &self,
-        miniblock: MiniblockNumber,
+        miniblock: L2BlockNumber,
     ) -> Result<bool, HashMatchError> {
         let mut storage = self.pool.connection().await.context("connection()")?;
         let local_hash = storage
             .blocks_dal()
-            .get_miniblock_header(miniblock)
+            .get_l2_block_header(miniblock)
             .await
             .map_err(DalError::generalize)?
             .with_context(|| format!("Header does not exist for local miniblock #{miniblock}"))?
@@ -396,10 +396,15 @@ impl ReorgDetector {
                 Err(err) => return Err(err),
                 Ok(()) => {}
             }
-            // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
-            tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
+
+            if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
                 .await
-                .ok();
+                .is_ok()
+            {
+                // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
+                // OTOH, an Ok(_) value always signals task termination.
+                break;
+            }
         }
         self.event_handler.start_shutting_down();
         tracing::info!("Shutting down reorg detector");

@@ -5,7 +5,7 @@ use once_cell::sync::Lazy;
 use test_casing::{test_casing, Product};
 use zksync_config::{
     configs::eth_sender::{ProofSendingMode, PubdataSendingMode, SenderConfig},
-    ContractsConfig, ETHConfig, GasAdjusterConfig,
+    ContractsConfig, EthConfig, GasAdjusterConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{clients::MockEthereum, EthInterface};
@@ -85,7 +85,7 @@ impl EthSenderTester {
         aggregator_operate_4844_mode: bool,
         deployment_mode: &DeploymentMode,
     ) -> Self {
-        let eth_sender_config = ETHConfig::for_tests();
+        let eth_sender_config = EthConfig::for_tests();
         let contracts_config = ContractsConfig::for_tests();
         let aggregator_config = SenderConfig {
             aggregated_proof_sizes: vec![1],
@@ -207,7 +207,6 @@ fn default_l1_batch_metadata() -> L1BatchMetadata {
     L1BatchMetadata {
         root_hash: Default::default(),
         rollup_last_leaf_index: 0,
-        merkle_root_hash: Default::default(),
         initial_writes_compressed: Some(vec![]),
         repeated_writes_compressed: Some(vec![]),
         commitment: Default::default(),
@@ -252,7 +251,7 @@ async fn confirm_many(
             .save_eth_tx(
                 &mut tester.conn.connection().await.unwrap(),
                 &DUMMY_OPERATION,
-                true,
+                false,
             )
             .await?;
         let hash = tester
@@ -337,7 +336,7 @@ async fn resend_each_block(deployment_mode: DeploymentMode) -> anyhow::Result<()
         .save_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
             &DUMMY_OPERATION,
-            true,
+            false,
         )
         .await?;
 
@@ -442,7 +441,7 @@ async fn dont_resend_already_mined(deployment_mode: DeploymentMode) -> anyhow::R
         .save_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
             &DUMMY_OPERATION,
-            true,
+            false,
         )
         .await
         .unwrap();
@@ -524,7 +523,7 @@ async fn three_scenarios(deployment_mode: DeploymentMode) -> anyhow::Result<()> 
             .save_eth_tx(
                 &mut tester.conn.connection().await.unwrap(),
                 &DUMMY_OPERATION,
-                true,
+                false,
             )
             .await
             .unwrap();
@@ -601,7 +600,7 @@ async fn failed_eth_tx(deployment_mode: DeploymentMode) {
         .save_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
             &DUMMY_OPERATION,
-            true,
+            false,
         )
         .await
         .unwrap();
@@ -1075,7 +1074,7 @@ async fn send_operation(
         .save_eth_tx(
             &mut tester.conn.connection().await.unwrap(),
             &aggregated_operation,
-            true,
+            false,
         )
         .await
         .unwrap();

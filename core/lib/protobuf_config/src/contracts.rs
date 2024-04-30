@@ -14,7 +14,6 @@ impl ProtoRepr for proto::Contracts {
         let shared = required(&bridges.shared).context("shared")?;
         let erc20 = required(&bridges.erc20).context("erc20")?;
         let weth_bridge = required(&bridges.weth).context("weth_bridge")?;
-        // let base_token_address = &self.l2.
         Ok(Self::Type {
             governance_addr: required(&l1.governance_addr)
                 .and_then(|x| parse_h160(x))
@@ -88,7 +87,7 @@ impl ProtoRepr for proto::Contracts {
                 validator_timelock_addr: Some(format!("{:?}", this.validator_timelock_addr)),
                 default_upgrade_addr: Some(format!("{:?}", this.default_upgrade_addr)),
                 multicall3_addr: Some(format!("{:?}", this.l1_multicall3_addr)),
-                base_token_addr: Some(format!("{:?}", this.base_token_addr)),
+                base_token_addr: this.base_token_addr.map(|a| format!("{:?}", a)),
             }),
             l2: Some(proto::L2 {
                 testnet_paymaster_addr: this.l2_testnet_paymaster_addr.map(|a| format!("{:?}", a)),

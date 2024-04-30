@@ -65,7 +65,6 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             account_pks: self.sample_opt(|| self.sample_range(rng).map(|_| rng.gen()).collect()),
             estimate_gas_scale_factor: self.sample(rng),
             estimate_gas_acceptable_overestimation: self.sample(rng),
-            l1_to_l2_transactions_compatibility_mode: self.sample(rng),
             max_tx_size: self.sample(rng),
             vm_execution_cache_misses_limit: self.sample(rng),
             vm_concurrency_limit: self.sample(rng),
@@ -152,6 +151,7 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             block_commit_deadline_ms: self.sample(rng),
             miniblock_commit_deadline_ms: self.sample(rng),
             miniblock_seal_queue_capacity: self.sample(rng),
+            miniblock_max_payload_size: self.sample(rng),
             max_single_tx_gas: self.sample(rng),
             max_allowed_l2_tx_gas_limit: self.sample(rng),
             reject_tx_at_geometry_percentage: self.sample(rng),
@@ -169,9 +169,6 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             fee_model_version: self.sample(rng),
             validation_computational_gas_limit: self.sample(rng),
             save_call_traces: self.sample(rng),
-            virtual_blocks_interval: self.sample(rng),
-            virtual_blocks_per_miniblock: self.sample(rng),
-            enum_index_migration_chunk_size: self.sample(rng),
             max_circuits_per_batch: self.sample(rng),
             // These values are not involved into files serialization skip them
             fee_account_addr: None,
@@ -299,9 +296,9 @@ impl Distribution<configs::database::PostgresConfig> for EncodeDist {
     }
 }
 
-impl Distribution<configs::ETHConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ETHConfig {
-        configs::ETHConfig {
+impl Distribution<configs::EthConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::EthConfig {
+        configs::EthConfig {
             sender: self.sample(rng),
             gas_adjuster: self.sample(rng),
             watcher: self.sample(rng),
@@ -385,9 +382,9 @@ impl Distribution<configs::eth_sender::GasAdjusterConfig> for EncodeDist {
     }
 }
 
-impl Distribution<configs::ETHWatchConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ETHWatchConfig {
-        configs::ETHWatchConfig {
+impl Distribution<configs::EthWatchConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::EthWatchConfig {
+        configs::EthWatchConfig {
             confirmations_for_eth_event: self.sample(rng),
             eth_node_poll_interval: self.sample(rng),
         }
@@ -427,11 +424,8 @@ impl Distribution<configs::FriProverConfig> for EncodeDist {
             prometheus_port: self.sample(rng),
             max_attempts: self.sample(rng),
             generation_timeout_in_secs: self.sample(rng),
-            base_layer_circuit_ids_to_be_verified: self.sample_collect(rng),
-            recursive_layer_circuit_ids_to_be_verified: self.sample_collect(rng),
             setup_load_mode: self.sample(rng),
             specialized_group_id: self.sample(rng),
-            witness_vector_generator_thread_count: self.sample(rng),
             queue_capacity: self.sample(rng),
             witness_vector_receiver_port: self.sample(rng),
             zone_read_url: self.sample(rng),
@@ -627,35 +621,6 @@ impl Distribution<configs::SnapshotsCreatorConfig> for EncodeDist {
     }
 }
 
-impl Distribution<configs::witness_generator::BasicWitnessGeneratorDataSource> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(
-        &self,
-        rng: &mut R,
-    ) -> configs::witness_generator::BasicWitnessGeneratorDataSource {
-        type T = configs::witness_generator::BasicWitnessGeneratorDataSource;
-        match rng.gen_range(0..2) {
-            0 => T::FromPostgres,
-            1 => T::FromPostgresShadowBlob,
-            _ => T::FromBlob,
-        }
-    }
-}
-
-impl Distribution<configs::WitnessGeneratorConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::WitnessGeneratorConfig {
-        configs::WitnessGeneratorConfig {
-            generation_timeout_in_secs: self.sample(rng),
-            initial_setup_key_path: self.sample(rng),
-            key_download_url: self.sample(rng),
-            max_attempts: self.sample(rng),
-            blocks_proving_percentage: self.sample(rng),
-            dump_arguments_for_blocks: self.sample_collect(rng),
-            last_l1_batch_to_process: self.sample(rng),
-            data_source: self.sample(rng),
-        }
-    }
-}
-
 impl Distribution<configs::ObservabilityConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ObservabilityConfig {
         configs::ObservabilityConfig {
@@ -707,6 +672,40 @@ impl Distribution<configs::SharedBridge> for EncodeDist {
             bridgehub_proxy_addr: rng.gen(),
             state_transition_proxy_addr: rng.gen(),
             transparent_proxy_admin_addr: rng.gen(),
+        }
+    }
+}
+
+impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::ConsensusConfig {
+        use configs::consensus::{ConsensusConfig, Host, NodePublicKey, ValidatorPublicKey};
+        ConsensusConfig {
+            server_addr: self.sample(rng),
+            public_addr: Host(self.sample(rng)),
+            validators: self
+                .sample_range(rng)
+                .map(|_| ValidatorPublicKey(self.sample(rng)))
+                .collect(),
+            max_payload_size: self.sample(rng),
+            gossip_dynamic_inbound_limit: self.sample(rng),
+            gossip_static_inbound: self
+                .sample_range(rng)
+                .map(|_| NodePublicKey(self.sample(rng)))
+                .collect(),
+            gossip_static_outbound: self
+                .sample_range(rng)
+                .map(|_| (NodePublicKey(self.sample(rng)), Host(self.sample(rng))))
+                .collect(),
+        }
+    }
+}
+
+impl Distribution<configs::consensus::ConsensusSecrets> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::ConsensusSecrets {
+        use configs::consensus::{ConsensusSecrets, NodeSecretKey, ValidatorSecretKey};
+        ConsensusSecrets {
+            validator_key: self.sample_opt(|| ValidatorSecretKey(self.sample(rng))),
+            node_key: self.sample_opt(|| NodeSecretKey(self.sample(rng))),
         }
     }
 }

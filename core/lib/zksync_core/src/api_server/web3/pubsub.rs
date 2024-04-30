@@ -1,6 +1,5 @@
 //! (Largely) backend-agnostic logic for dealing with Web3 subscriptions.
 
-use anyhow::Context as _;
 use chrono::NaiveDateTime;
 use futures::FutureExt;
 use tokio::{
@@ -9,7 +8,7 @@ use tokio::{
     time::{interval, Duration},
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_types::{MiniblockNumber, H128, H256};
+use zksync_types::{L2BlockNumber, H128, H256};
 use zksync_web3_decl::{
     jsonrpsee::{
         core::{server::SubscriptionMessage, SubscriptionResult},
@@ -25,7 +24,6 @@ use super::{
     metrics::{SubscriptionType, PUB_SUB_METRICS},
     namespaces::eth::EVENT_TOPIC_NUMBER_LIMIT,
 };
-use crate::api_server::execution_sandbox::BlockStartInfo;
 
 const BROADCAST_CHANNEL_CAPACITY: usize = 1024;
 const SUBSCRIPTION_SINK_SEND_TIMEOUT: Duration = Duration::from_secs(1);
@@ -45,7 +43,7 @@ impl IdProvider for EthSubscriptionIdProvider {
 pub(super) enum PubSubEvent {
     Subscribed(SubscriptionType),
     NotifyIterationFinished(SubscriptionType),
-    MiniblockAdvanced(SubscriptionType, MiniblockNumber),
+    MiniblockAdvanced(SubscriptionType, L2BlockNumber),
 }
 
 /// Manager of notifications for a certain type of subscriptions.
@@ -58,21 +56,29 @@ struct PubSubNotifier {
 }
 
 impl PubSubNotifier {
-    async fn get_starting_miniblock_number(&self) -> anyhow::Result<MiniblockNumber> {
-        let mut storage = self
-            .connection_pool
-            .connection_tagged("api")
-            .await
-            .context("connection_tagged")?;
-        let sealed_miniblock_number = storage.blocks_dal().get_sealed_miniblock_number().await?;
-        Ok(match sealed_miniblock_number {
-            Some(number) => number,
-            None => {
-                // We don't have miniblocks in the storage yet. Use the snapshot miniblock number instead.
-                let start_info = BlockStartInfo::new(&mut storage).await?;
-                MiniblockNumber(start_info.first_miniblock.saturating_sub(1))
+    // Notifier tasks are spawned independently of the main server task, so we need to wait for
+    // Postgres to be non-empty separately.
+    async fn get_starting_miniblock_number(
+        &self,
+        stop_receiver: &mut watch::Receiver<bool>,
+    ) -> anyhow::Result<Option<L2BlockNumber>> {
+        while !*stop_receiver.borrow_and_update() {
+            let mut storage = self.connection_pool.connection_tagged("api").await?;
+            if let Some(miniblock_number) =
+                storage.blocks_dal().get_sealed_l2_block_number().await?
+            {
+                return Ok(Some(miniblock_number));
             }
-        })
+            drop(storage);
+
+            if tokio::time::timeout(self.polling_interval, stop_receiver.changed())
+                .await
+                .is_ok()
+            {
+                break;
+            }
+        }
+        Ok(None) // we can only break from the loop if we've received a stop signal
     }
 
     fn emit_event(&self, event: PubSubEvent) {
@@ -83,8 +89,15 @@ impl PubSubNotifier {
 }
 
 impl PubSubNotifier {
-    async fn notify_blocks(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let mut last_block_number = self.get_starting_miniblock_number().await?;
+    async fn notify_blocks(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let Some(mut last_block_number) = self
+            .get_starting_miniblock_number(&mut stop_receiver)
+            .await?
+        else {
+            tracing::info!("Stop signal received, pubsub_block_notifier is shutting down");
+            return Ok(());
+        };
+
         let mut timer = interval(self.polling_interval);
         loop {
             if *stop_receiver.borrow() {
@@ -98,7 +111,7 @@ impl PubSubNotifier {
             db_latency.observe();
 
             if let Some(last_block) = new_blocks.last() {
-                last_block_number = MiniblockNumber(last_block.number.unwrap().as_u32());
+                last_block_number = L2BlockNumber(last_block.number.unwrap().as_u32());
                 let new_blocks = new_blocks.into_iter().map(PubSubResult::Header).collect();
                 self.send_pub_sub_results(new_blocks, SubscriptionType::Blocks);
                 self.emit_event(PubSubEvent::MiniblockAdvanced(
@@ -121,12 +134,11 @@ impl PubSubNotifier {
 
     async fn new_blocks(
         &self,
-        last_block_number: MiniblockNumber,
+        last_block_number: L2BlockNumber,
     ) -> anyhow::Result<Vec<BlockHeader>> {
         self.connection_pool
             .connection_tagged("api")
-            .await
-            .context("connection_tagged")?
+            .await?
             .blocks_web3_dal()
             .get_block_headers_after(last_block_number)
             .await
@@ -166,16 +178,21 @@ impl PubSubNotifier {
     ) -> anyhow::Result<Vec<(NaiveDateTime, H256)>> {
         self.connection_pool
             .connection_tagged("api")
-            .await
-            .context("connection_tagged")?
+            .await?
             .transactions_web3_dal()
             .get_pending_txs_hashes_after(last_time, None)
             .await
             .map_err(Into::into)
     }
 
-    async fn notify_logs(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let mut last_block_number = self.get_starting_miniblock_number().await?;
+    async fn notify_logs(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let Some(mut last_block_number) = self
+            .get_starting_miniblock_number(&mut stop_receiver)
+            .await?
+        else {
+            tracing::info!("Stop signal received, pubsub_logs_notifier is shutting down");
+            return Ok(());
+        };
 
         let mut timer = interval(self.polling_interval);
         loop {
@@ -190,7 +207,7 @@ impl PubSubNotifier {
             db_latency.observe();
 
             if let Some(last_log) = new_logs.last() {
-                last_block_number = MiniblockNumber(last_log.block_number.unwrap().as_u32());
+                last_block_number = L2BlockNumber(last_log.block_number.unwrap().as_u32());
                 let new_logs = new_logs.into_iter().map(PubSubResult::Log).collect();
                 self.send_pub_sub_results(new_logs, SubscriptionType::Logs);
                 self.emit_event(PubSubEvent::MiniblockAdvanced(
@@ -203,11 +220,10 @@ impl PubSubNotifier {
         Ok(())
     }
 
-    async fn new_logs(&self, last_block_number: MiniblockNumber) -> anyhow::Result<Vec<Log>> {
+    async fn new_logs(&self, last_block_number: L2BlockNumber) -> anyhow::Result<Vec<Log>> {
         self.connection_pool
             .connection_tagged("api")
-            .await
-            .context("connection_tagged")?
+            .await?
             .events_web3_dal()
             .get_all_logs(last_block_number)
             .await

@@ -13,6 +13,7 @@ import { shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
 import { Provider } from 'zksync-ethers';
+import * as elliptic from 'elliptic';
 import { RetryProvider } from '../src/retry-provider';
 
 // TODO: Leave only important ones.
@@ -61,26 +62,14 @@ describe('Smart contract behavior checks', () => {
 
     test('Should deploy contract with create', async () => {
         const contractFactory = new zksync.ContractFactory(contracts.create.abi, contracts.create.bytecode, alice);
-        // const nonce = await alice.getNonce();
         const contract = await contractFactory.deploy({
-            // maxFeePerGas: 5000000,
-            //     maxPriorityFeePerGas: 5000000,
-            // type:113,
-            // nonce: nonce,
             customData: {
                 factoryDeps: [contracts.create.factoryDep]
-                // gasPerPubdata: 50000,
             }
-            // gasLimit: 5111111
         });
         await contract.deployed();
         await expect(contract.getFooName()).resolves.toBe('Foo');
     });
-    // "data":"0x9c4d535b000000000000000000000000000000000000000000000000000000000000000001000061957eea0e14c331
-    // 8b8d0c8028069794e47491ae6aea0a2f1e41e242d2000000000000000000000000000000000000000000000000000000000000006000
-    // 00000000000000000000000000000000000000000000000000000000000000","to":{},
-    // "type":113,"from":"0x6f2847B201b83A406F46B2F824f5289ceBE73A70","nonce":{},"gasLimit":{},
-    // "chainId":{}}, code=UNPREDICTABLE_GAS_LIMIT, version=abstract-signer/5.7.0)
 
     test('Should perform "expensive" contract calls', async () => {
         const expensiveContract = await deployContract(alice, contracts.expensive, []);
@@ -339,6 +328,71 @@ describe('Smart contract behavior checks', () => {
                 }
             })
         ).toBeRejected('not enough gas to publish compressed bytecodes');
+    });
+
+    test('Should check secp256r1 precompile', async () => {
+        const ec = new elliptic.ec('p256');
+
+        const privateKeyHex = '519b423d715f8b581f4fa8ee59f4771a5b44c8130b4e3eacca54a56dda72b464';
+        const privateKey = Buffer.from(privateKeyHex, 'hex');
+
+        const message =
+            '0x5905238877c77421f73e43ee3da6f2d9e2ccad5fc942dcec0cbd25482935faaf416983fe165b1a045ee2bcd2e6dca3bdf46c4310a7461f9a37960ca672d3feb5473e253605fb1ddfd28065b53cb5858a8ad28175bf9bd386a5e471ea7a65c17cc934a9d791e91491eb3754d03799790fe2d308d16146d5c9b0d0debd97d79ce8';
+        const digest = ethers.utils.arrayify(ethers.utils.keccak256(message));
+        const signature = ec.sign(digest, privateKey);
+
+        const publicKeyHex =
+            '0x1ccbe91c075fc7f4f033bfa248db8fccd3565de94bbfb12f3c59ff46c271bf83ce4014c68811f9a21a1fdb2c0e6113e06db7ca93b7404e78dc7ccd5ca89a4ca9';
+
+        // Check that verification succeeds.
+        const res = await alice.provider.call({
+            to: '0x0000000000000000000000000000000000000100',
+            data: ethers.utils.concat([
+                digest,
+                '0x' + signature.r.toString('hex'),
+                '0x' + signature.s.toString('hex'),
+                publicKeyHex
+            ])
+        });
+        expect(res).toEqual('0x0000000000000000000000000000000000000000000000000000000000000001');
+
+        // Send the transaction.
+        const tx = await alice.sendTransaction({
+            to: '0x0000000000000000000000000000000000000100',
+            data: ethers.utils.concat([
+                digest,
+                '0x' + signature.r.toString('hex'),
+                '0x' + signature.s.toString('hex'),
+                publicKeyHex
+            ])
+        });
+        const receipt = await tx.wait();
+        expect(receipt.status).toEqual(1);
+    });
+
+    test('Should check transient storage', async () => {
+        const artifact = require(`${process.env.ZKSYNC_HOME}/etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json`);
+        const contractFactory = new zksync.ContractFactory(artifact.abi, artifact.bytecode, alice);
+        const storageContract = await contractFactory.deploy();
+        await storageContract.deployed();
+        // Tests transient storage, see contract code for details.
+        await expect(storageContract.testTransientStore()).toBeAccepted([]);
+        // Checks that transient storage is cleaned up after each tx.
+        await expect(storageContract.assertTValue(0)).toBeAccepted([]);
+    });
+
+    test('Should check code oracle works', async () => {
+        // Deploy contract that calls CodeOracle.
+        const artifact = require(`${process.env.ZKSYNC_HOME}/etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json`);
+        const contractFactory = new zksync.ContractFactory(artifact.abi, artifact.bytecode, alice);
+        const contract = await contractFactory.deploy();
+        await contract.deployed();
+
+        // Check that CodeOracle can decommit code of just deployed contract.
+        const versionedHash = zksync.utils.hashBytecode(artifact.bytecode);
+        const expectedBytecodeHash = ethers.utils.keccak256(artifact.bytecode);
+
+        await expect(contract.callCodeOracle(versionedHash, expectedBytecodeHash)).toBeAccepted([]);
     });
 
     afterAll(async () => {

@@ -3,17 +3,18 @@ use std::time::Duration;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::connection_pool::ConnectionPool;
 use zksync_types::{
-    block::{MiniblockHasher, MiniblockHeader},
+    block::{L2BlockHasher, L2BlockHeader},
     fee::{Fee, TransactionExecutionMetrics},
     fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     l2::L2Tx,
+    l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     snapshots::SnapshotRecoveryStatus,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
-    Address, Execute, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber,
-    PriorityOpId, ProtocolVersion, ProtocolVersionId, H160, H256, U256,
+    Address, Execute, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2BlockNumber, L2ChainId,
+    PriorityOpId, ProtocolVersion, ProtocolVersionId, VmEvent, H160, H256, U256,
 };
 
 use crate::{
@@ -30,13 +31,13 @@ fn mock_tx_execution_metrics() -> TransactionExecutionMetrics {
     TransactionExecutionMetrics::default()
 }
 
-pub(crate) fn create_miniblock_header(number: u32) -> MiniblockHeader {
-    let number = MiniblockNumber(number);
+pub(crate) fn create_l2_block_header(number: u32) -> L2BlockHeader {
+    let number = L2BlockNumber(number);
     let protocol_version = ProtocolVersionId::default();
-    MiniblockHeader {
+    L2BlockHeader {
         number,
         timestamp: number.0.into(),
-        hash: MiniblockHasher::new(number, 0, H256::zero()).finalize(protocol_version),
+        hash: L2BlockHasher::new(number, 0, H256::zero()).finalize(protocol_version),
         l1_tx_count: 0,
         l2_tx_count: 0,
         fee_account_address: Address::default(),
@@ -156,12 +157,32 @@ pub(crate) fn create_snapshot_recovery() -> SnapshotRecoveryStatus {
         l1_batch_number: L1BatchNumber(23),
         l1_batch_timestamp: 23,
         l1_batch_root_hash: H256::zero(),
-        miniblock_number: MiniblockNumber(42),
-        miniblock_timestamp: 42,
-        miniblock_hash: H256::zero(),
+        l2_block_number: L2BlockNumber(42),
+        l2_block_timestamp: 42,
+        l2_block_hash: H256::zero(),
         protocol_version: ProtocolVersionId::latest(),
         storage_logs_chunks_processed: vec![true; 100],
     }
+}
+
+pub(crate) fn mock_vm_event(index: u8) -> VmEvent {
+    VmEvent {
+        location: (L1BatchNumber(1), u32::from(index)),
+        address: Address::repeat_byte(index),
+        indexed_topics: (0..4).map(H256::repeat_byte).collect(),
+        value: vec![index],
+    }
+}
+
+pub(crate) fn mock_l2_to_l1_log() -> UserL2ToL1Log {
+    UserL2ToL1Log(L2ToL1Log {
+        shard_id: 0,
+        is_service: false,
+        tx_number_in_block: 0,
+        sender: Address::repeat_byte(0),
+        key: H256::from_low_u64_be(0),
+        value: H256::repeat_byte(0),
+    })
 }
 
 #[tokio::test]
@@ -269,14 +290,14 @@ async fn remove_stuck_txs() {
 
     let storage = transactions_dal.storage;
     BlocksDal { storage }
-        .insert_miniblock(&create_miniblock_header(1))
+        .insert_l2_block(&create_l2_block_header(1))
         .await
         .unwrap();
 
     let mut transactions_dal = TransactionsDal { storage };
     transactions_dal
-        .mark_txs_as_executed_in_miniblock(
-            MiniblockNumber(1),
+        .mark_txs_as_executed_in_l2_block(
+            L2BlockNumber(1),
             &[mock_execution_result(executed_tx.clone())],
             U256::from(1),
         )
