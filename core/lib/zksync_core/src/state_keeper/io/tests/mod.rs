@@ -111,7 +111,8 @@ async fn test_filter_with_no_pending_batch(deployment_mode: DeploymentMode) {
         &tester.create_batch_fee_input_provider().await,
         ProtocolVersionId::latest().into(),
     )
-    .await;
+    .await
+    .unwrap();
 
     // Create a mempool without pending batch and ensure that filter is not initialized just yet.
     let (mut mempool, mut guard) = tester.create_test_mempool_io(connection_pool).await;
@@ -160,7 +161,8 @@ async fn test_timestamps_are_distinct(
         &tester.create_batch_fee_input_provider().await,
         ProtocolVersionId::latest().into(),
     )
-    .await;
+    .await
+    .unwrap();
     tester.insert_tx(&mut guard, tx_filter.fee_per_gas, tx_filter.gas_per_pubdata);
 
     let l1_batch_params = mempool
@@ -412,7 +414,8 @@ async fn l2_block_processing_after_snapshot_recovery(deployment_mode: Deployment
         &tester.create_batch_fee_input_provider().await,
         ProtocolVersionId::latest().into(),
     )
-    .await;
+    .await
+    .unwrap();
     let tx = tester.insert_tx(
         &mut mempool_guard,
         tx_filter.fee_per_gas,

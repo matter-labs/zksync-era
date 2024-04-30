@@ -24,6 +24,7 @@ use crate::{
         },
         types::internals::ZkSyncVmState,
         utils::fee::get_batch_base_fee,
+        vm::MultiVMSubversion,
     },
 };
 
@@ -49,11 +50,12 @@ pub(crate) struct RefundsTracer<S> {
     spent_pubdata_counter_before: u32,
     l1_batch: L1BatchEnv,
     pubdata_published: u32,
+    subversion: MultiVMSubversion,
     _phantom: PhantomData<S>,
 }
 
 impl<S> RefundsTracer<S> {
-    pub(crate) fn new(l1_batch: L1BatchEnv) -> Self {
+    pub(crate) fn new(l1_batch: L1BatchEnv, subversion: MultiVMSubversion) -> Self {
         Self {
             pending_refund_request: None,
             refund_gas: 0,
@@ -64,6 +66,7 @@ impl<S> RefundsTracer<S> {
             spent_pubdata_counter_before: 0,
             l1_batch,
             pubdata_published: 0,
+            subversion,
             _phantom: PhantomData,
         }
     }
@@ -166,14 +169,17 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for RefundsTracer<S> {
         _storage: StoragePtr<S>,
     ) {
         self.timestamp_before_cycle = Timestamp(state.vm_local_state.timestamp);
-        let hook = VmHook::from_opcode_memory(&state, &data);
+        let hook = VmHook::from_opcode_memory(&state, &data, self.subversion);
         match hook {
-            VmHook::NotifyAboutRefund => self.refund_gas = get_vm_hook_params(memory)[0].as_u64(),
+            VmHook::NotifyAboutRefund => {
+                self.refund_gas = get_vm_hook_params(memory, self.subversion)[0].as_u64()
+            }
             VmHook::AskOperatorForRefund => {
                 self.pending_refund_request = Some(RefundRequest {
-                    refund: get_vm_hook_params(memory)[0].as_u64(),
-                    gas_spent_on_pubdata: get_vm_hook_params(memory)[1].as_u64(),
-                    used_gas_per_pubdata_byte: get_vm_hook_params(memory)[2].as_u32(),
+                    refund: get_vm_hook_params(memory, self.subversion)[0].as_u64(),
+                    gas_spent_on_pubdata: get_vm_hook_params(memory, self.subversion)[1].as_u64(),
+                    used_gas_per_pubdata_byte: get_vm_hook_params(memory, self.subversion)[2]
+                        .as_u32(),
                 })
             }
             _ => {}

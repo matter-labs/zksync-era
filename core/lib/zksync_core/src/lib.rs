@@ -54,7 +54,6 @@ use zksync_house_keeper::{
     fri_prover_job_retry_manager::FriProverJobRetryManager,
     fri_prover_jobs_archiver::FriProverJobArchiver,
     fri_prover_queue_monitor::FriProverStatsReporter,
-    fri_scheduler_circuit_queuer::SchedulerCircuitQueuer,
     fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager,
     fri_witness_generator_queue_monitor::FriWitnessGeneratorStatsReporter,
     periodic_job::PeriodicJob,
@@ -548,8 +547,8 @@ pub async fn initialize_components(
     }
 
     let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
-    let state_transition_manager_addr = genesis_config
-        .shared_bridge
+    let state_transition_manager_addr = contracts_config
+        .ecosystem_contracts
         .as_ref()
         .map(|a| a.state_transition_proxy_addr);
 
@@ -560,6 +559,7 @@ pub async fn initialize_components(
                 .as_ref()
                 .context("consensus component's config is missing")?,
             secrets,
+            l2_chain_id,
         )?;
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");
@@ -637,7 +637,7 @@ pub async fn initialize_components(
         let web3_url = &eth.web3_url;
 
         let eth_client = PKSigningClient::new_raw(
-            operator_private_key,
+            operator_private_key.clone(),
             diamond_proxy_addr,
             default_priority_fee_per_gas,
             l1_chain_id,
@@ -712,7 +712,7 @@ pub async fn initialize_components(
         let web3_url = &eth.web3_url;
 
         let eth_client = PKSigningClient::new_raw(
-            operator_private_key,
+            operator_private_key.clone(),
             diamond_proxy_addr,
             default_priority_fee_per_gas,
             l1_chain_id,
@@ -720,7 +720,7 @@ pub async fn initialize_components(
         );
 
         let eth_client_blobs = if let Some(blob_operator) = eth_sender_wallets.blob_operator {
-            let operator_blob_private_key = blob_operator.private_key();
+            let operator_blob_private_key = blob_operator.private_key().clone();
             Some(PKSigningClient::new_raw(
                 operator_blob_private_key,
                 diamond_proxy_addr,
@@ -1152,13 +1152,6 @@ async fn add_house_keeper_to_task_futures(
         prover_connection_pool.clone(),
     );
     let task = waiting_to_queued_fri_witness_job_mover.run(stop_receiver.clone());
-    task_futures.push(tokio::spawn(task));
-
-    let scheduler_circuit_queuer = SchedulerCircuitQueuer::new(
-        house_keeper_config.witness_job_moving_interval_ms,
-        prover_connection_pool.clone(),
-    );
-    let task = scheduler_circuit_queuer.run(stop_receiver.clone());
     task_futures.push(tokio::spawn(task));
 
     let fri_witness_generator_stats_reporter = FriWitnessGeneratorStatsReporter::new(

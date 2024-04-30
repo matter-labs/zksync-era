@@ -169,7 +169,7 @@ impl L2BlockSealSubtask for InsertStorageLogsSubtask {
     ) -> anyhow::Result<()> {
         storage
             .storage_logs_dal()
-            .rollback_storage_logs(last_sealed_l2_block)
+            .roll_back_storage_logs(last_sealed_l2_block)
             .await?;
         Ok(())
     }
@@ -222,7 +222,7 @@ impl L2BlockSealSubtask for InsertFactoryDepsSubtask {
     ) -> anyhow::Result<()> {
         storage
             .factory_deps_dal()
-            .rollback_factory_deps(last_sealed_l2_block)
+            .roll_back_factory_deps(last_sealed_l2_block)
             .await?;
         Ok(())
     }
@@ -275,7 +275,7 @@ impl L2BlockSealSubtask for InsertTokensSubtask {
     ) -> anyhow::Result<()> {
         storage
             .tokens_dal()
-            .rollback_tokens(last_sealed_l2_block)
+            .roll_back_tokens(last_sealed_l2_block)
             .await?;
         Ok(())
     }
@@ -325,7 +325,7 @@ impl L2BlockSealSubtask for InsertEventsSubtask {
     ) -> anyhow::Result<()> {
         storage
             .events_dal()
-            .rollback_events(last_sealed_l2_block)
+            .roll_back_events(last_sealed_l2_block)
             .await?;
         Ok(())
     }
@@ -379,7 +379,7 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
     ) -> anyhow::Result<()> {
         storage
             .events_dal()
-            .rollback_l2_to_l1_logs(last_sealed_l2_block)
+            .roll_back_l2_to_l1_logs(last_sealed_l2_block)
             .await?;
         Ok(())
     }

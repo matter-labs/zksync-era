@@ -131,8 +131,8 @@ describe('base ERC20 contract checks', () => {
         const finalAliceBalance = await alice.getBalance();
         const finalBobBalance = await bob.getBalance();
 
-        expect(finalAliceBalance).bnToBeEq(initialAliceBalance);
-        expect(finalBobBalance).bnToBeEq(initialBobBalance);
+        await expect(finalAliceBalance).bnToBeEq(initialAliceBalance);
+        await expect(finalBobBalance).bnToBeEq(initialBobBalance);
     });
 
     test('Can perform a withdrawal', async () => {

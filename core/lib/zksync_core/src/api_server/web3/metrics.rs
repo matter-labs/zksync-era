@@ -1,11 +1,6 @@
 //! Metrics for the JSON-RPC server.
 
-use std::{
-    borrow::Cow,
-    cell::Cell,
-    fmt, thread,
-    time::{Duration, Instant},
-};
+use std::{borrow::Cow, fmt, time::Duration};
 
 use vise::{
     Buckets, Counter, DurationAsSecs, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram,
@@ -18,44 +13,7 @@ use super::{
     backend_jsonrpsee::MethodMetadata, ApiTransport, InternalApiConfig, OptionalApiParams,
     TypedFilter,
 };
-
-/// Allows filtering events (e.g., for logging) so that they are reported no more frequently than with a configurable interval.
-///
-/// Current implementation uses thread-local vars in order to not rely on mutexes or other cross-thread primitives.
-/// I.e., it only really works if the number of threads accessing it is limited (which is the case for the API server;
-/// the number of worker threads is congruent to the CPU count).
-#[derive(Debug)]
-struct ReportFilter {
-    interval: Duration,
-    last_timestamp: &'static thread::LocalKey<Cell<Option<Instant>>>,
-}
-
-impl ReportFilter {
-    /// Should be called sparingly, since it involves moderately heavy operations (getting current time).
-    fn should_report(&self) -> bool {
-        let timestamp = self.last_timestamp.get();
-        let now = Instant::now();
-        if timestamp.map_or(true, |ts| now - ts > self.interval) {
-            self.last_timestamp.set(Some(now));
-            true
-        } else {
-            false
-        }
-    }
-}
-
-/// Creates a new filter with the specified reporting interval *per thread*.
-macro_rules! report_filter {
-    ($interval:expr) => {{
-        thread_local! {
-            static LAST_TIMESTAMP: Cell<Option<Instant>> = Cell::new(None);
-        }
-        ReportFilter {
-            interval: $interval,
-            last_timestamp: &LAST_TIMESTAMP,
-        }
-    }};
-}
+use crate::api_server::utils::ReportFilter;
 
 /// Observed version of RPC parameters. Have a bounded upper-limit size (256 bytes), so that we don't over-allocate.
 #[derive(Debug)]
@@ -429,7 +387,7 @@ impl ApiMetrics {
         // Log internal error details.
         match err {
             Web3Error::InternalError(err) => {
-                tracing::error!("Internal error in method `{method}`: {err}");
+                tracing::error!("Internal error in method `{method}`: {err:#}");
             }
             Web3Error::ProxyError(err) => {
                 tracing::warn!("Error proxying call to main node in method `{method}`: {err}");

@@ -1,0 +1,262 @@
+{
+  "LeafLayerCircuitForTransientStorageSorter": {
+    "fixed_parameters": {
+      "parameters": {
+        "num_columns_under_copy_permutation": 140,
+        "num_witness_columns": 0,
+        "num_constant_columns": 4,
+        "max_allowed_constraint_degree": 8
+      },
+      "lookup_parameters": "NoLookup",
+      "domain_size": 1048576,
+      "total_tables_len": 0,
+      "public_inputs_locations": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          3,
+          0
+        ]
+      ],
+      "extra_constant_polys_for_selectors": 4,
+      "table_ids_column_idxes": [],
+      "quotient_degree": 8,
+      "selectors_placement": {
+        "Fork": {
+          "left": {
+            "GateOnly": {
+              "gate_idx": 1,
+              "num_constants": 0,
+              "degree": 7,
+              "needs_selector": true,
+              "is_lookup": false
+            }
+          },
+          "right": {
+            "Fork": {
+              "left": {
+                "Fork": {
+                  "left": {
+                    "Fork": {
+                      "left": {
+                        "GateOnly": {
+                          "gate_idx": 4,
+                          "num_constants": 4,
+                          "degree": 3,
+                          "needs_selector": true,
+                          "is_lookup": false
+                        }
+                      },
+                      "right": {
+                        "Fork": {
+                          "left": {
+                            "Fork": {
+                              "left": {
+                                "GateOnly": {
+                                  "gate_idx": 5,
+                                  "num_constants": 1,
+                                  "degree": 2,
+                                  "needs_selector": true,
+                                  "is_lookup": false
+                                }
+                              },
+                              "right": {
+                                "GateOnly": {
+                                  "gate_idx": 6,
+                                  "num_constants": 0,
+                                  "degree": 2,
+                                  "needs_selector": true,
+                                  "is_lookup": false
+                                }
+                              }
+                            }
+                          },
+                          "right": {
+                            "Fork": {
+                              "left": {
+                                "GateOnly": {
+                                  "gate_idx": 2,
+                                  "num_constants": 0,
+                                  "degree": 2,
+                                  "needs_selector": true,
+                                  "is_lookup": false
+                                }
+                              },
+                              "right": {
+                                "GateOnly": {
+                                  "gate_idx": 7,
+                                  "num_constants": 0,
+                                  "degree": 2,
+                                  "needs_selector": true,
+                                  "is_lookup": false
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "right": {
+                    "Fork": {
+                      "left": {
+                        "GateOnly": {
+                          "gate_idx": 9,
+                          "num_constants": 4,
+                          "degree": 2,
+                          "needs_selector": true,
+                          "is_lookup": false
+                        }
+                      },
+                      "right": {
+                        "GateOnly": {
+                          "gate_idx": 0,
+                          "num_constants": 4,
+                          "degree": 1,
+                          "needs_selector": true,
+                          "is_lookup": false
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "right": {
+                "Fork": {
+                  "left": {
+                    "GateOnly": {
+                      "gate_idx": 3,
+                      "num_constants": 2,
+                      "degree": 3,
+                      "needs_selector": true,
+                      "is_lookup": false
+                    }
+                  },
+                  "right": {
+                    "GateOnly": {
+                      "gate_idx": 8,
+                      "num_constants": 0,
+                      "degree": 0,
+                      "needs_selector": true,
+                      "is_lookup": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "fri_lde_factor": 2,
+      "cap_size": 16
+    },
+    "setup_merkle_tree_cap": [
+      [
+        2260606771779524600,
+        4270910544854912593,
+        5774344017911453584,
+        7799710054328952611
+      ],
+      [
+        5971110301313203203,
+        187478912492900614,
+        14748090124907590844,
+        13716409015764575783
+      ],
+      [
+        16464510359253683114,
+        15766233675769787948,
+        1215321704703197811,
+        113768207625801612
+      ],
+      [
+        16365709399494539934,
+        9241464557286519803,
+        505301116318341892,
+        15795834092488278713
+      ],
+      [
+        11064609770114349368,
+        15728120404989966794,
+        15854858119281184996,
+        786257069807380562
+      ],
+      [
+        597952771262083427,
+        12313442436441357639,
+        16868738269970029451,
+        1658827273363455860
+      ],
+      [
+        7074806328481475040,
+        6707692902386407273,
+        7368643464610963993,
+        8012606122323196246
+      ],
+      [
+        11610267122853899663,
+        17628152202124071465,
+        8846563251092671057,
+        12560789220705686508
+      ],
+      [
+        1399361497756815630,
+        4200159473917362204,
+        6880584442851231591,
+        2558920509373294360
+      ],
+      [
+        7691316653312002193,
+        1102152548596664164,
+        16908215835853777161,
+        16261812033707080304
+      ],
+      [
+        6688805731483038091,
+        591316451793720417,
+        4400272619853559570,
+        4035933566597717487
+      ],
+      [
+        10462141496673624470,
+        12825124405432952968,
+        9105179110693823876,
+        1009889591221054755
+      ],
+      [
+        15053053257066758925,
+        12420466349903303874,
+        6087544558409286932,
+        6874711866843360996
+      ],
+      [
+        5227576870676697670,
+        2700982808605071523,
+        5858908941564165050,
+        6602860473108655700
+      ],
+      [
+        13527319166975880813,
+        3224974269365842452,
+        5857665240319144062,
+        2561024114715899885
+      ],
+      [
+        10295634092409898596,
+        6441156088177414641,
+        5861611612659048682,
+        7964316583306706891
+      ]
+    ]
+  }
+}
