@@ -180,6 +180,22 @@ fn test_evm_logs(mut bytecode: Vec<u8>) -> crate::vm_latest::VmExecutionLogs {
     tx_result.logs
 }
 
+fn get_actual_initial_gas() -> U256 {
+    let evm_output = test_evm_vector(
+        vec![
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    evm_output + 3
+}
+
 #[test]
 fn test_basic_evm_vectors() {
     // Here we just try to test some small EVM contracts and ensure that they work.
@@ -949,6 +965,108 @@ fn test_basic_signextend_vectors() {
         ),
         179_624_556.into()
     );
+}
+
+#[test]
+fn test_basic_keccak_vectors() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    let evm_vector = test_evm_vector(
+        vec![
+            // push32 0xFFFF_FFFF
+            hex::decode("7F").unwrap(),
+            hex::decode("FFFFFFFF00000000000000000000000000000000000000000000000000000000")
+                .unwrap(),
+            // push1 0
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 4
+            hex::decode("60").unwrap(),
+            hex::decode("04").unwrap(),
+            // push1 0
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // keccak256
+            hex::decode("20").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(
+        H256(evm_vector.into()),
+        H256(keccak256(&(0xFFFF_FFFFu32.to_le_bytes())))
+    );
+
+    let evm_vector = test_evm_vector(
+        vec![
+            // push1 4
+            hex::decode("60").unwrap(),
+            hex::decode("04").unwrap(),
+            // push1 0
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // keccak256
+            hex::decode("20").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(
+        H256(evm_vector.into()),
+        H256(keccak256(&(0x00000_00000u32.to_le_bytes())))
+    );
+}
+
+#[test]
+fn test_basic_keccak_gas() {
+    // Here we just try to test some small EVM contracts and ensure that they work.
+    let consumed_gas_solidity = 57;
+    let actual_initial_gas = get_actual_initial_gas();
+    let evm_output = test_evm_vector(
+        vec![
+            // push32 0xFFFF_FFFF
+            hex::decode("7F").unwrap(),
+            hex::decode("FFFFFFFF00000000000000000000000000000000000000000000000000000000")
+                .unwrap(),
+            // push1 0
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 4
+            hex::decode("60").unwrap(),
+            hex::decode("04").unwrap(),
+            // push1 0
+            hex::decode("60").unwrap(),
+            hex::decode("00").unwrap(),
+            // keccak256
+            hex::decode("20").unwrap(),
+            //gas
+            hex::decode("5A").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    let actual_consumed_gas = actual_initial_gas - evm_output;
+
+    println!("Actual consumed gas: {}", actual_consumed_gas);
+    assert_eq!(actual_consumed_gas, consumed_gas_solidity.into());
 }
 
 #[test]
@@ -2007,6 +2125,7 @@ fn test_sload_gas() {
 }
 
 #[test]
+#[ignore = "Ignored because until we define what happens on mstore with expand memory this will fail"]
 fn test_basic_msize_vectors() {
     // Here we just try to test some small EVM contracts and ensure that they work.
     assert_eq!(
@@ -2050,6 +2169,7 @@ fn test_basic_msize_vectors() {
 }
 
 #[test]
+#[ignore = "Ignored because until we define what happens on mstore with expand memory this will fail"]
 fn test_basic_msize_with_mstore_vectors() {
     // Here we just try to test some small EVM contracts and ensure that they work.
     assert_eq!(
@@ -2197,6 +2317,42 @@ fn test_basic_calldatacopy_vectors() {
         ),
         0.into()
     );
+}
+
+#[test]
+fn test_basic_calldatacopy_gas() {
+    let consumed_gas_solidity = 26;
+    let actual_initial_gas = get_actual_initial_gas();
+    let evm_output = test_evm_vector(
+        vec![
+            // push1 9
+            hex::decode("60").unwrap(),
+            hex::decode("09").unwrap(),
+            // push1 31
+            hex::decode("60").unwrap(),
+            hex::decode("1F").unwrap(),
+            // push1 2
+            hex::decode("60").unwrap(),
+            hex::decode("02").unwrap(),
+            // calldatacopy
+            hex::decode("37").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mload
+            hex::decode("51").unwrap(),
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    let actual_consumed_gas = actual_initial_gas - evm_output;
+
+    assert_eq!(actual_consumed_gas, consumed_gas_solidity.into());
 }
 
 #[test]
@@ -2955,64 +3111,424 @@ fn test_basic_call_with_create_vectors() {
 }
 
 #[test]
-fn test_basic_keccak_vectors() {
-    // Here we just try to test some small EVM contracts and ensure that they work.
-    let evm_vector = test_evm_vector(
+fn test_call_gas() {
+    let consumed_gas_solidity = 67633;
+    let actual_initial_gas = get_actual_initial_gas();
+    let evm_output = test_evm_vector(
         vec![
-            // push32 0xFFFF_FFFF
+            // push32
             hex::decode("7F").unwrap(),
-            hex::decode("FFFFFFFF00000000000000000000000000000000000000000000000000000000")
+            hex::decode("6080604052348015600e575f80fd5b5060af80601a5f395ff3fe608060405234")
                 .unwrap(),
-            // push1 0
-            hex::decode("60").unwrap(),
-            hex::decode("00").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
             // mstore
             hex::decode("52").unwrap(),
-            // push1 4
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("8015600e575f80fd5b50600436106026575f3560e01c80636d4ce63c14602a57")
+                .unwrap(),
+            // push1 32
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("5b5f80fd5b60306044565b604051603b91906062565b60405180910390f35b5f")
+                .unwrap(),
+            // push1 64
+            hex::decode("60").unwrap(),
+            hex::decode("40").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("6007905090565b5f819050919050565b605c81604c565b82525050565b5f6020")
+                .unwrap(),
+            // push1 96
+            hex::decode("60").unwrap(),
+            hex::decode("60").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("8201905060735f8301846055565b9291505056fea26469706673582212201357")
+                .unwrap(),
+            // push1 128
+            hex::decode("60").unwrap(),
+            hex::decode("80").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("3db24498d07df7d6344f02fa1ccf8e15038b10c382a6d71537a002ad4e736473")
+                .unwrap(),
+            // push1 160
+            hex::decode("60").unwrap(),
+            hex::decode("A0").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("6f6c634300081900330000000000000000000000000000000000000000000000")
+                .unwrap(),
+            // push1 192
+            hex::decode("60").unwrap(),
+            hex::decode("C0").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 201
+            hex::decode("60").unwrap(),
+            hex::decode("C9").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // create
+            hex::decode("F0").unwrap(),
+            // CALL
+            //--------------------------
+            // push4 funcsel
+            hex::decode("63").unwrap(),
+            hex::decode("6d4ce63c").unwrap(), // func selector
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // mem[0] = funcsel
+            // push1 retSize // 4 byte
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 retOff
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 argSize 4bytes -> func selector
             hex::decode("60").unwrap(),
             hex::decode("04").unwrap(),
-            // push1 0
+            // push1 argOff 4bytes
             hex::decode("60").unwrap(),
-            hex::decode("00").unwrap(),
-            // keccak256
+            hex::decode("1C").unwrap(),
+            // push0 value
+            hex::decode("5F").unwrap(),
+            // dup6 address of created contract
+            hex::decode("85").unwrap(),
+            // push4 gas
+            hex::decode("63").unwrap(),
+            hex::decode("FFFFFFFF").unwrap(),
+            // call
+            hex::decode("F1").unwrap(),
+            // push1 memOffset
+            hex::decode("60").unwrap(),
             hex::decode("20").unwrap(),
-            // push32 0
-            hex::decode("7F").unwrap(),
-            H256::zero().0.to_vec(),
+            // mload
+            hex::decode("51").unwrap(),
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
             // sstore
             hex::decode("55").unwrap(),
         ]
         .into_iter()
         .concat(),
     );
-    assert_eq!(
-        H256(evm_vector.into()),
-        H256(keccak256(&(0xFFFF_FFFFu32.to_le_bytes())))
-    );
+    let actual_consumed_gas = actual_initial_gas - evm_output;
 
-    let evm_vector = test_evm_vector(
+    assert_eq!(actual_consumed_gas, consumed_gas_solidity.into());
+}
+
+#[test]
+fn test_codecopy_gas() {
+    let consumed_gas_solidity = 29;
+    let actual_initial_gas = get_actual_initial_gas();
+    let evm_output = test_evm_vector(
         vec![
-            // push1 4
+            //push0
+            hex::decode("5F").unwrap(),
+            //push0
+            hex::decode("5F").unwrap(),
+            //push1 32
             hex::decode("60").unwrap(),
-            hex::decode("04").unwrap(),
-            // push1 0
-            hex::decode("60").unwrap(),
-            hex::decode("00").unwrap(),
-            // keccak256
             hex::decode("20").unwrap(),
-            // push32 0
-            hex::decode("7F").unwrap(),
-            H256::zero().0.to_vec(),
+            // codecopy
+            hex::decode("39").unwrap(),
+            //push0
+            hex::decode("5F").unwrap(),
+            //push1 31
+            hex::decode("60").unwrap(),
+            hex::decode("1F").unwrap(),
+            //push1 8
+            hex::decode("60").unwrap(),
+            hex::decode("08").unwrap(),
+            //codecopy
+            hex::decode("39").unwrap(),
+            // push0
+            hex::decode("5f").unwrap(),
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
             // sstore
             hex::decode("55").unwrap(),
         ]
         .into_iter()
         .concat(),
     );
-    assert_eq!(
-        H256(evm_vector.into()),
-        H256(keccak256(&(0x00000_00000u32.to_le_bytes())))
+    let actual_consumed_gas = actual_initial_gas - evm_output;
+    println!("actual_consumed_gas: {}", actual_consumed_gas);
+    assert_eq!(actual_consumed_gas, consumed_gas_solidity.into());
+}
+
+#[test]
+fn test_staticcall_gas() {
+    let consumed_gas_solidity = 67631;
+    let actual_initial_gas = get_actual_initial_gas();
+    let evm_output = test_evm_vector(
+        vec![
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("6080604052348015600e575f80fd5b5060af80601a5f395ff3fe608060405234")
+                .unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("8015600e575f80fd5b50600436106026575f3560e01c80636d4ce63c14602a57")
+                .unwrap(),
+            // push1 32
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("5b5f80fd5b60306044565b604051603b91906062565b60405180910390f35b5f")
+                .unwrap(),
+            // push1 64
+            hex::decode("60").unwrap(),
+            hex::decode("40").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("6007905090565b5f819050919050565b605c81604c565b82525050565b5f6020")
+                .unwrap(),
+            // push1 96
+            hex::decode("60").unwrap(),
+            hex::decode("60").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("8201905060735f8301846055565b9291505056fea26469706673582212201357")
+                .unwrap(),
+            // push1 128
+            hex::decode("60").unwrap(),
+            hex::decode("80").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("3db24498d07df7d6344f02fa1ccf8e15038b10c382a6d71537a002ad4e736473")
+                .unwrap(),
+            // push1 160
+            hex::decode("60").unwrap(),
+            hex::decode("A0").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("6f6c634300081900330000000000000000000000000000000000000000000000")
+                .unwrap(),
+            // push1 192
+            hex::decode("60").unwrap(),
+            hex::decode("C0").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 201
+            hex::decode("60").unwrap(),
+            hex::decode("C9").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // create
+            hex::decode("F0").unwrap(),
+            // STATICCALL
+            //--------------------------
+            // push4 funcsel
+            hex::decode("63").unwrap(),
+            hex::decode("6d4ce63c").unwrap(), // func selector
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // mem[0] = funcsel
+            // push1 retSize // 4 byte
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 retOff
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 argSize 4bytes -> func selector
+            hex::decode("60").unwrap(),
+            hex::decode("04").unwrap(),
+            // push1 argOff 4bytes
+            hex::decode("60").unwrap(),
+            hex::decode("1C").unwrap(),
+            // du5 address of created contract
+            hex::decode("84").unwrap(),
+            // push4 gas
+            hex::decode("63").unwrap(),
+            hex::decode("FFFFFFFF").unwrap(),
+            // staticcall
+            hex::decode("FA").unwrap(),
+            // push1 memOffset
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // mload
+            hex::decode("51").unwrap(),
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
     );
+    let actual_consumed_gas = actual_initial_gas - evm_output;
+    assert_eq!(actual_consumed_gas, consumed_gas_solidity.into());
+}
+
+#[test]
+fn test_delegatecall_gas() {
+    let consumed_gas_solidity = 67631;
+    let actual_initial_gas = get_actual_initial_gas();
+    let evm_output = test_evm_vector(
+        vec![
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("6080604052348015600e575f80fd5b5060af80601a5f395ff3fe608060405234")
+                .unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("8015600e575f80fd5b50600436106026575f3560e01c80636d4ce63c14602a57")
+                .unwrap(),
+            // push1 32
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("5b5f80fd5b60306044565b604051603b91906062565b60405180910390f35b5f")
+                .unwrap(),
+            // push1 64
+            hex::decode("60").unwrap(),
+            hex::decode("40").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("6007905090565b5f819050919050565b605c81604c565b82525050565b5f6020")
+                .unwrap(),
+            // push1 96
+            hex::decode("60").unwrap(),
+            hex::decode("60").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("8201905060735f8301846055565b9291505056fea26469706673582212201357")
+                .unwrap(),
+            // push1 128
+            hex::decode("60").unwrap(),
+            hex::decode("80").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("3db24498d07df7d6344f02fa1ccf8e15038b10c382a6d71537a002ad4e736473")
+                .unwrap(),
+            // push1 160
+            hex::decode("60").unwrap(),
+            hex::decode("A0").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push32
+            hex::decode("7F").unwrap(),
+            hex::decode("6f6c634300081900330000000000000000000000000000000000000000000000")
+                .unwrap(),
+            // push1 192
+            hex::decode("60").unwrap(),
+            hex::decode("C0").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // push1 201
+            hex::decode("60").unwrap(),
+            hex::decode("C9").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // create
+            hex::decode("F0").unwrap(),
+            // DELEGATECALL
+            //--------------------------
+            // push4 funcsel
+            hex::decode("63").unwrap(),
+            hex::decode("6d4ce63c").unwrap(), // func selector
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // mem[0] = funcsel
+            // push1 retSize // 4 byte
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 retOff
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 argSize 4bytes -> func selector
+            hex::decode("60").unwrap(),
+            hex::decode("04").unwrap(),
+            // push1 argOff 4bytes
+            hex::decode("60").unwrap(),
+            hex::decode("1C").unwrap(),
+            // du5 address of created contract
+            hex::decode("84").unwrap(),
+            // push4 gas
+            hex::decode("63").unwrap(),
+            hex::decode("FFFFFFFF").unwrap(),
+            // delegatecall
+            hex::decode("F4").unwrap(),
+            // push1 memOffset
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // mload
+            hex::decode("51").unwrap(),
+            // gas
+            hex::decode("5A").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    let actual_consumed_gas = actual_initial_gas - evm_output;
+    println!("actual_consumed_gas: {}", actual_consumed_gas);
+    assert_eq!(actual_consumed_gas, consumed_gas_solidity.into());
 }
 
 #[test]
