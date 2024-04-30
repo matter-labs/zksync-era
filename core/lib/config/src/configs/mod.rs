@@ -25,6 +25,7 @@ pub mod chain;
 pub mod consensus;
 pub mod contract_verifier;
 pub mod contracts;
+pub mod da_dispatcher;
 pub mod database;
 pub mod eth_sender;
 pub mod eth_watch;
