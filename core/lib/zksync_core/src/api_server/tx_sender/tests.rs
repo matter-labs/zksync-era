@@ -183,7 +183,7 @@ async fn submitting_tx_requires_one_connection() {
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
 
     let submission_result = tx_sender.submit_tx(tx).await.unwrap();
-    assert_matches!(submission_result, L2TxSubmissionResult::Added);
+    assert_matches!(submission_result.0, L2TxSubmissionResult::Added);
 
     let mut storage = pool.connection().await.unwrap();
     storage
