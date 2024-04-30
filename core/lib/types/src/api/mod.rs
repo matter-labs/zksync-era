@@ -734,3 +734,19 @@ pub struct Proof {
     pub address: Address,
     pub storage_proof: Vec<StorageProof>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransactionDetailedResult {
+    pub transaction_hash: H256,
+    pub storage_logs: Vec<ApiStorageLog>,
+    pub events: Vec<Log>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiStorageLog {
+    pub address: Address,
+    pub key: U256,
+    pub written_value: U256,
+}

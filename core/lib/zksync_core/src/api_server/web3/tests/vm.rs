@@ -2,9 +2,17 @@
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use multivm::interface::{ExecutionResult, VmRevertReason};
+use itertools::Itertools;
+use multivm::{
+    interface::{ExecutionResult, VmRevertReason},
+    vm_latest::{VmExecutionLogs, VmExecutionResultAndLogs},
+};
 use zksync_types::{
-    get_intrinsic_constants, transaction_request::CallRequest, L2ChainId, PackedEthSignature, U256,
+    api::{ApiStorageLog, Log},
+    get_intrinsic_constants,
+    transaction_request::CallRequest,
+    zk_evm_types::{LogQuery, Timestamp},
+    L2ChainId, PackedEthSignature, StorageLogQuery, StorageLogQueryType, U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::namespaces::DebugNamespaceClient;
@@ -252,6 +260,129 @@ async fn send_raw_transaction_after_snapshot_recovery() {
         snapshot_recovery: true,
     })
     .await;
+}
+
+#[derive(Debug)]
+struct SendTransactionWithDetailedOutputTest;
+
+impl SendTransactionWithDetailedOutputTest {
+    fn storage_logs(&self) -> Vec<StorageLogQuery> {
+        let log_query = LogQuery {
+            timestamp: Timestamp(100),
+            tx_number_in_block: 1,
+            aux_byte: 1,
+            shard_id: 2,
+            address: Address::zero(),
+            key: U256::one(),
+            read_value: U256::one(),
+            written_value: U256::one(),
+            rw_flag: false,
+            rollback: false,
+            is_service: false,
+        };
+        vec![
+            StorageLogQuery {
+                log_query,
+                log_type: StorageLogQueryType::Read,
+            },
+            StorageLogQuery {
+                log_query: LogQuery {
+                    tx_number_in_block: 2,
+                    ..log_query
+                },
+                log_type: StorageLogQueryType::InitialWrite,
+            },
+            StorageLogQuery {
+                log_query: LogQuery {
+                    tx_number_in_block: 3,
+                    ..log_query
+                },
+                log_type: StorageLogQueryType::RepeatedWrite,
+            },
+        ]
+    }
+
+    fn vm_events(&self) -> Vec<VmEvent> {
+        vec![VmEvent {
+            location: (L1BatchNumber(1), 1),
+            address: Address::zero(),
+            indexed_topics: Vec::new(),
+            value: Vec::new(),
+        }]
+    }
+}
+#[async_trait]
+impl HttpTest for SendTransactionWithDetailedOutputTest {
+    fn transaction_executor(&self) -> MockTransactionExecutor {
+        let mut tx_executor = MockTransactionExecutor::default();
+        let tx_bytes_and_hash = SendRawTransactionTest::transaction_bytes_and_hash();
+        let vm_execution_logs = VmExecutionLogs {
+            storage_logs: self.storage_logs(),
+            events: self.vm_events(),
+            user_l2_to_l1_logs: Default::default(),
+            system_l2_to_l1_logs: Default::default(),
+            total_log_queries_count: 0,
+        };
+
+        tx_executor.set_tx_responses_with_logs(move |tx, block_args| {
+            assert_eq!(tx.hash(), tx_bytes_and_hash.1);
+            assert_eq!(block_args.resolved_block_number(), MiniblockNumber(1));
+
+            VmExecutionResultAndLogs {
+                result: ExecutionResult::Success { output: vec![] },
+                logs: vm_execution_logs.clone(),
+                statistics: Default::default(),
+                refunds: Default::default(),
+            }
+        });
+        tx_executor
+    }
+
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+        // Manually set sufficient balance for the transaction account.
+        let mut storage = pool.connection().await?;
+        storage
+            .storage_logs_dal()
+            .append_storage_logs(
+                MiniblockNumber(0),
+                &[(
+                    H256::zero(),
+                    vec![SendRawTransactionTest::balance_storage_log()],
+                )],
+            )
+            .await?;
+
+        let (tx_bytes, tx_hash) = SendRawTransactionTest::transaction_bytes_and_hash();
+        let send_result = client
+            .send_raw_transaction_with_detailed_output(tx_bytes.into())
+            .await?;
+        assert_eq!(send_result.transaction_hash, tx_hash);
+        assert_eq!(
+            send_result.events,
+            self.vm_events()
+                .iter()
+                .map(|x| {
+                    let mut l = Log::from(x);
+                    l.transaction_hash = Some(tx_hash);
+                    l
+                })
+                .collect_vec()
+        );
+        assert_eq!(
+            send_result.storage_logs,
+            self.storage_logs()
+                .iter()
+                .filter(|x| x.log_type != StorageLogQueryType::Read)
+                .map(ApiStorageLog::from)
+                .collect_vec()
+        );
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn send_raw_transaction_with_detailed_output() {
+    test_http_server(SendTransactionWithDetailedOutputTest).await;
 }
 
 #[derive(Debug)]
