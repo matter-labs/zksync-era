@@ -77,7 +77,11 @@ impl RemoteENConfig {
             .rpc_context("get_testnet_paymaster")
             .await?;
         let genesis = client.genesis_config().rpc_context("genesis").await.ok();
-        let shared_bridge = genesis.as_ref().and_then(|a| a.shared_bridge.clone());
+        let ecosystem_contracts = client
+            .get_ecosystem_contracts()
+            .rpc_context("ecosystem_contracts")
+            .await
+            .ok();
         let diamond_proxy_addr = client
             .get_main_contract()
             .rpc_context("get_main_contract")
@@ -135,11 +139,11 @@ impl RemoteENConfig {
         }
 
         Ok(Self {
-            bridgehub_proxy_addr: shared_bridge.as_ref().map(|a| a.bridgehub_proxy_addr),
-            state_transition_proxy_addr: shared_bridge
+            bridgehub_proxy_addr: ecosystem_contracts.as_ref().map(|a| a.bridgehub_proxy_addr),
+            state_transition_proxy_addr: ecosystem_contracts
                 .as_ref()
                 .map(|a| a.state_transition_proxy_addr),
-            transparent_proxy_admin_addr: shared_bridge
+            transparent_proxy_admin_addr: ecosystem_contracts
                 .as_ref()
                 .map(|a| a.transparent_proxy_admin_addr),
             diamond_proxy_addr,
@@ -388,7 +392,7 @@ pub struct ApiComponentConfig {
     /// Address of the tree API used by this EN in case it does not have a
     /// local tree component running and in this case needs to send requests
     /// to some external tree API.
-    pub tree_api_url: Option<String>,
+    pub tree_api_remote_url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -753,11 +757,11 @@ impl ExternalNodeConfig {
             .from_env::<OptionalENConfig>()
             .context("could not load external node config")?;
 
-        let api_component_config = envy::prefixed("EN_API")
+        let api_component_config = envy::prefixed("EN_API_")
             .from_env::<ApiComponentConfig>()
             .context("could not load external node config")?;
 
-        let tree_component_config = envy::prefixed("EN_TREE")
+        let tree_component_config = envy::prefixed("EN_TREE_")
             .from_env::<TreeComponentConfig>()
             .context("could not load external node config")?;
 
@@ -825,7 +829,9 @@ impl ExternalNodeConfig {
             optional: OptionalENConfig::mock(),
             remote: RemoteENConfig::mock(),
             consensus: None,
-            api_component: ApiComponentConfig { tree_api_url: None },
+            api_component: ApiComponentConfig {
+                tree_api_remote_url: None,
+            },
             tree_component: TreeComponentConfig { api_port: None },
         }
     }

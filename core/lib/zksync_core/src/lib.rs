@@ -54,7 +54,6 @@ use zksync_house_keeper::{
     fri_prover_job_retry_manager::FriProverJobRetryManager,
     fri_prover_jobs_archiver::FriProverJobArchiver,
     fri_prover_queue_monitor::FriProverStatsReporter,
-    fri_scheduler_circuit_queuer::SchedulerCircuitQueuer,
     fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager,
     fri_witness_generator_queue_monitor::FriWitnessGeneratorStatsReporter,
     periodic_job::PeriodicJob,
@@ -187,7 +186,7 @@ pub enum Component {
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
-    /// Component generating BFT consensus certificates for miniblocks.
+    /// Component generating BFT consensus certificates for L2 blocks.
     Consensus,
     /// Component generating commitment for L1 batches.
     CommitmentGenerator,
@@ -547,8 +546,8 @@ pub async fn initialize_components(
     }
 
     let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
-    let state_transition_manager_addr = genesis_config
-        .shared_bridge
+    let state_transition_manager_addr = contracts_config
+        .ecosystem_contracts
         .as_ref()
         .map(|a| a.state_transition_proxy_addr);
 
@@ -559,6 +558,7 @@ pub async fn initialize_components(
                 .as_ref()
                 .context("consensus component's config is missing")?,
             secrets,
+            l2_chain_id,
         )?;
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");
@@ -636,7 +636,7 @@ pub async fn initialize_components(
         let web3_url = &eth.web3_url;
 
         let eth_client = PKSigningClient::new_raw(
-            operator_private_key,
+            operator_private_key.clone(),
             diamond_proxy_addr,
             default_priority_fee_per_gas,
             l1_chain_id,
@@ -711,7 +711,7 @@ pub async fn initialize_components(
         let web3_url = &eth.web3_url;
 
         let eth_client = PKSigningClient::new_raw(
-            operator_private_key,
+            operator_private_key.clone(),
             diamond_proxy_addr,
             default_priority_fee_per_gas,
             l1_chain_id,
@@ -719,7 +719,7 @@ pub async fn initialize_components(
         );
 
         let eth_client_blobs = if let Some(blob_operator) = eth_sender_wallets.blob_operator {
-            let operator_blob_private_key = blob_operator.private_key();
+            let operator_blob_private_key = blob_operator.private_key().clone();
             Some(PKSigningClient::new_raw(
                 operator_blob_private_key,
                 diamond_proxy_addr,
@@ -848,18 +848,18 @@ async fn add_state_keeper_to_task_futures(
         mempool
     };
 
-    let miniblock_sealer_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
+    let l2_block_sealer_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
         .build()
         .await
-        .context("failed to build miniblock_sealer_pool")?;
-    let (persistence, miniblock_sealer) = StateKeeperPersistence::new(
-        miniblock_sealer_pool,
+        .context("failed to build l2_block_sealer_pool")?;
+    let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
+        l2_block_sealer_pool,
         contracts_config
             .l2_shared_bridge_addr
-            .expect("`l2_shared_bridge_addr` config is missing"),
+            .context("`l2_shared_bridge_addr` config is missing")?,
         state_keeper_config.l2_block_seal_queue_capacity,
     );
-    task_futures.push(tokio::spawn(miniblock_sealer.run()));
+    task_futures.push(tokio::spawn(l2_block_sealer.run()));
 
     // One (potentially held long-term) connection for `AsyncCatchupTask` and another connection
     // to access `AsyncRocksdbCache` as a storage.
@@ -1149,13 +1149,6 @@ async fn add_house_keeper_to_task_futures(
     let task = waiting_to_queued_fri_witness_job_mover.run(stop_receiver.clone());
     task_futures.push(tokio::spawn(task));
 
-    let scheduler_circuit_queuer = SchedulerCircuitQueuer::new(
-        house_keeper_config.witness_job_moving_interval_ms,
-        prover_connection_pool.clone(),
-    );
-    let task = scheduler_circuit_queuer.run(stop_receiver.clone());
-    task_futures.push(tokio::spawn(task));
-
     let fri_witness_generator_stats_reporter = FriWitnessGeneratorStatsReporter::new(
         prover_connection_pool.clone(),
         house_keeper_config.witness_generator_stats_reporting_interval_ms,
@@ -1315,7 +1308,7 @@ async fn run_http_api(
     let updaters_pool = ConnectionPool::<Core>::builder(postgres_config.replica_url()?, 2)
         .build()
         .await
-        .context("failed to build last_miniblock_pool")?;
+        .context("failed to build updaters_pool")?;
 
     let mut api_builder =
         web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
@@ -1370,10 +1363,10 @@ async fn run_ws_api(
         storage_caches,
     )
     .await;
-    let last_miniblock_pool = ConnectionPool::<Core>::singleton(postgres_config.replica_url()?)
+    let updaters_pool = ConnectionPool::<Core>::singleton(postgres_config.replica_url()?)
         .build()
         .await
-        .context("failed to build last_miniblock_pool")?;
+        .context("failed to build updaters_pool")?;
 
     let mut namespaces = Namespace::DEFAULT.to_vec();
     namespaces.push(Namespace::Snapshots);
@@ -1381,7 +1374,7 @@ async fn run_ws_api(
     let mut api_builder =
         web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
             .ws(api_config.web3_json_rpc.ws_port)
-            .with_updaters_pool(last_miniblock_pool)
+            .with_updaters_pool(updaters_pool)
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())
             .with_subscriptions_limit(api_config.web3_json_rpc.subscriptions_limit())
             .with_batch_request_size_limit(api_config.web3_json_rpc.max_batch_request_size())

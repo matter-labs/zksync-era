@@ -39,7 +39,7 @@ use self::{
         ZksNamespace,
     },
     pubsub::{EthSubscribe, EthSubscriptionIdProvider, PubSubEvent},
-    state::{Filters, InternalApiConfig, RpcState, SealedMiniblockNumber},
+    state::{Filters, InternalApiConfig, RpcState, SealedL2BlockNumber},
 };
 use crate::{
     api_server::{
@@ -324,7 +324,7 @@ impl ApiServer {
 
     async fn build_rpc_state(
         self,
-        last_sealed_miniblock: SealedMiniblockNumber,
+        last_sealed_l2_block: SealedL2BlockNumber,
     ) -> anyhow::Result<RpcState> {
         let mut storage = self.updaters_pool.connection_tagged("api").await?;
         let start_info = BlockStartInfo::new(&mut storage).await?;
@@ -349,7 +349,7 @@ impl ApiServer {
             api_config: self.config,
             start_info,
             mempool_cache: self.optional.mempool_cache,
-            last_sealed_miniblock,
+            last_sealed_l2_block,
             tree_api: self.optional.tree_api,
         })
     }
@@ -357,46 +357,46 @@ impl ApiServer {
     async fn build_rpc_module(
         self,
         pub_sub: Option<EthSubscribe>,
-        last_sealed_miniblock: SealedMiniblockNumber,
+        last_sealed_l2_block: SealedL2BlockNumber,
     ) -> anyhow::Result<RpcModule<()>> {
         let namespaces = self.namespaces.clone();
         let zksync_network_id = self.config.l2_chain_id;
-        let rpc_state = self.build_rpc_state(last_sealed_miniblock).await?;
+        let rpc_state = self.build_rpc_state(last_sealed_l2_block).await?;
 
         // Collect all the methods into a single RPC module.
         let mut rpc = RpcModule::new(());
         if let Some(pub_sub) = pub_sub {
             rpc.merge(pub_sub.into_rpc())
-                .expect("Can't merge eth pubsub namespace");
+                .context("cannot merge eth pubsub namespace")?;
         }
 
+        if namespaces.contains(&Namespace::Debug) {
+            rpc.merge(DebugNamespace::new(rpc_state.clone()).await?.into_rpc())
+                .context("cannot merge debug namespace")?;
+        }
         if namespaces.contains(&Namespace::Eth) {
             rpc.merge(EthNamespace::new(rpc_state.clone()).into_rpc())
-                .expect("Can't merge eth namespace");
+                .context("cannot merge eth namespace")?;
         }
         if namespaces.contains(&Namespace::Net) {
             rpc.merge(NetNamespace::new(zksync_network_id).into_rpc())
-                .expect("Can't merge net namespace");
+                .context("cannot merge net namespace")?;
         }
         if namespaces.contains(&Namespace::Web3) {
             rpc.merge(Web3Namespace.into_rpc())
-                .expect("Can't merge web3 namespace");
+                .context("cannot merge web3 namespace")?;
         }
         if namespaces.contains(&Namespace::Zks) {
             rpc.merge(ZksNamespace::new(rpc_state.clone()).into_rpc())
-                .expect("Can't merge zks namespace");
+                .context("cannot merge zks namespace")?;
         }
         if namespaces.contains(&Namespace::En) {
             rpc.merge(EnNamespace::new(rpc_state.clone()).into_rpc())
-                .expect("Can't merge en namespace");
-        }
-        if namespaces.contains(&Namespace::Debug) {
-            rpc.merge(DebugNamespace::new(rpc_state.clone()).await.into_rpc())
-                .expect("Can't merge debug namespace");
+                .context("cannot merge en namespace")?;
         }
         if namespaces.contains(&Namespace::Snapshots) {
             rpc.merge(SnapshotsNamespace::new(rpc_state).into_rpc())
-                .expect("Can't merge snapshots namespace");
+                .context("cannot merge snapshots namespace")?;
         }
         Ok(rpc)
     }
@@ -455,21 +455,21 @@ impl ApiServer {
         self,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<ApiServerHandles> {
-        // Chosen to be significantly smaller than the interval between miniblocks, but larger than
-        // the latency of getting the latest sealed miniblock number from Postgres. If the API server
-        // processes enough requests, information about the latest sealed miniblock will be updated
+        // Chosen to be significantly smaller than the interval between L2 blocks, but larger than
+        // the latency of getting the latest sealed L2 block number from Postgres. If the API server
+        // processes enough requests, information about the latest sealed L2 block will be updated
         // by reporting block difference metrics, so the actual update lag would be much smaller than this value.
-        const SEALED_MINIBLOCK_UPDATE_INTERVAL: Duration = Duration::from_millis(25);
+        const SEALED_L2_BLOCK_UPDATE_INTERVAL: Duration = Duration::from_millis(25);
 
         let transport = self.transport;
 
-        let (last_sealed_miniblock, sealed_miniblock_update_task) = SealedMiniblockNumber::new(
+        let (last_sealed_l2_block, sealed_l2_block_update_task) = SealedL2BlockNumber::new(
             self.updaters_pool.clone(),
-            SEALED_MINIBLOCK_UPDATE_INTERVAL,
+            SEALED_L2_BLOCK_UPDATE_INTERVAL,
             stop_receiver.clone(),
         );
 
-        let mut tasks = vec![tokio::spawn(sealed_miniblock_update_task)];
+        let mut tasks = vec![tokio::spawn(sealed_l2_block_update_task)];
         let pub_sub = if matches!(transport, ApiTransport::WebSocket(_))
             && self.namespaces.contains(&Namespace::Pubsub)
         {
@@ -495,7 +495,7 @@ impl ApiServer {
         let server_task = tokio::spawn(self.run_jsonrpsee_server(
             stop_receiver,
             pub_sub,
-            last_sealed_miniblock,
+            last_sealed_l2_block,
             local_addr_sender,
         ));
 
@@ -566,7 +566,7 @@ impl ApiServer {
         self,
         mut stop_receiver: watch::Receiver<bool>,
         pub_sub: Option<EthSubscribe>,
-        last_sealed_miniblock: SealedMiniblockNumber,
+        last_sealed_l2_block: SealedL2BlockNumber,
         local_addr_sender: oneshot::Sender<SocketAddr>,
     ) -> anyhow::Result<()> {
         let transport = self.transport;
@@ -622,9 +622,7 @@ impl ApiServer {
             tracing::info!("Enabled extended call tracing for {transport_str} API server; this might negatively affect performance");
         }
 
-        let rpc = self
-            .build_rpc_module(pub_sub, last_sealed_miniblock)
-            .await?;
+        let rpc = self.build_rpc_module(pub_sub, last_sealed_l2_block).await?;
         let registered_method_names = Arc::new(rpc.method_names().collect::<HashSet<_>>());
         tracing::debug!(
             "Built RPC module for {transport_str} server with {} methods: {registered_method_names:?}",

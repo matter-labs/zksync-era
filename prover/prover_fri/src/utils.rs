@@ -4,9 +4,7 @@ use std::{sync::Arc, time::Instant};
 
 use prover_dal::{Connection, Prover, ProverDal};
 use tokio::sync::Mutex;
-use zkevm_test_harness::prover_utils::{
-    verify_base_layer_proof, verify_eip4844_proof, verify_recursion_layer_proof,
-};
+use zkevm_test_harness::prover_utils::{verify_base_layer_proof, verify_recursion_layer_proof};
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -23,9 +21,7 @@ use zksync_prover_fri_types::{
     },
     queue::FixedSizeQueue,
     CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
-    EIP_4844_CIRCUIT_ID,
 };
-use zksync_prover_fri_utils::get_base_layer_circuit_id_for_recursive_layer;
 use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     L1BatchNumber,
@@ -92,7 +88,6 @@ pub async fn save_proof(
             }
             _ => (recursive_circuit.numeric_circuit_type(), false),
         },
-        FriProofWrapper::Eip4844(_) => (ProverServiceDataKey::eip4844().circuit_id, false),
     };
 
     let blob_save_started_at = Instant::now();
@@ -101,7 +96,7 @@ pub async fn save_proof(
     METRICS.blob_save_time[&circuit_type.to_string()].observe(blob_save_started_at.elapsed());
 
     let mut transaction = storage_processor.start_transaction().await.unwrap();
-    let job_metadata = transaction
+    transaction
         .fri_prover_jobs_dal()
         .save_proof(job_id, started_at.elapsed(), &blob_url)
         .await;
@@ -109,22 +104,6 @@ pub async fn save_proof(
         transaction
             .fri_proof_compressor_dal()
             .insert_proof_compression_job(artifacts.block_number, &blob_url)
-            .await;
-    }
-    if job_metadata.is_node_final_proof {
-        let circuit_id = if job_metadata.circuit_id == EIP_4844_CIRCUIT_ID {
-            EIP_4844_CIRCUIT_ID
-        } else {
-            get_base_layer_circuit_id_for_recursive_layer(job_metadata.circuit_id)
-        };
-        transaction
-            .fri_scheduler_dependency_tracker_dal()
-            .set_final_prover_job_id_for_l1_batch(
-                circuit_id,
-                job_id,
-                job_metadata.block_number,
-                job_metadata.sequence_number,
-            )
             .await;
     }
     transaction.commit().await.unwrap();
@@ -145,10 +124,6 @@ pub fn verify_proof(
         CircuitWrapper::Recursive(recursive_circuit) => (
             verify_recursion_layer_proof::<NoPow>(recursive_circuit, proof, vk),
             recursive_circuit.numeric_circuit_type(),
-        ),
-        CircuitWrapper::Eip4844(_) => (
-            verify_eip4844_proof::<NoPow>(proof, vk),
-            ProverServiceDataKey::eip4844().circuit_id,
         ),
     };
 

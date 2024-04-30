@@ -178,12 +178,12 @@ async fn main() -> anyhow::Result<()> {
             .await
             .context("genesis_init")?;
 
-        if let Some(shared_bridge) = &genesis.shared_bridge {
+        if let Some(ecosystem_contracts) = &contracts_config.ecosystem_contracts {
             let eth_client = configs.eth.as_ref().context("eth config")?;
             genesis::save_set_chain_id_tx(
                 &eth_client.web3_url,
                 contracts_config.diamond_proxy_addr,
-                shared_bridge.state_transition_proxy_addr,
+                ecosystem_contracts.state_transition_proxy_addr,
                 &postgres_config,
             )
             .await
