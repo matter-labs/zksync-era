@@ -3,6 +3,9 @@
 //! initializes a single task with a health check server.
 
 use anyhow::Context;
+use zksync_commitment_generator::input_generation::{
+    InputGenerator, RollupInputGenerator, ValidiumInputGenerator,
+};
 use zksync_config::{
     configs::{
         chain::{
@@ -336,10 +339,16 @@ impl MainNodeBuilder {
 
     fn add_commitment_generator_layer(mut self) -> anyhow::Result<Self> {
         let genesis = GenesisConfig::from_env()?;
-        let is_validium =
-            genesis.l1_batch_commit_data_generator_mode == L1BatchCommitDataGeneratorMode::Validium;
+        let input_generator: Box<dyn InputGenerator> = if genesis
+            .l1_batch_commit_data_generator_mode
+            == L1BatchCommitDataGeneratorMode::Validium
+        {
+            Box::new(ValidiumInputGenerator)
+        } else {
+            Box::new(RollupInputGenerator)
+        };
         self.node
-            .add_layer(CommitmentGeneratorLayer::new(is_validium));
+            .add_layer(CommitmentGeneratorLayer::new(input_generator));
 
         Ok(self)
     }

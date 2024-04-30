@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use anyhow::Context;
+use input_generation::InputGenerator;
 use itertools::Itertools;
 use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::{sync::watch, task::JoinHandle};
@@ -21,6 +22,7 @@ use crate::{
     utils::{bootloader_initial_content_commitment, events_queue_commitment},
 };
 
+pub mod input_generation;
 mod metrics;
 mod utils;
 
@@ -30,13 +32,18 @@ const SLEEP_INTERVAL: Duration = Duration::from_millis(100);
 pub struct CommitmentGenerator {
     connection_pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
+    input_generator: Box<dyn InputGenerator>,
 }
 
 impl CommitmentGenerator {
-    pub fn new(connection_pool: ConnectionPool<Core>) -> Self {
+    pub fn new(
+        connection_pool: ConnectionPool<Core>,
+        input_generator: Box<dyn InputGenerator>,
+    ) -> Self {
         Self {
             connection_pool,
             health_updater: ReactiveHealthCheck::new("commitment_generator").1,
+            input_generator,
         }
     }
 
@@ -116,7 +123,6 @@ impl CommitmentGenerator {
     async fn prepare_input(
         &self,
         l1_batch_number: L1BatchNumber,
-        is_validium: bool,
     ) -> anyhow::Result<CommitmentInput> {
         tracing::info!("Started preparing commitment input for L1 batch #{l1_batch_number}");
 
@@ -231,7 +237,7 @@ impl CommitmentGenerator {
             }
             state_diffs.sort_unstable_by_key(|rec| (rec.address, rec.key));
 
-            let blob_commitments = if protocol_version.is_post_1_4_2() && !is_validium {
+            let blob_commitments = if protocol_version.is_post_1_4_2() {
                 let pubdata_input = header.pubdata_input.with_context(|| {
                     format!("`pubdata_input` is missing for L1 batch #{l1_batch_number}")
                 })?;
@@ -250,13 +256,15 @@ impl CommitmentGenerator {
             }
         };
 
+        let input = self.input_generator.compute_input(input);
+
         Ok(input)
     }
 
-    async fn step(&self, l1_batch_number: L1BatchNumber, is_validium: bool) -> anyhow::Result<()> {
+    async fn step(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<()> {
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::PrepareInput].start();
-        let input = self.prepare_input(l1_batch_number, is_validium).await?;
+        let input = self.prepare_input(l1_batch_number).await?;
         let latency = latency.observe();
         tracing::debug!("Prepared commitment input for L1 batch #{l1_batch_number} in {latency:?}");
 
@@ -290,11 +298,7 @@ impl CommitmentGenerator {
         Ok(())
     }
 
-    pub async fn run(
-        self,
-        stop_receiver: watch::Receiver<bool>,
-        is_validium: bool,
-    ) -> anyhow::Result<()> {
+    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         self.health_updater.update(HealthStatus::Ready.into());
         loop {
             if *stop_receiver.borrow() {
@@ -315,7 +319,7 @@ impl CommitmentGenerator {
             };
 
             tracing::info!("Started commitment generation for L1 batch #{l1_batch_number}");
-            self.step(l1_batch_number, is_validium).await?;
+            self.step(l1_batch_number).await?;
             tracing::info!("Finished commitment generation for L1 batch #{l1_batch_number}");
         }
         Ok(())

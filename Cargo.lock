@@ -8165,6 +8165,7 @@ name = "zksync_commitment_generator"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "circuit_sequencer_api 0.1.40",
  "circuit_sequencer_api 0.1.41",
  "circuit_sequencer_api 0.1.50",
@@ -8178,6 +8179,7 @@ dependencies = [
  "zk_evm 1.4.1",
  "zk_evm 1.5.0",
  "zksync_dal",
+ "zksync_env_config",
  "zksync_health_check",
  "zksync_l1_contract_interface",
  "zksync_types",

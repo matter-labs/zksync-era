@@ -1,4 +1,4 @@
-use zksync_commitment_generator::CommitmentGenerator;
+use zksync_commitment_generator::{input_generation::InputGenerator, CommitmentGenerator};
 
 use crate::{
     implementations::resources::{healthcheck::AppHealthCheckResource, pools::MasterPoolResource},
@@ -8,12 +8,12 @@ use crate::{
 };
 
 pub struct CommitmentGeneratorLayer {
-    pub is_validium: bool,
+    input_generator: Box<dyn InputGenerator>,
 }
 
 impl CommitmentGeneratorLayer {
-    pub fn new(is_validium: bool) -> Self {
-        Self { is_validium }
+    pub fn new(input_generator: Box<dyn InputGenerator>) -> Self {
+        Self { input_generator }
     }
 }
 
@@ -27,7 +27,7 @@ impl WiringLayer for CommitmentGeneratorLayer {
         let pool_resource = context.get_resource::<MasterPoolResource>().await?;
         let main_pool = pool_resource.get().await.unwrap();
 
-        let commitment_generator = CommitmentGenerator::new(main_pool);
+        let commitment_generator = CommitmentGenerator::new(main_pool, self.input_generator);
 
         let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
         app_health
@@ -36,7 +36,6 @@ impl WiringLayer for CommitmentGeneratorLayer {
 
         context.add_task(Box::new(CommitmentGeneratorTask {
             commitment_generator,
-            is_validium: self.is_validium,
         }));
 
         Ok(())
@@ -46,7 +45,6 @@ impl WiringLayer for CommitmentGeneratorLayer {
 #[derive(Debug)]
 struct CommitmentGeneratorTask {
     commitment_generator: CommitmentGenerator,
-    is_validium: bool,
 }
 
 #[async_trait::async_trait]
@@ -56,8 +54,6 @@ impl Task for CommitmentGeneratorTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.commitment_generator
-            .run(stop_receiver.0, self.is_validium)
-            .await
+        self.commitment_generator.run(stop_receiver.0).await
     }
 }
