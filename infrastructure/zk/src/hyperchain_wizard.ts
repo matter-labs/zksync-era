@@ -346,7 +346,7 @@ async function setHyperchainMetadata(runObservability: boolean) {
 
     const environment = getEnv(results.chainName);
 
-    await compileConfig(environment);
+    compileConfig(environment);
     env.set(environment);
     // TODO: Generate url for data-compressor with selected region or fix env variable for keys location
     // PLA-595
