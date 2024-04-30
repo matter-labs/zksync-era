@@ -1,7 +1,9 @@
 use anyhow::{ensure, Context as _};
 use clap::Args as ClapArgs;
 use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
-use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
+use zksync_types::{
+    basic_fri_types::AggregationRound, prover_dal::WitnessJobStatus, L1BatchNumber,
+};
 
 use super::utils::{AggregationRoundInfo, BatchData, Task, TaskStatus};
 use crate::commands::status::utils::postgres_config;
@@ -62,21 +64,21 @@ async fn get_batches_data(batches: Vec<L1BatchNumber>) -> anyhow::Result<Vec<Bat
                 )
                 .await,
             },
-            node_witness_generator: Task::NodeWitnessGenerator {
+            node_witness_generator: Task::LeafWitnessGenerator {
                 status: get_proof_node_witness_generator_status_for_batch(batch, &mut conn).await,
                 aggregation_round_info: get_prover_jobs_data_for_batch(
                     batch,
-                    AggregationRound::LeafAggregation,
+                    AggregationRound::NodeAggregation,
                     &mut conn,
                 )
                 .await,
             },
-            scheduler_witness_generator: Task::SchedulerWitnessGenerator {
+            scheduler_witness_generator: Task::LeafWitnessGenerator {
                 status: get_proof_scheduler_witness_generator_status_for_batch(batch, &mut conn)
                     .await,
                 aggregation_round_info: get_prover_jobs_data_for_batch(
                     batch,
-                    AggregationRound::LeafAggregation,
+                    AggregationRound::Scheduler,
                     &mut conn,
                 )
                 .await,
@@ -124,33 +126,42 @@ async fn get_proof_leaf_witness_generator_status_for_batch<'a>(
     batch_number: L1BatchNumber,
     conn: &mut Connection<'a, Prover>,
 ) -> TaskStatus {
-    conn.fri_witness_generator_dal()
-        .get_leaf_witness_generator_job_for_batch(batch_number)
+    let status_vec: Vec<WitnessJobStatus> = conn
+        .fri_witness_generator_dal()
+        .get_leaf_witness_generator_jobs_for_batch(batch_number)
         .await
-        .map(|job| TaskStatus::from(job.status))
-        .unwrap_or_default()
+        .iter()
+        .map(|s| s.status.clone())
+        .collect();
+    TaskStatus::from(status_vec)
 }
 
 async fn get_proof_node_witness_generator_status_for_batch<'a>(
     batch_number: L1BatchNumber,
     conn: &mut Connection<'a, Prover>,
 ) -> TaskStatus {
-    conn.fri_witness_generator_dal()
-        .get_node_witness_generator_job_for_batch(batch_number)
+    let status_vec: Vec<WitnessJobStatus> = conn
+        .fri_witness_generator_dal()
+        .get_node_witness_generator_jobs_for_batch(batch_number)
         .await
-        .map(|job| TaskStatus::from(job.status))
-        .unwrap_or_default()
+        .iter()
+        .map(|s| s.status.clone())
+        .collect();
+    TaskStatus::from(status_vec)
 }
 
 async fn get_proof_scheduler_witness_generator_status_for_batch<'a>(
     batch_number: L1BatchNumber,
     conn: &mut Connection<'a, Prover>,
 ) -> TaskStatus {
-    conn.fri_witness_generator_dal()
-        .get_scheduler_witness_generator_job_for_batch(batch_number)
+    let status_vec: Vec<WitnessJobStatus> = conn
+        .fri_witness_generator_dal()
+        .get_scheduler_witness_generator_jobs_for_batch(batch_number)
         .await
-        .map(|job| TaskStatus::from(job.status))
-        .unwrap_or_default()
+        .iter()
+        .map(|s| s.status.clone())
+        .collect();
+    TaskStatus::from(status_vec)
 }
 
 async fn get_proof_compression_job_status_for_batch<'a>(

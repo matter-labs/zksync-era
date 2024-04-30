@@ -1189,10 +1189,10 @@ impl FriWitnessGeneratorDal<'_, '_> {
         })
     }
 
-    pub async fn get_leaf_witness_generator_job_for_batch(
+    pub async fn get_leaf_witness_generator_jobs_for_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> Option<LeafWitnessGeneratorJobInfo> {
+    ) -> Vec<LeafWitnessGeneratorJobInfo> {
         sqlx::query!(
             r#"
             SELECT
@@ -1204,31 +1204,34 @@ impl FriWitnessGeneratorDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_all(self.storage.conn())
         .await
         .unwrap()
+        .iter()
         .map(|row| LeafWitnessGeneratorJobInfo {
+            id: row.id as u32,
             l1_batch_number: l1_batch_number,
             circuit_id: row.circuit_id as u32,
-            closed_form_inputs_blob_url: row.closed_form_inputs_blob_url,
+            closed_form_inputs_blob_url: row.closed_form_inputs_blob_url.clone(),
             attempts: row.attempts as u32,
             status: WitnessJobStatus::from_str(&row.status).unwrap(),
-            error: row.error,
+            error: row.error.clone(),
             created_at: row.created_at,
             updated_at: row.updated_at,
             processing_started_at: row.processing_started_at,
             time_taken: row.time_taken,
             is_blob_cleaned: row.is_blob_cleaned,
             protocol_version: row.protocol_version,
-            picked_by: row.picked_by,
+            picked_by: row.picked_by.clone(),
             number_of_basic_circuits: row.number_of_basic_circuits,
         })
+        .collect()
     }
 
-    pub async fn get_node_witness_generator_job_for_batch(
+    pub async fn get_node_witness_generator_jobs_for_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> Option<NodeWitnessGeneratorJobInfo> {
+    ) -> Vec<NodeWitnessGeneratorJobInfo> {
         sqlx::query!(
             r#"
             SELECT
@@ -1240,31 +1243,34 @@ impl FriWitnessGeneratorDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_all(self.storage.conn())
         .await
         .unwrap()
+        .iter()
         .map(|row| NodeWitnessGeneratorJobInfo {
+            id: row.id as u32,
             l1_batch_number: l1_batch_number,
             circuit_id: row.circuit_id as u32,
             depth: row.depth as u32,
             status: WitnessJobStatus::from_str(&row.status).unwrap(),
             attempts: row.attempts as u32,
-            aggregations_url: row.aggregations_url,
+            aggregations_url: row.aggregations_url.clone(),
             processing_started_at: row.processing_started_at,
             time_taken: row.time_taken,
-            error: row.error,
+            error: row.error.clone(),
             created_at: row.created_at,
             updated_at: row.updated_at,
             number_of_dependent_jobs: row.number_of_dependent_jobs,
             protocol_version: row.protocol_version,
-            picked_by: row.picked_by,
+            picked_by: row.picked_by.clone(),
         })
+        .collect()
     }
 
-    pub async fn get_scheduler_witness_generator_job_for_batch(
+    pub async fn get_scheduler_witness_generator_jobs_for_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> Option<SchedulerWitnessGeneratorJobInfo> {
+    ) -> Vec<SchedulerWitnessGeneratorJobInfo> {
         sqlx::query!(
             r#"
             SELECT
@@ -1276,21 +1282,23 @@ impl FriWitnessGeneratorDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_all(self.storage.conn())
         .await
         .unwrap()
+        .iter()
         .map(|row| SchedulerWitnessGeneratorJobInfo {
             l1_batch_number: l1_batch_number,
-            scheduler_partial_input_blob_url: row.scheduler_partial_input_blob_url,
+            scheduler_partial_input_blob_url: row.scheduler_partial_input_blob_url.clone(),
             status: WitnessJobStatus::from_str(&row.status).unwrap(),
             processing_started_at: row.processing_started_at,
             time_taken: row.time_taken,
-            error: row.error,
+            error: row.error.clone(),
             created_at: row.created_at,
             updated_at: row.updated_at,
             attempts: row.attempts as u32,
             protocol_version: row.protocol_version,
-            picked_by: row.picked_by,
+            picked_by: row.picked_by.clone(),
         })
+        .collect()
     }
 }

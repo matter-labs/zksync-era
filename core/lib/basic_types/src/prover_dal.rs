@@ -124,7 +124,7 @@ pub struct ProverJobStatusInProgress {
     pub started_at: DateTime<Utc>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WitnessJobStatusSuccessful {
     pub started_at: DateTime<Utc>,
     pub time_taken: Duration,
@@ -139,7 +139,7 @@ impl Default for WitnessJobStatusSuccessful {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct WitnessJobStatusFailed {
     pub started_at: DateTime<Utc>,
     pub error: String,
@@ -161,7 +161,7 @@ pub enum ProverJobStatus {
     Ignored,
 }
 
-#[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr)]
+#[derive(Debug, Clone, strum::Display, strum::EnumString, strum::AsRefStr)]
 pub enum WitnessJobStatus {
     #[strum(serialize = "failed")]
     Failed(WitnessJobStatusFailed),
@@ -273,7 +273,31 @@ pub struct BasicWitnessGeneratorJobInfo {
     pub eip_4844_blobs: Option<Eip4844Blobs>,
 }
 
+// impl<R: Row> FromRow<'_, R> for BasicWitnessGeneratorJobInfo {
+//     fn from_row(row: &R) -> sqlx::Result<Self> {
+//         let l1_batch_number: i32 = row.try_get("l1_batch_number")?;
+//         let attempts: i32 = row.try_get("attempts")?;
+//         Ok(Self {
+//             l1_batch_number: L1BatchNumber(l1_batch_number as u32),
+//             merkle_tree_paths_blob_url: row.try_get("merkle_tree_paths_blob_url")?,
+//             attempts: attempts as u32,
+//             status: WitnessJobStatus::from_str(row.try_get("status")?).unwrap(),
+//             error: row.try_get("error")?,
+//             created_at: row.try_get("created_at")?,
+//             updated_at: row.try_get("updated_at")?,
+//             processing_started_at: row.try_get("processing_started_at")?,
+//             time_taken: row.try_get("time_taken")?,
+//             is_blob_cleaned: row.try_get("is_blob_cleaned")?,
+//             protocol_version: row.try_get("protocol_version")?,
+//             picked_by: row.try_get("picked_by")?,
+//             eip_4844_blobs:
+//                 Some(Eip4844Blobs::from(row.try_get::<Vec<u8>, &str>("eip_4844_blobs")?))
+//         })
+//     }
+// }
+
 pub struct LeafWitnessGeneratorJobInfo {
+    pub id: u32,
     pub l1_batch_number: L1BatchNumber,
     pub circuit_id: u32,
     pub closed_form_inputs_blob_url: Option<String>,
@@ -291,6 +315,7 @@ pub struct LeafWitnessGeneratorJobInfo {
 }
 
 pub struct NodeWitnessGeneratorJobInfo {
+    pub id: u32,
     pub l1_batch_number: L1BatchNumber,
     pub circuit_id: u32,
     pub depth: u32,

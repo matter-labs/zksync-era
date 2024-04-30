@@ -157,6 +157,31 @@ impl From<ProofCompressionJobStatus> for TaskStatus {
     }
 }
 
+impl From<Vec<WitnessJobStatus>> for TaskStatus {
+    fn from(status_vector: Vec<WitnessJobStatus>) -> Self {
+        if status_vector.is_empty() {
+            TaskStatus::JobsNotFound
+        } else if status_vector
+            .iter()
+            .all(|job| matches!(job, WitnessJobStatus::Queued))
+        {
+            TaskStatus::Queued
+        } else if status_vector
+            .iter()
+            .all(|job| matches!(job, WitnessJobStatus::WaitingForProofs))
+        {
+            TaskStatus::WaitingForProofs
+        } else if status_vector
+            .iter()
+            .all(|job| matches!(job, WitnessJobStatus::InProgress))
+        {
+            TaskStatus::Successful
+        } else {
+            TaskStatus::InProgress
+        }
+    }
+}
+
 #[derive(EnumString, Clone, Display)]
 pub enum Task {
     /// Represents the basic witness generator task and its status.
