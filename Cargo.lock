@@ -8215,6 +8215,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_config_derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2 1.0.69",
+ "quote 1.0.33",
+ "syn 2.0.38",
+]
+
+[[package]]
 name = "zksync_consensus_bft"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-consensus.git?rev=92ecb2d5d65e3bc4a883dacd18d0640e86576c8c#92ecb2d5d65e3bc4a883dacd18d0640e86576c8c"
