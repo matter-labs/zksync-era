@@ -6,7 +6,6 @@ use anyhow::Context as _;
 use futures::{future, FutureExt};
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
 use zksync_types::{
@@ -205,7 +204,6 @@ impl TreeUpdater {
         delayer: Delayer,
         pool: &ConnectionPool<Core>,
         mut stop_receiver: watch::Receiver<bool>,
-        health_updater: HealthUpdater,
     ) -> anyhow::Result<()> {
         let Some(earliest_l1_batch) =
             wait_for_l1_batch(pool, delayer.delay_interval(), &mut stop_receiver).await?
@@ -245,8 +243,6 @@ impl TreeUpdater {
              last L1 batch with metadata: {last_l1_batch_with_metadata:?}",
             max_batches_per_iter = self.max_l1_batches_per_iter
         );
-        let tree_info = tree.reader().info().await;
-        health_updater.update(tree_info.into());
 
         // It may be the case that we don't have any L1 batches with metadata in Postgres, e.g. after
         // recovering from a snapshot. We cannot wait for such a batch to appear (*this* is the component
@@ -272,9 +268,6 @@ impl TreeUpdater {
                 tree.save().await?;
                 next_l1_batch_to_seal = tree.next_l1_batch_number();
                 tracing::info!("Truncated Merkle tree to L1 batch #{next_l1_batch_to_seal}");
-
-                let tree_info = tree.reader().info().await;
-                health_updater.update(tree_info.into());
             }
         }
 
@@ -294,9 +287,6 @@ impl TreeUpdater {
                 );
                 delayer.wait(&self.tree).left_future()
             } else {
-                let tree_info = self.tree.reader().info().await;
-                health_updater.update(tree_info.into());
-
                 tracing::trace!(
                     "Metadata calculator (next L1 batch: #{next_l1_batch_to_seal}) made progress from #{snapshot}"
                 );
@@ -313,7 +303,6 @@ impl TreeUpdater {
                 () = delay => { /* The delay has passed */ }
             }
         }
-        drop(health_updater); // Explicitly mark where the updater should be dropped
         Ok(())
     }
 }

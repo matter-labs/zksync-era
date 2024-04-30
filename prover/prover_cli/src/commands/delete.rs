@@ -64,10 +64,6 @@ async fn delete_prover_db(mut conn: Connection<'_, Prover>) -> anyhow::Result<()
         .delete()
         .await
         .context("failed to delete prover jobs")?;
-    conn.fri_scheduler_dependency_tracker_dal()
-        .delete()
-        .await
-        .context("failed to delete scheduler dependency tracker")?;
     conn.fri_protocol_versions_dal()
         .delete()
         .await
@@ -79,7 +75,8 @@ async fn delete_prover_db(mut conn: Connection<'_, Prover>) -> anyhow::Result<()
     conn.fri_witness_generator_dal()
         .delete()
         .await
-        .context("failed to delete witness generator")?
+        .context("failed to delete witness generator")?;
+    Ok(())
 }
 
 async fn delete_batch_data(
@@ -104,5 +101,6 @@ async fn delete_batch_data(
     conn.fri_witness_generator_dal()
         .delete_batch_data_with_status(block_number, failed.then_some(FriWitnessJobStatus::Failed))
         .await
-        .context("failed to delete witness generator data")?
+        .context("failed to delete witness generator data")?;
+    Ok(())
 }

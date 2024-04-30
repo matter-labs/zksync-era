@@ -148,6 +148,7 @@ pub struct ApiServer {
     transport: ApiTransport,
     tx_sender: TxSender,
     polling_interval: Duration,
+    pruning_info_refresh_interval: Duration,
     namespaces: Vec<Namespace>,
     method_tracer: Arc<MethodTracer>,
     optional: OptionalApiParams,
@@ -159,6 +160,7 @@ pub struct ApiBuilder {
     updaters_pool: ConnectionPool<Core>,
     config: InternalApiConfig,
     polling_interval: Duration,
+    pruning_info_refresh_interval: Duration,
     // Mandatory params that must be set using builder methods.
     transport: Option<ApiTransport>,
     tx_sender: Option<TxSender>,
@@ -171,6 +173,7 @@ pub struct ApiBuilder {
 
 impl ApiBuilder {
     const DEFAULT_POLLING_INTERVAL: Duration = Duration::from_millis(200);
+    const DEFAULT_PRUNING_INFO_REFRESH_INTERVAL: Duration = Duration::from_secs(10);
 
     pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ConnectionPool<Core>) -> Self {
         Self {
@@ -178,6 +181,7 @@ impl ApiBuilder {
             pool,
             config,
             polling_interval: Self::DEFAULT_POLLING_INTERVAL,
+            pruning_info_refresh_interval: Self::DEFAULT_PRUNING_INFO_REFRESH_INTERVAL,
             transport: None,
             tx_sender: None,
             namespaces: None,
@@ -254,6 +258,11 @@ impl ApiBuilder {
         self
     }
 
+    pub fn with_pruning_info_refresh_interval(mut self, interval: Duration) -> Self {
+        self.pruning_info_refresh_interval = interval;
+        self
+    }
+
     pub fn enable_api_namespaces(mut self, namespaces: Vec<Namespace>) -> Self {
         self.namespaces = Some(namespaces);
         self
@@ -305,6 +314,7 @@ impl ApiBuilder {
             transport,
             tx_sender: self.tx_sender.context("Transaction sender not set")?,
             polling_interval: self.polling_interval,
+            pruning_info_refresh_interval: self.pruning_info_refresh_interval,
             namespaces: self.namespaces.unwrap_or_else(|| {
                 tracing::warn!(
                     "debug_ and snapshots_ API namespace will be disabled by default in ApiBuilder"
@@ -327,7 +337,8 @@ impl ApiServer {
         last_sealed_l2_block: SealedL2BlockNumber,
     ) -> anyhow::Result<RpcState> {
         let mut storage = self.updaters_pool.connection_tagged("api").await?;
-        let start_info = BlockStartInfo::new(&mut storage).await?;
+        let start_info =
+            BlockStartInfo::new(&mut storage, self.pruning_info_refresh_interval).await?;
         drop(storage);
 
         // Disable filter API for HTTP endpoints, WS endpoints are unaffected by the `filters_disabled` flag
@@ -367,36 +378,36 @@ impl ApiServer {
         let mut rpc = RpcModule::new(());
         if let Some(pub_sub) = pub_sub {
             rpc.merge(pub_sub.into_rpc())
-                .expect("Can't merge eth pubsub namespace");
+                .context("cannot merge eth pubsub namespace")?;
         }
 
+        if namespaces.contains(&Namespace::Debug) {
+            rpc.merge(DebugNamespace::new(rpc_state.clone()).await?.into_rpc())
+                .context("cannot merge debug namespace")?;
+        }
         if namespaces.contains(&Namespace::Eth) {
             rpc.merge(EthNamespace::new(rpc_state.clone()).into_rpc())
-                .expect("Can't merge eth namespace");
+                .context("cannot merge eth namespace")?;
         }
         if namespaces.contains(&Namespace::Net) {
             rpc.merge(NetNamespace::new(zksync_network_id).into_rpc())
-                .expect("Can't merge net namespace");
+                .context("cannot merge net namespace")?;
         }
         if namespaces.contains(&Namespace::Web3) {
             rpc.merge(Web3Namespace.into_rpc())
-                .expect("Can't merge web3 namespace");
+                .context("cannot merge web3 namespace")?;
         }
         if namespaces.contains(&Namespace::Zks) {
             rpc.merge(ZksNamespace::new(rpc_state.clone()).into_rpc())
-                .expect("Can't merge zks namespace");
+                .context("cannot merge zks namespace")?;
         }
         if namespaces.contains(&Namespace::En) {
             rpc.merge(EnNamespace::new(rpc_state.clone()).into_rpc())
-                .expect("Can't merge en namespace");
-        }
-        if namespaces.contains(&Namespace::Debug) {
-            rpc.merge(DebugNamespace::new(rpc_state.clone()).await.into_rpc())
-                .expect("Can't merge debug namespace");
+                .context("cannot merge en namespace")?;
         }
         if namespaces.contains(&Namespace::Snapshots) {
             rpc.merge(SnapshotsNamespace::new(rpc_state).into_rpc())
-                .expect("Can't merge snapshots namespace");
+                .context("cannot merge snapshots namespace")?;
         }
         Ok(rpc)
     }
