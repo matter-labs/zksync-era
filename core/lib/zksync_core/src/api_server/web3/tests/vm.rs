@@ -356,7 +356,14 @@ impl HttpTest for SendTransactionWithDetailedOutputTest {
         assert_eq!(send_result.transaction_hash, tx_hash);
         assert_eq!(
             send_result.events,
-            self.vm_events().iter().map(Log::from).collect_vec()
+            self.vm_events()
+                .iter()
+                .map(|x| {
+                    let mut l = Log::from(x);
+                    l.transaction_hash = Some(tx_hash);
+                    l
+                })
+                .collect_vec()
         );
         assert_eq!(
             send_result.storage_logs,
