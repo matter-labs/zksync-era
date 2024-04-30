@@ -1173,7 +1173,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .map(|row| BasicWitnessGeneratorJobInfo {
-            l1_batch_number: l1_batch_number,
+            l1_batch_number,
             merkle_tree_paths_blob_url: row.merkle_tree_paths_blob_url,
             attempts: row.attempts as u32,
             status: WitnessJobStatus::from_str(&row.status).unwrap(),
@@ -1185,7 +1185,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             is_blob_cleaned: row.is_blob_cleaned,
             protocol_version: row.protocol_version,
             picked_by: row.picked_by,
-            eip_4844_blobs: row.eip_4844_blobs.map(|vec_u8| Eip4844Blobs::from(vec_u8)),
+            eip_4844_blobs: row.eip_4844_blobs.map(Eip4844Blobs::from),
         })
     }
 
@@ -1210,7 +1210,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .iter()
         .map(|row| LeafWitnessGeneratorJobInfo {
             id: row.id as u32,
-            l1_batch_number: l1_batch_number,
+            l1_batch_number,
             circuit_id: row.circuit_id as u32,
             closed_form_inputs_blob_url: row.closed_form_inputs_blob_url.clone(),
             attempts: row.attempts as u32,
@@ -1249,7 +1249,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .iter()
         .map(|row| NodeWitnessGeneratorJobInfo {
             id: row.id as u32,
-            l1_batch_number: l1_batch_number,
+            l1_batch_number,
             circuit_id: row.circuit_id as u32,
             depth: row.depth as u32,
             status: WitnessJobStatus::from_str(&row.status).unwrap(),
@@ -1287,7 +1287,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .unwrap()
         .iter()
         .map(|row| SchedulerWitnessGeneratorJobInfo {
-            l1_batch_number: l1_batch_number,
+            l1_batch_number,
             scheduler_partial_input_blob_url: row.scheduler_partial_input_blob_url.clone(),
             status: WitnessJobStatus::from_str(&row.status).unwrap(),
             processing_started_at: row.processing_started_at,
