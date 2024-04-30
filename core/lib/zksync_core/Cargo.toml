@@ -76,7 +76,6 @@ chrono = { workspace = true, features = ["serde"] }
 anyhow.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
-bitflags.workspace = true
 thread_local.workspace = true
 
 reqwest = { workspace = true, features = ["blocking", "json"] }
@@ -102,7 +101,7 @@ jsonrpsee.workspace = true
 tempfile.workspace = true
 test-casing.workspace = true
 test-log.workspace = true
-backon.workspsace = true
+backon.workspace = true
 
 [build-dependencies]
 zksync_protobuf_build.workspace = true

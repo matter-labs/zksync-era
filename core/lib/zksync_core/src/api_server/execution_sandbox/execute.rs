@@ -134,7 +134,7 @@ impl TransactionExecutor {
                 &connection_pool,
                 tx,
                 block_args,
-                |vm, tx| {
+                |vm, tx, _| {
                     let storage_invocation_tracer =
                         StorageInvocations::new(execution_args.missed_storage_invocation_limit);
                     let custom_tracers: Vec<_> = custom_tracers

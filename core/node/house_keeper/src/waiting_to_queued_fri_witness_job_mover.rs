@@ -38,9 +38,7 @@ impl WaitingToQueuedFriWitnessJobMover {
         );
     }
 
-    pub async fn move_node_aggregation_jobs_from_waiting_to_queued(
-        &mut self,
-    ) -> Vec<(i64, u8, u16)> {
+    async fn move_node_aggregation_jobs_from_waiting_to_queued(&mut self) -> Vec<(i64, u8, u16)> {
         let mut conn = self.pool.connection().await.unwrap();
         let mut jobs = conn
             .fri_witness_generator_dal()
@@ -72,6 +70,46 @@ impl WaitingToQueuedFriWitnessJobMover {
             len as u64
         );
     }
+
+    /// Marks recursion tip witness jobs as queued.
+    /// The trigger condition is all final node proving jobs for the batch have been completed.
+    async fn move_recursion_tip_jobs(&mut self) {
+        let mut conn = self.pool.connection().await.unwrap();
+        let l1_batch_numbers = conn
+            .fri_witness_generator_dal()
+            .move_recursion_tip_jobs_from_waiting_to_queued()
+            .await;
+        for l1_batch_number in &l1_batch_numbers {
+            tracing::info!(
+                "Marked fri recursion tip witness job for l1_batch {} as queued",
+                l1_batch_number,
+            );
+        }
+        metrics::counter!(
+            "server.recursion_tip_witness_generator.waiting_to_queued_jobs_transitions",
+            l1_batch_numbers.len() as u64
+        );
+    }
+
+    /// Marks scheduler witness jobs as queued.
+    /// The trigger condition is the recursion tip proving job for the batch has been completed.
+    async fn move_scheduler_jobs(&mut self) {
+        let mut conn = self.pool.connection().await.unwrap();
+        let l1_batch_numbers = conn
+            .fri_witness_generator_dal()
+            .move_scheduler_jobs_from_waiting_to_queued()
+            .await;
+        for l1_batch_number in &l1_batch_numbers {
+            tracing::info!(
+                "Marked fri scheduler witness job for l1_batch {} as queued",
+                l1_batch_number,
+            );
+        }
+        metrics::counter!(
+            "server.scheduler_witness_generator.waiting_to_queued_jobs_transitions",
+            l1_batch_numbers.len() as u64
+        );
+    }
 }
 
 #[async_trait]
@@ -81,6 +119,8 @@ impl PeriodicJob for WaitingToQueuedFriWitnessJobMover {
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         self.move_leaf_aggregation_jobs().await;
         self.move_node_aggregation_jobs().await;
+        self.move_recursion_tip_jobs().await;
+        self.move_scheduler_jobs().await;
         Ok(())
     }
 

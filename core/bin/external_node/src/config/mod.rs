@@ -274,6 +274,10 @@ pub(crate) struct OptionalENConfig {
     /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
     #[serde(default = "OptionalENConfig::default_mempool_cache_size")]
     pub mempool_cache_size: usize,
+    /// Enables extended tracing of RPC calls. This may negatively impact performance for nodes under high load
+    /// (hundreds or thousands RPS).
+    #[serde(default = "OptionalENConfig::default_extended_api_tracing")]
+    pub extended_rpc_tracing: bool,
 
     // Health checks
     /// Time limit in milliseconds to mark a health check as slow and log the corresponding warning.
@@ -384,7 +388,7 @@ pub struct ApiComponentConfig {
     /// Address of the tree API used by this EN in case it does not have a
     /// local tree component running and in this case needs to send requests
     /// to some external tree API.
-    pub tree_api_url: Option<String>,
+    pub tree_api_remote_url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -498,6 +502,10 @@ impl OptionalENConfig {
 
     const fn default_mempool_cache_size() -> usize {
         10_000
+    }
+
+    const fn default_extended_api_tracing() -> bool {
+        true
     }
 
     fn default_main_node_rate_limit_rps() -> NonZeroUsize {
@@ -745,11 +753,11 @@ impl ExternalNodeConfig {
             .from_env::<OptionalENConfig>()
             .context("could not load external node config")?;
 
-        let api_component_config = envy::prefixed("EN_API")
+        let api_component_config = envy::prefixed("EN_API_")
             .from_env::<ApiComponentConfig>()
             .context("could not load external node config")?;
 
-        let tree_component_config = envy::prefixed("EN_TREE")
+        let tree_component_config = envy::prefixed("EN_TREE_")
             .from_env::<TreeComponentConfig>()
             .context("could not load external node config")?;
 
@@ -817,7 +825,9 @@ impl ExternalNodeConfig {
             optional: OptionalENConfig::mock(),
             remote: RemoteENConfig::mock(),
             consensus: None,
-            api_component: ApiComponentConfig { tree_api_url: None },
+            api_component: ApiComponentConfig {
+                tree_api_remote_url: None,
+            },
             tree_component: TreeComponentConfig { api_port: None },
         }
     }

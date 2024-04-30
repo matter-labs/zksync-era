@@ -24,7 +24,7 @@ pub mod gpu_prover {
             circuit_definitions::{
                 base_layer::ZkSyncBaseLayerProof, recursion_layer::ZkSyncRecursionLayerProof,
             },
-            eip4844_proof_config, recursion_layer_proof_config,
+            recursion_layer_proof_config,
         },
         CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
     };
@@ -141,11 +141,6 @@ pub mod gpu_prover {
                     recursion_layer_proof_config(),
                     circuit.numeric_circuit_type(),
                 ),
-                CircuitWrapper::Eip4844(circuit) => (
-                    GpuProofConfig::from_eip4844_circuit(circuit),
-                    eip4844_proof_config(),
-                    ProverServiceDataKey::eip4844().circuit_id,
-                ),
             };
 
             let started_at = Instant::now();
@@ -188,7 +183,6 @@ pub mod gpu_prover {
                 CircuitWrapper::Recursive(_) => FriProofWrapper::Recursive(
                     ZkSyncRecursionLayerProof::from_inner(circuit_id, proof),
                 ),
-                CircuitWrapper::Eip4844(_) => FriProofWrapper::Eip4844(proof),
             };
             ProverArtifacts::new(prover_job.block_number, proof_wrapper)
         }
