@@ -1429,7 +1429,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
             is_blob_cleaned: row.is_blob_cleaned,
             protocol_version: row.protocol_version,
             picked_by: row.picked_by,
-            eip_4844_blobs: row.eip_4844_blobs.map(Eip4844Blobs::from),
+            eip_4844_blobs: row
+                .eip_4844_blobs
+                .as_deref()
+                .map(Eip4844Blobs::decode)
+                .transpose()
+                .unwrap(),
         })
     }
 

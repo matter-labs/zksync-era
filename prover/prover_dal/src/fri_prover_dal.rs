@@ -5,8 +5,7 @@ use zksync_basic_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     protocol_version::ProtocolVersionId,
     prover_dal::{
-        FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo, ProverJobStatus, StuckJobs,
-        EIP_4844_CIRCUIT_ID,
+        z, FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo, ProverJobStatus, StuckJobs,
     },
     L1BatchNumber,
 };
