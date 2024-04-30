@@ -511,6 +511,8 @@ impl TransactionsDal<'_, '_> {
         transactions: &[TransactionExecutionResult],
         block_base_fee_per_gas: U256,
         protocol_version: ProtocolVersionId,
+        // On the main node, transactions are inserted into the DB by API servers.
+        // However on the EN, they need to be inserted after they are executed by the state keeper.
         insert_txs: bool,
     ) -> DalResult<()> {
         let mut transaction = self.storage.start_transaction().await?;
@@ -526,6 +528,7 @@ impl TransactionsDal<'_, '_> {
         }
 
         if insert_txs {
+            // There can be transactions in the DB in case of block rollback or if the DB was restored from a dump.
             let tx_hashes: Vec<_> = transactions.iter().map(|tx| tx.hash.as_bytes()).collect();
             sqlx::query!(
                 r#"
@@ -539,6 +542,7 @@ impl TransactionsDal<'_, '_> {
             .execute(&mut transaction)
             .await?;
 
+            // Different transaction types have different sets of fields to insert so we handle them separately.
             transaction
                 .transactions_dal()
                 .insert_executed_l2_transactions(
@@ -556,6 +560,7 @@ impl TransactionsDal<'_, '_> {
                 .insert_executed_upgrade_transactions(l2_block_number, transactions)
                 .await?;
         } else {
+            // Different transaction types have different sets of fields to update so we handle them separately.
             transaction
                 .transactions_dal()
                 .update_executed_l2_transactions(
