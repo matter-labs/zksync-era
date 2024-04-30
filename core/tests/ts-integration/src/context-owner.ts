@@ -668,6 +668,7 @@ export async function sendTransfers(
 
     return txPromises;
 }
+
 /**
  * Sends all the Ether from one account to another.
  * Can work both with L1 and L2 wallets.

@@ -3307,7 +3307,7 @@ dependencies = [
 [[package]]
 name = "kzg"
 version = "0.1.50"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#466c89e05a4000f83249c001d825dea546d6f85f"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.5.0#394e1c7d1aec06d2f3abd63bdc2ddf0efef5ac49"
 dependencies = [
  "boojum",
  "derivative",
@@ -8627,7 +8627,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "23.1.0"
+version = "24.0.0"
 dependencies = [
  "anyhow",
  "assert_matches",
