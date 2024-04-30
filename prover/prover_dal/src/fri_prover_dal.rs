@@ -622,10 +622,10 @@ impl FriProverDal<'_, '_> {
         .iter()
         .map(|row| ProverJobFriInfo {
             id: row.id as u32,
-            l1_batch_number: l1_batch_number,
+            l1_batch_number,
             circuit_id: row.circuit_id as u32,
             circuit_blob_url: row.circuit_blob_url.clone(),
-            aggregation_round: aggregation_round,
+            aggregation_round,
             sequence_number: row.sequence_number as u32,
             status: ProverJobStatus::from_str(&row.status).unwrap(),
             error: row.error.clone(),

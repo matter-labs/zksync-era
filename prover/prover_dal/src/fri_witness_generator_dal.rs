@@ -1173,7 +1173,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .map(|row| BasicWitnessGeneratorJobInfo {
-            l1_batch_number: l1_batch_number,
+            l1_batch_number,
             merkle_tree_paths_blob_url: row.merkle_tree_paths_blob_url,
             attempts: row.attempts as u32,
             status: WitnessJobStatus::from_str(&row.status).unwrap(),
@@ -1185,7 +1185,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             is_blob_cleaned: row.is_blob_cleaned,
             protocol_version: row.protocol_version,
             picked_by: row.picked_by,
-            eip_4844_blobs: row.eip_4844_blobs.map(|vec_u8| Eip4844Blobs::from(vec_u8)),
+            eip_4844_blobs: row.eip_4844_blobs.map(Eip4844Blobs::from),
         })
     }
 
