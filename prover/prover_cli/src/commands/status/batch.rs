@@ -67,7 +67,7 @@ async fn get_batches_data(batches: Vec<L1BatchNumber>) -> anyhow::Result<Vec<Bat
                 )
                 .await,
             },
-            node_witness_generator: Task::LeafWitnessGenerator {
+            node_witness_generator: Task::NodeWitnessGenerator {
                 status: get_proof_node_witness_generator_status_for_batch(batch, &mut conn).await,
                 aggregation_round_info: get_aggregation_round_info_for_batch(
                     batch,
@@ -76,7 +76,7 @@ async fn get_batches_data(batches: Vec<L1BatchNumber>) -> anyhow::Result<Vec<Bat
                 )
                 .await,
             },
-            scheduler_witness_generator: Task::LeafWitnessGenerator {
+            scheduler_witness_generator: Task::SchedulerWitnessGenerator {
                 status: get_proof_scheduler_witness_generator_status_for_batch(batch, &mut conn)
                     .await,
                 aggregation_round_info: get_aggregation_round_info_for_batch(
