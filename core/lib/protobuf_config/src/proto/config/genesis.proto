@@ -15,11 +15,6 @@ message Prover {
   optional bool dummy_verifier = 5;
 }
 
-message SharedBridge {
-  optional string bridgehub_proxy_addr = 1; // optional; h160
-  optional string state_transition_proxy_addr = 2; // optional; h160
-  optional string transparent_proxy_admin_addr = 3; // optional; h160
-}
 
 message Genesis {
   optional string genesis_root = 1; // optional; h256
@@ -32,6 +27,6 @@ message Genesis {
   optional uint64 l2_chain_id = 8; // optional;
   optional string fee_account = 9; // h160
   optional Prover prover = 10;
-  optional SharedBridge shared_bridge = 11;
   optional L1BatchCommitDataGeneratorMode l1_batch_commit_data_generator_mode = 29; // optional, default to rollup
+  reserved 11; reserved "shared_bridge";
 }
