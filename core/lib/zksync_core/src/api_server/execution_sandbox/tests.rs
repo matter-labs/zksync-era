@@ -32,7 +32,9 @@ async fn creating_block_args() {
     assert_eq!(pending_block_args.resolved_block_number, L2BlockNumber(2));
     assert_eq!(pending_block_args.l1_batch_timestamp_s, None);
 
-    let start_info = BlockStartInfo::new(&mut storage).await.unwrap();
+    let start_info = BlockStartInfo::new(&mut storage, Duration::MAX)
+        .await
+        .unwrap();
     assert_eq!(
         start_info.first_l2_block(&mut storage).await.unwrap(),
         L2BlockNumber(0)
@@ -86,7 +88,9 @@ async fn creating_block_args_after_snapshot_recovery() {
     );
     assert_eq!(pending_block_args.l1_batch_timestamp_s, None);
 
-    let start_info = BlockStartInfo::new(&mut storage).await.unwrap();
+    let start_info = BlockStartInfo::new(&mut storage, Duration::MAX)
+        .await
+        .unwrap();
     assert_eq!(
         start_info.first_l2_block(&mut storage).await.unwrap(),
         snapshot_recovery.l2_block_number + 1
@@ -170,7 +174,9 @@ async fn instantiating_vm() {
 
     let block_args = BlockArgs::pending(&mut storage).await.unwrap();
     test_instantiating_vm(pool.clone(), block_args).await;
-    let start_info = BlockStartInfo::new(&mut storage).await.unwrap();
+    let start_info = BlockStartInfo::new(&mut storage, Duration::MAX)
+        .await
+        .unwrap();
     let block_args = BlockArgs::new(&mut storage, api::BlockId::Number(0.into()), &start_info)
         .await
         .unwrap();
@@ -191,7 +197,7 @@ async fn test_instantiating_vm(pool: ConnectionPool<Core>, block_args: BlockArgs
             &pool,
             transaction.clone(),
             block_args,
-            |_, received_tx| {
+            |_, received_tx, _| {
                 assert_eq!(received_tx, transaction);
             },
         )

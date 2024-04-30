@@ -15,6 +15,7 @@ use zksync_health_check::{CheckHealth, HealthStatus};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
+use zksync_storage::RocksDB;
 use zksync_types::{
     block::L1BatchHeader, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, StorageKey,
     StorageLog, H256,
@@ -166,6 +167,11 @@ async fn status_receiver_has_correct_states() {
         other_tree_health_check.check_health().await.status(),
         HealthStatus::ShutDown
     );
+
+    // Check that health checks don't prevent dropping RocksDB instances.
+    tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -459,7 +465,7 @@ pub(crate) async fn reset_db_state(pool: &ConnectionPool<Core>, num_batches: usi
     // Drops all L1 batches (except the L1 batch with number 0) and their storage logs.
     storage
         .storage_logs_dal()
-        .rollback_storage_logs(L2BlockNumber(0))
+        .roll_back_storage_logs(L2BlockNumber(0))
         .await
         .unwrap();
     storage

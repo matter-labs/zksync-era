@@ -116,18 +116,16 @@ impl TempConfigStore {
 
     #[allow(deprecated)]
     pub fn wallets(&self) -> Wallets {
-        let eth_sender = self.eth_sender_config.as_ref().and_then(|x| {
-            x.sender.as_ref().and_then(|sender| {
-                let operator = sender
-                    .private_key()
-                    .and_then(|operator| Wallet::from_private_key(operator, None).ok());
-                let blob_operator = sender
-                    .private_key_blobs()
-                    .and_then(|operator| Wallet::from_private_key(operator, None).ok());
-                operator.map(|operator| EthSender {
-                    operator,
-                    blob_operator,
-                })
+        let eth_sender = self.eth_sender_config.as_ref().and_then(|config| {
+            let sender = config.sender.as_ref()?;
+            let operator_private_key = sender.private_key().ok()??;
+            let operator = Wallet::new(operator_private_key);
+            let blob_operator = sender
+                .private_key_blobs()
+                .and_then(|operator| Wallet::from_private_key_bytes(operator, None).ok());
+            Some(EthSender {
+                operator,
+                blob_operator,
             })
         });
         let state_keeper = self

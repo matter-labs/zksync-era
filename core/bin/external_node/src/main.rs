@@ -8,7 +8,7 @@ use tokio::{
     sync::{oneshot, watch, RwLock},
     task::{self, JoinHandle},
 };
-use zksync_block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole};
+use zksync_block_reverter::{BlockReverter, NodeRole};
 use zksync_commitment_generator::CommitmentGenerator;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{
@@ -160,13 +160,24 @@ async fn run_tree(
     .await
     .context("failed creating DB pool for Merkle tree recovery")?;
 
-    let metadata_calculator = MetadataCalculator::new(metadata_calculator_config, None, tree_pool)
-        .await
-        .context("failed initializing metadata calculator")?
-        .with_recovery_pool(recovery_pool);
+    let mut metadata_calculator =
+        MetadataCalculator::new(metadata_calculator_config, None, tree_pool)
+            .await
+            .context("failed initializing metadata calculator")?
+            .with_recovery_pool(recovery_pool);
 
     let tree_reader = Arc::new(metadata_calculator.tree_reader());
-    app_health.insert_component(metadata_calculator.tree_health_check())?;
+    app_health.insert_custom_component(Arc::new(metadata_calculator.tree_health_check()))?;
+
+    if config.optional.pruning_enabled {
+        tracing::warn!("Proceeding with node state pruning for the Merkle tree. This is an experimental feature; use at your own risk");
+
+        let pruning_task =
+            metadata_calculator.pruning_task(config.optional.pruning_removal_delay() / 2);
+        app_health.insert_component(pruning_task.health_check())?;
+        let pruning_task_handle = tokio::spawn(pruning_task.run(stop_receiver.clone()));
+        task_futures.push(pruning_task_handle);
+    }
 
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
@@ -281,21 +292,22 @@ async fn run_core(
         }
     }));
 
-    if let Some(data_retention_hours) = config.optional.pruning_data_retention_hours {
-        let minimum_l1_batch_age = Duration::from_secs(3600 * data_retention_hours);
+    if config.optional.pruning_enabled {
+        tracing::warn!("Proceeding with node state pruning for Postgres. This is an experimental feature; use at your own risk");
+
+        let minimum_l1_batch_age = config.optional.pruning_data_retention();
         tracing::info!(
             "Configured pruning of batches after they become {minimum_l1_batch_age:?} old"
         );
         let db_pruner = DbPruner::new(
             DbPrunerConfig {
-                // don't change this value without adjusting API server pruning info cache max age
-                soft_and_hard_pruning_time_delta: Duration::from_secs(60),
-                next_iterations_delay: Duration::from_secs(30),
+                removal_delay: config.optional.pruning_removal_delay(),
                 pruned_batch_chunk_size: config.optional.pruning_chunk_size,
                 minimum_l1_batch_age,
             },
             connection_pool.clone(),
         );
+        app_health.insert_component(db_pruner.health_check())?;
         task_handles.push(tokio::spawn(db_pruner.run(stop_receiver.clone())));
     }
 
@@ -396,7 +408,7 @@ async fn run_api(
 ) -> anyhow::Result<()> {
     let tree_reader = match tree_reader {
         Some(tree_reader) => {
-            if let Some(url) = &config.api_component.tree_api_url {
+            if let Some(url) = &config.api_component.tree_api_remote_url {
                 tracing::warn!(
                     "Tree component is run locally; the specified tree API URL {url} is ignored"
                 );
@@ -405,7 +417,7 @@ async fn run_api(
         }
         None => config
             .api_component
-            .tree_api_url
+            .tree_api_remote_url
             .as_ref()
             .map(|url| Arc::new(TreeApiHttpClient::new(url)) as Arc<dyn TreeApiClient>),
     };
@@ -498,6 +510,10 @@ async fn run_api(
         mempool_cache_update_task.run(stop_receiver.clone()),
     ));
 
+    // The refresh interval should be several times lower than the pruning removal delay, so that
+    // soft-pruning will timely propagate to the API server.
+    let pruning_info_refresh_interval = config.optional.pruning_removal_delay() / 5;
+
     if components.contains(&Component::HttpApi) {
         let mut builder =
             ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
@@ -505,6 +521,7 @@ async fn run_api(
                 .with_filter_limit(config.optional.filters_limit)
                 .with_batch_request_size_limit(config.optional.max_batch_request_size)
                 .with_response_body_size_limit(config.optional.max_response_body_size())
+                .with_pruning_info_refresh_interval(pruning_info_refresh_interval)
                 .with_tx_sender(tx_sender.clone())
                 .with_vm_barrier(vm_barrier.clone())
                 .with_sync_state(sync_state.clone())
@@ -534,6 +551,7 @@ async fn run_api(
                 .with_batch_request_size_limit(config.optional.max_batch_request_size)
                 .with_response_body_size_limit(config.optional.max_response_body_size())
                 .with_polling_interval(config.optional.polling_interval())
+                .with_pruning_info_refresh_interval(pruning_info_refresh_interval)
                 .with_tx_sender(tx_sender)
                 .with_vm_barrier(vm_barrier)
                 .with_sync_state(sync_state)
@@ -927,14 +945,13 @@ async fn run_node(
     let sigint_receiver = env.setup_sigint_handler();
 
     // Revert the storage if needed.
-    let reverter = BlockReverter::new(
-        NodeRole::External,
-        config.required.state_cache_path.clone(),
-        config.required.merkle_tree_path.clone(),
-        None,
-        connection_pool.clone(),
-        L1ExecutedBatchesRevert::Allowed,
-    );
+    let mut reverter = BlockReverter::new(NodeRole::External, connection_pool.clone());
+    // Reverting executed batches is more-or-less safe for external nodes.
+    let reverter = reverter
+        .allow_rolling_back_executed_batches()
+        .enable_rolling_back_postgres()
+        .enable_rolling_back_merkle_tree(config.required.merkle_tree_path.clone())
+        .enable_rolling_back_state_keeper_cache(config.required.state_cache_path.clone());
 
     let mut reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
     // We're checking for the reorg in the beginning because we expect that if reorg is detected during
@@ -944,31 +961,25 @@ async fn run_node(
     match reorg_detector.check_consistency().await {
         Ok(()) => {}
         Err(reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {
-            tracing::info!("Rolling back to l1 batch number {last_correct_l1_batch}");
-            reverter
-                .rollback_db(last_correct_l1_batch, BlockReverterFlags::all())
-                .await;
-            tracing::info!("Rollback successfully completed");
+            tracing::info!("Reverting to l1 batch number {last_correct_l1_batch}");
+            reverter.roll_back(last_correct_l1_batch).await?;
+            tracing::info!("Revert successfully completed");
         }
         Err(err) => return Err(err).context("reorg_detector.check_consistency()"),
     }
     if opt.revert_pending_l1_batch {
-        tracing::info!("Rolling pending L1 batch back..");
+        tracing::info!("Reverting pending L1 batch");
         let mut connection = connection_pool.connection().await?;
         let sealed_l1_batch_number = connection
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await?
-            .context(
-                "Cannot roll back pending L1 batch since there are no L1 batches in Postgres",
-            )?;
+            .context("Cannot revert pending L1 batch since there are no L1 batches in Postgres")?;
         drop(connection);
 
-        tracing::info!("Rolling back to l1 batch number {sealed_l1_batch_number}");
-        reverter
-            .rollback_db(sealed_l1_batch_number, BlockReverterFlags::all())
-            .await;
-        tracing::info!("Rollback successfully completed");
+        tracing::info!("Reverting to l1 batch number {sealed_l1_batch_number}");
+        reverter.roll_back(sealed_l1_batch_number).await?;
+        tracing::info!("Revert successfully completed");
     }
 
     app_health.insert_component(reorg_detector.health_check().clone())?;

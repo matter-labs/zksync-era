@@ -41,7 +41,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         protocol_version_id: ProtocolVersionId,
         eip_4844_blobs: Eip4844Blobs,
     ) {
-        let blobs_raw: Vec<u8> = eip_4844_blobs.into();
+        let blobs_raw = eip_4844_blobs.encode();
         sqlx::query!(
             r#"
             INSERT INTO
@@ -116,9 +116,13 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .map(|row| {
             (
                 L1BatchNumber(row.l1_batch_number as u32),
-                row.eip_4844_blobs
-                    .expect("missing eip 4844 blobs from the database")
-                    .into(),
+                Eip4844Blobs::decode(&row.eip_4844_blobs.unwrap_or_else(|| {
+                    panic!(
+                        "missing eip 4844 blobs from the database for batch {}",
+                        row.l1_batch_number
+                    )
+                }))
+                .expect("failed to decode EIP4844 blobs"),
             )
         })
     }
@@ -295,6 +299,14 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .collect()
     }
 
+    /// Responsible for creating the jobs to be processed, after a basic witness generator run.
+    /// It will create as follows:
+    /// - all prover jobs for aggregation round 0 identified in the basic witness generator run
+    /// - all leaf aggregation jobs for the batch
+    /// - all node aggregation jobs at depth 0 for the batch
+    /// - the recursion tip witness job
+    /// - the scheduler witness job
+    /// NOTE: Not all batches have all circuits, so it's possible we'll be missing some aggregation jobs (for circuits not present in the batch).
     pub async fn create_aggregation_jobs(
         &mut self,
         block_number: L1BatchNumber,
@@ -352,6 +364,32 @@ impl FriWitnessGeneratorDal<'_, '_> {
             sqlx::query!(
                 r#"
                 INSERT INTO
+                    recursion_tip_witness_jobs_fri (
+                        l1_batch_number,
+                        status,
+                        number_of_final_node_jobs,
+                        protocol_version,
+                        created_at,
+                        updated_at
+                    )
+                VALUES
+                    ($1, 'waiting_for_proofs', $2, $3, NOW(), NOW())
+                ON CONFLICT (l1_batch_number) DO
+                UPDATE
+                SET
+                    updated_at = NOW()
+                "#,
+                block_number.0 as i64,
+                closed_form_inputs_and_urls.len() as i32,
+                protocol_version_id as i32,
+            )
+            .execute(self.storage.conn())
+            .await
+            .unwrap();
+
+            sqlx::query!(
+                r#"
+                INSERT INTO
                     scheduler_witness_jobs_fri (
                         l1_batch_number,
                         scheduler_partial_input_blob_url,
@@ -370,23 +408,6 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 i64::from(block_number.0),
                 scheduler_partial_input_blob_url,
                 protocol_version_id as i32,
-            )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
-
-            sqlx::query!(
-                r#"
-                INSERT INTO
-                    scheduler_dependency_tracker_fri (l1_batch_number, status, created_at, updated_at)
-                VALUES
-                    ($1, 'waiting_for_proofs', NOW(), NOW())
-                ON CONFLICT (l1_batch_number) DO
-                UPDATE
-                SET
-                    updated_at = NOW()
-                "#,
-                i64::from(block_number.0)
             )
             .execute(self.storage.conn())
             .await
@@ -837,6 +858,74 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .collect()
     }
 
+    pub async fn move_recursion_tip_jobs_from_waiting_to_queued(&mut self) -> Vec<u64> {
+        sqlx::query!(
+            r#"
+            UPDATE recursion_tip_witness_jobs_fri
+            SET
+                status = 'queued'
+            WHERE
+                l1_batch_number IN (
+                    SELECT
+                        prover_jobs_fri.l1_batch_number
+                    FROM
+                        prover_jobs_fri
+                        JOIN recursion_tip_witness_jobs_fri rtwj ON prover_jobs_fri.l1_batch_number = rtwj.l1_batch_number
+                    WHERE
+                        rtwj.status = 'waiting_for_proofs'
+                        AND prover_jobs_fri.status = 'successful'
+                        AND prover_jobs_fri.aggregation_round = $1
+                        AND prover_jobs_fri.is_node_final_proof = true
+                    GROUP BY
+                        prover_jobs_fri.l1_batch_number,
+                        rtwj.number_of_final_node_jobs
+                    HAVING
+                        COUNT(*) = rtwj.number_of_final_node_jobs
+                )
+            RETURNING
+                l1_batch_number;
+            "#,
+            AggregationRound::NodeAggregation as i64,
+    )
+    .fetch_all(self.storage.conn())
+    .await
+    .unwrap()
+    .into_iter()
+    .map(|row| (row.l1_batch_number as u64))
+    .collect()
+    }
+
+    pub async fn move_scheduler_jobs_from_waiting_to_queued(&mut self) -> Vec<u64> {
+        sqlx::query!(
+            r#"
+            UPDATE scheduler_witness_jobs_fri
+            SET
+                status = 'queued'
+            WHERE
+                l1_batch_number IN (
+                    SELECT
+                        prover_jobs_fri.l1_batch_number
+                    FROM
+                        prover_jobs_fri
+                        JOIN scheduler_witness_jobs_fri swj ON prover_jobs_fri.l1_batch_number = swj.l1_batch_number
+                    WHERE
+                        swj.status = 'waiting_for_proofs'
+                        AND prover_jobs_fri.status = 'successful'
+                        AND prover_jobs_fri.aggregation_round = $1
+                )
+            RETURNING
+                l1_batch_number;
+            "#,
+            AggregationRound::RecursionTip as i64,
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| (row.l1_batch_number as u64))
+        .collect()
+    }
+
     pub async fn requeue_stuck_leaf_aggregations_jobs(
         &mut self,
         processing_timeout: Duration,
@@ -921,6 +1010,92 @@ impl FriWitnessGeneratorDal<'_, '_> {
             attempts: row.attempts as u64,
         })
         .collect()
+    }
+
+    pub async fn requeue_stuck_recursion_tip_jobs(
+        &mut self,
+        processing_timeout: Duration,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        let processing_timeout = pg_interval_from_duration(processing_timeout);
+        sqlx::query!(
+            r#"
+            UPDATE recursion_tip_witness_jobs_fri
+            SET
+                status = 'queued',
+                updated_at = NOW(),
+                processing_started_at = NOW()
+            WHERE
+                (
+                    status = 'in_progress'
+                    AND processing_started_at <= NOW() - $1::INTERVAL
+                    AND attempts < $2
+                )
+                OR (
+                    status = 'failed'
+                    AND attempts < $2
+                )
+            RETURNING
+                l1_batch_number,
+                status,
+                attempts
+            "#,
+            &processing_timeout,
+            max_attempts as i32,
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| StuckJobs {
+            id: row.l1_batch_number as u64,
+            status: row.status,
+            attempts: row.attempts as u64,
+        })
+        .collect()
+    }
+
+    pub async fn get_next_recursion_tip_witness_job(
+        &mut self,
+        protocol_versions: &[ProtocolVersionId],
+        picked_by: &str,
+    ) -> Option<L1BatchNumber> {
+        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
+        sqlx::query!(
+            r#"
+            UPDATE recursion_tip_witness_jobs_fri
+            SET
+                status = 'in_progress',
+                attempts = attempts + 1,
+                updated_at = NOW(),
+                processing_started_at = NOW(),
+                picked_by = $2
+            WHERE
+                l1_batch_number = (
+                    SELECT
+                        l1_batch_number
+                    FROM
+                    recursion_tip_witness_jobs_fri
+                    WHERE
+                        status = 'queued'
+                        AND protocol_version = ANY ($1)
+                    ORDER BY
+                        l1_batch_number ASC
+                    LIMIT
+                        1
+                    FOR UPDATE
+                        SKIP LOCKED
+                )
+            RETURNING
+                recursion_tip_witness_jobs_fri.l1_batch_number
+            "#,
+            &protocol_versions[..],
+            picked_by,
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| L1BatchNumber(row.l1_batch_number as u32))
     }
 
     pub async fn mark_scheduler_jobs_as_queued(&mut self, l1_batch_number: i64) {
@@ -1027,6 +1202,28 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .map(|row| L1BatchNumber(row.l1_batch_number as u32))
     }
 
+    pub async fn get_recursion_tip_witness_job_attempts(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<Option<u32>> {
+        let attempts = sqlx::query!(
+            r#"
+            SELECT
+                attempts
+            FROM
+                recursion_tip_witness_jobs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            l1_batch_number.0 as i64
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        .map(|row| row.attempts as u32);
+
+        Ok(attempts)
+    }
+
     pub async fn get_scheduler_witness_job_attempts(
         &mut self,
         l1_batch_number: L1BatchNumber,
@@ -1049,6 +1246,29 @@ impl FriWitnessGeneratorDal<'_, '_> {
         Ok(attempts)
     }
 
+    pub async fn mark_recursion_tip_job_as_successful(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        time_taken: Duration,
+    ) {
+        sqlx::query!(
+            r#"
+            UPDATE recursion_tip_witness_jobs_fri
+            SET
+                status = 'successful',
+                updated_at = NOW(),
+                time_taken = $1
+            WHERE
+                l1_batch_number = $2
+            "#,
+            duration_to_naive_time(time_taken),
+            l1_batch_number.0 as i64
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
+
     pub async fn mark_scheduler_job_as_successful(
         &mut self,
         block_number: L1BatchNumber,
@@ -1066,6 +1286,29 @@ impl FriWitnessGeneratorDal<'_, '_> {
             "#,
             duration_to_naive_time(time_taken),
             i64::from(block_number.0)
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
+
+    pub async fn mark_recursion_tip_job_failed(
+        &mut self,
+        error: &str,
+        l1_batch_number: L1BatchNumber,
+    ) {
+        sqlx::query!(
+            r#"
+            UPDATE recursion_tip_witness_jobs_fri
+            SET
+                status = 'failed',
+                error = $1,
+                updated_at = NOW()
+            WHERE
+                l1_batch_number = $2
+            "#,
+            error,
+            l1_batch_number.0 as i64
         )
         .execute(self.storage.conn())
         .await
@@ -1125,6 +1368,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             AggregationRound::BasicCircuits => "witness_inputs_fri",
             AggregationRound::LeafAggregation => "leaf_aggregation_witness_jobs_fri",
             AggregationRound::NodeAggregation => "node_aggregation_witness_jobs_fri",
+            AggregationRound::RecursionTip => "recursion_tip_witness_jobs_fri",
             AggregationRound::Scheduler => "scheduler_witness_jobs_fri",
         }
     }

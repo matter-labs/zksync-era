@@ -30,6 +30,7 @@ use crate::{
         tracers::{traits::VmTracer, utils::VmHook},
         types::internals::{PubdataInput, ZkSyncVmState},
         utils::logs::collect_events_and_l1_system_logs_after_timestamp,
+        vm::MultiVMSubversion,
         StorageOracle,
     },
 };
@@ -43,16 +44,22 @@ pub(crate) struct PubdataTracer<S> {
     // For testing purposes it might be helpful to supply an exact set of state diffs to be provided
     // to the L1Messenger.
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
+    subversion: MultiVMSubversion,
     _phantom_data: PhantomData<S>,
 }
 
 impl<S: WriteStorage> PubdataTracer<S> {
-    pub(crate) fn new(l1_batch_env: L1BatchEnv, execution_mode: VmExecutionMode) -> Self {
+    pub(crate) fn new(
+        l1_batch_env: L1BatchEnv,
+        execution_mode: VmExecutionMode,
+        subversion: MultiVMSubversion,
+    ) -> Self {
         Self {
             l1_batch_env,
             pubdata_info_requested: false,
             execution_mode,
             enforced_state_diffs: None,
+            subversion,
             _phantom_data: Default::default(),
         }
     }
@@ -64,12 +71,14 @@ impl<S: WriteStorage> PubdataTracer<S> {
         l1_batch_env: L1BatchEnv,
         execution_mode: VmExecutionMode,
         forced_state_diffs: Vec<StateDiffRecord>,
+        subversion: MultiVMSubversion,
     ) -> Self {
         Self {
             l1_batch_env,
             pubdata_info_requested: false,
             execution_mode,
             enforced_state_diffs: Some(forced_state_diffs),
+            subversion,
             _phantom_data: Default::default(),
         }
     }
@@ -192,7 +201,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for PubdataTracer<S> {
         _memory: &SimpleMemory<H>,
         _storage: StoragePtr<S>,
     ) {
-        let hook = VmHook::from_opcode_memory(&state, &data);
+        let hook = VmHook::from_opcode_memory(&state, &data, self.subversion);
         if let VmHook::PubdataRequested = hook {
             self.pubdata_info_requested = true;
         }
