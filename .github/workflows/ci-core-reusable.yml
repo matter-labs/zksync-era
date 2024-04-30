@@ -99,13 +99,16 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run zk
-          ci_run zk init
+          ci_run zk init --local-legacy-bridge-testing
 
-      # `sleep 30` because we need to wait until server added all the tokens
+      # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
         run: |
-          ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper &>server.log &
-          ci_run sleep 30
+          ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper,commitment_generator &>server.log &
+          ci_run sleep 60
+
+      - name: Deploy legacy era contracts
+        run: ci_run zk contract setup-legacy-bridge-era
 
       - name: Perform loadtest - DISABLED (EVM-541)
         run: ls
@@ -217,11 +220,10 @@ jobs:
 
       - name: Run revert test - DISABLED (EVM-539)
         run: |
-          ls
+          ci_run pkill zksync_server || true
+          ci_run sleep 2
+          ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=Rollup PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert
 
-        # ci_run pkill zksync_server || true
-        # ci_run sleep 2
-        # ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=Rollup PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert
 
         # This test should be the last one as soon as it
         # finished bootloader will be different
@@ -321,13 +323,11 @@ jobs:
 
       - name: Run revert test - DISABLED (EVM-539)
         run: |
-          ls
-
-        # ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=Rollup PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert-en
-        # test terminates the nodes, so we restart them.
-        # ZKSYNC_ENV=docker ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
-        # ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
-        # ci_run sleep 30
+          ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=Rollup PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert-en
+          # test terminates the nodes, so we restart them.
+          ZKSYNC_ENV=docker ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
+          ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
+          ci_run sleep 30
 
       - name: Run upgrade test
         run: |

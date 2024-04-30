@@ -16,14 +16,13 @@ use tokio::{
     sync::{mpsc, watch},
 };
 use zksync_shared_metrics::{InteractionType, TxStage, APP_METRICS};
-use zksync_state::{ReadStorage, StorageView, WriteStorage};
+use zksync_state::{ReadStorage, ReadStorageFactory, StorageView, WriteStorage};
 use zksync_types::{vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
 use crate::state_keeper::{
     metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
-    state_keeper_storage::ReadStorageFactory,
     types::ExecutionMetricsForCriteria,
 };
 
@@ -71,7 +70,9 @@ impl BatchExecutor for MainBatchExecutor {
         let stop_receiver = stop_receiver.clone();
         let handle = tokio::task::spawn_blocking(move || {
             if let Some(storage) = Handle::current()
-                .block_on(storage_factory.access_storage(&stop_receiver))
+                .block_on(
+                    storage_factory.access_storage(&stop_receiver, l1_batch_params.number - 1),
+                )
                 .expect("failed getting access to state keeper storage")
             {
                 executor.run(storage, l1_batch_params, system_env);

@@ -12,13 +12,14 @@ use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_state::ReadStorageFactory;
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
     block::L2BlockHasher, ethabi::Token, fee::Fee, snapshots::SnapshotRecoveryStatus,
     storage_writes_deduplicator::StorageWritesDeduplicator,
     system_contracts::get_system_smart_contracts, utils::storage_key_for_standard_token_balance,
     AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId,
-    StorageKey, StorageLog, Transaction, H256, L2_ETH_TOKEN_ADDRESS,
+    StorageKey, StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS,
     SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
 };
 use zksync_utils::u256_to_h256;
@@ -31,7 +32,6 @@ use crate::{
     genesis::create_genesis_l1_batch,
     state_keeper::{
         batch_executor::{BatchExecutorHandle, TxExecutionResult},
-        state_keeper_storage::ReadStorageFactory,
         tests::{default_l1_batch_env, default_system_env, BASE_SYSTEM_CONTRACTS},
         AsyncRocksdbCache, BatchExecutor, MainBatchExecutor,
     },
@@ -259,7 +259,7 @@ impl Tester {
 
         for address in addresses {
             let key = storage_key_for_standard_token_balance(
-                AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
+                AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
                 address,
             );
             let value = u256_to_h256(eth_amount);

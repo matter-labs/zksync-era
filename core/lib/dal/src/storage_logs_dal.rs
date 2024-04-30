@@ -142,95 +142,6 @@ impl StorageLogsDal<'_, '_> {
             .await
     }
 
-    /// Rolls back storage to the specified point in time.
-    #[deprecated(note = "`storage` table is soft-removed")]
-    pub async fn rollback_storage(
-        &mut self,
-        last_l2_block_to_keep: L2BlockNumber,
-    ) -> DalResult<()> {
-        let stage_start = Instant::now();
-        let modified_keys = self
-            .modified_keys_in_l2_blocks(last_l2_block_to_keep.next()..=L2BlockNumber(u32::MAX))
-            .await?;
-        tracing::info!(
-            "Loaded {} keys changed after L2 block #{last_l2_block_to_keep} in {:?}",
-            modified_keys.len(),
-            stage_start.elapsed()
-        );
-
-        let stage_start = Instant::now();
-        let prev_values = self
-            .get_storage_values(&modified_keys, last_l2_block_to_keep)
-            .await?;
-        tracing::info!(
-            "Loaded previous storage values for modified keys in {:?}",
-            stage_start.elapsed()
-        );
-
-        let stage_start = Instant::now();
-        let mut keys_to_delete = vec![];
-        let mut keys_to_update = vec![];
-        let mut values_to_update = vec![];
-        for (key, maybe_value) in &prev_values {
-            if let Some(prev_value) = maybe_value {
-                keys_to_update.push(key.as_bytes());
-                values_to_update.push(prev_value.as_bytes());
-            } else {
-                keys_to_delete.push(key.as_bytes());
-            }
-        }
-        tracing::info!(
-            "Created revert plan (keys to update: {}, to delete: {}) in {:?}",
-            keys_to_update.len(),
-            keys_to_delete.len(),
-            stage_start.elapsed()
-        );
-
-        let stage_start = Instant::now();
-        sqlx::query!(
-            r#"
-            DELETE FROM storage
-            WHERE
-                hashed_key = ANY ($1)
-            "#,
-            &keys_to_delete as &[&[u8]],
-        )
-        .instrument("rollback_storage#delete_storage")
-        .execute(self.storage)
-        .await?;
-
-        tracing::info!(
-            "Removed {} keys in {:?}",
-            keys_to_delete.len(),
-            stage_start.elapsed()
-        );
-
-        let stage_start = Instant::now();
-        sqlx::query!(
-            r#"
-            UPDATE storage
-            SET
-                value = u.value
-            FROM
-                UNNEST($1::bytea[], $2::bytea[]) AS u (key, value)
-            WHERE
-                u.key = hashed_key
-            "#,
-            &keys_to_update as &[&[u8]],
-            &values_to_update as &[&[u8]],
-        )
-        .instrument("rollback_storage#update_storage")
-        .execute(self.storage)
-        .await?;
-
-        tracing::info!(
-            "Updated {} keys to previous values in {:?}",
-            keys_to_update.len(),
-            stage_start.elapsed()
-        );
-        Ok(())
-    }
-
     /// Returns distinct hashed storage keys that were modified in the specified L2 block range.
     pub async fn modified_keys_in_l2_blocks(
         &mut self,
@@ -260,7 +171,7 @@ impl StorageLogsDal<'_, '_> {
     }
 
     /// Removes all storage logs with a L2 block number strictly greater than the specified `block_number`.
-    pub async fn rollback_storage_logs(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
+    pub async fn roll_back_storage_logs(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM storage_logs
@@ -269,7 +180,7 @@ impl StorageLogsDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .instrument("rollback_storage_logs")
+        .instrument("roll_back_storage_logs")
         .with_arg("block_number", &block_number)
         .execute(self.storage)
         .await?;
@@ -811,8 +722,6 @@ mod tests {
             .insert_storage_logs(L2BlockNumber(number), &logs)
             .await
             .unwrap();
-        #[allow(deprecated)]
-        conn.storage_dal().apply_storage_logs(&logs).await;
         conn.blocks_dal()
             .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(number))
             .await
@@ -851,8 +760,6 @@ mod tests {
             .append_storage_logs(L2BlockNumber(1), &more_logs)
             .await
             .unwrap();
-        #[allow(deprecated)]
-        conn.storage_dal().apply_storage_logs(&more_logs).await;
 
         let touched_slots = conn
             .storage_logs_dal()
@@ -863,14 +770,10 @@ mod tests {
         assert_eq!(touched_slots[&first_key], H256::repeat_byte(3));
         assert_eq!(touched_slots[&second_key], H256::repeat_byte(2));
 
-        test_rollback(&mut conn, first_key, second_key).await;
+        test_revert(&mut conn, first_key, second_key).await;
     }
 
-    async fn test_rollback(
-        conn: &mut Connection<'_, Core>,
-        key: StorageKey,
-        second_key: StorageKey,
-    ) {
+    async fn test_revert(conn: &mut Connection<'_, Core>, key: StorageKey, second_key: StorageKey) {
         let new_account = AccountTreeId::new(Address::repeat_byte(2));
         let new_key = StorageKey::new(new_account, H256::zero());
         let log = StorageLog::new_write_log(key, H256::repeat_byte(0xff));
@@ -890,17 +793,6 @@ mod tests {
         let value = conn.storage_web3_dal().get_value(&new_key).await.unwrap();
         assert_eq!(value, H256::repeat_byte(0xfe));
 
-        // Check the outdated `storage` table as well.
-        #[allow(deprecated)]
-        {
-            let value = conn.storage_dal().get_by_key(&key).await.unwrap();
-            assert_eq!(value, Some(H256::repeat_byte(0xff)));
-            let value = conn.storage_dal().get_by_key(&second_key).await.unwrap();
-            assert_eq!(value, Some(H256::zero()));
-            let value = conn.storage_dal().get_by_key(&new_key).await.unwrap();
-            assert_eq!(value, Some(H256::repeat_byte(0xfe)));
-        }
-
         let prev_keys = vec![key.hashed_key(), new_key.hashed_key(), H256::zero()];
         let prev_values = conn
             .storage_logs_dal()
@@ -912,22 +804,8 @@ mod tests {
         assert_eq!(prev_values[&prev_keys[1]], None);
         assert_eq!(prev_values[&prev_keys[2]], None);
 
-        #[allow(deprecated)]
-        {
-            conn.storage_logs_dal()
-                .rollback_storage(L2BlockNumber(1))
-                .await
-                .unwrap();
-            let value = conn.storage_dal().get_by_key(&key).await.unwrap();
-            assert_eq!(value, Some(H256::repeat_byte(3)));
-            let value = conn.storage_dal().get_by_key(&second_key).await.unwrap();
-            assert_eq!(value, Some(H256::repeat_byte(2)));
-            let value = conn.storage_dal().get_by_key(&new_key).await.unwrap();
-            assert_eq!(value, None);
-        }
-
         conn.storage_logs_dal()
-            .rollback_storage_logs(L2BlockNumber(1))
+            .roll_back_storage_logs(L2BlockNumber(1))
             .await
             .unwrap();
 

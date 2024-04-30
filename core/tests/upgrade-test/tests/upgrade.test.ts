@@ -20,7 +20,7 @@ const ADMIN_FACET_ABI = new ethers.utils.Interface(
     require(`${L1_CONTRACTS_FOLDER}/state-transition/chain-interfaces/IAdmin.sol/IAdmin.json`).abi
 );
 const L2_FORCE_DEPLOY_UPGRADER_ABI = new ethers.utils.Interface(
-    require(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
+    require(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/artifacts-zk/contracts/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
 );
 const COMPLEX_UPGRADER_ABI = new ethers.utils.Interface(
     require(`${process.env.ZKSYNC_HOME}/contracts/system-contracts/artifacts-zk/contracts-preprocessed/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
@@ -277,14 +277,14 @@ describe('Upgrade test', function () {
     step('Execute transactions after simple restart', async () => {
         // Stop server.
         await utils.exec('pkill zksync_server');
-        await utils.sleep(5);
+        await utils.sleep(10);
 
         // Run again.
         utils.background(
             'cd $ZKSYNC_HOME && zk f cargo run --bin zksync_server --release -- --components=api,tree,eth,state_keeper,commitment_generator &> upgrade.log',
             [null, logs, logs]
         );
-        await utils.sleep(5);
+        await utils.sleep(10);
 
         // Trying to send a transaction from the same address again
         await checkedRandomTransfer(alice, BigNumber.from(1));

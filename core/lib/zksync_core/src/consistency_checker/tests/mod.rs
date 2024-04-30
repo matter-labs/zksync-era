@@ -58,7 +58,7 @@ pub(crate) fn build_commit_tx_input_data(
     let pubdata_da = PubdataDA::Calldata;
 
     let protocol_version = batches[0].header.protocol_version.unwrap();
-    let contract = zksync_contracts::state_transition_chain_contract();
+    let contract = zksync_contracts::hyperchain_contract();
 
     // Mock an additional argument used in real `commitBlocks` / `commitBatches`. In real transactions,
     // it's taken from the L1 batch previous to `batches[0]`, but since this argument is not checked,
@@ -95,7 +95,7 @@ pub(crate) fn create_mock_checker(
 ) -> ConsistencyChecker {
     let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
     ConsistencyChecker {
-        contract: zksync_contracts::state_transition_chain_contract(),
+        contract: zksync_contracts::hyperchain_contract(),
         diamond_proxy_addr: Some(DIAMOND_PROXY_ADDR),
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
@@ -144,7 +144,7 @@ fn build_commit_tx_input_data_is_correct(deployment_mode: DeploymentMode) {
         DeploymentMode::Rollup => Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
     };
 
-    let contract = zksync_contracts::state_transition_chain_contract();
+    let contract = zksync_contracts::hyperchain_contract();
     let commit_function = contract.function("commitBatchesSharedBridge").unwrap();
     let batches = vec![
         create_l1_batch_with_metadata(1),
@@ -170,7 +170,7 @@ fn build_commit_tx_input_data_is_correct(deployment_mode: DeploymentMode) {
 
 #[test]
 fn extracting_commit_data_for_boojum_batch() {
-    let contract = zksync_contracts::state_transition_chain_contract();
+    let contract = zksync_contracts::hyperchain_contract();
     let commit_function = contract.function("commitBatches").unwrap();
     // Calldata taken from the commit transaction for `https://sepolia.explorer.zksync.io/batch/4470`;
     // `https://sepolia.etherscan.io/tx/0x300b9115037028b1f8aa2177abf98148c3df95c9b04f95a4e25baf4dfee7711f`
@@ -200,7 +200,7 @@ fn extracting_commit_data_for_boojum_batch() {
 
 #[test]
 fn extracting_commit_data_for_multiple_batches() {
-    let contract = zksync_contracts::state_transition_chain_contract();
+    let contract = zksync_contracts::hyperchain_contract();
     let commit_function = contract.function("commitBatches").unwrap();
     // Calldata taken from the commit transaction for `https://explorer.zksync.io/batch/351000`;
     // `https://etherscan.io/tx/0xbd8dfe0812df0da534eb95a2d2a4382d65a8172c0b648a147d60c1c2921227fd`
@@ -356,7 +356,7 @@ const SAVE_ACTION_MAPPERS: [(&str, SaveActionMapper); 4] = [
 
 fn l1_batch_commit_log(l1_batch: &L1BatchWithMetadata) -> Log {
     static BLOCK_COMMIT_EVENT_HASH: Lazy<H256> = Lazy::new(|| {
-        zksync_contracts::state_transition_chain_contract()
+        zksync_contracts::hyperchain_contract()
             .event("BlockCommit")
             .unwrap()
             .signature()

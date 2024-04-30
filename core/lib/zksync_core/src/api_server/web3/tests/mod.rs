@@ -1,5 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
+    net::Ipv4Addr,
+    num::NonZeroUsize,
     pin::Pin,
     slice,
     time::Instant,
@@ -7,7 +9,11 @@ use std::{
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
-use jsonrpsee::core::{client::ClientT, params::BatchRequestBuilder, ClientError};
+use jsonrpsee::{
+    core::{client::ClientT, params::BatchRequestBuilder, ClientError},
+    rpc_params,
+    types::{error::OVERSIZED_RESPONSE_CODE, ErrorObjectOwned},
+};
 use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::sync::watch;
 use zksync_config::{
@@ -49,7 +55,7 @@ use crate::{
     },
     genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams},
     utils::testonly::{
-        create_l1_batch, create_l1_batch_metadata, create_l2_transaction, create_miniblock,
+        create_l1_batch, create_l1_batch_metadata, create_l2_block, create_l2_transaction,
         l1_batch_metadata_to_commitment_artifacts, prepare_recovery_snapshot,
     },
 };
@@ -62,6 +68,66 @@ mod ws;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(90);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
+
+#[tokio::test]
+async fn setting_response_size_limits() {
+    let mut rpc_module = RpcModule::new(());
+    rpc_module
+        .register_method("test_limited", |params, _ctx| {
+            let response_size: usize = params.one()?;
+            Ok::<_, ErrorObjectOwned>("!".repeat(response_size))
+        })
+        .unwrap();
+    rpc_module
+        .register_method("test_unlimited", |params, _ctx| {
+            let response_size: usize = params.one()?;
+            Ok::<_, ErrorObjectOwned>("!".repeat(response_size))
+        })
+        .unwrap();
+    let overrides = MaxResponseSizeOverrides::from_iter([("test_unlimited", NonZeroUsize::MAX)]);
+    let methods = ApiServer::override_method_response_sizes(rpc_module, &overrides).unwrap();
+
+    let server = ServerBuilder::default()
+        .max_response_body_size(1_024)
+        .http_only()
+        .build((Ipv4Addr::LOCALHOST, 0))
+        .await
+        .unwrap();
+    let local_addr = server.local_addr().unwrap();
+    let server_handle = server.start(methods);
+    let client = <HttpClient>::builder()
+        .build(format!("http://{local_addr}/"))
+        .unwrap();
+
+    // Test both methods without hitting the global limit.
+    let response: String = client
+        .request("test_limited", rpc_params![1])
+        .await
+        .unwrap();
+    assert_eq!(response, "!");
+    let response: String = client
+        .request("test_unlimited", rpc_params![1])
+        .await
+        .unwrap();
+    assert_eq!(response, "!");
+
+    // Hit the global limit and test that the overridden method is not affected by it.
+    let response: String = client
+        .request("test_unlimited", rpc_params![10_000])
+        .await
+        .unwrap();
+    assert_eq!(response.len(), 10_000);
+    let err = client
+        .request::<String, _>("test_limited", rpc_params![10_000])
+        .await
+        .unwrap_err();
+    assert_matches!(
+        err,
+        ClientError::Call(err) if err.code() == OVERSIZED_RESPONSE_CODE
+    );
+
+    server_handle.stop().ok();
+}
 
 impl ApiServerHandles {
     /// Waits until the server health check reports the ready state. Must be called once per server instance.
@@ -263,7 +329,7 @@ impl StorageInitialization {
                     .await?;
 
                 // Insert the next L1 batch in the storage so that the API server doesn't hang up.
-                store_miniblock(storage, Self::SNAPSHOT_RECOVERY_BLOCK + 1, &[]).await?;
+                store_l2_block(storage, Self::SNAPSHOT_RECOVERY_BLOCK + 1, &[]).await?;
                 seal_l1_batch(storage, Self::SNAPSHOT_RECOVERY_BATCH + 1).await?;
             }
         }
@@ -342,8 +408,8 @@ fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
     }
 }
 
-/// Stores miniblock #1 with a single transaction and returns the miniblock header + transaction hash.
-async fn store_miniblock(
+/// Stores L2 block with a single transaction and returns the L2 block header + transaction hash.
+async fn store_l2_block(
     storage: &mut Connection<'_, Core>,
     number: L2BlockNumber,
     transaction_results: &[TransactionExecutionResult],
@@ -358,13 +424,13 @@ async fn store_miniblock(
         assert_matches!(tx_submission_result, L2TxSubmissionResult::Added);
     }
 
-    let new_miniblock = create_miniblock(number.0);
-    storage.blocks_dal().insert_l2_block(&new_miniblock).await?;
+    let new_l2_block = create_l2_block(number.0);
+    storage.blocks_dal().insert_l2_block(&new_l2_block).await?;
     storage
         .transactions_dal()
-        .mark_txs_as_executed_in_l2_block(new_miniblock.number, transaction_results, 1.into())
+        .mark_txs_as_executed_in_l2_block(new_l2_block.number, transaction_results, 1.into())
         .await?;
-    Ok(new_miniblock)
+    Ok(new_l2_block)
 }
 
 async fn seal_l1_batch(
@@ -394,15 +460,15 @@ async fn seal_l1_batch(
 
 async fn store_events(
     storage: &mut Connection<'_, Core>,
-    miniblock_number: u32,
+    l2_block_number: u32,
     start_idx: u32,
 ) -> anyhow::Result<(IncludedTxLocation, Vec<VmEvent>)> {
-    let new_miniblock = create_miniblock(miniblock_number);
-    let l1_batch_number = L1BatchNumber(miniblock_number);
-    storage.blocks_dal().insert_l2_block(&new_miniblock).await?;
+    let new_l2_block = create_l2_block(l2_block_number);
+    let l1_batch_number = L1BatchNumber(l2_block_number);
+    storage.blocks_dal().insert_l2_block(&new_l2_block).await?;
     let tx_location = IncludedTxLocation {
         tx_hash: H256::repeat_byte(1),
-        tx_index_in_miniblock: 0,
+        tx_index_in_l2_block: 0,
         tx_initiator_address: Address::repeat_byte(2),
     };
     let events = vec![
@@ -438,7 +504,7 @@ async fn store_events(
     storage
         .events_dal()
         .save_events(
-            L2BlockNumber(miniblock_number),
+            L2BlockNumber(l2_block_number),
             &[(tx_location, events.iter().collect())],
         )
         .await?;
@@ -554,27 +620,27 @@ impl HttpTest for L1BatchMethodsWithSnapshotRecovery {
     }
 
     async fn test(&self, client: &HttpClient, _pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
-        let miniblock_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
+        let l2_block_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
         let l1_batch_number = StorageInitialization::SNAPSHOT_RECOVERY_BATCH + 1;
         assert_eq!(
             client.get_l1_batch_number().await?,
             l1_batch_number.0.into()
         );
 
-        // `get_miniblock_range` method
-        let miniblock_range = client
-            .get_miniblock_range(l1_batch_number)
+        // `get_l2_block_range` method
+        let l2_block_range = client
+            .get_l2_block_range(l1_batch_number)
             .await?
             .context("no range for sealed L1 batch")?;
-        assert_eq!(miniblock_range.0, miniblock_number.0.into());
-        assert_eq!(miniblock_range.1, miniblock_number.0.into());
+        assert_eq!(l2_block_range.0, l2_block_number.0.into());
+        assert_eq!(l2_block_range.1, l2_block_number.0.into());
 
-        let miniblock_range_for_future_batch =
-            client.get_miniblock_range(l1_batch_number + 1).await?;
-        assert_eq!(miniblock_range_for_future_batch, None);
+        let l2_block_range_for_future_batch =
+            client.get_l2_block_range(l1_batch_number + 1).await?;
+        assert_eq!(l2_block_range_for_future_batch, None);
 
         let error = client
-            .get_miniblock_range(l1_batch_number - 1)
+            .get_l2_block_range(l1_batch_number - 1)
             .await
             .unwrap_err();
         assert_pruned_l1_batch_error(&error, l1_batch_number);
@@ -646,21 +712,21 @@ impl HttpTest for StorageAccessWithSnapshotRecovery {
 
     async fn test(&self, client: &HttpClient, _pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let address = Address::repeat_byte(1);
-        let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
-        for number in [0, 1, first_local_miniblock.0 - 1] {
+        let first_local_l2_block = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
+        for number in [0, 1, first_local_l2_block.0 - 1] {
             let number = api::BlockIdVariant::BlockNumber(number.into());
             let error = client.get_code(address, Some(number)).await.unwrap_err();
-            assert_pruned_block_error(&error, first_local_miniblock);
+            assert_pruned_block_error(&error, first_local_l2_block);
             let error = client.get_balance(address, Some(number)).await.unwrap_err();
-            assert_pruned_block_error(&error, first_local_miniblock);
+            assert_pruned_block_error(&error, first_local_l2_block);
             let error = client
                 .get_storage_at(address, 0.into(), Some(number))
                 .await
                 .unwrap_err();
-            assert_pruned_block_error(&error, first_local_miniblock);
+            assert_pruned_block_error(&error, first_local_l2_block);
         }
 
-        for number in [api::BlockNumber::Latest, first_local_miniblock.0.into()] {
+        for number in [api::BlockNumber::Latest, first_local_l2_block.0.into()] {
             let number = api::BlockIdVariant::BlockNumber(number);
             let code = client.get_code(address, Some(number)).await?;
             assert_eq!(code.0, b"code");
@@ -688,15 +754,15 @@ impl HttpTest for TransactionCountTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let test_address = Address::repeat_byte(11);
         let mut storage = pool.connection().await?;
-        let mut miniblock_number = L2BlockNumber(0);
+        let mut l2_block_number = L2BlockNumber(0);
         for nonce in [0, 1] {
             let mut committed_tx = create_l2_transaction(10, 200);
             committed_tx.common_data.initiator_address = test_address;
             committed_tx.common_data.nonce = Nonce(nonce);
-            miniblock_number += 1;
-            store_miniblock(
+            l2_block_number += 1;
+            store_l2_block(
                 &mut storage,
-                miniblock_number,
+                l2_block_number,
                 &[execute_l2_transaction(committed_tx)],
             )
             .await?;
@@ -706,7 +772,7 @@ impl HttpTest for TransactionCountTest {
             );
             storage
                 .storage_logs_dal()
-                .insert_storage_logs(miniblock_number, &[(H256::zero(), vec![nonce_log])])
+                .insert_storage_logs(l2_block_number, &[(H256::zero(), vec![nonce_log])])
                 .await?;
         }
 
@@ -725,7 +791,7 @@ impl HttpTest for TransactionCountTest {
         let pending_count = client.get_transaction_count(test_address, None).await?;
         assert_eq!(pending_count, 3.into());
 
-        let latest_block_numbers = [api::BlockNumber::Latest, miniblock_number.0.into()];
+        let latest_block_numbers = [api::BlockNumber::Latest, l2_block_number.0.into()];
         for number in latest_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number);
             let latest_count = client
@@ -815,8 +881,8 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
             assert_pruned_block_error(&error, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1);
         }
 
-        let latest_miniblock_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
-        let latest_block_numbers = [api::BlockNumber::Latest, latest_miniblock_number.0.into()];
+        let latest_l2_block_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
+        let latest_block_numbers = [api::BlockNumber::Latest, latest_l2_block_number.0.into()];
         for number in latest_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number);
             let latest_count = client
@@ -840,7 +906,7 @@ struct TransactionReceiptsTest;
 impl HttpTest for TransactionReceiptsTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let mut storage = pool.connection().await?;
-        let miniblock_number = L2BlockNumber(1);
+        let l2_block_number = L2BlockNumber(1);
 
         let tx1 = create_l2_transaction(10, 200);
         let tx2 = create_l2_transaction(10, 200);
@@ -848,7 +914,7 @@ impl HttpTest for TransactionReceiptsTest {
             execute_l2_transaction(tx1.clone()),
             execute_l2_transaction(tx2.clone()),
         ];
-        store_miniblock(&mut storage, miniblock_number, &tx_results).await?;
+        store_l2_block(&mut storage, l2_block_number, &tx_results).await?;
 
         let mut expected_receipts = Vec::new();
         for tx in &tx_results {
@@ -864,7 +930,7 @@ impl HttpTest for TransactionReceiptsTest {
         }
 
         let receipts = client
-            .get_block_receipts(api::BlockId::Number(miniblock_number.0.into()))
+            .get_block_receipts(api::BlockId::Number(l2_block_number.0.into()))
             .await?
             .context("no receipts")?;
         assert_eq!(receipts.len(), 2);
@@ -901,7 +967,7 @@ impl HttpTest for AllAccountBalancesTest {
         assert_eq!(balances, HashMap::new());
 
         let mut storage = pool.connection().await?;
-        store_miniblock(&mut storage, L2BlockNumber(1), &[]).await?;
+        store_l2_block(&mut storage, L2BlockNumber(1), &[]).await?;
 
         let eth_balance_key = storage_key_for_eth_balance(&Self::ADDRESS);
         let eth_balance = U256::one() << 64;
@@ -924,7 +990,7 @@ impl HttpTest for AllAccountBalancesTest {
         let balances = client.get_all_account_balances(Self::ADDRESS).await?;
         assert_eq!(balances, HashMap::from([(Address::zero(), eth_balance)]));
 
-        store_miniblock(&mut storage, L2BlockNumber(2), &[]).await?;
+        store_l2_block(&mut storage, L2BlockNumber(2), &[]).await?;
         let token_balance_key = storage_key_for_standard_token_balance(
             AccountTreeId::new(custom_token.l2_address),
             &Self::ADDRESS,

@@ -329,7 +329,7 @@ impl ConsistencyChecker {
     ) -> anyhow::Result<Self> {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         Ok(Self {
-            contract: zksync_contracts::state_transition_chain_contract(),
+            contract: zksync_contracts::hyperchain_contract(),
             diamond_proxy_addr: None,
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
@@ -419,7 +419,6 @@ impl ConsistencyChecker {
             }
         }
 
-        // TODO: Add support for post shared bridge commits
         let commit_function = if local.is_pre_boojum() {
             &*PRE_BOOJUM_COMMIT_FUNCTION
         } else if local.is_pre_shared_bridge() {
@@ -430,7 +429,7 @@ impl ConsistencyChecker {
         } else {
             self.contract
                 .function("commitBatchesSharedBridge")
-                .context("L1 contract does not have `commitBatches` function")
+                .context("L1 contract does not have `commitBatchesSharedBridge` function")
                 .map_err(CheckError::Internal)?
         };
 

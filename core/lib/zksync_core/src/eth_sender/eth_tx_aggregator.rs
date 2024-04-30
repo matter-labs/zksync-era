@@ -13,9 +13,9 @@ use zksync_l1_contract_interface::{
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    commitment::SerializeCommitment,
+    commitment::{L1BatchWithMetadata, SerializeCommitment},
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
-    ethabi::Token,
+    ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, VerifierParams},
     pubdata_da::PubdataDA,
@@ -427,66 +427,41 @@ impl EthTxAggregator {
         contracts_are_pre_shared_bridge: bool,
     ) -> TxData {
         let operation_is_pre_shared_bridge = op.protocol_version().is_pre_shared_bridge();
-        assert_eq!(
-            contracts_are_pre_shared_bridge,
-            operation_is_pre_shared_bridge
-        );
+
+        // The post shared bridge contracts support pre-shared bridge operations, but vice versa is not true.
+        if contracts_are_pre_shared_bridge {
+            assert!(operation_is_pre_shared_bridge);
+        }
 
         let mut args = vec![Token::Uint(self.rollup_chain_id.as_u64().into())];
 
         let (calldata, sidecar) = match op.clone() {
             AggregatedOperation::Commit(last_committed_l1_batch, l1_batches, pubdata_da) => {
-                let commit_data = self.l1_commit_data_generator.l1_commit_batches(
+                let commit_data_base = self.l1_commit_data_generator.l1_commit_batches(
                     &last_committed_l1_batch,
                     &l1_batches,
                     &pubdata_da,
                 );
-                if contracts_are_pre_shared_bridge {
-                    if let PubdataDA::Blobs = self.aggregator.pubdata_da() {
-                        let calldata = self
-                            .functions
-                            .pre_shared_bridge_commit
-                            .encode_input(&commit_data)
-                            .expect("Failed to encode commit transaction data");
-
-                        let side_car = l1_batches[0]
-                            .header
-                            .pubdata_input
-                            .clone()
-                            .unwrap()
-                            .chunks(ZK_SYNC_BYTES_PER_BLOB)
-                            .map(|blob| {
-                                let kzg_info = KzgInfo::new(blob);
-                                SidecarBlobV1 {
-                                    blob: kzg_info.blob.to_vec(),
-                                    commitment: kzg_info.kzg_commitment.to_vec(),
-                                    proof: kzg_info.blob_proof.to_vec(),
-                                    versioned_hash: kzg_info.versioned_hash.to_vec(),
-                                }
-                            })
-                            .collect::<Vec<SidecarBlobV1>>();
-
-                        let eth_tx_sidecar = EthTxBlobSidecarV1 { blobs: side_car };
-                        (calldata, Some(eth_tx_sidecar.into()))
-                    } else {
-                        let calldata = self
-                            .functions
-                            .pre_shared_bridge_commit
-                            .encode_input(&commit_data)
-                            .expect("Failed to encode commit transaction data");
-                        (calldata, None)
-                    }
+                let (encoding_fn, commit_data) = if contracts_are_pre_shared_bridge {
+                    (&self.functions.pre_shared_bridge_commit, commit_data_base)
                 } else {
-                    args.extend(commit_data);
-                    let calldata = self
-                        .functions
-                        .post_shared_bridge_commit
-                        .as_ref()
-                        .expect("Missing ABI for commitBatchesSharedBridge")
-                        .encode_input(&args)
-                        .expect("Failed to encode commit transaction data");
-                    (calldata, None)
-                }
+                    args.extend(commit_data_base);
+                    (
+                        self.functions
+                            .post_shared_bridge_commit
+                            .as_ref()
+                            .expect("Missing ABI for commitBatchesSharedBridge"),
+                        args,
+                    )
+                };
+
+                let l1_batch_for_sidecar = if PubdataDA::Blobs == self.aggregator.pubdata_da() {
+                    Some(l1_batches[0].clone())
+                } else {
+                    None
+                };
+
+                Self::encode_commit_data(encoding_fn, &commit_data, l1_batch_for_sidecar)
             }
             AggregatedOperation::PublishProofOnchain(op) => {
                 let calldata = if contracts_are_pre_shared_bridge {
@@ -524,6 +499,43 @@ impl EthTxAggregator {
             }
         };
         TxData { calldata, sidecar }
+    }
+
+    fn encode_commit_data(
+        commit_fn: &Function,
+        commit_payload: &[Token],
+        l1_batch: Option<L1BatchWithMetadata>,
+    ) -> (Vec<u8>, Option<EthTxBlobSidecar>) {
+        let calldata = commit_fn
+            .encode_input(commit_payload)
+            .expect("Failed to encode commit transaction data");
+
+        let sidecar = match l1_batch {
+            None => None,
+            Some(l1_batch) => {
+                let sidecar = l1_batch
+                    .header
+                    .pubdata_input
+                    .clone()
+                    .unwrap()
+                    .chunks(ZK_SYNC_BYTES_PER_BLOB)
+                    .map(|blob| {
+                        let kzg_info = KzgInfo::new(blob);
+                        SidecarBlobV1 {
+                            blob: kzg_info.blob.to_vec(),
+                            commitment: kzg_info.kzg_commitment.to_vec(),
+                            proof: kzg_info.blob_proof.to_vec(),
+                            versioned_hash: kzg_info.versioned_hash.to_vec(),
+                        }
+                    })
+                    .collect::<Vec<SidecarBlobV1>>();
+
+                let eth_tx_blob_sidecar = EthTxBlobSidecarV1 { blobs: sidecar };
+                Some(eth_tx_blob_sidecar.into())
+            }
+        };
+
+        (calldata, sidecar)
     }
 
     pub(super) async fn save_eth_tx(

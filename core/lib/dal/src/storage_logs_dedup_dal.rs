@@ -221,6 +221,32 @@ impl StorageLogsDedupDal<'_, '_> {
         .map(|row| row.index as u64))
     }
 
+    pub async fn get_enumeration_index_in_l1_batch(
+        &mut self,
+        hashed_key: H256,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<Option<u64>> {
+        Ok(sqlx::query!(
+            r#"
+            SELECT
+                INDEX
+            FROM
+                initial_writes
+            WHERE
+                hashed_key = $1
+                AND l1_batch_number <= $2
+            "#,
+            hashed_key.as_bytes(),
+            l1_batch_number.0 as i32,
+        )
+        .instrument("get_enumeration_index_in_l1_batch")
+        .with_arg("hashed_key", &hashed_key)
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| row.index as u64))
+    }
+
     /// Returns `hashed_keys` that are both present in the input and in `initial_writes` table.
     pub async fn filter_written_slots(&mut self, hashed_keys: &[H256]) -> DalResult<HashSet<H256>> {
         let hashed_keys: Vec<_> = hashed_keys.iter().map(H256::as_bytes).collect();

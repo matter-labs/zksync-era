@@ -2,12 +2,8 @@ use anyhow::Context;
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core};
-use zksync_state::RocksdbStorage;
-
-use crate::state_keeper::{
-    state_keeper_storage::{PgOrRocksdbStorage, ReadStorageFactory},
-    AsyncRocksdbCache,
-};
+use zksync_state::{PgOrRocksdbStorage, ReadStorageFactory, RocksdbStorage};
+use zksync_types::L1BatchNumber;
 
 #[derive(Debug, Clone)]
 pub struct PostgresFactory {
@@ -19,9 +15,10 @@ impl ReadStorageFactory for PostgresFactory {
     async fn access_storage(
         &self,
         _stop_receiver: &watch::Receiver<bool>,
+        l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
         Ok(Some(
-            AsyncRocksdbCache::access_storage_pg(&self.pool).await?,
+            PgOrRocksdbStorage::access_storage_pg(&self.pool, l1_batch_number).await?,
         ))
     }
 }
@@ -43,6 +40,7 @@ impl ReadStorageFactory for RocksdbFactory {
     async fn access_storage(
         &self,
         stop_receiver: &watch::Receiver<bool>,
+        _l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
         let builder = RocksdbStorage::builder(self.state_keeper_db_path.as_ref())
             .await
@@ -53,7 +51,7 @@ impl ReadStorageFactory for RocksdbFactory {
             .await
             .context("Failed getting a connection to Postgres")?;
         let Some(rocksdb_storage) = builder
-            .synchronize(&mut conn, stop_receiver)
+            .synchronize(&mut conn, stop_receiver, None)
             .await
             .context("Failed synchronizing state keeper's RocksDB to Postgres")?
         else {

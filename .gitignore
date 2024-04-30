@@ -40,7 +40,6 @@ Cargo.lock
 !/etc/env/configs/ext-node.toml
 !/etc/env/configs/ext-node-docker.toml
 /etc/env/l1-inits
-!/etc/env/l1-inits/.init.env
 /etc/env/l2-inits
 !/etc/env/base
 !/etc/env/file_based
@@ -92,3 +91,6 @@ verified_sources
 hyperchain-*.yml
 /etc/hyperchains/prover-keys
 /etc/hyperchains/artifacts
+
+# Prover keys that should not be commited
+prover/vk_setup_data_generator_server_fri/data/setup_*

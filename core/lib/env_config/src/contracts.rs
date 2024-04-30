@@ -4,7 +4,28 @@ use crate::{envy_load, FromEnv};
 
 impl FromEnv for ContractsConfig {
     fn from_env() -> anyhow::Result<Self> {
-        envy_load("contracts", "CONTRACTS_")
+        let mut contracts: ContractsConfig = envy_load("contracts", "CONTRACTS_")?;
+        // Note: we are renaming the bridge, the address remains the same
+        // These two config variables should always have the same value.
+        // TODO(EVM-578): double check and potentially forbid both of them being `None`.
+
+        contracts.l2_erc20_bridge_addr = contracts
+            .l2_erc20_bridge_addr
+            .or(contracts.l2_shared_bridge_addr);
+        contracts.l2_shared_bridge_addr = contracts
+            .l2_shared_bridge_addr
+            .or(contracts.l2_erc20_bridge_addr);
+
+        if let (Some(legacy_addr), Some(shared_addr)) = (
+            contracts.l2_erc20_bridge_addr,
+            contracts.l2_shared_bridge_addr,
+        ) {
+            if legacy_addr != shared_addr {
+                panic!("L2 erc20 bridge address and L2 shared bridge address are different.");
+            }
+        }
+
+        Ok(contracts)
     }
 }
 
@@ -28,8 +49,8 @@ mod tests {
             l2_erc20_bridge_addr: Some(addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
             l1_weth_bridge_proxy_addr: Some(addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
             l2_weth_bridge_addr: Some(addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
-            l1_shared_bridge_proxy_addr: addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888"),
-            l2_shared_bridge_addr: addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888"),
+            l1_shared_bridge_proxy_addr: Some(addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
+            l2_shared_bridge_addr: Some(addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
             l2_testnet_paymaster_addr: Some(addr("FC073319977e314F251EAE6ae6bE76B0B3BAeeCF")),
             l1_multicall3_addr: addr("0xcA11bde05977b3631167028862bE2a173976CA11"),
             base_token_addr: Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS),

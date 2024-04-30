@@ -8,7 +8,7 @@ use std::{
 };
 
 use anyhow::Context as _;
-use tokio::sync::watch;
+use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{
     chain::OperationsManagerConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
@@ -17,16 +17,18 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_object_store::ObjectStore;
 
-pub use self::helpers::LazyAsyncTreeReader;
 pub(crate) use self::helpers::{AsyncTreeReader, L1BatchWithLogs, MerkleTreeInfo};
+pub use self::{helpers::LazyAsyncTreeReader, pruning::MerkleTreePruningTask};
 use self::{
     helpers::{create_db, Delayer, GenericAsyncTree, MerkleTreeHealth},
     metrics::{ConfigLabels, METRICS},
+    pruning::PruningHandles,
     updater::TreeUpdater,
 };
 
 mod helpers;
 mod metrics;
+mod pruning;
 mod recovery;
 #[cfg(test)]
 pub(crate) mod tests;
@@ -86,6 +88,7 @@ impl MetadataCalculatorConfig {
 pub struct MetadataCalculator {
     config: MetadataCalculatorConfig,
     tree_reader: watch::Sender<Option<AsyncTreeReader>>,
+    pruning_handles_sender: oneshot::Sender<PruningHandles>,
     object_store: Option<Arc<dyn ObjectStore>>,
     pool: ConnectionPool<Core>,
     recovery_pool: ConnectionPool<Core>,
@@ -99,14 +102,11 @@ impl MetadataCalculator {
     ///
     /// # Arguments
     ///
-    /// - `pool` can have a single connection.
-    /// - `recovery_pool` will only be used in case of snapshot recovery. It should have multiple connections (e.g., 10)
-    ///   to speed up recovery.
+    /// - `pool` can have a single connection (but then you should set a separate recovery pool).
     pub async fn new(
         config: MetadataCalculatorConfig,
         object_store: Option<Arc<dyn ObjectStore>>,
         pool: ConnectionPool<Core>,
-        recovery_pool: ConnectionPool<Core>,
     ) -> anyhow::Result<Self> {
         if let Err(err) = METRICS.info.set(ConfigLabels::new(&config)) {
             tracing::warn!(
@@ -129,14 +129,22 @@ impl MetadataCalculator {
         let (_, health_updater) = ReactiveHealthCheck::new("tree");
         Ok(Self {
             tree_reader: watch::channel(None).0,
+            pruning_handles_sender: oneshot::channel().0,
             object_store,
+            recovery_pool: pool.clone(),
             pool,
-            recovery_pool,
             delayer: Delayer::new(config.delay_interval),
             health_updater,
             max_l1_batches_per_iter: config.max_l1_batches_per_iter,
             config,
         })
+    }
+
+    /// Sets a separate pool that will be used in case of snapshot recovery. It should have multiple connections
+    /// (e.g., 10) to speed up recovery.
+    pub fn with_recovery_pool(mut self, recovery_pool: ConnectionPool<Core>) -> Self {
+        self.recovery_pool = recovery_pool;
+        self
     }
 
     /// Returns a health check for this calculator.
@@ -147,6 +155,15 @@ impl MetadataCalculator {
     /// Returns a reference to the tree reader.
     pub fn tree_reader(&self) -> LazyAsyncTreeReader {
         LazyAsyncTreeReader(self.tree_reader.subscribe())
+    }
+
+    /// Returns a task that can be used to prune the Merkle tree according to the pruning logs in Postgres.
+    /// This method should be called once; only the latest returned task will do any job, all previous ones
+    /// will terminate immediately.
+    pub fn pruning_task(&mut self, poll_interval: Duration) -> MerkleTreePruningTask {
+        let (pruning_handles_sender, pruning_handles) = oneshot::channel();
+        self.pruning_handles_sender = pruning_handles_sender;
+        MerkleTreePruningTask::new(pruning_handles, self.pool.clone(), poll_interval)
     }
 
     async fn create_tree(&self) -> anyhow::Result<GenericAsyncTree> {
@@ -179,7 +196,7 @@ impl MetadataCalculator {
                 &self.health_updater,
             )
             .await?;
-        let Some(tree) = tree else {
+        let Some(mut tree) = tree else {
             return Ok(()); // recovery was aborted because a stop signal was received
         };
         let tree_reader = tree.reader();
@@ -187,6 +204,10 @@ impl MetadataCalculator {
             "Merkle tree is initialized and ready to process L1 batches: {:?}",
             tree_reader.clone().info().await
         );
+
+        if !self.pruning_handles_sender.is_closed() {
+            self.pruning_handles_sender.send(tree.pruner()).ok();
+        }
         self.tree_reader.send_replace(Some(tree_reader));
 
         let updater = TreeUpdater::new(tree, self.max_l1_batches_per_iter, self.object_store);

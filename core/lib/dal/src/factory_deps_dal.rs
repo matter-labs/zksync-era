@@ -165,7 +165,7 @@ impl FactoryDepsDal<'_, '_> {
     }
 
     /// Removes all factory deps with a miniblock number strictly greater than the specified `block_number`.
-    pub async fn rollback_factory_deps(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
+    pub async fn roll_back_factory_deps(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM factory_deps
@@ -174,10 +174,29 @@ impl FactoryDepsDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .instrument("rollback_factory_deps")
+        .instrument("roll_back_factory_deps")
         .with_arg("block_number", &block_number)
         .execute(self.storage)
         .await?;
         Ok(())
+    }
+
+    /// Retrieves all factory deps entries for testing purposes.
+    pub async fn dump_all_factory_deps_for_tests(&mut self) -> HashMap<H256, Vec<u8>> {
+        sqlx::query!(
+            r#"
+            SELECT
+                bytecode,
+                bytecode_hash
+            FROM
+                factory_deps
+            "#
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| (H256::from_slice(&row.bytecode_hash), row.bytecode))
+        .collect()
     }
 }

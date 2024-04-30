@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 
 use anyhow::Context;
-use zksync_contracts::state_transition_chain_contract;
+use zksync_contracts::hyperchain_contract;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_types::{l1::L1Tx, web3::types::Log, PriorityOpId, H256};
@@ -23,7 +23,7 @@ impl PriorityOpsEventProcessor {
     pub fn new(next_expected_priority_id: PriorityOpId) -> anyhow::Result<Self> {
         Ok(Self {
             next_expected_priority_id,
-            new_priority_request_signature: state_transition_chain_contract()
+            new_priority_request_signature: hyperchain_contract()
                 .event("NewPriorityRequest")
                 .context("NewPriorityRequest event is missing in ABI")?
                 .signature(),

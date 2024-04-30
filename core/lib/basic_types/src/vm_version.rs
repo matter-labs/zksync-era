@@ -10,13 +10,13 @@ pub enum VmVersion {
     VmBoojumIntegration,
     Vm1_4_1,
     Vm1_4_2,
-    Vm1_5_0,
+    Vm1_5_0SmallBootloaderMemory,
+    Vm1_5_0IncreasedBootloaderMemory,
 }
 
 impl VmVersion {
     /// Returns the latest supported VM version.
     pub const fn latest() -> VmVersion {
-        // kl to do delete local vm version
-        Self::Vm1_5_0
+        Self::Vm1_5_0IncreasedBootloaderMemory
     }
 }

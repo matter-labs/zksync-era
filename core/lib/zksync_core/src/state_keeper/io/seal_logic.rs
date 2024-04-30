@@ -391,16 +391,6 @@ impl L2BlockSealCommand {
             .await?;
         progress.observe(write_log_count);
 
-        #[allow(deprecated)] // Will be removed shortly
-        {
-            let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ApplyStorageLogs, is_fictive);
-            transaction
-                .storage_dal()
-                .apply_storage_logs(&write_logs)
-                .await;
-            progress.observe(write_log_count);
-        }
-
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertFactoryDeps, is_fictive);
         let new_factory_deps = &self.l2_block.new_factory_deps;
         let new_factory_deps_count = new_factory_deps.len();
@@ -578,7 +568,7 @@ impl L2BlockSealCommand {
 
             let location = IncludedTxLocation {
                 tx_hash,
-                tx_index_in_miniblock: tx_index - self.first_tx_index as u32,
+                tx_index_in_l2_block: tx_index - self.first_tx_index as u32,
                 tx_initiator_address,
             };
             (location, entries.collect())

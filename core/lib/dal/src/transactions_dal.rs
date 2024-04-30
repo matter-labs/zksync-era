@@ -1252,7 +1252,8 @@ impl TransactionsDal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        self.map_transactions_to_execution_data(transactions).await
+        self.map_transactions_to_execution_data(transactions, None)
+            .await
     }
 
     /// Returns L2 blocks with their transactions to be used in VM execution.
@@ -1282,14 +1283,37 @@ impl TransactionsDal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        self.map_transactions_to_execution_data(transactions).await
+        let fictive_l2_block = sqlx::query!(
+            r#"
+            SELECT
+                number
+            FROM
+                miniblocks
+            WHERE
+                miniblocks.l1_batch_number = $1
+                AND l1_tx_count = 0
+                AND l2_tx_count = 0
+            ORDER BY
+                number
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .instrument("get_l2_blocks_to_execute_for_l1_batch#fictive_l2_block")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| L2BlockNumber(row.number as u32));
+
+        self.map_transactions_to_execution_data(transactions, fictive_l2_block)
+            .await
     }
 
     async fn map_transactions_to_execution_data(
         &mut self,
         transactions: Vec<StorageTransaction>,
+        fictive_l2_block: Option<L2BlockNumber>,
     ) -> DalResult<Vec<L2BlockExecutionData>> {
-        let transactions_by_l2_block: Vec<(L2BlockNumber, Vec<Transaction>)> = transactions
+        let mut transactions_by_l2_block: Vec<(L2BlockNumber, Vec<Transaction>)> = transactions
             .into_iter()
             .group_by(|tx| tx.miniblock_number.unwrap())
             .into_iter()
@@ -1300,6 +1324,10 @@ impl TransactionsDal<'_, '_> {
                 )
             })
             .collect();
+        // Fictive L2 block is always at the end of a batch so it is safe to append it
+        if let Some(fictive_l2_block) = fictive_l2_block {
+            transactions_by_l2_block.push((fictive_l2_block, Vec::new()));
+        }
         if transactions_by_l2_block.is_empty() {
             return Ok(Vec::new());
         }

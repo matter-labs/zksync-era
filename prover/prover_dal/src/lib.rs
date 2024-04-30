@@ -9,7 +9,6 @@ use crate::{
     fri_gpu_prover_queue_dal::FriGpuProverQueueDal,
     fri_proof_compressor_dal::FriProofCompressorDal,
     fri_protocol_versions_dal::FriProtocolVersionsDal, fri_prover_dal::FriProverDal,
-    fri_scheduler_dependency_tracker_dal::FriSchedulerDependencyTrackerDal,
     fri_witness_generator_dal::FriWitnessGeneratorDal,
 };
 
@@ -17,7 +16,6 @@ pub mod fri_gpu_prover_queue_dal;
 pub mod fri_proof_compressor_dal;
 pub mod fri_protocol_versions_dal;
 pub mod fri_prover_dal;
-pub mod fri_scheduler_dependency_tracker_dal;
 pub mod fri_witness_generator_dal;
 
 // This module is private and serves as a way to seal the trait.
@@ -34,8 +32,6 @@ where
     fn fri_witness_generator_dal(&mut self) -> FriWitnessGeneratorDal<'_, 'a>;
 
     fn fri_prover_jobs_dal(&mut self) -> FriProverDal<'_, 'a>;
-
-    fn fri_scheduler_dependency_tracker_dal(&mut self) -> FriSchedulerDependencyTrackerDal<'_, 'a>;
 
     fn fri_gpu_prover_queue_dal(&mut self) -> FriGpuProverQueueDal<'_, 'a>;
 
@@ -59,10 +55,6 @@ impl<'a> ProverDal<'a> for Connection<'a, Prover> {
 
     fn fri_prover_jobs_dal(&mut self) -> FriProverDal<'_, 'a> {
         FriProverDal { storage: self }
-    }
-
-    fn fri_scheduler_dependency_tracker_dal(&mut self) -> FriSchedulerDependencyTrackerDal<'_, 'a> {
-        FriSchedulerDependencyTrackerDal { storage: self }
     }
 
     fn fri_gpu_prover_queue_dal(&mut self) -> FriGpuProverQueueDal<'_, 'a> {
