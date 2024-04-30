@@ -10,7 +10,7 @@ use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
-    api, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
+    api, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersionId, H256,
 };
 use zksync_web3_decl::{
@@ -23,7 +23,7 @@ use crate::{
     consensus::{fetcher::P2PConfig, Fetcher, Store},
     genesis::{mock_genesis_config, GenesisParams},
     state_keeper::{
-        io::{IoCursor, L1BatchParams, MiniblockParams},
+        io::{IoCursor, L1BatchParams, L2BlockParams},
         seal_criteria::NoopSealer,
         tests::MockBatchExecutor,
         OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
@@ -47,11 +47,11 @@ pub(crate) struct MockMainNodeClient {
 impl MockMainNodeClient {
     pub fn for_snapshot_recovery(snapshot: &SnapshotRecoveryStatus) -> Self {
         // This block may be requested during node initialization
-        let last_miniblock_in_snapshot_batch = api::en::SyncBlock {
-            number: snapshot.miniblock_number,
+        let last_l2_block_in_snapshot_batch = api::en::SyncBlock {
+            number: snapshot.l2_block_number,
             l1_batch_number: snapshot.l1_batch_number,
             last_in_batch: true,
-            timestamp: snapshot.miniblock_timestamp,
+            timestamp: snapshot.l2_block_timestamp,
             l1_gas_price: 2,
             l2_fair_gas_price: 3,
             fair_pubdata_price: Some(24),
@@ -59,13 +59,13 @@ impl MockMainNodeClient {
             operator_address: Address::repeat_byte(2),
             transactions: Some(vec![]),
             virtual_blocks: Some(0),
-            hash: Some(snapshot.miniblock_hash),
+            hash: Some(snapshot.l2_block_hash),
             protocol_version: ProtocolVersionId::latest(),
         };
 
         Self {
-            l2_blocks: vec![last_miniblock_in_snapshot_batch],
-            block_number_offset: snapshot.miniblock_number.0,
+            l2_blocks: vec![last_l2_block_in_snapshot_batch],
+            block_number_offset: snapshot.l2_block_number.0,
             ..Self::default()
         }
     }
@@ -106,9 +106,9 @@ impl MainNodeClient for MockMainNodeClient {
         Ok(self.protocol_versions.get(&protocol_version).cloned())
     }
 
-    async fn fetch_l2_block_number(&self) -> EnrichedClientResult<MiniblockNumber> {
+    async fn fetch_l2_block_number(&self) -> EnrichedClientResult<L2BlockNumber> {
         if let Some(number) = self.l2_blocks.len().checked_sub(1) {
-            Ok(MiniblockNumber(number as u32))
+            Ok(L2BlockNumber(number as u32))
         } else {
             Err(EnrichedClientError::custom(
                 "not implemented",
@@ -119,7 +119,7 @@ impl MainNodeClient for MockMainNodeClient {
 
     async fn fetch_l2_block(
         &self,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
         with_transactions: bool,
     ) -> EnrichedClientResult<Option<api::en::SyncBlock>> {
         let Some(block_index) = number.0.checked_sub(self.block_number_offset) else {
@@ -149,7 +149,7 @@ impl MainNodeClient for MockMainNodeClient {
 pub(super) struct StateKeeper {
     // Batch of the `last_block`.
     last_batch: L1BatchNumber,
-    last_block: MiniblockNumber,
+    last_block: L2BlockNumber,
     // timestamp of the last block.
     last_timestamp: u64,
     batch_sealed: bool,
@@ -187,8 +187,8 @@ impl StateKeeper {
         Ok((
             Self {
                 last_batch: cursor.l1_batch,
-                last_block: cursor.next_miniblock - 1,
-                last_timestamp: cursor.prev_miniblock_timestamp,
+                last_block: cursor.next_l2_block - 1,
+                last_timestamp: cursor.prev_l2_block_timestamp,
                 batch_sealed: !pending_batch,
                 fee_per_gas: 10,
                 gas_per_pubdata: 100,
@@ -216,19 +216,19 @@ impl StateKeeper {
                     validation_computational_gas_limit: u32::MAX,
                     operator_address: GenesisParams::mock().config().fee_account,
                     fee_input: Default::default(),
-                    first_miniblock: MiniblockParams {
+                    first_l2_block: L2BlockParams {
                         timestamp: self.last_timestamp,
                         virtual_blocks: 1,
                     },
                 },
                 number: self.last_batch,
-                first_miniblock_number: self.last_block,
+                first_l2_block_number: self.last_block,
             }
         } else {
             self.last_block += 1;
             self.last_timestamp += 2;
-            SyncAction::Miniblock {
-                params: MiniblockParams {
+            SyncAction::L2Block {
+                params: L2BlockParams {
                     timestamp: self.last_timestamp,
                     virtual_blocks: 0,
                 },
@@ -237,7 +237,7 @@ impl StateKeeper {
         }
     }
 
-    /// Pushes a new miniblock with `transactions` transactions to the `StateKeeper`.
+    /// Pushes a new L2 block with `transactions` transactions to the `StateKeeper`.
     pub async fn push_block(&mut self, transactions: usize) {
         assert!(transactions > 0);
         let mut actions = vec![self.open_block()];
@@ -245,7 +245,7 @@ impl StateKeeper {
             let tx = create_l2_transaction(self.fee_per_gas, self.gas_per_pubdata);
             actions.push(FetchedTransaction::new(tx.into()).into());
         }
-        actions.push(SyncAction::SealMiniblock);
+        actions.push(SyncAction::SealL2Block);
         self.actions_sender.push_actions(actions).await;
     }
 
@@ -258,7 +258,7 @@ impl StateKeeper {
         self.batch_sealed = true;
     }
 
-    /// Pushes `count` random miniblocks to the StateKeeper.
+    /// Pushes `count` random L2 blocks to the StateKeeper.
     pub async fn push_random_blocks(&mut self, rng: &mut impl Rng, count: usize) {
         for _ in 0..count {
             // 20% chance to seal an L1 batch.
@@ -360,7 +360,7 @@ impl StateKeeperRunner {
     pub async fn run(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
         let res = scope::run!(ctx, |ctx, s| async {
             let (stop_send, stop_recv) = sync::watch::channel(false);
-            let (persistence, miniblock_sealer) =
+            let (persistence, l2_block_sealer) =
                 StateKeeperPersistence::new(self.store.0.clone(), Address::repeat_byte(11), 5);
 
             let io = ExternalIO::new(
@@ -371,10 +371,10 @@ impl StateKeeperRunner {
             )
             .await?;
             s.spawn_bg(async {
-                Ok(miniblock_sealer
+                Ok(l2_block_sealer
                     .run()
                     .await
-                    .context("miniblock_sealer.run()")?)
+                    .context("l2_block_sealer.run()")?)
             });
             s.spawn_bg::<()>(async {
                 loop {

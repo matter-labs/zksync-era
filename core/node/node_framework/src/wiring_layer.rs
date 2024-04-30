@@ -38,3 +38,10 @@ pub enum WiringError {
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
+
+impl WiringError {
+    /// Wraps the specified internal error.
+    pub fn internal(err: impl Into<anyhow::Error>) -> Self {
+        Self::Internal(err.into())
+    }
+}

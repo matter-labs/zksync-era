@@ -18,8 +18,8 @@ use zksync_config::{
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_types::{
-    api, l2::L2Tx, transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2ChainId,
-    MiniblockNumber, H256, U256, U64,
+    api, l2::L2Tx, transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId,
+    L2BlockNumber, L2ChainId, H256, U256, U64,
 };
 use zksync_web3_decl::{error::Web3Error, types::Filter};
 
@@ -50,8 +50,8 @@ impl From<api::BlockId> for PruneQuery {
     }
 }
 
-impl From<MiniblockNumber> for PruneQuery {
-    fn from(number: MiniblockNumber) -> Self {
+impl From<L2BlockNumber> for PruneQuery {
+    fn from(number: L2BlockNumber) -> Self {
         Self::BlockId(api::BlockId::Number(number.0.into()))
     }
 }
@@ -65,7 +65,7 @@ impl From<L1BatchNumber> for PruneQuery {
 impl From<BlockArgsError> for Web3Error {
     fn from(value: BlockArgsError) -> Self {
         match value {
-            BlockArgsError::Pruned(miniblock) => Web3Error::PrunedBlock(miniblock),
+            BlockArgsError::Pruned(l2_block) => Web3Error::PrunedBlock(l2_block),
             BlockArgsError::Missing => Web3Error::NoBlock,
             BlockArgsError::Database(error) => Web3Error::InternalError(error),
         }
@@ -110,6 +110,7 @@ pub struct InternalApiConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
     pub fee_history_limit: u64,
+    pub base_token_address: Option<Address>,
     pub filters_disabled: bool,
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
@@ -131,6 +132,8 @@ impl InternalApiConfig {
             bridge_addresses: api::BridgeAddresses {
                 l1_erc20_default_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
                 l2_erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
+                l1_shared_default_bridge: contracts_config.l1_shared_bridge_proxy_addr,
+                l2_shared_default_bridge: contracts_config.l2_shared_bridge_addr,
                 l1_weth_bridge: contracts_config.l1_weth_bridge_proxy_addr,
                 l2_weth_bridge: contracts_config.l2_weth_bridge_addr,
             },
@@ -150,6 +153,7 @@ impl InternalApiConfig {
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
+            base_token_address: contracts_config.base_token_addr,
             filters_disabled: web3_config.filters_disabled,
             dummy_verifier: genesis_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
@@ -157,16 +161,16 @@ impl InternalApiConfig {
     }
 }
 
-/// Thread-safe updatable information about the last sealed miniblock number.
+/// Thread-safe updatable information about the last sealed L2 block number.
 ///
 /// The information may be temporarily outdated and thus should only be used where this is OK
 /// (e.g., for metrics reporting). The value is updated by [`Self::diff()`] and [`Self::diff_with_block_args()`]
 /// and on an interval specified when creating an instance.
 #[derive(Debug, Clone)]
-pub(crate) struct SealedMiniblockNumber(Arc<AtomicU32>);
+pub(crate) struct SealedL2BlockNumber(Arc<AtomicU32>);
 
-impl SealedMiniblockNumber {
-    /// Creates a handle to the last sealed miniblock number together with a task that will update
+impl SealedL2BlockNumber {
+    /// Creates a handle to the last sealed L2 block number together with a task that will update
     /// it on a schedule.
     pub fn new(
         connection_pool: ConnectionPool<Core>,
@@ -179,22 +183,20 @@ impl SealedMiniblockNumber {
         let update_task = async move {
             loop {
                 if *stop_receiver.borrow() {
-                    tracing::debug!("Stopping latest sealed miniblock updates");
+                    tracing::debug!("Stopping latest sealed L2 block updates");
                     return Ok(());
                 }
 
                 let mut connection = connection_pool.connection_tagged("api").await.unwrap();
-                let Some(last_sealed_miniblock) = connection
-                    .blocks_dal()
-                    .get_sealed_miniblock_number()
-                    .await?
+                let Some(last_sealed_l2_block) =
+                    connection.blocks_dal().get_sealed_l2_block_number().await?
                 else {
                     tokio::time::sleep(update_interval).await;
                     continue;
                 };
                 drop(connection);
 
-                number_updater.update(last_sealed_miniblock);
+                number_updater.update(last_sealed_l2_block);
                 tokio::time::sleep(update_interval).await;
             }
         };
@@ -202,29 +204,29 @@ impl SealedMiniblockNumber {
         (this, update_task)
     }
 
-    /// Potentially updates the last sealed miniblock number by comparing it to the provided
-    /// sealed miniblock number (not necessarily the last one).
+    /// Potentially updates the last sealed L2 block number by comparing it to the provided
+    /// sealed L2 block number (not necessarily the last one).
     ///
-    /// Returns the last sealed miniblock number after the update.
-    fn update(&self, maybe_newer_miniblock_number: MiniblockNumber) -> MiniblockNumber {
+    /// Returns the last sealed L2 block number after the update.
+    fn update(&self, maybe_newer_l2_block_number: L2BlockNumber) -> L2BlockNumber {
         let prev_value = self
             .0
-            .fetch_max(maybe_newer_miniblock_number.0, Ordering::Relaxed);
-        MiniblockNumber(prev_value).max(maybe_newer_miniblock_number)
+            .fetch_max(maybe_newer_l2_block_number.0, Ordering::Relaxed);
+        L2BlockNumber(prev_value).max(maybe_newer_l2_block_number)
     }
 
-    pub fn diff(&self, miniblock_number: MiniblockNumber) -> u32 {
-        let sealed_miniblock_number = self.update(miniblock_number);
-        sealed_miniblock_number.0.saturating_sub(miniblock_number.0)
+    pub fn diff(&self, l2_block_number: L2BlockNumber) -> u32 {
+        let sealed_l2_block_number = self.update(l2_block_number);
+        sealed_l2_block_number.0.saturating_sub(l2_block_number.0)
     }
 
-    /// Returns the difference between the latest miniblock number and the resolved miniblock number
+    /// Returns the difference between the latest L2 block number and the resolved L2 block number
     /// from `block_args`.
     pub fn diff_with_block_args(&self, block_args: &BlockArgs) -> u32 {
         // We compute the difference in any case, since it may update the stored value.
         let diff = self.diff(block_args.resolved_block_number());
 
-        if block_args.resolves_to_latest_sealed_miniblock() {
+        if block_args.resolves_to_latest_sealed_l2_block() {
             0 // Overwrite potentially inaccurate value
         } else {
             diff
@@ -242,11 +244,11 @@ pub(crate) struct RpcState {
     pub(super) tx_sender: TxSender,
     pub(super) sync_state: Option<SyncState>,
     pub(super) api_config: InternalApiConfig,
-    /// Number of the first locally available miniblock / L1 batch. May differ from 0 if the node state was recovered
+    /// Number of the first locally available L2 block / L1 batch. May differ from 0 if the node state was recovered
     /// from a snapshot.
     pub(super) start_info: BlockStartInfo,
     pub(super) mempool_cache: Option<MempoolCache>,
-    pub(super) last_sealed_miniblock: SealedMiniblockNumber,
+    pub(super) last_sealed_l2_block: SealedL2BlockNumber,
 }
 
 impl RpcState {
@@ -260,11 +262,11 @@ impl RpcState {
         ))
     }
 
-    pub fn u64_to_block_number(n: U64) -> MiniblockNumber {
+    pub fn u64_to_block_number(n: U64) -> L2BlockNumber {
         if n.as_u64() > u32::MAX as u64 {
-            MiniblockNumber(u32::MAX)
+            L2BlockNumber(u32::MAX)
         } else {
-            MiniblockNumber(n.as_u32())
+            L2BlockNumber(n.as_u32())
         }
     }
 
@@ -289,7 +291,7 @@ impl RpcState {
         &self,
         connection: &mut Connection<'_, Core>,
         block: api::BlockId,
-    ) -> Result<MiniblockNumber, Web3Error> {
+    ) -> Result<L2BlockNumber, Web3Error> {
         self.start_info.ensure_not_pruned(block, connection).await?;
         connection
             .blocks_web3_dal()
@@ -310,13 +312,13 @@ impl RpcState {
         &self,
         connection: &mut Connection<'_, Core>,
         block: api::BlockId,
-    ) -> Result<Option<MiniblockNumber>, Web3Error> {
+    ) -> Result<Option<L2BlockNumber>, Web3Error> {
         self.start_info.ensure_not_pruned(block, connection).await?;
         match block {
             api::BlockId::Number(api::BlockNumber::Number(number)) => {
-                Ok(u32::try_from(number).ok().map(MiniblockNumber))
+                Ok(u32::try_from(number).ok().map(L2BlockNumber))
             }
-            api::BlockId::Number(api::BlockNumber::Earliest) => Ok(Some(MiniblockNumber(0))),
+            api::BlockId::Number(api::BlockNumber::Earliest) => Ok(Some(L2BlockNumber(0))),
             _ => Ok(connection
                 .blocks_web3_dal()
                 .resolve_block_id(block)
@@ -342,7 +344,7 @@ impl RpcState {
     pub async fn resolve_filter_block_number(
         &self,
         block_number: Option<api::BlockNumber>,
-    ) -> Result<MiniblockNumber, Web3Error> {
+    ) -> Result<L2BlockNumber, Web3Error> {
         if let Some(api::BlockNumber::Number(number)) = block_number {
             return Ok(Self::u64_to_block_number(number));
         }
@@ -358,7 +360,7 @@ impl RpcState {
     pub async fn resolve_filter_block_range(
         &self,
         filter: &Filter,
-    ) -> Result<(MiniblockNumber, MiniblockNumber), Web3Error> {
+    ) -> Result<(L2BlockNumber, L2BlockNumber), Web3Error> {
         let from_block = self.resolve_filter_block_number(filter.from_block).await?;
         let to_block = self.resolve_filter_block_number(filter.to_block).await?;
         Ok((from_block, to_block))
@@ -383,10 +385,7 @@ impl RpcState {
 
     /// Returns initial `from_block` for filter.
     /// It is equal to max(filter.from_block, PENDING_BLOCK).
-    pub async fn get_filter_from_block(
-        &self,
-        filter: &Filter,
-    ) -> Result<MiniblockNumber, Web3Error> {
+    pub async fn get_filter_from_block(&self, filter: &Filter) -> Result<L2BlockNumber, Web3Error> {
         let mut connection = self.acquire_connection().await?;
         let pending_block = self
             .resolve_block_unchecked(
@@ -531,8 +530,8 @@ mod tests {
 
         let mut filters = Filters::new(Some(2));
 
-        let filter1 = TypedFilter::Events(Filter::default(), MiniblockNumber::default());
-        let filter2 = TypedFilter::Blocks(MiniblockNumber::default());
+        let filter1 = TypedFilter::Events(Filter::default(), L2BlockNumber::default());
+        let filter2 = TypedFilter::Blocks(L2BlockNumber::default());
         let filter3 = TypedFilter::PendingTransactions(NaiveDateTime::default());
 
         let idx1 = filters.add(filter1.clone());

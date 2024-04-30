@@ -12,13 +12,14 @@ use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_state::ReadStorageFactory;
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
-    block::MiniblockHasher, ethabi::Token, fee::Fee, snapshots::SnapshotRecoveryStatus,
+    block::L2BlockHasher, ethabi::Token, fee::Fee, snapshots::SnapshotRecoveryStatus,
     storage_writes_deduplicator::StorageWritesDeduplicator,
     system_contracts::get_system_smart_contracts, utils::storage_key_for_standard_token_balance,
-    AccountTreeId, Address, Execute, L1BatchNumber, L2ChainId, MiniblockNumber, PriorityOpId,
-    ProtocolVersionId, StorageKey, StorageLog, Transaction, H256, L2_ETH_TOKEN_ADDRESS,
+    AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId,
+    StorageKey, StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS,
     SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
 };
 use zksync_utils::u256_to_h256;
@@ -31,7 +32,6 @@ use crate::{
     genesis::create_genesis_l1_batch,
     state_keeper::{
         batch_executor::{BatchExecutorHandle, TxExecutionResult},
-        state_keeper_storage::ReadStorageFactory,
         tests::{default_l1_batch_env, default_system_env, BASE_SYSTEM_CONTRACTS},
         AsyncRocksdbCache, BatchExecutor, MainBatchExecutor,
     },
@@ -39,7 +39,6 @@ use crate::{
 };
 
 const DEFAULT_GAS_PER_PUBDATA: u32 = 10000;
-const CHAIN_ID: u32 = 270;
 
 /// Representation of configuration parameters used by the state keeper.
 /// Has sensible defaults for most tests, each of which can be overridden.
@@ -102,11 +101,8 @@ impl Tester {
         match storage_type {
             StorageType::AsyncRocksdbCache => {
                 let (l1_batch_env, system_env) = self.default_batch_params();
-                let (state_keeper_storage, task) = AsyncRocksdbCache::new(
-                    self.pool(),
-                    self.state_keeper_db_path(),
-                    self.enum_index_migration_chunk_size(),
-                );
+                let (state_keeper_storage, task) =
+                    AsyncRocksdbCache::new(self.pool(), self.state_keeper_db_path());
                 let handle = tokio::task::spawn(async move {
                     let (_stop_sender, stop_receiver) = watch::channel(false);
                     task.run(stop_receiver).await.unwrap()
@@ -124,7 +120,6 @@ impl Tester {
                     Arc::new(RocksdbFactory::new(
                         self.pool(),
                         self.state_keeper_db_path(),
-                        self.enum_index_migration_chunk_size(),
                     )),
                     l1_batch_env,
                     system_env,
@@ -161,11 +156,8 @@ impl Tester {
         &mut self,
         snapshot: &SnapshotRecoveryStatus,
     ) -> BatchExecutorHandle {
-        let (storage_factory, task) = AsyncRocksdbCache::new(
-            self.pool(),
-            self.state_keeper_db_path(),
-            self.enum_index_migration_chunk_size(),
-        );
+        let (storage_factory, task) =
+            AsyncRocksdbCache::new(self.pool(), self.state_keeper_db_path());
         let (_, stop_receiver) = watch::channel(false);
         let handle = tokio::task::spawn(async move { task.run(stop_receiver).await.unwrap() });
         self.tasks.push(handle);
@@ -185,7 +177,6 @@ impl Tester {
                     Arc::new(RocksdbFactory::new(
                         self.pool(),
                         self.state_keeper_db_path(),
-                        self.enum_index_migration_chunk_size(),
                     )),
                     snapshot,
                 )
@@ -206,14 +197,14 @@ impl Tester {
         storage_factory: Arc<dyn ReadStorageFactory>,
         snapshot: &SnapshotRecoveryStatus,
     ) -> BatchExecutorHandle {
-        let current_timestamp = snapshot.miniblock_timestamp + 1;
+        let current_timestamp = snapshot.l2_block_timestamp + 1;
         let (mut l1_batch_env, system_env) =
             self.batch_params(snapshot.l1_batch_number + 1, current_timestamp);
         l1_batch_env.previous_batch_hash = Some(snapshot.l1_batch_root_hash);
         l1_batch_env.first_l2_block = L2BlockEnv {
-            number: snapshot.miniblock_number.0 + 1,
+            number: snapshot.l2_block_number.0 + 1,
             timestamp: current_timestamp,
-            prev_block_hash: snapshot.miniblock_hash,
+            prev_block_hash: snapshot.l2_block_hash,
             max_virtual_blocks_to_create: 1,
         };
 
@@ -249,7 +240,6 @@ impl Tester {
         if storage.blocks_dal().is_genesis_needed().await.unwrap() {
             create_genesis_l1_batch(
                 &mut storage,
-                L2ChainId::from(CHAIN_ID),
                 ProtocolVersionId::latest(),
                 &BASE_SYSTEM_CONTRACTS,
                 &get_system_smart_contracts(),
@@ -269,7 +259,7 @@ impl Tester {
 
         for address in addresses {
             let key = storage_key_for_standard_token_balance(
-                AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
+                AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
                 address,
             );
             let value = u256_to_h256(eth_amount);
@@ -277,7 +267,7 @@ impl Tester {
 
             storage
                 .storage_logs_dal()
-                .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![storage_log])])
+                .append_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![storage_log])])
                 .await
                 .unwrap();
             if storage
@@ -308,10 +298,6 @@ impl Tester {
 
     pub(super) fn state_keeper_db_path(&self) -> String {
         self.db_dir.path().to_str().unwrap().to_owned()
-    }
-
-    pub(super) fn enum_index_migration_chunk_size(&self) -> usize {
-        100
     }
 }
 
@@ -463,15 +449,15 @@ pub fn mock_loadnext_gas_burn_calldata(gas: u32) -> Vec<u8> {
 /// Concise representation of a storage snapshot for testing recovery.
 #[derive(Debug)]
 pub(super) struct StorageSnapshot {
-    pub miniblock_number: MiniblockNumber,
-    pub miniblock_hash: H256,
-    pub miniblock_timestamp: u64,
+    pub l2_block_number: L2BlockNumber,
+    pub l2_block_hash: H256,
+    pub l2_block_timestamp: u64,
     pub storage_logs: HashMap<StorageKey, H256>,
     pub factory_deps: HashMap<H256, Vec<u8>>,
 }
 
 impl StorageSnapshot {
-    /// Generates a new snapshot by executing the specified number of transactions, each in a separate miniblock.
+    /// Generates a new snapshot by executing the specified number of transactions, each in a separate L2 block.
     pub async fn new(
         connection_pool: &ConnectionPool<Core>,
         alice: &mut Account,
@@ -485,7 +471,7 @@ impl StorageSnapshot {
         let all_logs = storage
             .snapshots_creator_dal()
             .get_storage_logs_chunk(
-                MiniblockNumber(0),
+                L2BlockNumber(0),
                 L1BatchNumber(0),
                 H256::zero()..=H256::repeat_byte(0xff),
             )
@@ -493,7 +479,7 @@ impl StorageSnapshot {
             .unwrap();
         let factory_deps = storage
             .snapshots_creator_dal()
-            .get_all_factory_deps(MiniblockNumber(0))
+            .get_all_factory_deps(L2BlockNumber(0))
             .await
             .unwrap();
         let mut all_logs: HashMap<_, _> = all_logs
@@ -507,7 +493,7 @@ impl StorageSnapshot {
             .await;
         let mut l2_block_env = L2BlockEnv {
             number: 1,
-            prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+            prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
             timestamp: 100,
             max_virtual_blocks_to_create: 1,
         };
@@ -525,8 +511,8 @@ impl StorageSnapshot {
                 panic!("Unexpected tx execution result: {res:?}");
             };
 
-            let mut hasher = MiniblockHasher::new(
-                MiniblockNumber(l2_block_env.number),
+            let mut hasher = L2BlockHasher::new(
+                L2BlockNumber(l2_block_env.number),
                 l2_block_env.timestamp,
                 l2_block_env.prev_block_hash,
             );
@@ -535,7 +521,7 @@ impl StorageSnapshot {
             l2_block_env.number += 1;
             l2_block_env.timestamp += 1;
             l2_block_env.prev_block_hash = hasher.finalize(ProtocolVersionId::latest());
-            executor.start_next_miniblock(l2_block_env).await;
+            executor.start_next_l2_block(l2_block_env).await;
         }
 
         let finished_batch = executor.finish_batch().await;
@@ -548,9 +534,9 @@ impl StorageSnapshot {
                 .map(|(key, slot)| (key, u256_to_h256(slot.value))),
         );
 
-        // Compute the hash of the last (fictive) miniblock in the batch.
-        let miniblock_hash = MiniblockHasher::new(
-            MiniblockNumber(l2_block_env.number),
+        // Compute the hash of the last (fictive) L2 block in the batch.
+        let l2_block_hash = L2BlockHasher::new(
+            L2BlockNumber(l2_block_env.number),
             l2_block_env.timestamp,
             l2_block_env.prev_block_hash,
         )
@@ -559,9 +545,9 @@ impl StorageSnapshot {
         let mut storage = connection_pool.connection().await.unwrap();
         storage.blocks_dal().delete_genesis().await.unwrap();
         Self {
-            miniblock_number: MiniblockNumber(l2_block_env.number),
-            miniblock_timestamp: l2_block_env.timestamp,
-            miniblock_hash,
+            l2_block_number: L2BlockNumber(l2_block_env.number),
+            l2_block_timestamp: l2_block_env.timestamp,
+            l2_block_hash,
             storage_logs: all_logs,
             factory_deps: factory_deps.into_iter().collect(),
         }
@@ -578,17 +564,17 @@ impl StorageSnapshot {
         let mut snapshot = prepare_recovery_snapshot(
             &mut storage,
             L1BatchNumber(1),
-            self.miniblock_number,
+            self.l2_block_number,
             &snapshot_logs,
         )
         .await;
 
-        snapshot.miniblock_hash = self.miniblock_hash;
-        snapshot.miniblock_timestamp = self.miniblock_timestamp;
+        snapshot.l2_block_hash = self.l2_block_hash;
+        snapshot.l2_block_timestamp = self.l2_block_timestamp;
 
         storage
             .factory_deps_dal()
-            .insert_factory_deps(snapshot.miniblock_number, &self.factory_deps)
+            .insert_factory_deps(snapshot.l2_block_number, &self.factory_deps)
             .await
             .unwrap();
         snapshot

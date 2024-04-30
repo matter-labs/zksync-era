@@ -45,7 +45,7 @@ Sample test suite would look like this:
 import { TestMaster } from '../src/index';
 import { shouldChangeETHBalances } from '../src/modifiers/balance-checker.ts';
 
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 import { BigNumber } from 'ethers';
 
 describe('ETH token checks', () => {

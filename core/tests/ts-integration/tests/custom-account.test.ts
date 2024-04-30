@@ -4,8 +4,8 @@
 
 import { TestMaster } from '../src/index';
 
-import * as zksync from 'zksync-web3';
-import { utils, types } from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
+import { utils, types } from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { deployContract, getTestContract } from '../src/helpers';
 import { ERC20_PER_ACCOUNT, L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';

@@ -94,12 +94,18 @@ pub struct StateKeeperConfig {
 
     /// Number of ms after which an L1 batch is going to be unconditionally sealed.
     pub block_commit_deadline_ms: u64,
-    /// Number of ms after which a miniblock should be sealed by the timeout sealer.
-    pub miniblock_commit_deadline_ms: u64,
-    /// Capacity of the queue for asynchronous miniblock sealing. Once this many miniblocks are queued,
-    /// sealing will block until some of the miniblocks from the queue are processed.
+    /// Number of ms after which an L2 block should be sealed by the timeout sealer.
+    #[serde(alias = "miniblock_commit_deadline_ms")]
+    // legacy naming; since we don't serialize this struct, we use "alias" rather than "rename"
+    pub l2_block_commit_deadline_ms: u64,
+    /// Capacity of the queue for asynchronous L2 block sealing. Once this many L2 blocks are queued,
+    /// sealing will block until some of the L2 blocks from the queue are processed.
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
-    pub miniblock_seal_queue_capacity: usize,
+    #[serde(alias = "miniblock_seal_queue_capacity")]
+    pub l2_block_seal_queue_capacity: usize,
+    /// The max payload size threshold (in bytes) that triggers sealing of an L2 block.
+    #[serde(alias = "miniblock_max_payload_size")]
+    pub l2_block_max_payload_size: usize,
 
     /// The max number of gas to spend on an L1 tx before its batch should be sealed by the gas sealer.
     pub max_single_tx_gas: u32,
@@ -149,9 +155,6 @@ pub struct StateKeeperConfig {
     pub validation_computational_gas_limit: u32,
     pub save_call_traces: bool,
 
-    /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
-    pub enum_index_migration_chunk_size: Option<usize>,
-
     /// The maximal number of circuits that a batch can support.
     /// Note, that this number corresponds to the "base layer" circuits, i.e. it does not include
     /// the recursion layers' circuits.
@@ -176,8 +179,9 @@ impl StateKeeperConfig {
         Self {
             transaction_slots: 250,
             block_commit_deadline_ms: 2500,
-            miniblock_commit_deadline_ms: 1000,
-            miniblock_seal_queue_capacity: 10,
+            l2_block_commit_deadline_ms: 1000,
+            l2_block_seal_queue_capacity: 10,
+            l2_block_max_payload_size: 1_000_000,
             max_single_tx_gas: 6000000,
             max_allowed_l2_tx_gas_limit: 4000000000,
             reject_tx_at_geometry_percentage: 0.95,
@@ -198,16 +202,11 @@ impl StateKeeperConfig {
             fee_model_version: FeeModelVersion::V2,
             validation_computational_gas_limit: 300000,
             save_call_traces: true,
-            enum_index_migration_chunk_size: None,
             max_circuits_per_batch: 24100,
             bootloader_hash: None,
             default_aa_hash: None,
             l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
         }
-    }
-
-    pub fn enum_index_migration_chunk_size(&self) -> usize {
-        self.enum_index_migration_chunk_size.unwrap_or(1_000)
     }
 }
 

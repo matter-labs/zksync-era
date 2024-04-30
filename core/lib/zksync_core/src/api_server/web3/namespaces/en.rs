@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use zksync_config::{configs::genesis::SharedBridge, GenesisConfig};
 use zksync_dal::{CoreDal, DalError};
-use zksync_types::{api::en, tokens::TokenInfo, Address, L1BatchNumber, MiniblockNumber, H256};
+use zksync_types::{api::en, tokens::TokenInfo, Address, L1BatchNumber, L2BlockNumber, H256};
 use zksync_web3_decl::error::Web3Error;
 
 use crate::api_server::web3::{backend_jsonrpsee::MethodTracer, state::RpcState};
@@ -37,10 +37,9 @@ impl EnNamespace {
         &self.state.current_method
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn sync_l2_block_impl(
         &self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
         include_transactions: bool,
     ) -> Result<Option<en::SyncBlock>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
@@ -51,10 +50,9 @@ impl EnNamespace {
             .map_err(DalError::generalize)?)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn sync_tokens_impl(
         &self,
-        block_number: Option<MiniblockNumber>,
+        block_number: Option<L2BlockNumber>,
     ) -> Result<Vec<TokenInfo>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
         Ok(storage
@@ -64,7 +62,6 @@ impl EnNamespace {
             .map_err(DalError::generalize)?)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn genesis_config_impl(&self) -> Result<GenesisConfig, Web3Error> {
         // If this method will cause some load, we can cache everything in memory
         let mut storage = self.state.acquire_connection().await?;
@@ -85,7 +82,7 @@ impl EnNamespace {
             .context("Genesis is not finished")?;
         let fee_account = storage
             .blocks_dal()
-            .get_fee_address_for_miniblock(MiniblockNumber(0))
+            .get_fee_address_for_l2_block(L2BlockNumber(0))
             .await
             .map_err(DalError::generalize)?
             .context("Genesis not finished")?;
@@ -155,7 +152,6 @@ impl EnNamespace {
         Ok(config)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn whitelisted_tokens_for_aa_impl(&self) -> Result<Vec<Address>, Web3Error> {
         Ok(self
             .state

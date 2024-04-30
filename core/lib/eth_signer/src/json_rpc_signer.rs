@@ -331,7 +331,7 @@ mod tests {
     use futures::future::{AbortHandle, Abortable};
     use jsonrpc_core::{Failure, Id, Output, Success, Version};
     use serde_json::json;
-    use zksync_types::{tx::primitives::PackedEthSignature, H256};
+    use zksync_types::{K256PrivateKey, H256};
 
     use super::messages::JsonRpcRequest;
     use crate::{raw_ethereum_tx::TransactionParameters, EthereumSigner, JsonRpcSigner};
@@ -342,12 +342,11 @@ mod tests {
     ) -> Json<serde_json::Value> {
         let resp = match req.method.as_str() {
             "eth_accounts" => {
-                let mut addresses = vec![];
-                for pk in &state.private_keys {
-                    let address = PackedEthSignature::address_from_private_key(pk).unwrap();
-                    addresses.push(address)
-                }
-
+                let addresses: Vec<_> = state
+                    .private_keys
+                    .iter()
+                    .map(K256PrivateKey::address)
+                    .collect();
                 create_success(json!(addresses))
             }
             "personal_unlockAccount" => create_success(json!(true)),
@@ -381,9 +380,10 @@ mod tests {
             id: Id::Num(1),
         })
     }
+
     #[derive(Clone)]
     struct ServerState {
-        private_keys: Vec<H256>,
+        private_keys: Vec<K256PrivateKey>,
     }
 
     async fn run_server(state: ServerState) -> (String, AbortHandle) {
@@ -413,7 +413,7 @@ mod tests {
     #[tokio::test]
     async fn run_client() {
         let (address, abort_handle) = run_server(ServerState {
-            private_keys: vec![H256::repeat_byte(0x17)],
+            private_keys: vec![K256PrivateKey::from_bytes(H256::repeat_byte(0x17)).unwrap()],
         })
         .await;
         // Get address is ok,  unlock address is ok, recover address from signature is also ok

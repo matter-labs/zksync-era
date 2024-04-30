@@ -6,7 +6,7 @@ use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_shared_metrics::{CheckerComponent, EN_METRICS};
-use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
+use zksync_types::{L1BatchNumber, L2BlockNumber, H256};
 use zksync_web3_decl::{
     client::BoxedL2Client,
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
@@ -80,11 +80,11 @@ impl From<EnrichedClientError> for Error {
 
 #[async_trait]
 trait MainNodeClient: fmt::Debug + Send + Sync {
-    async fn sealed_miniblock_number(&self) -> EnrichedClientResult<MiniblockNumber>;
+    async fn sealed_l2_block_number(&self) -> EnrichedClientResult<L2BlockNumber>;
 
     async fn sealed_l1_batch_number(&self) -> EnrichedClientResult<L1BatchNumber>;
 
-    async fn miniblock_hash(&self, number: MiniblockNumber) -> EnrichedClientResult<Option<H256>>;
+    async fn l2_block_hash(&self, number: L2BlockNumber) -> EnrichedClientResult<Option<H256>>;
 
     async fn l1_batch_root_hash(&self, number: L1BatchNumber)
         -> EnrichedClientResult<Option<H256>>;
@@ -92,15 +92,15 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
 
 #[async_trait]
 impl MainNodeClient for BoxedL2Client {
-    async fn sealed_miniblock_number(&self) -> EnrichedClientResult<MiniblockNumber> {
+    async fn sealed_l2_block_number(&self) -> EnrichedClientResult<L2BlockNumber> {
         let number = self
             .get_block_number()
-            .rpc_context("sealed_miniblock_number")
+            .rpc_context("sealed_l2_block_number")
             .await?;
         let number = u32::try_from(number).map_err(|err| {
             EnrichedClientError::custom(err, "u32::try_from").with_arg("number", &number)
         })?;
-        Ok(MiniblockNumber(number))
+        Ok(L2BlockNumber(number))
     }
 
     async fn sealed_l1_batch_number(&self) -> EnrichedClientResult<L1BatchNumber> {
@@ -114,10 +114,10 @@ impl MainNodeClient for BoxedL2Client {
         Ok(L1BatchNumber(number))
     }
 
-    async fn miniblock_hash(&self, number: MiniblockNumber) -> EnrichedClientResult<Option<H256>> {
+    async fn l2_block_hash(&self, number: L2BlockNumber) -> EnrichedClientResult<Option<H256>> {
         Ok(self
             .get_block_by_number(number.0.into(), false)
-            .rpc_context("miniblock_hash")
+            .rpc_context("l2_block_hash")
             .with_arg("number", &number)
             .await?
             .map(|block| block.hash))
@@ -141,7 +141,7 @@ trait HandleReorgDetectorEvent: fmt::Debug + Send + Sync {
 
     fn update_correct_block(
         &mut self,
-        last_correct_miniblock: MiniblockNumber,
+        last_correct_l2_block: L2BlockNumber,
         last_correct_l1_batch: L1BatchNumber,
     );
 
@@ -158,15 +158,15 @@ impl HandleReorgDetectorEvent for HealthUpdater {
 
     fn update_correct_block(
         &mut self,
-        last_correct_miniblock: MiniblockNumber,
+        last_correct_l2_block: L2BlockNumber,
         last_correct_l1_batch: L1BatchNumber,
     ) {
-        let last_correct_miniblock = last_correct_miniblock.0.into();
-        let prev_checked_miniblock = EN_METRICS.last_correct_miniblock
+        let last_correct_l2_block = last_correct_l2_block.0.into();
+        let prev_checked_l2_block = EN_METRICS.last_correct_l2_block
             [&CheckerComponent::ReorgDetector]
-            .set(last_correct_miniblock);
-        if prev_checked_miniblock != last_correct_miniblock {
-            tracing::debug!("No reorg at miniblock #{last_correct_miniblock}");
+            .set(last_correct_l2_block);
+        if prev_checked_l2_block != last_correct_l2_block {
+            tracing::debug!("No reorg at L2 block #{last_correct_l2_block}");
         }
 
         let last_correct_l1_batch = last_correct_l1_batch.0.into();
@@ -177,7 +177,7 @@ impl HandleReorgDetectorEvent for HealthUpdater {
         }
 
         let health_details = serde_json::json!({
-            "last_correct_miniblock": last_correct_miniblock,
+            "last_correct_l2_block": last_correct_l2_block,
             "last_correct_l1_batch": last_correct_l1_batch,
         });
         self.update(Health::from(HealthStatus::Ready).with_details(health_details));
@@ -248,9 +248,9 @@ impl ReorgDetector {
         else {
             return Ok(());
         };
-        let Some(local_miniblock) = storage
+        let Some(local_l2_block) = storage
             .blocks_dal()
-            .get_sealed_miniblock_number()
+            .get_sealed_l2_block_number()
             .await
             .map_err(DalError::generalize)?
         else {
@@ -259,23 +259,23 @@ impl ReorgDetector {
         drop(storage);
 
         let remote_l1_batch = self.client.sealed_l1_batch_number().await?;
-        let remote_miniblock = self.client.sealed_miniblock_number().await?;
+        let remote_l2_block = self.client.sealed_l2_block_number().await?;
 
         let checked_l1_batch = local_l1_batch.min(remote_l1_batch);
-        let checked_miniblock = local_miniblock.min(remote_miniblock);
+        let checked_l2_block = local_l2_block.min(remote_l2_block);
 
         let root_hashes_match = self.root_hashes_match(checked_l1_batch).await?;
-        let miniblock_hashes_match = self.miniblock_hashes_match(checked_miniblock).await?;
+        let l2_block_hashes_match = self.l2_block_hashes_match(checked_l2_block).await?;
 
         // The only event that triggers re-org detection and node rollback is if the
-        // hash mismatch at the same block height is detected, be it miniblocks or batches.
+        // hash mismatch at the same block height is detected, be it L2 blocks or batches.
         //
         // In other cases either there is only a height mismatch which means that one of
         // the nodes needs to do catching up; however, it is not certain that there is actually
         // a re-org taking place.
-        if root_hashes_match && miniblock_hashes_match {
+        if root_hashes_match && l2_block_hashes_match {
             self.event_handler
-                .update_correct_block(checked_miniblock, checked_l1_batch);
+                .update_correct_block(checked_l2_block, checked_l1_batch);
             return Ok(());
         }
         let diverged_l1_batch = checked_l1_batch + (root_hashes_match as u32);
@@ -306,33 +306,30 @@ impl ReorgDetector {
         Err(Error::ReorgDetected(last_correct_l1_batch))
     }
 
-    /// Compares hashes of the given local miniblock and the same miniblock from main node.
-    async fn miniblock_hashes_match(
-        &self,
-        miniblock: MiniblockNumber,
-    ) -> Result<bool, HashMatchError> {
+    /// Compares hashes of the given local L2 block and the same L2 block from main node.
+    async fn l2_block_hashes_match(&self, l2_block: L2BlockNumber) -> Result<bool, HashMatchError> {
         let mut storage = self.pool.connection().await.context("connection()")?;
         let local_hash = storage
             .blocks_dal()
-            .get_miniblock_header(miniblock)
+            .get_l2_block_header(l2_block)
             .await
             .map_err(DalError::generalize)?
-            .with_context(|| format!("Header does not exist for local miniblock #{miniblock}"))?
+            .with_context(|| format!("Header does not exist for local L2 block #{l2_block}"))?
             .hash;
         drop(storage);
 
-        let Some(remote_hash) = self.client.miniblock_hash(miniblock).await? else {
+        let Some(remote_hash) = self.client.l2_block_hash(l2_block).await? else {
             // Due to reorg, locally we may be ahead of the main node.
             // Lack of the hash on the main node is treated as a hash match,
             // We need to wait for our knowledge of main node to catch up.
-            tracing::info!("Remote miniblock #{miniblock} is missing");
+            tracing::info!("Remote L2 block #{l2_block} is missing");
             return Err(HashMatchError::RemoteHashMissing);
         };
 
         if remote_hash != local_hash {
             tracing::warn!(
                 "Reorg detected: local hash {local_hash:?} doesn't match the hash from \
-                main node {remote_hash:?} (miniblock #{miniblock})"
+                main node {remote_hash:?} (L2 block #{l2_block})"
             );
         }
         Ok(remote_hash == local_hash)

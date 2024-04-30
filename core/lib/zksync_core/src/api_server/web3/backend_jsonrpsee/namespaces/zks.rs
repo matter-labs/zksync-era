@@ -8,7 +8,7 @@ use zksync_types::{
     fee::Fee,
     fee_model::FeeParams,
     transaction_request::CallRequest,
-    Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
+    Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
@@ -69,7 +69,7 @@ impl ZksNamespaceServer for ZksNamespace {
 
     async fn get_l2_to_l1_msg_proof(
         &self,
-        block: MiniblockNumber,
+        block: L2BlockNumber,
         sender: Address,
         msg: H256,
         l2_log_position: Option<usize>,
@@ -95,15 +95,15 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn get_miniblock_range(&self, batch: L1BatchNumber) -> RpcResult<Option<(U64, U64)>> {
-        self.get_miniblock_range_impl(batch)
+    async fn get_l2_block_range(&self, batch: L1BatchNumber) -> RpcResult<Option<(U64, U64)>> {
+        self.get_l2_block_range_impl(batch)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
 
     async fn get_block_details(
         &self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> RpcResult<Option<BlockDetails>> {
         self.get_block_details_impl(block_number)
             .await
@@ -118,7 +118,7 @@ impl ZksNamespaceServer for ZksNamespace {
 
     async fn get_raw_block_transactions(
         &self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> RpcResult<Vec<zksync_types::Transaction>> {
         self.get_raw_block_transactions_impl(block_number)
             .await
@@ -141,7 +141,9 @@ impl ZksNamespaceServer for ZksNamespace {
     }
 
     async fn get_l1_gas_price(&self) -> RpcResult<U64> {
-        Ok(self.get_l1_gas_price_impl().await)
+        self.get_l1_gas_price_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
     }
 
     async fn get_fee_params(&self) -> RpcResult<FeeParams> {
@@ -165,6 +167,11 @@ impl ZksNamespaceServer for ZksNamespace {
     ) -> RpcResult<Option<Proof>> {
         self.get_proofs_impl(address, keys, l1_batch_number)
             .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn get_base_token_l1_address(&self) -> RpcResult<Address> {
+        self.get_base_token_l1_address_impl()
             .map_err(|err| self.current_method().map_err(err))
     }
 }

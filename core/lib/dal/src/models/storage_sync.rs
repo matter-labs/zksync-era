@@ -1,7 +1,7 @@
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::error::SqlxContext;
 use zksync_types::{
-    api::en, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction, H256,
+    api::en, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256,
 };
 
 use crate::{
@@ -29,7 +29,7 @@ pub(crate) struct StorageSyncBlock {
 }
 
 pub(crate) struct SyncBlock {
-    pub number: MiniblockNumber,
+    pub number: L2BlockNumber,
     pub l1_batch_number: L1BatchNumber,
     pub last_in_batch: bool,
     pub timestamp: u64,
@@ -48,7 +48,7 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
 
     fn try_from(block: StorageSyncBlock) -> Result<Self, Self::Error> {
         Ok(Self {
-            number: MiniblockNumber(block.number.try_into().decode_column("number")?),
+            number: L2BlockNumber(block.number.try_into().decode_column("number")?),
             l1_batch_number: L1BatchNumber(
                 block
                     .l1_batch_number

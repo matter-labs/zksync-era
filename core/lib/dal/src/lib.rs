@@ -7,7 +7,7 @@ pub use sqlx::{types::BigDecimal, Error as SqlxError};
 use zksync_db_connection::connection::DbMarker;
 pub use zksync_db_connection::{
     connection::Connection,
-    connection_pool::ConnectionPool,
+    connection_pool::{ConnectionPool, ConnectionPoolBuilder},
     error::{DalError, DalResult},
 };
 
@@ -29,6 +29,7 @@ use crate::{
 pub mod basic_witness_input_producer_dal;
 pub mod blocks_dal;
 pub mod blocks_web3_dal;
+pub mod consensus;
 pub mod consensus_dal;
 pub mod contract_verification_dal;
 pub mod eth_sender_dal;
@@ -44,7 +45,6 @@ pub mod pruning_dal;
 pub mod snapshot_recovery_dal;
 pub mod snapshots_creator_dal;
 pub mod snapshots_dal;
-mod storage_dal;
 pub mod storage_logs_dal;
 pub mod storage_logs_dedup_dal;
 pub mod storage_web3_dal;
@@ -92,10 +92,6 @@ where
     fn storage_web3_dal(&mut self) -> StorageWeb3Dal<'_, 'a>;
 
     fn storage_logs_dal(&mut self) -> StorageLogsDal<'_, 'a>;
-
-    #[deprecated(note = "Soft-removed in favor of `storage_logs`; don't use")]
-    #[allow(deprecated)]
-    fn storage_dal(&mut self) -> storage_dal::StorageDal<'_, 'a>;
 
     fn storage_logs_dedup_dal(&mut self) -> StorageLogsDedupDal<'_, 'a>;
 
@@ -179,10 +175,6 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn storage_logs_dal(&mut self) -> StorageLogsDal<'_, 'a> {
         StorageLogsDal { storage: self }
-    }
-
-    fn storage_dal(&mut self) -> storage_dal::StorageDal<'_, 'a> {
-        storage_dal::StorageDal { storage: self }
     }
 
     fn storage_logs_dedup_dal(&mut self) -> StorageLogsDedupDal<'_, 'a> {
