@@ -1,7 +1,6 @@
 use anyhow::Context as _;
 use zksync_config::configs::consensus::{
-    ConsensusConfig, ConsensusSecrets, Host, NodePublicKey, NodeSecretKey, ValidatorPublicKey,
-    ValidatorSecretKey,
+    ConsensusConfig, ConsensusSecrets, Host, NodePublicKey, NodeSecretKey, ValidatorSecretKey,
 };
 use zksync_protobuf::{repr::ProtoRepr, required};
 
@@ -20,11 +19,6 @@ impl ProtoRepr for proto::Config {
                 .and_then(|x| Ok(x.parse()?))
                 .context("server_addr")?,
             public_addr: Host(required(&self.public_addr).context("public_addr")?.clone()),
-            validators: self
-                .validators
-                .iter()
-                .map(|x| ValidatorPublicKey(x.clone()))
-                .collect(),
             max_payload_size: required(&self.max_payload_size)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("max_payload_size")?,
@@ -49,7 +43,6 @@ impl ProtoRepr for proto::Config {
         Self {
             server_addr: Some(this.server_addr.to_string()),
             public_addr: Some(this.public_addr.0.clone()),
-            validators: this.validators.iter().map(|x| x.0.clone()).collect(),
             max_payload_size: Some(this.max_payload_size.try_into().unwrap()),
             gossip_dynamic_inbound_limit: Some(
                 this.gossip_dynamic_inbound_limit.try_into().unwrap(),

@@ -547,8 +547,8 @@ pub async fn initialize_components(
     }
 
     let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
-    let state_transition_manager_addr = genesis_config
-        .shared_bridge
+    let state_transition_manager_addr = contracts_config
+        .ecosystem_contracts
         .as_ref()
         .map(|a| a.state_transition_proxy_addr);
 
@@ -559,6 +559,7 @@ pub async fn initialize_components(
                 .as_ref()
                 .context("consensus component's config is missing")?,
             secrets,
+            l2_chain_id,
         )?;
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");

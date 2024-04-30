@@ -8,8 +8,15 @@ impl ProtoRepr for proto::Observability {
     type Type = configs::ObservabilityConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         let (sentry_url, sentry_environment) = if let Some(sentry) = &self.sentry {
+            let sentry_url = required(&sentry.url).context("sentry_url")?.clone();
+            let sentry_url = if sentry_url.to_lowercase() == *"unset" {
+                None
+            } else {
+                Some(sentry_url)
+            };
+
             (
-                Some(required(&sentry.url).context("sentry_url")?.clone()),
+                sentry_url,
                 Some(
                     required(&sentry.environment)
                         .context("sentry.environment")?

@@ -174,7 +174,6 @@ pub(crate) fn mock_genesis_config() -> GenesisConfig {
         recursion_scheduler_level_vk_hash: first_l1_verifier_config
             .recursion_scheduler_level_vk_hash,
         fee_account: Default::default(),
-        shared_bridge: None,
         dummy_verifier: false,
         l1_batch_commit_data_generator_mode: Default::default(),
     }
