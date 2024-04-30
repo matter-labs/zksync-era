@@ -4442,6 +4442,214 @@ fn test_basic_revert_vectors() {
     // Result should be 0xFF01, maybe it includes the gas before?
 }
 
+#[test]
+fn test_basic_precompiles_vectors() {
+    let evm_vector = test_evm_vector(
+        vec![
+            // push4 FFFF_FFFF
+            hex::decode("63").unwrap(),
+            hex::decode("FFFFFFFF").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // mem[0] = FFFF_FFFF
+            // push1 retSize
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 retOff
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 argSize 4bytes
+            hex::decode("60").unwrap(),
+            hex::decode("04").unwrap(),
+            // push1 argOff
+            hex::decode("60").unwrap(),
+            hex::decode("1C").unwrap(),
+            // push1 0x2 -- SHA256 precompile
+            hex::decode("60").unwrap(),
+            hex::decode("02").unwrap(),
+            // push4 gas
+            hex::decode("63").unwrap(),
+            hex::decode("FFFFFFFF").unwrap(),
+            // staticcall
+            hex::decode("FA").unwrap(),
+            // pop
+            hex::decode("50").unwrap(),
+            // push1 memOffset
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // mload
+            hex::decode("51").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    // calldata for `SHA256(FFFFFFFF)`.
+    let sha256 = "ad95131bc0b799c0b1af477fb14fcf26a6a9f76079e48bf090acb7e8367bfd0e";
+    assert_eq!(H256(evm_vector.into()), H256::from_str(sha256).unwrap());
+
+    let evm_vector = test_evm_vector(
+        vec![
+            // push1
+            hex::decode("60").unwrap(),
+            hex::decode("FF").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // mem[0] = FF
+            // push1 retSize
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 retOff
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 argSize 1bytes
+            hex::decode("60").unwrap(),
+            hex::decode("01").unwrap(),
+            // push1 argOff
+            hex::decode("60").unwrap(),
+            hex::decode("1F").unwrap(),
+            // push0 value
+            hex::decode("5F").unwrap(),
+            // push1 0x2 -- SHA256 precompile
+            hex::decode("60").unwrap(),
+            hex::decode("02").unwrap(),
+            // push4 gas
+            hex::decode("63").unwrap(),
+            hex::decode("FFFFFFFF").unwrap(),
+            // call
+            hex::decode("F1").unwrap(),
+            // pop
+            hex::decode("50").unwrap(),
+            // push1 memOffset
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // mload
+            hex::decode("51").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    let sha256 = "a8100ae6aa1940d0b663bb31cd466142ebbdbd5187131b92d93818987832eb89";
+    assert_eq!(H256(evm_vector.into()), H256::from_str(sha256).unwrap());
+}
+
+#[test]
+fn test_basic_precompiles_vectors() {
+    let evm_vector = test_evm_vector(
+        vec![
+            // push4 FFFF_FFFF
+            hex::decode("63").unwrap(),
+            hex::decode("FFFFFFFF").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // mem[0] = FFFF_FFFF
+            // push1 retSize
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 retOff
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 argSize 4bytes
+            hex::decode("60").unwrap(),
+            hex::decode("04").unwrap(),
+            // push1 argOff
+            hex::decode("60").unwrap(),
+            hex::decode("1C").unwrap(),
+            // push1 0x2 -- SHA256 precompile
+            hex::decode("60").unwrap(),
+            hex::decode("02").unwrap(),
+            // push4 gas
+            hex::decode("63").unwrap(),
+            hex::decode("FFFFFFFF").unwrap(),
+            // staticcall
+            hex::decode("FA").unwrap(),
+            // pop
+            hex::decode("50").unwrap(),
+            // push1 memOffset
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // mload
+            hex::decode("51").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    // calldata for `SHA256(FFFFFFFF)`.
+    let sha256 = "ad95131bc0b799c0b1af477fb14fcf26a6a9f76079e48bf090acb7e8367bfd0e";
+    assert_eq!(H256(evm_vector.into()), H256::from_str(sha256).unwrap());
+
+    let evm_vector = test_evm_vector(
+        vec![
+            // push1
+            hex::decode("60").unwrap(),
+            hex::decode("FF").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // mstore
+            hex::decode("52").unwrap(),
+            // mem[0] = FF
+            // push1 retSize
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 retOff
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // push1 argSize 1bytes
+            hex::decode("60").unwrap(),
+            hex::decode("01").unwrap(),
+            // push1 argOff
+            hex::decode("60").unwrap(),
+            hex::decode("1F").unwrap(),
+            // push0 value
+            hex::decode("5F").unwrap(),
+            // push1 0x2 -- SHA256 precompile
+            hex::decode("60").unwrap(),
+            hex::decode("02").unwrap(),
+            // push4 gas
+            hex::decode("63").unwrap(),
+            hex::decode("FFFFFFFF").unwrap(),
+            // call
+            hex::decode("F1").unwrap(),
+            // pop
+            hex::decode("50").unwrap(),
+            // push1 memOffset
+            hex::decode("60").unwrap(),
+            hex::decode("20").unwrap(),
+            // mload
+            hex::decode("51").unwrap(),
+            // push32 0
+            hex::decode("7F").unwrap(),
+            H256::zero().0.to_vec(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    let sha256 = "a8100ae6aa1940d0b663bb31cd466142ebbdbd5187131b92d93818987832eb89";
+    assert_eq!(H256(evm_vector.into()), H256::from_str(sha256).unwrap());
+}
+
 fn assert_deployed_hash<H: HistoryMode>(
     tester: &mut VmTester<H>,
     address: Address,
