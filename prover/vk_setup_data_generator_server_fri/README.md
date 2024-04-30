@@ -18,19 +18,19 @@ CRS_FILE=yyy ZKSYNC_HOME=xxx cargo run --release --bin key_generator generate-vk
 ### CRS FILE
 
 The SNARK VK generation requires the `CRS_FILE` environment variable to be present and point to the correct file. The
-file can be downloaded (around 1GB) from the following
-[link](https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^24.key) its also present in dir after
-zk init keys/setup/setup_2^24.key
+file can be downloaded (around 4GB) from the following
+[link](https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^26.key) its also present in dir after
+zk init keys/setup/setup_2^26.key
 
 ## Commitments
 
 Commitments is basically a 'hash' of the verification keys, that is used in our configuration, and also in Verifier.sol.
 
-You can run it with `dry-run`, to see the results, or set `dry-run` to false to update the config in
-`etc/env/base/contracts.toml`.
+You can run it with `dryrun`.
 
 ```shell
-ZKSYNC_HOME=xxx cargo run --release --bin key_generator update-commitments --dry-run=true
+ZKSYNC_HOME=xxx cargo run --release --bin key_generator update-commitments // to update hashs to the congiguration file
+ZKSYNC_HOME=xxx cargo run --release --bin key_generator update-commitments --dryrun  // not to update hashs
 ```
 
 ## Setup keys
