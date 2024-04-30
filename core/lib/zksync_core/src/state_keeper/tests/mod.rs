@@ -101,7 +101,6 @@ pub(super) fn default_vm_batch_result() -> FinishedL1Batch {
         },
         final_execution_state: CurrentExecutionState {
             events: vec![],
-            storage_log_queries: vec![],
             deduplicated_storage_log_queries: vec![],
             used_contract_hashes: vec![],
             user_l2_to_l1_logs: vec![],
