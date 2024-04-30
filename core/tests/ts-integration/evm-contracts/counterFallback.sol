@@ -8,4 +8,8 @@ contract CounterFallback {
         uint256 value = 0;
         value += 1;
     }
+
+    fallback() external {
+        this.performCall();
+    }
 }

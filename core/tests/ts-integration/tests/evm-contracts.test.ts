@@ -35,7 +35,9 @@ const artifacts = {
     selfDestruct: getEVMArtifact('../evm-contracts/SelfDestruct.sol'),
     gasCaller: getEVMArtifact('../evm-contracts/gasCaller.sol'),
     counterFallback: getEVMArtifact('../evm-contracts/CounterFallback.sol'),
-    uniswapFallback: getEVMArtifact('../evm-contracts/UniswapFallback.sol')
+    uniswapFallback: getEVMArtifact('../evm-contracts/UniswapFallback.sol'),
+    creatorFallback: getEVMArtifact('../evm-contracts/CreatorFallback.sol'),
+    opcodeTestFallback: getEVMArtifact('../evm-contracts/OpcodeTestFallback.sol')
 };
 
 const initBytecode = '0x69602a60005260206000f3600052600a6016f3';
@@ -81,6 +83,41 @@ describe('EVM equivalence contract', () => {
                     .gasUsed;
                 await saveBenchmark(contract.name, filename, gasUsed.toString());
             }
+        });
+    });
+
+    describe('Gas consumption', () => {
+        test("Should compare gas against counter fallback contract's call", async () => {
+            const gasCallerContract = await deploygasCallerContract(alice, artifacts.gasCaller);
+
+            const counterContract = await deploygasCallerContract(alice, artifacts.counterFallback);
+
+            let result = (await gasCallerContract.callStatic.callAndGetGas(counterContract.address)).toString();
+
+            const expected_gas = '0'; // Gas cost when run with solidity interpreter
+            expect(result).toEqual(expected_gas);
+        });
+
+        test("Should compare gas against creator fallback contract's call", async () => {
+            const gasCallerContract = await deploygasCallerContract(alice, artifacts.gasCaller);
+
+            const creatorContract = await deploygasCallerContract(alice, artifacts.creatorFallback);
+
+            let result = (await gasCallerContract.callStatic.callAndGetGas(creatorContract.address)).toString();
+
+            const expected_gas = '0'; // Gas cost when run with solidity interpreter
+            expect(result).toEqual(expected_gas);
+        });
+
+        test("Should compare gas against opcode test fallback contract's call", async () => {
+            const gasCallerContract = await deploygasCallerContract(alice, artifacts.gasCaller);
+
+            const counterContract = await deploygasCallerContract(alice, artifacts.opcodeTestFallback);
+
+            let result = (await gasCallerContract.callStatic.callAndGetGas(counterContract.address)).toString();
+
+            const expected_gas = '0'; // Gas cost when run with solidity interpreter
+            expect(result).toEqual(expected_gas);
         });
     });
 
@@ -487,7 +524,7 @@ describe('EVM equivalence contract', () => {
 
             let result = (await gasCallerContract.callStatic.callAndGetGas(uniswapContract.address)).toString();
 
-            const expected_gas = '0'; // Gas cost when run with solidity interpreter
+            const expected_gas = '165939'; // Gas cost when run with solidity interpreter
             expect(result).toEqual(expected_gas);
         });
     });

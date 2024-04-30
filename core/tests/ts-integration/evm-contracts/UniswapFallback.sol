@@ -104,11 +104,6 @@ contract UniswapFallback {
     IUniswapV2ERC20 public uniswapPair2;
     address public alice_address;
 
-    constructor() {
-        //uniswapPair = IUniswapV2Pair(_uniswapPair);
-        //uniswapPair2 = IUniswapV2ERC20(_uniswapPair);
-        //alice_address = _uniswapPair;
-    }
     function setUniswapAddress(address _uniswap_address) public {
         uniswapPair = IUniswapV2Pair(_uniswap_address);
         uniswapPair2 = IUniswapV2ERC20(_uniswap_address);
