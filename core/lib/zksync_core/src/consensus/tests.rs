@@ -1,16 +1,17 @@
 use anyhow::Context as _;
-use rand::Rng;
 use test_casing::test_casing;
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, scope};
 use zksync_consensus_executor as executor;
 use zksync_consensus_network as network;
 use zksync_consensus_network::testonly::{new_configs, new_fullnode};
-use zksync_consensus_roles::validator::testonly::Setup;
+use zksync_consensus_roles::validator::testonly::{Setup, SetupSpec};
 use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 use super::*;
 use crate::utils::testonly::Snapshot;
+
+const CHAIN_ID: validator::ChainId = validator::ChainId(1337);
 
 async fn new_store(from_snapshot: bool) -> Store {
     match from_snapshot {
@@ -28,7 +29,7 @@ async fn test_validator_block_store() {
     let rng = &mut ctx.rng();
     let store = new_store(false).await;
 
-    // Fill storage with unsigned miniblocks.
+    // Fill storage with unsigned L2 blocks.
     // Fetch a suffix of blocks that we will generate (fake) certs for.
     let want = scope::run!(ctx, |ctx, s| async {
         // Start state keeper.
@@ -36,16 +37,14 @@ async fn test_validator_block_store() {
         s.spawn_bg(runner.run(ctx));
         sk.push_random_blocks(rng, 10).await;
         store.wait_for_payload(ctx, sk.last_block()).await?;
-        let fork = validator::Fork {
-            number: validator::ForkNumber(rng.gen()),
-            first_block: validator::BlockNumber(4),
-        };
-        let mut setup = Setup::new_with_fork(rng, 3, fork.clone());
+        let mut setup = SetupSpec::new(rng, 3);
+        setup.first_block = validator::BlockNumber(4);
+        let mut setup = Setup::from(setup);
         let mut conn = store.access(ctx).await.wrap("access()")?;
         conn.try_update_genesis(ctx, &setup.genesis)
             .await
             .wrap("try_update_genesis()")?;
-        for i in fork.first_block.0..sk.last_block().next().0 {
+        for i in setup.genesis.first_block.0..sk.last_block().next().0 {
             let i = validator::BlockNumber(i);
             let payload = conn
                 .payload(ctx, i)
@@ -95,8 +94,8 @@ fn executor_config(cfg: &network::Config) -> executor::Config {
 }
 
 // In the current implementation, consensus certificates are created asynchronously
-// for the miniblocks constructed by the StateKeeper. This means that consensus actor
-// is effectively just back filling the consensus certificates for the miniblocks in storage.
+// for the L2 blocks constructed by the StateKeeper. This means that consensus actor
+// is effectively just back filling the consensus certificates for the L2 blocks in storage.
 #[test_casing(2, [false, true])]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_validator(from_snapshot: bool) {
@@ -117,7 +116,7 @@ async fn test_validator(from_snapshot: bool) {
         store
             .wait_for_payload(ctx, sk.last_block())
             .await
-            .context("sk.wait_for_miniblocks(<1st phase>)")?;
+            .context("sk.wait_for_payload(<1st phase>)")?;
 
         tracing::info!("Restart consensus actor a couple times, making it process a bunch of blocks each time.");
         for iteration in 0..3 {
@@ -128,6 +127,7 @@ async fn test_validator(from_snapshot: bool) {
                 let cfg = MainNodeConfig {
                     executor: executor_config(&cfgs[0]),
                     validator_key: setup.keys[0].clone(),
+                    chain_id: CHAIN_ID,
                 };
                 s.spawn_bg(cfg.run(ctx, store.clone()));
 
@@ -181,6 +181,7 @@ async fn test_nodes_from_various_snapshots() {
         let cfg = MainNodeConfig {
             executor: executor_config(&validator_cfg),
             validator_key: setup.keys[0].clone(),
+            chain_id: CHAIN_ID,
         };
         s.spawn_bg(cfg.run(ctx, validator_store.clone()));
 
@@ -272,21 +273,24 @@ async fn test_full_nodes(from_snapshot: bool) {
                 .await
                 .context("validator")
         });
-        // Generate a couple of blocks, before initializing consensus genesis.
+        tracing::info!("Generate a couple of blocks, before initializing consensus genesis.");
         validator.push_random_blocks(rng, 5).await;
+        // API server needs at least 1 L1 batch to start.
+        validator.seal_batch().await;
         validator_store
             .wait_for_payload(ctx, validator.last_block())
             .await
             .unwrap();
 
-        // Run validator.
+        tracing::info!("Run validator.");
         let cfg = MainNodeConfig {
             executor: executor_config(&validator_cfgs[0]),
             validator_key: setup.keys[0].clone(),
+            chain_id: CHAIN_ID,
         };
         s.spawn_bg(cfg.run(ctx, validator_store.clone()));
 
-        // Run nodes.
+        tracing::info!("Run nodes.");
         let mut node_stores = vec![];
         for (i, cfg) in node_cfgs.iter().enumerate() {
             let i = ctx::NoCopy(i);
@@ -308,7 +312,7 @@ async fn test_full_nodes(from_snapshot: bool) {
             ));
         }
 
-        // Make validator produce blocks and wait for fetchers to get them.
+        tracing::info!("Make validator produce blocks and wait for fetchers to get them.");
         // Note that block from before and after genesis have to be fetched.
         validator.push_random_blocks(rng, 5).await;
         let want_last = validator.last_block();
@@ -350,6 +354,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
             MainNodeConfig {
                 executor: executor_config(&validator_cfg),
                 validator_key: setup.keys[0].clone(),
+                chain_id: CHAIN_ID,
             }
             .run(ctx, validator_store.clone()),
         );

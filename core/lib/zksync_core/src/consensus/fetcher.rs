@@ -14,7 +14,7 @@ use crate::{
 
 pub type P2PConfig = executor::Config;
 
-/// Miniblock fetcher.
+/// L2 block fetcher.
 pub struct Fetcher {
     pub store: Store,
     pub sync_state: SyncState,
@@ -47,7 +47,7 @@ impl Fetcher {
             drop(conn);
 
             // Fetch blocks before the genesis.
-            self.fetch_blocks(ctx, &mut payload_queue, Some(genesis.fork.first_block))
+            self.fetch_blocks(ctx, &mut payload_queue, Some(genesis.first_block))
                 .await?;
             // Monitor the genesis of the main node.
             // If it changes, it means that a hard fork occurred and we need to reset the consensus state.
@@ -89,7 +89,7 @@ impl Fetcher {
         }
     }
 
-    /// Task fetching miniblocks using json RPC endpoint of the main node.
+    /// Task fetching L2 blocks using JSON-RPC endpoint of the main node.
     pub async fn run_centralized(
         self,
         ctx: &ctx::Ctx,

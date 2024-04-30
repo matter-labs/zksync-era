@@ -14,7 +14,7 @@ use crate::{
 };
 
 /// Represents a call to be made during governance operation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Call {
     /// The address to which the call will be made.
     pub target: Address,
@@ -26,6 +26,18 @@ pub struct Call {
     pub eth_hash: H256,
     /// Block in which Ethereum transaction was included.
     pub eth_block: u64,
+}
+
+impl std::fmt::Debug for Call {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Call")
+            .field("target", &self.target)
+            .field("value", &self.value)
+            .field("data", &hex::encode(&self.data))
+            .field("eth_hash", &self.eth_hash)
+            .field("eth_block", &self.eth_block)
+            .finish()
+    }
 }
 
 /// Defines the structure of an operation that Governance contract executes.
@@ -125,7 +137,6 @@ impl TryFrom<Log> for ProtocolUpgrade {
                 ParamType::Bytes,                             // l1 post-upgrade custom data
                 ParamType::Uint(256),                         // timestamp
                 ParamType::Uint(256),                         // version id
-                ParamType::Address,                           // allow list address
             ])],
             init_calldata
                 .get(4..)
@@ -172,8 +183,6 @@ impl TryFrom<Log> for ProtocolUpgrade {
         if version_id > u16::MAX.into() {
             panic!("Version ID is too big, max expected is {}", u16::MAX);
         }
-
-        let _allow_list_address = decoded.remove(0).into_address().unwrap();
 
         Ok(Self {
             id: ProtocolVersionId::try_from(version_id.as_u32() as u16)

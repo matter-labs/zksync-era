@@ -1,3 +1,6 @@
+use std::sync::Arc;
+
+use anyhow::Context as _;
 use zksync_core::metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
 use zksync_storage::RocksDB;
 
@@ -56,12 +59,14 @@ impl WiringLayer for MetadataCalculatorLayer {
             self.0,
             object_store.map(|store_resource| store_resource.0),
             main_pool,
-            recovery_pool,
         )
-        .await?;
+        .await?
+        .with_recovery_pool(recovery_pool);
 
         let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
-        app_health.insert_component(metadata_calculator.tree_health_check());
+        app_health
+            .insert_custom_component(Arc::new(metadata_calculator.tree_health_check()))
+            .map_err(WiringError::internal)?;
 
         let task = Box::new(MetadataCalculatorTask {
             metadata_calculator,
@@ -83,8 +88,7 @@ impl Task for MetadataCalculatorTask {
         // Wait for all the instances of RocksDB to be destroyed.
         tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
             .await
-            .unwrap();
-
+            .context("failed terminating RocksDB instances")?;
         result
     }
 }

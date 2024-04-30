@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 
+use itertools::Itertools;
 use zksync_types::{
     api::{
-        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
-        TransactionDetails,
+        ApiStorageLog, BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Log, Proof,
+        ProtocolVersion, TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
-    fee_model::FeeParams,
+    fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     transaction_request::CallRequest,
-    Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
+    Address, Bytes, L1BatchNumber, L2BlockNumber, StorageLogQueryType, H256, U256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
@@ -95,8 +96,8 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn get_miniblock_range(&self, batch: L1BatchNumber) -> RpcResult<Option<(U64, U64)>> {
-        self.get_miniblock_range_impl(batch)
+    async fn get_l2_block_range(&self, batch: L1BatchNumber) -> RpcResult<Option<(U64, U64)>> {
+        self.get_l2_block_range_impl(batch)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
@@ -140,12 +141,22 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
+    // to be removed in favor of `get_batch_fee_input`
     async fn get_l1_gas_price(&self) -> RpcResult<U64> {
-        Ok(self.get_l1_gas_price_impl().await)
+        match self.get_batch_fee_input_impl().await {
+            Ok(fee_input) => Ok(fee_input.l1_gas_price.into()),
+            Err(err) => Err(self.current_method().map_err(err)),
+        }
     }
 
     async fn get_fee_params(&self) -> RpcResult<FeeParams> {
         Ok(self.get_fee_params_impl())
+    }
+
+    async fn get_batch_fee_input(&self) -> RpcResult<PubdataIndependentBatchFeeModelInput> {
+        self.get_batch_fee_input_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
     }
 
     async fn get_protocol_version(
@@ -165,6 +176,42 @@ impl ZksNamespaceServer for ZksNamespace {
     ) -> RpcResult<Option<Proof>> {
         self.get_proofs_impl(address, keys, l1_batch_number)
             .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn get_base_token_l1_address(&self) -> RpcResult<Address> {
+        self.get_base_token_l1_address_impl()
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn send_raw_transaction_with_detailed_output(
+        &self,
+        tx_bytes: Bytes,
+    ) -> RpcResult<TransactionDetailedResult> {
+        self.send_raw_transaction_with_detailed_output_impl(tx_bytes)
+            .await
+            .map(|result| TransactionDetailedResult {
+                transaction_hash: result.0,
+                storage_logs: result
+                    .1
+                    .logs
+                    .storage_logs
+                    .iter()
+                    .filter(|x| x.log_type != StorageLogQueryType::Read)
+                    .map(ApiStorageLog::from)
+                    .collect_vec(),
+                events: result
+                    .1
+                    .logs
+                    .events
+                    .iter()
+                    .map(|x| {
+                        let mut l = Log::from(x);
+                        l.transaction_hash = Some(result.0);
+                        l
+                    })
+                    .collect_vec(),
+            })
             .map_err(|err| self.current_method().map_err(err))
     }
 }

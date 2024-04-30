@@ -148,7 +148,7 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
     const SERVICE_NAME: &'static str = "fri_node_aggregation_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.connection().await.unwrap();
+        let mut prover_connection = self.prover_connection_pool.connection().await?;
         let pod_name = get_current_pod_name();
         let Some(metadata) = prover_connection
             .fri_witness_generator_dal()
@@ -266,7 +266,6 @@ pub async fn prepare_job(
                 );
             }
             FriProofWrapper::Recursive(recursive_proof) => recursive_proofs.push(recursive_proof),
-            FriProofWrapper::Eip4844(_) => anyhow::bail!("EIP 4844 should not be run as a node."),
         }
     }
 

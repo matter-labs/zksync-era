@@ -146,6 +146,8 @@ You can generate calldata using the Complex Upgrader contract.
   `delegatedCalldata` field of the L2Upgrade file.
 - `use-contract-deployer`: Using this parameter, the tool will prepare calldata using the ContractDeployer contract.
   This skips the delegation step of the Complex Upgrader contract. This is mostly needed for the very first upgrade.
+- `--system-contracts-with-constructor`: Using this parameter and passing some system contract addresses, the
+  constructor to the list of the provided system contracts will be called.
 
 ```bash
 $ zk f yarn start l2-transaction complex-upgrader-calldata \

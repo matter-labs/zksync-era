@@ -5,9 +5,7 @@ use std::collections::HashMap;
 
 use anyhow::Context as _;
 use zkevm_test_harness::{
-    compute_setups::{
-        generate_circuit_setup_data, generate_circuit_setup_data_4844, CircuitSetupData,
-    },
+    compute_setups::{generate_circuit_setup_data, CircuitSetupData},
     data_source::SetupDataSource,
 };
 use zksync_prover_fri_types::ProverServiceDataKey;
@@ -26,20 +24,14 @@ pub fn generate_setup_data_common(
     circuit: ProverServiceDataKey,
 ) -> anyhow::Result<CircuitSetupData> {
     let mut data_source = keystore.load_keys_to_data_source()?;
-    let circuit_setup_data = if circuit.is_eip4844() {
-        generate_circuit_setup_data_4844().unwrap()
-    } else {
-        generate_circuit_setup_data(
-            circuit.is_base_layer(),
-            circuit.circuit_id,
-            &mut data_source,
-        )
-        .unwrap()
-    };
+    let circuit_setup_data = generate_circuit_setup_data(
+        circuit.is_base_layer(),
+        circuit.circuit_id,
+        &mut data_source,
+    )
+    .unwrap();
 
-    let (finalization, vk) = if circuit.is_eip4844() {
-        (None, data_source.get_eip4844_vk().unwrap())
-    } else if circuit.is_base_layer() {
+    let (finalization, vk) = if circuit.is_base_layer() {
         (
             Some(keystore.load_finalization_hints(circuit.clone())?),
             data_source

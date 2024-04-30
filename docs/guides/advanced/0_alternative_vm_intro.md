@@ -21,7 +21,7 @@ VM. System Contracts are contracts with special permissions, deployed at predefi
 bootloader, which is also a contract, although it is not deployed at any address. This is the STF that is ultimately
 executed by the zkEVM, and executes the transaction against the state.
 
-<!-- KL todo *Add different abstraction levels diagram here:*-->
+<!-- kl to do *Add different abstraction levels diagram here:*-->
 
 Full specification of the zkEVM is beyond the scope of this document. However, this section will give you most of the
 details needed for understanding the L2 system smart contracts & basic differences between EVM and zkEVM. Note also that

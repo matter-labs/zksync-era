@@ -2,9 +2,17 @@
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use multivm::interface::{ExecutionResult, VmRevertReason};
+use itertools::Itertools;
+use multivm::{
+    interface::{ExecutionResult, VmRevertReason},
+    vm_latest::{VmExecutionLogs, VmExecutionResultAndLogs},
+};
 use zksync_types::{
-    get_intrinsic_constants, transaction_request::CallRequest, L2ChainId, PackedEthSignature, U256,
+    api::{ApiStorageLog, Log},
+    get_intrinsic_constants,
+    transaction_request::CallRequest,
+    zk_evm_types::{LogQuery, Timestamp},
+    K256PrivateKey, L2ChainId, PackedEthSignature, StorageLogQuery, StorageLogQueryType, U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::namespaces::DebugNamespaceClient;
@@ -98,8 +106,8 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
     }
 
     fn transaction_executor(&self) -> MockTransactionExecutor {
-        let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
-        CallTest::create_executor(first_local_miniblock)
+        let first_local_l2_block = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
+        CallTest::create_executor(first_local_l2_block)
     }
 
     async fn test(&self, client: &HttpClient, _pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
@@ -116,7 +124,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
             .await?;
         assert_eq!(call_result.0, b"output");
 
-        let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
+        let first_local_l2_block = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
         let pruned_block_numbers = [0, 1, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0];
         for number in pruned_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number.into());
@@ -124,11 +132,11 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
                 .call(CallTest::call_request(b"pruned"), Some(number))
                 .await
                 .unwrap_err();
-            assert_pruned_block_error(&error, first_local_miniblock);
+            assert_pruned_block_error(&error, first_local_l2_block);
         }
 
-        let first_miniblock_numbers = [api::BlockNumber::Latest, first_local_miniblock.0.into()];
-        for number in first_miniblock_numbers {
+        let first_l2_block_numbers = [api::BlockNumber::Latest, first_local_l2_block.0.into()];
+        for number in first_l2_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number);
             let call_result = client
                 .call(CallTest::call_request(b"first"), Some(number))
@@ -151,10 +159,10 @@ struct SendRawTransactionTest {
 
 impl SendRawTransactionTest {
     fn transaction_bytes_and_hash() -> (Vec<u8>, H256) {
-        let (private_key, address) = Self::private_key_and_address();
+        let private_key = Self::private_key();
         let tx_request = api::TransactionRequest {
             chain_id: Some(L2ChainId::default().as_u64()),
-            from: Some(address),
+            from: Some(private_key.address()),
             to: Some(Address::repeat_byte(2)),
             value: 123_456.into(),
             gas: (get_intrinsic_constants().l2_tx_intrinsic_gas * 2).into(),
@@ -176,15 +184,12 @@ impl SendRawTransactionTest {
         (data.into(), tx_hash)
     }
 
-    fn private_key_and_address() -> (H256, Address) {
-        let private_key = H256::repeat_byte(11);
-        let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
-        (private_key, address)
+    fn private_key() -> K256PrivateKey {
+        K256PrivateKey::from_bytes(H256::repeat_byte(11)).unwrap()
     }
 
     fn balance_storage_log() -> StorageLog {
-        let (_, address) = Self::private_key_and_address();
-        let balance_key = storage_key_for_eth_balance(&address);
+        let balance_key = storage_key_for_eth_balance(&Self::private_key().address());
         StorageLog::new_write_log(balance_key, u256_to_h256(U256::one() << 64))
     }
 }
@@ -252,6 +257,129 @@ async fn send_raw_transaction_after_snapshot_recovery() {
         snapshot_recovery: true,
     })
     .await;
+}
+
+#[derive(Debug)]
+struct SendTransactionWithDetailedOutputTest;
+
+impl SendTransactionWithDetailedOutputTest {
+    fn storage_logs(&self) -> Vec<StorageLogQuery> {
+        let log_query = LogQuery {
+            timestamp: Timestamp(100),
+            tx_number_in_block: 1,
+            aux_byte: 1,
+            shard_id: 2,
+            address: Address::zero(),
+            key: U256::one(),
+            read_value: U256::one(),
+            written_value: U256::one(),
+            rw_flag: false,
+            rollback: false,
+            is_service: false,
+        };
+        vec![
+            StorageLogQuery {
+                log_query,
+                log_type: StorageLogQueryType::Read,
+            },
+            StorageLogQuery {
+                log_query: LogQuery {
+                    tx_number_in_block: 2,
+                    ..log_query
+                },
+                log_type: StorageLogQueryType::InitialWrite,
+            },
+            StorageLogQuery {
+                log_query: LogQuery {
+                    tx_number_in_block: 3,
+                    ..log_query
+                },
+                log_type: StorageLogQueryType::RepeatedWrite,
+            },
+        ]
+    }
+
+    fn vm_events(&self) -> Vec<VmEvent> {
+        vec![VmEvent {
+            location: (L1BatchNumber(1), 1),
+            address: Address::zero(),
+            indexed_topics: Vec::new(),
+            value: Vec::new(),
+        }]
+    }
+}
+#[async_trait]
+impl HttpTest for SendTransactionWithDetailedOutputTest {
+    fn transaction_executor(&self) -> MockTransactionExecutor {
+        let mut tx_executor = MockTransactionExecutor::default();
+        let tx_bytes_and_hash = SendRawTransactionTest::transaction_bytes_and_hash();
+        let vm_execution_logs = VmExecutionLogs {
+            storage_logs: self.storage_logs(),
+            events: self.vm_events(),
+            user_l2_to_l1_logs: Default::default(),
+            system_l2_to_l1_logs: Default::default(),
+            total_log_queries_count: 0,
+        };
+
+        tx_executor.set_tx_responses_with_logs(move |tx, block_args| {
+            assert_eq!(tx.hash(), tx_bytes_and_hash.1);
+            assert_eq!(block_args.resolved_block_number(), L2BlockNumber(1));
+
+            VmExecutionResultAndLogs {
+                result: ExecutionResult::Success { output: vec![] },
+                logs: vm_execution_logs.clone(),
+                statistics: Default::default(),
+                refunds: Default::default(),
+            }
+        });
+        tx_executor
+    }
+
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+        // Manually set sufficient balance for the transaction account.
+        let mut storage = pool.connection().await?;
+        storage
+            .storage_logs_dal()
+            .append_storage_logs(
+                L2BlockNumber(0),
+                &[(
+                    H256::zero(),
+                    vec![SendRawTransactionTest::balance_storage_log()],
+                )],
+            )
+            .await?;
+
+        let (tx_bytes, tx_hash) = SendRawTransactionTest::transaction_bytes_and_hash();
+        let send_result = client
+            .send_raw_transaction_with_detailed_output(tx_bytes.into())
+            .await?;
+        assert_eq!(send_result.transaction_hash, tx_hash);
+        assert_eq!(
+            send_result.events,
+            self.vm_events()
+                .iter()
+                .map(|x| {
+                    let mut l = Log::from(x);
+                    l.transaction_hash = Some(tx_hash);
+                    l
+                })
+                .collect_vec()
+        );
+        assert_eq!(
+            send_result.storage_logs,
+            self.storage_logs()
+                .iter()
+                .filter(|x| x.log_type != StorageLogQueryType::Read)
+                .map(ApiStorageLog::from)
+                .collect_vec()
+        );
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn send_raw_transaction_with_detailed_output() {
+    test_http_server(SendTransactionWithDetailedOutputTest).await;
 }
 
 #[derive(Debug)]
@@ -355,7 +483,7 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
             .await?;
         TraceCallTest::assert_debug_call(&call_request, &call_result);
 
-        let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
+        let first_local_l2_block = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
         let pruned_block_numbers = [0, 1, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0];
         for number in pruned_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number.into());
@@ -363,12 +491,12 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
                 .call(CallTest::call_request(b"pruned"), Some(number))
                 .await
                 .unwrap_err();
-            assert_pruned_block_error(&error, first_local_miniblock);
+            assert_pruned_block_error(&error, first_local_l2_block);
         }
 
         let call_request = CallTest::call_request(b"first");
-        let first_miniblock_numbers = [api::BlockNumber::Latest, first_local_miniblock.0.into()];
-        for number in first_miniblock_numbers {
+        let first_l2_block_numbers = [api::BlockNumber::Latest, first_local_l2_block.0.into()];
+        for number in first_l2_block_numbers {
             let number = api::BlockId::Number(number);
             let call_result = client
                 .trace_call(call_request.clone(), Some(number), None)
@@ -459,7 +587,7 @@ impl HttpTest for EstimateGasTest {
                 .await?;
         }
         let mut call_request = CallRequest::from(l2_transaction);
-        call_request.from = Some(SendRawTransactionTest::private_key_and_address().1);
+        call_request.from = Some(SendRawTransactionTest::private_key().address());
         call_request.value = Some(1_000_000.into());
         client.estimate_gas(call_request.clone(), None).await?;
 

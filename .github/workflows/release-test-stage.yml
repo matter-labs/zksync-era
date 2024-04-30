@@ -71,6 +71,17 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
+  build-push-contract-verifier:
+    name: Build and push images
+    needs: [ setup, changed_files ]
+    uses: ./.github/workflows/build-contract-verifier-template.yml
+    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
   build-push-prover-images:
     name: Build and push images
     needs: [setup, changed_files]

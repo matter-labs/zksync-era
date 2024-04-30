@@ -6,19 +6,23 @@ import * as path from 'path';
 import { getTokens } from './hyperchain_wizard';
 import * as env from './env';
 
-export async function deployERC20(
-    command: 'dev' | 'new',
-    name?: string,
-    symbol?: string,
-    decimals?: string,
-    args: any = []
-) {
+export async function deployERC20AndWeth({
+    command,
+    name,
+    symbol,
+    decimals,
+    envFile
+}: {
+    command: 'dev' | 'new';
+    name?: string;
+    symbol?: string;
+    decimals?: string;
+    envFile?: string;
+}) {
     if (command == 'dev') {
-        let destinationFile = 'localhost';
-        if (args.includes('--envFile')) {
-            destinationFile = args[args.indexOf('--envFile') + 1];
-            args.splice(args.indexOf('--envFile'), 2);
-        }
+        const destinationFile = envFile || 'localhost';
+        const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
+        const args = [privateKey ? `--private-key ${privateKey}` : ''];
         await utils.spawn(`yarn --silent --cwd contracts/l1-contracts deploy-erc20 add-multi '
             [
                 { "name": "DAI",  "symbol": "DAI",  "decimals": 18 },
@@ -27,13 +31,24 @@ export async function deployERC20(
                 { "name": "Wrapped Ether", "symbol": "WETH", "decimals": 18, "implementation": "WETH9"}
             ]' ${args.join(' ')} > ./etc/tokens/${destinationFile}.json`);
         const WETH = getTokens(destinationFile).find((token) => token.symbol === 'WETH')!;
-        env.modify('CONTRACTS_L1_WETH_TOKEN_ADDR', `CONTRACTS_L1_WETH_TOKEN_ADDR=${WETH.address}`);
+        env.modify(
+            'CONTRACTS_L1_WETH_TOKEN_ADDR',
+            `CONTRACTS_L1_WETH_TOKEN_ADDR=${WETH.address}`,
+            `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+        );
     } else if (command == 'new') {
         await utils.spawn(
             `yarn --silent --cwd contracts/l1-contracts deploy-erc20 add --token-name ${name} --symbol ${symbol} --decimals ${decimals}`
         );
     }
 }
+
+export type Token = {
+    address: string | null;
+    name: string;
+    symbol: string;
+    decimals: number;
+};
 
 export async function tokenInfo(address: string) {
     await utils.spawn(`yarn l1-contracts token-info info ${address}`);
@@ -58,34 +73,20 @@ export async function catLogs(exitCode?: number) {
     }
 }
 
-function readTestMnemonic() {
+export async function testAccounts() {
     const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, `etc/test_config/constant`);
-    return JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
-}
-
-type SimpleWallet = {
-    address: string;
-    privateKey: string;
-};
-
-export async function readTestAccounts() {
-    const ethTestConfig = readTestMnemonic();
-    let wallets = await testAccounts(ethTestConfig.test_mnemonic as string);
-    console.log(JSON.stringify(wallets, null, 4));
-}
-
-export async function testAccounts(mnemonic: string): Promise<SimpleWallet[]> {
+    const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
     const NUM_TEST_WALLETS = 10;
     const baseWalletPath = "m/44'/60'/0'/0/";
     const walletKeys = [];
     for (let i = 0; i < NUM_TEST_WALLETS; ++i) {
-        const ethWallet = Wallet.fromMnemonic(mnemonic, baseWalletPath + i);
+        const ethWallet = Wallet.fromMnemonic(ethTestConfig.test_mnemonic as string, baseWalletPath + i);
         walletKeys.push({
             address: ethWallet.address,
             privateKey: ethWallet.privateKey
         });
     }
-    return walletKeys;
+    console.log(JSON.stringify(walletKeys, null, 4));
 }
 
 export async function loadtest(...args: string[]) {
@@ -109,15 +110,22 @@ export async function readVariable(address: string, contractName: string, variab
         );
 }
 
+export async function cross_en_checker() {
+    let logLevel = 'RUST_LOG=cross_external_nodes_checker=debug';
+    let suffix = 'cargo run --release --bin cross_external_nodes_checker';
+    await utils.spawn(`${logLevel} ${suffix}`);
+}
+
 export async function snapshots_creator() {
-    process.chdir(process.env.ZKSYNC_HOME ?? '.');
-    await utils.spawn('cargo run  --release --bin snapshots_creator');
+    process.chdir(`${process.env.ZKSYNC_HOME}`);
+    let logLevel = 'RUST_LOG=snapshots_creator=debug';
+    await utils.spawn(`${logLevel} cargo run --bin snapshots_creator --release`);
 }
 
 export const command = new Command('run').description('run miscellaneous applications');
 
-command.command('test-accounts').description('print ethereum test accounts').action(readTestAccounts);
-command.command('yarn install --frozen-lockfile').description('install all JS dependencies').action(yarn);
+command.command('test-accounts').description('print ethereum test accounts').action(testAccounts);
+command.command('yarn').description('install all JS dependencies').action(yarn);
 command.command('cat-logs [exit_code]').description('print server and prover logs').action(catLogs);
 
 command
@@ -127,7 +135,7 @@ command
         if (command != 'dev' && command != 'new') {
             throw new Error('only "dev" and "new" subcommands are allowed');
         }
-        await deployERC20(command, name, symbol, decimals);
+        await deployERC20AndWeth({ command, name, symbol, decimals });
     });
 
 command

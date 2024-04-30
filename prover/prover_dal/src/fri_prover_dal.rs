@@ -34,10 +34,6 @@ impl FriProverDal<'_, '_> {
         for (sequence_number, (circuit_id, circuit_blob_url)) in
             circuit_ids_and_urls.iter().enumerate()
         {
-            // EIP 4844 are special cased.
-            // There exist only 2 blobs that are calculated at basic layer and injected straight into scheduler proof (as of 1.4.2).
-            // As part of 1.5.0, these will be treated as regular circuits, having basic, leaf, node and finally being attached as regular node proofs to the scheduler.
-            let is_node_final_proof = *circuit_id == EIP_4844_CIRCUIT_ID;
             self.insert_prover_job(
                 l1_batch_number,
                 *circuit_id,
@@ -45,7 +41,7 @@ impl FriProverDal<'_, '_> {
                 sequence_number,
                 aggregation_round,
                 circuit_blob_url,
-                is_node_final_proof,
+                false,
                 protocol_version_id,
             )
             .await;
@@ -571,6 +567,30 @@ impl FriProverDal<'_, '_> {
         .map(|row| row.id as u32)
     }
 
+    pub async fn get_recursion_tip_proof_job_id(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Option<u32> {
+        sqlx::query!(
+            r#"
+            SELECT
+                id
+            FROM
+                prover_jobs_fri
+            WHERE
+                l1_batch_number = $1
+                AND status = 'successful'
+                AND aggregation_round = $2
+            "#,
+            l1_batch_number.0 as i64,
+            AggregationRound::RecursionTip as i16,
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .ok()?
+        .map(|row| row.id as u32)
+    }
+
     pub async fn archive_old_jobs(&mut self, archiving_interval_secs: u64) -> usize {
         let archiving_interval_secs =
             pg_interval_from_duration(Duration::from_secs(archiving_interval_secs));
@@ -596,6 +616,34 @@ impl FriProverDal<'_, '_> {
         .await
         .unwrap()
         .unwrap_or(0) as usize
+    }
+
+    pub async fn get_final_node_proof_job_ids_for(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Vec<(u8, u32)> {
+        sqlx::query!(
+            r#"
+            SELECT
+                circuit_id,
+                id
+            FROM
+                prover_jobs_fri
+            WHERE
+                l1_batch_number = $1
+                AND is_node_final_proof = true
+                AND status = 'successful'
+            ORDER BY
+                circuit_id ASC
+            "#,
+            l1_batch_number.0 as i64
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| (row.circuit_id as u8, row.id as u32))
+        .collect()
     }
 
     pub async fn get_prover_jobs_stats_for_batch(

@@ -70,14 +70,14 @@ impl EventsDal<'_, '_> {
         for (tx_location, events) in all_block_events {
             let IncludedTxLocation {
                 tx_hash,
-                tx_index_in_miniblock,
+                tx_index_in_l2_block,
                 tx_initiator_address,
             } = tx_location;
 
             for (event_index_in_tx, event) in events.iter().enumerate() {
                 write_str!(
                     &mut buffer,
-                    r"{block_number}|\\x{tx_hash:x}|{tx_index_in_miniblock}|\\x{address:x}|",
+                    r"{block_number}|\\x{tx_hash:x}|{tx_index_in_l2_block}|\\x{address:x}|",
                     address = event.address
                 );
                 write_str!(&mut buffer, "{event_index_in_block}|{event_index_in_tx}|");
@@ -102,7 +102,7 @@ impl EventsDal<'_, '_> {
     }
 
     /// Removes events with a block number strictly greater than the specified `block_number`.
-    pub async fn rollback_events(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
+    pub async fn roll_back_events(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM events
@@ -111,7 +111,7 @@ impl EventsDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .instrument("rollback_events")
+        .instrument("roll_back_events")
         .with_arg("block_number", &block_number)
         .execute(self.storage)
         .await?;
@@ -143,11 +143,11 @@ impl EventsDal<'_, '_> {
 
         let mut buffer = String::new();
         let now = Utc::now().naive_utc().to_string();
-        let mut log_index_in_miniblock = 0u32;
+        let mut log_index_in_l2_block = 0u32;
         for (tx_location, logs) in all_block_l2_to_l1_logs {
             let IncludedTxLocation {
                 tx_hash,
-                tx_index_in_miniblock,
+                tx_index_in_l2_block,
                 ..
             } = tx_location;
 
@@ -163,18 +163,18 @@ impl EventsDal<'_, '_> {
 
                 write_str!(
                     &mut buffer,
-                    r"{block_number}|{log_index_in_miniblock}|{log_index_in_tx}|\\x{tx_hash:x}|"
+                    r"{block_number}|{log_index_in_l2_block}|{log_index_in_tx}|\\x{tx_hash:x}|"
                 );
                 write_str!(
                     &mut buffer,
-                    r"{tx_index_in_miniblock}|{tx_number_in_block}|{shard_id}|{is_service}|"
+                    r"{tx_index_in_l2_block}|{tx_number_in_block}|{shard_id}|{is_service}|"
                 );
                 writeln_str!(
                     &mut buffer,
                     r"\\x{sender:x}|\\x{key:x}|\\x{value:x}|{now}|{now}"
                 );
 
-                log_index_in_miniblock += 1;
+                log_index_in_l2_block += 1;
             }
         }
 
@@ -182,7 +182,7 @@ impl EventsDal<'_, '_> {
     }
 
     /// Removes all L2-to-L1 logs with a L2 block number strictly greater than the specified `block_number`.
-    pub async fn rollback_l2_to_l1_logs(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
+    pub async fn roll_back_l2_to_l1_logs(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM l2_to_l1_logs
@@ -191,7 +191,7 @@ impl EventsDal<'_, '_> {
             "#,
             i64::from(block_number.0)
         )
-        .instrument("rollback_l2_to_l1_logs")
+        .instrument("roll_back_l2_to_l1_logs")
         .with_arg("block_number", &block_number)
         .execute(self.storage)
         .await?;
@@ -433,7 +433,7 @@ mod tests {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
         conn.events_dal()
-            .rollback_events(L2BlockNumber(0))
+            .roll_back_events(L2BlockNumber(0))
             .await
             .unwrap();
         conn.blocks_dal()
@@ -451,13 +451,13 @@ mod tests {
 
         let first_location = IncludedTxLocation {
             tx_hash: H256([1; 32]),
-            tx_index_in_miniblock: 0,
+            tx_index_in_l2_block: 0,
             tx_initiator_address: Address::default(),
         };
         let first_events = vec![create_vm_event(0, 0), create_vm_event(1, 4)];
         let second_location = IncludedTxLocation {
             tx_hash: H256([2; 32]),
-            tx_index_in_miniblock: 1,
+            tx_index_in_l2_block: 1,
             tx_initiator_address: Address::default(),
         };
         let second_events = vec![
@@ -514,7 +514,7 @@ mod tests {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
         conn.events_dal()
-            .rollback_l2_to_l1_logs(L2BlockNumber(0))
+            .roll_back_l2_to_l1_logs(L2BlockNumber(0))
             .await
             .unwrap();
         conn.blocks_dal()
@@ -532,13 +532,13 @@ mod tests {
 
         let first_location = IncludedTxLocation {
             tx_hash: H256([1; 32]),
-            tx_index_in_miniblock: 0,
+            tx_index_in_l2_block: 0,
             tx_initiator_address: Address::default(),
         };
         let first_logs = vec![create_l2_to_l1_log(0, 0), create_l2_to_l1_log(0, 1)];
         let second_location = IncludedTxLocation {
             tx_hash: H256([2; 32]),
-            tx_index_in_miniblock: 1,
+            tx_index_in_l2_block: 1,
             tx_initiator_address: Address::default(),
         };
         let second_logs = vec![
