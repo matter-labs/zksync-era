@@ -12,7 +12,7 @@ impl ProtoRepr for proto::Wallets {
     fn read(&self) -> anyhow::Result<Self::Type> {
         let eth_sender = if self.operator.is_some() && self.blob_operator.is_some() {
             let blob_operator = if let Some(blob_operator) = &self.blob_operator {
-                Some(Wallet::from_private_key(
+                Some(Wallet::from_private_key_bytes(
                     parse_h256(required(&blob_operator.private_key).context("blob operator")?)?,
                     blob_operator
                         .address
@@ -25,7 +25,7 @@ impl ProtoRepr for proto::Wallets {
 
             let operator_wallet = &self.operator.clone().context("Operator private key")?;
 
-            let operator = Wallet::from_private_key(
+            let operator = Wallet::from_private_key_bytes(
                 parse_h256(required(&operator_wallet.private_key).context("operator")?)?,
                 operator_wallet
                     .address

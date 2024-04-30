@@ -50,7 +50,7 @@ impl WiringLayer for PKSigningEthClientLayer {
             &self.eth_sender_config,
             &self.contracts_config,
             self.l1chain_id,
-            private_key,
+            private_key.clone(),
         );
         context.insert_resource(BoundEthInterfaceResource(Arc::new(signing_client)))?;
         Ok(())

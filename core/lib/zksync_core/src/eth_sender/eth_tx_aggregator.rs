@@ -427,10 +427,11 @@ impl EthTxAggregator {
         contracts_are_pre_shared_bridge: bool,
     ) -> TxData {
         let operation_is_pre_shared_bridge = op.protocol_version().is_pre_shared_bridge();
-        assert_eq!(
-            contracts_are_pre_shared_bridge,
-            operation_is_pre_shared_bridge
-        );
+
+        // The post shared bridge contracts support pre-shared bridge operations, but vice versa is not true.
+        if contracts_are_pre_shared_bridge {
+            assert!(operation_is_pre_shared_bridge);
+        }
 
         let mut args = vec![Token::Uint(self.rollup_chain_id.as_u64().into())];
 

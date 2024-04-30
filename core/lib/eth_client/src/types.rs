@@ -366,7 +366,7 @@ mod tests {
     use zksync_types::{
         eth_sender::{EthTxBlobSidecarV1, SidecarBlobV1},
         web3::{self},
-        EIP_4844_TX_TYPE, H160, H256, U256, U64,
+        K256PrivateKey, EIP_4844_TX_TYPE, H160, H256, U256, U64,
     };
 
     use super::*;
@@ -389,9 +389,10 @@ mod tests {
     // network format defined by the `EIP`. That is, a signed transaction
     // itself and the sidecar containing the blobs.
     async fn test_generating_signed_raw_transaction_with_4844_sidecar() {
-        let private_key =
-            H256::from_str("27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be")
-                .unwrap();
+        let private_key: H256 = "27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be"
+            .parse()
+            .unwrap();
+        let private_key = K256PrivateKey::from_bytes(private_key).unwrap();
         let commitment = hex::decode(
             "b5022d2a994ebd05f42c2f8e9b227185bf5963fcd1d412e17e97a026698d9670c0139872a400740d25835b5eaade22ad"
         ).unwrap();
@@ -479,6 +480,7 @@ mod tests {
         let private_key =
             H256::from_str("27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be")
                 .unwrap();
+        let private_key = K256PrivateKey::from_bytes(private_key).unwrap();
 
         let commitment_1 = hex::decode(
 "b5022d2a994ebd05f42c2f8e9b227185bf5963fcd1d412e17e97a026698d9670c0139872a400740d25835b5eaade22ad"

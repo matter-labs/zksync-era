@@ -5,7 +5,7 @@ use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
-use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
+use zksync_system_constants::{get_intrinsic_constants, ZKPORTER_IS_AVAILABLE};
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
     commitment::{
@@ -18,8 +18,8 @@ use zksync_types::{
     snapshots::SnapshotRecoveryStatus,
     transaction_request::PaymasterParams,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersion, ProtocolVersionId,
-    StorageLog, H256, U256,
+    Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersion,
+    ProtocolVersionId, StorageLog, H256, U256,
 };
 
 use crate::{fee_model::BatchFeeModelInputProvider, genesis::GenesisParams};
@@ -110,7 +110,7 @@ pub(crate) fn l1_batch_metadata_to_commitment_artifacts(
 /// Creates an L2 transaction with randomized parameters.
 pub(crate) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> L2Tx {
     let fee = Fee {
-        gas_limit: 1000_u64.into(),
+        gas_limit: (get_intrinsic_constants().l2_tx_intrinsic_gas * 2).into(),
         max_fee_per_gas: fee_per_gas.into(),
         max_priority_fee_per_gas: 0_u64.into(),
         gas_per_pubdata_limit: gas_per_pubdata.into(),
@@ -122,7 +122,7 @@ pub(crate) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> L
         fee,
         U256::zero(),
         L2ChainId::from(271),
-        &H256::random(),
+        &K256PrivateKey::random(),
         None,
         PaymasterParams::default(),
     )

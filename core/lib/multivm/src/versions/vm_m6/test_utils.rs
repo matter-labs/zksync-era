@@ -10,16 +10,11 @@ use std::collections::HashMap;
 
 use itertools::Itertools;
 use zk_evm_1_3_1::{aux_structures::Timestamp, vm_state::VmLocalState};
-use zksync_contracts::{
-    deployer_contract, get_loadnext_contract, load_contract,
-    test_contracts::LoadnextContractExecutionParams,
-};
+use zksync_contracts::deployer_contract;
 use zksync_types::{
     ethabi::{Address, Token},
-    fee::Fee,
-    l2::L2Tx,
     web3::signing::keccak256,
-    Execute, L2ChainId, Nonce, StorageKey, StorageValue, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
+    Execute, Nonce, StorageKey, StorageValue, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
 use zksync_utils::{
     address_to_h256, bytecode::hash_bytecode, h256_to_account_address, u256_to_h256,
@@ -141,87 +136,6 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
     }
 }
 
-// This one is used only for tests, but it is in this folder to
-// be able to share it among crates
-pub fn mock_loadnext_test_call(
-    eth_private_key: H256,
-    nonce: Nonce,
-    contract_address: Address,
-    fee: Fee,
-    execution_params: LoadnextContractExecutionParams,
-) -> L2Tx {
-    let loadnext_contract = get_loadnext_contract();
-
-    let contract_function = loadnext_contract.contract.function("execute").unwrap();
-
-    let params = vec![
-        Token::Uint(U256::from(execution_params.reads)),
-        Token::Uint(U256::from(execution_params.writes)),
-        Token::Uint(U256::from(execution_params.hashes)),
-        Token::Uint(U256::from(execution_params.events)),
-        Token::Uint(U256::from(execution_params.recursive_calls)),
-        Token::Uint(U256::from(execution_params.deploys)),
-    ];
-    let calldata = contract_function
-        .encode_input(&params)
-        .expect("failed to encode parameters");
-
-    let mut l2_tx = L2Tx::new_signed(
-        contract_address,
-        calldata,
-        nonce,
-        fee,
-        Default::default(),
-        L2ChainId::from(270),
-        &eth_private_key,
-        None,
-        Default::default(),
-    )
-    .unwrap();
-    // Input means all transaction data (NOT calldata, but all tx fields) that came from the API.
-    // This input will be used for the derivation of the tx hash, so put some random to it to be sure
-    // that the transaction hash is unique.
-    l2_tx.set_input(H256::random().0.to_vec(), H256::random());
-    l2_tx
-}
-
-// This one is used only for tests, but it is in this folder to
-// be able to share it among crates
-pub fn mock_loadnext_gas_burn_call(
-    eth_private_key: H256,
-    nonce: Nonce,
-    contract_address: Address,
-    fee: Fee,
-    gas: u32,
-) -> L2Tx {
-    let loadnext_contract = get_loadnext_contract();
-
-    let contract_function = loadnext_contract.contract.function("burnGas").unwrap();
-
-    let params = vec![Token::Uint(U256::from(gas))];
-    let calldata = contract_function
-        .encode_input(&params)
-        .expect("failed to encode parameters");
-
-    let mut l2_tx = L2Tx::new_signed(
-        contract_address,
-        calldata,
-        nonce,
-        fee,
-        Default::default(),
-        L2ChainId::from(270),
-        &eth_private_key,
-        None,
-        Default::default(),
-    )
-    .unwrap();
-    // Input means all transaction data (NOT calldata, but all tx fields) that came from the API.
-    // This input will be used for the derivation of the tx hash, so put some random to it to be sure
-    // that the transaction hash is unique.
-    l2_tx.set_input(H256::random().0.to_vec(), H256::random());
-    l2_tx
-}
-
 pub fn get_create_execute(code: &[u8], calldata: &[u8]) -> Execute {
     let deployer = deployer_contract();
 
@@ -242,77 +156,6 @@ pub fn get_create_execute(code: &[u8], calldata: &[u8]) -> Execute {
         factory_deps: Some(vec![code.to_vec()]),
         value: U256::zero(),
     }
-}
-
-fn get_execute_error_calldata() -> Vec<u8> {
-    let test_contract = load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/error/error.sol/SimpleRequire.json",
-    );
-
-    let function = test_contract.function("require_short").unwrap();
-
-    function
-        .encode_input(&[])
-        .expect("failed to encode parameters")
-}
-
-pub fn get_deploy_tx(
-    account_private_key: H256,
-    nonce: Nonce,
-    code: &[u8],
-    factory_deps: Vec<Vec<u8>>,
-    calldata: &[u8],
-    fee: Fee,
-) -> L2Tx {
-    let factory_deps = factory_deps
-        .into_iter()
-        .chain(vec![code.to_vec()])
-        .collect();
-    let execute = get_create_execute(code, calldata);
-
-    let mut signed = L2Tx::new_signed(
-        CONTRACT_DEPLOYER_ADDRESS,
-        execute.calldata,
-        nonce,
-        fee,
-        U256::zero(),
-        L2ChainId::from(270),
-        &account_private_key,
-        Some(factory_deps),
-        Default::default(),
-    )
-    .expect("should create a signed execute transaction");
-
-    signed.set_input(H256::random().as_bytes().to_vec(), H256::random());
-
-    signed
-}
-
-pub fn get_error_tx(
-    account_private_key: H256,
-    nonce: Nonce,
-    contract_address: Address,
-    fee: Fee,
-) -> L2Tx {
-    let factory_deps = vec![];
-    let calldata = get_execute_error_calldata();
-
-    let mut signed = L2Tx::new_signed(
-        contract_address,
-        calldata,
-        nonce,
-        fee,
-        U256::zero(),
-        L2ChainId::from(270),
-        &account_private_key,
-        Some(factory_deps),
-        Default::default(),
-    )
-    .expect("should create a signed execute transaction");
-
-    signed.set_input(H256::random().as_bytes().to_vec(), H256::random());
-
-    signed
 }
 
 pub fn get_create_zksync_address(sender_address: Address, sender_nonce: Nonce) -> Address {
