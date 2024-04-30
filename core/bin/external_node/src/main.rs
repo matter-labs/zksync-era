@@ -154,7 +154,7 @@ async fn run_tree(
     })?;
     let recovery_pool = ConnectionPool::builder(
         tree_pool.database_url(),
-        max_concurrency.min(config.postgres.max_connections),
+        max_concurrency.min(config.postgres.database_pool_size),
     )
     .build()
     .await
@@ -695,6 +695,9 @@ async fn shutdown_components(
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
 struct Cli {
+    /// Print information about configuration options and exit.
+    #[arg(long = "config-list")]
+    list_configs: bool,
     /// Revert the pending L1 batch and exit.
     #[arg(long)]
     revert_pending_l1_batch: bool,
@@ -760,6 +763,11 @@ async fn main() -> anyhow::Result<()> {
     // Initial setup.
     let opt = Cli::parse();
 
+    if opt.list_configs {
+        ExternalNodeConfig::print_help();
+        return Ok(());
+    }
+
     let observability_config =
         observability_config_from_env().context("ObservabilityConfig::from_env()")?;
     let log_format: vlog::LogFormat = observability_config
@@ -802,7 +810,7 @@ async fn main() -> anyhow::Result<()> {
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
     let connection_pool = ConnectionPool::<Core>::builder(
         &config.postgres.database_url,
-        config.postgres.max_connections,
+        config.postgres.database_pool_size,
     )
     .build()
     .await

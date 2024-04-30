@@ -34,7 +34,7 @@ impl ExternalNodeMetrics {
             server_version: SERVER_VERSION,
             l1_chain_id: config.remote.l1_chain_id.0,
             l2_chain_id: config.remote.l2_chain_id.as_u64(),
-            postgres_pool_size: config.postgres.max_connections,
+            postgres_pool_size: config.postgres.database_pool_size,
         };
         tracing::info!("Setting general node information: {info:?}");
 

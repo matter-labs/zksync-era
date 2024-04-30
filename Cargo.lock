@@ -8660,6 +8660,7 @@ dependencies = [
  "zksync_commitment_generator",
  "zksync_concurrency",
  "zksync_config",
+ "zksync_config_derive",
  "zksync_consensus_roles",
  "zksync_contracts",
  "zksync_core",

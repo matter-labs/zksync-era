@@ -15,8 +15,10 @@ use zksync_config::{
         chain::L1BatchCommitDataGeneratorMode,
         consensus::{ConsensusConfig, ConsensusSecrets},
     },
+    metadata::DescribeConfig,
     ObjectStoreConfig,
 };
+use zksync_config_derive::DescribeConfig;
 use zksync_core::{
     api_server::{
         tx_sender::TxSenderConfig,
@@ -35,6 +37,10 @@ use zksync_web3_decl::{
     jsonrpsee::{core::ClientError, http_client::HttpClientBuilder, types::error::ErrorCode},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
+
+use self::command::print_config;
+
+mod command;
 pub(crate) mod observability;
 #[cfg(test)]
 mod tests;
@@ -195,10 +201,12 @@ pub(crate) enum BlockFetcher {
     Consensus,
 }
 
+/// # Optional configuration
+///
 /// This part of the external node config is completely optional to provide.
 /// It can tweak limits of the API, delay intervals of certain components, etc.
 /// If any of the fields are not provided, the default values will be used.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, DescribeConfig)]
 pub(crate) struct OptionalENConfig {
     // User-facing API limits
     /// Max possible limit of filters to be in the API state at once.
@@ -269,8 +277,11 @@ pub(crate) struct OptionalENConfig {
     pub filters_disabled: bool,
     /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
     /// In milliseconds. Default is 50 milliseconds.
-    #[serde(default = "OptionalENConfig::default_mempool_cache_update_interval")]
-    pub mempool_cache_update_interval: u64,
+    #[serde(
+        alias = "mempool_cache_update_interval",
+        default = "OptionalENConfig::default_mempool_cache_update_interval"
+    )]
+    pub mempool_cache_update_interval_ms: u64,
     /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
     #[serde(default = "OptionalENConfig::default_mempool_cache_size")]
     pub mempool_cache_size: usize,
@@ -383,7 +394,8 @@ pub(crate) struct OptionalENConfig {
     pub pruning_data_retention_hours: Option<u64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+/// # Configuration of API component
+#[derive(Debug, Clone, PartialEq, Deserialize, DescribeConfig)]
 pub struct ApiComponentConfig {
     /// Address of the tree API used by this EN in case it does not have a
     /// local tree component running and in this case needs to send requests
@@ -391,8 +403,10 @@ pub struct ApiComponentConfig {
     pub tree_api_remote_url: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+/// # Configuration of tree component
+#[derive(Debug, Clone, PartialEq, Deserialize, DescribeConfig)]
 pub struct TreeComponentConfig {
+    /// Port to bind the tree API server to. If not specified, tree API won't be started.
     pub api_port: Option<u16>,
 }
 
@@ -597,7 +611,7 @@ impl OptionalENConfig {
     }
 
     pub fn mempool_cache_update_interval(&self) -> Duration {
-        Duration::from_millis(self.mempool_cache_update_interval)
+        Duration::from_millis(self.mempool_cache_update_interval_ms)
     }
 
     #[cfg(test)]
@@ -607,8 +621,10 @@ impl OptionalENConfig {
     }
 }
 
+/// # Required configuration
+///
 /// This part of the external node config is required for its operation.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq, DescribeConfig)]
 pub(crate) struct RequiredENConfig {
     /// Port on which the HTTP RPC server is listening.
     pub http_port: u16,
@@ -617,13 +633,13 @@ pub(crate) struct RequiredENConfig {
     /// Port on which the healthcheck REST server is listening.
     pub healthcheck_port: u16,
     /// Address of the Ethereum node API.
-    /// Intentionally private: use getter method as it manages the missing port.
+    // Intentionally private: use getter method as it manages the missing port.
     eth_client_url: String,
     /// Main node URL - used by external node to proxy transactions to, query state from, etc.
-    /// Intentionally private: use getter method as it manages the missing port.
+    // Intentionally private: use getter method as it manages the missing port.
     main_node_url: String,
     /// Path to the database data directory that serves state cache.
-    pub state_cache_path: String,
+    pub state_cache_path: String, // FIXME: replace with PathBuf
     /// Fast SSD path. Used as a RocksDB dir for the Merkle tree (*new* implementation).
     pub merkle_tree_path: String,
 }
@@ -661,14 +677,13 @@ impl RequiredENConfig {
     }
 }
 
-/// Configuration for Postgres database.
-/// While also mandatory, it historically used different naming scheme for corresponding
-/// environment variables.
-/// Thus it is kept separately for backward compatibility and ease of deserialization.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+/// # Postgres database configuration
+#[derive(Debug, Clone, Deserialize, PartialEq, DescribeConfig)]
 pub(crate) struct PostgresConfig {
+    /// Postgres URL to connect to the database.
     pub database_url: String,
-    pub max_connections: u32,
+    /// Pool size of the main database connection pool.
+    pub database_pool_size: u32,
 }
 
 impl PostgresConfig {
@@ -676,7 +691,7 @@ impl PostgresConfig {
         Ok(Self {
             database_url: env::var("DATABASE_URL")
                 .context("DATABASE_URL env variable is not set")?,
-            max_connections: env::var("DATABASE_POOL_SIZE")
+            database_pool_size: env::var("DATABASE_POOL_SIZE")
                 .context("DATABASE_POOL_SIZE env variable is not set")?
                 .parse()
                 .context("Unable to parse DATABASE_POOL_SIZE env variable")?,
@@ -687,7 +702,7 @@ impl PostgresConfig {
     fn mock(test_pool: &ConnectionPool<Core>) -> Self {
         Self {
             database_url: test_pool.database_url().to_owned(),
-            max_connections: test_pool.max_size(),
+            database_pool_size: test_pool.max_size(),
         }
     }
 }
@@ -742,6 +757,19 @@ pub(crate) struct ExternalNodeConfig {
 }
 
 impl ExternalNodeConfig {
+    pub fn print_help() {
+        println!(
+            "Configuration is supplied to the node as environment variables. The name of an env variable is obtained \
+             by converting the parameter name to upper case and replacing '.' chars with '_'. For example, `en.prometheus_port` parameter \
+             is mapped to the `EN_PROMETHEUS_PORT` env var.\n"
+        );
+        print_config(&RequiredENConfig::describe_config(), "en.");
+        print_config(&OptionalENConfig::describe_config(), "en.");
+        print_config(&PostgresConfig::describe_config(), "");
+        print_config(&ApiComponentConfig::describe_config(), "en.api.");
+        print_config(&TreeComponentConfig::describe_config(), "en.tree.");
+    }
+
     /// Loads config from the environment variables and
     /// fetches contracts addresses from the main node.
     pub async fn collect() -> anyhow::Result<Self> {

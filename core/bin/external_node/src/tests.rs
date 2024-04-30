@@ -120,6 +120,7 @@ async fn external_node_basics(components_str: &'static str) {
     let components: ComponentsToRun = components_str.parse().unwrap();
     let expected_health_components = expected_health_components(&components);
     let opt = Cli {
+        list_configs: false,
         revert_pending_l1_batch: false,
         enable_consensus: false,
         components,
