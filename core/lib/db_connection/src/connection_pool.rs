@@ -1,5 +1,5 @@
 use std::{
-    env,
+    any, env, fmt,
     future::Future,
     marker::PhantomData,
     panic::Location,
@@ -25,14 +25,26 @@ use crate::{
 };
 
 /// Builder for [`ConnectionPool`]s.
-#[derive(derive_more::Debug, Clone)]
+#[derive(Clone)]
 pub struct ConnectionPoolBuilder<DB: DbMarker> {
     database_url: SensitiveUrl,
     max_size: u32,
     acquire_timeout: Duration,
     statement_timeout: Option<Duration>,
-    #[debug("{}", std::any::type_name::<DB>())]
     _db: PhantomData<DB>,
+}
+
+impl<DB: DbMarker> fmt::Debug for ConnectionPoolBuilder<DB> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ConnectionPoolBuilder")
+            .field("database_url", &self.database_url)
+            .field("max_size", &self.max_size)
+            .field("acquire_timeout", &self.acquire_timeout)
+            .field("statement_timeout", &self.statement_timeout)
+            .field("db", &any::type_name::<DB>())
+            .finish()
+    }
 }
 
 impl<DB: DbMarker> ConnectionPoolBuilder<DB> {
@@ -236,14 +248,28 @@ impl GlobalConnectionPoolConfig {
     }
 }
 
-#[derive(derive_more::Debug, Clone)]
+/// Pool of reusable database connections.
+#[derive(Clone)]
 pub struct ConnectionPool<DB: DbMarker> {
     pub(crate) inner: PgPool,
     database_url: SensitiveUrl,
     max_size: u32,
     pub(crate) traced_connections: Option<Arc<TracedConnections>>,
-    #[debug("{}", std::any::type_name::<DB>())]
     _db: PhantomData<DB>,
+}
+
+impl<DB: DbMarker> fmt::Debug for ConnectionPool<DB> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ConnectionPool")
+            .field("database_url", &self.database_url)
+            .field("options", &self.inner.options())
+            .field("size", &self.inner.size())
+            .field("num_idle", &self.inner.num_idle())
+            .field("db", &any::type_name::<DB>())
+            .field("traced_connections", &self.traced_connections)
+            .finish()
+    }
 }
 
 impl<DB: DbMarker> ConnectionPool<DB> {
