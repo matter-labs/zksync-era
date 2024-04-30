@@ -5,7 +5,12 @@ use async_trait::async_trait;
 use circuit_sequencer_api::proof::FinalProof;
 use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tokio::task::JoinHandle;
-use zkevm_test_harness::proof_wrapper_utils::{wrap_proof, WrapperConfig};
+#[cfg(feature = "gpu")]
+use wrapper_prover::{GPUWrapperConfigs, WrapperProver};
+#[allow(unused_imports)]
+use zkevm_test_harness::proof_wrapper_utils::{
+    get_trusted_setup, wrap_proof, WrapperConfig, DEFAULT_WRAPPER_CONFIG,
+};
 use zkevm_test_harness_1_3_3::{
     abstract_zksync_circuit::concrete_circuits::{
         ZkSyncCircuit, ZkSyncProof, ZkSyncVerificationKey,
@@ -20,9 +25,14 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
-        circuit_definitions::recursion_layer::{
-            ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
+        circuit_definitions::{
+            aux_layer::ZkSyncSnarkWrapperCircuit,
+            recursion_layer::{
+                ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
+                ZkSyncRecursionLayerVerificationKey,
+            },
         },
+        snark_wrapper::franklin_crypto::bellman::plonk::better_better_cs::proof::Proof as SnarkProof,
         zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
     },
     get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper,
@@ -59,6 +69,58 @@ impl ProofCompressor {
         }
     }
 
+    fn verify_proof(keystore: Keystore, serialized_proof: Vec<u8>) -> anyhow::Result<()> {
+        let proof: Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>> =
+            bincode::deserialize(&serialized_proof)
+                .expect("Failed to deserialize proof with ZkSyncCircuit");
+        // We're fetching the key as String and deserializing it here
+        // as we don't want to include the old version of prover in the main libraries.
+        let existing_vk_serialized = keystore
+            .load_snark_verification_key()
+            .context("get_snark_vk()")?;
+        let existing_vk = serde_json::from_str::<
+            SnarkVerificationKey<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
+        >(&existing_vk_serialized)?;
+
+        let vk = ZkSyncVerificationKey::from_verification_key_and_numeric_type(0, existing_vk);
+        let scheduler_proof = ZkSyncProof::from_proof_and_numeric_type(0, proof.clone());
+        match vk.verify_proof(&scheduler_proof) {
+            true => tracing::info!("Compressed proof verified successfully"),
+            false => anyhow::bail!("Compressed proof verification failed "),
+        }
+        Ok(())
+    }
+
+    #[cfg(not(feature = "gpu"))]
+    fn get_wrapper_proof(
+        proof: ZkSyncRecursionLayerProof,
+        scheduler_vk: ZkSyncRecursionLayerVerificationKey,
+        compression_mode: u8,
+    ) -> SnarkProof<Bn256, ZkSyncSnarkWrapperCircuit> {
+        let config = WrapperConfig::new(compression_mode);
+
+        let (wrapper_proof, _) = wrap_proof(proof, scheduler_vk, config);
+        wrapper_proof.into_inner()
+    }
+
+    #[cfg(feature = "gpu")]
+    fn get_wrapper_proof(
+        proof: ZkSyncRecursionLayerProof,
+        scheduler_vk: ZkSyncRecursionLayerVerificationKey,
+        _compression_mode: u8,
+    ) -> SnarkProof<Bn256, ZkSyncSnarkWrapperCircuit> {
+        let crs = get_trusted_setup();
+        let wrapper_config = DEFAULT_WRAPPER_CONFIG;
+        let mut prover = WrapperProver::<GPUWrapperConfigs>::new(&crs, wrapper_config).unwrap();
+
+        prover
+            .generate_setup_data(scheduler_vk.into_inner())
+            .unwrap();
+        prover.generate_proofs(proof.into_inner()).unwrap();
+
+        prover.get_wrapper_proof().unwrap()
+    }
+
     pub fn compress_proof(
         proof: ZkSyncRecursionLayerProof,
         compression_mode: u8,
@@ -70,35 +132,17 @@ impl ProofCompressor {
                 ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
             )
             .context("get_recursiver_layer_vk_for_circuit_type()")?;
-        let config = WrapperConfig::new(compression_mode);
 
-        let (wrapper_proof, _) = wrap_proof(proof, scheduler_vk, config);
-        let inner = wrapper_proof.into_inner();
+        let wrapper_proof = Self::get_wrapper_proof(proof, scheduler_vk, compression_mode);
+
         // (Re)serialization should always succeed.
-        let serialized = bincode::serialize(&inner)
+        let serialized = bincode::serialize(&wrapper_proof)
             .expect("Failed to serialize proof with ZkSyncSnarkWrapperCircuit");
 
         if verify_wrapper_proof {
             // If we want to verify the proof, we have to deserialize it, with proper type.
             // So that we can pass it into `from_proof_and_numeric_type` method below.
-            let proof: Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>> =
-                bincode::deserialize(&serialized)
-                    .expect("Failed to deserialize proof with ZkSyncCircuit");
-            // We're fetching the key as String and deserializing it here
-            // as we don't want to include the old version of prover in the main libraries.
-            let existing_vk_serialized = keystore
-                .load_snark_verification_key()
-                .context("get_snark_vk()")?;
-            let existing_vk = serde_json::from_str::<
-                SnarkVerificationKey<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
-            >(&existing_vk_serialized)?;
-
-            let vk = ZkSyncVerificationKey::from_verification_key_and_numeric_type(0, existing_vk);
-            let scheduler_proof = ZkSyncProof::from_proof_and_numeric_type(0, proof.clone());
-            match vk.verify_proof(&scheduler_proof) {
-                true => tracing::info!("Compressed proof verified successfully"),
-                false => anyhow::bail!("Compressed proof verification failed "),
-            }
+            Self::verify_proof(keystore, serialized.clone())?;
         }
 
         // For sending to L1, we can use the `FinalProof` type, that has a generic circuit inside, that is not used for serialization.
