@@ -517,7 +517,6 @@ impl BlocksWeb3Dal<'_, '_> {
             FROM
                 call_traces
                 INNER JOIN transactions ON tx_hash = transactions.hash
-                INNER JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
             WHERE
                 transactions.miniblock_number = $1
             ORDER BY

@@ -101,6 +101,7 @@ impl TokensDal<'_, '_> {
                 } else if let Some(deployed_at) = token_deployment_data.get(&address) {
                     (deployed_at > &block_number).then_some(address.0)
                 } else {
+                    // Token belongs to a "pending" L2 block that's not yet fully inserted to the database.
                     Some(address.0)
                 }
             })
