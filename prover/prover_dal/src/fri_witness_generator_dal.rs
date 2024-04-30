@@ -1210,7 +1210,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .iter()
         .map(|row| LeafWitnessGeneratorJobInfo {
             id: row.id as u32,
-            l1_batch_number: l1_batch_number,
+            l1_batch_number,
             circuit_id: row.circuit_id as u32,
             closed_form_inputs_blob_url: row.closed_form_inputs_blob_url.clone(),
             attempts: row.attempts as u32,
@@ -1249,7 +1249,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .iter()
         .map(|row| NodeWitnessGeneratorJobInfo {
             id: row.id as u32,
-            l1_batch_number: l1_batch_number,
+            l1_batch_number,
             circuit_id: row.circuit_id as u32,
             depth: row.depth as u32,
             status: WitnessJobStatus::from_str(&row.status).unwrap(),
@@ -1287,7 +1287,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .unwrap()
         .iter()
         .map(|row| SchedulerWitnessGeneratorJobInfo {
-            l1_batch_number: l1_batch_number,
+            l1_batch_number,
             scheduler_partial_input_blob_url: row.scheduler_partial_input_blob_url.clone(),
             status: WitnessJobStatus::from_str(&row.status).unwrap(),
             processing_started_at: row.processing_started_at,
