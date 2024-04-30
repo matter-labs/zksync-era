@@ -628,8 +628,7 @@ pub(crate) struct RequiredENConfig {
     /// Address of the Ethereum node API.
     pub eth_client_url: SensitiveUrl,
     /// Main node URL - used by external node to proxy transactions to, query state from, etc.
-    /// Intentionally private: use getter method as it manages the missing port.
-    pub main_node_url: String,
+    pub main_node_url: SensitiveUrl,
     /// Path to the database data directory that serves state cache.
     pub state_cache_path: String,
     /// Fast SSD path. Used as a RocksDB dir for the Merkle tree (*new* implementation).
@@ -651,7 +650,7 @@ impl RequiredENConfig {
             healthcheck_port: 0,
             // L1 and L2 clients must be instantiated before accessing mocks, so these values don't matter
             eth_client_url: "http://localhost".parse().unwrap(),
-            main_node_url: "http://localhost".to_owned(),
+            main_node_url: "http://localhost".parse().unwrap(),
             state_cache_path: temp_dir
                 .path()
                 .join("state_keeper_cache")
