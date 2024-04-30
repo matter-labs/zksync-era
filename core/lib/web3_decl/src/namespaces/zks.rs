@@ -4,7 +4,7 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use zksync_types::{
     api::{
         BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
-        TransactionDetails,
+        TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -12,7 +12,7 @@ use zksync_types::{
     Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
 
-use crate::types::Token;
+use crate::types::{Bytes, Token};
 
 #[cfg_attr(
     all(feature = "client", feature = "server"),
@@ -124,4 +124,10 @@ pub trait ZksNamespace {
 
     #[method(name = "getBatchFeeInput")]
     async fn get_batch_fee_input(&self) -> RpcResult<PubdataIndependentBatchFeeModelInput>;
+
+    #[method(name = "sendRawTransactionWithDetailedOutput")]
+    async fn send_raw_transaction_with_detailed_output(
+        &self,
+        tx_bytes: Bytes,
+    ) -> RpcResult<TransactionDetailedResult>;
 }

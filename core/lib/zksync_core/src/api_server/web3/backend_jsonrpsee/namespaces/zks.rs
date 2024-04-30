@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 
+use itertools::Itertools;
 use zksync_types::{
     api::{
-        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
-        TransactionDetails,
+        ApiStorageLog, BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Log, Proof,
+        ProtocolVersion, TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     transaction_request::CallRequest,
-    Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
+    Address, Bytes, L1BatchNumber, L2BlockNumber, StorageLogQueryType, H256, U256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
@@ -180,6 +181,37 @@ impl ZksNamespaceServer for ZksNamespace {
 
     async fn get_base_token_l1_address(&self) -> RpcResult<Address> {
         self.get_base_token_l1_address_impl()
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn send_raw_transaction_with_detailed_output(
+        &self,
+        tx_bytes: Bytes,
+    ) -> RpcResult<TransactionDetailedResult> {
+        self.send_raw_transaction_with_detailed_output_impl(tx_bytes)
+            .await
+            .map(|result| TransactionDetailedResult {
+                transaction_hash: result.0,
+                storage_logs: result
+                    .1
+                    .logs
+                    .storage_logs
+                    .iter()
+                    .filter(|x| x.log_type != StorageLogQueryType::Read)
+                    .map(ApiStorageLog::from)
+                    .collect_vec(),
+                events: result
+                    .1
+                    .logs
+                    .events
+                    .iter()
+                    .map(|x| {
+                        let mut l = Log::from(x);
+                        l.transaction_hash = Some(result.0);
+                        l
+                    })
+                    .collect_vec(),
+            })
             .map_err(|err| self.current_method().map_err(err))
     }
 }

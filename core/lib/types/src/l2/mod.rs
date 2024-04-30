@@ -4,6 +4,7 @@ use anyhow::Context as _;
 use num_enum::TryFromPrimitive;
 use rlp::{Rlp, RlpStream};
 use serde::{Deserialize, Serialize};
+use zksync_crypto_primitives::K256PrivateKey;
 
 use self::error::SignError;
 use crate::{
@@ -190,11 +191,11 @@ impl L2Tx {
         fee: Fee,
         value: U256,
         chain_id: L2ChainId,
-        private_key: &H256,
+        private_key: &K256PrivateKey,
         factory_deps: Option<Vec<Vec<u8>>>,
         paymaster_params: PaymasterParams,
     ) -> Result<Self, SignError> {
-        let initiator_address = PackedEthSignature::address_from_private_key(private_key).unwrap();
+        let initiator_address = private_key.address();
         let mut res = Self::new(
             contract_address,
             calldata,

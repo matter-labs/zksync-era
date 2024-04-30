@@ -185,6 +185,35 @@ impl SnapshotsDal<'_, '_> {
         .fetch_optional(self.storage)
         .await
     }
+
+    /// Deletes all snapshots after the specified L1 batch number and returns their metadata.
+    pub async fn delete_snapshots_after(
+        &mut self,
+        last_retained_l1_batch_number: L1BatchNumber,
+    ) -> DalResult<Vec<SnapshotMetadata>> {
+        sqlx::query_as!(
+            StorageSnapshotMetadata,
+            r#"
+            DELETE FROM snapshots
+            WHERE
+                l1_batch_number > $1
+            RETURNING
+                VERSION,
+                l1_batch_number,
+                factory_deps_filepath,
+                storage_logs_filepaths
+            "#,
+            last_retained_l1_batch_number.0 as i32
+        )
+        .try_map(SnapshotMetadata::try_from)
+        .instrument("delete_snapshots_after")
+        .with_arg(
+            "last_retained_l1_batch_number",
+            &last_retained_l1_batch_number,
+        )
+        .fetch_all(self.storage)
+        .await
+    }
 }
 
 #[cfg(test)]
@@ -233,9 +262,72 @@ mod tests {
         let snapshot_metadata = dal
             .get_snapshot_metadata(l1_batch_number)
             .await
-            .expect("Failed to retrieve snapshot")
-            .unwrap();
+            .unwrap()
+            .expect("snapshot is not persisted");
         assert_eq!(snapshot_metadata.l1_batch_number, l1_batch_number);
+    }
+
+    #[tokio::test]
+    async fn deleting_snapshots() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+        let mut dal = conn.snapshots_dal();
+        let l1_batch_number = L1BatchNumber(100);
+        dal.add_snapshot(
+            SnapshotVersion::Version0,
+            l1_batch_number,
+            2,
+            "gs:///bucket/factory_deps.bin",
+        )
+        .await
+        .unwrap();
+
+        for i in 0..2 {
+            dal.add_storage_logs_filepath_for_snapshot(
+                l1_batch_number,
+                i,
+                "gs:///bucket/chunk.bin",
+            )
+            .await
+            .unwrap();
+        }
+
+        let snapshot_metadata = dal
+            .get_snapshot_metadata(l1_batch_number)
+            .await
+            .unwrap()
+            .expect("snapshot is not persisted");
+        assert!(snapshot_metadata.is_complete());
+
+        let deleted_snapshots = dal.delete_snapshots_after(l1_batch_number).await.unwrap();
+        assert!(deleted_snapshots.is_empty(), "{deleted_snapshots:?}");
+        let deleted_snapshots = dal
+            .delete_snapshots_after(l1_batch_number - 1)
+            .await
+            .unwrap();
+        assert_eq!(deleted_snapshots.len(), 1);
+        assert_eq!(deleted_snapshots[0].version, snapshot_metadata.version);
+        assert_eq!(
+            deleted_snapshots[0].l1_batch_number,
+            snapshot_metadata.l1_batch_number
+        );
+        assert_eq!(
+            deleted_snapshots[0].factory_deps_filepath,
+            snapshot_metadata.factory_deps_filepath
+        );
+        assert_eq!(
+            deleted_snapshots[0].storage_logs_filepaths,
+            snapshot_metadata.storage_logs_filepaths
+        );
+
+        let deleted_snapshot_metadata = dal.get_snapshot_metadata(l1_batch_number).await.unwrap();
+        assert!(
+            deleted_snapshot_metadata.is_none(),
+            "{deleted_snapshot_metadata:?}"
+        );
+
+        let complete_snapshots = dal.get_all_complete_snapshots().await.unwrap();
+        assert_eq!(complete_snapshots.snapshots_l1_batch_numbers, []);
     }
 
     #[tokio::test]
