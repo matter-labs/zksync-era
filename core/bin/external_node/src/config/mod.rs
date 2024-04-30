@@ -77,7 +77,11 @@ impl RemoteENConfig {
             .rpc_context("get_testnet_paymaster")
             .await?;
         let genesis = client.genesis_config().rpc_context("genesis").await.ok();
-        let shared_bridge = genesis.as_ref().and_then(|a| a.shared_bridge.clone());
+        let ecosystem_contracts = client
+            .get_ecosystem_contracts()
+            .rpc_context("ecosystem_contracts")
+            .await
+            .ok();
         let diamond_proxy_addr = client
             .get_main_contract()
             .rpc_context("get_main_contract")
@@ -135,11 +139,11 @@ impl RemoteENConfig {
         }
 
         Ok(Self {
-            bridgehub_proxy_addr: shared_bridge.as_ref().map(|a| a.bridgehub_proxy_addr),
-            state_transition_proxy_addr: shared_bridge
+            bridgehub_proxy_addr: ecosystem_contracts.as_ref().map(|a| a.bridgehub_proxy_addr),
+            state_transition_proxy_addr: ecosystem_contracts
                 .as_ref()
                 .map(|a| a.state_transition_proxy_addr),
-            transparent_proxy_admin_addr: shared_bridge
+            transparent_proxy_admin_addr: ecosystem_contracts
                 .as_ref()
                 .map(|a| a.transparent_proxy_admin_addr),
             diamond_proxy_addr,

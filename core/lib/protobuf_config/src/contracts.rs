@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_config::configs::ContractsConfig;
+use zksync_config::configs::{ContractsConfig, EcosystemContracts};
 use zksync_protobuf::{repr::ProtoRepr, required};
 
 use crate::{parse_h160, proto::contracts as proto};
@@ -13,8 +13,30 @@ impl ProtoRepr for proto::Contracts {
         let bridges = required(&self.bridges).context("bridges")?;
         let shared = required(&bridges.shared).context("shared")?;
         let erc20 = required(&bridges.erc20).context("erc20")?;
-        let weth_bridge = required(&bridges.weth).context("weth_bridge")?;
+        let weth_bridge = &bridges.weth;
+
+        let ecosystem_contracts = if let Some(ecosystem_contracts) = &self.ecosystem_contracts {
+            Some(EcosystemContracts {
+                bridgehub_proxy_addr: required(&ecosystem_contracts.bridgehub_proxy_addr)
+                    .and_then(|x| parse_h160(x))
+                    .context("bridgehub_proxy_addr")?,
+                state_transition_proxy_addr: required(
+                    &ecosystem_contracts.state_transition_proxy_addr,
+                )
+                .and_then(|x| parse_h160(x))
+                .context("state_transition_proxy_addr")?,
+                transparent_proxy_admin_addr: required(
+                    &ecosystem_contracts.transparent_proxy_admin_addr,
+                )
+                .and_then(|x| parse_h160(x))
+                .context("transparent_proxy_admin_addr")?,
+            })
+        } else {
+            None
+        };
+
         Ok(Self::Type {
+            ecosystem_contracts,
             governance_addr: required(&l1.governance_addr)
                 .and_then(|x| parse_h160(x))
                 .context("governance_addr")?,
@@ -55,15 +77,13 @@ impl ProtoRepr for proto::Contracts {
                 .transpose()
                 .context("l2_shared_bridge_proxy_addr")?,
             l1_weth_bridge_proxy_addr: weth_bridge
-                .l1_address
                 .as_ref()
-                .map(|x| parse_h160(x))
+                .and_then(|bridge| bridge.l1_address.as_ref().map(|x| parse_h160(x)))
                 .transpose()
                 .context("l1_weth_bridge_addr")?,
             l2_weth_bridge_addr: weth_bridge
-                .l2_address
                 .as_ref()
-                .map(|x| parse_h160(x))
+                .and_then(|bridge| bridge.l2_address.as_ref().map(|x| parse_h160(x)))
                 .transpose()
                 .context("l2_weth_bridge_addr")?,
             l2_testnet_paymaster_addr: l2
@@ -85,7 +105,25 @@ impl ProtoRepr for proto::Contracts {
     }
 
     fn build(this: &Self::Type) -> Self {
+        let ecosystem_contracts = this
+            .ecosystem_contracts
+            .as_ref()
+            .map(|ecosystem_contracts| proto::EcosystemContracts {
+                bridgehub_proxy_addr: Some(format!(
+                    "{:?}",
+                    ecosystem_contracts.bridgehub_proxy_addr
+                )),
+                state_transition_proxy_addr: Some(format!(
+                    "{:?}",
+                    ecosystem_contracts.state_transition_proxy_addr
+                )),
+                transparent_proxy_admin_addr: Some(format!(
+                    "{:?}",
+                    ecosystem_contracts.transparent_proxy_admin_addr,
+                )),
+            });
         Self {
+            ecosystem_contracts,
             l1: Some(proto::L1 {
                 governance_addr: Some(format!("{:?}", this.governance_addr)),
                 verifier_addr: Some(format!("{:?}", this.verifier_addr)),
