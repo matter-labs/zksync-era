@@ -41,9 +41,22 @@ fn print_parameter(param: &ParamMetadata, prefix: &str) {
     }
 }
 
-pub(super) fn print_config(config_metadata: &ConfigMetadata, prefix: &str) {
+pub(super) fn print_config(config_metadata: &ConfigMetadata, prefix: &str, filter: Option<&str>) {
+    let filtered_params: Vec<_> = if let Some(filter) = filter {
+        config_metadata
+            .params
+            .iter()
+            .filter(|param| param.name.contains(filter) || param.help.contains(filter))
+            .collect()
+    } else {
+        config_metadata.params.iter().collect()
+    };
+    if filtered_params.is_empty() {
+        return;
+    }
+
     println!("{}\n", config_metadata.help);
-    for param in &config_metadata.params {
+    for param in filtered_params {
         print_parameter(param, prefix);
         println!();
     }

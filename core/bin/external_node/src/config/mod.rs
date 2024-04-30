@@ -639,7 +639,7 @@ pub(crate) struct RequiredENConfig {
     // Intentionally private: use getter method as it manages the missing port.
     main_node_url: String,
     /// Path to the database data directory that serves state cache.
-    pub state_cache_path: String, // FIXME: replace with PathBuf
+    pub state_cache_path: String, // FIXME: replace with `PathBuf`
     /// Fast SSD path. Used as a RocksDB dir for the Merkle tree (*new* implementation).
     pub merkle_tree_path: String,
 }
@@ -757,17 +757,17 @@ pub(crate) struct ExternalNodeConfig {
 }
 
 impl ExternalNodeConfig {
-    pub fn print_help() {
+    pub fn print_help(filter: Option<&str>) {
         println!(
             "Configuration is supplied to the node as environment variables. The name of an env variable is obtained \
              by converting the parameter name to upper case and replacing '.' chars with '_'. For example, `en.prometheus_port` parameter \
              is mapped to the `EN_PROMETHEUS_PORT` env var.\n"
         );
-        print_config(&RequiredENConfig::describe_config(), "en.");
-        print_config(&OptionalENConfig::describe_config(), "en.");
-        print_config(&PostgresConfig::describe_config(), "");
-        print_config(&ApiComponentConfig::describe_config(), "en.api.");
-        print_config(&TreeComponentConfig::describe_config(), "en.tree.");
+        print_config(&RequiredENConfig::describe_config(), "en.", filter);
+        print_config(&OptionalENConfig::describe_config(), "en.", filter);
+        print_config(&PostgresConfig::describe_config(), "", filter);
+        print_config(&ApiComponentConfig::describe_config(), "en.api.", filter);
+        print_config(&TreeComponentConfig::describe_config(), "en.tree.", filter);
     }
 
     /// Loads config from the environment variables and

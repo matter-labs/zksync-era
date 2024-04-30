@@ -65,7 +65,7 @@ impl UnitOfMeasurement {
     }
 }
 
-/// Represenation of a Rust type.
+/// Representation of a Rust type.
 #[derive(Debug, Clone, Copy)]
 pub struct RustType {
     id: any::TypeId,

@@ -695,9 +695,10 @@ async fn shutdown_components(
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
 struct Cli {
-    /// Print information about configuration options and exit.
-    #[arg(long = "config-list")]
-    list_configs: bool,
+    /// Print help information about configuration options used by the node and exit. If the filter is provided, only matching
+    /// config params (by name or description, case-sensitive) will be printed.
+    #[arg(long = "config-list", value_name = "FILTER")]
+    list_configs: Option<Option<String>>,
     /// Revert the pending L1 batch and exit.
     #[arg(long)]
     revert_pending_l1_batch: bool,
@@ -763,8 +764,8 @@ async fn main() -> anyhow::Result<()> {
     // Initial setup.
     let opt = Cli::parse();
 
-    if opt.list_configs {
-        ExternalNodeConfig::print_help();
+    if let Some(filter) = &opt.list_configs {
+        ExternalNodeConfig::print_help(filter.as_deref());
         return Ok(());
     }
 
