@@ -1151,107 +1151,83 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .map(|id| ProtocolVersionId::try_from(id as u16).unwrap())
         .unwrap()
     }
-
-    pub async fn delete_witness_inputs_batch_data(&mut self, block_number: L1BatchNumber) {
-        sqlx::query!(
-            r#"
-            DELETE FROM
-                witness_inputs_fri
-            WHERE
-                l1_batch_number = $1
-            "#,
-            i64::from(block_number.0)
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
-    }
-
-    pub async fn delete_leaf_aggregation_batch_data(&mut self, block_number: L1BatchNumber) {
-        sqlx::query!(
-            r#"
-            DELETE FROM
-                leaf_aggregation_witness_jobs_fri
-            WHERE
-                l1_batch_number = $1
-            "#,
-            i64::from(block_number.0)
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
-    }
-
-    pub async fn delete_node_aggregation_batch_data(&mut self, block_number: L1BatchNumber) {
-        sqlx::query!(
-            r#"
-            DELETE FROM
-                node_aggregation_witness_jobs_fri
-            WHERE
-                l1_batch_number = $1
-            "#,
-            i64::from(block_number.0)
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
-    }
-
-    pub async fn delete_scheduler_batch_data(&mut self, block_number: L1BatchNumber) {
-        sqlx::query!(
-            r#"
-            DELETE FROM
-                scheduler_witness_jobs_fri
-            WHERE
-                l1_batch_number = $1
-            "#,
-            i64::from(block_number.0)
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
-    }
-    pub async fn delete_witness_generator_data_for_batch(
+    pub async fn delete_witness_generator_data_for_batch_with_status(
         &mut self,
         block_number: L1BatchNumber,
         aggregation_round: AggregationRound,
-    ) {
-        sqlx::query(
-            format!(
-                r#"
-            DELETE FROM
-                {}
-            WHERE
-                l1_batch_number = {}
-            "#,
-                Self::input_table_name_for(aggregation_round),
-                i64::from(block_number.0),
+        status: &Option<FriWitnessJobStatus>,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        if let Some(status) = status {
+            sqlx::query(
+                format!(
+                    r#"
+                DELETE FROM
+                    {table}
+                WHERE
+                    l1_batch_number = {l1_batch_number}
+                    AND status = '{status}'
+                "#,
+                    table = Self::input_table_name_for(aggregation_round),
+                    l1_batch_number = i64::from(block_number.0),
+                )
+                .as_str(),
             )
-            .as_str(),
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+            .execute(self.storage.conn())
+            .await
+        } else {
+            sqlx::query(
+                format!(
+                    r#"
+                DELETE FROM
+                    {}
+                WHERE
+                    l1_batch_number = {}
+                "#,
+                    Self::input_table_name_for(aggregation_round),
+                    i64::from(block_number.0),
+                )
+                .as_str(),
+            )
+            .execute(self.storage.conn())
+            .await
+        }
     }
 
-    pub async fn delete_batch_data(&mut self, block_number: L1BatchNumber) {
-        self.delete_witness_generator_data_for_batch(block_number, AggregationRound::BasicCircuits)
-            .await;
-        self.delete_witness_generator_data_for_batch(
+    pub async fn delete_batch_data_with_status(
+        &mut self,
+        block_number: L1BatchNumber,
+        status: Option<FriWitnessJobStatus>,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        self.delete_witness_generator_data_for_batch_with_status(
+            block_number,
+            AggregationRound::BasicCircuits,
+            &status,
+        )
+        .await?;
+        self.delete_witness_generator_data_for_batch_with_status(
             block_number,
             AggregationRound::LeafAggregation,
+            &status,
         )
-        .await;
-        self.delete_witness_generator_data_for_batch(
+        .await?;
+        self.delete_witness_generator_data_for_batch_with_status(
             block_number,
             AggregationRound::NodeAggregation,
+            &status,
         )
-        .await;
-        self.delete_witness_generator_data_for_batch(block_number, AggregationRound::Scheduler)
-            .await;
+        .await?;
+        self.delete_witness_generator_data_for_batch_with_status(
+            block_number,
+            AggregationRound::Scheduler,
+            &status,
+        )
+        .await
     }
 
-    pub async fn delete_witness_generator_data(&mut self, aggregation_round: AggregationRound) {
+    pub async fn delete_witness_generator_data(
+        &mut self,
+        aggregation_round: AggregationRound,
+    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query(
             format!(
                 r#"
@@ -1264,17 +1240,16 @@ impl FriWitnessGeneratorDal<'_, '_> {
         )
         .execute(self.storage.conn())
         .await
-        .unwrap();
     }
 
-    pub async fn delete(&mut self) {
+    pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         self.delete_witness_generator_data(AggregationRound::BasicCircuits)
-            .await;
+            .await?;
         self.delete_witness_generator_data(AggregationRound::LeafAggregation)
-            .await;
+            .await?;
         self.delete_witness_generator_data(AggregationRound::NodeAggregation)
-            .await;
+            .await?;
         self.delete_witness_generator_data(AggregationRound::Scheduler)
-            .await;
+            .await
     }
 }

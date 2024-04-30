@@ -1,18 +1,24 @@
 use anyhow::{bail, Context};
 use clap::Args as ClapArgs;
 use dialoguer::{theme::ColorfulTheme, Input};
-use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
+use prover_dal::{
+    fri_proof_compressor_dal::ProofCompressionJobStatus,
+    fri_witness_generator_dal::FriWitnessJobStatus, Connection, ConnectionPool, Prover, ProverDal,
+};
 use zksync_config::PostgresConfig;
 use zksync_env_config::FromEnv;
-use zksync_types::L1BatchNumber;
+use zksync_types::{prover_dal::ProverJobStatus, L1BatchNumber};
 
 #[derive(ClapArgs)]
 pub(crate) struct Args {
+    /// Batch number to delete
     #[clap(short, long, conflicts_with = "all")]
     batch: Option<L1BatchNumber>,
+    /// Delete data from all batches
     #[clap(short, long, conflicts_with = "batch", default_value_t = false)]
     all: bool,
-    #[clap(short, long, default_value_t = false)]
+    /// Delete only failed data, used only with --batch
+    #[clap(short, long, default_value_t = false, conflicts_with = "all")]
     failed: bool,
 }
 
@@ -50,28 +56,53 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
 }
 
 async fn delete_prover_db(mut conn: Connection<'_, Prover>) -> anyhow::Result<()> {
-    conn.fri_gpu_prover_queue_dal().delete().await;
-    conn.fri_prover_jobs_dal().delete().await;
-    conn.fri_scheduler_dependency_tracker_dal().delete().await;
-    conn.fri_protocol_versions_dal().delete().await;
-    conn.fri_proof_compressor_dal().delete().await;
-    conn.fri_witness_generator_dal().delete().await;
-    Ok(())
+    conn.fri_gpu_prover_queue_dal()
+        .delete()
+        .await
+        .context("failed to delete gpu prover queue")?;
+    conn.fri_prover_jobs_dal()
+        .delete()
+        .await
+        .context("failed to delete prover jobs")?;
+    conn.fri_scheduler_dependency_tracker_dal()
+        .delete()
+        .await
+        .context("failed to delete scheduler dependency tracker")?;
+    conn.fri_protocol_versions_dal()
+        .delete()
+        .await
+        .context("failed to delete protocol versions")?;
+    conn.fri_proof_compressor_dal()
+        .delete()
+        .await
+        .context("failed to delete proof compressor")?;
+    conn.fri_witness_generator_dal()
+        .delete()
+        .await
+        .context("failed to delete witness generator")?
 }
 
 async fn delete_batch_data(
     mut conn: Connection<'_, Prover>,
     block_number: L1BatchNumber,
-    _failed: bool,
+    failed: bool,
 ) -> anyhow::Result<()> {
     conn.fri_proof_compressor_dal()
-        .delete_batch_data(block_number)
-        .await;
+        .delete_batch_data_with_status(
+            block_number,
+            failed.then_some(ProofCompressionJobStatus::Failed),
+        )
+        .await
+        .context("failed to delete proof compressor data")?;
     conn.fri_prover_jobs_dal()
-        .delete_batch_data(block_number)
-        .await;
+        .delete_batch_data_with_status(
+            block_number,
+            failed.then_some(ProverJobStatus::Failed(Default::default())),
+        )
+        .await
+        .context("failed to delete prover jobs data")?;
     conn.fri_witness_generator_dal()
-        .delete_batch_data(block_number)
-        .await;
-    Ok(())
+        .delete_batch_data_with_status(block_number, failed.then_some(FriWitnessJobStatus::Failed))
+        .await
+        .context("failed to delete witness generator data")?
 }

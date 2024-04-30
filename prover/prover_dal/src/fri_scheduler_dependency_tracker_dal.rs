@@ -150,10 +150,9 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
         .unwrap()
     }
 
-    pub async fn delete(&mut self) {
+    pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query!("DELETE FROM scheduler_dependency_tracker_fri")
             .execute(self.storage.conn())
             .await
-            .unwrap();
     }
 }
