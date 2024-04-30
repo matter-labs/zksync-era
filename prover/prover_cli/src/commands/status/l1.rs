@@ -40,7 +40,7 @@ pub(crate) async fn run() -> Result<(), CLIErrors> {
     let total_batches_verified_tokens = contract_call(
         "getTotalBatchesVerified",
         contracts_config.diamond_proxy_addr,
-        zksync_contracts::zksync_contract(),
+        zksync_contracts::state_transition_manager_contract(),
         &query_client,
     )
     .await?;
@@ -105,7 +105,7 @@ pub(crate) async fn run() -> Result<(), CLIErrors> {
     let node_verifier_params_tokens = contract_call(
         "getVerifierParams",
         contracts_config.diamond_proxy_addr,
-        zksync_contracts::zksync_contract(),
+        zksync_contracts::state_transition_manager_contract(),
         &query_client,
     )
     .await?;
