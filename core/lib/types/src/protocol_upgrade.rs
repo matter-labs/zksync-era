@@ -354,12 +354,12 @@ impl TryFrom<Call> for ProtocolUpgrade {
         // Reuses `ProtocolUpgrade::try_from`.
         // `ProtocolUpgrade::try_from` only uses 3 log fields: `data`, `block_number`, `transaction_hash`.
         // Others can be filled with dummy values.
-        // We build data as `call.data` without first 4 bytes which are for selector
+        // We build data as `call.data` without first 4 + 256 bytes which are for selector and _oldProtocolVersion
         // and append it with `bytes32(0)` for compatibility with old event data.
         let data = call
             .data
             .into_iter()
-            .skip(4)
+            .skip(230)
             .chain(encode(&[Token::FixedBytes(H256::zero().0.to_vec())]))
             .collect::<Vec<u8>>()
             .into();
