@@ -21,13 +21,13 @@ pub(crate) async fn run() -> Result<(), CLIErrors> {
         CLIErrors::FromEnvError("ContractsConfig::from_env()".to_owned(), e.to_string())
     })?;
     let eth_config = EthConfig::from_env()
-        .map_err(|e| CLIErrors::FromEnvError("thConfig::from_env()".to_owned(), e.to_string()))?;
+        .map_err(|e| CLIErrors::FromEnvError("EthConfig::from_env()".to_owned(), e.to_string()))?;
     let query_client = QueryClient::new(&eth_config.web3_url)?;
 
     let total_batches_committed_tokens = contract_call(
         "getTotalBatchesCommitted",
         contracts_config.diamond_proxy_addr,
-        zksync_contracts::zksync_contract(),
+        zksync_contracts::state_transition_manager_contract(),
         &query_client,
     )
     .await?;
