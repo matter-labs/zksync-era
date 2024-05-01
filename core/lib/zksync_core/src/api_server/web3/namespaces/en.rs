@@ -1,7 +1,7 @@
 use anyhow::Context as _;
-use zksync_config::{configs::genesis::SharedBridge, GenesisConfig};
+use zksync_config::{configs::EcosystemContracts, GenesisConfig};
 use zksync_dal::{CoreDal, DalError};
-use zksync_types::{api::en, tokens::TokenInfo, Address, L1BatchNumber, MiniblockNumber, H256};
+use zksync_types::{api::en, tokens::TokenInfo, Address, L1BatchNumber, L2BlockNumber, H256};
 use zksync_web3_decl::error::Web3Error;
 
 use crate::api_server::web3::{backend_jsonrpsee::MethodTracer, state::RpcState};
@@ -37,10 +37,9 @@ impl EnNamespace {
         &self.state.current_method
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn sync_l2_block_impl(
         &self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
         include_transactions: bool,
     ) -> Result<Option<en::SyncBlock>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
@@ -51,10 +50,9 @@ impl EnNamespace {
             .map_err(DalError::generalize)?)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn sync_tokens_impl(
         &self,
-        block_number: Option<MiniblockNumber>,
+        block_number: Option<L2BlockNumber>,
     ) -> Result<Vec<TokenInfo>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
         Ok(storage
@@ -62,6 +60,28 @@ impl EnNamespace {
             .get_all_tokens(block_number)
             .await
             .map_err(DalError::generalize)?)
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub async fn get_ecosystem_contracts_impl(&self) -> Result<EcosystemContracts, Web3Error> {
+        Ok(self
+            .state
+            .api_config
+            .bridgehub_proxy_addr
+            .map(|bridgehub_proxy_addr| EcosystemContracts {
+                bridgehub_proxy_addr,
+                state_transition_proxy_addr: self
+                    .state
+                    .api_config
+                    .state_transition_proxy_addr
+                    .unwrap(),
+                transparent_proxy_admin_addr: self
+                    .state
+                    .api_config
+                    .transparent_proxy_admin_addr
+                    .unwrap(),
+            })
+            .context("Shared bridge doesn't supported")?)
     }
 
     #[tracing::instrument(skip(self))]
@@ -85,32 +105,10 @@ impl EnNamespace {
             .context("Genesis is not finished")?;
         let fee_account = storage
             .blocks_dal()
-            .get_fee_address_for_miniblock(MiniblockNumber(0))
+            .get_fee_address_for_l2_block(L2BlockNumber(0))
             .await
             .map_err(DalError::generalize)?
             .context("Genesis not finished")?;
-
-        let shared_bridge = if self.state.api_config.state_transition_proxy_addr.is_some() {
-            Some(SharedBridge {
-                bridgehub_proxy_addr: self
-                    .state
-                    .api_config
-                    .bridgehub_proxy_addr
-                    .context("Bridge proxy is not set with state_transition")?,
-                state_transition_proxy_addr: self
-                    .state
-                    .api_config
-                    .state_transition_proxy_addr
-                    .unwrap(),
-                transparent_proxy_admin_addr: self
-                    .state
-                    .api_config
-                    .transparent_proxy_admin_addr
-                    .context("transparent_proxy_admin_addr is not set with state_transition")?,
-            })
-        } else {
-            None
-        };
 
         let config = GenesisConfig {
             protocol_version: Some(protocol_version),
@@ -145,7 +143,6 @@ impl EnNamespace {
             recursion_circuits_set_vks_hash: Default::default(),
             recursion_scheduler_level_vk_hash: verifier_config.recursion_scheduler_level_vk_hash,
             fee_account,
-            shared_bridge,
             dummy_verifier: self.state.api_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: self
                 .state
@@ -155,7 +152,6 @@ impl EnNamespace {
         Ok(config)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn whitelisted_tokens_for_aa_impl(&self) -> Result<Vec<Address>, Web3Error> {
         Ok(self
             .state

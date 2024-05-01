@@ -6,25 +6,25 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     block::BlockGasCount, fee_model::BatchFeeInput,
     storage_writes_deduplicator::StorageWritesDeduplicator,
-    tx::tx_execution_info::ExecutionMetrics, vm_trace::Call, Address, L1BatchNumber,
-    MiniblockNumber, ProtocolVersionId, Transaction,
+    tx::tx_execution_info::ExecutionMetrics, vm_trace::Call, Address, L1BatchNumber, L2BlockNumber,
+    ProtocolVersionId, Transaction,
 };
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-pub(crate) use self::{l1_batch_updates::L1BatchUpdates, miniblock_updates::MiniblockUpdates};
+pub(crate) use self::{l1_batch_updates::L1BatchUpdates, l2_block_updates::L2BlockUpdates};
 use super::{
-    io::{IoCursor, MiniblockParams},
+    io::{IoCursor, L2BlockParams},
     metrics::BATCH_TIP_METRICS,
 };
 use crate::state_keeper::types::ExecutionMetricsForCriteria;
 
 pub mod l1_batch_updates;
-pub mod miniblock_updates;
+pub mod l2_block_updates;
 
-/// Most of the information needed to seal the l1 batch/mini-block is contained within the VM,
+/// Most of the information needed to seal the l1 batch / L2 block is contained within the VM,
 /// things that are not captured there are accumulated externally.
-/// `MiniblockUpdates` keeps updates for the pending mini-block.
-/// `L1BatchUpdates` keeps updates for the already sealed mini-blocks of the pending L1 batch.
+/// `L2BlockUpdates` keeps updates for the pending L2 block.
+/// `L1BatchUpdates` keeps updates for the already sealed L2 blocks of the pending L1 batch.
 /// `UpdatesManager` manages the state of both of these accumulators to be consistent
 /// and provides information about the pending state of the current L1 batch.
 #[derive(Debug)]
@@ -36,7 +36,7 @@ pub struct UpdatesManager {
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
     pub l1_batch: L1BatchUpdates,
-    pub miniblock: MiniblockUpdates,
+    pub l2_block: L2BlockUpdates,
     pub storage_writes_deduplicator: StorageWritesDeduplicator,
 }
 
@@ -51,9 +51,9 @@ impl UpdatesManager {
             protocol_version,
             base_system_contract_hashes: system_env.base_system_smart_contracts.hashes(),
             l1_batch: L1BatchUpdates::new(l1_batch_env.number),
-            miniblock: MiniblockUpdates::new(
+            l2_block: L2BlockUpdates::new(
                 l1_batch_env.first_l2_block.timestamp,
-                MiniblockNumber(l1_batch_env.first_l2_block.number),
+                L2BlockNumber(l1_batch_env.first_l2_block.number),
                 l1_batch_env.first_l2_block.prev_block_hash,
                 l1_batch_env.first_l2_block.max_virtual_blocks_to_create,
                 protocol_version,
@@ -72,28 +72,28 @@ impl UpdatesManager {
 
     pub(crate) fn io_cursor(&self) -> IoCursor {
         IoCursor {
-            next_miniblock: self.miniblock.number + 1,
-            prev_miniblock_hash: self.miniblock.get_miniblock_hash(),
-            prev_miniblock_timestamp: self.miniblock.timestamp,
+            next_l2_block: self.l2_block.number + 1,
+            prev_l2_block_hash: self.l2_block.get_l2_block_hash(),
+            prev_l2_block_timestamp: self.l2_block.timestamp,
             l1_batch: self.l1_batch.number,
         }
     }
 
-    pub(crate) fn seal_miniblock_command(
+    pub(crate) fn seal_l2_block_command(
         &self,
-        l2_erc20_bridge_addr: Address,
+        l2_shared_bridge_addr: Address,
         pre_insert_txs: bool,
-    ) -> MiniblockSealCommand {
-        MiniblockSealCommand {
+    ) -> L2BlockSealCommand {
+        L2BlockSealCommand {
             l1_batch_number: self.l1_batch.number,
-            miniblock: self.miniblock.clone(),
+            l2_block: self.l2_block.clone(),
             first_tx_index: self.l1_batch.executed_transactions.len(),
             fee_account_address: self.fee_account_address,
             fee_input: self.batch_fee_input,
             base_fee_per_gas: self.base_fee_per_gas,
             base_system_contracts_hashes: self.base_system_contract_hashes,
             protocol_version: Some(self.protocol_version),
-            l2_erc20_bridge_addr,
+            l2_shared_bridge_addr,
             pre_insert_txs,
         }
     }
@@ -113,7 +113,7 @@ impl UpdatesManager {
     ) {
         self.storage_writes_deduplicator
             .apply(&tx_execution_result.logs.storage_logs);
-        self.miniblock.extend_from_executed_transaction(
+        self.l2_block.extend_from_executed_transaction(
             tx,
             tx_execution_result,
             tx_l1_gas_this_tx,
@@ -138,7 +138,7 @@ impl UpdatesManager {
         let after = self.storage_writes_deduplicator.metrics();
         BATCH_TIP_METRICS.observe_writes_metrics(&before, &after, self.protocol_version());
 
-        self.miniblock.extend_from_fictive_transaction(
+        self.l2_block.extend_from_fictive_transaction(
             result.clone(),
             batch_tip_metrics.l1_gas,
             batch_tip_metrics.execution_metrics,
@@ -146,53 +146,53 @@ impl UpdatesManager {
         self.l1_batch.finished = Some(finished_batch);
     }
 
-    /// Pushes a new miniblock with the specified timestamp into this manager. The previously
-    /// held miniblock is considered sealed and is used to extend the L1 batch data.
-    pub(crate) fn push_miniblock(&mut self, miniblock_params: MiniblockParams) {
-        let new_miniblock_updates = MiniblockUpdates::new(
-            miniblock_params.timestamp,
-            self.miniblock.number + 1,
-            self.miniblock.get_miniblock_hash(),
-            miniblock_params.virtual_blocks,
+    /// Pushes a new L2 block with the specified timestamp into this manager. The previously
+    /// held L2 block is considered sealed and is used to extend the L1 batch data.
+    pub(crate) fn push_l2_block(&mut self, l2_block_params: L2BlockParams) {
+        let new_l2_block_updates = L2BlockUpdates::new(
+            l2_block_params.timestamp,
+            self.l2_block.number + 1,
+            self.l2_block.get_l2_block_hash(),
+            l2_block_params.virtual_blocks,
             self.protocol_version,
         );
-        let old_miniblock_updates = std::mem::replace(&mut self.miniblock, new_miniblock_updates);
+        let old_l2_block_updates = std::mem::replace(&mut self.l2_block, new_l2_block_updates);
         self.l1_batch
-            .extend_from_sealed_miniblock(old_miniblock_updates);
+            .extend_from_sealed_l2_block(old_l2_block_updates);
     }
 
     pub(crate) fn pending_executed_transactions_len(&self) -> usize {
-        self.l1_batch.executed_transactions.len() + self.miniblock.executed_transactions.len()
+        self.l1_batch.executed_transactions.len() + self.l2_block.executed_transactions.len()
     }
 
     pub(crate) fn pending_l1_gas_count(&self) -> BlockGasCount {
-        self.l1_batch.l1_gas_count + self.miniblock.l1_gas_count
+        self.l1_batch.l1_gas_count + self.l2_block.l1_gas_count
     }
 
     pub(crate) fn pending_execution_metrics(&self) -> ExecutionMetrics {
-        self.l1_batch.block_execution_metrics + self.miniblock.block_execution_metrics
+        self.l1_batch.block_execution_metrics + self.l2_block.block_execution_metrics
     }
 
     pub(crate) fn pending_txs_encoding_size(&self) -> usize {
-        self.l1_batch.txs_encoding_size + self.miniblock.txs_encoding_size
+        self.l1_batch.txs_encoding_size + self.l2_block.txs_encoding_size
     }
 }
 
-/// Command to seal a miniblock containing all necessary data for it.
+/// Command to seal an L2 block containing all necessary data for it.
 #[derive(Debug)]
-pub(crate) struct MiniblockSealCommand {
+pub(crate) struct L2BlockSealCommand {
     pub l1_batch_number: L1BatchNumber,
-    pub miniblock: MiniblockUpdates,
+    pub l2_block: L2BlockUpdates,
     pub first_tx_index: usize,
     pub fee_account_address: Address,
     pub fee_input: BatchFeeInput,
     pub base_fee_per_gas: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub protocol_version: Option<ProtocolVersionId>,
-    pub l2_erc20_bridge_addr: Address,
+    pub l2_shared_bridge_addr: Address,
     /// Whether transactions should be pre-inserted to DB.
     /// Should be set to `true` for EN's IO as EN doesn't store transactions in DB
-    /// before they are included into miniblocks.
+    /// before they are included into L2 blocks.
     pub pre_insert_txs: bool,
 }
 
@@ -205,7 +205,7 @@ mod tests {
     };
 
     #[test]
-    fn apply_miniblock() {
+    fn apply_l2_block() {
         // Init accumulators.
         let mut updates_manager = create_updates_manager();
         assert_eq!(updates_manager.pending_executed_transactions_len(), 0);
@@ -223,19 +223,19 @@ mod tests {
 
         // Check that only pending state is updated.
         assert_eq!(updates_manager.pending_executed_transactions_len(), 1);
-        assert_eq!(updates_manager.miniblock.executed_transactions.len(), 1);
+        assert_eq!(updates_manager.l2_block.executed_transactions.len(), 1);
         assert_eq!(updates_manager.l1_batch.executed_transactions.len(), 0);
 
-        // Seal miniblock.
-        updates_manager.push_miniblock(MiniblockParams {
+        // Seal an L2 block.
+        updates_manager.push_l2_block(L2BlockParams {
             timestamp: 2,
             virtual_blocks: 1,
         });
 
         // Check that L1 batch updates are the same with the pending state
-        // and miniblock updates are empty.
+        // and L2 block updates are empty.
         assert_eq!(updates_manager.pending_executed_transactions_len(), 1);
-        assert_eq!(updates_manager.miniblock.executed_transactions.len(), 0);
+        assert_eq!(updates_manager.l2_block.executed_transactions.len(), 0);
         assert_eq!(updates_manager.l1_batch.executed_transactions.len(), 1);
     }
 }

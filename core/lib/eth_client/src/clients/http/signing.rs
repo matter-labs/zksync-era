@@ -2,7 +2,7 @@ use std::{fmt, sync::Arc};
 
 use async_trait::async_trait;
 use zksync_config::{configs::ContractsConfig, EthConfig};
-use zksync_contracts::zksync_contract;
+use zksync_contracts::hyperchain_contract;
 use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
 use zksync_types::{
     web3::{
@@ -15,7 +15,7 @@ use zksync_types::{
             H256, U256, U64,
         },
     },
-    L1ChainId, PackedEthSignature, EIP_4844_TX_TYPE,
+    K256PrivateKey, L1ChainId, EIP_4844_TX_TYPE,
 };
 
 use super::{query::QueryClient, Method, LATENCIES};
@@ -33,7 +33,7 @@ impl PKSigningClient {
         eth_sender: &EthConfig,
         contracts_config: &ContractsConfig,
         l1_chain_id: L1ChainId,
-        operator_private_key: H256,
+        operator_private_key: K256PrivateKey,
     ) -> Self {
         Self::from_config_inner(
             eth_sender,
@@ -44,21 +44,19 @@ impl PKSigningClient {
     }
 
     pub fn new_raw(
-        operator_private_key: H256,
+        operator_private_key: K256PrivateKey,
         diamond_proxy_addr: Address,
         default_priority_fee_per_gas: u64,
         l1_chain_id: L1ChainId,
         web3_url: &str,
     ) -> Self {
         let transport = Http::new(web3_url).expect("Failed to create transport");
-        let operator_address = PackedEthSignature::address_from_private_key(&operator_private_key)
-            .expect("Failed to get address from private key");
-
+        let operator_address = operator_private_key.address();
         let signer = PrivateKeySigner::new(operator_private_key);
         tracing::info!("Operator address: {:?}", operator_address);
         SigningClient::new(
             transport,
-            zksync_contract(),
+            hyperchain_contract(),
             operator_address,
             signer,
             diamond_proxy_addr,
@@ -71,7 +69,7 @@ impl PKSigningClient {
         eth_sender: &EthConfig,
         contracts_config: &ContractsConfig,
         l1_chain_id: L1ChainId,
-        operator_private_key: H256,
+        operator_private_key: K256PrivateKey,
     ) -> Self {
         let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
         let default_priority_fee_per_gas = eth_sender

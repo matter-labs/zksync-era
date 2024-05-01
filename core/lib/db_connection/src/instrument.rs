@@ -467,7 +467,7 @@ impl<'a> Instrumented<'a, CopyStatement> {
 
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::{MiniblockNumber, H256};
+    use zksync_basic_types::{L2BlockNumber, H256};
 
     use super::*;
     use crate::{connection_pool::ConnectionPool, utils::InternalMarker};
@@ -481,7 +481,7 @@ mod tests {
         sqlx::query("WHAT")
             .map(drop)
             .instrument("erroneous")
-            .with_arg("miniblock", &MiniblockNumber(1))
+            .with_arg("l2_block", &L2BlockNumber(1))
             .with_arg("hash", &H256::zero())
             .fetch_optional(&mut conn)
             .await
@@ -497,7 +497,7 @@ mod tests {
         sqlx::query("SELECT pg_sleep(1.5)")
             .map(drop)
             .instrument("slow")
-            .with_arg("miniblock", &MiniblockNumber(1))
+            .with_arg("l2_block", &L2BlockNumber(1))
             .with_arg("hash", &H256::zero())
             .fetch_optional(&mut conn)
             .await

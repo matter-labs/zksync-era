@@ -7,9 +7,9 @@ use anyhow::Context as _;
 use itertools::Itertools;
 use multivm::utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte};
 use zksync_dal::{Connection, Core, CoreDal};
-use zksync_shared_metrics::{BlockStage, MiniblockStage, APP_METRICS};
+use zksync_shared_metrics::{BlockStage, L2BlockStage, APP_METRICS};
 use zksync_types::{
-    block::{L1BatchHeader, MiniblockHeader},
+    block::{L1BatchHeader, L2BlockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
     helpers::unix_timestamp_ms,
     l1::L1Tx,
@@ -21,28 +21,29 @@ use zksync_types::{
         tx_execution_info::DeduplicatedWritesMetrics, IncludedTxLocation,
         TransactionExecutionResult,
     },
+    utils::display_timestamp,
     zk_evm_types::LogQuery,
     AccountTreeId, Address, ExecuteTransactionCommon, L1BlockNumber, ProtocolVersionId, StorageKey,
-    StorageLog, StorageLogQuery, Transaction, VmEvent, H256,
+    StorageLog, Transaction, VmEvent, H256,
 };
 use zksync_utils::u256_to_h256;
 
 use crate::state_keeper::{
     metrics::{
-        L1BatchSealStage, MiniblockSealStage, TxExecutionType, KEEPER_METRICS, L1_BATCH_METRICS,
-        MINIBLOCK_METRICS,
+        L1BatchSealStage, L2BlockSealStage, TxExecutionType, KEEPER_METRICS, L1_BATCH_METRICS,
+        L2_BLOCK_METRICS,
     },
-    updates::{MiniblockSealCommand, UpdatesManager},
+    updates::{L2BlockSealCommand, UpdatesManager},
 };
 
 impl UpdatesManager {
     /// Persists an L1 batch in the storage.
-    /// This action includes a creation of an empty "fictive" miniblock that contains
-    /// the events generated during the bootloader "tip phase". Returns updates for this fictive miniblock.
+    /// This action includes a creation of an empty "fictive" L2 block that contains
+    /// the events generated during the bootloader "tip phase". Returns updates for this fictive L2 block.
     pub(super) async fn seal_l1_batch(
         &self,
         storage: &mut Connection<'_, Core>,
-        l2_erc20_bridge_addr: Address,
+        l2_shared_bridge_addr: Address,
         insert_protective_reads: bool,
     ) -> anyhow::Result<()> {
         let started_at = Instant::now();
@@ -53,16 +54,16 @@ impl UpdatesManager {
             .context("L1 batch is not actually finished")?;
         let mut transaction = storage.start_transaction().await?;
 
-        let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FictiveMiniblock);
-        // Seal fictive miniblock with last events and storage logs.
-        let miniblock_command = self.seal_miniblock_command(
-            l2_erc20_bridge_addr,
-            false, // fictive miniblocks don't have txs, so it's fine to pass `false` here.
+        let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FictiveL2Block);
+        // Seal fictive L2 block with last events and storage logs.
+        let l2_block_command = self.seal_l2_block_command(
+            l2_shared_bridge_addr,
+            false, // fictive L2 blocks don't have txs, so it's fine to pass `false` here.
         );
-        miniblock_command
+        l2_block_command
             .seal_inner(&mut transaction, true)
             .await
-            .context("failed persisting fictive miniblock")?;
+            .context("failed persisting fictive L2 block")?;
         progress.observe(None);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::LogDeduplication);
@@ -75,9 +76,6 @@ impl UpdatesManager {
         );
 
         let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.l1_batch.executed_transactions);
-        let (writes_count, reads_count) = storage_log_query_write_read_counts(
-            &finished_batch.final_execution_state.storage_log_queries,
-        );
         let (dedup_writes_count, dedup_reads_count) = log_query_write_read_counts(
             finished_batch
                 .final_execution_state
@@ -86,10 +84,11 @@ impl UpdatesManager {
         );
 
         tracing::info!(
-            "Sealing L1 batch {current_l1_batch_number} with {total_tx_count} \
+            "Sealing L1 batch {current_l1_batch_number} with timestamp {ts}, {total_tx_count} \
              ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {l2_to_l1_log_count} l2_l1_logs, \
-             {event_count} events, {reads_count} reads ({dedup_reads_count} deduped), \
-             {writes_count} writes ({dedup_writes_count} deduped)",
+             {event_count} events, {dedup_reads_count} deduped reads, \
+             {dedup_writes_count} deduped writes",
+            ts = display_timestamp(self.batch_timestamp()),
             total_tx_count = l1_tx_count + l2_tx_count,
             l2_to_l1_log_count = finished_batch
                 .final_execution_state
@@ -141,10 +140,10 @@ impl UpdatesManager {
             .await?;
         progress.observe(None);
 
-        let progress = L1_BATCH_METRICS.start(L1BatchSealStage::SetL1BatchNumberForMiniblocks);
+        let progress = L1_BATCH_METRICS.start(L1BatchSealStage::SetL1BatchNumberForL2Blocks);
         transaction
             .blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(self.l1_batch.number)
+            .mark_l2_blocks_as_executed_in_l1_batch(self.l1_batch.number)
             .await?;
         progress.observe(None);
 
@@ -246,18 +245,18 @@ impl UpdatesManager {
     }
 }
 
-impl MiniblockSealCommand {
+impl L2BlockSealCommand {
     pub(super) async fn seal(&self, storage: &mut Connection<'_, Core>) -> anyhow::Result<()> {
         self.seal_inner(storage, false)
             .await
-            .with_context(|| format!("failed sealing miniblock #{}", self.miniblock.number))
+            .with_context(|| format!("failed sealing L2 block #{}", self.l2_block.number))
     }
 
     async fn insert_transactions(
         &self,
         transaction: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
-        for tx_result in &self.miniblock.executed_transactions {
+        for tx_result in &self.l2_block.executed_transactions {
             let tx = tx_result.transaction.clone();
             let tx_hash = tx.hash();
 
@@ -298,47 +297,44 @@ impl MiniblockSealCommand {
         Ok(())
     }
 
-    /// Seals a miniblock with the given number.
+    /// Seals an L2 block with the given number.
     ///
-    /// If `is_fictive` flag is set to true, then it is assumed that we should seal a fictive miniblock
+    /// If `is_fictive` flag is set to true, then it is assumed that we should seal a fictive L2 block
     /// with no transactions in it. It is needed because there might be some storage logs / events
     /// that are created after the last processed tx in the L1 batch: after the last transaction is processed,
     /// the bootloader enters the "tip" phase in which it can still generate events (e.g.,
     /// one for sending fees to the operator).
     ///
-    /// `l2_erc20_bridge_addr` is required to extract the information on newly added tokens.
+    /// `l2_shared_bridge_addr` is required to extract the information on newly added tokens.
     async fn seal_inner(
         &self,
         storage: &mut Connection<'_, Core>,
         is_fictive: bool,
     ) -> anyhow::Result<()> {
-        self.ensure_valid_miniblock(is_fictive)
-            .context("miniblock is invalid")?;
+        self.ensure_valid_l2_block(is_fictive)
+            .context("L2 block is invalid")?;
 
         let mut transaction = storage.start_transaction().await?;
         if self.pre_insert_txs {
-            let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::PreInsertTxs, is_fictive);
+            let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::PreInsertTxs, is_fictive);
             self.insert_transactions(&mut transaction)
                 .await
-                .context("failed persisting transactions in miniblock")?;
-            progress.observe(Some(self.miniblock.executed_transactions.len()));
+                .context("failed persisting transactions in L2 block")?;
+            progress.observe(Some(self.l2_block.executed_transactions.len()));
         }
 
         let l1_batch_number = self.l1_batch_number;
-        let miniblock_number = self.miniblock.number;
+        let l2_block_number = self.l2_block.number;
         let started_at = Instant::now();
-        let progress =
-            MINIBLOCK_METRICS.start(MiniblockSealStage::InsertMiniblockHeader, is_fictive);
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2BlockHeader, is_fictive);
 
-        let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.miniblock.executed_transactions);
-        let (writes_count, reads_count) =
-            storage_log_query_write_read_counts(&self.miniblock.storage_logs);
+        let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.l2_block.executed_transactions);
         tracing::info!(
-            "Sealing miniblock {miniblock_number} (L1 batch {l1_batch_number}) \
-             with {total_tx_count} ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {event_count} events, \
-             {reads_count} reads, {writes_count} writes",
+            "Sealing L2 block {l2_block_number} with timestamp {ts} (L1 batch {l1_batch_number}) \
+             with {total_tx_count} ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {event_count} events",
+            ts = display_timestamp(self.l2_block.timestamp),
             total_tx_count = l1_tx_count + l2_tx_count,
-            event_count = self.miniblock.events.len()
+            event_count = self.l2_block.events.len()
         );
 
         let definite_vm_version = self
@@ -346,10 +342,10 @@ impl MiniblockSealCommand {
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined)
             .into();
 
-        let miniblock_header = MiniblockHeader {
-            number: miniblock_number,
-            timestamp: self.miniblock.timestamp,
-            hash: self.miniblock.get_miniblock_hash(),
+        let l2_block_header = L2BlockHeader {
+            number: l2_block_number,
+            timestamp: self.l2_block.timestamp,
+            hash: self.l2_block.get_l2_block_hash(),
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
             fee_account_address: self.fee_account_address,
@@ -358,84 +354,71 @@ impl MiniblockSealCommand {
             base_system_contracts_hashes: self.base_system_contracts_hashes,
             protocol_version: self.protocol_version,
             gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(definite_vm_version),
-            virtual_blocks: self.miniblock.virtual_blocks,
+            virtual_blocks: self.l2_block.virtual_blocks,
             gas_limit: get_max_batch_gas_limit(definite_vm_version),
         };
 
         transaction
             .blocks_dal()
-            .insert_miniblock(&miniblock_header)
+            .insert_l2_block(&l2_block_header)
             .await?;
         progress.observe(None);
 
         let progress =
-            MINIBLOCK_METRICS.start(MiniblockSealStage::MarkTransactionsInMiniblock, is_fictive);
+            L2_BLOCK_METRICS.start(L2BlockSealStage::MarkTransactionsInL2Block, is_fictive);
         transaction
             .transactions_dal()
-            .mark_txs_as_executed_in_miniblock(
-                miniblock_number,
-                &self.miniblock.executed_transactions,
+            .mark_txs_as_executed_in_l2_block(
+                l2_block_number,
+                &self.l2_block.executed_transactions,
                 self.base_fee_per_gas.into(),
             )
             .await?;
-        progress.observe(self.miniblock.executed_transactions.len());
+        progress.observe(self.l2_block.executed_transactions.len());
 
-        let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::InsertStorageLogs, is_fictive);
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertStorageLogs, is_fictive);
         let write_logs = self.extract_deduplicated_write_logs(is_fictive);
         let write_log_count: usize = write_logs.iter().map(|(_, logs)| logs.len()).sum();
         transaction
             .storage_logs_dal()
-            .insert_storage_logs(miniblock_number, &write_logs)
+            .insert_storage_logs(l2_block_number, &write_logs)
             .await?;
         progress.observe(write_log_count);
 
-        #[allow(deprecated)] // Will be removed shortly
-        {
-            let progress =
-                MINIBLOCK_METRICS.start(MiniblockSealStage::ApplyStorageLogs, is_fictive);
-            transaction
-                .storage_dal()
-                .apply_storage_logs(&write_logs)
-                .await;
-            progress.observe(write_log_count);
-        }
-
-        let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::InsertFactoryDeps, is_fictive);
-        let new_factory_deps = &self.miniblock.new_factory_deps;
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertFactoryDeps, is_fictive);
+        let new_factory_deps = &self.l2_block.new_factory_deps;
         let new_factory_deps_count = new_factory_deps.len();
         if !new_factory_deps.is_empty() {
             transaction
                 .factory_deps_dal()
-                .insert_factory_deps(miniblock_number, new_factory_deps)
+                .insert_factory_deps(l2_block_number, new_factory_deps)
                 .await?;
         }
         progress.observe(new_factory_deps_count);
 
-        let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::ExtractAddedTokens, is_fictive);
-        let added_tokens = extract_added_tokens(self.l2_erc20_bridge_addr, &self.miniblock.events);
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ExtractAddedTokens, is_fictive);
+        let added_tokens = extract_added_tokens(self.l2_shared_bridge_addr, &self.l2_block.events);
         progress.observe(added_tokens.len());
-        let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::InsertTokens, is_fictive);
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertTokens, is_fictive);
         let added_tokens_len = added_tokens.len();
         if !added_tokens.is_empty() {
             transaction.tokens_dal().add_tokens(&added_tokens).await?;
         }
         progress.observe(added_tokens_len);
 
-        let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::ExtractEvents, is_fictive);
-        let miniblock_events = self.extract_events(is_fictive);
-        let miniblock_event_count: usize = miniblock_events
-            .iter()
-            .map(|(_, events)| events.len())
-            .sum();
-        progress.observe(miniblock_event_count);
-        let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::InsertEvents, is_fictive);
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ExtractEvents, is_fictive);
+        let l2_block_events = self.extract_events(is_fictive);
+        let l2_block_event_count: usize =
+            l2_block_events.iter().map(|(_, events)| events.len()).sum();
+        progress.observe(l2_block_event_count);
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertEvents, is_fictive);
         transaction
             .events_dal()
-            .save_events(miniblock_number, &miniblock_events)
+            .save_events(l2_block_number, &l2_block_events)
             .await?;
-        progress.observe(miniblock_event_count);
+        progress.observe(l2_block_event_count);
 
-        let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::ExtractL2ToL1Logs, is_fictive);
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ExtractL2ToL1Logs, is_fictive);
 
         let system_l2_to_l1_logs = self.extract_system_l2_to_l1_logs(is_fictive);
         let user_l2_to_l1_logs = self.extract_user_l2_to_l1_logs(is_fictive);
@@ -451,56 +434,56 @@ impl MiniblockSealCommand {
 
         progress.observe(system_l2_to_l1_log_count + user_l2_to_l1_log_count);
 
-        let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::InsertL2ToL1Logs, is_fictive);
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2ToL1Logs, is_fictive);
         transaction
             .events_dal()
-            .save_user_l2_to_l1_logs(miniblock_number, &user_l2_to_l1_logs)
+            .save_user_l2_to_l1_logs(l2_block_number, &user_l2_to_l1_logs)
             .await?;
         progress.observe(user_l2_to_l1_log_count);
 
-        let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::CommitMiniblock, is_fictive);
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::CommitL2Block, is_fictive);
 
         transaction.commit().await?;
         progress.observe(None);
 
-        let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::ReportTxMetrics, is_fictive);
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ReportTxMetrics, is_fictive);
         self.report_transaction_metrics();
-        progress.observe(Some(self.miniblock.executed_transactions.len()));
+        progress.observe(Some(self.l2_block.executed_transactions.len()));
 
-        self.report_miniblock_metrics(started_at);
+        self.report_l2_block_metrics(started_at);
         Ok(())
     }
 
-    /// Performs several sanity checks to make sure that the miniblock is valid.
-    fn ensure_valid_miniblock(&self, is_fictive: bool) -> anyhow::Result<()> {
+    /// Performs several sanity checks to make sure that the L2 block is valid.
+    fn ensure_valid_l2_block(&self, is_fictive: bool) -> anyhow::Result<()> {
         if is_fictive {
             anyhow::ensure!(
-                self.miniblock.executed_transactions.is_empty(),
-                "fictive miniblock must not have transactions"
+                self.l2_block.executed_transactions.is_empty(),
+                "fictive L2 block must not have transactions"
             );
         } else {
             anyhow::ensure!(
-                !self.miniblock.executed_transactions.is_empty(),
-                "non-fictive miniblock must have at least one transaction"
+                !self.l2_block.executed_transactions.is_empty(),
+                "non-fictive L2 block must have at least one transaction"
             );
         }
 
         let first_tx_index = self.first_tx_index;
-        let next_tx_index = first_tx_index + self.miniblock.executed_transactions.len();
+        let next_tx_index = first_tx_index + self.l2_block.executed_transactions.len();
         let tx_index_range = if is_fictive {
             next_tx_index..(next_tx_index + 1)
         } else {
             first_tx_index..next_tx_index
         };
 
-        for event in &self.miniblock.events {
+        for event in &self.l2_block.events {
             let tx_index = event.location.1 as usize;
             anyhow::ensure!(
                 tx_index_range.contains(&tx_index),
                 "event transaction index {tx_index} is outside of the expected range {tx_index_range:?}"
             );
         }
-        for storage_log in &self.miniblock.storage_logs {
+        for storage_log in &self.l2_block.storage_logs {
             let tx_index = storage_log.log_query.tx_number_in_block as usize;
             anyhow::ensure!(
                 tx_index_range.contains(&tx_index),
@@ -513,7 +496,7 @@ impl MiniblockSealCommand {
     fn extract_deduplicated_write_logs(&self, is_fictive: bool) -> Vec<(H256, Vec<StorageLog>)> {
         let mut storage_writes_deduplicator = StorageWritesDeduplicator::new();
         storage_writes_deduplicator.apply(
-            self.miniblock
+            self.l2_block
                 .storage_logs
                 .iter()
                 .filter(|log| log.log_query.rw_flag),
@@ -553,12 +536,12 @@ impl MiniblockSealCommand {
     }
 
     fn transaction(&self, index: usize) -> &Transaction {
-        let tx_result = &self.miniblock.executed_transactions[index - self.first_tx_index];
+        let tx_result = &self.l2_block.executed_transactions[index - self.first_tx_index];
         &tx_result.transaction
     }
 
     fn extract_events(&self, is_fictive: bool) -> Vec<(IncludedTxLocation, Vec<&VmEvent>)> {
-        self.group_by_tx_location(&self.miniblock.events, is_fictive, |event| event.location.1)
+        self.group_by_tx_location(&self.l2_block.events, is_fictive, |event| event.location.1)
     }
 
     fn group_by_tx_location<'a, T>(
@@ -579,7 +562,7 @@ impl MiniblockSealCommand {
 
             let location = IncludedTxLocation {
                 tx_hash,
-                tx_index_in_miniblock: tx_index - self.first_tx_index as u32,
+                tx_index_in_l2_block: tx_index - self.first_tx_index as u32,
                 tx_initiator_address,
             };
             (location, entries.collect())
@@ -591,7 +574,7 @@ impl MiniblockSealCommand {
         &self,
         is_fictive: bool,
     ) -> Vec<(IncludedTxLocation, Vec<&SystemL2ToL1Log>)> {
-        self.group_by_tx_location(&self.miniblock.system_l2_to_l1_logs, is_fictive, |log| {
+        self.group_by_tx_location(&self.l2_block.system_l2_to_l1_logs, is_fictive, |log| {
             u32::from(log.0.tx_number_in_block)
         })
     }
@@ -600,7 +583,7 @@ impl MiniblockSealCommand {
         &self,
         is_fictive: bool,
     ) -> Vec<(IncludedTxLocation, Vec<&UserL2ToL1Log>)> {
-        self.group_by_tx_location(&self.miniblock.user_l2_to_l1_logs, is_fictive, |log| {
+        self.group_by_tx_location(&self.l2_block.user_l2_to_l1_logs, is_fictive, |log| {
             u32::from(log.0.tx_number_in_block)
         })
     }
@@ -618,7 +601,7 @@ impl MiniblockSealCommand {
             return;
         }
 
-        for tx in &self.miniblock.executed_transactions {
+        for tx in &self.l2_block.executed_transactions {
             let inclusion_delay =
                 unix_timestamp_ms().saturating_sub(tx.transaction.received_timestamp_ms);
             let inclusion_delay = Duration::from_millis(inclusion_delay);
@@ -627,7 +610,7 @@ impl MiniblockSealCommand {
                     tx_hash = hex::encode(tx.hash),
                     inclusion_delay_ms = inclusion_delay.as_millis(),
                     received_timestamp_ms = tx.transaction.received_timestamp_ms,
-                    "Transaction spent >{SLOW_INCLUSION_DELAY:?} in mempool before being included in a miniblock"
+                    "Transaction spent >{SLOW_INCLUSION_DELAY:?} in mempool before being included in an L2 block"
                 );
             }
             KEEPER_METRICS.transaction_inclusion_delay
@@ -636,22 +619,22 @@ impl MiniblockSealCommand {
         }
     }
 
-    fn report_miniblock_metrics(&self, started_at: Instant) {
-        let miniblock_number = self.miniblock.number;
+    fn report_l2_block_metrics(&self, started_at: Instant) {
+        let l2_block_number = self.l2_block.number;
 
-        MINIBLOCK_METRICS
+        L2_BLOCK_METRICS
             .transactions_in_miniblock
-            .observe(self.miniblock.executed_transactions.len());
-        MINIBLOCK_METRICS.sealed_time.observe(started_at.elapsed());
+            .observe(self.l2_block.executed_transactions.len());
+        L2_BLOCK_METRICS.sealed_time.observe(started_at.elapsed());
 
-        let miniblock_latency =
-            unix_timestamp_ms().saturating_sub(self.miniblock.timestamp * 1_000) as f64 / 1_000.0;
-        let stage = &MiniblockStage::Sealed;
-        APP_METRICS.miniblock_latency[stage].observe(Duration::from_secs_f64(miniblock_latency));
-        APP_METRICS.miniblock_number[stage].set(miniblock_number.0.into());
+        let l2_block_latency =
+            unix_timestamp_ms().saturating_sub(self.l2_block.timestamp * 1_000) as f64 / 1_000.0;
+        let stage = &L2BlockStage::Sealed;
+        APP_METRICS.miniblock_latency[stage].observe(Duration::from_secs_f64(l2_block_latency));
+        APP_METRICS.miniblock_number[stage].set(l2_block_number.0.into());
 
         tracing::debug!(
-            "Sealed miniblock {miniblock_number} in {:?}",
+            "Sealed L2 block #{l2_block_number} in {:?}",
             started_at.elapsed()
         );
     }
@@ -683,8 +666,4 @@ fn log_query_write_read_counts<'a>(logs: impl Iterator<Item = &'a LogQuery>) -> 
         }
     }
     (writes_count, reads_count)
-}
-
-fn storage_log_query_write_read_counts(logs: &[StorageLogQuery]) -> (usize, usize) {
-    log_query_write_read_counts(logs.iter().map(|log| &log.log_query))
 }

@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use zksync_config::{configs::chain::StateKeeperConfig, DBConfig};
-use zksync_core::state_keeper::{AsyncCatchupTask, AsyncRocksdbCache, MainBatchExecutor};
+use zksync_core::state_keeper::{AsyncRocksdbCache, MainBatchExecutor};
+use zksync_state::AsyncCatchupTask;
 
 use crate::{
     implementations::resources::{pools::MasterPoolResource, state_keeper::BatchExecutorResource},
@@ -38,7 +39,6 @@ impl WiringLayer for MainBatchExecutorLayer {
         let (storage_factory, task) = AsyncRocksdbCache::new(
             master_pool.get_singleton().await?,
             self.db_config.state_keeper_db_path,
-            self.state_keeper_config.enum_index_migration_chunk_size(),
         );
         let builder = MainBatchExecutor::new(
             Arc::new(storage_factory),

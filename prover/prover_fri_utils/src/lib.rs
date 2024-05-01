@@ -27,7 +27,7 @@ pub mod socket_utils;
 pub async fn fetch_next_circuit(
     storage: &mut Connection<'_, Prover>,
     blob_store: &dyn ObjectStore,
-    circuit_ids_for_round_to_be_proven: &Vec<CircuitIdRoundTuple>,
+    circuit_ids_for_round_to_be_proven: &[CircuitIdRoundTuple],
     vk_commitments: &L1VerifierConfig,
 ) -> Option<ProverJob> {
     let protocol_versions = storage
@@ -103,7 +103,6 @@ pub fn get_numeric_circuit_id(circuit_wrapper: &CircuitWrapper) -> u8 {
     match circuit_wrapper {
         CircuitWrapper::Base(circuit) => circuit.numeric_circuit_type(),
         CircuitWrapper::Recursive(circuit) => circuit.numeric_circuit_type(),
-        CircuitWrapper::Eip4844(_) => ProverServiceDataKey::eip4844().circuit_id,
     }
 }
 

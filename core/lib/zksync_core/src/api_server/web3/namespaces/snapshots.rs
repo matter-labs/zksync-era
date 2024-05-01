@@ -63,17 +63,17 @@ impl SnapshotsNamespace {
                 })
             })
             .collect();
-        let (_, miniblock_number) = storage_processor
+        let (_, l2_block_number) = storage_processor
             .blocks_dal()
-            .get_miniblock_range_of_l1_batch(l1_batch_number)
+            .get_l2_block_range_of_l1_batch(l1_batch_number)
             .await
             .map_err(DalError::generalize)?
-            .with_context(|| format!("missing miniblocks for L1 batch #{l1_batch_number}"))?;
+            .with_context(|| format!("missing L2 blocks for L1 batch #{l1_batch_number}"))?;
 
         Ok(Some(SnapshotHeader {
             version: snapshot_metadata.version.into(),
             l1_batch_number: snapshot_metadata.l1_batch_number,
-            miniblock_number,
+            l2_block_number,
             storage_logs_chunks: chunks,
             factory_deps_filepath: snapshot_metadata.factory_deps_filepath,
         }))

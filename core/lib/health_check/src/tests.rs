@@ -134,3 +134,17 @@ async fn aggregating_health_checks() {
         HealthStatus::Affected
     );
 }
+
+#[test]
+fn adding_duplicate_component() {
+    let checks = AppHealthCheck::default();
+    let (health_check, _health_updater) = ReactiveHealthCheck::new("test");
+    checks.insert_component(health_check.clone()).unwrap();
+
+    let err = checks.insert_component(health_check.clone()).unwrap_err();
+    assert_matches!(err, AppHealthCheckError::RedefinedComponent("test"));
+    let err = checks
+        .insert_custom_component(Arc::new(health_check))
+        .unwrap_err();
+    assert_matches!(err, AppHealthCheckError::RedefinedComponent("test"));
+}

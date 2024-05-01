@@ -31,6 +31,10 @@ export function getL2TransactionsFileName(environment): string {
     return getUpgradePath(environment) + '/transactions.json';
 }
 
+export function getPostUpgradeCalldataFileName(environment): string {
+    return getUpgradePath(environment) + '/postUpgradeCalldata.json';
+}
+
 export function getNameOfTheLastUpgrade(): string {
     return fs.readdirSync(DEFAULT_UPGRADE_PATH).sort().reverse()[0];
 }
@@ -46,7 +50,7 @@ export function getCommonUpgradePath(): string {
 
 export function getUpgradePath(environment: string): string {
     const upgradeEnvironment = environment ?? 'localhost';
-    const path = `${getCommonUpgradePath()}/${upgradeEnvironment}`;
+    const path = `${getCommonUpgradePath()}${upgradeEnvironment}`;
     if (!fs.existsSync(path)) {
         fs.mkdirSync(path, { recursive: true });
     }

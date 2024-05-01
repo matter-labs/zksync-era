@@ -1,6 +1,5 @@
 use std::{sync::Arc, time::Duration};
 
-use anyhow::Context;
 use async_trait::async_trait;
 use serde::Serialize;
 use tokio::sync::watch;
@@ -8,41 +7,41 @@ use zksync_concurrency::{ctx, sync};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_shared_metrics::EN_METRICS;
-use zksync_types::MiniblockNumber;
-use zksync_web3_decl::{client::L2Client, namespaces::EthNamespaceClient};
+use zksync_types::L2BlockNumber;
+use zksync_web3_decl::{client::BoxedL2Client, namespaces::EthNamespaceClient};
 
 use crate::state_keeper::{io::IoCursor, updates::UpdatesManager, StateKeeperOutputHandler};
 
 /// `SyncState` is a structure that holds the state of the syncing process.
 /// The intended use case is to signalize to Web3 API whether the node is fully synced.
 /// Data inside is expected to be updated by both `MainNodeFetcher` (on last block available on the main node)
-/// and `ExternalIO` (on latest sealed miniblock).
+/// and `ExternalIO` (on latest sealed L2 block).
 ///
-/// This structure operates on miniblocks rather than L1 batches, since this is the default unit used in the web3 API.
+/// This structure operates on L2 blocks rather than L1 batches, since this is the default unit used in the web3 API.
 #[derive(Debug, Clone)]
-pub struct SyncState(Arc<sync::watch::Sender<SyncStateInner>>);
+pub struct SyncState(Arc<watch::Sender<SyncStateInner>>);
 
 impl Default for SyncState {
     fn default() -> Self {
-        Self(Arc::new(sync::watch::channel(SyncStateInner::default()).0))
+        Self(Arc::new(watch::channel(SyncStateInner::default()).0))
     }
 }
 
 /// A threshold constant intended to keep the sync status less flaky.
-/// This gives the external node some room to fetch new miniblocks without losing the sync status.
-const SYNC_MINIBLOCK_DELTA: u32 = 10;
+/// This gives the external node some room to fetch new L2 blocks without losing the sync status.
+const SYNC_L2_BLOCK_DELTA: u32 = 10;
 
 impl SyncState {
-    pub(crate) fn get_main_node_block(&self) -> MiniblockNumber {
+    pub(crate) fn get_main_node_block(&self) -> L2BlockNumber {
         self.0.borrow().main_node_block.unwrap_or_default()
     }
 
-    pub(crate) fn get_local_block(&self) -> MiniblockNumber {
+    pub(crate) fn get_local_block(&self) -> L2BlockNumber {
         self.0.borrow().local_block.unwrap_or_default()
     }
 
     #[cfg(test)]
-    pub(crate) async fn wait_for_local_block(&self, want: MiniblockNumber) {
+    pub(crate) async fn wait_for_local_block(&self, want: L2BlockNumber) {
         self.0
             .subscribe()
             .wait_for(|inner| matches!(inner.local_block, Some(got) if got >= want))
@@ -53,7 +52,7 @@ impl SyncState {
     pub(crate) async fn wait_for_main_node_block(
         &self,
         ctx: &ctx::Ctx,
-        want: MiniblockNumber,
+        want: L2BlockNumber,
     ) -> ctx::OrCanceled<()> {
         sync::wait_for(
             ctx,
@@ -64,11 +63,11 @@ impl SyncState {
         Ok(())
     }
 
-    pub(crate) fn set_main_node_block(&self, block: MiniblockNumber) {
+    pub(crate) fn set_main_node_block(&self, block: L2BlockNumber) {
         self.0.send_modify(|inner| inner.set_main_node_block(block));
     }
 
-    fn set_local_block(&self, block: MiniblockNumber) {
+    fn set_local_block(&self, block: L2BlockNumber) {
         self.0.send_modify(|inner| inner.set_local_block(block));
     }
 
@@ -79,7 +78,7 @@ impl SyncState {
     pub async fn run_updater(
         self,
         connection_pool: ConnectionPool<Core>,
-        main_node_client: L2Client,
+        main_node_client: BoxedL2Client,
         mut stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         const UPDATE_INTERVAL: Duration = Duration::from_secs(10);
@@ -87,17 +86,12 @@ impl SyncState {
         while !*stop_receiver.borrow_and_update() {
             let local_block = connection_pool
                 .connection()
-                .await
-                .context("Failed to get a connection from the pool in sync state updater")?
+                .await?
                 .blocks_dal()
-                .get_sealed_miniblock_number()
-                .await
-                .context("Failed to get the miniblock number from DB")?;
+                .get_sealed_l2_block_number()
+                .await?;
 
-            let main_node_block = main_node_client
-                .get_block_number()
-                .await
-                .context("Failed to request last miniblock number from main node")?;
+            let main_node_block = main_node_client.get_block_number().await?;
 
             if let Some(local_block) = local_block {
                 self.set_local_block(local_block);
@@ -115,19 +109,19 @@ impl SyncState {
 #[async_trait]
 impl StateKeeperOutputHandler for SyncState {
     async fn initialize(&mut self, cursor: &IoCursor) -> anyhow::Result<()> {
-        let sealed_block_number = cursor.next_miniblock.saturating_sub(1);
-        self.set_local_block(MiniblockNumber(sealed_block_number));
+        let sealed_block_number = cursor.next_l2_block.saturating_sub(1);
+        self.set_local_block(L2BlockNumber(sealed_block_number));
         Ok(())
     }
 
-    async fn handle_miniblock(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
-        let sealed_block_number = updates_manager.miniblock.number;
+    async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+        let sealed_block_number = updates_manager.l2_block.number;
         self.set_local_block(sealed_block_number);
         Ok(())
     }
 
     async fn handle_l1_batch(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
-        let sealed_block_number = updates_manager.miniblock.number;
+        let sealed_block_number = updates_manager.l2_block.number;
         self.set_local_block(sealed_block_number);
         Ok(())
     }
@@ -135,12 +129,12 @@ impl StateKeeperOutputHandler for SyncState {
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SyncStateInner {
-    pub(crate) main_node_block: Option<MiniblockNumber>,
-    pub(crate) local_block: Option<MiniblockNumber>,
+    pub(crate) main_node_block: Option<L2BlockNumber>,
+    pub(crate) local_block: Option<L2BlockNumber>,
 }
 
 impl SyncStateInner {
-    fn set_main_node_block(&mut self, block: MiniblockNumber) {
+    fn set_main_node_block(&mut self, block: L2BlockNumber) {
         if let Some(local_block) = self.local_block {
             if block < local_block {
                 // Probably it's fine -- will be checked by the re-org detector.
@@ -151,7 +145,7 @@ impl SyncStateInner {
         self.update_sync_metric();
     }
 
-    fn set_local_block(&mut self, block: MiniblockNumber) {
+    fn set_local_block(&mut self, block: L2BlockNumber) {
         if let Some(main_node_block) = self.main_node_block {
             if block > main_node_block {
                 // Probably it's fine -- will be checked by the re-org detector.
@@ -183,7 +177,7 @@ impl SyncStateInner {
                 // We're ahead of the main node, this situation is handled by the re-org detector.
                 return (true, Some(0));
             };
-            (block_diff <= SYNC_MINIBLOCK_DELTA, Some(block_diff))
+            (block_diff <= SYNC_L2_BLOCK_DELTA, Some(block_diff))
         } else {
             (false, None)
         }
@@ -204,9 +198,9 @@ impl From<&SyncStateInner> for Health {
         struct SyncStateHealthDetails {
             is_synced: bool,
             #[serde(skip_serializing_if = "Option::is_none")]
-            main_node_block: Option<MiniblockNumber>,
+            main_node_block: Option<L2BlockNumber>,
             #[serde(skip_serializing_if = "Option::is_none")]
-            local_block: Option<MiniblockNumber>,
+            local_block: Option<L2BlockNumber>,
         }
 
         let (is_synced, block_diff) = state.is_synced();
@@ -242,26 +236,26 @@ mod tests {
         assert_matches!(health.status(), HealthStatus::NotReady);
 
         // The gap is too big, still not synced.
-        sync_state.set_local_block(MiniblockNumber(0));
-        sync_state.set_main_node_block(MiniblockNumber(SYNC_MINIBLOCK_DELTA + 1));
+        sync_state.set_local_block(L2BlockNumber(0));
+        sync_state.set_main_node_block(L2BlockNumber(SYNC_L2_BLOCK_DELTA + 1));
         assert!(!sync_state.is_synced());
 
         let health = sync_state.check_health().await;
         assert_matches!(health.status(), HealthStatus::Affected);
 
         // Within the threshold, the node is synced.
-        sync_state.set_local_block(MiniblockNumber(1));
+        sync_state.set_local_block(L2BlockNumber(1));
         assert!(sync_state.is_synced());
 
         let health = sync_state.check_health().await;
         assert_matches!(health.status(), HealthStatus::Ready);
 
         // Can reach the main node last block.
-        sync_state.set_local_block(MiniblockNumber(SYNC_MINIBLOCK_DELTA + 1));
+        sync_state.set_local_block(L2BlockNumber(SYNC_L2_BLOCK_DELTA + 1));
         assert!(sync_state.is_synced());
 
         // Main node can again move forward.
-        sync_state.set_main_node_block(MiniblockNumber(2 * SYNC_MINIBLOCK_DELTA + 2));
+        sync_state.set_main_node_block(L2BlockNumber(2 * SYNC_L2_BLOCK_DELTA + 2));
         assert!(!sync_state.is_synced());
     }
 
@@ -269,8 +263,8 @@ mod tests {
     fn test_sync_state_doesnt_panic_on_local_block() {
         let sync_state = SyncState::default();
 
-        sync_state.set_main_node_block(MiniblockNumber(1));
-        sync_state.set_local_block(MiniblockNumber(2));
+        sync_state.set_main_node_block(L2BlockNumber(1));
+        sync_state.set_local_block(L2BlockNumber(2));
         // ^ should not panic, as we defer the situation to the re-org detector.
 
         // At the same time, we should consider ourselves synced unless `ReorgDetector` tells us otherwise.
@@ -281,8 +275,8 @@ mod tests {
     fn test_sync_state_doesnt_panic_on_main_node_block() {
         let sync_state = SyncState::default();
 
-        sync_state.set_local_block(MiniblockNumber(2));
-        sync_state.set_main_node_block(MiniblockNumber(1));
+        sync_state.set_local_block(L2BlockNumber(2));
+        sync_state.set_main_node_block(L2BlockNumber(1));
         // ^ should not panic, as we defer the situation to the re-org detector.
 
         // At the same time, we should consider ourselves synced unless `ReorgDetector` tells us otherwise.

@@ -10,7 +10,7 @@ use crate::FromEnv;
 
 fn load_from_env_variable() -> HashMap<String, HashSet<CircuitIdRoundTuple>> {
     // Prepare a hash map to store the mapping of group to a vector of tuples
-    let mut groups: HashMap<String, HashSet<CircuitIdRoundTuple>> = (0..=12)
+    let mut groups: HashMap<String, HashSet<CircuitIdRoundTuple>> = (0..=14)
         .map(|i| (format!("group_{}", i), HashSet::new()))
         .collect();
 
@@ -67,6 +67,8 @@ impl FromEnv for FriProverGroupConfig {
             group_10: groups.remove("group_10").unwrap_or_default(),
             group_11: groups.remove("group_11").unwrap_or_default(),
             group_12: groups.remove("group_12").unwrap_or_default(),
+            group_13: groups.remove("group_13").unwrap_or_default(),
+            group_14: groups.remove("group_14").unwrap_or_default(),
         };
         config.validate()?;
         Ok(config)
@@ -82,8 +84,9 @@ mod tests {
     fn expected_config() -> FriProverGroupConfig {
         FriProverGroupConfig {
             group_0: vec![
-                CircuitIdRoundTuple::new(1, 3),
+                CircuitIdRoundTuple::new(1, 4),
                 CircuitIdRoundTuple::new(2, 2),
+                CircuitIdRoundTuple::new(255, 3),
             ]
             .into_iter()
             .collect::<HashSet<_>>(),
@@ -105,7 +108,6 @@ mod tests {
                 CircuitIdRoundTuple::new(11, 0),
                 CircuitIdRoundTuple::new(12, 0),
                 CircuitIdRoundTuple::new(13, 0),
-                CircuitIdRoundTuple::new(255, 0),
             ]
             .into_iter()
             .collect::<HashSet<_>>(),
@@ -148,14 +150,32 @@ mod tests {
             ]
             .into_iter()
             .collect::<HashSet<_>>(),
+            group_13: vec![
+                CircuitIdRoundTuple::new(14, 0),
+                CircuitIdRoundTuple::new(15, 0),
+                CircuitIdRoundTuple::new(255, 0),
+            ]
+            .into_iter()
+            .collect::<HashSet<_>>(),
+            group_14: vec![
+                CircuitIdRoundTuple::new(16, 1),
+                CircuitIdRoundTuple::new(17, 1),
+                CircuitIdRoundTuple::new(18, 1),
+            ]
+            .into_iter()
+            .collect::<HashSet<_>>(),
         }
     }
 
     #[test]
     fn from_env() {
         let groups = [
-            ("FRI_PROVER_GROUP_GROUP_0_0", CircuitIdRoundTuple::new(1, 3)),
+            ("FRI_PROVER_GROUP_GROUP_0_0", CircuitIdRoundTuple::new(1, 4)),
             ("FRI_PROVER_GROUP_GROUP_0_1", CircuitIdRoundTuple::new(2, 2)),
+            (
+                "FRI_PROVER_GROUP_GROUP_0_2",
+                CircuitIdRoundTuple::new(255, 3),
+            ),
             ("FRI_PROVER_GROUP_GROUP_1_0", CircuitIdRoundTuple::new(1, 0)),
             ("FRI_PROVER_GROUP_GROUP_2_0", CircuitIdRoundTuple::new(2, 0)),
             ("FRI_PROVER_GROUP_GROUP_2_1", CircuitIdRoundTuple::new(4, 0)),
@@ -173,10 +193,6 @@ mod tests {
             (
                 "FRI_PROVER_GROUP_GROUP_4_2",
                 CircuitIdRoundTuple::new(13, 0),
-            ),
-            (
-                "FRI_PROVER_GROUP_GROUP_4_3",
-                CircuitIdRoundTuple::new(255, 0),
             ),
             ("FRI_PROVER_GROUP_GROUP_5_0", CircuitIdRoundTuple::new(5, 0)),
             ("FRI_PROVER_GROUP_GROUP_6_0", CircuitIdRoundTuple::new(3, 1)),
@@ -234,6 +250,30 @@ mod tests {
                 "FRI_PROVER_GROUP_GROUP_12_3",
                 CircuitIdRoundTuple::new(9, 1),
             ),
+            (
+                "FRI_PROVER_GROUP_GROUP_13_0",
+                CircuitIdRoundTuple::new(14, 0),
+            ),
+            (
+                "FRI_PROVER_GROUP_GROUP_13_1",
+                CircuitIdRoundTuple::new(15, 0),
+            ),
+            (
+                "FRI_PROVER_GROUP_GROUP_13_2",
+                CircuitIdRoundTuple::new(255, 0),
+            ),
+            (
+                "FRI_PROVER_GROUP_GROUP_14_0",
+                CircuitIdRoundTuple::new(16, 1),
+            ),
+            (
+                "FRI_PROVER_GROUP_GROUP_14_1",
+                CircuitIdRoundTuple::new(17, 1),
+            ),
+            (
+                "FRI_PROVER_GROUP_GROUP_14_2",
+                CircuitIdRoundTuple::new(18, 1),
+            ),
         ];
 
         for (key_base, circuit_round_tuple) in &groups {
@@ -252,95 +292,54 @@ mod tests {
 
     #[test]
     fn get_group_id_for_circuit_id_and_aggregation_round() {
+        struct GroupCircuitRound(u8, u8, u8);
+
         let fri_prover_group_config = expected_config();
 
-        assert_eq!(
-            Some(0),
-            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(1, 3)
-        );
-        assert_eq!(
-            Some(0),
-            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(2, 2)
-        );
-
-        assert_eq!(
-            Some(1),
-            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(1, 0)
-        );
-
-        assert_eq!(
-            Some(2),
-            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(2, 0)
-        );
-        assert_eq!(
-            Some(2),
-            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(4, 0)
-        );
-
-        assert_eq!(
-            Some(3),
-            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(3, 0)
-        );
-
-        assert_eq!(
-            Some(4),
-            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(11, 0)
-        );
-        assert_eq!(
-            Some(4),
-            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(12, 0)
-        );
-
-        assert_eq!(
-            Some(4),
-            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(13, 0)
-        );
-
-        assert_eq!(
-            Some(4),
-            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(255, 0)
-        );
-
-        assert_eq!(
-            Some(5),
-            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(5, 0)
-        );
-
-        assert_eq!(
-            Some(6),
-            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(3, 1)
-        );
-
-        assert_eq!(
-            Some(7),
-            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(7, 0)
-        );
-
-        assert_eq!(
-            Some(8),
-            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(8, 0)
-        );
-
-        assert_eq!(
-            Some(9),
-            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(12, 1)
-        );
-
-        assert_eq!(
-            Some(10),
-            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(10, 0)
-        );
-
-        assert_eq!(
-            Some(11),
-            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(7, 1)
-        );
-
-        assert_eq!(
-            Some(12),
-            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(4, 1)
-        );
-
+        let tests = vec![
+            GroupCircuitRound(0, 1, 4),
+            GroupCircuitRound(0, 2, 2),
+            GroupCircuitRound(0, 255, 3),
+            GroupCircuitRound(1, 1, 0),
+            GroupCircuitRound(2, 2, 0),
+            GroupCircuitRound(2, 4, 0),
+            GroupCircuitRound(2, 6, 0),
+            GroupCircuitRound(2, 9, 0),
+            GroupCircuitRound(3, 3, 0),
+            GroupCircuitRound(4, 11, 0),
+            GroupCircuitRound(4, 12, 0),
+            GroupCircuitRound(4, 13, 0),
+            GroupCircuitRound(5, 5, 0),
+            GroupCircuitRound(6, 3, 1),
+            GroupCircuitRound(7, 7, 0),
+            GroupCircuitRound(8, 8, 0),
+            GroupCircuitRound(9, 12, 1),
+            GroupCircuitRound(9, 13, 1),
+            GroupCircuitRound(9, 14, 1),
+            GroupCircuitRound(9, 15, 1),
+            GroupCircuitRound(10, 10, 0),
+            GroupCircuitRound(11, 7, 1),
+            GroupCircuitRound(11, 8, 1),
+            GroupCircuitRound(11, 10, 1),
+            GroupCircuitRound(11, 11, 1),
+            GroupCircuitRound(12, 4, 1),
+            GroupCircuitRound(12, 5, 1),
+            GroupCircuitRound(12, 6, 1),
+            GroupCircuitRound(12, 9, 1),
+            GroupCircuitRound(13, 14, 0),
+            GroupCircuitRound(13, 15, 0),
+            GroupCircuitRound(13, 255, 0),
+            GroupCircuitRound(14, 16, 1),
+            GroupCircuitRound(14, 17, 1),
+            GroupCircuitRound(14, 18, 1),
+        ];
+        for test in tests {
+            assert_eq!(
+                Some(test.0),
+                fri_prover_group_config
+                    .get_group_id_for_circuit_id_and_aggregation_round(test.1, test.2)
+            );
+        }
         assert!(fri_prover_group_config
             .get_group_id_for_circuit_id_and_aggregation_round(19, 0)
             .is_none());

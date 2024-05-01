@@ -1,13 +1,13 @@
-use std::sync::Arc;
-
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_core::{
     consensus::{self, MainNodeConfig},
-    sync_layer::{ActionQueueSender, MainNodeClient, SyncState},
+    sync_layer::{ActionQueueSender, SyncState},
 };
 use zksync_dal::{ConnectionPool, Core};
+use zksync_types::L2ChainId;
+use zksync_web3_decl::client::BoxedL2Client;
 
 use crate::{
     implementations::resources::{
@@ -30,6 +30,7 @@ pub struct ConsensusLayer {
     pub mode: Mode,
     pub config: Option<ConsensusConfig>,
     pub secrets: Option<ConsensusSecrets>,
+    pub chain_id: L2ChainId,
 }
 
 #[async_trait::async_trait]
@@ -54,7 +55,8 @@ impl WiringLayer for ConsensusLayer {
                     WiringError::Configuration("Missing private consensus config".to_string())
                 })?;
 
-                let main_node_config = consensus::config::main_node(&config, &secrets)?;
+                let main_node_config =
+                    consensus::config::main_node(&config, &secrets, self.chain_id)?;
 
                 let task = MainNodeConsensusTask {
                     config: main_node_config,
@@ -137,7 +139,7 @@ impl Task for MainNodeConsensusTask {
 pub struct FetcherTask {
     config: Option<(ConsensusConfig, ConsensusSecrets)>,
     pool: ConnectionPool<Core>,
-    main_node_client: Arc<dyn MainNodeClient>,
+    main_node_client: BoxedL2Client,
     sync_state: SyncState,
     action_queue_sender: ActionQueueSender,
 }

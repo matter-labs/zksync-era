@@ -1,24 +1,19 @@
-use secp256k1::SecretKey;
-use zksync_types::{Address, EIP712TypedStructure, Eip712Domain, PackedEthSignature, H256};
+use zksync_types::{
+    Address, EIP712TypedStructure, Eip712Domain, K256PrivateKey, PackedEthSignature,
+};
 
 use crate::{
     raw_ethereum_tx::{Transaction, TransactionParameters},
     EthereumSigner, SignerError,
 };
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PrivateKeySigner {
-    private_key: H256,
-}
-
-impl std::fmt::Debug for PrivateKeySigner {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "PrivateKeySigner")
-    }
+    private_key: K256PrivateKey,
 }
 
 impl PrivateKeySigner {
-    pub fn new(private_key: H256) -> Self {
+    pub fn new(private_key: K256PrivateKey) -> Self {
         Self { private_key }
     }
 }
@@ -27,8 +22,7 @@ impl PrivateKeySigner {
 impl EthereumSigner for PrivateKeySigner {
     /// Get Ethereum address that matches the private key.
     async fn get_address(&self) -> Result<Address, SignerError> {
-        PackedEthSignature::address_from_private_key(&self.private_key)
-            .map_err(|_| SignerError::DefineAddress)
+        Ok(self.private_key.address())
     }
 
     /// Signs typed struct using Ethereum private key by EIP-712 signature standard.
@@ -49,8 +43,6 @@ impl EthereumSigner for PrivateKeySigner {
         &self,
         raw_tx: TransactionParameters,
     ) -> Result<Vec<u8>, SignerError> {
-        let key = SecretKey::from_slice(self.private_key.as_bytes()).unwrap();
-
         // According to the code in web3 <https://docs.rs/web3/latest/src/web3/api/accounts.rs.html#86>
         // We should use `max_fee_per_gas` as `gas_price` if we use EIP1559
         let gas_price = raw_tx.max_fee_per_gas;
@@ -71,21 +63,21 @@ impl EthereumSigner for PrivateKeySigner {
             blob_versioned_hashes: raw_tx.blob_versioned_hashes,
         };
 
-        let signed = tx.sign(&key, raw_tx.chain_id);
+        let signed = tx.sign(self.private_key.expose_secret(), raw_tx.chain_id);
         Ok(signed.raw_transaction.0)
     }
 }
 
 #[cfg(test)]
 mod test {
-    use zksync_types::{H160, H256, U256, U64};
+    use zksync_types::{K256PrivateKey, H160, H256, U256, U64};
 
     use super::PrivateKeySigner;
     use crate::{raw_ethereum_tx::TransactionParameters, EthereumSigner};
 
     #[tokio::test]
     async fn test_generating_signed_raw_transaction() {
-        let private_key = H256::from([5; 32]);
+        let private_key = K256PrivateKey::from_bytes(H256::from([5; 32])).unwrap();
         let signer = PrivateKeySigner::new(private_key);
         let raw_transaction = TransactionParameters {
             nonce: U256::from(1u32),

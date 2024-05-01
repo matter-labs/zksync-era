@@ -30,9 +30,9 @@ impl SnapshotBasicsTest {
 impl HttpTest for SnapshotBasicsTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let mut storage = pool.connection().await.unwrap();
-        store_miniblock(
+        store_l2_block(
             &mut storage,
-            MiniblockNumber(1),
+            L2BlockNumber(1),
             &[execute_l2_transaction(create_l2_transaction(1, 2))],
         )
         .await?;
@@ -73,7 +73,7 @@ impl HttpTest for SnapshotBasicsTest {
         };
 
         assert_eq!(snapshot_header.l1_batch_number, L1BatchNumber(1));
-        assert_eq!(snapshot_header.miniblock_number, MiniblockNumber(1));
+        assert_eq!(snapshot_header.l2_block_number, L2BlockNumber(1));
         assert_eq!(
             snapshot_header.factory_deps_filepath,
             "file:///factory_deps"

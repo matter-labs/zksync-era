@@ -2,6 +2,9 @@
 //!
 //! Most of them are just re-exported from the `web3` crate.
 
+// Linter settings
+#![warn(clippy::cast_lossless)]
+
 use std::{
     convert::{Infallible, TryFrom, TryInto},
     fmt,
@@ -168,13 +171,13 @@ impl TryFrom<u64> for L2ChainId {
 impl From<u32> for L2ChainId {
     fn from(value: u32) -> Self {
         // Max value is guaranteed bigger than u32
-        Self(value as u64)
+        Self(u64::from(value))
     }
 }
 
 basic_type!(
     /// zkSync network block sequential index.
-    MiniblockNumber,
+    L2BlockNumber,
     u32
 );
 
@@ -209,7 +212,7 @@ basic_type!(
 );
 
 #[allow(clippy::derivable_impls)]
-impl Default for MiniblockNumber {
+impl Default for L2BlockNumber {
     fn default() -> Self {
         Self(0)
     }

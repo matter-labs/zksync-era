@@ -4,20 +4,19 @@ use zksync_config::configs::{
     fri_prover_group::FriProverGroupConfig, house_keeper::HouseKeeperConfig,
     FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig,
 };
-use zksync_core::house_keeper::{
+use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core};
+use zksync_house_keeper::{
     blocks_state_reporter::L1BatchMetricsReporter, fri_gpu_prover_archiver::FriGpuProverArchiver,
     fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
     fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter,
     fri_prover_job_retry_manager::FriProverJobRetryManager,
     fri_prover_jobs_archiver::FriProverJobArchiver,
     fri_prover_queue_monitor::FriProverStatsReporter,
-    fri_scheduler_circuit_queuer::SchedulerCircuitQueuer,
     fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager,
     fri_witness_generator_queue_monitor::FriWitnessGeneratorStatsReporter,
     periodic_job::PeriodicJob,
     waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
 };
-use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core};
 
 use crate::{
     implementations::resources::pools::{ProverPoolResource, ReplicaPoolResource},
@@ -70,8 +69,8 @@ impl WiringLayer for HouseKeeperLayer {
         let prover_pool = prover_pool_resource.get().await?;
 
         // initialize and add tasks
-        let pool_for_metrics = replica_pool.clone();
-        context.add_task(Box::new(PoolForMetricsTask { pool_for_metrics }));
+        let pool_for_metrics = replica_pool_resource.get_singleton().await?;
+        context.add_task(Box::new(PostgresMetricsScrapingTask { pool_for_metrics }));
 
         let l1_batch_metrics_reporter = L1BatchMetricsReporter::new(
             self.house_keeper_config
@@ -132,14 +131,6 @@ impl WiringLayer for HouseKeeperLayer {
             }));
         }
 
-        let scheduler_circuit_queuer = SchedulerCircuitQueuer::new(
-            self.house_keeper_config.witness_job_moving_interval_ms,
-            prover_pool.clone(),
-        );
-        context.add_task(Box::new(SchedulerCircuitQueuerTask {
-            scheduler_circuit_queuer,
-        }));
-
         let fri_witness_generator_stats_reporter = FriWitnessGeneratorStatsReporter::new(
             prover_pool.clone(),
             self.house_keeper_config
@@ -184,18 +175,25 @@ impl WiringLayer for HouseKeeperLayer {
 }
 
 #[derive(Debug)]
-struct PoolForMetricsTask {
+struct PostgresMetricsScrapingTask {
     pool_for_metrics: ConnectionPool<Core>,
 }
 
 #[async_trait::async_trait]
-impl Task for PoolForMetricsTask {
+impl Task for PostgresMetricsScrapingTask {
     fn name(&self) -> &'static str {
-        "pool_for_metrics"
+        "postgres_metrics_scraping"
     }
 
-    async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        PostgresMetrics::run_scraping(self.pool_for_metrics, SCRAPE_INTERVAL).await;
+    async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        tokio::select! {
+            () = PostgresMetrics::run_scraping(self.pool_for_metrics, SCRAPE_INTERVAL) => {
+                tracing::warn!("Postgres metrics scraping unexpectedly stopped");
+            }
+            _ = stop_receiver.0.changed() => {
+                tracing::info!("Stop signal received, Postgres metrics scraping is shutting down");
+            }
+        }
         Ok(())
     }
 }
@@ -265,22 +263,6 @@ impl Task for WaitingToQueuedFriWitnessJobMoverTask {
         self.waiting_to_queued_fri_witness_job_mover
             .run(stop_receiver.0)
             .await
-    }
-}
-
-#[derive(Debug)]
-struct SchedulerCircuitQueuerTask {
-    scheduler_circuit_queuer: SchedulerCircuitQueuer,
-}
-
-#[async_trait::async_trait]
-impl Task for SchedulerCircuitQueuerTask {
-    fn name(&self) -> &'static str {
-        "scheduler_circuit_queuer"
-    }
-
-    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.scheduler_circuit_queuer.run(stop_receiver.0).await
     }
 }
 

@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import * as utils from './utils';
 import fs from 'fs';
 import enquirer from 'enquirer';
-import { BasePromptOptions, wrapEnvModify } from './hyperchain_wizard';
+import { BasePromptOptions } from './hyperchain_wizard';
 import fetch from 'node-fetch';
 import chalk from 'chalk';
 import * as env from './env';
@@ -21,22 +21,22 @@ enum KeysRegionOption {
 export async function setupProver(proverType: ProverType) {
     // avoid doing work if receives the wrong param from the CLI
     if (proverType == ProverType.GPU || proverType == ProverType.CPU) {
-        wrapEnvModify('PROVER_TYPE', proverType);
-        wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'OnlyRealProofs');
-        wrapEnvModify('ETH_SENDER_SENDER_PROOF_LOADING_MODE', 'FriProofFromGcs');
-        wrapEnvModify('FRI_PROVER_GATEWAY_API_POLL_DURATION_SECS', '120');
+        env.modify('PROVER_TYPE', proverType, process.env.ENV_FILE!);
+        env.modify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'OnlyRealProofs', process.env.ENV_FILE!);
+        env.modify('ETH_SENDER_SENDER_PROOF_LOADING_MODE', 'FriProofFromGcs', process.env.ENV_FILE!);
+        env.modify('FRI_PROVER_GATEWAY_API_POLL_DURATION_SECS', '120', process.env.ENV_FILE!);
         await setupArtifactsMode();
         if (!process.env.CI) {
             await setupProverKeys(proverType);
         } else {
-            wrapEnvModify(
+            env.modify(
                 'FRI_PROVER_SETUP_DATA_PATH',
                 `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${process.env.ZKSYNC_ENV}/${
                     proverType === ProverType.GPU ? 'gpu' : 'cpu'
-                }/`
+                }/`,
+                process.env.ENV_FILE!
             );
         }
-        env.mergeInitToEnv();
     } else {
         console.error(`Unknown prover type: ${proverType}`);
         process.exit(1);
@@ -55,7 +55,11 @@ async function downloadCSR(proverType: ProverType, region: string) {
     );
     await utils.sleep(1);
     process.chdir(process.env.ZKSYNC_HOME as string);
-    wrapEnvModify('CRS_FILE', `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`);
+    env.modify(
+        'CRS_FILE',
+        `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`,
+        process.env.ENV_FILE!
+    );
 }
 
 async function setupProverKeys(proverType: ProverType) {
@@ -93,11 +97,12 @@ async function setupProverKeys(proverType: ProverType) {
         await generateAllSetupData(proverType);
     }
 
-    wrapEnvModify(
+    env.modify(
         'FRI_PROVER_SETUP_DATA_PATH',
         `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${process.env.ZKSYNC_ENV}/${
             proverType === ProverType.GPU ? 'gpu' : 'cpu'
-        }/`
+        }/`,
+        process.env.ENV_FILE!
     );
 }
 
@@ -105,12 +110,12 @@ async function setupArtifactsMode() {
     if (process.env.CI) {
         const currentEnv = env.get();
         const path = `${process.env.ZKSYNC_HOME}/etc/hyperchains/artifacts/${currentEnv}/`;
-        wrapEnvModify('OBJECT_STORE_MODE', 'FileBacked');
-        wrapEnvModify('PUBLIC_OBJECT_STORE_MODE', 'FileBacked');
-        wrapEnvModify('PROVER_OBJECT_STORE_MODE', 'FileBacked');
-        wrapEnvModify('OBJECT_STORE_FILE_BACKED_BASE_PATH', path);
-        wrapEnvModify('PUBLIC_OBJECT_STORE_FILE_BACKED_BASE_PATH', path);
-        wrapEnvModify('PROVER_OBJECT_STORE_FILE_BACKED_BASE_PATH', path);
+        env.modify('OBJECT_STORE_MODE', 'FileBacked', process.env.ENV_FILE!);
+        env.modify('PUBLIC_OBJECT_STORE_MODE', 'FileBacked', process.env.ENV_FILE!);
+        env.modify('PROVER_OBJECT_STORE_MODE', 'FileBacked', process.env.ENV_FILE!);
+        env.modify('OBJECT_STORE_FILE_BACKED_BASE_PATH', path, process.env.ENV_FILE!);
+        env.modify('PUBLIC_OBJECT_STORE_FILE_BACKED_BASE_PATH', path, process.env.ENV_FILE!);
+        env.modify('PROVER_OBJECT_STORE_FILE_BACKED_BASE_PATH', path, process.env.ENV_FILE!);
         return;
     }
 
@@ -142,12 +147,12 @@ async function setupArtifactsMode() {
 
         const folder: any = await enquirer.prompt(folderQuestion);
 
-        wrapEnvModify('OBJECT_STORE_MODE', 'FileBacked');
-        wrapEnvModify('PUBLIC_OBJECT_STORE_MODE', 'FileBacked');
-        wrapEnvModify('PROVER_OBJECT_STORE_MODE', 'FileBacked');
-        wrapEnvModify('OBJECT_STORE_FILE_BACKED_BASE_PATH', folder.path);
-        wrapEnvModify('PUBLIC_OBJECT_STORE_FILE_BACKED_BASE_PATH', folder.path);
-        wrapEnvModify('PROVER_OBJECT_STORE_FILE_BACKED_BASE_PATH', folder.path);
+        env.modify('OBJECT_STORE_MODE', 'FileBacked', process.env.ENV_FILE!);
+        env.modify('PUBLIC_OBJECT_STORE_MODE', 'FileBacked', process.env.ENV_FILE!);
+        env.modify('PROVER_OBJECT_STORE_MODE', 'FileBacked', process.env.ENV_FILE!);
+        env.modify('OBJECT_STORE_FILE_BACKED_BASE_PATH', folder.path, process.env.ENV_FILE!);
+        env.modify('PUBLIC_OBJECT_STORE_FILE_BACKED_BASE_PATH', folder.path, process.env.ENV_FILE!);
+        env.modify('PROVER_OBJECT_STORE_FILE_BACKED_BASE_PATH', folder.path, process.env.ENV_FILE!);
     } else {
         const gcpQuestions: BasePromptOptions[] = [
             {
@@ -166,13 +171,13 @@ async function setupArtifactsMode() {
 
         const gcp: any = await enquirer.prompt(gcpQuestions);
 
-        wrapEnvModify('OBJECT_STORE_MODE', 'GCSWithCredentialFile');
-        wrapEnvModify('PUBLIC_OBJECT_STORE_MODE', 'GCSWithCredentialFile');
-        wrapEnvModify('PROVER_OBJECT_STORE_MODE', 'GCSWithCredentialFile');
-        wrapEnvModify('OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH', gcp.gcpPath);
-        wrapEnvModify('PUBLIC_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH', gcp.gcpPath);
-        wrapEnvModify('PUBLIC_OBJECT_STORE_BUCKET_BASE_URL', gcp.bucket);
-        wrapEnvModify('PROVER_OBJECT_STORE_BUCKET_BASE_URL', gcp.bucket);
+        env.modify('OBJECT_STORE_MODE', 'GCSWithCredentialFile', process.env.ENV_FILE!);
+        env.modify('PUBLIC_OBJECT_STORE_MODE', 'GCSWithCredentialFile', process.env.ENV_FILE!);
+        env.modify('PROVER_OBJECT_STORE_MODE', 'GCSWithCredentialFile', process.env.ENV_FILE!);
+        env.modify('OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH', gcp.gcpPath, process.env.ENV_FILE!);
+        env.modify('PUBLIC_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH', gcp.gcpPath, process.env.ENV_FILE!);
+        env.modify('PUBLIC_OBJECT_STORE_BUCKET_BASE_URL', gcp.bucket, process.env.ENV_FILE!);
+        env.modify('PROVER_OBJECT_STORE_BUCKET_BASE_URL', gcp.bucket, process.env.ENV_FILE!);
     }
 }
 

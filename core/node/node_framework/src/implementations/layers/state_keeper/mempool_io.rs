@@ -81,17 +81,17 @@ impl WiringLayer for MempoolIOLayer {
         let master_pool = context.get_resource::<MasterPoolResource>().await?;
 
         // Create miniblock sealer task.
-        let (persistence, miniblock_sealer) = StateKeeperPersistence::new(
+        let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
             master_pool
                 .get_singleton()
                 .await
                 .context("Get master pool")?,
-            self.contracts_config.l2_erc20_bridge_addr,
-            self.state_keeper_config.miniblock_seal_queue_capacity,
+            self.contracts_config.l2_shared_bridge_addr.unwrap(),
+            self.state_keeper_config.l2_block_seal_queue_capacity,
         );
         let output_handler = OutputHandler::new(Box::new(persistence));
         context.insert_resource(OutputHandlerResource(Unique::new(output_handler)))?;
-        context.add_task(Box::new(MiniblockSealerTask(miniblock_sealer)));
+        context.add_task(Box::new(L2BlockSealerTask(l2_block_sealer)));
 
         // Create mempool fetcher task.
         let mempool_guard = self.build_mempool_guard(&master_pool).await?;
@@ -133,12 +133,12 @@ impl WiringLayer for MempoolIOLayer {
 }
 
 #[derive(Debug)]
-struct MiniblockSealerTask(state_keeper::MiniblockSealerTask);
+struct L2BlockSealerTask(state_keeper::L2BlockSealerTask);
 
 #[async_trait::async_trait]
-impl Task for MiniblockSealerTask {
+impl Task for L2BlockSealerTask {
     fn name(&self) -> &'static str {
-        "state_keeper/miniblock_sealer"
+        "state_keeper/l2_block_sealer"
     }
 
     async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {

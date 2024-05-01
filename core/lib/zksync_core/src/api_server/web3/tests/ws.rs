@@ -71,10 +71,10 @@ async fn wait_for_notifiers(
 }
 
 #[allow(clippy::needless_pass_by_ref_mut)] // false positive
-async fn wait_for_notifier_miniblock(
+async fn wait_for_notifier_l2_block(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     sub_type: SubscriptionType,
-    expected: MiniblockNumber,
+    expected: L2BlockNumber,
 ) {
     let wait_future = tokio::time::timeout(TEST_TIMEOUT, async {
         loop {
@@ -82,7 +82,7 @@ async fn wait_for_notifier_miniblock(
                 .recv()
                 .await
                 .expect("Events emitter unexpectedly dropped");
-            if let PubSubEvent::MiniblockAdvanced(ty, number) = event {
+            if let PubSubEvent::L2BlockAdvanced(ty, number) = event {
                 if ty == sub_type && number >= expected {
                     break;
                 }
@@ -120,9 +120,9 @@ async fn notifiers_start_after_snapshot_recovery() {
         assert!(!handle.is_finished());
     }
 
-    // Emulate creating the first miniblock; check that notifiers react to it.
-    let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
-    store_miniblock(&mut storage, first_local_miniblock, &[])
+    // Emulate creating the first L2 block; check that notifiers react to it.
+    let first_local_l2_block = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
+    store_l2_block(&mut storage, first_local_l2_block, &[])
         .await
         .unwrap();
 
@@ -270,12 +270,12 @@ impl WsTest for BasicSubscriptionsTest {
         let mut storage = pool.connection().await?;
         let tx_result = execute_l2_transaction(create_l2_transaction(1, 2));
         let new_tx_hash = tx_result.hash;
-        let miniblock_number = if self.snapshot_recovery {
+        let l2_block_number = if self.snapshot_recovery {
             StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 2
         } else {
-            MiniblockNumber(1)
+            L2BlockNumber(1)
         };
-        let new_miniblock = store_miniblock(&mut storage, miniblock_number, &[tx_result]).await?;
+        let new_l2_block = store_l2_block(&mut storage, l2_block_number, &[tx_result]).await?;
         drop(storage);
 
         let received_tx_hash = tokio::time::timeout(TEST_TIMEOUT, txs_subscription.next())
@@ -289,12 +289,12 @@ impl WsTest for BasicSubscriptionsTest {
             .context("New blocks subscription terminated")??;
         assert_eq!(
             received_block_header.number,
-            Some(new_miniblock.number.0.into())
+            Some(new_l2_block.number.0.into())
         );
-        assert_eq!(received_block_header.hash, Some(new_miniblock.hash));
+        assert_eq!(received_block_header.hash, Some(new_l2_block.hash));
         assert_eq!(
             received_block_header.timestamp,
-            new_miniblock.timestamp.into()
+            new_l2_block.timestamp.into()
         );
         blocks_subscription.unsubscribe().await?;
         Ok(())
@@ -393,12 +393,12 @@ impl WsTest for LogSubscriptionsTest {
         } = LogSubscriptions::new(client, &mut pub_sub_events).await?;
 
         let mut storage = pool.connection().await?;
-        let next_miniblock_number = if self.snapshot_recovery {
+        let next_l2_block_number = if self.snapshot_recovery {
             StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0 + 2
         } else {
             1
         };
-        let (tx_location, events) = store_events(&mut storage, next_miniblock_number, 0).await?;
+        let (tx_location, events) = store_events(&mut storage, next_l2_block_number, 0).await?;
         drop(storage);
         let events: Vec<_> = events.iter().collect();
 
@@ -407,7 +407,7 @@ impl WsTest for LogSubscriptionsTest {
             assert_eq!(log.transaction_index, Some(0.into()));
             assert_eq!(log.log_index, Some(i.into()));
             assert_eq!(log.transaction_hash, Some(tx_location.tx_hash));
-            assert_eq!(log.block_number, Some(next_miniblock_number.into()));
+            assert_eq!(log.block_number, Some(next_l2_block_number.into()));
         }
         assert_logs_match(&all_logs, &events);
 
@@ -572,16 +572,16 @@ impl WsTest for LogSubscriptionsWithDelayTest {
         // Wait until notifiers are initialized.
         wait_for_notifiers(&mut pub_sub_events, &[SubscriptionType::Logs]).await;
 
-        // Store a miniblock w/o subscriptions being present.
+        // Store an L2 block w/o subscriptions being present.
         let mut storage = pool.connection().await?;
         store_events(&mut storage, 1, 0).await?;
         drop(storage);
 
-        // Wait for the log notifier to process the new miniblock.
-        wait_for_notifier_miniblock(
+        // Wait for the log notifier to process the new L2 block.
+        wait_for_notifier_l2_block(
             &mut pub_sub_events,
             SubscriptionType::Logs,
-            MiniblockNumber(1),
+            L2BlockNumber(1),
         )
         .await;
 
