@@ -4,7 +4,7 @@ use zksync_types::{
     tx::{tx_execution_info::DeduplicatedWritesMetrics, ExecutionMetrics},
     ExecuteTransactionCommon, ProtocolVersionId, Transaction,
 };
-// TODO(QIT-32): Remove constants(except L1_OPERATION_EXECUTE_COST) and logic that use them
+// TODO(QIT-32): Remove constants(except `L1_OPERATION_EXECUTE_COST`) and logic that use them
 const L1_BATCH_COMMIT_BASE_COST: u32 = 31_000;
 const L1_BATCH_PROVE_BASE_COST: u32 = 7_000;
 const L1_BATCH_EXECUTE_BASE_COST: u32 = 30_000;
