@@ -13,7 +13,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_shared_metrics::EN_METRICS;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, api, L1BatchNumber, MiniblockNumber, H256,
+    aggregated_operations::AggregatedActionType, api, L1BatchNumber, L2BlockNumber, H256,
 };
 use zksync_web3_decl::{
     client::BoxedL2Client,
@@ -74,38 +74,38 @@ impl From<zksync_dal::DalError> for UpdaterError {
 
 #[async_trait]
 trait MainNodeClient: fmt::Debug + Send + Sync {
-    /// Returns any miniblock in the specified L1 batch.
-    async fn resolve_l1_batch_to_miniblock(
+    /// Returns any L2 block in the specified L1 batch.
+    async fn resolve_l1_batch_to_l2_block(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<MiniblockNumber>>;
+    ) -> EnrichedClientResult<Option<L2BlockNumber>>;
 
     async fn block_details(
         &self,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
     ) -> EnrichedClientResult<Option<api::BlockDetails>>;
 }
 
 #[async_trait]
 impl MainNodeClient for BoxedL2Client {
-    async fn resolve_l1_batch_to_miniblock(
+    async fn resolve_l1_batch_to_l2_block(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<MiniblockNumber>> {
-        let request_latency = FETCHER_METRICS.requests[&FetchStage::GetMiniblockRange].start();
+    ) -> EnrichedClientResult<Option<L2BlockNumber>> {
+        let request_latency = FETCHER_METRICS.requests[&FetchStage::GetL2BlockRange].start();
         let number = self
-            .get_miniblock_range(number)
-            .rpc_context("resolve_l1_batch_to_miniblock")
+            .get_l2_block_range(number)
+            .rpc_context("resolve_l1_batch_to_l2_block")
             .with_arg("number", &number)
             .await?
-            .map(|(start, _)| MiniblockNumber(start.as_u32()));
+            .map(|(start, _)| L2BlockNumber(start.as_u32()));
         request_latency.observe();
         Ok(number)
     }
 
     async fn block_details(
         &self,
-        number: MiniblockNumber,
+        number: L2BlockNumber,
     ) -> EnrichedClientResult<Option<api::BlockDetails>> {
         let request_latency = FETCHER_METRICS.requests[&FetchStage::GetBlockDetails].start();
         let details = self
@@ -351,16 +351,16 @@ impl BatchStatusUpdater {
         while batch <= last_sealed_batch {
             // While we may receive `None` for the `self.current_l1_batch`, it's OK: open batch is guaranteed to not
             // be sent to L1.
-            let miniblock_number = self.client.resolve_l1_batch_to_miniblock(batch).await?;
-            let Some(miniblock_number) = miniblock_number else {
+            let l2_block_number = self.client.resolve_l1_batch_to_l2_block(batch).await?;
+            let Some(l2_block_number) = l2_block_number else {
                 return Ok(());
             };
 
-            let Some(batch_info) = self.client.block_details(miniblock_number).await? else {
+            let Some(batch_info) = self.client.block_details(l2_block_number).await? else {
                 // We cannot recover from an external API inconsistency.
                 let err = anyhow::anyhow!(
-                    "Node API is inconsistent: miniblock {miniblock_number} was reported to be a part of {batch} L1 batch, \
-                    but API has no information about this miniblock",
+                    "Node API is inconsistent: L2 block {l2_block_number} was reported to be a part of {batch} L1 batch, \
+                    but API has no information about this L2 block",
                 );
                 return Err(err.into());
             };

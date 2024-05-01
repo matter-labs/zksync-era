@@ -23,7 +23,7 @@ IContractDeployer constant DEPLOYER_SYSTEM_CONTRACT = IContractDeployer(address(
 
 address constant KECCAK256_SYSTEM_CONTRACT = address(SYSTEM_CONTRACTS_OFFSET + 0x10);
 
-address constant ETH_TOKEN_SYSTEM_CONTRACT = address(SYSTEM_CONTRACTS_OFFSET + 0x0a);
+address constant BASE_TOKEN_SYSTEM_CONTRACT = address(SYSTEM_CONTRACTS_OFFSET + 0x0a);
 SystemContext constant SYSTEM_CONTEXT_CONTRACT = SystemContext(address(SYSTEM_CONTRACTS_OFFSET + 0x0b));
 
 uint256 constant MAX_SYSTEM_CONTRACT_ADDRESS = 0xffff;

@@ -1,9 +1,8 @@
 //! Storage test helpers.
+
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::validator;
-use zksync_consensus_storage as storage;
-use zksync_consensus_storage::PersistentBlockStore as _;
 use zksync_dal::ConnectionPool;
 
 use super::Store;
@@ -13,7 +12,7 @@ use crate::{
 };
 
 impl Store {
-    /// Waits for the `number` miniblock to have a certificate.
+    /// Waits for the `number` L2 block to have a certificate.
     pub async fn wait_for_certificate(
         &self,
         ctx: &ctx::Ctx,
@@ -32,25 +31,6 @@ impl Store {
             ctx.sleep(POLL_INTERVAL).await?;
         }
         Ok(())
-    }
-
-    /// Waits for `want_last` block to have certificate, then fetches all miniblocks with certificates
-    /// and verifies them.
-    pub async fn wait_for_certificates_and_verify(
-        &self,
-        ctx: &ctx::Ctx,
-        want_last: validator::BlockNumber,
-    ) -> ctx::Result<Vec<validator::FinalBlock>> {
-        self.wait_for_certificate(ctx, want_last).await?;
-        let this = self.clone().into_block_store();
-        let genesis = this.genesis(ctx).await.wrap("genesis()")?;
-        let blocks = storage::testonly::dump(ctx, &this).await;
-        let got_last = blocks.last().context("empty store")?.header().number;
-        assert_eq!(got_last, want_last);
-        for block in &blocks {
-            block.verify(&genesis).context(block.header().number)?;
-        }
-        Ok(blocks)
     }
 
     /// Takes a storage snapshot at the last sealed L1 batch.
@@ -79,5 +59,47 @@ impl Store {
             recover(&mut storage, snapshot).await;
         }
         Self(pool)
+    }
+
+    /// Waits for `want_last` block to have certificate then fetches all L2 blocks with certificates.
+    pub async fn wait_for_certificates(
+        &self,
+        ctx: &ctx::Ctx,
+        want_last: validator::BlockNumber,
+    ) -> ctx::Result<Vec<validator::FinalBlock>> {
+        self.wait_for_certificate(ctx, want_last).await?;
+        let mut conn = self.access(ctx).await.wrap("access()")?;
+        let last_cert = conn
+            .last_certificate(ctx)
+            .await
+            .wrap("last_certificate()")?
+            .unwrap();
+        let first_cert = conn
+            .first_certificate(ctx)
+            .await
+            .wrap("first_certificate()")?
+            .unwrap();
+        assert_eq!(want_last, last_cert.header().number);
+        let mut blocks: Vec<validator::FinalBlock> = vec![];
+        for i in first_cert.header().number.0..=last_cert.header().number.0 {
+            let i = validator::BlockNumber(i);
+            let block = self.block(ctx, i).await.context("block()")?.unwrap();
+            blocks.push(block);
+        }
+        Ok(blocks)
+    }
+
+    /// Same as `wait_for_certificates`, but additionally verifies all the blocks against genesis.
+    pub async fn wait_for_certificates_and_verify(
+        &self,
+        ctx: &ctx::Ctx,
+        want_last: validator::BlockNumber,
+    ) -> ctx::Result<Vec<validator::FinalBlock>> {
+        let blocks = self.wait_for_certificates(ctx, want_last).await?;
+        let genesis = self.genesis(ctx).await.wrap("genesis()")?;
+        for block in &blocks {
+            block.verify(&genesis).context(block.number())?;
+        }
+        Ok(blocks)
     }
 }

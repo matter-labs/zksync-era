@@ -135,34 +135,34 @@ pub(crate) async fn projected_first_l1_batch(
     Ok(snapshot_recovery.map_or(L1BatchNumber(0), |recovery| recovery.l1_batch_number + 1))
 }
 
-/// Obtains a protocol version projected to be applied for the next miniblock. This is either the version used by the last
-/// sealed miniblock, or (if there are no miniblocks), one referenced in the snapshot recovery record.
+/// Obtains a protocol version projected to be applied for the next L2 block. This is either the version used by the last
+/// sealed L2 block, or (if there are no L2 blocks), one referenced in the snapshot recovery record.
 pub(crate) async fn pending_protocol_version(
     storage: &mut Connection<'_, Core>,
 ) -> anyhow::Result<ProtocolVersionId> {
     static WARNED_ABOUT_NO_VERSION: AtomicBool = AtomicBool::new(false);
 
-    let last_miniblock = storage
+    let last_l2_block = storage
         .blocks_dal()
-        .get_last_sealed_miniblock_header()
+        .get_last_sealed_l2_block_header()
         .await?;
-    if let Some(last_miniblock) = last_miniblock {
-        return Ok(last_miniblock.protocol_version.unwrap_or_else(|| {
-            // Protocol version should be set for the most recent miniblock even in cases it's not filled
-            // for old miniblocks, hence the warning. We don't want to rely on this assumption, so we treat
+    if let Some(last_l2_block) = last_l2_block {
+        return Ok(last_l2_block.protocol_version.unwrap_or_else(|| {
+            // Protocol version should be set for the most recent L2 block even in cases it's not filled
+            // for old L2 blocks, hence the warning. We don't want to rely on this assumption, so we treat
             // the lack of it as in other similar places, replacing with the default value.
             if !WARNED_ABOUT_NO_VERSION.fetch_or(true, Ordering::Relaxed) {
-                tracing::warn!("Protocol version not set for recent miniblock: {last_miniblock:?}");
+                tracing::warn!("Protocol version not set for recent L2 block: {last_l2_block:?}");
             }
             ProtocolVersionId::last_potentially_undefined()
         }));
     }
-    // No miniblocks in the storage; use snapshot recovery information.
+    // No L2 blocks in the storage; use snapshot recovery information.
     let snapshot_recovery = storage
         .snapshot_recovery_dal()
         .get_applied_snapshot_status()
         .await?
-        .context("storage contains neither miniblocks, nor snapshot recovery info")?;
+        .context("storage contains neither L2 blocks, nor snapshot recovery info")?;
     Ok(snapshot_recovery.protocol_version)
 }
 
@@ -170,8 +170,10 @@ async fn get_pubdata_pricing_mode(
     diamond_proxy_address: Address,
     eth_client: &dyn EthInterface,
 ) -> Result<Vec<ethabi::Token>, EthClientError> {
-    let args = CallFunctionArgs::new("getPubdataPricingMode", ())
-        .for_contract(diamond_proxy_address, zksync_contracts::zksync_contract());
+    let args = CallFunctionArgs::new("getPubdataPricingMode", ()).for_contract(
+        diamond_proxy_address,
+        zksync_contracts::state_transition_manager_contract(),
+    );
     eth_client.call_contract_function(args).await
 }
 

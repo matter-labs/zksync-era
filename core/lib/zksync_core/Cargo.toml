@@ -46,6 +46,7 @@ zksync_eth_watch.workspace = true
 zksync_shared_metrics.workspace = true
 zksync_proof_data_handler.workspace = true
 zksync_commitment_generator.workspace = true
+zksync_house_keeper.workspace = true
 
 multivm.workspace = true
 
@@ -76,7 +77,6 @@ chrono = { workspace = true, features = ["serde"] }
 anyhow.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
-bitflags.workspace = true
 thread_local.workspace = true
 
 reqwest = { workspace = true, features = ["blocking", "json"] }
@@ -85,7 +85,7 @@ lru.workspace = true
 governor.workspace = true
 tower-http = { workspace = true, features = ["full"] }
 tower = { workspace = true, features = ["full"] }
-axum = { workspace = true,features = [
+axum = { workspace = true, features = [
     "http1",
     "json",
     "tokio",
@@ -102,6 +102,7 @@ jsonrpsee.workspace = true
 tempfile.workspace = true
 test-casing.workspace = true
 test-log.workspace = true
+backon.workspace = true
 
 [build-dependencies]
 zksync_protobuf_build.workspace = true

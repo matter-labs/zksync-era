@@ -21,6 +21,7 @@ zksync_crypto_primitives.workspace = true
 
 anyhow.workspace = true
 chrono = { workspace = true, features = ["serde"] }
+derive_more = { workspace = true, features = ["debug"] }
 num = { workspace = true, features = ["serde"] }
 once_cell.workspace = true
 rlp.workspace = true
@@ -39,6 +40,7 @@ blake2.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "macros"] }
+bincode.workspace = true
 
 [build-dependencies]
 zksync_protobuf_build.workspace = true

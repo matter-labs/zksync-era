@@ -34,7 +34,6 @@ jobs:
           components:
             - server-v2
             - external-node
-            - contract-verifier
             - snapshots-creator
           platforms:
             - linux/amd64
@@ -162,8 +161,6 @@ jobs:
             platform: linux/amd64
           - name: external-node
             platform: linux/amd64,linux/arm64
-          - name: contract-verifier
-            platform: linux/amd64
           - name: snapshots-creator
             platform: linux/amd64
     env:

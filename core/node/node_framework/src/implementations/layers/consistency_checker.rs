@@ -58,7 +58,9 @@ impl WiringLayer for ConsistencyCheckerLayer {
         .with_diamond_proxy_addr(self.diamond_proxy_addr);
 
         let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
-        app_health.insert_component(consistency_checker.health_check().clone());
+        app_health
+            .insert_component(consistency_checker.health_check().clone())
+            .map_err(WiringError::internal)?;
 
         // Create and add tasks.
         context.add_task(Box::new(ConsistencyCheckerTask {
