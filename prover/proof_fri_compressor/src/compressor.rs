@@ -7,7 +7,8 @@ use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tokio::task::JoinHandle;
 #[cfg(feature = "gpu")]
 use wrapper_prover::{
-    GPUWrapperConfigs, WrapperProver, ZkSyncCompressionWrapper, DEFAULT_WRAPPER_CONFIG,
+    GPUWrapperConfigs, Proof as SnarkProof, WrapperProver, ZkSyncSnarkWrapperCircuit,
+    DEFAULT_WRAPPER_CONFIG,
 };
 #[allow(unused_imports)]
 use zkevm_test_harness::proof_wrapper_utils::{get_trusted_setup, wrap_proof};
@@ -22,17 +23,18 @@ use zkevm_test_harness_1_3_3::{
     witness::oracle::VmWitnessOracle,
 };
 use zksync_object_store::ObjectStore;
+#[cfg(not(feature = "gpu"))]
+use zksync_prover_fri_types::circuit_definitions::{
+    circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuit,
+    snark_wrapper::franklin_crypto::bellman::plonk::better_better_cs::proof::Proof as SnarkProof,
+};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
-        circuit_definitions::{
-            aux_layer::ZkSyncSnarkWrapperCircuit,
-            recursion_layer::{
-                ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
-                ZkSyncRecursionLayerVerificationKey,
-            },
+        circuit_definitions::recursion_layer::{
+            ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
+            ZkSyncRecursionLayerVerificationKey,
         },
-        snark_wrapper::franklin_crypto::bellman::plonk::better_better_cs::proof::Proof as SnarkProof,
         zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
     },
     get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper,
