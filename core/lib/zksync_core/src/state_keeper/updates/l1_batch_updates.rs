@@ -6,8 +6,7 @@ use zksync_types::{
     ExecuteTransactionCommon, L1BatchNumber,
 };
 
-use super::l2_block_updates::L2BlockUpdates;
-use crate::gas_tracker::new_block_gas_count;
+use crate::state_keeper::{updates::l2_block_updates::L2BlockUpdates, utils::new_block_gas_count};
 
 #[derive(Debug)]
 pub struct L1BatchUpdates {
@@ -56,9 +55,9 @@ mod tests {
     use zksync_types::{L2BlockNumber, ProtocolVersionId, H256};
 
     use super::*;
-    use crate::{
-        gas_tracker::new_block_gas_count,
-        state_keeper::tests::{create_execution_result, create_transaction},
+    use crate::state_keeper::{
+        tests::{create_execution_result, create_transaction},
+        utils::new_block_gas_count,
     };
 
     #[test]

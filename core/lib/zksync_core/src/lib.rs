@@ -101,7 +101,6 @@ pub mod consistency_checker;
 pub mod db_pruner;
 pub mod eth_sender;
 pub mod fee_model;
-pub mod gas_tracker;
 pub mod genesis;
 pub mod l1_gas_price;
 pub mod metadata_calculator;
