@@ -1,13 +1,20 @@
-use zksync_system_constants::{
-    EXECUTE_COMMIT_COST, EXECUTE_EXECUTE_COST, GAS_PER_BYTE, L1_BATCH_COMMIT_BASE_COST,
-    L1_BATCH_EXECUTE_BASE_COST, L1_BATCH_PROVE_BASE_COST, L1_OPERATION_EXECUTE_COST,
-};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::BlockGasCount,
     tx::{tx_execution_info::DeduplicatedWritesMetrics, ExecutionMetrics},
     ExecuteTransactionCommon, ProtocolVersionId, Transaction,
 };
+// TODO(QIT-32): Remove constants(except L1_OPERATION_EXECUTE_COST) and logic that use them
+const L1_BATCH_COMMIT_BASE_COST: u32 = 31_000;
+const L1_BATCH_PROVE_BASE_COST: u32 = 7_000;
+const L1_BATCH_EXECUTE_BASE_COST: u32 = 30_000;
+
+const EXECUTE_COMMIT_COST: u32 = 0;
+const EXECUTE_EXECUTE_COST: u32 = 0;
+
+const L1_OPERATION_EXECUTE_COST: u32 = 12_500;
+
+const GAS_PER_BYTE: u32 = 18;
 
 pub fn l1_batch_base_cost(op: AggregatedActionType) -> u32 {
     match op {
