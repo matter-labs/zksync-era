@@ -6,11 +6,11 @@ use circuit_sequencer_api::proof::FinalProof;
 use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tokio::task::JoinHandle;
 #[cfg(feature = "gpu")]
-use wrapper_prover::{GPUWrapperConfigs, WrapperProver};
-#[allow(unused_imports)]
-use zkevm_test_harness::proof_wrapper_utils::{
-    get_trusted_setup, wrap_proof, WrapperConfig, DEFAULT_WRAPPER_CONFIG,
+use wrapper_prover::{
+    GPUWrapperConfigs, WrapperProver, ZkSyncCompressionWrapper, DEFAULT_WRAPPER_CONFIG,
 };
+#[allow(unused_imports)]
+use zkevm_test_harness::proof_wrapper_utils::{get_trusted_setup, wrap_proof};
 use zkevm_test_harness_1_3_3::{
     abstract_zksync_circuit::concrete_circuits::{
         ZkSyncCircuit, ZkSyncProof, ZkSyncVerificationKey,
