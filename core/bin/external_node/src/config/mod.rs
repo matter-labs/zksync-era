@@ -763,11 +763,11 @@ impl ExternalNodeConfig {
              by converting the parameter name to upper case and replacing '.' chars with '_'. For example, `en.prometheus_port` parameter \
              is mapped to the `EN_PROMETHEUS_PORT` env var.\n"
         );
-        print_config(&RequiredENConfig::describe_config(), "en.", filter);
-        print_config(&OptionalENConfig::describe_config(), "en.", filter);
-        print_config(&PostgresConfig::describe_config(), "", filter);
-        print_config(&ApiComponentConfig::describe_config(), "en.api.", filter);
-        print_config(&TreeComponentConfig::describe_config(), "en.tree.", filter);
+        print_config(RequiredENConfig::describe_config(), "en.", filter);
+        print_config(OptionalENConfig::describe_config(), "en.", filter);
+        print_config(PostgresConfig::describe_config(), "", filter);
+        print_config(ApiComponentConfig::describe_config(), "en.api.", filter);
+        print_config(TreeComponentConfig::describe_config(), "en.tree.", filter);
     }
 
     /// Loads config from the environment variables and

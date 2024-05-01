@@ -7541,6 +7541,7 @@ name = "zksync_config"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "once_cell",
  "rand 0.8.5",
  "serde",
  "zksync_basic_types",

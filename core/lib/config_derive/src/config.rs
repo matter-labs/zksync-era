@@ -177,7 +177,7 @@ impl ConfigField {
             }
         };
         let default_value = if let Some(value) = default_value {
-            quote_spanned!(name.span()=> ::core::option::Option::Some(#value))
+            quote_spanned!(name.span()=> ::core::option::Option::Some(|| #value))
         } else {
             quote_spanned!(name.span()=> ::core::option::Option::None)
         };
@@ -186,7 +186,7 @@ impl ConfigField {
             let base_type = #cr::RustType::of::<#base_type>(#base_type_in_code);
             #cr::ParamMetadata {
                 name: ::core::stringify!(#name),
-                aliases: ::std::vec![#(#aliases,)*],
+                aliases: &[#(#aliases,)*],
                 help: #help,
                 ty: #cr::RustType::of::<#ty>(#ty_in_code),
                 base_type,
@@ -238,11 +238,12 @@ impl DescribeConfigImpl {
 
         quote! {
             impl #cr::DescribeConfig for #name {
-                fn describe_config() -> #cr::ConfigMetadata {
-                    #cr::ConfigMetadata {
+                fn describe_config() -> &'static #cr::ConfigMetadata {
+                    static METADATA_CELL: #cr::Lazy<#cr::ConfigMetadata> = #cr::Lazy::new(|| #cr::ConfigMetadata {
                         help: #help,
-                        params: ::std::vec![#(#params,)*],
-                    }
+                        params: ::std::boxed::Box::new([#(#params,)*]),
+                    });
+                    &METADATA_CELL
                 }
             }
         }

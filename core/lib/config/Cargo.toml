@@ -15,5 +15,6 @@ zksync_crypto_primitives.workspace = true
 zksync_consensus_utils.workspace = true
 
 anyhow.workspace = true
+once_cell.workspace = true
 rand.workspace = true
 serde = { workspace = true, features = ["derive"] }

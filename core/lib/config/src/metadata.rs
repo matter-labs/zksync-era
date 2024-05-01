@@ -2,34 +2,37 @@
 
 use std::{any, fmt, num};
 
+#[doc(hidden)] // used in the derive macro
+pub use once_cell::sync::Lazy;
+
 /// Describes a configuration (i.e., a group of related parameters).
 pub trait DescribeConfig {
     /// Provides the description.
-    fn describe_config() -> ConfigMetadata;
+    fn describe_config() -> &'static ConfigMetadata;
 }
 
 /// Metadata for a configuration (i.e., a group of related parameters).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ConfigMetadata {
     /// Help regarding the config itself.
     pub help: &'static str,
     /// Parameters included in the config.
-    pub params: Vec<ParamMetadata>,
+    pub params: Box<[ParamMetadata]>,
 }
 
 /// Metadata for a specific configuration parameter.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct ParamMetadata {
     pub name: &'static str,
-    pub aliases: Vec<&'static str>,
+    pub aliases: &'static [&'static str],
     pub help: &'static str,
     pub ty: RustType,
     pub base_type: RustType,
     pub unit: Option<UnitOfMeasurement>,
-    pub default_value: Option<Box<dyn fmt::Debug>>,
+    pub default_value: Option<fn() -> Box<dyn fmt::Debug>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub enum UnitOfMeasurement {
     Seconds,
