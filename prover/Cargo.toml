@@ -86,7 +86,7 @@ zksync_system_constants = { path = "../core/lib/constants" }
 zksync_types = { path = "../core/lib/types" }
 zksync_utils = { path = "../core/lib/utils" }
 
-wrapper_prover = { package = "wrapper-prover", git = "https://github.com/matter-labs/era-heavy-ops-service.git", rev = "5464d5d" }
+wrapper_prover = { package = "wrapper-prover", git = "https://github.com/matter-labs/era-heavy-ops-service.git", rev = "3d33e06" }
 
 
 # for `perf` profiling

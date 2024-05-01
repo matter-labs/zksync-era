@@ -7,18 +7,19 @@ use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tokio::task::JoinHandle;
 #[cfg(feature = "gpu")]
 use wrapper_prover::{
-    GPUWrapperConfigs, Proof as SnarkProof, WrapperProver, ZkSyncSnarkWrapperCircuit,
+    Bn256, GPUWrapperConfigs, Proof as SnarkProof, WrapperProver, ZkSyncSnarkWrapperCircuit,
     DEFAULT_WRAPPER_CONFIG,
 };
 #[allow(unused_imports)]
 use zkevm_test_harness::proof_wrapper_utils::{get_trusted_setup, wrap_proof};
+#[cfg(not(feature = "gpu"))]
+use zkevm_test_harness_1_3_3::bellman::bn256::Bn256;
 use zkevm_test_harness_1_3_3::{
     abstract_zksync_circuit::concrete_circuits::{
         ZkSyncCircuit, ZkSyncProof, ZkSyncVerificationKey,
     },
-    bellman::{
-        bn256::Bn256,
-        plonk::better_better_cs::{proof::Proof, setup::VerificationKey as SnarkVerificationKey},
+    bellman::plonk::better_better_cs::{
+        proof::Proof, setup::VerificationKey as SnarkVerificationKey,
     },
     witness::oracle::VmWitnessOracle,
 };
