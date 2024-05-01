@@ -270,11 +270,6 @@ pub struct L1BatchTreeData {
     pub rollup_last_leaf_index: u64,
 }
 
-pub struct L1BatchDAData {
-    pub commitment: H256,
-    pub inclusion_proof: Vec<H256>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

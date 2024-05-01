@@ -840,7 +840,61 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn save_l1_batch_da_data(&mut self, da_data: &L1BatchDAData) -> anyhow::Result<()> {}
+    pub async fn save_l1_batch_da_data(
+        &mut self,
+        number: L1BatchNumber,
+        da_inclusion_data: Vec<u8>,
+    ) -> anyhow::Result<()> {
+        let update_result = sqlx::query!(
+            r#"
+            UPDATE l1_batches
+            SET
+                da_inclusion_data = $1,
+                updated_at = NOW()
+            WHERE
+                number = $2
+                AND da_inclusion_data IS NULL
+            "#,
+            da_inclusion_data.as_slice(),
+            i64::from(number.0),
+        )
+        .instrument("save_l1_batch_da_data")
+        .with_arg("number", &number)
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+
+        if update_result.rows_affected() == 0 {
+            tracing::debug!("L1 batch #{number}: DA data wasn't updated as it's already present");
+
+            // Batch was already processed. Verify that existing DA data matches
+            let matched: i64 = sqlx::query!(
+                r#"
+                SELECT
+                    COUNT(*) AS "count!"
+                FROM
+                    l1_batches
+                WHERE
+                    number = $1
+                    AND da_inclusion_data = $2
+                "#,
+                i64::from(number.0),
+                da_inclusion_data.as_slice(),
+            )
+            .instrument("get_matching_batch_da_data")
+            .with_arg("number", &number)
+            .report_latency()
+            .fetch_one(self.storage)
+            .await?
+            .count;
+
+            anyhow::ensure!(
+                matched == 1,
+                "DA data verification failed. DA data for L1 batch #{number} does not match the expected value"
+            );
+        }
+        Ok(())
+    }
 
     pub async fn save_l1_batch_commitment_artifacts(
         &mut self,
@@ -1628,6 +1682,7 @@ impl BlocksDal<'_, '_> {
                 )
                 AND events_queue_commitment IS NOT NULL
                 AND bootloader_initial_content_commitment IS NOT NULL
+                AND da_inclusion_data IS NOT NULL
             ORDER BY
                 number
             LIMIT
