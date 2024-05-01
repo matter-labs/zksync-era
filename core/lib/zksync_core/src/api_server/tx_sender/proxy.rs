@@ -1,4 +1,3 @@
-use anyhow::Context;
 use std::{
     collections::{BTreeSet, HashMap},
     future::Future,
@@ -6,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use crate::utils::wait_for_l1_batch;
+use anyhow::Context;
 use tokio::sync::{watch, RwLock};
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Core, CoreDal};
 use zksync_shared_metrics::{TxStage, APP_METRICS};
@@ -23,6 +22,7 @@ use zksync_web3_decl::{
 };
 
 use super::{tx_sink::TxSink, SubmitTxError};
+use crate::utils::wait_for_l1_batch;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct TxCache {
