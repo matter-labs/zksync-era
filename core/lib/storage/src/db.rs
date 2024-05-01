@@ -9,7 +9,7 @@ use std::{
     path::Path,
     sync::{
         atomic::{AtomicU64, Ordering},
-        Arc, Condvar, Mutex,
+        Arc, Condvar, Mutex, Weak,
     },
     thread,
     time::{Duration, Instant},
@@ -314,13 +314,24 @@ impl Default for RocksDBOptions {
 
 /// Thin wrapper around a RocksDB instance.
 ///
-/// The wrapper is cheaply cloneable (internally, it wraps a DB instance in an [`Arc`]).
-#[derive(Debug, Clone)]
+/// The wrapper is cheaply cloneable; internally, it wraps a DB instance in an [`Arc`].
+#[derive(Debug)]
 pub struct RocksDB<CF> {
     inner: Arc<RocksDBInner>,
     sync_writes: bool,
     stalled_writes_retries: StalledWritesRetries,
     _cf: PhantomData<CF>,
+}
+
+impl<CF> Clone for RocksDB<CF> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            sync_writes: self.sync_writes,
+            stalled_writes_retries: self.stalled_writes_retries,
+            _cf: PhantomData,
+        }
+    }
 }
 
 impl<CF: NamedColumnFamily> RocksDB<CF> {
@@ -446,6 +457,15 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             options.set_block_based_table_factory(&block_based_options);
         }
         options
+    }
+
+    pub fn downgrade(&self) -> WeakRocksDB<CF> {
+        WeakRocksDB {
+            inner: Arc::downgrade(&self.inner),
+            sync_writes: self.sync_writes,
+            stalled_writes_retries: self.stalled_writes_retries,
+            _cf: PhantomData,
+        }
     }
 
     pub fn estimated_number_of_entries(&self, cf: CF) -> u64 {
@@ -625,6 +645,41 @@ impl RocksDB<()> {
             num_instances = cvar.wait(num_instances).unwrap();
         }
         tracing::info!("All the RocksDB instances are dropped");
+    }
+}
+
+/// Weak reference to a RocksDB instance. Doesn't prevent dropping the underlying instance;
+/// to work with it, you should [upgrade](Self::upgrade()) the reference first.
+///
+/// The wrapper is cheaply cloneable; internally, it wraps a DB instance in a [`Weak`].
+#[derive(Debug)]
+pub struct WeakRocksDB<CF> {
+    inner: Weak<RocksDBInner>,
+    sync_writes: bool,
+    stalled_writes_retries: StalledWritesRetries,
+    _cf: PhantomData<CF>,
+}
+
+impl<CF: NamedColumnFamily> Clone for WeakRocksDB<CF> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            sync_writes: self.sync_writes,
+            stalled_writes_retries: self.stalled_writes_retries,
+            _cf: PhantomData,
+        }
+    }
+}
+
+impl<CF: NamedColumnFamily> WeakRocksDB<CF> {
+    /// Tries to upgrade to a strong reference to RocksDB. If the RocksDB instance has been dropped, returns `None`.
+    pub fn upgrade(&self) -> Option<RocksDB<CF>> {
+        Some(RocksDB {
+            inner: self.inner.upgrade()?,
+            sync_writes: self.sync_writes,
+            stalled_writes_retries: self.stalled_writes_retries,
+            _cf: PhantomData,
+        })
     }
 }
 

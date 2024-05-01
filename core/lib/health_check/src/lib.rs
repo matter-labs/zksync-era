@@ -79,6 +79,11 @@ impl Health {
     pub fn status(&self) -> HealthStatus {
         self.status
     }
+
+    /// Returns health details. Mostly useful for testing.
+    pub fn details(&self) -> Option<&serde_json::Value> {
+        self.details.as_ref()
+    }
 }
 
 impl From<HealthStatus> for Health {
@@ -346,6 +351,17 @@ impl ReactiveHealthCheck {
             health_sender,
         };
         (this, updater)
+    }
+
+    /// Waits until the specified `condition` is true for the tracked [`Health`], and returns health.
+    /// Mostly useful for testing.
+    ///
+    /// If the health updater associated with this check is dropped, this method can wait indefinitely.
+    pub async fn wait_for(&mut self, condition: impl FnMut(&Health) -> bool) -> Health {
+        match self.health_receiver.wait_for(condition).await {
+            Ok(health) => health.clone(),
+            Err(_) => future::pending().await,
+        }
     }
 }
 

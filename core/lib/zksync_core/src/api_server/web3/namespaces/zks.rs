@@ -11,7 +11,7 @@ use zksync_types::{
         ProtocolVersion, StorageProof, TransactionDetails,
     },
     fee::Fee,
-    fee_model::FeeParams,
+    fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     l1::L1Tx,
     l2::L2Tx,
     l2_to_l1_log::{l2_to_l1_logs_tree_size, L2ToL1Log},
@@ -442,12 +442,7 @@ impl ZksNamespace {
             .map_err(DalError::generalize)?)
     }
 
-    pub async fn get_l1_gas_price_impl(&self) -> Result<U64, Web3Error> {
-        let fee_input_provider = &self.state.tx_sender.0.batch_fee_input_provider;
-        let fee_input = fee_input_provider.get_batch_fee_input().await?;
-        Ok(fee_input.l1_gas_price().into())
-    }
-
+    #[tracing::instrument(skip(self))]
     pub fn get_fee_params_impl(&self) -> FeeParams {
         self.state
             .tx_sender
@@ -537,6 +532,20 @@ impl ZksNamespace {
             .api_config
             .base_token_address
             .ok_or(Web3Error::NotImplemented)
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub async fn get_batch_fee_input_impl(
+        &self,
+    ) -> Result<PubdataIndependentBatchFeeModelInput, Web3Error> {
+        Ok(self
+            .state
+            .tx_sender
+            .0
+            .batch_fee_input_provider
+            .get_batch_fee_input()
+            .await?
+            .into_pubdata_independent())
     }
 
     #[tracing::instrument(skip(self, tx_bytes))]

@@ -28,7 +28,7 @@ use zksync_types::{
     utils::display_timestamp,
     zk_evm_types::LogQuery,
     AccountTreeId, Address, ExecuteTransactionCommon, L1BlockNumber, ProtocolVersionId, StorageKey,
-    StorageLog, StorageLogQuery, Transaction, VmEvent, H256,
+    StorageLog, Transaction, VmEvent, H256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -82,9 +82,6 @@ impl UpdatesManager {
         );
 
         let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.l1_batch.executed_transactions);
-        let (writes_count, reads_count) = storage_log_query_write_read_counts(
-            &finished_batch.final_execution_state.storage_log_queries,
-        );
         let (dedup_writes_count, dedup_reads_count) = log_query_write_read_counts(
             finished_batch
                 .final_execution_state
@@ -95,8 +92,8 @@ impl UpdatesManager {
         tracing::info!(
             "Sealing L1 batch {current_l1_batch_number} with timestamp {ts}, {total_tx_count} \
              ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {l2_to_l1_log_count} l2_l1_logs, \
-             {event_count} events, {reads_count} reads ({dedup_reads_count} deduped), \
-             {writes_count} writes ({dedup_writes_count} deduped)",
+             {event_count} events, {dedup_reads_count} deduped reads, \
+             {dedup_writes_count} deduped writes",
             ts = display_timestamp(self.batch_timestamp()),
             total_tx_count = l1_tx_count + l2_tx_count,
             l2_to_l1_log_count = finished_batch
@@ -326,12 +323,9 @@ impl L2BlockSealCommand {
             .context("L2 block is invalid")?;
 
         let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&this.l2_block.executed_transactions);
-        let (writes_count, reads_count) =
-            storage_log_query_write_read_counts(&this.l2_block.storage_logs);
         tracing::info!(
             "Sealing L2 block {l2_block_number} with timestamp {ts} (L1 batch {l1_batch_number}) \
-             with {total_tx_count} ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {event_count} events, \
-             {reads_count} reads, {writes_count} writes",
+             with {total_tx_count} ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {event_count} events",
             l2_block_number = this.l2_block.number,
             l1_batch_number = this.l1_batch_number,
             ts = display_timestamp(this.l2_block.timestamp),
@@ -597,8 +591,4 @@ fn log_query_write_read_counts<'a>(logs: impl Iterator<Item = &'a LogQuery>) -> 
         }
     }
     (writes_count, reads_count)
-}
-
-fn storage_log_query_write_read_counts(logs: &[StorageLogQuery]) -> (usize, usize) {
-    log_query_write_read_counts(logs.iter().map(|log| &log.log_query))
 }
