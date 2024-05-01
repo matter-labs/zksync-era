@@ -16,7 +16,7 @@ const L1_OPERATION_EXECUTE_COST: u32 = 12_500;
 
 const GAS_PER_BYTE: u32 = 18;
 
-pub fn l1_batch_base_cost(op: AggregatedActionType) -> u32 {
+pub(super) fn l1_batch_base_cost(op: AggregatedActionType) -> u32 {
     match op {
         AggregatedActionType::Commit => L1_BATCH_COMMIT_BASE_COST,
         AggregatedActionType::PublishProofOnchain => L1_BATCH_PROVE_BASE_COST,
@@ -47,7 +47,7 @@ fn additional_writes_commit_cost(
     (writes_metrics.size(protocol_version) as u32) * GAS_PER_BYTE
 }
 
-pub fn new_block_gas_count() -> BlockGasCount {
+pub(super) fn new_block_gas_count() -> BlockGasCount {
     BlockGasCount {
         commit: l1_batch_base_cost(AggregatedActionType::Commit),
         prove: l1_batch_base_cost(AggregatedActionType::PublishProofOnchain),
@@ -55,7 +55,7 @@ pub fn new_block_gas_count() -> BlockGasCount {
     }
 }
 
-pub fn gas_count_from_tx_and_metrics(
+pub(super) fn gas_count_from_tx_and_metrics(
     tx: &Transaction,
     execution_metrics: &ExecutionMetrics,
 ) -> BlockGasCount {
@@ -68,7 +68,7 @@ pub fn gas_count_from_tx_and_metrics(
     }
 }
 
-pub fn gas_count_from_metrics(execution_metrics: &ExecutionMetrics) -> BlockGasCount {
+pub(super) fn gas_count_from_metrics(execution_metrics: &ExecutionMetrics) -> BlockGasCount {
     BlockGasCount {
         commit: additional_pubdata_commit_cost(execution_metrics),
         prove: 0,
@@ -76,7 +76,7 @@ pub fn gas_count_from_metrics(execution_metrics: &ExecutionMetrics) -> BlockGasC
     }
 }
 
-pub fn gas_count_from_writes(
+pub(super) fn gas_count_from_writes(
     writes_metrics: &DeduplicatedWritesMetrics,
     protocol_version: ProtocolVersionId,
 ) -> BlockGasCount {
