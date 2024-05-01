@@ -106,23 +106,13 @@ impl ProofCompressor {
         wrapper_proof.into_inner()
     }
 
-    #[cfg(feature = "gpu")]
-    fn get_wrapper_proof(
-        proof: ZkSyncRecursionLayerProof,
-        scheduler_vk: ZkSyncRecursionLayerVerificationKey,
-        _compression_mode: u8,
-    ) -> SnarkProof<Bn256, ZkSyncSnarkWrapperCircuit> {
-        let crs = get_trusted_setup();
-        let wrapper_config = DEFAULT_WRAPPER_CONFIG;
-        let mut prover = WrapperProver::<GPUWrapperConfigs>::new(&crs, wrapper_config).unwrap();
-
-        prover
-            .generate_setup_data(scheduler_vk.into_inner())
-            .unwrap();
-        prover.generate_proofs(proof.into_inner()).unwrap();
-
-        prover.get_wrapper_proof().unwrap()
-    }
+    // #[cfg(feature = "gpu")]
+    // fn get_wrapper_proof(
+    //     proof: ZkSyncRecursionLayerProof,
+    //     scheduler_vk: ZkSyncRecursionLayerVerificationKey,
+    //     _compression_mode: u8,
+    // ) -> SnarkProof<Bn256, ZkSyncSnarkWrapperCircuit> {
+    // }
 
     pub fn compress_proof(
         proof: ZkSyncRecursionLayerProof,
@@ -136,6 +126,20 @@ impl ProofCompressor {
             )
             .context("get_recursiver_layer_vk_for_circuit_type()")?;
 
+        #[cfg(feature = "gpu")]
+        let wrapper_proof = {
+            let crs = get_trusted_setup();
+            let wrapper_config = DEFAULT_WRAPPER_CONFIG;
+            let mut prover = WrapperProver::<GPUWrapperConfigs>::new(&crs, wrapper_config).unwrap();
+
+            prover
+                .generate_setup_data(scheduler_vk.into_inner())
+                .unwrap();
+            prover.generate_proofs(proof.into_inner()).unwrap();
+
+            prover.get_wrapper_proof().unwrap()
+        };
+        #[cfg(not(feature = "gpu"))]
         let wrapper_proof = Self::get_wrapper_proof(proof, scheduler_vk, compression_mode);
 
         // (Re)serialization should always succeed.
