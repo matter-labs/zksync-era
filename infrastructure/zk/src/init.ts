@@ -127,8 +127,7 @@ const makeEraAddressSameAsCurrent = async () => {
     const initEnv = `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`;
     env.modify('CONTRACTS_ERA_DIAMOND_PROXY_ADDR', process.env.CONTRACTS_DIAMOND_PROXY_ADDR!, initEnv, false);
     env.reload();
-
-}
+};
 
 // ########################### Command Actions ###########################
 type InitDevCmdActionOptions = InitSetupOptions & {
