@@ -46,7 +46,7 @@ read_value_from_config() {
     # Check if the parameter exists in the file
     if grep -q "$pattern" "$file"; then
         # The parameter exists, so extract its value
-        local value=$(grep "$pattern" "$file" | sed "s/${parameter} = //")
+        local value=$(grep "$pattern" "$file" | sed "s/${parameter} = //; s/\"//g")
         echo "$value"
     else
         # The parameter does not exist in the file, output error message and return non-zero status
@@ -55,6 +55,43 @@ read_value_from_config() {
     fi
 }
 
+# Updates the value in the .toml config.
+update_env() {
+    # Assigning arguments to readable variable names
+    local file="$1"
+    local parameter="$2"
+    local new_value="$3"
+    local pattern="^${parameter}=.*$"
+
+    # Check if the parameter exists in the file
+    if grep -q "$pattern" "$file"; then
+        # The parameter exists, so replace its value
+        sed -i "s!$pattern!${parameter}=${new_value}!" "$file"
+        echo "Update successful for $parameter in $file."
+    else
+        # The parameter does not exist in the file, output error message and return non-zero status
+        echo "Error: '$parameter' not found in $file."
+        return 1  # Return with an error status
+    fi
+}
+
+# Reads the value of the parameter from the .toml config.
+read_value_from_env() {
+    local file="$1"
+    local parameter="$2"
+    local pattern="^${parameter}=.*$"
+
+    # Check if the parameter exists in the file
+    if grep -q "$pattern" "$file"; then
+        # The parameter exists, so extract its value
+        local value=$(grep "$pattern" "$file" | sed "s/${parameter}=//; s/\"//g")
+        echo "$value"
+    else
+        # The parameter does not exist in the file, output error message and return non-zero status
+        echo "Error: '$parameter' not found in $file."
+        return 1  # Return with an error status
+    fi
+}
 
 # wait till db service is ready
 until psql ${DATABASE_URL%/*} -c '\q'; do
@@ -126,6 +163,21 @@ else
 
     zk contract deploy-l2-through-l1 $DEPLOY_L2_PARAMS
 
+    if [ "$LEGACY_BRIDGE_TESTING" = "true" ]; then
+      # making era address same as current address for legacy bridge testing
+      FILE_PATH="/etc/env/target/dev.env"
+      PARAM_NAME="CONTRACTS_DIAMOND_PROXY_ADDR"
+
+      CONTRACTS_DIAMOND_PROXY_ADDR=$(read_value_from_env "$FILE_PATH" "$PARAM_NAME")
+
+      if [ -z "$CONTRACTS_DIAMOND_PROXY_ADDR" ]; then
+        echo "ERROR: $PARAM_NAME is not set in $FILE_PATH."
+        exit 1
+      fi
+
+      update_env "/etc/env/target/dev.env" "CONTRACTS_ERA_DIAMOND_PROXY_ADDR" "$CONTRACTS_DIAMOND_PROXY_ADDR"
+    fi
+  
     zk f yarn --cwd /infrastructure/local-setup-preparation start
 
     # Create init file.
