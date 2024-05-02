@@ -6,12 +6,15 @@ use zksync_core::{
     sync_layer::{ActionQueueSender, SyncState},
 };
 use zksync_dal::{ConnectionPool, Core};
+use zksync_types::L2ChainId;
 use zksync_web3_decl::client::BoxedL2Client;
 
 use crate::{
     implementations::resources::{
-        action_queue::ActionQueueSenderResource, main_node_client::MainNodeClientResource,
-        pools::MasterPoolResource, sync_state::SyncStateResource,
+        action_queue::ActionQueueSenderResource,
+        main_node_client::MainNodeClientResource,
+        pools::{MasterPool, PoolResource},
+        sync_state::SyncStateResource,
     },
     service::{ServiceContext, StopReceiver},
     task::Task,
@@ -29,6 +32,7 @@ pub struct ConsensusLayer {
     pub mode: Mode,
     pub config: Option<ConsensusConfig>,
     pub secrets: Option<ConsensusSecrets>,
+    pub chain_id: L2ChainId,
 }
 
 #[async_trait::async_trait]
@@ -39,7 +43,7 @@ impl WiringLayer for ConsensusLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let pool = context
-            .get_resource::<MasterPoolResource>()
+            .get_resource::<PoolResource<MasterPool>>()
             .await?
             .get()
             .await?;
@@ -53,7 +57,8 @@ impl WiringLayer for ConsensusLayer {
                     WiringError::Configuration("Missing private consensus config".to_string())
                 })?;
 
-                let main_node_config = consensus::config::main_node(&config, &secrets)?;
+                let main_node_config =
+                    consensus::config::main_node(&config, &secrets, self.chain_id)?;
 
                 let task = MainNodeConsensusTask {
                     config: main_node_config,

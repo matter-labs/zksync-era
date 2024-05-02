@@ -255,6 +255,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l2_testnet_paymaster_addr: g.gen(),
             l1_multicall3_addr: g.gen(),
             base_token_addr: g.gen(),
+            ecosystem_contracts: self.sample(g),
         }
     }
 }
@@ -283,11 +284,21 @@ impl Distribution<configs::database::MerkleTreeConfig> for EncodeDist {
     }
 }
 
+impl Distribution<configs::ExperimentalDBConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ExperimentalDBConfig {
+        configs::ExperimentalDBConfig {
+            state_keeper_db_block_cache_capacity_mb: self.sample(rng),
+            state_keeper_db_max_open_files: self.sample(rng),
+        }
+    }
+}
+
 impl Distribution<configs::database::DBConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::database::DBConfig {
         configs::database::DBConfig {
             state_keeper_db_path: self.sample(rng),
             merkle_tree: self.sample(rng),
+            experimental: self.sample(rng),
         }
     }
 }
@@ -679,16 +690,15 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             recursion_leaf_level_vk_hash: rng.gen(),
             recursion_scheduler_level_vk_hash: rng.gen(),
             recursion_circuits_set_vks_hash: rng.gen(),
-            shared_bridge: self.sample(rng),
             dummy_verifier: rng.gen(),
             l1_batch_commit_data_generator_mode: self.sample(rng),
         }
     }
 }
 
-impl Distribution<configs::SharedBridge> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::SharedBridge {
-        configs::SharedBridge {
+impl Distribution<configs::EcosystemContracts> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::EcosystemContracts {
+        configs::EcosystemContracts {
             bridgehub_proxy_addr: rng.gen(),
             state_transition_proxy_addr: rng.gen(),
             transparent_proxy_admin_addr: rng.gen(),
@@ -698,14 +708,10 @@ impl Distribution<configs::SharedBridge> for EncodeDist {
 
 impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::ConsensusConfig {
-        use configs::consensus::{ConsensusConfig, Host, NodePublicKey, ValidatorPublicKey};
+        use configs::consensus::{ConsensusConfig, Host, NodePublicKey};
         ConsensusConfig {
             server_addr: self.sample(rng),
             public_addr: Host(self.sample(rng)),
-            validators: self
-                .sample_range(rng)
-                .map(|_| ValidatorPublicKey(self.sample(rng)))
-                .collect(),
             max_payload_size: self.sample(rng),
             gossip_dynamic_inbound_limit: self.sample(rng),
             gossip_static_inbound: self

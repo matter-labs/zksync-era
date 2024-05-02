@@ -66,7 +66,7 @@ export class Tester {
     }
 
     /// Ensures that the main wallet has enough base token.
-    /// This can not be done inside the `init` function becasue `init` function can be called before the
+    /// This can not be done inside the `init` function because `init` function can be called before the
     /// L2 RPC is active, but we need the L2 RPC to get the base token address.
     async fundSyncWallet() {
         const baseTokenAddress = await this.syncWallet.provider.getBaseTokenContractAddress();

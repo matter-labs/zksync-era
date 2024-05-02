@@ -33,11 +33,12 @@ impl ConsensusDal<'_, '_> {
             "#
         )
         .try_map(|row| {
-            row.genesis
-                .map(|genesis| {
-                    zksync_protobuf::serde::deserialize(genesis).decode_column("genesis")
-                })
-                .transpose()
+            let Some(genesis) = row.genesis else {
+                return Ok(None);
+            };
+            let genesis: validator::GenesisRaw =
+                zksync_protobuf::serde::deserialize(genesis).decode_column("genesis")?;
+            Ok(Some(genesis.with_hash()))
         })
         .instrument("genesis")
         .fetch_optional(self.storage)
@@ -57,10 +58,10 @@ impl ConsensusDal<'_, '_> {
                 return Ok(());
             }
             anyhow::ensure!(
-                got.fork.number < genesis.fork.number,
+                got.fork_number < genesis.fork_number,
                 "transition to a past fork is not allowed: old = {:?}, new = {:?}",
-                got.fork.number,
-                genesis.fork.number,
+                got.fork_number,
+                genesis.fork_number,
             );
         }
         let genesis =
@@ -138,13 +139,16 @@ impl ConsensusDal<'_, '_> {
             .await
             .context("get_block_range()")?
             .end;
-        let new = validator::Genesis {
-            validators: old.validators,
-            fork: validator::Fork {
-                number: old.fork.number.next(),
-                first_block,
-            },
-        };
+        let new = validator::GenesisRaw {
+            chain_id: old.chain_id,
+            fork_number: old.fork_number.next(),
+            first_block,
+
+            protocol_version: validator::ProtocolVersion::CURRENT,
+            committee: old.committee.clone(),
+            leader_selection: old.leader_selection.clone(),
+        }
+        .with_hash();
         txn.consensus_dal().try_update_genesis(&new).await?;
         txn.commit().await?;
         Ok(())
@@ -355,17 +359,16 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         assert_eq!(None, conn.consensus_dal().genesis().await.unwrap());
         for n in 0..3 {
-            let fork = validator::Fork {
-                number: validator::ForkNumber(n),
-                first_block: rng.gen(),
-            };
-            let setup = validator::testonly::Setup::new_with_fork(rng, 3, fork);
+            let setup = validator::testonly::Setup::new(rng, 3);
+            let mut genesis = (*setup.genesis).clone();
+            genesis.fork_number = validator::ForkNumber(n);
+            let genesis = genesis.with_hash();
             conn.consensus_dal()
-                .try_update_genesis(&setup.genesis)
+                .try_update_genesis(&genesis)
                 .await
                 .unwrap();
             assert_eq!(
-                setup.genesis,
+                genesis,
                 conn.consensus_dal().genesis().await.unwrap().unwrap()
             );
             assert_eq!(
@@ -376,7 +379,7 @@ mod tests {
                 let want: ReplicaState = rng.gen();
                 conn.consensus_dal().set_replica_state(&want).await.unwrap();
                 assert_eq!(
-                    setup.genesis,
+                    genesis,
                     conn.consensus_dal().genesis().await.unwrap().unwrap()
                 );
                 assert_eq!(want, conn.consensus_dal().replica_state().await.unwrap());

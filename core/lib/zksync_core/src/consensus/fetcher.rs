@@ -47,7 +47,7 @@ impl Fetcher {
             drop(conn);
 
             // Fetch blocks before the genesis.
-            self.fetch_blocks(ctx, &mut payload_queue, Some(genesis.fork.first_block))
+            self.fetch_blocks(ctx, &mut payload_queue, Some(genesis.first_block))
                 .await?;
             // Monitor the genesis of the main node.
             // If it changes, it means that a hard fork occurred and we need to reset the consensus state.
