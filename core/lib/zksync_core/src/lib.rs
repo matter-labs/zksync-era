@@ -101,7 +101,6 @@ pub mod consistency_checker;
 pub mod db_pruner;
 pub mod eth_sender;
 pub mod fee_model;
-pub mod gas_tracker;
 pub mod genesis;
 pub mod l1_gas_price;
 pub mod metadata_calculator;
@@ -546,8 +545,8 @@ pub async fn initialize_components(
     }
 
     let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
-    let state_transition_manager_addr = genesis_config
-        .shared_bridge
+    let state_transition_manager_addr = contracts_config
+        .ecosystem_contracts
         .as_ref()
         .map(|a| a.state_transition_proxy_addr);
 
@@ -558,6 +557,7 @@ pub async fn initialize_components(
                 .as_ref()
                 .context("consensus component's config is missing")?,
             secrets,
+            l2_chain_id,
         )?;
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");
@@ -635,7 +635,7 @@ pub async fn initialize_components(
         let web3_url = &eth.web3_url;
 
         let eth_client = PKSigningClient::new_raw(
-            operator_private_key,
+            operator_private_key.clone(),
             diamond_proxy_addr,
             default_priority_fee_per_gas,
             l1_chain_id,
@@ -710,7 +710,7 @@ pub async fn initialize_components(
         let web3_url = &eth.web3_url;
 
         let eth_client = PKSigningClient::new_raw(
-            operator_private_key,
+            operator_private_key.clone(),
             diamond_proxy_addr,
             default_priority_fee_per_gas,
             l1_chain_id,
@@ -718,7 +718,7 @@ pub async fn initialize_components(
         );
 
         let eth_client_blobs = if let Some(blob_operator) = eth_sender_wallets.blob_operator {
-            let operator_blob_private_key = blob_operator.private_key();
+            let operator_blob_private_key = blob_operator.private_key().clone();
             Some(PKSigningClient::new_raw(
                 operator_blob_private_key,
                 diamond_proxy_addr,
@@ -1043,7 +1043,7 @@ async fn run_tree(
     }
 
     let tree_health_check = metadata_calculator.tree_health_check();
-    app_health.insert_component(tree_health_check)?;
+    app_health.insert_custom_component(Arc::new(tree_health_check))?;
     let tree_task = tokio::spawn(metadata_calculator.run(stop_receiver));
     task_futures.push(tree_task);
 

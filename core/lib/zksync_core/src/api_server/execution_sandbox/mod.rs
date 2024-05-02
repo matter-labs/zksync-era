@@ -197,12 +197,11 @@ struct BlockStartInfoInner {
 }
 
 impl BlockStartInfoInner {
-    const MAX_CACHE_AGE: Duration = Duration::from_secs(20);
     // We make max age a bit random so that all threads don't start refreshing cache at the same time
     const MAX_RANDOM_DELAY: Duration = Duration::from_millis(100);
 
-    fn is_expired(&self, now: Instant) -> bool {
-        if let Some(expired_for) = (now - self.cached_at).checked_sub(Self::MAX_CACHE_AGE) {
+    fn is_expired(&self, now: Instant, max_cache_age: Duration) -> bool {
+        if let Some(expired_for) = (now - self.cached_at).checked_sub(max_cache_age) {
             if expired_for > Self::MAX_RANDOM_DELAY {
                 return true; // The cache is definitely expired, regardless of the randomness below
             }
@@ -218,16 +217,21 @@ impl BlockStartInfoInner {
 #[derive(Debug, Clone)]
 pub(crate) struct BlockStartInfo {
     cached_pruning_info: Arc<RwLock<BlockStartInfoInner>>,
+    max_cache_age: Duration,
 }
 
 impl BlockStartInfo {
-    pub async fn new(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
+    pub async fn new(
+        storage: &mut Connection<'_, Core>,
+        max_cache_age: Duration,
+    ) -> anyhow::Result<Self> {
         let info = storage.pruning_dal().get_pruning_info().await?;
         Ok(Self {
             cached_pruning_info: Arc::new(RwLock::new(BlockStartInfoInner {
                 info,
                 cached_at: Instant::now(),
             })),
+            max_cache_age,
         })
     }
 
@@ -248,7 +252,7 @@ impl BlockStartInfo {
         let mut new_cached_pruning_info = self
             .cached_pruning_info
             .write()
-            .expect("BlockStartInfo is poisoned");
+            .map_err(|_| anyhow::anyhow!("BlockStartInfo is poisoned"))?;
         Ok(if new_cached_pruning_info.cached_at < now {
             *new_cached_pruning_info = BlockStartInfoInner {
                 info,
@@ -267,7 +271,7 @@ impl BlockStartInfo {
     ) -> anyhow::Result<PruningInfo> {
         let inner = self.copy_inner();
         let now = Instant::now();
-        if inner.is_expired(now) {
+        if inner.is_expired(now, self.max_cache_age) {
             // Multiple threads may execute this query if we're very unlucky
             self.update_cache(storage, now).await
         } else {

@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_config::{configs::genesis::SharedBridge, GenesisConfig};
+use zksync_config::{configs::EcosystemContracts, GenesisConfig};
 use zksync_dal::{CoreDal, DalError};
 use zksync_types::{api::en, tokens::TokenInfo, Address, L1BatchNumber, L2BlockNumber, H256};
 use zksync_web3_decl::error::Web3Error;
@@ -62,6 +62,29 @@ impl EnNamespace {
             .map_err(DalError::generalize)?)
     }
 
+    #[tracing::instrument(skip(self))]
+    pub async fn get_ecosystem_contracts_impl(&self) -> Result<EcosystemContracts, Web3Error> {
+        Ok(self
+            .state
+            .api_config
+            .bridgehub_proxy_addr
+            .map(|bridgehub_proxy_addr| EcosystemContracts {
+                bridgehub_proxy_addr,
+                state_transition_proxy_addr: self
+                    .state
+                    .api_config
+                    .state_transition_proxy_addr
+                    .unwrap(),
+                transparent_proxy_admin_addr: self
+                    .state
+                    .api_config
+                    .transparent_proxy_admin_addr
+                    .unwrap(),
+            })
+            .context("Shared bridge doesn't supported")?)
+    }
+
+    #[tracing::instrument(skip(self))]
     pub async fn genesis_config_impl(&self) -> Result<GenesisConfig, Web3Error> {
         // If this method will cause some load, we can cache everything in memory
         let mut storage = self.state.acquire_connection().await?;
@@ -86,28 +109,6 @@ impl EnNamespace {
             .await
             .map_err(DalError::generalize)?
             .context("Genesis not finished")?;
-
-        let shared_bridge = if self.state.api_config.state_transition_proxy_addr.is_some() {
-            Some(SharedBridge {
-                bridgehub_proxy_addr: self
-                    .state
-                    .api_config
-                    .bridgehub_proxy_addr
-                    .context("Bridge proxy is not set with state_transition")?,
-                state_transition_proxy_addr: self
-                    .state
-                    .api_config
-                    .state_transition_proxy_addr
-                    .unwrap(),
-                transparent_proxy_admin_addr: self
-                    .state
-                    .api_config
-                    .transparent_proxy_admin_addr
-                    .context("transparent_proxy_admin_addr is not set with state_transition")?,
-            })
-        } else {
-            None
-        };
 
         let config = GenesisConfig {
             protocol_version: Some(protocol_version),
@@ -142,7 +143,6 @@ impl EnNamespace {
             recursion_circuits_set_vks_hash: Default::default(),
             recursion_scheduler_level_vk_hash: verifier_config.recursion_scheduler_level_vk_hash,
             fee_account,
-            shared_bridge,
             dummy_verifier: self.state.api_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: self
                 .state

@@ -1,5 +1,5 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
-use zksync_config::GenesisConfig;
+use zksync_config::{configs::EcosystemContracts, GenesisConfig};
 use zksync_types::{api::en, tokens::TokenInfo, Address, L2BlockNumber};
 
 #[cfg_attr(
@@ -38,4 +38,7 @@ pub trait EnNamespace {
     /// Get tokens that are white-listed and it can be used by paymasters.
     #[method(name = "whitelistedTokensForAA")]
     async fn whitelisted_tokens_for_aa(&self) -> RpcResult<Vec<Address>>;
+
+    #[method(name = "getEcosystemContracts")]
+    async fn get_ecosystem_contracts(&self) -> RpcResult<EcosystemContracts>;
 }
