@@ -76,23 +76,12 @@ impl PruneCondition for NextL1BatchHasMetadataCondition {
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
         let mut storage = self.conn.connection().await?;
         let next_l1_batch_number = L1BatchNumber(l1_batch_number.0 + 1);
-        let l1_batch_metadata = storage
+        let storage_l1_batch = storage
             .blocks_dal()
-            .get_l1_batch_metadata(next_l1_batch_number)
+            .get_storage_l1_batch(next_l1_batch_number)
             .await?;
 
-        // A number of first L1 batches don't have metadata. We have to be able to prune them.
-        if l1_batch_metadata.is_none() {
-            let first_l1_batch_with_metadata = storage
-                .blocks_dal()
-                .get_earliest_l1_batch_number_with_metadata()
-                .await?;
-            if let Some(first_l1_batch_with_metadata) = first_l1_batch_with_metadata {
-                return Ok(next_l1_batch_number < first_l1_batch_with_metadata);
-            }
-        }
-
-        Ok(l1_batch_metadata.is_some())
+        Ok(storage_l1_batch.is_some())
     }
 }
 
