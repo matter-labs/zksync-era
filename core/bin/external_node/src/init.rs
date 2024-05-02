@@ -80,9 +80,8 @@ pub(crate) async fn ensure_storage_initialized(
         InitDecision::SnapshotRecovery => {
             anyhow::ensure!(
                 consider_snapshot_recovery,
-                "Snapshot recovery is required to proceed, but it is not enabled. Enable by supplying \
-                 `--enable-snapshots-recovery` command-line arg to the node binary, or reset the node storage \
-                 to sync from genesis"
+                "Snapshot recovery is required to proceed, but it is not enabled. Enable by setting \
+                 `EN_SNAPSHOTS_RECOVERY_ENABLED=true` env variable to the node binary, or use a Postgres dump for recovery"
             );
 
             tracing::warn!("Proceeding with snapshot recovery. This is an experimental feature; use at your own risk");
@@ -98,7 +97,7 @@ pub(crate) async fn ensure_storage_initialized(
                 Box::new(main_node_client.for_component("snapshot_recovery")),
                 blob_store,
             );
-            app_health.insert_component(snapshots_applier_task.health_check());
+            app_health.insert_component(snapshots_applier_task.health_check())?;
 
             let recovery_started_at = Instant::now();
             let stats = snapshots_applier_task

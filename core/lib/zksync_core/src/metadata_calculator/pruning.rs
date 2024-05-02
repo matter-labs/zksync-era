@@ -3,11 +3,38 @@
 use std::time::Duration;
 
 use anyhow::Context as _;
+use serde::Serialize;
 use tokio::sync::{oneshot, watch};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_merkle_tree::{MerkleTreePruner, MerkleTreePrunerHandle, RocksDBWrapper};
+use zksync_types::L1BatchNumber;
 
 pub(super) type PruningHandles = (MerkleTreePruner<RocksDBWrapper>, MerkleTreePrunerHandle);
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "stage", rename_all = "snake_case")]
+enum MerkleTreePruningTaskHealth {
+    Initialization,
+    Pruning {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        target_retained_l1_batch_number: Option<L1BatchNumber>,
+    },
+    PruningStopped,
+    ShuttingDown,
+}
+
+impl From<MerkleTreePruningTaskHealth> for Health {
+    fn from(health: MerkleTreePruningTaskHealth) -> Self {
+        let status = match &health {
+            MerkleTreePruningTaskHealth::Initialization
+            | MerkleTreePruningTaskHealth::PruningStopped => HealthStatus::Affected,
+            MerkleTreePruningTaskHealth::Pruning { .. } => HealthStatus::Ready,
+            MerkleTreePruningTaskHealth::ShuttingDown => HealthStatus::ShuttingDown,
+        };
+        Health::from(status).with_details(health)
+    }
+}
 
 /// Task performing Merkle tree pruning according to the pruning entries in Postgres.
 #[derive(Debug)]
@@ -15,6 +42,7 @@ pub(super) type PruningHandles = (MerkleTreePruner<RocksDBWrapper>, MerkleTreePr
 pub struct MerkleTreePruningTask {
     handles: oneshot::Receiver<PruningHandles>,
     pool: ConnectionPool<Core>,
+    health_updater: HealthUpdater,
     poll_interval: Duration,
 }
 
@@ -27,11 +55,20 @@ impl MerkleTreePruningTask {
         Self {
             handles,
             pool,
+            health_updater: ReactiveHealthCheck::new("tree_pruner").1,
             poll_interval,
         }
     }
 
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.health_updater.subscribe()
+    }
+
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        // The pruning task is "affected" (not functioning) until the Merkle tree is initialized.
+        self.health_updater
+            .update(MerkleTreePruningTaskHealth::Initialization.into());
+
         let (mut pruner, pruner_handle);
         tokio::select! {
             res = self.handles => {
@@ -48,6 +85,10 @@ impl MerkleTreePruningTask {
                 return Ok(());
             }
         }
+        let health = MerkleTreePruningTaskHealth::Pruning {
+            target_retained_l1_batch_number: None,
+        };
+        self.health_updater.update(health.into());
         tracing::info!("Obtained pruning handles; starting Merkle tree pruning");
 
         // Pruner is not allocated a managed task because it is blocking; its cancellation awareness inherently
@@ -61,16 +102,24 @@ impl MerkleTreePruningTask {
             drop(storage);
 
             if let Some(l1_batch_number) = pruning_info.last_hard_pruned_l1_batch {
-                let target_retained_version = u64::from(l1_batch_number.0) + 1;
+                let target_retained_l1_batch_number = l1_batch_number + 1;
+                let target_retained_version = u64::from(target_retained_l1_batch_number.0);
                 let Ok(prev_target_version) =
                     pruner_handle.set_target_retained_version(target_retained_version)
                 else {
+                    self.health_updater
+                        .update(MerkleTreePruningTaskHealth::PruningStopped.into());
                     tracing::error!("Merkle tree pruning thread unexpectedly stopped");
                     return pruner_task_handle
                         .await
                         .context("Merkle tree pruning thread panicked");
                 };
+
                 if prev_target_version != target_retained_version {
+                    let health = MerkleTreePruningTaskHealth::Pruning {
+                        target_retained_l1_batch_number: Some(target_retained_l1_batch_number),
+                    };
+                    self.health_updater.update(health.into());
                     tracing::info!("Set target retained tree version from {prev_target_version} to {target_retained_version}");
                 }
             }
@@ -83,6 +132,8 @@ impl MerkleTreePruningTask {
             }
         }
 
+        self.health_updater
+            .update(MerkleTreePruningTaskHealth::ShuttingDown.into());
         tracing::info!("Stop signal received, Merkle tree pruning is shutting down");
         drop(pruner_handle);
         pruner_task_handle
@@ -94,6 +145,7 @@ impl MerkleTreePruningTask {
 #[cfg(test)]
 mod tests {
     use tempfile::TempDir;
+    use test_casing::test_casing;
     use zksync_node_shared::genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{L1BatchNumber, L2BlockNumber};
 
@@ -124,10 +176,14 @@ mod tests {
             .unwrap();
         let reader = calculator.tree_reader();
         let pruning_task = calculator.pruning_task(POLL_INTERVAL);
+        let mut health_check = pruning_task.health_check();
         let (stop_sender, stop_receiver) = watch::channel(false);
         let calculator_handle = tokio::spawn(calculator.run(stop_receiver.clone()));
         let pruning_task_handle = tokio::spawn(pruning_task.run(stop_receiver));
 
+        health_check
+            .wait_for(|health| matches!(health.status(), HealthStatus::Ready))
+            .await;
         // Wait until the calculator is initialized.
         let reader = reader.wait().await;
         while reader.clone().info().await.next_l1_batch_number < L1BatchNumber(6) {
@@ -149,6 +205,55 @@ mod tests {
 
         stop_sender.send_replace(true);
         calculator_handle.await.unwrap().unwrap();
+        pruning_task_handle.await.unwrap().unwrap();
+        health_check
+            .wait_for(|health| matches!(health.status(), HealthStatus::ShutDown))
+            .await;
+    }
+
+    #[derive(Debug)]
+    enum PrematureExitScenario {
+        CalculatorDrop,
+        StopSignal,
+    }
+
+    impl PrematureExitScenario {
+        const ALL: [Self; 2] = [Self::CalculatorDrop, Self::StopSignal];
+    }
+
+    #[test_casing(2, PrematureExitScenario::ALL)]
+    #[tokio::test]
+    async fn pruning_task_premature_exit(scenario: PrematureExitScenario) {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+        let config = mock_config(temp_dir.path());
+        let mut storage = pool.connection().await.unwrap();
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+            .await
+            .unwrap();
+
+        let mut calculator = MetadataCalculator::new(config, None, pool.clone())
+            .await
+            .unwrap();
+        let pruning_task = calculator.pruning_task(POLL_INTERVAL);
+        let mut health_check = pruning_task.health_check();
+        let (stop_sender, stop_receiver) = watch::channel(false);
+        let pruning_task_handle = tokio::spawn(pruning_task.run(stop_receiver));
+
+        // Task health should be set to "affected" until `calculator` is started (which is never).
+        health_check
+            .wait_for(|health| matches!(health.status(), HealthStatus::Affected))
+            .await;
+
+        match scenario {
+            PrematureExitScenario::CalculatorDrop => drop(calculator),
+            PrematureExitScenario::StopSignal => {
+                stop_sender.send_replace(true);
+            }
+        }
+        health_check
+            .wait_for(|health| matches!(health.status(), HealthStatus::ShutDown))
+            .await;
         pruning_task_handle.await.unwrap().unwrap();
     }
 

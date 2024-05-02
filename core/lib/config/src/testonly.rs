@@ -255,6 +255,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l2_testnet_paymaster_addr: g.gen(),
             l1_multicall3_addr: g.gen(),
             base_token_addr: g.gen(),
+            ecosystem_contracts: self.sample(g),
         }
     }
 }
@@ -529,6 +530,14 @@ impl Distribution<configs::fri_prover_group::FriProverGroupConfig> for EncodeDis
                 .sample_range(rng)
                 .map(|_| Sample::sample(rng))
                 .collect(),
+            group_13: self
+                .sample_range(rng)
+                .map(|_| Sample::sample(rng))
+                .collect(),
+            group_14: self
+                .sample_range(rng)
+                .map(|_| Sample::sample(rng))
+                .collect(),
         }
     }
 }
@@ -540,12 +549,10 @@ impl Distribution<configs::FriWitnessGeneratorConfig> for EncodeDist {
             basic_generation_timeout_in_secs: self.sample(rng),
             leaf_generation_timeout_in_secs: self.sample(rng),
             node_generation_timeout_in_secs: self.sample(rng),
+            recursion_tip_generation_timeout_in_secs: self.sample(rng),
             scheduler_generation_timeout_in_secs: self.sample(rng),
             max_attempts: self.sample(rng),
-            blocks_proving_percentage: self.sample(rng),
-            dump_arguments_for_blocks: self.sample_collect(rng),
             last_l1_batch_to_process: self.sample(rng),
-            force_process_block: self.sample(rng),
             shall_save_to_public_bucket: self.sample(rng),
         }
     }
@@ -673,16 +680,15 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             recursion_leaf_level_vk_hash: rng.gen(),
             recursion_scheduler_level_vk_hash: rng.gen(),
             recursion_circuits_set_vks_hash: rng.gen(),
-            shared_bridge: self.sample(rng),
             dummy_verifier: rng.gen(),
             l1_batch_commit_data_generator_mode: self.sample(rng),
         }
     }
 }
 
-impl Distribution<configs::SharedBridge> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::SharedBridge {
-        configs::SharedBridge {
+impl Distribution<configs::EcosystemContracts> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::EcosystemContracts {
+        configs::EcosystemContracts {
             bridgehub_proxy_addr: rng.gen(),
             state_transition_proxy_addr: rng.gen(),
             transparent_proxy_admin_addr: rng.gen(),
@@ -692,14 +698,10 @@ impl Distribution<configs::SharedBridge> for EncodeDist {
 
 impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::ConsensusConfig {
-        use configs::consensus::{ConsensusConfig, Host, NodePublicKey, ValidatorPublicKey};
+        use configs::consensus::{ConsensusConfig, Host, NodePublicKey};
         ConsensusConfig {
             server_addr: self.sample(rng),
             public_addr: Host(self.sample(rng)),
-            validators: self
-                .sample_range(rng)
-                .map(|_| ValidatorPublicKey(self.sample(rng)))
-                .collect(),
             max_payload_size: self.sample(rng),
             gossip_dynamic_inbound_limit: self.sample(rng),
             gossip_static_inbound: self

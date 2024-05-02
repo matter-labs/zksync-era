@@ -102,6 +102,33 @@ fn basic_workflow_multiblock() {
 }
 
 #[test]
+fn tree_with_single_leaf_works_correctly() {
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+    let storage_logs = gen_storage_logs();
+    let db = RocksDB::new(temp_dir.as_ref()).unwrap();
+    {
+        let mut tree = ZkSyncTree::new(db.clone().into());
+        tree.process_l1_batch(&storage_logs[0..1]);
+        tree.save();
+    }
+    let mut tree = ZkSyncTree::new(db.into());
+    tree.verify_consistency(L1BatchNumber(0));
+
+    // Add more logs to the tree.
+    for single_log_slice in storage_logs[1..].chunks(1) {
+        tree.process_l1_batch(single_log_slice);
+        tree.save();
+    }
+    assert_eq!(
+        tree.root_hash(),
+        H256([
+            125, 25, 107, 171, 182, 155, 32, 70, 138, 108, 238, 150, 140, 205, 193, 39, 90, 92,
+            122, 233, 118, 238, 248, 201, 160, 55, 58, 206, 244, 216, 188, 10
+        ]),
+    );
+}
+
+#[test]
 fn filtering_out_no_op_writes() {
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let db = RocksDB::new(temp_dir.as_ref()).unwrap();
@@ -203,7 +230,7 @@ fn revert_blocks() {
     {
         let mut tree = ZkSyncTree::new_lightweight(storage.into());
         assert_eq!(tree.root_hash(), tree_metadata.last().unwrap().root_hash);
-        tree.revert_logs(L1BatchNumber(3));
+        tree.roll_back_logs(L1BatchNumber(3));
         assert_eq!(tree.root_hash(), tree_metadata[3].root_hash);
         tree.save();
     }
@@ -212,7 +239,7 @@ fn revert_blocks() {
     let storage = RocksDB::new(temp_dir.as_ref()).unwrap();
     {
         let mut tree = ZkSyncTree::new_lightweight(storage.into());
-        tree.revert_logs(L1BatchNumber(1));
+        tree.roll_back_logs(L1BatchNumber(1));
         assert_eq!(tree.root_hash(), tree_metadata[1].root_hash);
         tree.save();
     }
@@ -221,7 +248,7 @@ fn revert_blocks() {
     let storage = RocksDB::new(temp_dir.as_ref()).unwrap();
     {
         let mut tree = ZkSyncTree::new_lightweight(storage.into());
-        tree.revert_logs(L1BatchNumber(1));
+        tree.roll_back_logs(L1BatchNumber(1));
         assert_eq!(tree.root_hash(), tree_metadata[1].root_hash);
         tree.save();
     }

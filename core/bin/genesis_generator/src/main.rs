@@ -61,6 +61,7 @@ async fn main() -> anyhow::Result<()> {
     }
     let data = encode_yaml(&Genesis::build(&new_genesis))?;
     fs::write(DEFAULT_GENESIS_FILE_PATH, data)?;
+    println!("Genesis successfully generated");
     Ok(())
 }
 
@@ -108,7 +109,7 @@ pub(crate) fn encode_yaml<T: ReflectMessage>(x: &T) -> anyhow::Result<String> {
     let mut serializer = Serializer::new(vec![]);
     let opts = prost_reflect::SerializeOptions::new()
         .use_proto_field_name(true)
-        .stringify_64_bit_integers(true);
+        .stringify_64_bit_integers(false);
     x.transcode_to_dynamic()
         .serialize_with_options(&mut serializer, &opts)?;
     Ok(String::from_utf8_lossy(&serializer.into_inner()?).to_string())

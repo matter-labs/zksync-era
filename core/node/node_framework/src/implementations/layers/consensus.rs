@@ -6,6 +6,7 @@ use zksync_core::{
     sync_layer::{ActionQueueSender, SyncState},
 };
 use zksync_dal::{ConnectionPool, Core};
+use zksync_types::L2ChainId;
 use zksync_web3_decl::client::BoxedL2Client;
 
 use crate::{
@@ -29,6 +30,7 @@ pub struct ConsensusLayer {
     pub mode: Mode,
     pub config: Option<ConsensusConfig>,
     pub secrets: Option<ConsensusSecrets>,
+    pub chain_id: L2ChainId,
 }
 
 #[async_trait::async_trait]
@@ -53,7 +55,8 @@ impl WiringLayer for ConsensusLayer {
                     WiringError::Configuration("Missing private consensus config".to_string())
                 })?;
 
-                let main_node_config = consensus::config::main_node(&config, &secrets)?;
+                let main_node_config =
+                    consensus::config::main_node(&config, &secrets, self.chain_id)?;
 
                 let task = MainNodeConsensusTask {
                     config: main_node_config,

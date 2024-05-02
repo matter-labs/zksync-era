@@ -347,7 +347,6 @@ mod tests {
         });
 
         let mut batch_result = default_vm_batch_result();
-        batch_result.final_execution_state.storage_log_queries = storage_logs.clone();
         batch_result
             .final_execution_state
             .deduplicated_storage_log_queries = storage_logs

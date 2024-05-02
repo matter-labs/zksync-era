@@ -85,7 +85,7 @@ impl WiringLayer for EthSenderLayer {
                 &self.eth_sender_config,
                 &self.contracts_config,
                 self.l1chain_id,
-                wallet.private_key(),
+                wallet.private_key().clone(),
             )
         });
         let eth_client_blobs_addr = eth_client_blobs.clone().map(|k| k.sender_account());

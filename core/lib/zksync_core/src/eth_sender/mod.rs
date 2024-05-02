@@ -6,6 +6,7 @@ mod eth_tx_manager;
 pub mod l1_batch_commit_data_generator;
 mod metrics;
 mod publish_criterion;
+mod utils;
 mod zksync_functions;
 
 #[cfg(test)]

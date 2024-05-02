@@ -17,7 +17,6 @@ use zksync_types::{
     basic_fri_types::Eip4844Blobs, commitment::serialize_commitments, web3::signing::keccak256,
     L1BatchNumber, H256,
 };
-use zksync_utils::u256_to_h256;
 
 #[derive(Clone)]
 pub(crate) struct RequestProcessor {
@@ -132,12 +131,10 @@ impl RequestProcessor {
             .unwrap()
             .unwrap();
 
-        let eip_4844_blobs: Eip4844Blobs = storage_batch
-            .pubdata_input
-            .expect(&format!(
-                "expected pubdata, but it is not available for batch {l1_batch_number:?}"
-            ))
-            .into();
+        let eip_4844_blobs = Eip4844Blobs::decode(&storage_batch.pubdata_input.expect(&format!(
+            "expected pubdata, but it is not available for batch {l1_batch_number:?}"
+        )))
+        .expect("failed to decode EIP-4844 blobs");
 
         let proof_gen_data = ProofGenerationData {
             l1_batch_number,
@@ -146,9 +143,9 @@ impl RequestProcessor {
             l1_verifier_config,
             eip_4844_blobs,
         };
-        Ok(Json(ProofGenerationDataResponse::Success(Some(
+        Ok(Json(ProofGenerationDataResponse::Success(Some(Box::new(
             proof_gen_data,
-        ))))
+        )))))
     }
 
     pub(crate) async fn submit_proof(
@@ -220,7 +217,7 @@ impl RequestProcessor {
                         .header
                         .system_logs
                         .into_iter()
-                        .find(|elem| elem.0.key == u256_to_h256(2.into()))
+                        .find(|elem| elem.0.key == H256::from_low_u64_be(2))
                         .expect("No state diff hash key")
                         .0
                         .value;
