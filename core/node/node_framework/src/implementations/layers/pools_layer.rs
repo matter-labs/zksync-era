@@ -1,11 +1,7 @@
-use prover_dal::Prover;
 use zksync_config::configs::PostgresConfig;
-use zksync_dal::{ConnectionPool, Core};
 
 use crate::{
-    implementations::resources::pools::{
-        MasterPoolResource, ProverPoolResource, ReplicaPoolResource,
-    },
+    implementations::resources::pools::{MasterPool, PoolResource, ProverPool, ReplicaPool},
     service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -75,30 +71,27 @@ impl WiringLayer for PoolsLayer {
         }
 
         if self.with_master {
-            let mut master_pool = ConnectionPool::<Core>::builder(
+            context.insert_resource(PoolResource::<MasterPool>::new(
                 self.config.master_url()?,
                 self.config.max_connections()?,
-            );
-            master_pool.set_statement_timeout(self.config.statement_timeout());
-            context.insert_resource(MasterPoolResource::new(master_pool))?;
+                self.config.statement_timeout(),
+            ))?;
         }
 
         if self.with_replica {
-            let mut replica_pool = ConnectionPool::<Core>::builder(
+            context.insert_resource(PoolResource::<ReplicaPool>::new(
                 self.config.replica_url()?,
                 self.config.max_connections()?,
-            );
-            replica_pool.set_statement_timeout(self.config.statement_timeout());
-            context.insert_resource(ReplicaPoolResource::new(replica_pool))?;
+                self.config.statement_timeout(),
+            ))?;
         }
 
         if self.with_prover {
-            let mut prover_pool = ConnectionPool::<Prover>::builder(
+            context.insert_resource(PoolResource::<ProverPool>::new(
                 self.config.prover_url()?,
                 self.config.max_connections()?,
-            );
-            prover_pool.set_statement_timeout(self.config.statement_timeout());
-            context.insert_resource(ProverPoolResource::new(prover_pool))?;
+                self.config.statement_timeout(),
+            ))?;
         }
 
         Ok(())

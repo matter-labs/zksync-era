@@ -284,11 +284,21 @@ impl Distribution<configs::database::MerkleTreeConfig> for EncodeDist {
     }
 }
 
+impl Distribution<configs::ExperimentalDBConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ExperimentalDBConfig {
+        configs::ExperimentalDBConfig {
+            state_keeper_db_block_cache_capacity_mb: self.sample(rng),
+            state_keeper_db_max_open_files: self.sample(rng),
+        }
+    }
+}
+
 impl Distribution<configs::database::DBConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::database::DBConfig {
         configs::database::DBConfig {
             state_keeper_db_path: self.sample(rng),
             merkle_tree: self.sample(rng),
+            experimental: self.sample(rng),
         }
     }
 }
