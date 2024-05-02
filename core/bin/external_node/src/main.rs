@@ -135,8 +135,8 @@ async fn run_tree(
         db_path: config.required.merkle_tree_path.clone(),
         max_open_files: config.optional.merkle_tree_max_open_files,
         mode: MerkleTreeMode::Lightweight,
-        delay_interval: config.optional.metadata_calculator_delay(),
-        max_l1_batches_per_iter: config.optional.max_l1_batches_per_tree_iter,
+        delay_interval: config.optional.merkle_tree_processing_delay(),
+        max_l1_batches_per_iter: config.optional.merkle_tree_max_l1_batches_per_iter,
         multi_get_chunk_size: config.optional.merkle_tree_multi_get_chunk_size,
         block_cache_capacity: config.optional.merkle_tree_block_cache_size(),
         include_indices_and_filters_in_block_cache: config

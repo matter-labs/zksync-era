@@ -44,6 +44,7 @@ impl ParamMetadata {
 pub enum UnitOfMeasurement {
     Seconds,
     Milliseconds,
+    Bytes,
     Megabytes,
 }
 
@@ -52,6 +53,7 @@ impl fmt::Display for UnitOfMeasurement {
         formatter.write_str(match self {
             Self::Seconds => "seconds",
             Self::Milliseconds => "milliseconds",
+            Self::Bytes => "bytes",
             Self::Megabytes => "megabytes (IEC)",
         })
     }
@@ -67,6 +69,8 @@ impl UnitOfMeasurement {
             Some(Self::Milliseconds)
         } else if param_name.ends_with("_sec") {
             Some(Self::Seconds)
+        } else if param_name.ends_with("_bytes") {
+            Some(Self::Bytes)
         } else if param_name.ends_with("_mb") {
             Some(Self::Megabytes)
         } else {

@@ -9,9 +9,9 @@ fn parsing_optional_config_from_empty_env() {
     assert_eq!(config.subscriptions_limit, 10_000);
     assert_eq!(config.fee_history_limit, 1_024);
     assert_eq!(config.polling_interval(), Duration::from_millis(200));
-    assert_eq!(config.max_tx_size, 1_000_000);
+    assert_eq!(config.max_tx_size_bytes, 1_000_000);
     assert_eq!(
-        config.metadata_calculator_delay(),
+        config.merkle_tree_processing_delay(),
         Duration::from_millis(100)
     );
     assert_eq!(config.max_nonce_ahead, 50);
@@ -72,9 +72,9 @@ fn parsing_optional_config_from_env() {
     assert_eq!(config.subscriptions_limit, 20_000);
     assert_eq!(config.fee_history_limit, 1_000);
     assert_eq!(config.polling_interval(), Duration::from_millis(500));
-    assert_eq!(config.max_tx_size, BYTES_IN_MEGABYTE);
+    assert_eq!(config.max_tx_size_bytes, BYTES_IN_MEGABYTE);
     assert_eq!(
-        config.metadata_calculator_delay(),
+        config.merkle_tree_processing_delay(),
         Duration::from_millis(50)
     );
     assert_eq!(config.max_nonce_ahead, 100);

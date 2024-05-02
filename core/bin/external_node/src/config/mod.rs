@@ -223,9 +223,12 @@ pub(crate) struct OptionalENConfig {
     /// Max possible limit of entities to be requested via API at once.
     #[serde(default = "OptionalENConfig::default_req_entities_limit")]
     pub req_entities_limit: usize,
-    /// Max possible size of an ABI encoded tx (in bytes).
-    #[serde(default = "OptionalENConfig::default_max_tx_size")] // FIXME: unit
-    pub max_tx_size: usize,
+    /// Max possible size of an ABI-encoded transaction supplied to `eth_sendRawTransaction`.
+    #[serde(
+        alias = "max_tx_size",
+        default = "OptionalENConfig::default_max_tx_size_bytes"
+    )]
+    pub max_tx_size_bytes: usize,
     /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the API server panics.
     /// This is a temporary solution to mitigate API request resulting in thousands of DB queries.
     pub vm_execution_cache_misses_limit: Option<usize>,
@@ -245,12 +248,12 @@ pub(crate) struct OptionalENConfig {
     max_response_body_size_overrides_mb: MaxResponseSizeOverrides,
 
     // Other API config settings
-    /// Interval between polling DB for pubsub (in ms).
+    /// Interval between polling DB for Web3 subscriptions.
     #[serde(
-        rename = "pubsub_polling_interval",
+        alias = "pubsub_polling_interval",
         default = "OptionalENConfig::default_polling_interval"
-    )] // FIXME: unit
-    polling_interval: u64,
+    )]
+    pubsub_polling_interval_ms: u64,
     /// Tx nonce: how far ahead from the committed nonce can it be.
     #[serde(default = "OptionalENConfig::default_max_nonce_ahead")]
     pub max_nonce_ahead: u32,
@@ -314,14 +317,21 @@ pub(crate) struct OptionalENConfig {
     pub gas_price_scale_factor: f64,
 
     // Merkle tree config
-    #[serde(default = "OptionalENConfig::default_metadata_calculator_delay")] // FIXME: unit
-    metadata_calculator_delay: u64,
-    /// Maximum number of L1 batches to be processed by the Merkle tree at a time.
+    /// Processing delay between processing L1 batches in the Merkle tree.
+    #[serde(
+        alias = "metadata_calculator_delay",
+        default = "OptionalENConfig::default_merkle_tree_processing_delay_ms"
+    )]
+    merkle_tree_processing_delay_ms: u64,
+    /// Maximum number of L1 batches to be processed by the Merkle tree at a time. L1 batches are processed in a bulk
+    /// only if they are readily available (i.e., mostly during node catch-up). Increasing this value reduces the number
+    /// of I/O operations at the cost of requiring more RAM (order of 100 MB / batch).
     #[serde(
         alias = "max_blocks_per_tree_batch",
-        default = "OptionalENConfig::default_max_l1_batches_per_tree_iter"
+        alias = "max_l1_batches_per_tree_iter",
+        default = "OptionalENConfig::default_merkle_tree_max_l1_batches_per_iter"
     )]
-    pub max_l1_batches_per_tree_iter: usize,
+    pub merkle_tree_max_l1_batches_per_iter: usize,
     /// Maximum number of files concurrently opened by Merkle tree RocksDB. Useful to fit into OS limits; can be used
     /// as a rudimentary way to control RAM usage of the tree.
     pub merkle_tree_max_open_files: Option<NonZeroU32>,
@@ -437,7 +447,7 @@ impl OptionalENConfig {
         1_024
     }
 
-    const fn default_max_tx_size() -> usize {
+    const fn default_max_tx_size_bytes() -> usize {
         1_000_000
     }
 
@@ -461,11 +471,11 @@ impl OptionalENConfig {
         50
     }
 
-    const fn default_metadata_calculator_delay() -> u64 {
+    const fn default_merkle_tree_processing_delay_ms() -> u64 {
         100
     }
 
-    const fn default_max_l1_batches_per_tree_iter() -> usize {
+    const fn default_merkle_tree_max_l1_batches_per_iter() -> usize {
         20
     }
 
@@ -561,11 +571,11 @@ impl OptionalENConfig {
     }
 
     pub fn polling_interval(&self) -> Duration {
-        Duration::from_millis(self.polling_interval)
+        Duration::from_millis(self.pubsub_polling_interval_ms)
     }
 
-    pub fn metadata_calculator_delay(&self) -> Duration {
-        Duration::from_millis(self.metadata_calculator_delay)
+    pub fn merkle_tree_processing_delay(&self) -> Duration {
+        Duration::from_millis(self.merkle_tree_processing_delay_ms)
     }
 
     /// Returns the size of factory dependencies cache in bytes.
@@ -906,7 +916,7 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
         Self {
             l1_chain_id: config.remote.l1_chain_id,
             l2_chain_id: config.remote.l2_chain_id,
-            max_tx_size: config.optional.max_tx_size,
+            max_tx_size: config.optional.max_tx_size_bytes,
             estimate_gas_scale_factor: config.optional.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: config
                 .optional
