@@ -104,7 +104,6 @@ pub mod fee_model;
 pub mod genesis;
 pub mod l1_gas_price;
 pub mod metadata_calculator;
-pub mod proof_data_handler;
 pub mod proto;
 pub mod reorg_detector;
 pub mod state_keeper;
@@ -783,7 +782,7 @@ pub async fn initialize_components(
     }
 
     if components.contains(&Component::ProofDataHandler) {
-        task_futures.push(tokio::spawn(proof_data_handler::run_server(
+        task_futures.push(tokio::spawn(zksync_proof_data_handler::run_server(
             configs
                 .proof_data_handler_config
                 .clone()
