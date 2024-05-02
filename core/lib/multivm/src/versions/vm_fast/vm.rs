@@ -7,8 +7,11 @@ use zk_evm_1_5_0::{
 use zksync_contracts::SystemContractCode;
 use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{
-    l1::is_l1_tx_type, writes::StateDiffRecord, AccountTreeId, StorageKey, BOOTLOADER_ADDRESS,
-    H160, KNOWN_CODES_STORAGE_ADDRESS, U256,
+    event::{extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages},
+    l1::is_l1_tx_type,
+    l2_to_l1_log::UserL2ToL1Log,
+    writes::StateDiffRecord,
+    AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
@@ -20,6 +23,7 @@ use super::{
     transaction_data::TransactionData,
 };
 use crate::{
+    glue::GlueInto,
     interface::{Halt, TxRevertReason, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason},
     vm_fast::{
         bootloader_state::utils::{apply_l2_block, apply_pubdata_to_memory},
@@ -166,11 +170,16 @@ impl<S: ReadStorage + 'static> Vm<S> {
                     self.write_to_bootloader_heap(memory);
                 }
                 PubdataRequested => {
-                    // TODO: replace empty vectors with actual values
+                    if !matches!(execution_mode, VmExecutionMode::Batch) {
+                        // We do not provide the pubdata when executing the block tip or a single transaction
+                        todo!("I have no idea what exit status to return here");
+                    }
+
+                    let events = merge_events(self.inner.world.events(), self.batch_env.number);
                     let pubdata_input = PubdataInput {
-                        user_logs: vec![],
-                        l2_to_l1_messages: vec![],
-                        published_bytecodes: vec![],
+                        user_logs: extract_l2tol1logs_from_l1_messenger(&events),
+                        l2_to_l1_messages: extract_long_l2_to_l1_messages(&events),
+                        published_bytecodes: vec![], // TODO
                         state_diffs: self.compute_state_diffs(),
                     };
 
@@ -424,15 +433,27 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
         }
 
         let result = self.run(execution_mode);
-        dbg!(&result);
+
+        let events = merge_events(self.inner.world.events(), self.batch_env.number);
+        let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
+            .into_iter()
+            .map(Into::into)
+            .map(UserL2ToL1Log)
+            .collect();
 
         VmExecutionResultAndLogs {
             result,
             logs: VmExecutionLogs {
                 storage_logs: Default::default(),
-                events: merge_events(self.inner.world.events(), self.batch_env.number),
-                user_l2_to_l1_logs: Default::default(),
-                system_l2_to_l1_logs: Default::default(),
+                events,
+                user_l2_to_l1_logs,
+                system_l2_to_l1_logs: self
+                    .inner
+                    .world
+                    .l2_to_l1_logs()
+                    .iter()
+                    .map(|x| x.glue_into())
+                    .collect(),
                 total_log_queries_count: 0, // This field is unused
             },
             statistics: Default::default(),
@@ -467,7 +488,20 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
     }
 
     fn get_current_execution_state(&self) -> CurrentExecutionState {
-        todo!()
+        // TODO fill all fields
+        CurrentExecutionState {
+            events: vec![],
+            storage_log_queries: vec![],
+            deduplicated_storage_log_queries: vec![],
+            used_contract_hashes: vec![],
+            system_logs: vec![],
+            user_l2_to_l1_logs: vec![],
+            total_log_queries: 0,
+            cycles_used: 0,
+            deduplicated_events_logs: vec![],
+            storage_refunds: vec![],
+            pubdata_costs: vec![],
+        }
     }
 
     fn record_vm_memory_metrics(&self) -> crate::vm_latest::VmMemoryMetrics {
@@ -480,8 +514,7 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
 }
 
 struct VmSnapshot {
-    state: vm2::State,
-    world_snapshot: vm2::ExternalSnapshot,
+    vm_snapshot: vm2::Snapshot,
     bootloader_snapshot: BootloaderStateSnapshot,
     suspended_at: u16,
     gas_for_account_validation: u32,
@@ -490,8 +523,7 @@ struct VmSnapshot {
 impl<S: ReadStorage + 'static> VmInterfaceHistoryEnabled<S> for Vm<S> {
     fn make_snapshot(&mut self) {
         self.snapshots.push(VmSnapshot {
-            state: self.inner.state.clone(),
-            world_snapshot: self.inner.world.external_snapshot(),
+            vm_snapshot: self.inner.snapshot(),
             bootloader_snapshot: self.bootloader_state.get_snapshot(),
             suspended_at: self.suspended_at,
             gas_for_account_validation: self.gas_for_account_validation,
@@ -500,15 +532,13 @@ impl<S: ReadStorage + 'static> VmInterfaceHistoryEnabled<S> for Vm<S> {
 
     fn rollback_to_the_latest_snapshot(&mut self) {
         let VmSnapshot {
-            state,
-            world_snapshot,
+            vm_snapshot,
             bootloader_snapshot,
             suspended_at,
             gas_for_account_validation,
         } = self.snapshots.pop().expect("no snapshots to rollback to");
 
-        self.inner.state = state;
-        self.inner.world.external_rollback(world_snapshot);
+        self.inner.rollback(vm_snapshot);
         self.bootloader_state.apply_snapshot(bootloader_snapshot);
         self.suspended_at = suspended_at;
         self.gas_for_account_validation = gas_for_account_validation;
