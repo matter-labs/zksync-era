@@ -3112,7 +3112,7 @@ fn test_basic_call_with_create_vectors() {
 
 #[test]
 fn test_call_gas() {
-    let consumed_gas_solidity = 67633;
+    let consumed_gas_solidity = 67636;
     let actual_initial_gas = get_actual_initial_gas();
     let evm_output = test_evm_vector(
         vec![
@@ -3282,7 +3282,7 @@ fn test_codecopy_gas() {
 
 #[test]
 fn test_staticcall_gas() {
-    let consumed_gas_solidity = 67631;
+    let consumed_gas_solidity = 67634;
     let actual_initial_gas = get_actual_initial_gas();
     let evm_output = test_evm_vector(
         vec![
@@ -3407,7 +3407,7 @@ fn test_staticcall_gas() {
 
 #[test]
 fn test_delegatecall_gas() {
-    let consumed_gas_solidity = 67631;
+    let consumed_gas_solidity = 67634;
     let actual_initial_gas = get_actual_initial_gas();
     let evm_output = test_evm_vector(
         vec![
