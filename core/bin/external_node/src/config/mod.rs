@@ -224,7 +224,7 @@ pub(crate) struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_req_entities_limit")]
     pub req_entities_limit: usize,
     /// Max possible size of an ABI encoded tx (in bytes).
-    #[serde(default = "OptionalENConfig::default_max_tx_size")]
+    #[serde(default = "OptionalENConfig::default_max_tx_size")] // FIXME: unit
     pub max_tx_size: usize,
     /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the API server panics.
     /// This is a temporary solution to mitigate API request resulting in thousands of DB queries.
@@ -234,13 +234,13 @@ pub(crate) struct OptionalENConfig {
     /// Limit for fee history block range.
     #[serde(default = "OptionalENConfig::default_fee_history_limit")]
     pub fee_history_limit: u64,
-    /// Maximum number of requests in a single batch JSON RPC request. Default is 500.
+    /// Maximum number of requests in a single batch JSON RPC request.
     #[serde(default = "OptionalENConfig::default_max_batch_request_size")]
     pub max_batch_request_size: usize,
-    /// Maximum response body size in MiBs. Default is 10 MiB.
+    /// Maximum response body size.
     #[serde(default = "OptionalENConfig::default_max_response_body_size_mb")]
     pub max_response_body_size_mb: usize,
-    /// Method-specific overrides in MiBs for the maximum response body size.
+    /// Method-specific overrides for the maximum response body size.
     #[serde(default = "MaxResponseSizeOverrides::empty")]
     max_response_body_size_overrides_mb: MaxResponseSizeOverrides,
 
@@ -249,7 +249,7 @@ pub(crate) struct OptionalENConfig {
     #[serde(
         rename = "pubsub_polling_interval",
         default = "OptionalENConfig::default_polling_interval"
-    )]
+    )] // FIXME: unit
     polling_interval: u64,
     /// Tx nonce: how far ahead from the committed nonce can it be.
     #[serde(default = "OptionalENConfig::default_max_nonce_ahead")]
@@ -258,14 +258,13 @@ pub(crate) struct OptionalENConfig {
     /// This option can be tweaked down if the API server is running out of memory.
     #[serde(default = "OptionalENConfig::default_vm_concurrency_limit")]
     pub vm_concurrency_limit: usize,
-    /// Smart contract bytecode cache size for the API server. Default value is 128 MiB.
+    /// Smart contract bytecode cache size for the API server.
     #[serde(default = "OptionalENConfig::default_factory_deps_cache_size_mb")]
     factory_deps_cache_size_mb: usize,
-    /// Initial writes cache size for the API server. Default value is 32 MiB.
+    /// Initial writes cache size for the API server.
     #[serde(default = "OptionalENConfig::default_initial_writes_cache_size_mb")]
     initial_writes_cache_size_mb: usize,
-    /// Latest values cache size in MiBs. The default value is 128 MiB. If set to 0, the latest
-    /// values cache will be disabled.
+    /// Latest values cache size. If set to 0, the latest values cache will be disabled.
     #[serde(default = "OptionalENConfig::default_latest_values_cache_size_mb")]
     latest_values_cache_size_mb: usize,
     /// Enabled JSON RPC API namespaces.
@@ -281,13 +280,12 @@ pub(crate) struct OptionalENConfig {
     #[serde(default)]
     pub filters_disabled: bool,
     /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
-    /// In milliseconds. Default is 50 milliseconds.
     #[serde(
         alias = "mempool_cache_update_interval",
         default = "OptionalENConfig::default_mempool_cache_update_interval"
     )]
     pub mempool_cache_update_interval_ms: u64,
-    /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
+    /// Maximum number of transactions to be stored in the mempool cache.
     #[serde(default = "OptionalENConfig::default_mempool_cache_size")]
     pub mempool_cache_size: usize,
     /// Enables extended tracing of RPC calls. This may negatively impact performance for nodes under high load
@@ -304,19 +302,19 @@ pub(crate) struct OptionalENConfig {
     healthcheck_hard_time_limit_ms: Option<u64>,
 
     // Gas estimation config
-    /// The factor by which to scale the gasLimit
+    /// The factor by which to scale the gas limit.
     #[serde(default = "OptionalENConfig::default_estimate_gas_scale_factor")]
     pub estimate_gas_scale_factor: f64,
     /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
     #[serde(default = "OptionalENConfig::default_estimate_gas_acceptable_overestimation")]
     pub estimate_gas_acceptable_overestimation: u32,
     /// The multiplier to use when suggesting gas price. Should be higher than one,
-    /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block
+    /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block.
     #[serde(default = "OptionalENConfig::default_gas_price_scale_factor")]
     pub gas_price_scale_factor: f64,
 
     // Merkle tree config
-    #[serde(default = "OptionalENConfig::default_metadata_calculator_delay")]
+    #[serde(default = "OptionalENConfig::default_metadata_calculator_delay")] // FIXME: unit
     metadata_calculator_delay: u64,
     /// Maximum number of L1 batches to be processed by the Merkle tree at a time.
     #[serde(
@@ -332,7 +330,6 @@ pub(crate) struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_merkle_tree_multi_get_chunk_size")]
     pub merkle_tree_multi_get_chunk_size: usize,
     /// Capacity of the block cache for the Merkle tree RocksDB. Reasonable values range from ~100 MiB to several GiB.
-    /// The default value is 128 MiB.
     #[serde(default = "OptionalENConfig::default_merkle_tree_block_cache_size_mb")]
     merkle_tree_block_cache_size_mb: usize,
     /// If specified, RocksDB indices and Bloom filters will be managed by the block cache, rather than
@@ -350,12 +347,13 @@ pub(crate) struct OptionalENConfig {
 
     // Postgres config (new parameters)
     /// Threshold in milliseconds for the DB connection lifetime to denote it as long-living and log its details.
+    /// If not specified, such logging will be disabled.
     database_long_connection_threshold_ms: Option<u64>,
-    /// Threshold in milliseconds to denote a DB query as "slow" and log its details.
+    /// Threshold in milliseconds to denote a DB query as "slow" and log its details. If not specified, such logging will be disabled.
     database_slow_query_threshold_ms: Option<u64>,
 
     // Other config settings
-    /// Port on which the Prometheus exporter server is listening.
+    /// Port on which the Prometheus exporter server is listening. If not specified, the Prometheus exporter won't be started.
     pub prometheus_port: Option<u16>,
     /// Capacity of the queue for asynchronous miniblock sealing. Once this many miniblocks are queued,
     /// sealing will block until some of the miniblocks from the queue are processed.
@@ -365,7 +363,6 @@ pub(crate) struct OptionalENConfig {
     /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
     /// Protective reads are never required by full nodes so far, not until such a node runs a full Merkle tree
     /// (presumably, to participate in L1 batch proving).
-    /// By default, set to `true` as a temporary safety measure.
     #[serde(default = "OptionalENConfig::default_protective_reads_persistence_enabled")]
     pub protective_reads_persistence_enabled: bool,
     /// Address of the L1 diamond proxy contract used by the consistency checker to match with the origin of logs emitted
@@ -373,7 +370,7 @@ pub(crate) struct OptionalENConfig {
     // This is intentionally not a part of `RemoteENConfig` because fetching this info from the main node would defeat
     // its purpose; the consistency checker assumes that the main node may provide false information.
     pub contracts_diamond_proxy_addr: Option<Address>,
-    /// Number of requests per second allocated for the main node HTTP client. Default is 100 requests.
+    /// Number of requests per second allocated for the main node HTTP client.
     #[serde(default = "OptionalENConfig::default_main_node_rate_limit_rps")]
     pub main_node_rate_limit_rps: NonZeroUsize,
 
@@ -400,14 +397,13 @@ pub(crate) struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_pruning_chunk_size")]
     pub pruning_chunk_size: u32,
     /// Delta between soft- and hard-removing data from Postgres. Should be reasonably large (order of 60 seconds).
-    /// The default value is 60 seconds.
     #[serde(default = "OptionalENConfig::default_pruning_removal_delay_sec")]
     pruning_removal_delay_sec: NonZeroU64,
-    /// If set, L1 batches will be pruned after the batch timestamp is this old (in seconds). Note that an L1 batch
+    /// If set, L1 batches will be pruned after the batch timestamp is this old. Note that an L1 batch
     /// may be temporarily retained for other reasons; e.g., a batch cannot be pruned until it is executed on L1,
     /// which happens roughly 24 hours after its generation on the mainnet. Thus, in practice this value can specify
     /// the retention period greater than that implicitly imposed by other criteria (e.g., 7 or 30 days).
-    /// If set to 0, L1 batches will not be retained based on their timestamp. The default value is 1 hour.
+    /// If set to 0, L1 batches will not be retained based on their timestamp.
     #[serde(default = "OptionalENConfig::default_pruning_data_retention_sec")]
     pruning_data_retention_sec: u64,
 }
@@ -707,11 +703,14 @@ impl RequiredENConfig {
 }
 
 /// # Postgres database configuration
+///
+/// For historic reasons, these params do not use `EN_` prefix when read from env variables.
+/// E.g., `database_url` is read from `DATABASE_URL`, *not* `EN_DATABASE_URL`.
 #[derive(Debug, Clone, Deserialize, PartialEq, DescribeConfig)]
 pub(crate) struct PostgresConfig {
     /// Postgres URL to connect to the database.
     pub database_url: String,
-    /// Pool size of the main database connection pool.
+    /// Pool size of the main database connection pool. Reasonable values are around 50.
     pub database_pool_size: u32,
 }
 
@@ -789,14 +788,15 @@ impl ExternalNodeConfig {
     pub fn print_help(filter: Option<&str>) {
         println!(
             "Configuration is supplied to the node as environment variables. The name of an env variable is obtained \
-             by converting the parameter name to upper case and replacing '.' chars with '_'. For example, `en.prometheus_port` parameter \
-             is mapped to the `EN_PROMETHEUS_PORT` env var.\n"
+             by converting the parameter name to upper case and replacing '.' chars with '_' and prepending `EN_` \
+             (other than for `database_url` and `database_pool_size` params, which do not have such a prefix). \
+             For example, `prometheus_port` parameter is mapped to the `EN_PROMETHEUS_PORT` env var.\n"
         );
-        print_config(RequiredENConfig::describe_config(), "en.", filter);
-        print_config(OptionalENConfig::describe_config(), "en.", filter);
+        print_config(RequiredENConfig::describe_config(), "", filter);
+        print_config(OptionalENConfig::describe_config(), "", filter);
         print_config(PostgresConfig::describe_config(), "", filter);
-        print_config(ApiComponentConfig::describe_config(), "en.api.", filter);
-        print_config(TreeComponentConfig::describe_config(), "en.tree.", filter);
+        print_config(ApiComponentConfig::describe_config(), "api.", filter);
+        print_config(TreeComponentConfig::describe_config(), "tree.", filter);
     }
 
     /// Loads config from the environment variables and
