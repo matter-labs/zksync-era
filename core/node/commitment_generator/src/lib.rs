@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use anyhow::Context;
-use input_generation::InputGenerator;
 use itertools::Itertools;
 use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::{sync::watch, task::JoinHandle};
@@ -18,6 +17,7 @@ use zksync_types::{
 use zksync_utils::h256_to_u256;
 
 use crate::{
+    input_generation::InputGenerator,
     metrics::{CommitmentStage, METRICS},
     utils::{bootloader_initial_content_commitment, events_queue_commitment},
 };
