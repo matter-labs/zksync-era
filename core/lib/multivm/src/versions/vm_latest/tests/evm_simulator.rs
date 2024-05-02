@@ -35,7 +35,7 @@ use crate::{
     vm_boojum_integration::tracers::dispatcher,
     vm_latest::{
         tests::{
-            tester::{DeployContractsTx, TxType, VmTesterBuilder},
+            tester::{Account, DeployContractsTx, TxType, VmTesterBuilder},
             utils::{
                 get_balance, key_for_evm_hash, load_test_evm_contract, read_erc20_contract,
                 read_test_contract, read_test_evm_bytecode, read_test_evm_simulator,
@@ -94,15 +94,22 @@ fn insert_evm_contract(storage: &mut InMemoryStorage, mut bytecode: Vec<u8>) -> 
     test_address
 }
 
+const TEST_RICH_PK: &str = "0x9e0eee403c6b5963458646fa1b7b3f3c4784138558f9036b0db3435501f2ec6d";
+const TEST_RICH_ADDRESS: &str = "0x2140b400689a5dd09c34815958d10affd467f66c";
+
 fn test_evm_vector(mut bytecode: Vec<u8>) -> U256 {
     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
 
     let test_address = insert_evm_contract(&mut storage, bytecode.clone());
 
+    // private_key: 0x9e0eee403c6b5963458646fa1b7b3f3c4784138558f9036b0db3435501f2ec6d
+    // address: 0x2140b400689a5dd09c34815958d10affd467f66c
+    let rich_account: Account = Account::new(H256::from_str(TEST_RICH_PK).unwrap());
+
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_storage(storage)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(vec![rich_account.clone()])
         .build();
 
     let account = &mut vm.rich_accounts[0];
@@ -1772,6 +1779,42 @@ fn test_basic_block_environment_vectors() {
         .concat(),
     );
     assert_eq!(evm_output, 270.into());
+
+    // balance
+    let evm_output = test_evm_vector(
+        vec![
+            // push20 TEST_RICH_ADDRESS
+            hex::decode("73").unwrap(),
+            hex::decode(&TEST_RICH_ADDRESS[2..]).unwrap(), // Remove 0x
+            // balance
+            hex::decode("31").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(
+        evm_output,
+        U256::from_dec_str("9500000000000000000").unwrap()
+    );
+
+    // selfbalance
+    let evm_output = test_evm_vector(
+        vec![
+            // selfbalance
+            hex::decode("47").unwrap(),
+            // push0
+            hex::decode("5F").unwrap(),
+            // sstore
+            hex::decode("55").unwrap(),
+        ]
+        .into_iter()
+        .concat(),
+    );
+    assert_eq!(evm_output, 0.into());
 }
 
 #[test]
