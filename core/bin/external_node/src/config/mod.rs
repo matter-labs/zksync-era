@@ -400,19 +400,6 @@ pub(crate) struct OptionalENConfig {
     pruning_data_retention_sec: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct ApiComponentConfig {
-    /// Address of the tree API used by this EN in case it does not have a
-    /// local tree component running and in this case needs to send requests
-    /// to some external tree API.
-    pub tree_api_remote_url: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct TreeComponentConfig {
-    pub api_port: Option<u16>,
-}
-
 impl OptionalENConfig {
     const fn default_filters_limit() -> usize {
         10_000
@@ -725,8 +712,41 @@ impl PostgresConfig {
     }
 }
 
+/// Experimental part of the external node config. All parameters in this group can change or disappear without notice.
+/// Eventually, parameters from this group generally end up in the optional group.
+#[derive(Debug, Clone, Deserialize)]
+pub(crate) struct ExperimentalENConfig {
+    // State keeper cache config
+    /// Block cache capacity of the state keeper RocksDB cache. The default value is 128 MB.
+    #[serde(default = "ExperimentalENConfig::default_state_keeper_db_block_cache_capacity_mb")]
+    state_keeper_db_block_cache_capacity_mb: usize,
+    /// Maximum number of files concurrently opened by state keeper cache RocksDB. Useful to fit into OS limits; can be used
+    /// as a rudimentary way to control RAM usage of the cache.
+    pub state_keeper_db_max_open_files: Option<NonZeroU32>,
+}
+
+impl ExperimentalENConfig {
+    const fn default_state_keeper_db_block_cache_capacity_mb() -> usize {
+        128
+    }
+
+    #[cfg(test)]
+    fn mock() -> Self {
+        Self {
+            state_keeper_db_block_cache_capacity_mb:
+                Self::default_state_keeper_db_block_cache_capacity_mb(),
+            state_keeper_db_max_open_files: None,
+        }
+    }
+
+    /// Returns the size of block cache for the state keeper RocksDB cache in bytes.
+    pub fn state_keeper_db_block_cache_capacity(&self) -> usize {
+        self.state_keeper_db_block_cache_capacity_mb * BYTES_IN_MEGABYTE
+    }
+}
+
 pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets>> {
-    let Ok(path) = std::env::var("EN_CONSENSUS_SECRETS_PATH") else {
+    let Ok(path) = env::var("EN_CONSENSUS_SECRETS_PATH") else {
         return Ok(None);
     };
     let cfg = std::fs::read_to_string(&path).context(path)?;
@@ -736,7 +756,7 @@ pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets
 }
 
 pub(crate) fn read_consensus_config() -> anyhow::Result<Option<ConsensusConfig>> {
-    let Ok(path) = std::env::var("EN_CONSENSUS_CONFIG_PATH") else {
+    let Ok(path) = env::var("EN_CONSENSUS_CONFIG_PATH") else {
         return Ok(None);
     };
     let cfg = std::fs::read_to_string(&path).context(path)?;
@@ -745,20 +765,34 @@ pub(crate) fn read_consensus_config() -> anyhow::Result<Option<ConsensusConfig>>
     ))
 }
 
-/// Configuration for snapshot recovery. Loaded optionally, only if the corresponding command-line argument
-/// is supplied to the EN binary.
-#[derive(Debug, Clone)]
+/// Configuration for snapshot recovery. Loaded optionally, only if snapshot recovery is enabled.
+#[derive(Debug)]
 pub(crate) struct SnapshotsRecoveryConfig {
     pub snapshots_object_store: ObjectStoreConfig,
 }
 
-pub(crate) fn read_snapshots_recovery_config() -> anyhow::Result<SnapshotsRecoveryConfig> {
-    let snapshots_object_store = envy::prefixed("EN_SNAPSHOTS_OBJECT_STORE_")
-        .from_env::<ObjectStoreConfig>()
-        .context("failed loading snapshot object store config from env variables")?;
-    Ok(SnapshotsRecoveryConfig {
-        snapshots_object_store,
-    })
+impl SnapshotsRecoveryConfig {
+    pub fn new() -> anyhow::Result<Self> {
+        let snapshots_object_store = envy::prefixed("EN_SNAPSHOTS_OBJECT_STORE_")
+            .from_env::<ObjectStoreConfig>()
+            .context("failed loading snapshot object store config from env variables")?;
+        Ok(Self {
+            snapshots_object_store,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct ApiComponentConfig {
+    /// Address of the tree API used by this EN in case it does not have a
+    /// local tree component running and in this case needs to send requests
+    /// to some external tree API.
+    pub tree_api_remote_url: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct TreeComponentConfig {
+    pub api_port: Option<u16>,
 }
 
 /// External Node Config contains all the configuration required for the EN operation.
@@ -769,6 +803,7 @@ pub(crate) struct ExternalNodeConfig {
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
+    pub experimental: ExperimentalENConfig,
     pub consensus: Option<ConsensusConfig>,
     pub api_component: ApiComponentConfig,
     pub tree_component: TreeComponentConfig,
@@ -780,19 +815,20 @@ impl ExternalNodeConfig {
     pub async fn collect() -> anyhow::Result<Self> {
         let required = envy::prefixed("EN_")
             .from_env::<RequiredENConfig>()
-            .context("could not load external node config")?;
-
+            .context("could not load external node config (required params)")?;
         let optional = envy::prefixed("EN_")
             .from_env::<OptionalENConfig>()
-            .context("could not load external node config")?;
+            .context("could not load external node config (optional params)")?;
+        let experimental = envy::prefixed("EN_EXPERIMENTAL_")
+            .from_env::<ExperimentalENConfig>()
+            .context("could not load external node config (experimental params)")?;
 
         let api_component_config = envy::prefixed("EN_API_")
             .from_env::<ApiComponentConfig>()
-            .context("could not load external node config")?;
-
+            .context("could not load external node config (API component params)")?;
         let tree_component_config = envy::prefixed("EN_TREE_")
             .from_env::<TreeComponentConfig>()
-            .context("could not load external node config")?;
+            .context("could not load external node config (tree component params)")?;
 
         let client = L2Client::http(&required.main_node_url()?)
             .context("Unable to build HTTP client for main node")?
@@ -844,6 +880,7 @@ impl ExternalNodeConfig {
             postgres,
             required,
             optional,
+            experimental,
             consensus: read_consensus_config().context("read_consensus_config()")?,
             tree_component: tree_component_config,
             api_component: api_component_config,
@@ -857,6 +894,7 @@ impl ExternalNodeConfig {
             postgres: PostgresConfig::mock(test_pool),
             optional: OptionalENConfig::mock(),
             remote: RemoteENConfig::mock(),
+            experimental: ExperimentalENConfig::mock(),
             consensus: None,
             api_component: ApiComponentConfig {
                 tree_api_remote_url: None,

@@ -10,8 +10,10 @@ use zksync_types::{
     block::BlockGasCount, tx::ExecutionMetrics, Address, Nonce, PriorityOpId, Transaction,
 };
 
-use super::metrics::StateKeeperGauges;
-use crate::gas_tracker::{gas_count_from_metrics, gas_count_from_tx_and_metrics};
+use super::{
+    metrics::StateKeeperGauges,
+    utils::{gas_count_from_metrics, gas_count_from_tx_and_metrics},
+};
 
 #[derive(Debug, Clone)]
 pub struct MempoolGuard(Arc<Mutex<MempoolStore>>);

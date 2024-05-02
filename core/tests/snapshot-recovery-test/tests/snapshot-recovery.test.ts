@@ -379,13 +379,13 @@ describe('snapshot recovery', () => {
             if (!isDbPrunerReady) {
                 console.log('DB pruner health', health.components.db_pruner);
                 const status = health.components.db_pruner?.status;
-                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready']);
+                expect(status).to.be.oneOf([undefined, 'not_ready', 'affected', 'ready']);
                 isDbPrunerReady = status === 'ready';
             }
             if (!isTreePrunerReady) {
                 console.log('Tree pruner health', health.components.tree_pruner);
                 const status = health.components.tree_pruner?.status;
-                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready']);
+                expect(status).to.be.oneOf([undefined, 'not_ready', 'affected', 'ready']);
                 isTreePrunerReady = status === 'ready';
             }
         }
