@@ -98,13 +98,13 @@ pub struct JobPosition {
     pub sequence_number: usize,
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct ProverJobStatusFailed {
     pub started_at: DateTime<Utc>,
     pub error: String,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ProverJobStatusSuccessful {
     pub started_at: DateTime<Utc>,
     pub time_taken: Duration,
@@ -119,7 +119,7 @@ impl Default for ProverJobStatusSuccessful {
     }
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct ProverJobStatusInProgress {
     pub started_at: DateTime<Utc>,
 }
@@ -145,7 +145,7 @@ pub struct WitnessJobStatusFailed {
     pub error: String,
 }
 
-#[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr, PartialEq)]
+#[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr, PartialEq, Clone)]
 pub enum ProverJobStatus {
     #[strum(serialize = "queued")]
     Queued,
@@ -235,6 +235,7 @@ impl FromStr for GpuProverInstanceStatus {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ProverJobFriInfo {
     pub id: u32,
     pub l1_batch_number: L1BatchNumber,
@@ -257,6 +258,7 @@ pub struct ProverJobFriInfo {
     pub picked_by: Option<String>,
 }
 
+#[derive(Debug, Clone)]
 pub struct BasicWitnessGeneratorJobInfo {
     pub l1_batch_number: L1BatchNumber,
     pub merkle_tree_paths_blob_url: Option<String>,
@@ -273,6 +275,7 @@ pub struct BasicWitnessGeneratorJobInfo {
     pub eip_4844_blobs: Option<Eip4844Blobs>,
 }
 
+#[derive(Debug, Clone)]
 pub struct LeafWitnessGeneratorJobInfo {
     pub id: u32,
     pub l1_batch_number: L1BatchNumber,
@@ -291,6 +294,7 @@ pub struct LeafWitnessGeneratorJobInfo {
     pub picked_by: Option<String>,
 }
 
+#[derive(Debug, Clone)]
 pub struct NodeWitnessGeneratorJobInfo {
     pub id: u32,
     pub l1_batch_number: L1BatchNumber,
@@ -309,6 +313,12 @@ pub struct NodeWitnessGeneratorJobInfo {
     pub picked_by: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct RecursionTipWitnessGeneratorJobInfo {
+    pub status: WitnessJobStatus,
+}
+
+#[derive(Debug, Clone)]
 pub struct SchedulerWitnessGeneratorJobInfo {
     pub l1_batch_number: L1BatchNumber,
     pub scheduler_partial_input_blob_url: String,
@@ -323,7 +333,7 @@ pub struct SchedulerWitnessGeneratorJobInfo {
     pub picked_by: Option<String>,
 }
 
-#[derive(Debug, EnumString, Display)]
+#[derive(Debug, EnumString, Display, Clone)]
 pub enum ProofCompressionJobStatus {
     #[strum(serialize = "queued")]
     Queued,
@@ -339,6 +349,7 @@ pub enum ProofCompressionJobStatus {
     Skipped,
 }
 
+#[derive(Debug, Clone)]
 pub struct ProofCompressionJobInfo {
     pub l1_batch_number: L1BatchNumber,
     pub attempts: u32,

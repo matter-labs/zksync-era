@@ -1,12 +1,18 @@
 use anyhow::{ensure, Context as _};
 use clap::Args as ClapArgs;
+use colored::*;
 use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_types::{
-    basic_fri_types::AggregationRound, prover_dal::WitnessJobStatus, L1BatchNumber,
+    basic_fri_types::AggregationRound,
+    prover_dal::{
+        BasicWitnessGeneratorJobInfo, LeafWitnessGeneratorJobInfo, NodeWitnessGeneratorJobInfo,
+        ProofCompressionJobInfo, ProverJobFriInfo, SchedulerWitnessGeneratorJobInfo,
+    },
+    L1BatchNumber,
 };
 
-use super::utils::{AggregationRoundInfo, BatchData, Task, TaskStatus};
-use crate::commands::status::utils::postgres_config;
+use super::utils::{BatchData, StageInfo};
+use crate::commands::status::utils::{postgres_config, Status};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -25,7 +31,11 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
     let batches_data = get_batches_data(args.batches).await?;
 
     for batch_data in batches_data {
-        println!("{batch_data:?}");
+        if !args.verbose {
+            display_batch_status(batch_data);
+        } else {
+            println!("WIP")
+        }
     }
 
     Ok(())
@@ -49,47 +59,61 @@ async fn get_batches_data(batches: Vec<L1BatchNumber>) -> anyhow::Result<Vec<Bat
     for batch in batches {
         let current_batch_data = BatchData {
             batch_number: batch,
-            basic_witness_generator: Task::BasicWitnessGenerator {
-                status: get_proof_basic_witness_generator_status_for_batch(batch, &mut conn).await,
-                aggregation_round_info: get_aggregation_round_info_for_batch(
+            basic_witness_generator: StageInfo::BasicWitnessGenerator {
+                witness_generator_job_info: get_proof_basic_witness_generator_into_for_batch(
+                    batch, &mut conn,
+                )
+                .await,
+                prover_jobs_info: get_prover_jobs_info_for_batch(
                     batch,
                     AggregationRound::BasicCircuits,
                     &mut conn,
                 )
                 .await,
             },
-            leaf_witness_generator: Task::LeafWitnessGenerator {
-                status: get_proof_leaf_witness_generator_status_for_batch(batch, &mut conn).await,
-                aggregation_round_info: get_aggregation_round_info_for_batch(
+            leaf_witness_generator: StageInfo::LeafWitnessGenerator {
+                witness_generator_jobs_info: get_proof_leaf_witness_generator_info_for_batch(
+                    batch, &mut conn,
+                )
+                .await,
+                prover_jobs_info: get_prover_jobs_info_for_batch(
                     batch,
                     AggregationRound::LeafAggregation,
                     &mut conn,
                 )
                 .await,
             },
-            node_witness_generator: Task::NodeWitnessGenerator {
-                status: get_proof_node_witness_generator_status_for_batch(batch, &mut conn).await,
-                aggregation_round_info: get_aggregation_round_info_for_batch(
+            node_witness_generator: StageInfo::NodeWitnessGenerator {
+                witness_generator_jobs_info: get_proof_node_witness_generator_info_for_batch(
+                    batch, &mut conn,
+                )
+                .await,
+                prover_jobs_info: get_prover_jobs_info_for_batch(
                     batch,
                     AggregationRound::NodeAggregation,
                     &mut conn,
                 )
                 .await,
             },
-            scheduler_witness_generator: Task::SchedulerWitnessGenerator {
-                status: get_proof_scheduler_witness_generator_status_for_batch(batch, &mut conn)
-                    .await,
-                aggregation_round_info: get_aggregation_round_info_for_batch(
+            recursion_tip_witness_generator: StageInfo::RecursionTipWitnessGenerator {
+                witness_generator_jobs_info: Vec::new(),
+                prover_jobs_info: Vec::new(),
+            },
+            scheduler_witness_generator: StageInfo::SchedulerWitnessGenerator {
+                witness_generator_jobs_info: get_proof_scheduler_witness_generator_info_for_batch(
+                    batch, &mut conn,
+                )
+                .await,
+                prover_jobs_info: get_prover_jobs_info_for_batch(
                     batch,
                     AggregationRound::Scheduler,
                     &mut conn,
                 )
                 .await,
             },
-            compressor: Task::Compressor(
-                get_proof_compression_job_status_for_batch(batch, &mut conn).await,
+            compressor: StageInfo::Compressor(
+                get_proof_compression_job_info_for_batch(batch, &mut conn).await,
             ),
-            ..Default::default()
         };
         batches_data.push(current_batch_data);
     }
@@ -97,80 +121,107 @@ async fn get_batches_data(batches: Vec<L1BatchNumber>) -> anyhow::Result<Vec<Bat
     Ok(batches_data)
 }
 
-async fn get_aggregation_round_info_for_batch<'a>(
+async fn get_prover_jobs_info_for_batch<'a>(
     batch_number: L1BatchNumber,
     aggregation_round: AggregationRound,
     conn: &mut Connection<'a, Prover>,
-) -> AggregationRoundInfo {
-    let status: TaskStatus = conn
-        .fri_prover_jobs_dal()
+) -> Vec<ProverJobFriInfo> {
+    conn.fri_prover_jobs_dal()
         .get_prover_jobs_stats_for_batch(batch_number, aggregation_round)
         .await
-        .into();
-
-    AggregationRoundInfo {
-        round: aggregation_round,
-        prover_jobs_status: status,
-    }
 }
 
-async fn get_proof_basic_witness_generator_status_for_batch<'a>(
+async fn get_proof_basic_witness_generator_into_for_batch<'a>(
     batch_number: L1BatchNumber,
     conn: &mut Connection<'a, Prover>,
-) -> TaskStatus {
+) -> Option<BasicWitnessGeneratorJobInfo> {
     conn.fri_witness_generator_dal()
         .get_basic_witness_generator_job_for_batch(batch_number)
         .await
-        .map(|job| TaskStatus::from(job.status))
-        .unwrap_or_default()
 }
 
-async fn get_proof_leaf_witness_generator_status_for_batch<'a>(
+async fn get_proof_leaf_witness_generator_info_for_batch<'a>(
     batch_number: L1BatchNumber,
     conn: &mut Connection<'a, Prover>,
-) -> TaskStatus {
+) -> Vec<LeafWitnessGeneratorJobInfo> {
     conn.fri_witness_generator_dal()
         .get_leaf_witness_generator_jobs_for_batch(batch_number)
         .await
-        .iter()
-        .map(|s| s.status.clone())
-        .collect::<Vec<WitnessJobStatus>>()
-        .into()
 }
 
-async fn get_proof_node_witness_generator_status_for_batch<'a>(
+async fn get_proof_node_witness_generator_info_for_batch<'a>(
     batch_number: L1BatchNumber,
     conn: &mut Connection<'a, Prover>,
-) -> TaskStatus {
+) -> Vec<NodeWitnessGeneratorJobInfo> {
     conn.fri_witness_generator_dal()
         .get_node_witness_generator_jobs_for_batch(batch_number)
         .await
-        .iter()
-        .map(|s| s.status.clone())
-        .collect::<Vec<WitnessJobStatus>>()
-        .into()
 }
 
-async fn get_proof_scheduler_witness_generator_status_for_batch<'a>(
+async fn get_proof_scheduler_witness_generator_info_for_batch<'a>(
     batch_number: L1BatchNumber,
     conn: &mut Connection<'a, Prover>,
-) -> TaskStatus {
+) -> Vec<SchedulerWitnessGeneratorJobInfo> {
     conn.fri_witness_generator_dal()
         .get_scheduler_witness_generator_jobs_for_batch(batch_number)
         .await
-        .iter()
-        .map(|s| s.status.clone())
-        .collect::<Vec<WitnessJobStatus>>()
-        .into()
 }
 
-async fn get_proof_compression_job_status_for_batch<'a>(
+async fn get_proof_compression_job_info_for_batch<'a>(
     batch_number: L1BatchNumber,
     conn: &mut Connection<'a, Prover>,
-) -> TaskStatus {
+) -> Option<ProofCompressionJobInfo> {
     conn.fri_proof_compressor_dal()
         .get_proof_compression_job_for_batch(batch_number)
         .await
-        .map(|job| TaskStatus::from(job.status))
-        .unwrap_or_default()
+}
+
+fn display_batch_status(batch_data: BatchData) {
+    println!(
+        "== {} == \n",
+        format!("Batch {} Status", batch_data.batch_number)
+    );
+    display_status_for_stage(batch_data.basic_witness_generator);
+    display_status_for_stage(batch_data.leaf_witness_generator);
+    display_status_for_stage(batch_data.node_witness_generator);
+    display_status_for_stage(batch_data.recursion_tip_witness_generator);
+    display_status_for_stage(batch_data.scheduler_witness_generator);
+}
+
+fn display_status_for_stage(stage_info: StageInfo) {
+    println!(
+        "-- {} --",
+        format!(
+            "Aggregation Round {}",
+            stage_info
+                .aggregation_round()
+                .expect("No aggregation round found") as u8
+        )
+        .bold()
+    );
+    match stage_info.witness_generator_jobs_status() {
+        Status::Custom(msg) => {
+            println!("{}: {}", stage_info.to_string().bold(), msg);
+        }
+        Status::Queued | Status::WaitingForProofs | Status::Stuck | Status::JobsNotFound => {
+            println!(
+                "{}: {} \n",
+                stage_info.to_string().bold(),
+                stage_info.witness_generator_jobs_status()
+            )
+        }
+        Status::InProgress | Status::Successful => {
+            println!(
+                "{}: {}",
+                stage_info.to_string().bold(),
+                stage_info.witness_generator_jobs_status()
+            );
+            println!(
+                "> Prover Jobs: {} \n",
+                stage_info
+                    .prover_jobs_status()
+                    .expect("Unable to check status")
+            );
+        }
+    }
 }
