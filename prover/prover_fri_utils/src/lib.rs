@@ -148,7 +148,7 @@ mod tests {
         let res = get_all_circuit_id_round_tuples_for(ids);
         let expected_circuit_ids: Vec<u8> =
             ((ZkSyncRecursionLayerStorageType::LeafLayerCircuitForMainVM as u8)
-                ..=(ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8))
+                ..=(ZkSyncRecursionLayerStorageType::LeafLayerCircuitForEIP4844Repack as u8))
                 .collect();
         let expected = expected_circuit_ids
             .into_iter()
