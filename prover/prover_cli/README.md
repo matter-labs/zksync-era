@@ -31,23 +31,23 @@ $ zk f run --release -- status batch -n 1
 > In Progress ⌛️
 
 == Proving Stages ==
--- Aggregaton Round 0 --
+-- Aggregation Round 0 --
 Basic Witness Generator: Done ✅
 > Prover Jobs: In progress ⌛️
 
--- Aggregaton Round 1 --
+-- Aggregation Round 1 --
 Leaf Witness Generator: In progress ⌛️
 > Prover Jobs: Waiting for proofs ⏱️
 
--- Aggregaton Round 2 --
+-- Aggregation Round 2 --
 Node Witness Generator: In progress ⌛️
 > Prover Jobs: Waiting for proofs ⏱️
 
--- Aggregaton Round 3 --
+-- Aggregation Round 3 --
 Recursion Tip: In progress ⌛️
 > Prover Jobs: Waiting for proofs ⏱️
 
--- Aggregaton Round 4 --
+-- Aggregation Round 4 --
 Scheduler: In progress ⌛️
 > Prover Jobs: Waiting for proofs ⏱️
 
