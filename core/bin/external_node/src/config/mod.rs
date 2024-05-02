@@ -849,14 +849,16 @@ impl ExternalNodeConfig {
     /// Loads config from the environment variables and
     /// fetches contracts addresses from the main node.
     pub async fn collect() -> anyhow::Result<Self> {
-        let env = Environment::prefixed("EN_").with_vars(&["DATABASE_URL", "DATABASE_POOL_SIZE"]);
-        let mut parsed = Self::schema().parse_env(env)?;
-        let required = parsed.take::<RequiredENConfig>();
-        let optional = parsed.take::<OptionalENConfig>();
-        let experimental = parsed.take::<ExperimentalENConfig>();
-        let postgres = parsed.take::<PostgresConfig>();
-        let api_component_config = parsed.take::<ApiComponentConfig>();
-        let tree_component_config = parsed.take::<TreeComponentConfig>();
+        let schema = Self::schema();
+        let env = Environment::prefixed("EN_")
+            .with_vars(&["DATABASE_URL", "DATABASE_POOL_SIZE"])
+            .with_schema(&schema);
+        let required = env.parse::<RequiredENConfig>()?;
+        let optional = env.parse::<OptionalENConfig>()?;
+        let experimental = env.parse::<ExperimentalENConfig>()?;
+        let postgres = env.parse::<PostgresConfig>()?;
+        let api_component_config = env.parse::<ApiComponentConfig>()?;
+        let tree_component_config = env.parse::<TreeComponentConfig>()?;
 
         let client = L2Client::http(&required.main_node_url()?)
             .context("Unable to build HTTP client for main node")?

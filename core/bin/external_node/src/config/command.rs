@@ -50,14 +50,11 @@ impl<C: DescribeConfig> Alias<C> {
     }
 }
 
-type ParseFn = fn(&str, &HashMap<String, String>) -> envy::Result<Box<dyn any::Any>>;
-
 #[derive(Debug)]
 struct ConfigData {
     prefix: &'static str,
     aliases: Vec<Alias<()>>,
     metadata: &'static ConfigMetadata,
-    parser: ParseFn,
 }
 
 /// Schema for configuration. Can contain multiple configs bound to different "locations".
@@ -92,11 +89,6 @@ impl ConfigSchema {
                 prefix,
                 aliases: aliases.into_iter().map(Alias::drop_type_param).collect(),
                 metadata: C::describe_config(),
-                parser: |prefix, env| {
-                    envy::prefixed(prefix)
-                        .from_iter::<_, C>(env.clone())
-                        .map(|config| Box::new(config) as Box<dyn any::Any>)
-                },
             },
         );
         self
@@ -125,17 +117,33 @@ impl ConfigSchema {
 
     fn print_parameter(param: &ParamMetadata, config_data: &ConfigData) {
         let prefix = config_data.prefix;
-        println!("{prefix}{}", param.name);
+        let prefix_sep = if prefix.is_empty() || prefix.ends_with('.') {
+            ""
+        } else {
+            "."
+        };
+        println!("{prefix}{prefix_sep}{}", param.name);
 
-        let aliases = param.aliases.iter().copied();
+        let local_aliases = param.aliases.iter().copied();
         let global_aliases = config_data.aliases.iter().flat_map(|alias| {
-            aliases
+            local_aliases
                 .clone()
                 .chain([param.name])
-                .filter(|name| alias.param_names.contains(name))
+                .filter_map(|name| {
+                    alias
+                        .param_names
+                        .contains(name)
+                        .then_some((alias.prefix, name))
+                })
         });
-        for alias in aliases.clone().chain(global_aliases) {
-            println!("{alias} [deprecated]");
+        let local_aliases = local_aliases.clone().map(|name| (prefix, name));
+        for (prefix, alias) in local_aliases.chain(global_aliases) {
+            let prefix_sep = if prefix.is_empty() || prefix.ends_with('.') {
+                ""
+            } else {
+                "."
+            };
+            println!("{prefix}{prefix_sep}{alias}");
         }
 
         let ty = if let Some(kind) = param.base_type.kind() {
@@ -160,29 +168,6 @@ impl ConfigSchema {
                 println!("{INDENT}{line}");
             }
         }
-    }
-
-    /// Parses the provided environment according to this schema.
-    pub fn parse_env(&self, mut env: Environment) -> anyhow::Result<ParsedConfigs> {
-        for config_data in self.configs.values() {
-            for alias in &config_data.aliases {
-                env.merge_alias(config_data.prefix, alias);
-            }
-        }
-
-        let configs = self.configs.iter().map(|(type_id, config_data)| {
-            let env_prefix = Environment::env_prefix(config_data.prefix);
-            let parsed = (config_data.parser)(&env_prefix, &env.vars).with_context(|| {
-                // FIXME: capture config type name
-                format!(
-                    "error parsing configuration `FIXME` at `{}` (aliases: {:?})",
-                    config_data.prefix, config_data.aliases
-                )
-            })?;
-            Ok((*type_id, parsed))
-        });
-        let configs = configs.collect::<anyhow::Result<_>>()?;
-        Ok(ParsedConfigs { configs })
     }
 }
 
@@ -257,28 +242,52 @@ impl Environment {
             full_name
         }
     }
+
+    pub fn with_schema(mut self, schema: &ConfigSchema) -> PreparedEnvironment<'_> {
+        for config_data in schema.configs.values() {
+            for alias in &config_data.aliases {
+                self.merge_alias(config_data.prefix, alias);
+            }
+        }
+        PreparedEnvironment {
+            vars: self.vars,
+            schema,
+        }
+    }
 }
 
 /// Output of parsing configurations using [`ConfigSchema::parse_env()`].
 #[derive(Debug)]
-pub(super) struct ParsedConfigs {
-    configs: HashMap<any::TypeId, Box<dyn any::Any>>,
+pub(super) struct PreparedEnvironment<'a> {
+    schema: &'a ConfigSchema,
+    vars: HashMap<String, String>,
 }
 
-impl ParsedConfigs {
-    /// Takes a configuration. It should be a part of the [`ConfigSchema`] that produced this object;
-    /// otherwise, this method will panic.
-    pub fn take<C: DescribeConfig>(&mut self) -> C {
-        *self
+impl PreparedEnvironment<'_> {
+    /// Parses a configuration.
+    pub fn parse<C>(&self) -> anyhow::Result<C>
+    where
+        C: DescribeConfig + DeserializeOwned,
+    {
+        let config_data = self
+            .schema
             .configs
-            .remove(&any::TypeId::of::<C>())
-            .unwrap_or_else(|| {
-                panic!(
+            .get(&any::TypeId::of::<C>())
+            .with_context(|| {
+                format!(
                     "Config `{}` is not a part of the schema",
                     any::type_name::<C>()
                 )
+            })?;
+        let env_prefix = Environment::env_prefix(config_data.prefix);
+        envy::prefixed(env_prefix)
+            .from_iter(self.vars.clone())
+            .with_context(|| {
+                // FIXME: capture config type name
+                format!(
+                    "error parsing configuration `FIXME` at `{}` (aliases: {:?})",
+                    config_data.prefix, config_data.aliases
+                )
             })
-            .downcast::<C>()
-            .unwrap() // Safe by design
     }
 }
