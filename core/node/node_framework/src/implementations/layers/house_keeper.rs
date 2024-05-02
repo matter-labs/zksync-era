@@ -19,7 +19,7 @@ use zksync_house_keeper::{
 };
 
 use crate::{
-    implementations::resources::pools::{ProverPoolResource, ReplicaPoolResource},
+    implementations::resources::pools::{PoolResource, ProverPool, ReplicaPool},
     service::{ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
@@ -62,10 +62,10 @@ impl WiringLayer for HouseKeeperLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // initialize resources
-        let replica_pool_resource = context.get_resource::<ReplicaPoolResource>().await?;
+        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
         let replica_pool = replica_pool_resource.get().await?;
 
-        let prover_pool_resource = context.get_resource::<ProverPoolResource>().await?;
+        let prover_pool_resource = context.get_resource::<PoolResource<ProverPool>>().await?;
         let prover_pool = prover_pool_resource.get().await?;
 
         // initialize and add tasks

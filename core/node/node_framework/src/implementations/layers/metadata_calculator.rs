@@ -8,7 +8,7 @@ use crate::{
     implementations::resources::{
         healthcheck::AppHealthCheckResource,
         object_store::ObjectStoreResource,
-        pools::{MasterPoolResource, ReplicaPoolResource},
+        pools::{MasterPool, PoolResource, ReplicaPool},
     },
     service::{ServiceContext, StopReceiver},
     task::Task,
@@ -19,7 +19,8 @@ use crate::{
 ///
 /// ## Effects
 ///
-/// - Resolves `MasterPoolResource`.
+/// - Resolves `PoolResource<MasterPool>`.
+/// - Resolves `PoolResource<ReplicaPool>`.
 /// - Resolves `ObjectStoreResource` (optional).
 /// - Adds `tree_health_check` to the `ResourceCollection<HealthCheckResource>`.
 /// - Adds `metadata_calculator` to the node.
@@ -38,12 +39,12 @@ impl WiringLayer for MetadataCalculatorLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool = context.get_resource::<MasterPoolResource>().await?;
+        let pool = context.get_resource::<PoolResource<MasterPool>>().await?;
         let main_pool = pool.get().await?;
         // The number of connections in a recovery pool is based on the mainnet recovery runs. It doesn't need
         // to be particularly accurate at this point, since the main node isn't expected to recover from a snapshot.
         let recovery_pool = context
-            .get_resource::<ReplicaPoolResource>()
+            .get_resource::<PoolResource<ReplicaPool>>()
             .await?
             .get_custom(10)
             .await?;

@@ -16,6 +16,8 @@ db:
     max_l1_batches_per_iter: 50
     path: "./db/main/tree"
     mode: FULL
+  experimental:
+    state_keeper_db_block_cache_capacity_mb: 128
 
 api:
   prometheus:
