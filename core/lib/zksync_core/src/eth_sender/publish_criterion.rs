@@ -8,10 +8,9 @@ use zksync_types::{
     pubdata_da::PubdataDA, L1BatchNumber,
 };
 
-use super::metrics::METRICS;
-use crate::{
-    eth_sender::l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
-    gas_tracker::agg_l1_batch_base_cost,
+use super::{
+    l1_batch_commit_data_generator::L1BatchCommitDataGenerator, metrics::METRICS,
+    utils::agg_l1_batch_base_cost,
 };
 
 #[async_trait]

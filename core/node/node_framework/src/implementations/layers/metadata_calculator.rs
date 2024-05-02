@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Context as _;
 use zksync_core::metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
 use zksync_storage::RocksDB;
@@ -63,7 +65,7 @@ impl WiringLayer for MetadataCalculatorLayer {
 
         let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
         app_health
-            .insert_component(metadata_calculator.tree_health_check())
+            .insert_custom_component(Arc::new(metadata_calculator.tree_health_check()))
             .map_err(WiringError::internal)?;
 
         let task = Box::new(MetadataCalculatorTask {

@@ -101,11 +101,9 @@ pub mod consistency_checker;
 pub mod db_pruner;
 pub mod eth_sender;
 pub mod fee_model;
-pub mod gas_tracker;
 pub mod genesis;
 pub mod l1_gas_price;
 pub mod metadata_calculator;
-pub mod proof_data_handler;
 pub mod proto;
 pub mod reorg_detector;
 pub mod state_keeper;
@@ -546,8 +544,8 @@ pub async fn initialize_components(
     }
 
     let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
-    let state_transition_manager_addr = genesis_config
-        .shared_bridge
+    let state_transition_manager_addr = contracts_config
+        .ecosystem_contracts
         .as_ref()
         .map(|a| a.state_transition_proxy_addr);
 
@@ -784,7 +782,7 @@ pub async fn initialize_components(
     }
 
     if components.contains(&Component::ProofDataHandler) {
-        task_futures.push(tokio::spawn(proof_data_handler::run_server(
+        task_futures.push(tokio::spawn(zksync_proof_data_handler::run_server(
             configs
                 .proof_data_handler_config
                 .clone()
@@ -1035,7 +1033,7 @@ async fn run_tree(
     }
 
     let tree_health_check = metadata_calculator.tree_health_check();
-    app_health.insert_component(tree_health_check)?;
+    app_health.insert_custom_component(Arc::new(tree_health_check))?;
     let tree_task = tokio::spawn(metadata_calculator.run(stop_receiver));
     task_futures.push(tree_task);
 

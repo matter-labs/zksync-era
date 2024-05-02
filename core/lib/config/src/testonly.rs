@@ -255,6 +255,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l2_testnet_paymaster_addr: g.gen(),
             l1_multicall3_addr: g.gen(),
             base_token_addr: g.gen(),
+            ecosystem_contracts: self.sample(g),
         }
     }
 }
@@ -679,16 +680,15 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             recursion_leaf_level_vk_hash: rng.gen(),
             recursion_scheduler_level_vk_hash: rng.gen(),
             recursion_circuits_set_vks_hash: rng.gen(),
-            shared_bridge: self.sample(rng),
             dummy_verifier: rng.gen(),
             l1_batch_commit_data_generator_mode: self.sample(rng),
         }
     }
 }
 
-impl Distribution<configs::SharedBridge> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::SharedBridge {
-        configs::SharedBridge {
+impl Distribution<configs::EcosystemContracts> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::EcosystemContracts {
+        configs::EcosystemContracts {
             bridgehub_proxy_addr: rng.gen(),
             state_transition_proxy_addr: rng.gen(),
             transparent_proxy_admin_addr: rng.gen(),
