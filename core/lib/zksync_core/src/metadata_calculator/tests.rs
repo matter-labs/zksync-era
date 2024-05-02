@@ -42,7 +42,7 @@ where
 
 pub(super) fn mock_config(db_path: &Path) -> MetadataCalculatorConfig {
     MetadataCalculatorConfig {
-        db_path: db_path.to_str().unwrap().to_owned(),
+        db_path: db_path.to_owned(),
         max_open_files: None,
         mode: MerkleTreeMode::Full,
         delay_interval: Duration::from_millis(100),
@@ -397,7 +397,7 @@ fn create_config(
     mode: MerkleTreeMode,
 ) -> (MerkleTreeConfig, OperationsManagerConfig) {
     let db_config = MerkleTreeConfig {
-        path: path_to_string(&db_path.join("new")),
+        path: db_path.join("new"),
         mode,
         ..MerkleTreeConfig::default()
     };
@@ -427,10 +427,6 @@ async fn setup_calculator_with_options(
     MetadataCalculator::new(calculator_config, object_store, pool)
         .await
         .unwrap()
-}
-
-fn path_to_string(path: &Path) -> String {
-    path.to_str().unwrap().to_owned()
 }
 
 pub(crate) async fn run_calculator(mut calculator: MetadataCalculator) -> H256 {

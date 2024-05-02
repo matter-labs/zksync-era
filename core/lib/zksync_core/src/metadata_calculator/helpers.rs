@@ -4,7 +4,6 @@ use std::{
     collections::{BTreeMap, HashSet},
     future,
     future::Future,
-    path::Path,
     time::Duration,
 };
 
@@ -78,7 +77,7 @@ pub(super) async fn create_db(config: MetadataCalculatorConfig) -> anyhow::Resul
 }
 
 fn create_db_sync(config: &MetadataCalculatorConfig) -> anyhow::Result<RocksDBWrapper> {
-    let path = Path::new(config.db_path.as_str());
+    let path = &config.db_path;
     let &MetadataCalculatorConfig {
         max_open_files,
         block_cache_capacity,

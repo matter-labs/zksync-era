@@ -1,7 +1,7 @@
 //! Testing harness for the batch executor.
 //! Contains helper functionality to initialize test context and perform tests without too much boilerplate.
 
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
+use std::{collections::HashMap, fmt::Debug, path::PathBuf, sync::Arc};
 
 use multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv},
@@ -296,8 +296,8 @@ impl Tester {
         self.pool.clone()
     }
 
-    pub(super) fn state_keeper_db_path(&self) -> String {
-        self.db_dir.path().to_str().unwrap().to_owned()
+    pub(super) fn state_keeper_db_path(&self) -> PathBuf {
+        self.db_dir.path().to_owned()
     }
 }
 

@@ -1,4 +1,8 @@
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use anyhow::Context as _;
 use serde::Serialize;
@@ -105,8 +109,8 @@ pub struct BlockReverter {
     allow_rolling_back_executed_batches: bool,
     connection_pool: ConnectionPool<Core>,
     should_roll_back_postgres: bool,
-    state_keeper_cache_path: Option<String>,
-    merkle_tree_path: Option<String>,
+    state_keeper_cache_path: Option<PathBuf>,
+    merkle_tree_path: Option<PathBuf>,
     snapshots_object_store: Option<Arc<dyn ObjectStore>>,
 }
 
@@ -138,12 +142,12 @@ impl BlockReverter {
         self
     }
 
-    pub fn enable_rolling_back_merkle_tree(&mut self, path: String) -> &mut Self {
+    pub fn enable_rolling_back_merkle_tree(&mut self, path: PathBuf) -> &mut Self {
         self.merkle_tree_path = Some(path);
         self
     }
 
-    pub fn enable_rolling_back_state_keeper_cache(&mut self, path: String) -> &mut Self {
+    pub fn enable_rolling_back_state_keeper_cache(&mut self, path: PathBuf) -> &mut Self {
         self.state_keeper_cache_path = Some(path);
         self
     }
@@ -205,7 +209,6 @@ impl BlockReverter {
                 .await?
                 .context("no state root hash for target L1 batch")?;
 
-            let merkle_tree_path = Path::new(merkle_tree_path);
             let merkle_tree_exists = fs::try_exists(merkle_tree_path).await.with_context(|| {
                 format!(
                     "cannot check whether Merkle tree path `{}` exists",
@@ -236,16 +239,19 @@ impl BlockReverter {
         }
 
         if let Some(state_keeper_cache_path) = &self.state_keeper_cache_path {
-            let sk_cache_exists = fs::try_exists(state_keeper_cache_path)
-                .await
-                .with_context(|| {
-                    format!(
-                        "cannot check whether state keeper cache path `{state_keeper_cache_path}` exists"
-                    )
-                })?;
+            let sk_cache_exists =
+                fs::try_exists(state_keeper_cache_path)
+                    .await
+                    .with_context(|| {
+                        format!(
+                            "cannot check whether state keeper cache path `{}` exists",
+                            state_keeper_cache_path.display()
+                        )
+                    })?;
             anyhow::ensure!(
                 sk_cache_exists,
-                "Path with state keeper cache DB doesn't exist at `{state_keeper_cache_path}`"
+                "Path with state keeper cache DB doesn't exist at `{}`",
+                state_keeper_cache_path.display()
             );
             self.roll_back_state_keeper_cache(last_l1_batch_to_keep, state_keeper_cache_path)
                 .await?;
@@ -282,10 +288,13 @@ impl BlockReverter {
     async fn roll_back_state_keeper_cache(
         &self,
         last_l1_batch_to_keep: L1BatchNumber,
-        state_keeper_cache_path: &str,
+        state_keeper_cache_path: &Path,
     ) -> anyhow::Result<()> {
-        tracing::info!("Opening DB with state keeper cache at `{state_keeper_cache_path}`");
-        let sk_cache = RocksdbStorage::builder(state_keeper_cache_path.as_ref())
+        tracing::info!(
+            "Opening DB with state keeper cache at `{}`",
+            state_keeper_cache_path.display()
+        );
+        let sk_cache = RocksdbStorage::builder(state_keeper_cache_path)
             .await
             .context("failed initializing state keeper cache")?;
 

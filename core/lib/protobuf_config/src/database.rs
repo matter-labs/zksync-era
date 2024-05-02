@@ -29,7 +29,7 @@ impl ProtoRepr for proto::MerkleTree {
     type Type = configs::database::MerkleTreeConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            path: required(&self.path).context("path")?.clone(),
+            path: required(&self.path).context("path")?.clone().into(),
             mode: required(&self.mode)
                 .and_then(|x| Ok(proto::MerkleTreeMode::try_from(*x)?))
                 .context("mode")?
@@ -53,7 +53,12 @@ impl ProtoRepr for proto::MerkleTree {
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            path: Some(this.path.clone()),
+            path: Some(
+                this.path
+                    .to_str()
+                    .expect("path is not UTF-8 string")
+                    .to_owned(),
+            ),
             mode: Some(proto::MerkleTreeMode::new(&this.mode).into()),
             multi_get_chunk_size: Some(this.multi_get_chunk_size.try_into().unwrap()),
             block_cache_size_mb: Some(this.block_cache_size_mb.try_into().unwrap()),
@@ -70,14 +75,20 @@ impl ProtoRepr for proto::Db {
         Ok(Self::Type {
             state_keeper_db_path: required(&self.state_keeper_db_path)
                 .context("state_keeper_db_path")?
-                .clone(),
+                .clone()
+                .into(),
             merkle_tree: read_required_repr(&self.merkle_tree).context("merkle_tree")?,
         })
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            state_keeper_db_path: Some(this.state_keeper_db_path.clone()),
+            state_keeper_db_path: Some(
+                this.state_keeper_db_path
+                    .to_str()
+                    .expect("state_keeper_db_path is not UTF-8 string")
+                    .to_owned(),
+            ),
             merkle_tree: Some(ProtoRepr::build(&this.merkle_tree)),
         }
     }

@@ -78,7 +78,6 @@ mod version_sync_task;
 #[allow(clippy::too_many_arguments)]
 async fn build_state_keeper(
     action_queue: ActionQueue,
-    state_keeper_db_path: String,
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
     main_node_client: BoxedL2Client,
@@ -90,8 +89,10 @@ async fn build_state_keeper(
     // We only need call traces on the external node if the `debug_` namespace is enabled.
     let save_call_traces = config.optional.api_namespaces().contains(&Namespace::Debug);
 
-    let (storage_factory, task) =
-        AsyncRocksdbCache::new(connection_pool.clone(), state_keeper_db_path);
+    let (storage_factory, task) = AsyncRocksdbCache::new(
+        connection_pool.clone(),
+        config.required.state_cache_path.clone(),
+    );
     let mut stop_receiver_clone = stop_receiver.clone();
     task_handles.push(tokio::task::spawn(async move {
         let result = task.run(stop_receiver_clone.clone()).await;
@@ -226,7 +227,6 @@ async fn run_core(
         OutputHandler::new(Box::new(persistence)).with_handler(Box::new(sync_state.clone()));
     let state_keeper = build_state_keeper(
         action_queue,
-        config.required.state_cache_path.clone(),
         config,
         connection_pool.clone(),
         main_node_client.clone(),

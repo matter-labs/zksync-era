@@ -1,6 +1,7 @@
 use std::{
     env, fmt,
     num::{NonZeroU32, NonZeroUsize},
+    path::PathBuf,
     str::FromStr,
     time::Duration,
 };
@@ -639,9 +640,9 @@ pub(crate) struct RequiredENConfig {
     // Intentionally private: use getter method as it manages the missing port.
     main_node_url: String,
     /// Path to the database data directory that serves state cache.
-    pub state_cache_path: String, // FIXME: replace with `PathBuf`
+    pub state_cache_path: PathBuf,
     /// Fast SSD path. Used as a RocksDB dir for the Merkle tree (*new* implementation).
-    pub merkle_tree_path: String,
+    pub merkle_tree_path: PathBuf,
 }
 
 impl RequiredENConfig {
@@ -653,13 +654,8 @@ impl RequiredENConfig {
             healthcheck_port: 0,
             eth_client_url: "unused".to_owned(), // L1 and L2 clients must be instantiated before accessing mocks
             main_node_url: "unused".to_owned(),
-            state_cache_path: temp_dir
-                .path()
-                .join("state_keeper_cache")
-                .to_str()
-                .unwrap()
-                .to_owned(),
-            merkle_tree_path: temp_dir.path().join("tree").to_str().unwrap().to_owned(),
+            state_cache_path: temp_dir.path().join("state_keeper_cache"),
+            merkle_tree_path: temp_dir.path().join("tree"),
         }
     }
 

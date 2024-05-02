@@ -272,7 +272,7 @@ impl Distribution<configs::database::MerkleTreeMode> for EncodeDist {
 impl Distribution<configs::database::MerkleTreeConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::database::MerkleTreeConfig {
         configs::database::MerkleTreeConfig {
-            path: self.sample(rng),
+            path: From::<String>::from(self.sample(rng)),
             mode: self.sample(rng),
             multi_get_chunk_size: self.sample(rng),
             block_cache_size_mb: self.sample(rng),
@@ -286,7 +286,7 @@ impl Distribution<configs::database::MerkleTreeConfig> for EncodeDist {
 impl Distribution<configs::database::DBConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::database::DBConfig {
         configs::database::DBConfig {
-            state_keeper_db_path: self.sample(rng),
+            state_keeper_db_path: From::<String>::from(self.sample(rng)),
             merkle_tree: self.sample(rng),
         }
     }

@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
 
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
@@ -22,7 +22,7 @@ pub enum MerkleTreeMode {
 pub struct MerkleTreeConfig {
     /// Path to the RocksDB data directory for Merkle tree.
     #[serde(default = "MerkleTreeConfig::default_path")]
-    pub path: String,
+    pub path: PathBuf,
     /// Operation mode for the Merkle tree. If not specified, the full mode will be used.
     #[serde(default)]
     pub mode: MerkleTreeMode,
@@ -61,8 +61,8 @@ impl Default for MerkleTreeConfig {
 }
 
 impl MerkleTreeConfig {
-    fn default_path() -> String {
-        "./db/lightweight-new".to_owned() // named this way for legacy reasons
+    fn default_path() -> PathBuf {
+        "./db/lightweight-new".to_owned().into() // named this way for legacy reasons
     }
 
     const fn default_multi_get_chunk_size() -> usize {
@@ -106,7 +106,7 @@ impl MerkleTreeConfig {
 pub struct DBConfig {
     /// Path to the RocksDB data directory that serves state cache.
     #[serde(default = "DBConfig::default_state_keeper_db_path")]
-    pub state_keeper_db_path: String,
+    pub state_keeper_db_path: PathBuf,
     /// Merkle tree configuration.
     #[serde(skip)]
     // ^ Filled in separately in `Self::from_env()`. We cannot use `serde(flatten)` because it
@@ -115,8 +115,8 @@ pub struct DBConfig {
 }
 
 impl DBConfig {
-    fn default_state_keeper_db_path() -> String {
-        "./db/state_keeper".to_owned()
+    fn default_state_keeper_db_path() -> PathBuf {
+        "./db/state_keeper".to_owned().into()
     }
 }
 

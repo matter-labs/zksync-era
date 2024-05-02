@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Instant};
+use std::{path::PathBuf, sync::Arc, time::Instant};
 
 use anyhow::Context;
 use once_cell::sync::OnceCell;
@@ -17,7 +17,7 @@ use crate::{RocksdbStorage, StateKeeperColumnFamily};
 #[derive(Debug)]
 pub struct AsyncCatchupTask {
     pool: ConnectionPool<Core>,
-    state_keeper_db_path: String,
+    state_keeper_db_path: PathBuf,
     rocksdb_cell: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
     to_l1_batch_number: Option<L1BatchNumber>,
 }
@@ -27,7 +27,7 @@ impl AsyncCatchupTask {
     /// accepts the last L1 batch number to catch up to (defaults to latest if not specified).
     pub fn new(
         pool: ConnectionPool<Core>,
-        state_keeper_db_path: String,
+        state_keeper_db_path: PathBuf,
         rocksdb_cell: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
         to_l1_batch_number: Option<L1BatchNumber>,
     ) -> Self {
@@ -48,7 +48,7 @@ impl AsyncCatchupTask {
         let started_at = Instant::now();
         tracing::debug!("Catching up RocksDB asynchronously");
 
-        let mut rocksdb_builder = RocksdbStorage::builder(self.state_keeper_db_path.as_ref())
+        let mut rocksdb_builder = RocksdbStorage::builder(&self.state_keeper_db_path)
             .await
             .context("Failed creating RocksDB storage builder")?;
         let mut connection = self.pool.connection().await?;

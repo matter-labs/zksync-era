@@ -65,7 +65,7 @@ impl FromEnv for PostgresConfig {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::{path::Path, time::Duration};
 
     use zksync_config::configs::database::MerkleTreeMode;
 
@@ -89,8 +89,11 @@ mod tests {
         lock.set_env(config);
 
         let db_config = DBConfig::from_env().unwrap();
-        assert_eq!(db_config.state_keeper_db_path, "/db/state_keeper");
-        assert_eq!(db_config.merkle_tree.path, "/db/tree");
+        assert_eq!(
+            db_config.state_keeper_db_path,
+            Path::new("/db/state_keeper")
+        );
+        assert_eq!(db_config.merkle_tree.path, Path::new("/db/tree"));
         assert_eq!(db_config.merkle_tree.mode, MerkleTreeMode::Lightweight);
         assert_eq!(db_config.merkle_tree.multi_get_chunk_size, 250);
         assert_eq!(db_config.merkle_tree.max_l1_batches_per_iter, 50);
@@ -114,8 +117,14 @@ mod tests {
         ]);
 
         let db_config = DBConfig::from_env().unwrap();
-        assert_eq!(db_config.state_keeper_db_path, "./db/state_keeper");
-        assert_eq!(db_config.merkle_tree.path, "./db/lightweight-new");
+        assert_eq!(
+            db_config.state_keeper_db_path,
+            Path::new("./db/state_keeper")
+        );
+        assert_eq!(
+            db_config.merkle_tree.path,
+            Path::new("./db/lightweight-new")
+        );
         assert_eq!(db_config.merkle_tree.mode, MerkleTreeMode::Full);
         assert_eq!(db_config.merkle_tree.multi_get_chunk_size, 500);
         assert_eq!(db_config.merkle_tree.max_l1_batches_per_iter, 20);
@@ -126,7 +135,7 @@ mod tests {
         // Check that new env variable for Merkle tree path is supported
         lock.set_env("DATABASE_MERKLE_TREE_PATH=/db/tree/main");
         let db_config = DBConfig::from_env().unwrap();
-        assert_eq!(db_config.merkle_tree.path, "/db/tree/main");
+        assert_eq!(db_config.merkle_tree.path, Path::new("/db/tree/main"));
 
         lock.set_env("DATABASE_MERKLE_TREE_MULTI_GET_CHUNK_SIZE=200");
         let db_config = DBConfig::from_env().unwrap();

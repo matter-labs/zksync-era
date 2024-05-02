@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, path::PathBuf, sync::Arc};
 
 use anyhow::Context;
 use async_trait::async_trait;
@@ -53,7 +53,7 @@ impl AsyncRocksdbCache {
 
     pub fn new(
         pool: ConnectionPool<Core>,
-        state_keeper_db_path: String,
+        state_keeper_db_path: PathBuf,
     ) -> (Self, AsyncCatchupTask) {
         let rocksdb_cell = Arc::new(OnceCell::new());
         let task = AsyncCatchupTask::new(

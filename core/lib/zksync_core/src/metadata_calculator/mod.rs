@@ -3,6 +3,7 @@
 
 use std::{
     num::NonZeroU32,
+    path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -38,7 +39,7 @@ mod updater;
 #[derive(Debug, Clone)]
 pub struct MetadataCalculatorConfig {
     /// Filesystem path to the RocksDB instance that stores the tree.
-    pub db_path: String,
+    pub db_path: PathBuf,
     /// Maximum number of files concurrently opened by RocksDB. Useful to fit into OS limits; can be used
     /// as a rudimentary way to control RAM usage of the tree.
     pub max_open_files: Option<NonZeroU32>,

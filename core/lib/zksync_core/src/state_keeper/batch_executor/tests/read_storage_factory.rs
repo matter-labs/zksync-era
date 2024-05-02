@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::Context;
 use async_trait::async_trait;
 use tokio::sync::watch;
@@ -32,7 +34,7 @@ impl PostgresFactory {
 #[derive(Debug, Clone)]
 pub struct RocksdbFactory {
     pool: ConnectionPool<Core>,
-    state_keeper_db_path: String,
+    state_keeper_db_path: PathBuf,
 }
 
 #[async_trait]
@@ -42,7 +44,7 @@ impl ReadStorageFactory for RocksdbFactory {
         stop_receiver: &watch::Receiver<bool>,
         _l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
-        let builder = RocksdbStorage::builder(self.state_keeper_db_path.as_ref())
+        let builder = RocksdbStorage::builder(&self.state_keeper_db_path)
             .await
             .context("Failed opening state keeper RocksDB")?;
         let mut conn = self
@@ -62,7 +64,7 @@ impl ReadStorageFactory for RocksdbFactory {
 }
 
 impl RocksdbFactory {
-    pub fn new(pool: ConnectionPool<Core>, state_keeper_db_path: String) -> Self {
+    pub fn new(pool: ConnectionPool<Core>, state_keeper_db_path: PathBuf) -> Self {
         Self {
             pool,
             state_keeper_db_path,
