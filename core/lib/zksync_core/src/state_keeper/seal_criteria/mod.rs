@@ -166,8 +166,9 @@ impl IoSealCriteria for TimeoutSealer {
             AGGREGATION_METRICS.inc_criterion(RULE_NAME);
             tracing::debug!(
                 "Decided to seal L1 batch using rule `{RULE_NAME}`; batch timestamp: {}, \
-                 commit deadline: {block_commit_deadline_ms}ms",
-                display_timestamp(manager.batch_timestamp())
+                 l2 block timestamp: {}, commit deadline: {block_commit_deadline_ms}ms",
+                display_timestamp(manager.batch_timestamp()),
+                display_timestamp(manager.l2_block.timestamp),
             );
         }
         should_seal_timeout

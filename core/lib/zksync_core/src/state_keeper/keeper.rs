@@ -466,14 +466,14 @@ impl ZkSyncStateKeeper {
                 );
                 Self::start_next_l2_block(new_l2_block_params, updates_manager, batch_executor)
                     .await;
+            }
 
-                if self.io.should_seal_l1_batch(updates_manager) {
-                    tracing::debug!(
-                        "L1 batch #{} should be sealed as per sealing rules",
-                        updates_manager.l1_batch.number
-                    );
-                    return Ok(());
-                }
+            if self.io.should_seal_l1_batch(updates_manager) {
+                tracing::debug!(
+                    "L1 batch #{} should be sealed as per sealing rules",
+                    updates_manager.l1_batch.number
+                );
+                return Ok(());
             }
 
             let waiting_latency = KEEPER_METRICS.waiting_for_tx.start();
