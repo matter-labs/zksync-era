@@ -1494,6 +1494,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         match aggregation_round {
             AggregationRound::BasicCircuits | AggregationRound::Scheduler => "l1_batch_number",
             AggregationRound::LeafAggregation | AggregationRound::NodeAggregation => "id",
+            AggregationRound::RecursionTip => todo!(),
         }
     }
 }
