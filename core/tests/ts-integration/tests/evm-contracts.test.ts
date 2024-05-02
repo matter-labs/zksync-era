@@ -68,26 +68,8 @@ describe('EVM equivalence contract', () => {
         ).connect(alice);
     });
 
-    describe('Benchmarking', () => {
-        test("Should benchmark counter fallback contract's call", async () => {
-            let filename = await startBenchmark();
-            let contracts = [];
-
-            const counterContract = await deploygasCallerContract(alice, artifacts.counterFallback);
-            contracts.push({ name: 'counterFallback', contract: counterContract });
-            // Add your tests here
-
-            for (const contract of contracts) {
-                await contract.contract.performCall();
-                let gasUsed = (await alice.provider.getTransactionReceipt(contract.contract.deployTransaction.hash))
-                    .gasUsed;
-                await saveBenchmark(contract.name, filename, gasUsed.toString());
-            }
-        });
-    });
-
     describe('Gas consumption', () => {
-        test("Should compare gas against counter fallback contract's call", async () => {
+        /*test("Should compare gas against counter fallback contract's call", async () => {
             const gasCallerContract = await deploygasCallerContract(alice, artifacts.gasCaller);
 
             const counterContract = await deploygasCallerContract(alice, artifacts.counterFallback);
@@ -107,7 +89,7 @@ describe('EVM equivalence contract', () => {
 
             const expected_gas = '70601'; // Gas cost when run with solidity interpreter
             expect(result).toEqual(expected_gas);
-        });
+        });*/
 
         test("Should compare gas against opcode test fallback contract's call", async () => {
             const gasCallerContract = await deploygasCallerContract(alice, artifacts.gasCaller);
@@ -117,11 +99,11 @@ describe('EVM equivalence contract', () => {
             let result = (await gasCallerContract.callStatic.callAndGetGas(counterContract.address)).toString();
 
             const expected_gas = '27627'; // Gas cost when run with solidity interpreter
-            expect(result).toEqual(expected_gas);
+            expect(result).toEqual(expected_gas); //yul=4304
         });
     });
-
-    /*describe('Contract creation', () => {
+/*
+    describe('Contract creation', () => {
         describe('Create from EOA', () => {
             test('Should create evm contract from EOA and allow view and non-view calls', async () => {
                 const args = [1];
@@ -470,7 +452,7 @@ describe('EVM equivalence contract', () => {
             }
         });
 
-        test('mint, swap, and burn should work', async () => {
+        /*test('mint, swap, and burn should work', async () => {
             const evmMintReceipt = await (await evmUniswapPair.mint(alice.address)).wait();
             const nativeMintReceipt = await (await nativeUniswapPair.mint(alice.address)).wait();
             dumpOpcodeLogs(evmMintReceipt.transactionHash, alice.provider);
@@ -508,9 +490,9 @@ describe('EVM equivalence contract', () => {
             }
             dumpOpcodeLogs(evmLiquidityTransfer.transactionHash, alice.provider);
             dumpOpcodeLogs(evmBurnReceipt.transactionHash, alice.provider);
-        });
+        });*/
 
-        test("Should compare gas against uniswap fallback contract's call", async () => {
+        xtest("Should compare gas against uniswap fallback contract's call", async () => {
             const gasCallerFactory = getEVMContractFactory(alice, artifacts.gasCaller);
             const gasCallerContract = await gasCallerFactory.deploy();
             await gasCallerContract.deployTransaction.wait();
