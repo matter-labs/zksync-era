@@ -1,6 +1,6 @@
 //! Configuration metadata.
 
-use std::{any, fmt, num};
+use std::{any, fmt, num, path::PathBuf};
 
 #[doc(hidden)] // used in the derive macro
 pub use once_cell::sync::Lazy;
@@ -130,6 +130,7 @@ impl RustType {
                 Some(TypeKind::Float)
             }
             id if id == any::TypeId::of::<String>() => Some(TypeKind::String),
+            id if id == any::TypeId::of::<PathBuf>() => Some(TypeKind::Path),
             _ => None,
         }
     }
@@ -143,7 +144,8 @@ pub enum TypeKind {
     Integer,
     Float,
     String,
-    // FIXME: support paths and URLs
+    Path,
+    // TODO: support URLs
 }
 
 impl fmt::Display for TypeKind {
@@ -153,6 +155,7 @@ impl fmt::Display for TypeKind {
             Self::Integer => formatter.write_str("integer"),
             Self::Float => formatter.write_str("floating-point value"),
             Self::String => formatter.write_str("string"),
+            Self::Path => formatter.write_str("filesystem path"),
         }
     }
 }
