@@ -67,7 +67,7 @@ pub(super) struct NextL1BatchHasMetadataCondition {
 
 impl fmt::Display for NextL1BatchHasMetadataCondition {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "next L1 batch has metadata")
+        write!(formatter, "next L1 batch has state root and commitment")
     }
 }
 
