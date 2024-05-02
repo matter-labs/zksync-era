@@ -11,8 +11,10 @@ use zksync_web3_decl::client::BoxedL2Client;
 
 use crate::{
     implementations::resources::{
-        action_queue::ActionQueueSenderResource, main_node_client::MainNodeClientResource,
-        pools::MasterPoolResource, sync_state::SyncStateResource,
+        action_queue::ActionQueueSenderResource,
+        main_node_client::MainNodeClientResource,
+        pools::{MasterPool, PoolResource},
+        sync_state::SyncStateResource,
     },
     service::{ServiceContext, StopReceiver},
     task::Task,
@@ -41,7 +43,7 @@ impl WiringLayer for ConsensusLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let pool = context
-            .get_resource::<MasterPoolResource>()
+            .get_resource::<PoolResource<MasterPool>>()
             .await?
             .get()
             .await?;

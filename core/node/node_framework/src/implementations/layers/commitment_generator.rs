@@ -5,7 +5,10 @@ use zksync_commitment_generator::{
 use zksync_config::configs::chain::L1BatchCommitDataGeneratorMode;
 
 use crate::{
-    implementations::resources::{healthcheck::AppHealthCheckResource, pools::MasterPoolResource},
+    implementations::resources::{
+        healthcheck::AppHealthCheckResource,
+        pools::{MasterPool, PoolResource},
+    },
     service::{ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
@@ -35,7 +38,7 @@ impl WiringLayer for CommitmentGeneratorLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool_resource = context.get_resource::<MasterPoolResource>().await?;
+        let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
         let main_pool = pool_resource.get().await.unwrap();
 
         let commitment_generator = CommitmentGenerator::new(main_pool, self.input_generator);

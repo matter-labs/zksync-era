@@ -36,7 +36,9 @@ pub use self::{
     // Note, that `test_infra` of the bootloader tests relies on this value to be exposed
     in_memory::IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID,
     postgres::{PostgresStorage, PostgresStorageCaches, PostgresStorageCachesTask},
-    rocksdb::{RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily},
+    rocksdb::{
+        RocksdbStorage, RocksdbStorageBuilder, RocksdbStorageOptions, StateKeeperColumnFamily,
+    },
     shadow_storage::ShadowStorage,
     storage_factory::{BatchDiff, PgOrRocksdbStorage, ReadStorageFactory, RocksdbWithMemory},
     storage_view::{StorageView, StorageViewMetrics},
