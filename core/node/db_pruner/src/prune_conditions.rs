@@ -80,6 +80,18 @@ impl PruneCondition for NextL1BatchHasMetadataCondition {
             .blocks_dal()
             .get_l1_batch_metadata(next_l1_batch_number)
             .await?;
+
+        // A number of first L1 batches don't have metadata. We have to be able to prune them.
+        if l1_batch_metadata.is_none() {
+            let first_l1_batch_with_metadata = storage
+                .blocks_dal()
+                .get_earliest_l1_batch_number_with_metadata()
+                .await?;
+            if let Some(first_l1_batch_with_metadata) = first_l1_batch_with_metadata {
+                return Ok(next_l1_batch_number < first_l1_batch_with_metadata);
+            }
+        }
+
         Ok(l1_batch_metadata.is_some())
     }
 }
