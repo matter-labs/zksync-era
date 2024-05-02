@@ -86,7 +86,7 @@ describe('EVM equivalence contract', () => {
         });
     });
 
-    describe("Gas consumption", () => {
+    describe('Gas consumption', () => {
         test("Should compare gas against counter fallback contract's call", async () => {
             const gasCallerContract = await deploygasCallerContract(alice, artifacts.gasCaller);
 
@@ -119,7 +119,7 @@ describe('EVM equivalence contract', () => {
             const expected_gas = '27627'; // Gas cost when run with solidity interpreter
             expect(result).toEqual(expected_gas);
         });
-    })
+    });
 
     /*describe('Contract creation', () => {
         describe('Create from EOA', () => {
