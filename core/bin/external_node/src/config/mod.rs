@@ -16,7 +16,6 @@ use zksync_config::{
         chain::L1BatchCommitDataGeneratorMode,
         consensus::{ConsensusConfig, ConsensusSecrets},
     },
-    metadata::DescribeConfig,
     ObjectStoreConfig,
 };
 use zksync_config_derive::DescribeConfig;
@@ -39,7 +38,7 @@ use zksync_web3_decl::{
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
 
-use self::command::print_config;
+use self::command::{Alias, ConfigSchema, Environment};
 
 mod command;
 pub(crate) mod observability;
@@ -671,17 +670,6 @@ pub(crate) struct PostgresConfig {
 }
 
 impl PostgresConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
-        Ok(Self {
-            database_url: env::var("DATABASE_URL")
-                .context("DATABASE_URL env variable is not set")?,
-            database_pool_size: env::var("DATABASE_POOL_SIZE")
-                .context("DATABASE_POOL_SIZE env variable is not set")?
-                .parse()
-                .context("Unable to parse DATABASE_POOL_SIZE env variable")?,
-        })
-    }
-
     #[cfg(test)]
     fn mock(test_pool: &ConnectionPool<Core>) -> Self {
         Self {
@@ -694,7 +682,7 @@ impl PostgresConfig {
 /// # Experimental part of the external node config
 ///
 /// All parameters in this group can change or disappear without notice.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, DescribeConfig)]
 pub(crate) struct ExperimentalENConfig {
     // State keeper cache config
     /// Block cache capacity of the state keeper RocksDB cache. The default value is 128 MB.
@@ -829,6 +817,19 @@ pub(crate) struct ExternalNodeConfig {
 }
 
 impl ExternalNodeConfig {
+    fn schema() -> ConfigSchema {
+        ConfigSchema::default()
+            .insert::<RequiredENConfig>("")
+            .insert::<OptionalENConfig>("")
+            .insert::<PostgresConfig>("")
+            .insert_aliased::<ExperimentalENConfig>(
+                "experimental",
+                [Alias::prefix("").exclude(|name| name.starts_with("state_keeper_"))],
+            )
+            .insert::<ApiComponentConfig>("api")
+            .insert::<TreeComponentConfig>("tree")
+    }
+
     pub fn print_help(filter: Option<&str>) {
         println!(
             "Configuration is supplied to the node as environment variables. The name of an env variable is obtained \
@@ -836,32 +837,26 @@ impl ExternalNodeConfig {
              (other than for `database_url` and `database_pool_size` params, which do not have such a prefix). \
              For example, `prometheus_port` parameter is mapped to the `EN_PROMETHEUS_PORT` env var.\n"
         );
-        print_config(RequiredENConfig::describe_config(), "", filter);
-        print_config(OptionalENConfig::describe_config(), "", filter);
-        print_config(PostgresConfig::describe_config(), "", filter);
-        print_config(ApiComponentConfig::describe_config(), "api.", filter);
-        print_config(TreeComponentConfig::describe_config(), "tree.", filter);
+        Self::schema().print_help(|param| {
+            if let Some(filter) = filter {
+                param.name.contains(filter) || param.help.contains(filter)
+            } else {
+                true // print all params
+            }
+        });
     }
 
     /// Loads config from the environment variables and
     /// fetches contracts addresses from the main node.
     pub async fn collect() -> anyhow::Result<Self> {
-        let required = envy::prefixed("EN_")
-            .from_env::<RequiredENConfig>()
-            .context("could not load external node config (required params)")?;
-        let optional = envy::prefixed("EN_")
-            .from_env::<OptionalENConfig>()
-            .context("could not load external node config (optional params)")?;
-        let experimental = envy::prefixed("EN_EXPERIMENTAL_")
-            .from_env::<ExperimentalENConfig>()
-            .context("could not load external node config (experimental params)")?;
-
-        let api_component_config = envy::prefixed("EN_API_")
-            .from_env::<ApiComponentConfig>()
-            .context("could not load external node config (API component params)")?;
-        let tree_component_config = envy::prefixed("EN_TREE_")
-            .from_env::<TreeComponentConfig>()
-            .context("could not load external node config (tree component params)")?;
+        let env = Environment::prefixed("EN_").with_vars(&["DATABASE_URL", "DATABASE_POOL_SIZE"]);
+        let mut parsed = Self::schema().parse_env(env)?;
+        let required = parsed.take::<RequiredENConfig>();
+        let optional = parsed.take::<OptionalENConfig>();
+        let experimental = parsed.take::<ExperimentalENConfig>();
+        let postgres = parsed.take::<PostgresConfig>();
+        let api_component_config = parsed.take::<ApiComponentConfig>();
+        let tree_component_config = parsed.take::<TreeComponentConfig>();
 
         let client = L2Client::http(&required.main_node_url()?)
             .context("Unable to build HTTP client for main node")?
@@ -905,8 +900,6 @@ impl ExternalNodeConfig {
                 l1_chain_id
             );
         }
-
-        let postgres = PostgresConfig::from_env()?;
 
         Ok(Self {
             remote,

@@ -4,7 +4,12 @@ use super::*;
 
 #[test]
 fn parsing_optional_config_from_empty_env() {
-    let config: OptionalENConfig = envy::prefixed("EN_").from_iter([]).unwrap();
+    let config: OptionalENConfig = ConfigSchema::default()
+        .insert::<OptionalENConfig>("")
+        .parse_env(Environment::default())
+        .unwrap()
+        .take();
+
     assert_eq!(config.filters_limit, 10_000);
     assert_eq!(config.subscriptions_limit, 10_000);
     assert_eq!(config.fee_history_limit, 1_024);
@@ -62,11 +67,12 @@ fn parsing_optional_config_from_env() {
         ),
         ("EN_L1_BATCH_COMMIT_DATA_GENERATOR_MODE", "Validium"),
     ];
-    let env_vars = env_vars
-        .into_iter()
-        .map(|(name, value)| (name.to_owned(), value.to_owned()));
 
-    let config: OptionalENConfig = envy::prefixed("EN_").from_iter(env_vars).unwrap();
+    let config: OptionalENConfig = ConfigSchema::default()
+        .insert::<OptionalENConfig>("")
+        .parse_env(Environment::from_iter("EN_", env_vars))
+        .unwrap()
+        .take();
     assert!(config.filters_disabled);
     assert_eq!(config.filters_limit, 5_000);
     assert_eq!(config.subscriptions_limit, 20_000);
@@ -110,9 +116,16 @@ fn parsing_optional_config_from_env() {
 
 #[test]
 fn parsing_experimental_config_from_empty_env() {
-    let config: ExperimentalENConfig = envy::prefixed("EN_EXPERIMENTAL_").from_iter([]).unwrap();
+    let config: ExperimentalENConfig = ConfigSchema::default()
+        .insert::<ExperimentalENConfig>("experimental")
+        .parse_env(Environment::default())
+        .unwrap()
+        .take();
+
     assert_eq!(config.state_keeper_db_block_cache_capacity(), 128 << 20);
     assert_eq!(config.state_keeper_db_max_open_files, None);
+    assert!(!config.pruning_enabled);
+    assert!(!config.snapshots_recovery_enabled);
 }
 
 #[test]
@@ -123,14 +136,31 @@ fn parsing_experimental_config_from_env() {
             "64",
         ),
         ("EN_EXPERIMENTAL_STATE_KEEPER_DB_MAX_OPEN_FILES", "100"),
+        ("EN_SNAPSHOTS_RECOVERY_ENABLED", "true"),
+        ("EN_SNAPSHOTS_RECOVERY_POSTGRES_MAX_CONCURRENCY", "10"),
+        // Test a mix of original and aliased params
+        ("EN_EXPERIMENTAL_PRUNING_ENABLED", "true"),
+        ("EN_EXPERIMENTAL_PRUNING_ENABLED", "true"),
+        ("EN_PRUNING_CHUNK_SIZE", "5"),
+        ("EN_EXPERIMENTAL_PRUNING_REMOVAL_DELAY_SEC", "90"),
     ];
-    let env_vars = env_vars
-        .into_iter()
-        .map(|(name, value)| (name.to_owned(), value.to_owned()));
+    let config: ExperimentalENConfig = ConfigSchema::default()
+        .insert_aliased::<ExperimentalENConfig>(
+            "experimental",
+            [Alias::prefix("").exclude(|name| name.starts_with("state_keeper_"))],
+        )
+        .parse_env(Environment::from_iter("EN_", env_vars))
+        .unwrap()
+        .take();
 
-    let config: ExperimentalENConfig = envy::prefixed("EN_EXPERIMENTAL_")
-        .from_iter(env_vars)
-        .unwrap();
     assert_eq!(config.state_keeper_db_block_cache_capacity(), 64 << 20);
     assert_eq!(config.state_keeper_db_max_open_files, NonZeroU32::new(100));
+    assert!(config.snapshots_recovery_enabled);
+    assert_eq!(
+        config.snapshots_recovery_postgres_max_concurrency,
+        NonZeroUsize::new(10).unwrap()
+    );
+    assert!(config.pruning_enabled);
+    assert_eq!(config.pruning_chunk_size, 5);
+    assert_eq!(config.pruning_removal_delay(), Duration::from_secs(90));
 }

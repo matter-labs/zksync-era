@@ -6,7 +6,7 @@ use std::{any, fmt, num, path::PathBuf};
 pub use once_cell::sync::Lazy;
 
 /// Describes a configuration (i.e., a group of related parameters).
-pub trait DescribeConfig {
+pub trait DescribeConfig: 'static {
     /// Provides the description.
     fn describe_config() -> &'static ConfigMetadata;
 }
