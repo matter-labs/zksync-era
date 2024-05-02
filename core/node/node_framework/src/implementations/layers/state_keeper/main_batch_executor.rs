@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use zksync_config::{configs::chain::StateKeeperConfig, DBConfig};
 use zksync_core::state_keeper::{AsyncRocksdbCache, MainBatchExecutor};
-use zksync_state::AsyncCatchupTask;
+use zksync_state::{AsyncCatchupTask, RocksdbStorageOptions};
 
 use crate::{
     implementations::resources::{
@@ -39,9 +39,17 @@ impl WiringLayer for MainBatchExecutorLayer {
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
 
+        let cache_options = RocksdbStorageOptions {
+            block_cache_capacity: self
+                .db_config
+                .experimental
+                .state_keeper_db_block_cache_capacity(),
+            max_open_files: self.db_config.experimental.state_keeper_db_max_open_files,
+        };
         let (storage_factory, task) = AsyncRocksdbCache::new(
             master_pool.get_singleton().await?,
             self.db_config.state_keeper_db_path,
+            cache_options,
         );
         let builder = MainBatchExecutor::new(
             Arc::new(storage_factory),
