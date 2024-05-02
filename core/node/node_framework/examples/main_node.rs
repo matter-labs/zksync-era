@@ -338,16 +338,9 @@ impl MainNodeBuilder {
 
     fn add_commitment_generator_layer(mut self) -> anyhow::Result<Self> {
         let genesis = GenesisConfig::from_env()?;
-        let input_generator: Box<dyn InputGenerator> = if genesis
-            .l1_batch_commit_data_generator_mode
-            == L1BatchCommitDataGeneratorMode::Validium
-        {
-            Box::new(ValidiumInputGenerator)
-        } else {
-            Box::new(RollupInputGenerator)
-        };
-        self.node
-            .add_layer(CommitmentGeneratorLayer::new(input_generator));
+        self.node.add_layer(CommitmentGeneratorLayer::new(
+            genesis.l1_batch_commit_data_generator_mode,
+        ));
 
         Ok(self)
     }

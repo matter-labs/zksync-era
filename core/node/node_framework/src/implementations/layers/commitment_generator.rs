@@ -1,4 +1,8 @@
-use zksync_commitment_generator::{input_generation::InputGenerator, CommitmentGenerator};
+use zksync_commitment_generator::{
+    input_generation::{InputGenerator, RollupInputGenerator, ValidiumInputGenerator},
+    CommitmentGenerator,
+};
+use zksync_config::configs::chain::L1BatchCommitDataGeneratorMode;
 
 use crate::{
     implementations::resources::{healthcheck::AppHealthCheckResource, pools::MasterPoolResource},
@@ -12,7 +16,14 @@ pub struct CommitmentGeneratorLayer {
 }
 
 impl CommitmentGeneratorLayer {
-    pub fn new(input_generator: Box<dyn InputGenerator>) -> Self {
+    pub fn new(commit_data_generator_mode: L1BatchCommitDataGeneratorMode) -> Self {
+        let input_generator: Box<dyn InputGenerator> =
+            if commit_data_generator_mode == L1BatchCommitDataGeneratorMode::Validium {
+                Box::new(ValidiumInputGenerator)
+            } else {
+                Box::new(RollupInputGenerator)
+            };
+
         Self { input_generator }
     }
 }
