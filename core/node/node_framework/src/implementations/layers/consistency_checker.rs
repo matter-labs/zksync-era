@@ -3,9 +3,10 @@ use zksync_types::Address;
 
 use crate::{
     implementations::resources::{
-        eth_interface::EthInterfaceResource, healthcheck::AppHealthCheckResource,
+        eth_interface::EthInterfaceResource,
+        healthcheck::AppHealthCheckResource,
         l1_batch_commit_data_generator::L1BatchCommitDataGeneratorResource,
-        pools::MasterPoolResource,
+        pools::{MasterPool, PoolResource},
     },
     service::{ServiceContext, StopReceiver},
     task::Task,
@@ -40,7 +41,7 @@ impl WiringLayer for ConsistencyCheckerLayer {
         // Get resources.
         let l1_client = context.get_resource::<EthInterfaceResource>().await?.0;
 
-        let pool_resource = context.get_resource::<MasterPoolResource>().await?;
+        let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
         let singleton_pool = pool_resource.get_singleton().await?;
 
         let l1_batch_commit_data_generator = context

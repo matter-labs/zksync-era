@@ -5,7 +5,10 @@ use zksync_core::state_keeper::{AsyncRocksdbCache, MainBatchExecutor};
 use zksync_state::AsyncCatchupTask;
 
 use crate::{
-    implementations::resources::{pools::MasterPoolResource, state_keeper::BatchExecutorResource},
+    implementations::resources::{
+        pools::{MasterPool, PoolResource},
+        state_keeper::BatchExecutorResource,
+    },
     resource::Unique,
     service::{ServiceContext, StopReceiver},
     task::Task,
@@ -34,7 +37,7 @@ impl WiringLayer for MainBatchExecutorLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let master_pool = context.get_resource::<MasterPoolResource>().await?;
+        let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
 
         let (storage_factory, task) = AsyncRocksdbCache::new(
             master_pool.get_singleton().await?,
