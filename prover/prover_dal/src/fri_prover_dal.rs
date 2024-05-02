@@ -4,9 +4,7 @@ use std::{collections::HashMap, convert::TryFrom, time::Duration};
 use zksync_basic_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     protocol_version::ProtocolVersionId,
-    prover_dal::{
-        FriProverJobMetadata, JobCountStatistics, ProverJobStatus, StuckJobs, EIP_4844_CIRCUIT_ID,
-    },
+    prover_dal::{FriProverJobMetadata, JobCountStatistics, ProverJobStatus, StuckJobs},
     L1BatchNumber,
 };
 use zksync_db_connection::{
