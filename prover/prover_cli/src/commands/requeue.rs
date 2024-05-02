@@ -9,7 +9,7 @@ use zksync_types::{basic_fri_types::AggregationRound, prover_dal::StuckJobs, L1B
 pub struct Args {
     #[clap(short, long)]
     batch: L1BatchNumber,
-    /// Maximum number of attempts to requeue a job.
+    /// Maximum number of attempts to re-queue a job.
     /// Default value is 10.
     /// NOTE: this argument is temporary and will be deprecated once the `config` command is implemented.
     #[clap(long, default_value_t = 10)]
