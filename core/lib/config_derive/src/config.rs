@@ -45,6 +45,7 @@ fn parse_docs(attrs: &[Attribute]) -> String {
 /// Recognized subset of `serde` field attributes.
 #[derive(Debug)]
 struct SerdeData {
+    rename: Option<String>,
     aliases: Vec<String>,
     default: Option<Option<Path>>,
 }
@@ -52,13 +53,16 @@ struct SerdeData {
 impl SerdeData {
     fn new(attrs: &[Attribute]) -> syn::Result<Self> {
         let serde_attrs = attrs.iter().filter(|attr| attr.path().is_ident("serde"));
+        let mut rename = None;
         let mut aliases = vec![];
         let mut default = None;
         for attr in serde_attrs {
             attr.parse_nested_meta(|meta| {
-                if meta.path.is_ident("alias") {
-                    let value = meta.value()?;
-                    let s: LitStr = value.parse()?;
+                if meta.path.is_ident("rename") {
+                    let s: LitStr = meta.value()?.parse()?;
+                    rename = Some(s.value());
+                } else if meta.path.is_ident("alias") {
+                    let s: LitStr = meta.value()?.parse()?;
                     aliases.push(s.value());
                 } else if meta.path.is_ident("default") {
                     if meta.input.is_empty() {
@@ -74,7 +78,11 @@ impl SerdeData {
                 Ok(())
             })?;
         }
-        Ok(Self { aliases, default })
+        Ok(Self {
+            rename,
+            aliases,
+            default,
+        })
     }
 }
 
@@ -151,6 +159,11 @@ impl ConfigField {
     fn describe(&self) -> proc_macro2::TokenStream {
         let cr = quote!(::zksync_config::metadata);
         let name = &self.name;
+        let name_str = self
+            .serde_data
+            .rename
+            .clone()
+            .unwrap_or_else(|| name.to_string());
         let aliases = self.serde_data.aliases.iter();
         let help = &self.docs;
 
@@ -185,12 +198,12 @@ impl ConfigField {
         quote_spanned! {name.span()=> {
             let base_type = #cr::RustType::of::<#base_type>(#base_type_in_code);
             #cr::ParamMetadata {
-                name: ::core::stringify!(#name),
+                name: #name_str,
                 aliases: &[#(#aliases,)*],
                 help: #help,
                 ty: #cr::RustType::of::<#ty>(#ty_in_code),
                 base_type,
-                unit: #cr::UnitOfMeasurement::detect(::core::stringify!(#name), base_type),
+                unit: #cr::UnitOfMeasurement::detect(#name_str, base_type),
                 default_value: #default_value,
             }
         }}
