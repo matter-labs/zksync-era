@@ -29,7 +29,14 @@ pub struct ParamMetadata {
     pub ty: RustType,
     pub base_type: RustType,
     pub unit: Option<UnitOfMeasurement>,
+    #[doc(hidden)] // set by derive macro
     pub default_value: Option<fn() -> Box<dyn fmt::Debug>>,
+}
+
+impl ParamMetadata {
+    pub fn default_value(&self) -> Option<impl fmt::Debug + '_> {
+        self.default_value.map(|value_fn| value_fn())
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
