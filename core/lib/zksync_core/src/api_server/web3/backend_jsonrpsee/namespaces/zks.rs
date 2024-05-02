@@ -7,7 +7,7 @@ use zksync_types::{
         ProtocolVersion, TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
-    fee_model::FeeParams,
+    fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     transaction_request::CallRequest,
     Address, Bytes, L1BatchNumber, L2BlockNumber, StorageLogQueryType, H256, U256, U64,
 };
@@ -141,14 +141,22 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
+    // to be removed in favor of `get_batch_fee_input`
     async fn get_l1_gas_price(&self) -> RpcResult<U64> {
-        self.get_l1_gas_price_impl()
-            .await
-            .map_err(|err| self.current_method().map_err(err))
+        match self.get_batch_fee_input_impl().await {
+            Ok(fee_input) => Ok(fee_input.l1_gas_price.into()),
+            Err(err) => Err(self.current_method().map_err(err)),
+        }
     }
 
     async fn get_fee_params(&self) -> RpcResult<FeeParams> {
         Ok(self.get_fee_params_impl())
+    }
+
+    async fn get_batch_fee_input(&self) -> RpcResult<PubdataIndependentBatchFeeModelInput> {
+        self.get_batch_fee_input_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
     }
 
     async fn get_protocol_version(

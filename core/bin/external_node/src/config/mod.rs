@@ -1,6 +1,6 @@
 use std::{
     env, fmt,
-    num::{NonZeroU32, NonZeroUsize},
+    num::{NonZeroU32, NonZeroU64, NonZeroUsize},
     str::FromStr,
     time::Duration,
 };
@@ -383,11 +383,24 @@ pub(crate) struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_snapshots_recovery_postgres_max_concurrency")]
     pub snapshots_recovery_postgres_max_concurrency: NonZeroUsize,
 
+    /// Enables pruning of the historical node state (Postgres and Merkle tree). The node will retain
+    /// recent state and will continuously remove (prune) old enough parts of the state in the background.
+    #[serde(default)]
+    pub pruning_enabled: bool,
+    /// Number of L1 batches pruned at a time.
     #[serde(default = "OptionalENConfig::default_pruning_chunk_size")]
     pub pruning_chunk_size: u32,
-
-    /// If set, l1 batches will be pruned after they are that long
-    pub pruning_data_retention_hours: Option<u64>,
+    /// Delta between soft- and hard-removing data from Postgres. Should be reasonably large (order of 60 seconds).
+    /// The default value is 60 seconds.
+    #[serde(default = "OptionalENConfig::default_pruning_removal_delay_sec")]
+    pruning_removal_delay_sec: NonZeroU64,
+    /// If set, L1 batches will be pruned after the batch timestamp is this old (in seconds). Note that an L1 batch
+    /// may be temporarily retained for other reasons; e.g., a batch cannot be pruned until it is executed on L1,
+    /// which happens roughly 24 hours after its generation on the mainnet. Thus, in practice this value can specify
+    /// the retention period greater than that implicitly imposed by other criteria (e.g., 7 or 30 days).
+    /// If set to 0, L1 batches will not be retained based on their timestamp. The default value is 1 hour.
+    #[serde(default = "OptionalENConfig::default_pruning_data_retention_sec")]
+    pruning_data_retention_sec: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -531,6 +544,14 @@ impl OptionalENConfig {
         10
     }
 
+    fn default_pruning_removal_delay_sec() -> NonZeroU64 {
+        NonZeroU64::new(60).unwrap()
+    }
+
+    fn default_pruning_data_retention_sec() -> u64 {
+        3_600 // 1 hour
+    }
+
     pub fn from_env() -> anyhow::Result<Self> {
         envy::prefixed("EN_")
             .from_env()
@@ -611,6 +632,14 @@ impl OptionalENConfig {
 
     pub fn mempool_cache_update_interval(&self) -> Duration {
         Duration::from_millis(self.mempool_cache_update_interval)
+    }
+
+    pub fn pruning_removal_delay(&self) -> Duration {
+        Duration::from_secs(self.pruning_removal_delay_sec.get())
+    }
+
+    pub fn pruning_data_retention(&self) -> Duration {
+        Duration::from_secs(self.pruning_data_retention_sec)
     }
 
     #[cfg(test)]

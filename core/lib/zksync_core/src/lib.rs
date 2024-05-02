@@ -101,7 +101,6 @@ pub mod consistency_checker;
 pub mod db_pruner;
 pub mod eth_sender;
 pub mod fee_model;
-pub mod gas_tracker;
 pub mod genesis;
 pub mod l1_gas_price;
 pub mod metadata_calculator;
@@ -1034,7 +1033,7 @@ async fn run_tree(
     }
 
     let tree_health_check = metadata_calculator.tree_health_check();
-    app_health.insert_component(tree_health_check)?;
+    app_health.insert_custom_component(Arc::new(tree_health_check))?;
     let tree_task = tokio::spawn(metadata_calculator.run(stop_receiver));
     task_futures.push(tree_task);
 

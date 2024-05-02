@@ -163,13 +163,24 @@ async fn run_tree(
     .await
     .context("failed creating DB pool for Merkle tree recovery")?;
 
-    let metadata_calculator = MetadataCalculator::new(metadata_calculator_config, None, tree_pool)
-        .await
-        .context("failed initializing metadata calculator")?
-        .with_recovery_pool(recovery_pool);
+    let mut metadata_calculator =
+        MetadataCalculator::new(metadata_calculator_config, None, tree_pool)
+            .await
+            .context("failed initializing metadata calculator")?
+            .with_recovery_pool(recovery_pool);
 
     let tree_reader = Arc::new(metadata_calculator.tree_reader());
-    app_health.insert_component(metadata_calculator.tree_health_check())?;
+    app_health.insert_custom_component(Arc::new(metadata_calculator.tree_health_check()))?;
+
+    if config.optional.pruning_enabled {
+        tracing::warn!("Proceeding with node state pruning for the Merkle tree. This is an experimental feature; use at your own risk");
+
+        let pruning_task =
+            metadata_calculator.pruning_task(config.optional.pruning_removal_delay() / 2);
+        app_health.insert_component(pruning_task.health_check())?;
+        let pruning_task_handle = tokio::spawn(pruning_task.run(stop_receiver.clone()));
+        task_futures.push(pruning_task_handle);
+    }
 
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
@@ -284,21 +295,22 @@ async fn run_core(
         }
     }));
 
-    if let Some(data_retention_hours) = config.optional.pruning_data_retention_hours {
-        let minimum_l1_batch_age = Duration::from_secs(3600 * data_retention_hours);
+    if config.optional.pruning_enabled {
+        tracing::warn!("Proceeding with node state pruning for Postgres. This is an experimental feature; use at your own risk");
+
+        let minimum_l1_batch_age = config.optional.pruning_data_retention();
         tracing::info!(
             "Configured pruning of batches after they become {minimum_l1_batch_age:?} old"
         );
         let db_pruner = DbPruner::new(
             DbPrunerConfig {
-                // don't change this value without adjusting API server pruning info cache max age
-                soft_and_hard_pruning_time_delta: Duration::from_secs(60),
-                next_iterations_delay: Duration::from_secs(30),
+                removal_delay: config.optional.pruning_removal_delay(),
                 pruned_batch_chunk_size: config.optional.pruning_chunk_size,
                 minimum_l1_batch_age,
             },
             connection_pool.clone(),
         );
+        app_health.insert_component(db_pruner.health_check())?;
         task_handles.push(tokio::spawn(db_pruner.run(stop_receiver.clone())));
     }
 
@@ -501,6 +513,10 @@ async fn run_api(
         mempool_cache_update_task.run(stop_receiver.clone()),
     ));
 
+    // The refresh interval should be several times lower than the pruning removal delay, so that
+    // soft-pruning will timely propagate to the API server.
+    let pruning_info_refresh_interval = config.optional.pruning_removal_delay() / 5;
+
     if components.contains(&Component::HttpApi) {
         let mut builder =
             ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
@@ -508,6 +524,7 @@ async fn run_api(
                 .with_filter_limit(config.optional.filters_limit)
                 .with_batch_request_size_limit(config.optional.max_batch_request_size)
                 .with_response_body_size_limit(config.optional.max_response_body_size())
+                .with_pruning_info_refresh_interval(pruning_info_refresh_interval)
                 .with_tx_sender(tx_sender.clone())
                 .with_vm_barrier(vm_barrier.clone())
                 .with_sync_state(sync_state.clone())
@@ -537,6 +554,7 @@ async fn run_api(
                 .with_batch_request_size_limit(config.optional.max_batch_request_size)
                 .with_response_body_size_limit(config.optional.max_response_body_size())
                 .with_polling_interval(config.optional.polling_interval())
+                .with_pruning_info_refresh_interval(pruning_info_refresh_interval)
                 .with_tx_sender(tx_sender)
                 .with_vm_barrier(vm_barrier)
                 .with_sync_state(sync_state)

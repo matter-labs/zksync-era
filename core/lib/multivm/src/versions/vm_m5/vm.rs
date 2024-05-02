@@ -175,10 +175,6 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
         CurrentExecutionState {
             events,
-            storage_log_queries: storage_log_queries
-                .into_iter()
-                .map(GlueInto::glue_into)
-                .collect(),
             deduplicated_storage_log_queries: deduplicated_logs
                 .into_iter()
                 .map(GlueInto::glue_into)

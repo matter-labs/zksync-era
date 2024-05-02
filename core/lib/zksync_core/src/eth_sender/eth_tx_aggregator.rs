@@ -24,14 +24,12 @@ use zksync_types::{
 };
 
 use super::aggregated_operations::AggregatedOperation;
-use crate::{
-    eth_sender::{
-        l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
-        metrics::{PubdataKind, METRICS},
-        zksync_functions::ZkSyncFunctions,
-        Aggregator, ETHSenderError,
-    },
-    gas_tracker::agg_l1_batch_base_cost,
+use crate::eth_sender::{
+    l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
+    metrics::{PubdataKind, METRICS},
+    utils::agg_l1_batch_base_cost,
+    zksync_functions::ZkSyncFunctions,
+    Aggregator, ETHSenderError,
 };
 
 /// Data queried from L1 using multicall contract.
