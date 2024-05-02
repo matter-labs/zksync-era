@@ -386,36 +386,6 @@ pub(crate) struct OptionalENConfig {
 
     #[serde(default = "OptionalENConfig::default_l1_batch_commit_data_generator_mode")]
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
-    /// Enables application-level snapshot recovery. Required to start a node that was recovered from a snapshot,
-    /// or to initialize a node from a snapshot. Has no effect if a node that was initialized from a Postgres dump
-    /// or was synced from genesis.
-    ///
-    /// This is an experimental and incomplete feature; do not use unless you know what you're doing.
-    #[serde(default)]
-    pub snapshots_recovery_enabled: bool,
-    /// Maximum concurrency factor for the concurrent parts of snapshot recovery for Postgres. It may be useful to
-    /// reduce this factor to about 5 if snapshot recovery overloads I/O capacity of the node. Conversely,
-    /// if I/O capacity of your infra is high, you may increase concurrency to speed up Postgres recovery.
-    #[serde(default = "OptionalENConfig::default_snapshots_recovery_postgres_max_concurrency")]
-    pub snapshots_recovery_postgres_max_concurrency: NonZeroUsize,
-
-    /// Enables pruning of the historical node state (Postgres and Merkle tree). The node will retain
-    /// recent state and will continuously remove (prune) old enough parts of the state in the background.
-    #[serde(default)]
-    pub pruning_enabled: bool,
-    /// Number of L1 batches pruned at a time.
-    #[serde(default = "OptionalENConfig::default_pruning_chunk_size")]
-    pub pruning_chunk_size: u32,
-    /// Delta between soft- and hard-removing data from Postgres. Should be reasonably large (order of 60 seconds).
-    #[serde(default = "OptionalENConfig::default_pruning_removal_delay_sec")]
-    pruning_removal_delay_sec: NonZeroU64,
-    /// If set, L1 batches will be pruned after the batch timestamp is this old. Note that an L1 batch
-    /// may be temporarily retained for other reasons; e.g., a batch cannot be pruned until it is executed on L1,
-    /// which happens roughly 24 hours after its generation on the mainnet. Thus, in practice this value can specify
-    /// the retention period greater than that implicitly imposed by other criteria (e.g., 7 or 30 days).
-    /// If set to 0, L1 batches will not be retained based on their timestamp.
-    #[serde(default = "OptionalENConfig::default_pruning_data_retention_sec")]
-    pruning_data_retention_sec: u64,
 }
 
 impl OptionalENConfig {
@@ -630,14 +600,6 @@ impl OptionalENConfig {
         Duration::from_millis(self.mempool_cache_update_interval_ms)
     }
 
-    pub fn pruning_removal_delay(&self) -> Duration {
-        Duration::from_secs(self.pruning_removal_delay_sec.get())
-    }
-
-    pub fn pruning_data_retention(&self) -> Duration {
-        Duration::from_secs(self.pruning_data_retention_sec)
-    }
-
     #[cfg(test)]
     fn mock() -> Self {
         // Set all values to their defaults
@@ -729,8 +691,9 @@ impl PostgresConfig {
     }
 }
 
-/// Experimental part of the external node config. All parameters in this group can change or disappear without notice.
-/// Eventually, parameters from this group generally end up in the optional group.
+/// # Experimental part of the external node config
+///
+/// All parameters in this group can change or disappear without notice.
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct ExperimentalENConfig {
     // State keeper cache config
@@ -740,6 +703,37 @@ pub(crate) struct ExperimentalENConfig {
     /// Maximum number of files concurrently opened by state keeper cache RocksDB. Useful to fit into OS limits; can be used
     /// as a rudimentary way to control RAM usage of the cache.
     pub state_keeper_db_max_open_files: Option<NonZeroU32>,
+
+    /// Enables application-level snapshot recovery. Required to start a node that was recovered from a snapshot,
+    /// or to initialize a node from a snapshot. Has no effect if a node that was initialized from a Postgres dump
+    /// or was synced from genesis.
+    ///
+    /// This is an experimental and incomplete feature; do not use unless you know what you're doing.
+    #[serde(default)]
+    pub snapshots_recovery_enabled: bool,
+    /// Maximum concurrency factor for the concurrent parts of snapshot recovery for Postgres. It may be useful to
+    /// reduce this factor to about 5 if snapshot recovery overloads I/O capacity of the node. Conversely,
+    /// if I/O capacity of your infra is high, you may increase concurrency to speed up Postgres recovery.
+    #[serde(default = "OptionalENConfig::default_snapshots_recovery_postgres_max_concurrency")]
+    pub snapshots_recovery_postgres_max_concurrency: NonZeroUsize,
+
+    /// Enables pruning of the historical node state (Postgres and Merkle tree). The node will retain
+    /// recent state and will continuously remove (prune) old enough parts of the state in the background.
+    #[serde(default)]
+    pub pruning_enabled: bool,
+    /// Number of L1 batches pruned at a time.
+    #[serde(default = "OptionalENConfig::default_pruning_chunk_size")]
+    pub pruning_chunk_size: u32,
+    /// Delta between soft- and hard-removing data from Postgres. Should be reasonably large (order of 60 seconds).
+    #[serde(default = "OptionalENConfig::default_pruning_removal_delay_sec")]
+    pruning_removal_delay_sec: NonZeroU64,
+    /// If set, L1 batches will be pruned after the batch timestamp is this old. Note that an L1 batch
+    /// may be temporarily retained for other reasons; e.g., a batch cannot be pruned until it is executed on L1,
+    /// which happens roughly 24 hours after its generation on the mainnet. Thus, in practice this value can specify
+    /// the retention period greater than that implicitly imposed by other criteria (e.g., 7 or 30 days).
+    /// If set to 0, L1 batches will not be retained based on their timestamp.
+    #[serde(default = "OptionalENConfig::default_pruning_data_retention_sec")]
+    pruning_data_retention_sec: u64,
 }
 
 impl ExperimentalENConfig {
@@ -749,16 +743,21 @@ impl ExperimentalENConfig {
 
     #[cfg(test)]
     fn mock() -> Self {
-        Self {
-            state_keeper_db_block_cache_capacity_mb:
-                Self::default_state_keeper_db_block_cache_capacity_mb(),
-            state_keeper_db_max_open_files: None,
-        }
+        // Set all values to their defaults
+        serde_json::from_str("{}").unwrap()
     }
 
     /// Returns the size of block cache for the state keeper RocksDB cache in bytes.
     pub fn state_keeper_db_block_cache_capacity(&self) -> usize {
         self.state_keeper_db_block_cache_capacity_mb * BYTES_IN_MEGABYTE
+    }
+
+    pub fn pruning_removal_delay(&self) -> Duration {
+        Duration::from_secs(self.pruning_removal_delay_sec.get())
+    }
+
+    pub fn pruning_data_retention(&self) -> Duration {
+        Duration::from_secs(self.pruning_data_retention_sec)
     }
 }
 

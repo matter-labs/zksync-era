@@ -152,7 +152,7 @@ async fn run_tree(
     };
 
     let max_concurrency = config
-        .optional
+        .experimental
         .snapshots_recovery_postgres_max_concurrency
         .get();
     let max_concurrency = u32::try_from(max_concurrency).with_context(|| {
@@ -175,11 +175,11 @@ async fn run_tree(
     let tree_reader = Arc::new(metadata_calculator.tree_reader());
     app_health.insert_custom_component(Arc::new(metadata_calculator.tree_health_check()))?;
 
-    if config.optional.pruning_enabled {
+    if config.experimental.pruning_enabled {
         tracing::warn!("Proceeding with node state pruning for the Merkle tree. This is an experimental feature; use at your own risk");
 
         let pruning_task =
-            metadata_calculator.pruning_task(config.optional.pruning_removal_delay() / 2);
+            metadata_calculator.pruning_task(config.experimental.pruning_removal_delay() / 2);
         app_health.insert_component(pruning_task.health_check())?;
         let pruning_task_handle = tokio::spawn(pruning_task.run(stop_receiver.clone()));
         task_futures.push(pruning_task_handle);
@@ -297,17 +297,17 @@ async fn run_core(
         }
     }));
 
-    if config.optional.pruning_enabled {
+    if config.experimental.pruning_enabled {
         tracing::warn!("Proceeding with node state pruning for Postgres. This is an experimental feature; use at your own risk");
 
-        let minimum_l1_batch_age = config.optional.pruning_data_retention();
+        let minimum_l1_batch_age = config.experimental.pruning_data_retention();
         tracing::info!(
             "Configured pruning of batches after they become {minimum_l1_batch_age:?} old"
         );
         let db_pruner = DbPruner::new(
             DbPrunerConfig {
-                removal_delay: config.optional.pruning_removal_delay(),
-                pruned_batch_chunk_size: config.optional.pruning_chunk_size,
+                removal_delay: config.experimental.pruning_removal_delay(),
+                pruned_batch_chunk_size: config.experimental.pruning_chunk_size,
                 minimum_l1_batch_age,
             },
             connection_pool.clone(),
@@ -517,7 +517,7 @@ async fn run_api(
 
     // The refresh interval should be several times lower than the pruning removal delay, so that
     // soft-pruning will timely propagate to the API server.
-    let pruning_info_refresh_interval = config.optional.pruning_removal_delay() / 5;
+    let pruning_info_refresh_interval = config.experimental.pruning_removal_delay() / 5;
 
     if components.contains(&Component::HttpApi) {
         let mut builder =
@@ -953,7 +953,7 @@ async fn run_node(
         main_node_client.clone(),
         &app_health,
         config.remote.l2_chain_id,
-        config.optional.snapshots_recovery_enabled,
+        config.experimental.snapshots_recovery_enabled,
     )
     .await?;
     let sigint_receiver = env.setup_sigint_handler();
