@@ -8120,7 +8120,6 @@ dependencies = [
  "num_enum 0.7.2",
  "serde",
  "serde_json",
- "sqlx",
  "strum",
  "web3",
 ]
