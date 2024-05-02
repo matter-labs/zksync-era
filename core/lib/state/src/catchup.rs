@@ -8,7 +8,7 @@ use zksync_shared_metrics::{SnapshotRecoveryStage, APP_METRICS};
 use zksync_storage::RocksDB;
 use zksync_types::L1BatchNumber;
 
-use crate::{RocksdbStorage, StateKeeperColumnFamily};
+use crate::{RocksdbStorage, RocksdbStorageOptions, StateKeeperColumnFamily};
 
 /// A runnable task that blocks until the provided RocksDB cache instance is caught up with
 /// Postgres.
@@ -18,6 +18,7 @@ use crate::{RocksdbStorage, StateKeeperColumnFamily};
 pub struct AsyncCatchupTask {
     pool: ConnectionPool<Core>,
     state_keeper_db_path: PathBuf,
+    state_keeper_db_options: RocksdbStorageOptions,
     rocksdb_cell: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
     to_l1_batch_number: Option<L1BatchNumber>,
 }
@@ -28,12 +29,14 @@ impl AsyncCatchupTask {
     pub fn new(
         pool: ConnectionPool<Core>,
         state_keeper_db_path: PathBuf,
+        state_keeper_db_options: RocksdbStorageOptions,
         rocksdb_cell: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
         to_l1_batch_number: Option<L1BatchNumber>,
     ) -> Self {
         Self {
             pool,
             state_keeper_db_path,
+            state_keeper_db_options,
             rocksdb_cell,
             to_l1_batch_number,
         }
@@ -48,10 +51,14 @@ impl AsyncCatchupTask {
         let started_at = Instant::now();
         tracing::debug!("Catching up RocksDB asynchronously");
 
-        let mut rocksdb_builder = RocksdbStorage::builder(&self.state_keeper_db_path)
-            .await
-            .context("Failed creating RocksDB storage builder")?;
-        let mut connection = self.pool.connection().await?;
+        let mut rocksdb_builder = RocksdbStorage::builder_with_options(
+            &self.state_keeper_db_path,
+            self.state_keeper_db_options,
+        )
+        .await
+        .context("Failed creating RocksDB storage builder")?;
+
+        let mut connection = self.pool.connection_tagged("state_keeper").await?;
         let was_recovered_from_snapshot = rocksdb_builder
             .ensure_ready(&mut connection, &stop_receiver)
             .await

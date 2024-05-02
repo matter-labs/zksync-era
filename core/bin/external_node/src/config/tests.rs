@@ -107,3 +107,30 @@ fn parsing_optional_config_from_env() {
         L1BatchCommitDataGeneratorMode::Validium
     );
 }
+
+#[test]
+fn parsing_experimental_config_from_empty_env() {
+    let config: ExperimentalENConfig = envy::prefixed("EN_EXPERIMENTAL_").from_iter([]).unwrap();
+    assert_eq!(config.state_keeper_db_block_cache_capacity(), 128 << 20);
+    assert_eq!(config.state_keeper_db_max_open_files, None);
+}
+
+#[test]
+fn parsing_experimental_config_from_env() {
+    let env_vars = [
+        (
+            "EN_EXPERIMENTAL_STATE_KEEPER_DB_BLOCK_CACHE_CAPACITY_MB",
+            "64",
+        ),
+        ("EN_EXPERIMENTAL_STATE_KEEPER_DB_MAX_OPEN_FILES", "100"),
+    ];
+    let env_vars = env_vars
+        .into_iter()
+        .map(|(name, value)| (name.to_owned(), value.to_owned()));
+
+    let config: ExperimentalENConfig = envy::prefixed("EN_EXPERIMENTAL_")
+        .from_iter(env_vars)
+        .unwrap();
+    assert_eq!(config.state_keeper_db_block_cache_capacity(), 64 << 20);
+    assert_eq!(config.state_keeper_db_max_open_files, NonZeroU32::new(100));
+}

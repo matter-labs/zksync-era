@@ -16,7 +16,7 @@ use vm_utils::storage::L1BatchParamsProvider;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_state::{
     AsyncCatchupTask, BatchDiff, PgOrRocksdbStorage, ReadStorageFactory, RocksdbStorage,
-    RocksdbStorageBuilder, RocksdbWithMemory, StateKeeperColumnFamily,
+    RocksdbStorageBuilder, RocksdbStorageOptions, RocksdbWithMemory, StateKeeperColumnFamily,
 };
 use zksync_storage::RocksDB;
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2ChainId};
@@ -255,6 +255,7 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
         let catchup_task = AsyncCatchupTask::new(
             pool.clone(),
             rocksdb_path,
+            RocksdbStorageOptions::default(),
             rocksdb_cell.clone(),
             Some(loader.latest_processed_batch(&mut conn).await?),
         );

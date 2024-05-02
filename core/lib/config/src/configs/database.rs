@@ -3,6 +3,8 @@ use std::{path::PathBuf, time::Duration};
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 
+use crate::configs::ExperimentalDBConfig;
+
 /// Mode of operation for the Merkle tree.
 ///
 /// The mode does not influence how tree data is stored; i.e., a mode can be switched on the fly.
@@ -110,8 +112,11 @@ pub struct DBConfig {
     /// Merkle tree configuration.
     #[serde(skip)]
     // ^ Filled in separately in `Self::from_env()`. We cannot use `serde(flatten)` because it
-    // doesn't work with 'envy`.
+    // doesn't work with `envy`.
     pub merkle_tree: MerkleTreeConfig,
+    /// Experimental parts of the config.
+    #[serde(skip)] // same reasoning as for `merkle_tree`
+    pub experimental: ExperimentalDBConfig,
 }
 
 impl DBConfig {

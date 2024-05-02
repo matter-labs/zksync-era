@@ -71,6 +71,7 @@ impl ProtoRepr for proto::MerkleTree {
 
 impl ProtoRepr for proto::Db {
     type Type = configs::database::DBConfig;
+
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             state_keeper_db_path: required(&self.state_keeper_db_path)
@@ -78,6 +79,13 @@ impl ProtoRepr for proto::Db {
                 .clone()
                 .into(),
             merkle_tree: read_required_repr(&self.merkle_tree).context("merkle_tree")?,
+            experimental: self
+                .experimental
+                .as_ref()
+                .map(ProtoRepr::read)
+                .transpose()
+                .context("experimental")?
+                .unwrap_or_default(),
         })
     }
 
@@ -90,6 +98,7 @@ impl ProtoRepr for proto::Db {
                     .to_owned(),
             ),
             merkle_tree: Some(ProtoRepr::build(&this.merkle_tree)),
+            experimental: Some(ProtoRepr::build(&this.experimental)),
         }
     }
 }
