@@ -4,7 +4,7 @@ use sqlx::{postgres::types::PgInterval, types::chrono::NaiveTime};
 
 use crate::connection::DbMarker;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct InternalMarker;
 
 impl DbMarker for InternalMarker {}
