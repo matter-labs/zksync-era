@@ -102,7 +102,7 @@ describe('EVM equivalence contract', () => {
             expect(result).toEqual(expected_gas); //yul=4304
         });
     });
-/*
+    /*
     describe('Contract creation', () => {
         describe('Create from EOA', () => {
             test('Should create evm contract from EOA and allow view and non-view calls', async () => {
