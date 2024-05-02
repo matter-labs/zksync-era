@@ -7,4 +7,5 @@ pub use crate::configs::{
 
 pub mod configs;
 pub mod metadata;
+pub mod schema;
 pub mod testonly;

@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     env, fmt,
     num::{NonZeroU32, NonZeroU64, NonZeroUsize},
     path::PathBuf,
@@ -7,7 +8,7 @@ use std::{
 };
 
 use anyhow::Context;
-use serde::Deserialize;
+use serde::{de::DeserializeOwned, Deserialize};
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
 use zksync_config::{
@@ -15,6 +16,10 @@ use zksync_config::{
         api::{MaxResponseSize, MaxResponseSizeOverrides},
         chain::L1BatchCommitDataGeneratorMode,
         consensus::{ConsensusConfig, ConsensusSecrets},
+    },
+    schema::{
+        env::{EnvParserEngine, Environment},
+        Alias, ConfigSchema,
     },
     ObjectStoreConfig,
 };
@@ -38,14 +43,26 @@ use zksync_web3_decl::{
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
 
-use self::command::{Alias, ConfigSchema, Environment};
-
-mod command;
 pub(crate) mod observability;
 #[cfg(test)]
 mod tests;
 
 const BYTES_IN_MEGABYTE: usize = 1_024 * 1_024;
+
+/// Env parser engine based on the `envy` crate.
+struct Envy;
+
+impl EnvParserEngine for Envy {
+    fn parse_from_env<C: DeserializeOwned>(
+        &self,
+        prefix: &str,
+        vars: &HashMap<String, String>,
+    ) -> anyhow::Result<C> {
+        envy::prefixed(prefix)
+            .from_iter(vars.clone())
+            .map_err(Into::into)
+    }
+}
 
 /// This part of the external node config is fetched directly from the main node.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -852,7 +869,7 @@ impl ExternalNodeConfig {
         let schema = Self::schema();
         let env = Environment::prefixed("EN_")
             .with_vars(&["DATABASE_URL", "DATABASE_POOL_SIZE"])
-            .with_schema(&schema);
+            .parser(Envy, &schema);
         let required = env.parse::<RequiredENConfig>()?;
         let optional = env.parse::<OptionalENConfig>()?;
         let experimental = env.parse::<ExperimentalENConfig>()?;

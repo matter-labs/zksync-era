@@ -5,7 +5,10 @@ use super::*;
 #[test]
 fn parsing_optional_config_from_empty_env() {
     let schema = ConfigSchema::default().insert::<OptionalENConfig>("");
-    let config: OptionalENConfig = Environment::default().with_schema(&schema).parse().unwrap();
+    let config: OptionalENConfig = Environment::default()
+        .parser(Envy, &schema)
+        .parse()
+        .unwrap();
 
     assert_eq!(config.filters_limit, 10_000);
     assert_eq!(config.subscriptions_limit, 10_000);
@@ -67,7 +70,7 @@ fn parsing_optional_config_from_env() {
 
     let schema = ConfigSchema::default().insert::<OptionalENConfig>("");
     let config: OptionalENConfig = Environment::from_iter("EN_", env_vars)
-        .with_schema(&schema)
+        .parser(Envy, &schema)
         .parse()
         .unwrap();
     assert!(config.filters_disabled);
@@ -114,7 +117,10 @@ fn parsing_optional_config_from_env() {
 #[test]
 fn parsing_experimental_config_from_empty_env() {
     let schema = ConfigSchema::default().insert::<ExperimentalENConfig>("experimental");
-    let config: ExperimentalENConfig = Environment::default().with_schema(&schema).parse().unwrap();
+    let config: ExperimentalENConfig = Environment::default()
+        .parser(Envy, &schema)
+        .parse()
+        .unwrap();
 
     assert_eq!(config.state_keeper_db_block_cache_capacity(), 128 << 20);
     assert_eq!(config.state_keeper_db_max_open_files, None);
@@ -142,7 +148,7 @@ fn parsing_experimental_config_from_env() {
         [Alias::prefix("").exclude(|name| name.starts_with("state_keeper_"))],
     );
     let config: ExperimentalENConfig = Environment::from_iter("EN_", env_vars)
-        .with_schema(&schema)
+        .parser(Envy, &schema)
         .parse()
         .unwrap();
 
