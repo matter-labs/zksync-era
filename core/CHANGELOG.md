@@ -1,5 +1,41 @@
 # Changelog
 
+## [24.0.0](https://github.com/matter-labs/zksync-era/compare/core-v23.1.0...core-v24.0.0) (2024-04-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* **prover:** Protocol Upgrade 1.5.0 ([#1699](https://github.com/matter-labs/zksync-era/issues/1699))
+* shared bridge ([#298](https://github.com/matter-labs/zksync-era/issues/298))
+
+### Features
+
+* **api:** Allow granular max response size config ([#1642](https://github.com/matter-labs/zksync-era/issues/1642)) ([83c4034](https://github.com/matter-labs/zksync-era/commit/83c40341c092dda71c02fb0cc8c498c5f70c0fe4))
+* **api:** Improve logging for API server ([#1792](https://github.com/matter-labs/zksync-era/issues/1792)) ([50fbda5](https://github.com/matter-labs/zksync-era/commit/50fbda57aaba2be8b196e1f24ec4f66ea3cad962))
+* **api:** Track params for RPC methods ([#1673](https://github.com/matter-labs/zksync-era/issues/1673)) ([1a34c8b](https://github.com/matter-labs/zksync-era/commit/1a34c8beb635ea70803a19407c90a1c3e3150398))
+* **configs:** move ecosystem contracts to contracts ([#1606](https://github.com/matter-labs/zksync-era/issues/1606)) ([9d52180](https://github.com/matter-labs/zksync-era/commit/9d521807ccb94225ead751eb9267220805ed01c6))
+* EcPairing precompile as system contract ([#1761](https://github.com/matter-labs/zksync-era/issues/1761)) ([3071622](https://github.com/matter-labs/zksync-era/commit/3071622f494bff39fe24eb251c656bba9dcea32c))
+* Include create2 factory in genesis ([#1775](https://github.com/matter-labs/zksync-era/issues/1775)) ([597280b](https://github.com/matter-labs/zksync-era/commit/597280b8b698964a2a89b7f114f7f54de31bb133))
+* **prover:** Protocol Upgrade 1.5.0 ([#1699](https://github.com/matter-labs/zksync-era/issues/1699)) ([6a557f7](https://github.com/matter-labs/zksync-era/commit/6a557f7766b727f72195d65e338cc41740cdbdbd))
+* **prover:** remove redundant config fields ([#1787](https://github.com/matter-labs/zksync-era/issues/1787)) ([a784ea6](https://github.com/matter-labs/zksync-era/commit/a784ea64c847f31010af0ee71b1e64e9961dc5e1))
+* shared bridge ([#298](https://github.com/matter-labs/zksync-era/issues/298)) ([8c3478a](https://github.com/matter-labs/zksync-era/commit/8c3478ae27c78a60c272f68c15d2bd59c99c8391))
+* **tree:** Improved tree pruning ([#1532](https://github.com/matter-labs/zksync-era/issues/1532)) ([bcb192c](https://github.com/matter-labs/zksync-era/commit/bcb192c7b7bbb110f6320bc8d5bc53e12300e026))
+* **vm-runner:** implement VM runner storage layer ([#1651](https://github.com/matter-labs/zksync-era/issues/1651)) ([543f9e9](https://github.com/matter-labs/zksync-era/commit/543f9e9397915e893d7b747ceccd9b76f9d571aa))
+* **vm:** Extend bootloader memory in the new version ([#1807](https://github.com/matter-labs/zksync-era/issues/1807)) ([f461b28](https://github.com/matter-labs/zksync-era/commit/f461b28d19027a449c5d5c6678e6fcefd5e450a3))
+
+
+### Bug Fixes
+
+* **api:** Fix extra DB connection acquisition during tx submission ([#1793](https://github.com/matter-labs/zksync-era/issues/1793)) ([9c6ed83](https://github.com/matter-labs/zksync-era/commit/9c6ed838ffcfe6bd8fe157c69fbfe8823826849b))
+* **en:** correct en config vars ([#1809](https://github.com/matter-labs/zksync-era/issues/1809)) ([d340fbc](https://github.com/matter-labs/zksync-era/commit/d340fbc5719d5f60a07866358cedabe1ab505ff6))
+* **en:** Remove duplicate reorg detector ([#1783](https://github.com/matter-labs/zksync-era/issues/1783)) ([3417941](https://github.com/matter-labs/zksync-era/commit/34179412aa9bb11b8b2809d4028fbc200cf4d712))
+* **kl-factory:** base token ether tests ([#1746](https://github.com/matter-labs/zksync-era/issues/1746)) ([6cf14a0](https://github.com/matter-labs/zksync-era/commit/6cf14a0e0d9192bcc868cc02ffd9069568da10be))
+* **prover:** Fix panics if prover's config is not ready ([#1822](https://github.com/matter-labs/zksync-era/issues/1822)) ([21d90d7](https://github.com/matter-labs/zksync-era/commit/21d90d766798fb05be95028df185e9036ec7dee9))
+* **snapshots_creator:** Remove snapshots during reverts ([#1757](https://github.com/matter-labs/zksync-era/issues/1757)) ([8d587fd](https://github.com/matter-labs/zksync-era/commit/8d587fd1f1d9a59281d59cf825e2cb9430774639))
+* **types:** Add LegacyMixedCall ([#1773](https://github.com/matter-labs/zksync-era/issues/1773)) ([2b236fe](https://github.com/matter-labs/zksync-era/commit/2b236fe8c3b3a918d1bf2229c11295adbbbff9b8))
+* v23 api typo ([#1821](https://github.com/matter-labs/zksync-era/issues/1821)) ([a11fa86](https://github.com/matter-labs/zksync-era/commit/a11fa8613446f82910d63c2ad89ea29538d228ea))
+* Weaker assert for protocol version for operations ([#1800](https://github.com/matter-labs/zksync-era/issues/1800)) ([11898c2](https://github.com/matter-labs/zksync-era/commit/11898c2b58a0e04ce8bd8d4a587442b06d6c4ef3))
+
 ## [23.1.0](https://github.com/matter-labs/zksync-era/compare/core-v23.0.0...core-v23.1.0) (2024-04-22)
 
 

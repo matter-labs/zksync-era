@@ -27,8 +27,11 @@ mod conditional_sealer;
 pub(super) mod criteria;
 
 pub use self::conditional_sealer::{ConditionalSealer, NoopSealer, SequencerSealer};
-use super::{metrics::AGGREGATION_METRICS, updates::UpdatesManager};
-use crate::gas_tracker::{gas_count_from_tx_and_metrics, gas_count_from_writes};
+use super::{
+    metrics::AGGREGATION_METRICS,
+    updates::UpdatesManager,
+    utils::{gas_count_from_tx_and_metrics, gas_count_from_writes},
+};
 
 /// Reported decision regarding block sealing.
 #[derive(Debug, Clone, PartialEq)]

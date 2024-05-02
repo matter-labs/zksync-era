@@ -953,7 +953,7 @@ pub fn validate_factory_deps(
 
 #[cfg(test)]
 mod tests {
-    use secp256k1::SecretKey;
+    use zksync_crypto_primitives::K256PrivateKey;
 
     use super::*;
     use crate::web3::{
@@ -966,10 +966,12 @@ mod tests {
     async fn decode_real_tx() {
         let accounts = crate::web3::api::Accounts::new(TestTransport::default());
 
-        let pk = hex::decode("4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318")
-            .unwrap();
-        let address = PackedEthSignature::address_from_private_key(&H256::from_slice(&pk)).unwrap();
-        let key = SecretKey::from_slice(&pk).unwrap();
+        let private_key_bytes: H256 =
+            "4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318"
+                .parse()
+                .unwrap();
+        let private_key = K256PrivateKey::from_bytes(private_key_bytes).unwrap();
+        let address = private_key.address();
 
         let tx = TransactionParameters {
             nonce: Some(U256::from(1u32)),
@@ -984,7 +986,10 @@ mod tests {
             transaction_type: None,
             access_list: None,
         };
-        let signed_tx = accounts.sign_transaction(tx.clone(), &key).await.unwrap();
+        let signed_tx = accounts
+            .sign_transaction(tx.clone(), private_key.expose_secret())
+            .await
+            .unwrap();
         let (tx2, _) = TransactionRequest::from_bytes(
             signed_tx.raw_transaction.0.as_slice(),
             L2ChainId::from(270),
@@ -1000,8 +1005,8 @@ mod tests {
 
     #[test]
     fn decode_rlp() {
-        let private_key = H256::random();
-        let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
+        let private_key = K256PrivateKey::random();
+        let address = private_key.address();
 
         let mut tx = TransactionRequest {
             nonce: U256::from(1u32),
@@ -1036,8 +1041,8 @@ mod tests {
 
     #[test]
     fn decode_eip712_with_meta() {
-        let private_key = H256::random();
-        let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
+        let private_key = K256PrivateKey::random();
+        let address = private_key.address();
 
         let mut tx = TransactionRequest {
             nonce: U256::from(1u32),
@@ -1084,8 +1089,8 @@ mod tests {
 
     #[test]
     fn check_recovered_public_key_eip712() {
-        let private_key = H256::random();
-        let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
+        let private_key = K256PrivateKey::random();
+        let address = private_key.address();
 
         let transaction_request = TransactionRequest {
             nonce: U256::from(1u32),
@@ -1121,8 +1126,8 @@ mod tests {
 
     #[test]
     fn check_recovered_public_key_eip712_with_wrong_chain_id() {
-        let private_key = H256::random();
-        let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
+        let private_key = K256PrivateKey::random();
+        let address = private_key.address();
 
         let transaction_request = TransactionRequest {
             nonce: U256::from(1u32),
@@ -1163,8 +1168,8 @@ mod tests {
 
     #[test]
     fn check_recovered_public_key_eip1559() {
-        let private_key = H256::random();
-        let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
+        let private_key = K256PrivateKey::random();
+        let address = private_key.address();
 
         let mut transaction_request = TransactionRequest {
             max_priority_fee_per_gas: Some(U256::from(1u32)),
@@ -1202,8 +1207,8 @@ mod tests {
 
     #[test]
     fn check_recovered_public_key_eip1559_with_wrong_chain_id() {
-        let private_key = H256::random();
-        let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
+        let private_key = K256PrivateKey::random();
+        let address = private_key.address();
 
         let mut transaction_request = TransactionRequest {
             max_priority_fee_per_gas: Some(U256::from(1u32)),
@@ -1241,8 +1246,8 @@ mod tests {
 
     #[test]
     fn check_decode_eip1559_with_access_list() {
-        let private_key = H256::random();
-        let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
+        let private_key = K256PrivateKey::random();
+        let address = private_key.address();
 
         let mut transaction_request = TransactionRequest {
             max_priority_fee_per_gas: Some(U256::from(1u32)),
@@ -1281,8 +1286,8 @@ mod tests {
 
     #[test]
     fn check_failed_to_decode_eip2930() {
-        let private_key = H256::random();
-        let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
+        let private_key = K256PrivateKey::random();
+        let address = private_key.address();
 
         let mut transaction_request = TransactionRequest {
             transaction_type: Some(EIP_2930_TX_TYPE.into()),
@@ -1402,9 +1407,10 @@ mod tests {
     #[test]
     fn transaction_request_with_oversize_data() {
         let random_tx_max_size = 1_000_000; // bytes
-        let private_key = H256::random();
-        let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
-        // choose some number that divides on 8 and is `> 1_000_000`
+        let private_key = K256PrivateKey::random();
+        let address = private_key.address();
+
+        // Choose some number that divides on 8 and is `> 1_000_000`
         let factory_dep = vec![2u8; 1600000];
         let factory_deps: Vec<Vec<u8>> = factory_dep.chunks(32).map(|s| s.into()).collect();
         let mut tx = TransactionRequest {

@@ -137,16 +137,16 @@ impl InternalApiConfig {
                 l1_weth_bridge: contracts_config.l1_weth_bridge_proxy_addr,
                 l2_weth_bridge: contracts_config.l2_weth_bridge_addr,
             },
-            bridgehub_proxy_addr: genesis_config
-                .shared_bridge
+            bridgehub_proxy_addr: contracts_config
+                .ecosystem_contracts
                 .as_ref()
                 .map(|a| a.bridgehub_proxy_addr),
-            state_transition_proxy_addr: genesis_config
-                .shared_bridge
+            state_transition_proxy_addr: contracts_config
+                .ecosystem_contracts
                 .as_ref()
                 .map(|a| a.state_transition_proxy_addr),
-            transparent_proxy_admin_addr: genesis_config
-                .shared_bridge
+            transparent_proxy_admin_addr: contracts_config
+                .ecosystem_contracts
                 .as_ref()
                 .map(|a| a.transparent_proxy_admin_addr),
             diamond_proxy_addr: contracts_config.diamond_proxy_addr,

@@ -23,7 +23,7 @@ use crate::{
         eth_interface::BoundEthInterfaceResource,
         l1_tx_params::L1TxParamsResource,
         object_store::ObjectStoreResource,
-        pools::{MasterPoolResource, ReplicaPoolResource},
+        pools::{MasterPool, PoolResource, ReplicaPool},
     },
     service::{ServiceContext, StopReceiver},
     task::Task,
@@ -68,10 +68,10 @@ impl WiringLayer for EthSenderLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get resources.
-        let master_pool_resource = context.get_resource::<MasterPoolResource>().await?;
+        let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
         let master_pool = master_pool_resource.get().await.unwrap();
 
-        let replica_pool_resource = context.get_resource::<ReplicaPoolResource>().await?;
+        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
         let replica_pool = replica_pool_resource.get().await.unwrap();
 
         let eth_client = context.get_resource::<BoundEthInterfaceResource>().await?.0;
@@ -85,7 +85,7 @@ impl WiringLayer for EthSenderLayer {
                 &self.eth_sender_config,
                 &self.contracts_config,
                 self.l1chain_id,
-                wallet.private_key(),
+                wallet.private_key().clone(),
             )
         });
         let eth_client_blobs_addr = eth_client_blobs.clone().map(|k| k.sender_account());

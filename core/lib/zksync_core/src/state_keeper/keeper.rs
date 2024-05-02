@@ -20,8 +20,8 @@ use super::{
     seal_criteria::{ConditionalSealer, SealData, SealResolution},
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
+    utils::gas_count_from_writes,
 };
-use crate::gas_tracker::gas_count_from_writes;
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.

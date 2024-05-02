@@ -365,6 +365,16 @@ impl Clone for ZkSyncTreeReader {
 }
 
 impl ZkSyncTreeReader {
+    /// Creates a tree reader based on the provided database.
+    pub fn new(db: RocksDBWrapper) -> Self {
+        Self(MerkleTree::new(db))
+    }
+
+    /// Returns a reference to the database this.
+    pub fn db(&self) -> &RocksDBWrapper {
+        &self.0.db
+    }
+
     /// Returns the current root hash of this tree.
     pub fn root_hash(&self) -> ValueHash {
         self.0.latest_root_hash()
