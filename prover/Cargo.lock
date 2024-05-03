@@ -4429,6 +4429,7 @@ dependencies = [
  "hex",
  "log",
  "prover_dal",
+ "sqlx",
  "strum",
  "tokio",
  "tracing",
