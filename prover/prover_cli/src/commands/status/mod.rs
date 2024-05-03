@@ -15,7 +15,7 @@ pub enum StatusCommand {
 impl StatusCommand {
     pub(crate) async fn run(self) -> Result<(), CLIErrors> {
         match self {
-            StatusCommand::Batch(args) => batch::run(args).await?,
+            StatusCommand::Batch(args) => Ok(batch::run(args).await?),
             StatusCommand::L1 => l1::run().await,
         }
     }
