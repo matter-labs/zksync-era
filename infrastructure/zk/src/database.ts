@@ -68,6 +68,7 @@ export async function resetTest(opts: DbOpts) {
     let dals = getTestDals(opts);
     for (const [dalPath, dbUrl] of dals.entries()) {
         await resetTestDal(dalPath, dbUrl);
+        break;
     }
 }
 

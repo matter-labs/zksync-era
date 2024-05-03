@@ -1,7 +1,7 @@
 use clap::Subcommand;
 
 pub(crate) mod batch;
-mod utils;
+pub mod utils;
 
 #[derive(Subcommand)]
 pub enum StatusCommand {
