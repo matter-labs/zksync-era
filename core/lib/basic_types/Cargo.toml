@@ -18,3 +18,6 @@ strum = { workspace = true, features = ["derive"] }
 num_enum.workspace = true
 anyhow.workspace = true
 url = { workspace = true, features = ["serde"] }
+
+[dev-dependencies]
+bincode.workspace = true

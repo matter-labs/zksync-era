@@ -93,17 +93,21 @@ impl<'de> Deserialize<'de> for L2ChainId {
     where
         D: Deserializer<'de>,
     {
-        let value: serde_json::Value = Deserialize::deserialize(deserializer)?;
-        match &value {
-            serde_json::Value::Number(number) => Self::new(number.as_u64().ok_or(
-                de::Error::custom(format!("Failed to parse: {}, Expected u64", number)),
-            )?)
-            .map_err(de::Error::custom),
-            serde_json::Value::String(string) => string.parse().map_err(de::Error::custom),
-            _ => Err(de::Error::custom(format!(
-                "Failed to parse: {}, Expected number or string",
-                value
-            ))),
+        if deserializer.is_human_readable() {
+            let value: serde_json::Value = Deserialize::deserialize(deserializer)?;
+            match &value {
+                serde_json::Value::Number(number) => Self::new(number.as_u64().ok_or(
+                    de::Error::custom(format!("Failed to parse: {}, Expected u64", number)),
+                )?)
+                .map_err(de::Error::custom),
+                serde_json::Value::String(string) => string.parse().map_err(de::Error::custom),
+                _ => Err(de::Error::custom(format!(
+                    "Failed to parse: {}, Expected number or string",
+                    value
+                ))),
+            }
+        } else {
+            u64::deserialize(deserializer).map(L2ChainId)
         }
     }
 }
@@ -264,9 +268,23 @@ mod tests {
         };
         let result_ser = serde_json::to_string(&test).unwrap();
         let result_deser: Test = serde_json::from_str(&result_ser).unwrap();
-        assert_eq!(test.chain_id, result_deser.chain_id)
+        assert_eq!(test.chain_id, result_deser.chain_id);
+        assert_eq!(result_ser, "{\"chain_id\":200}")
     }
 
+    #[test]
+    fn test_serialize_deserialize_bincode() {
+        #[derive(Serialize, Deserialize)]
+        struct Test {
+            chain_id: L2ChainId,
+        }
+        let test = Test {
+            chain_id: L2ChainId(200),
+        };
+        let result_ser = bincode::serialize(&test).unwrap();
+        let result_deser: Test = bincode::deserialize(&result_ser).unwrap();
+        assert_eq!(test.chain_id, result_deser.chain_id);
+    }
     #[test]
     fn test_from_str_valid_hexadecimal() {
         let input = "0x2A";
