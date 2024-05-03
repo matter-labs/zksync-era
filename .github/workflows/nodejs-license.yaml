@@ -1,0 +1,63 @@
+name: Node license check
+
+on: pull_request
+
+env:
+  ALLOWED_LICENSES: >
+    MIT;
+    BSD;
+    ISC;
+    Apache-2.0;
+    MPL-2.0;
+    LGPL-3.0;
+    LGPL-3.0-or-later;
+    CC0-1.0;
+    CC-BY-3.0;
+    CC-BY-4.0;
+    Python-2.0;
+    PSF;
+    Public Domain;
+    WTFPL;
+    Unlicense;
+    BlueOak-1.0.0;
+  # It has to be one line, there must be no space between packages.
+  EXCLUDE_PACKAGES: testrpc@0.0.1;uuid@2.0.1;@cspell/dict-en-common-misspellings@2.0.0;
+
+jobs:
+  generate-matrix:
+    name: Lists modules
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v3
+      - run: |
+          DIRS=$(find -not \( -path \*node_modules -prune \) -type f -name yarn.lock  | xargs dirname | awk -v RS='' -v OFS='","' 'NF { $1 = $1; print "\"" $0 "\"" }')
+          echo "matrix=[${DIRS}]" >> $GITHUB_OUTPUT
+        id: set-matrix
+
+  license-check:
+    needs: [generate-matrix]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dir: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+    steps:
+      - name: Checkout latest code
+        uses: actions/checkout@v3
+
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install yarn
+        run: npm install -g yarn license-checker
+
+      - name: Install dependencies in ${{ matrix.dir }}
+        working-directory: ${{ matrix.dir }}
+        run: yarn install
+
+      - name: Check licenses in ${{ matrix.dir }}
+        working-directory: ${{ matrix.dir }}
+        run: npx license-checker --json --onlyAllow="$ALLOWED_LICENSES" --excludePackages "$EXCLUDE_PACKAGES" --excludePrivatePackages

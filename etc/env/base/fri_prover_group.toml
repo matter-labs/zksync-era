@@ -1,0 +1,52 @@
+[fri_prover_group]
+group_0 = [
+    { "circuit_id" = 1, "aggregation_round" = 4 },
+    { "circuit_id" = 2, "aggregation_round" = 2 },
+    { "circuit_id" = 255, "aggregation_round" = 3 },
+]
+group_1 = [{ "circuit_id" = 1, "aggregation_round" = 0 }]
+group_2 = [
+    { "circuit_id" = 2, "aggregation_round" = 0 },
+    { "circuit_id" = 4, "aggregation_round" = 0 },
+    { "circuit_id" = 6, "aggregation_round" = 0 },
+    { "circuit_id" = 9, "aggregation_round" = 0 },
+]
+group_3 = [{ "circuit_id" = 3, "aggregation_round" = 0 }]
+group_4 = [
+    { "circuit_id" = 11, "aggregation_round" = 0 },
+    { "circuit_id" = 12, "aggregation_round" = 0 },
+    { "circuit_id" = 13, "aggregation_round" = 0 },
+]
+group_5 = [{ "circuit_id" = 5, "aggregation_round" = 0 }]
+group_6 = [{ "circuit_id" = 3, "aggregation_round" = 1 }]
+group_7 = [{ "circuit_id" = 7, "aggregation_round" = 0 }]
+group_8 = [{ "circuit_id" = 8, "aggregation_round" = 0 }]
+group_9 = [
+    { "circuit_id" = 12, "aggregation_round" = 1 },
+    { "circuit_id" = 13, "aggregation_round" = 1 },
+    { "circuit_id" = 14, "aggregation_round" = 1 },
+    { "circuit_id" = 15, "aggregation_round" = 1 },
+]
+group_10 = [{ "circuit_id" = 10, "aggregation_round" = 0 }]
+group_11 = [
+    { "circuit_id" = 7, "aggregation_round" = 1 },
+    { "circuit_id" = 8, "aggregation_round" = 1 },
+    { "circuit_id" = 10, "aggregation_round" = 1 },
+    { "circuit_id" = 11, "aggregation_round" = 1 },
+]
+group_12 = [
+    { "circuit_id" = 4, "aggregation_round" = 1 },
+    { "circuit_id" = 5, "aggregation_round" = 1 },
+    { "circuit_id" = 6, "aggregation_round" = 1 },
+    { "circuit_id" = 9, "aggregation_round" = 1 },
+]
+group_13 = [
+    { "circuit_id" = 14, "aggregation_round" = 0 },
+    { "circuit_id" = 15, "aggregation_round" = 0 },
+    { "circuit_id" = 255, "aggregation_round" = 0 },
+]
+group_14 = [
+    { "circuit_id" = 16, "aggregation_round" = 1 },
+    { "circuit_id" = 17, "aggregation_round" = 1 },
+    { "circuit_id" = 18, "aggregation_round" = 1 },
+]

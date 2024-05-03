@@ -1,0 +1,1 @@
+DROP INDEX storage_logs_contract_address_tx_hash_idx;

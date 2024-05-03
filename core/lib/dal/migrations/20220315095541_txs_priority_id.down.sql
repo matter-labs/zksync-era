@@ -1,0 +1,1 @@
+DROP INDEX transactions_priority_op_id_idx;

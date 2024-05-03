@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS gpu_prover_queue_fri_host_port_zone_idx;

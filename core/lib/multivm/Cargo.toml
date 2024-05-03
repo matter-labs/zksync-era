@@ -1,0 +1,44 @@
+[package]
+name = "multivm"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zk_evm_1_5_0.workspace = true
+zk_evm_1_4_1.workspace = true
+zk_evm_1_4_0.workspace = true
+zk_evm_1_3_3.workspace = true
+zk_evm_1_3_1.workspace = true
+
+circuit_sequencer_api_1_3_3.workspace = true
+circuit_sequencer_api_1_4_0.workspace = true
+circuit_sequencer_api_1_4_1.workspace = true
+circuit_sequencer_api_1_4_2.workspace = true
+circuit_sequencer_api_1_5_0.workspace = true
+
+zksync_types.workspace = true
+zksync_state.workspace = true
+zksync_contracts.workspace = true
+zksync_utils.workspace = true
+zksync_system_constants.workspace = true
+
+
+anyhow.workspace = true
+hex.workspace = true
+itertools.workspace = true
+once_cell.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+vise.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["time"] }
+zksync_test_account.workspace = true
+ethabi.workspace = true
+zksync_eth_signer.workspace = true

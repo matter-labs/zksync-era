@@ -1,0 +1,32 @@
+[package]
+name = "zksync_utils"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_basic_types.workspace = true
+zk_evm.workspace = true
+vlog.workspace = true
+
+bigdecimal.workspace = true
+num = { workspace = true, features = ["serde"] }
+serde = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["time"] }
+tracing.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+futures.workspace = true
+hex.workspace = true
+reqwest = { workspace = true, features = ["blocking"] }
+itertools.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+rand.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }

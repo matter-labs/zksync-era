@@ -1,0 +1,1 @@
+DROP INDEX transactions_received_at_idx;

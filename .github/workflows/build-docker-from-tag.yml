@@ -1,0 +1,93 @@
+name: Build Image from tag
+on:
+  workflow_call:
+    inputs:
+      tag_name:
+        description: "Tag of an image to built"
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Tag of an image to built"
+        type: string
+        required: true
+  push:
+    tags:
+      - core-v**
+      - prover-v**
+      - contract_verifier-v**
+
+concurrency: docker-build
+
+jobs:
+  setup:
+    name: Setup
+    runs-on: [ubuntu-latest]
+    outputs:
+      image_tag_suffix: ${{ steps.set.outputs.image_tag_suffix }}
+      prover_fri_cpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.cpu_short_commit_sha }}
+      prover_fri_gpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.gpu_short_commit_sha }}
+    steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - name: Generate output with git tag
+        id: set
+        run: |
+          git_tag=""
+          if [[ -z "${{ inputs.tag_name }}" ]]; then
+            git_tag="${GITHUB_REF#refs/*/}"
+          else
+            git_tag="${{ inputs.tag_name }}"
+          fi
+          version=$(cut -d "-" -f2 <<< ${git_tag})
+          echo "image_tag_suffix=${version}" >> $GITHUB_OUTPUT
+
+      - name: Generate outputs with Prover FRI setup data keys IDs
+        id: extract-prover-fri-setup-key-ids
+        run: |
+          ./prover/extract-setup-data-keys.sh >> $GITHUB_OUTPUT
+
+  build-push-core-images:
+    name: Build and push image
+    needs: [setup]
+    uses: ./.github/workflows/build-core-template.yml
+    if: contains(github.ref_name, 'core')
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+
+  build-push-contract-verifier:
+    name: Build and push image
+    needs: [ setup ]
+    uses: ./.github/workflows/build-contract-verifier-template.yml
+    if: contains(github.ref_name, 'contract_verifier')
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+
+  build-push-prover-images:
+    name: Build and push image
+    needs: [setup]
+    uses: ./.github/workflows/build-prover-template.yml
+    if: contains(github.ref_name, 'prover')
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
+      CUDA_ARCH: "60;70;75;89"
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+
+  build-gar-prover-fri-gpu:
+    name: Build GAR prover FRI GPU
+    needs: [setup, build-push-prover-images]
+    uses: ./.github/workflows/build-prover-fri-gpu-gar.yml
+    if: contains(github.ref_name, 'prover')
+    with:
+      setup_keys_id: ${{ needs.setup.outputs.prover_fri_gpu_key_id }}
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}

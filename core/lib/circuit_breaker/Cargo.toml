@@ -1,0 +1,23 @@
+[package]
+name = "zksync_circuit_breaker"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+vise.workspace = true
+zksync_config.workspace = true
+zksync_dal.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["time"] }
+anyhow.workspace = true
+async-trait.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+assert_matches.workspace = true

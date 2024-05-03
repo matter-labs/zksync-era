@@ -1,0 +1,24 @@
+[package]
+name = "zksync_storage"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+vise.workspace = true
+
+num_cpus.workspace = true
+once_cell.workspace = true
+rocksdb = { workspace = true, features = [
+    "snappy",
+] }
+thread_local.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

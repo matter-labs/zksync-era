@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS prover_jobs_fri;

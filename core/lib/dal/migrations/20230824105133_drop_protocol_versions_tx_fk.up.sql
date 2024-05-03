@@ -1,0 +1,1 @@
+ALTER TABLE protocol_versions DROP CONSTRAINT IF EXISTS protocol_versions_upgrade_tx_hash_fkey;

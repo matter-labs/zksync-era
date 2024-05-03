@@ -1,0 +1,15 @@
+# Whether to ask user about dangerous actions or not
+zksync_action="dont_ask"
+
+# Miscellaneous options for different infrastructure elements
+[misc]
+# fee_account_private_key is set in `private.toml`
+
+# Format of logs in stdout could be "plain" for development purposes and "json" for production
+log_format="plain"
+
+sentry_url="unset"
+sentry_panic_interval="1800"
+sentry_error_interval="10800"
+
+otlp_url="unset"

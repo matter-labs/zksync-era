@@ -1,0 +1,19 @@
+[package]
+name = "zksync_env_config"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_system_constants.workspace = true
+zksync_basic_types.workspace = true
+zksync_config.workspace = true
+
+anyhow.workspace = true
+serde.workspace = true
+envy.workspace = true

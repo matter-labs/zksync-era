@@ -1,0 +1,29 @@
+[package]
+name = "snapshots_creator"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[dependencies]
+vise.workspace = true
+prometheus_exporter.workspace = true
+zksync_config.workspace = true
+zksync_dal.workspace = true
+zksync_env_config.workspace = true
+zksync_types.workspace = true
+zksync_object_store.workspace = true
+vlog.workspace = true
+
+anyhow.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+futures.workspace = true
+
+[dev-dependencies]
+rand.workspace = true

@@ -1,0 +1,39 @@
+name: Workflow template for Core Linting CI jobs
+on:
+  workflow_call:
+
+
+jobs:
+  code_lint:
+    runs-on: [matterlabs-ci-runner]
+
+    steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+        with:
+          submodules: "recursive"
+
+      - name: Setup environment
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo IN_DOCKER=1 >> .env
+
+      - name: Start services
+        run: |
+          mkdir -p ./volumes/postgres
+          docker compose up -d zk postgres
+          ci_run sccache --start-server
+
+      - name: Setup db
+        run: |
+          ci_run zk
+          ci_run zk db migrate
+
+      - name: Lints
+        run: |
+          ci_run zk fmt --check
+          ci_run zk lint rust --check
+          ci_run zk lint js --check
+          ci_run zk lint ts --check
+          ci_run zk lint md --check
+          ci_run zk db check-sqlx-data

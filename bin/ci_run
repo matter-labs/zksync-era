@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+# Runs the command from within CI docker-compose environment.
+cd $ZKSYNC_HOME
+compose_file="${RUNNER_COMPOSE_FILE:-docker-compose.yml}"
+
+# Pass environment variables explicitly if specified
+if [ ! -z "$PASSED_ENV_VARS" ]; then
+    env_vars_option=""
+    IFS=',' read -ra ADDR <<<"$PASSED_ENV_VARS"
+    for var in "${ADDR[@]}"; do
+        value=$(eval echo \$$var)
+        env_vars_option="${env_vars_option} -e ${var}=${value}"
+    done
+    docker-compose -f $compose_file exec -T $env_vars_option zk "$@"
+else
+    docker-compose -f $compose_file exec -T zk "$@"
+fi

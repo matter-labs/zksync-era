@@ -1,0 +1,3 @@
+DROP INDEX IF EXISTS transactions_l1_batch_number_idx;
+DROP INDEX IF EXISTS aggregated_proof_from_l1_batch_index;
+DROP INDEX IF EXISTS aggregated_proof_to_l1_batch_index;

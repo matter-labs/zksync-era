@@ -1,0 +1,183 @@
+version: '3.2'
+networks:
+  zksync-era_zkstack:
+    external: true
+volumes:
+  artifacts:
+services:
+  zkstack-core:
+    container_name: zkstack-core
+    networks:
+      - zksync-era_zkstack
+    image: {{orgName}}/server-v2:latest
+    command: ["--components", "tree,eth,state_keeper,housekeeper,proof_data_handler"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3071/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    env_file:
+      - {{envFilePath}}
+    environment:
+      ZKSYNC_HOME: /
+    ports: # assumes default ports in .env
+      #- "3312:3312" # prometheus metrics # we need a separate metrics port for each component
+      - "3320:3320" # proof_data_handler api
+    volumes:
+      - artifacts:{{artifactsPath}}
+
+  zkstack-apis:
+    networks:
+      - zksync-era_zkstack
+    image: {{orgName}}/server-v2:latest
+    command: ["--components", "http_api,ws_api"]
+    env_file:
+      - {{envFilePath}}
+    environment:
+      ZKSYNC_HOME: /
+      FRI_PROVER_GATEWAY_API_URL: http://zkstack-core:3320
+    ports: # assumes default ports in .env
+      - "3071:3071" # health
+      - "3312:3312" # prometheus metrics # we need a separate metrics port for each component
+      - "3050:3050" # http_api
+      - "3051:3051" # ws_api
+
+  {{#if hasProver}}
+  # System requirements for CPU proving:
+  # ~16+ CPU cores
+  # ~384+ GB RAM
+  # TODOS:
+  # - (PRO-47): Figure out how to properly set metrics ports for each service in env
+  zkstack-prover-fri-gateway:
+    networks:
+      - zksync-era_zkstack
+    image: matterlabs/prover-fri-gateway:latest
+    depends_on:
+      zkstack-core:
+        condition: "service_healthy"
+    env_file:
+      - {{envFilePath}}
+    environment:
+      FRI_PROVER_GATEWAY_API_URL: http://zkstack-core:3320
+    # ports: # assumes default ports in .env
+    #   - "3312:3312" # prometheus metrics
+    volumes:
+      - artifacts:{{artifactsPath}}
+      - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
+  zkstack-witness-generator-basic-circuits:
+    networks:
+      - zksync-era_zkstack
+    image: matterlabs/witness-generator:latest
+    command: ["--round", "basic_circuits"]
+    env_file:
+      - {{envFilePath}}
+    # ports: # assumes default ports in .env
+    #   - "3312:3312" # prometheus metrics
+    volumes:
+      - artifacts:{{artifactsPath}}
+      - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
+
+  zkstack-witness-generator-leaf-aggregation:
+    networks:
+      - zksync-era_zkstack
+    image: matterlabs/witness-generator:latest
+    command: ["--round", "leaf_aggregation"]
+    env_file:
+      - {{envFilePath}}
+    # ports: # assumes default ports in .env
+    #   - "3312:3312" # prometheus metrics
+    volumes:
+      - artifacts:{{artifactsPath}}
+      - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
+
+  zkstack-witness-generator-node-aggregation:
+    networks:
+      - zksync-era_zkstack
+    image: matterlabs/witness-generator:latest
+    command: ["--round", "node_aggregation"]
+    env_file:
+      - {{envFilePath}}
+    # ports: # assumes default ports in .env
+    #   - "3312:3312" # prometheus metrics
+    volumes:
+      - artifacts:{{artifactsPath}}
+      - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
+
+  zkstack-witness-generator-scheduler:
+    networks:
+      - zksync-era_zkstack
+    image: matterlabs/witness-generator:latest
+    command: ["--round", "scheduler"]
+    env_file:
+      - {{envFilePath}}
+    # ports: # assumes default ports in .env
+    #   - "3312:3312" # prometheus metrics
+    volumes:
+      - artifacts:{{artifactsPath}}
+      - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
+
+  zkstack-proof-fri-compressor:
+    networks:
+      - zksync-era_zkstack
+    image: matterlabs/proof-fri-compressor:latest
+    env_file:
+      - {{envFilePath}}
+    # ports: # assumes default ports in .env
+    #   - "3312:3312" # prometheus metrics
+    volumes:
+      - artifacts:{{artifactsPath}}
+      - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
+  witness-vector-generator:
+    networks:
+      - zksync-era_zkstack
+    image: matterlabs/witness-vector-generator:latest
+    restart: always
+    env_file:
+      - {{envFilePath}}
+    deploy:
+      mode: replicated
+      replicas: {{witnessVectorGensCount}}
+    # ports: # assumes default ports in .env
+    #   - "3312:3312" # prometheus metrics
+    volumes:
+      - artifacts:{{artifactsPath}}
+      - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
+  {{/if}}
+  {{#ifAnd hasProver hasCPUProver}}
+  zkstack-prover-cpu-fri:
+    networks:
+      - zksync-era_zkstack
+    image: matterlabs/prover-fri:latest
+    env_file:
+      - {{envFilePath}}
+    #   - "3312:3312" # prometheus metrics
+    volumes:
+      - artifacts:{{artifactsPath}}
+      - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
+  {{/ifAnd}}
+  {{#ifAnd hasProver hasGPUProver}}
+  zkstack-prover-gpu-fri:
+    networks:
+      - zksync-era_zkstack
+    {{#if needBuildProver}}
+    build: # Needed for anything that is not NVIDIA CUDA_ARCH 89
+      dockerfile: ./docker/prover-gpu-fri/Dockerfile
+      args:
+        CUDA_ARCH: {{cudaArch}}
+    {{else}}
+    image: matterlabs/prover-gpu-fri:latest # Only works for NVIDIA CUDA_ARCH 89
+    {{/if}}
+    env_file:
+      - {{envFilePath}}
+    #   - "3312:3312" # prometheus metrics
+    volumes:
+      - artifacts:{{artifactsPath}}
+      - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
+    security_opt: # HACK: Might work on vanilla Ubuntu distros without this
+      - seccomp:unconfined
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+  {{/ifAnd}}

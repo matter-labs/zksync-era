@@ -1,0 +1,186 @@
+name: Build Prover images
+on:
+  workflow_call:
+    secrets:
+      DOCKERHUB_USER:
+        description: "DOCKERHUB_USER"
+        required: true
+      DOCKERHUB_TOKEN:
+        description: "DOCKERHUB_TOKEN"
+        required: true
+    inputs:
+      ERA_BELLMAN_CUDA_RELEASE:
+        description: "ERA_BELLMAN_CUDA_RELEASE"
+        type: string
+        required: true
+      image_tag_suffix:
+        description: "Optional suffix to override tag name generation"
+        type: string
+        required: false
+      action:
+        description: "Action with docker image"
+        type: string
+        default: "push"
+        required: false
+      is_pr_from_fork:
+        description: "Indicates whether the workflow is invoked from a PR created from fork"
+        type: boolean
+        default: false
+        required: false
+      CUDA_ARCH:
+        description: "CUDA Arch to build"
+        type: string
+        default: "89"
+        required: false
+
+jobs:
+  build-images:
+    name: Build and Push Docker Images
+    env:
+      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+      RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
+      ERA_BELLMAN_CUDA_RELEASE: ${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
+      CUDA_ARCH: ${{ inputs.CUDA_ARCH }}
+    runs-on: [matterlabs-ci-runner]
+    strategy:
+      matrix:
+        component:
+          - witness-generator
+          - prover-fri
+          - prover-gpu-fri
+          - witness-vector-generator
+          - prover-fri-gateway
+          - proof-fri-compressor
+    steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+        with:
+          submodules: "recursive"
+
+      - name: setup-env
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo CI=1 >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo CI=1 >> .env
+          echo IN_DOCKER=1 >> .env
+
+      - name: start-services
+        run: |
+          echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
+          mkdir -p ./volumes/postgres
+          docker compose up -d zk postgres
+          ci_run sccache --start-server
+
+      - name: init
+        run: |
+          ci_run git config --global --add safe.directory /usr/src/zksync
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
+          ci_run zk
+
+      # We need the CRS only for the fri compressor.
+      - name: download CRS
+        if: matrix.component == 'proof-fri-compressor'
+        run: |
+          ci_run curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+
+      - name: login to Docker registries
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        run: |
+          ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+          ci_run gcloud auth configure-docker us-docker.pkg.dev -q
+
+      # We need to run this only when ERA_BELLMAN_CUDA_RELEASE is not available
+      # In our case it happens only when PR is created from fork
+      - name: Wait for runner IP to be not rate-limited against GH API
+        if: inputs.is_pr_from_fork == true
+        run: |
+          api_endpoint="https://api.github.com/users/zksync-era-bot"
+          wait_time=60
+          max_retries=60
+          retry_count=0
+
+          while [[ $retry_count -lt $max_retries ]]; do
+            response=$(curl -s -w "%{http_code}" -o temp.json "$api_endpoint")
+            http_code=$(echo "$response" | tail -n1)
+
+            if [[ "$http_code" == "200" ]]; then
+              echo "Request successful. Not rate-limited."
+              cat temp.json
+              rm temp.json
+              exit 0
+            elif [[ "$http_code" == "403" ]]; then
+              rate_limit_exceeded=$(jq -r '.message' temp.json | grep -i "API rate limit exceeded")
+              if [[ -n "$rate_limit_exceeded" ]]; then
+                retry_count=$((retry_count+1))
+                echo "API rate limit exceeded. Retry $retry_count of $max_retries. Retrying in $wait_time seconds..."
+                sleep $wait_time
+              else
+                echo "Request failed with HTTP status $http_code."
+                cat temp.json
+                rm temp.json
+                exit 1
+              fi
+            else
+              echo "Request failed with HTTP status $http_code."
+              cat temp.json
+              rm temp.json
+              exit 1
+            fi
+          done
+
+          echo "Reached the maximum number of retries ($max_retries). Exiting."
+          rm temp.json
+          exit 1
+
+      - name: update-images
+        env:
+          DOCKER_ACTION: ${{ inputs.action }}
+          COMPONENT: ${{ matrix.component }}
+        run: |          
+          PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE,CUDA_ARCH" \
+          ci_run zk docker $DOCKER_ACTION $COMPONENT
+
+      - name: Show sccache stats
+        if: always()
+        run: |
+          ci_run sccache --show-stats
+          ci_run cat /tmp/sccache_log.txt
+  
+  copy-images:
+    name: Copy images between docker registries
+    env:
+      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+    runs-on: matterlabs-ci-runner
+    needs: build-images
+    if: ${{ inputs.action == 'push' }}
+    strategy:
+      matrix:
+        component:
+          - witness-vector-generator
+    steps:
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to us-central1 GAR
+        run: |
+          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev
+
+      - name: Login and push to Asia GAR
+        run: |
+          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://asia-docker.pkg.dev
+          docker buildx imagetools create \
+            --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }} \
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }}
+
+      - name: Login and push to Europe GAR
+        run: |
+          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://europe-docker.pkg.dev
+          docker buildx imagetools create \
+            --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }} \
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }}
+          

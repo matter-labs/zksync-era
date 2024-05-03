@@ -1,0 +1,3 @@
+lib/
+# Ignore contract submodules
+contracts

@@ -1,0 +1,1 @@
+ALTER TABLE initial_writes ALTER COLUMN index DROP NOT NULL;

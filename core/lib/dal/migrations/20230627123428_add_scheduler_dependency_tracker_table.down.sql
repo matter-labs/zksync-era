@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS scheduler_dependency_tracker_fri;

@@ -1,0 +1,39 @@
+name: Push main branch VM benchmarks to Prometheus
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Disable simultaneous deployments into a single environment
+concurrency: vm-benchmarks
+
+jobs:
+  vm-benchmarks:
+    name: Run VM benchmarks
+    runs-on: [matterlabs-ci-runner]
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: "recursive"
+
+      - name: setup-env
+        run: |
+          echo PUSH_VM_BENCHMARKS_TO_PROMETHEUS=1 >> .env
+
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+
+      - name: init
+        run: |
+          docker compose up -d zk
+          ci_run zk
+          ci_run zk compiler system-contracts
+
+      - name: run benchmarks
+        run: |
+          ci_run cargo bench --package vm-benchmark --bench diy_benchmark
+          ci_run cargo bench --package vm-benchmark --bench iai | tee iai-result
+          ci_run cargo run --package vm-benchmark --bin iai_results_to_prometheus --release < iai-result

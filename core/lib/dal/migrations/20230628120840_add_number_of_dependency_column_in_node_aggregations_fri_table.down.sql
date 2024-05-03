@@ -1,0 +1,1 @@
+ALTER TABLE node_aggregation_witness_jobs_fri DROP COLUMN IF EXISTS number_of_dependent_jobs;

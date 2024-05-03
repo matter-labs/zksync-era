@@ -1,0 +1,3 @@
+ALTER TABLE witness_inputs DROP COLUMN IF EXISTS error;
+ALTER TABLE prover_jobs DROP COLUMN IF EXISTS error;
+

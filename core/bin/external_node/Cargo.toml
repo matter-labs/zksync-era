@@ -1,0 +1,58 @@
+[package]
+name = "zksync_external_node"
+version = "24.0.0" # x-release-please-version
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[dependencies]
+zksync_core.workspace = true
+zksync_commitment_generator.workspace = true
+zksync_dal.workspace = true
+zksync_db_connection.workspace = true
+zksync_config.workspace = true
+zksync_protobuf_config.workspace = true
+zksync_eth_client.workspace = true
+zksync_storage.workspace = true
+zksync_utils.workspace = true
+zksync_state.workspace = true
+zksync_basic_types.workspace = true
+zksync_contracts.workspace = true
+zksync_l1_contract_interface.workspace = true
+zksync_snapshots_applier.workspace = true
+zksync_object_store.workspace = true
+prometheus_exporter.workspace = true
+zksync_health_check.workspace = true
+zksync_web3_decl.workspace = true
+zksync_types.workspace = true
+zksync_block_reverter.workspace = true
+zksync_shared_metrics.workspace = true
+vlog.workspace = true
+
+zksync_concurrency.workspace = true
+zksync_consensus_roles.workspace = true
+vise.workspace = true
+
+anyhow.workspace = true
+tokio = { workspace = true, features = ["full"] }
+futures.workspace = true
+serde = { workspace = true, features = ["derive"] }
+envy.workspace = true
+url.workspace = true
+clap = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+semver.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+assert_matches.workspace = true
+tempfile.workspace = true
+test-casing.workspace = true
+
+[build-dependencies]
+rustc_version.workspace = true

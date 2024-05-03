@@ -1,0 +1,20 @@
+[package]
+name = "zksync_queued_job_processor"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+tokio = { workspace = true, features = ["time"] }
+tracing.workspace = true
+
+zksync_utils.workspace = true
+vise.workspace = true

@@ -1,0 +1,10 @@
+./volumes/**/*
+node_modules
+**/node_modules/** 
+build/
+dist/
+volumes/
+bellman-cuda
+
+# Ignore contract submodules
+contracts

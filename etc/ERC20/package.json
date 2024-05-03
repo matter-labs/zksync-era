@@ -1,0 +1,14 @@
+{
+  "name": "zksync-erc20",
+  "version": "0.1.0",
+  "main": "index.js",
+  "license": "MIT",
+  "devDependencies": {
+    "@matterlabs/hardhat-zksync-deploy": "^0.6.1",
+    "@matterlabs/hardhat-zksync-solc": "0.4.2",
+    "hardhat": "=2.16.0"
+  },
+  "scripts": {
+      "build": "hardhat compile"
+  }
+}

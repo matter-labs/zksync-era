@@ -1,0 +1,7 @@
+# Ignore submodule
+bellman-cuda
+sdk/zksync-rs/CHANGELOG.md
+CHANGELOG.md
+
+# Ignore contract submodules
+contracts

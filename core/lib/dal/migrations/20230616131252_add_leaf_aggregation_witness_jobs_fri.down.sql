@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS witness_inputleaf_aggregation_witness_jobs_fris_fri;

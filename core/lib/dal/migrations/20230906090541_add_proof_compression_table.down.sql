@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS proof_compression_jobs_fri;
+
+DROP INDEX IF EXISTS idx_proof_compression_jobs_fri_status_processing_attempts;

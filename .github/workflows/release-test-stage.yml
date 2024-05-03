@@ -1,0 +1,105 @@
+name: Build and release Stage
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changed_files:
+    runs-on: [matterlabs-default-infra-runners]
+    name: Test changed-files
+    outputs:
+      core: ${{ steps.changed-files-yaml.outputs.core_any_changed }}
+      prover: ${{ steps.changed-files-yaml.outputs.prover_any_changed }}
+      all: ${{ steps.changed-files-yaml.outputs.all_any_changed }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+
+      - name: Get all test, doc and src files that have changed
+        id: changed-files-yaml
+        uses: tj-actions/changed-files@v37
+        with:
+          files_yaml: |
+            # TODO: make it more granular, as already implemented in CI workflow
+            # We don't want to be rebuilding and redeploying all the Docker images when eg. only document have changed
+            prover:
+              - prover/**
+              - core/lib/**
+              - '!core/lib/zksync_core/**'
+            core:
+              - core/**
+            all:
+              - '!core/**'
+              - '!prover/**'
+  setup:
+    name: Setup
+    runs-on: [matterlabs-deployer-stage]
+    outputs:
+      image_tag_suffix: ${{ steps.generate-tag-suffix.outputs.image_tag_suffix }}
+      prover_fri_cpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.cpu_short_commit_sha }}
+      prover_fri_gpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.gpu_short_commit_sha }}
+    steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+
+      - name: Generate image tag suffix
+        id: generate-tag-suffix
+        run: |
+          sha=$(git rev-parse --short HEAD)
+          ts=$(date +%s%N | cut -b1-13)
+          echo "image_tag_suffix=${sha}-${ts}" >> $GITHUB_OUTPUT
+
+      - name: Generate outputs with Prover FRI setup data keys IDs
+        id: extract-prover-fri-setup-key-ids
+        run: |
+          ./prover/extract-setup-data-keys.sh >> $GITHUB_OUTPUT
+
+
+  build-push-core-images:
+    name: Build and push images
+    needs: [setup, changed_files]
+    uses: ./.github/workflows/build-core-template.yml
+    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  build-push-contract-verifier:
+    name: Build and push images
+    needs: [ setup, changed_files ]
+    uses: ./.github/workflows/build-contract-verifier-template.yml
+    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  build-push-prover-images:
+    name: Build and push images
+    needs: [setup, changed_files]
+    uses: ./.github/workflows/build-prover-template.yml
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
+      CUDA_ARCH: "60;70;75;89"
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  build-gar-prover-fri-gpu:
+    name: Build GAR prover FRI GPU
+    needs: [setup, build-push-prover-images]
+    uses: ./.github/workflows/build-prover-fri-gpu-gar.yml
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
+    with:
+      setup_keys_id: ${{ needs.setup.outputs.prover_fri_gpu_key_id }}
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}

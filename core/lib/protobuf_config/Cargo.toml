@@ -1,0 +1,29 @@
+[package]
+name = "zksync_protobuf_config"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+links = "zksync_protobuf_config_proto"
+
+[dependencies]
+serde_json.workspace = true
+serde_yaml.workspace = true
+zksync_basic_types.workspace = true
+zksync_config.workspace = true
+zksync_protobuf.workspace = true
+zksync_types.workspace = true
+
+anyhow.workspace = true
+pretty_assertions.workspace = true
+prost.workspace = true
+rand.workspace = true
+hex = "0.4.3"
+
+[build-dependencies]
+zksync_protobuf_build.workspace = true

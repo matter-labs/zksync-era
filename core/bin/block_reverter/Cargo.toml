@@ -1,0 +1,25 @@
+[package]
+name = "block_reverter"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[dependencies]
+zksync_config.workspace = true
+zksync_env_config.workspace = true
+zksync_dal.workspace = true
+zksync_object_store.workspace = true
+zksync_types.workspace = true
+zksync_block_reverter.workspace = true
+vlog.workspace = true
+
+anyhow.workspace = true
+clap = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["full"] }
+serde_json.workspace = true

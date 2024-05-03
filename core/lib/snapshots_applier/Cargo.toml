@@ -1,0 +1,32 @@
+[package]
+name = "zksync_snapshots_applier"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_db_connection.workspace = true
+zksync_dal.workspace = true
+zksync_health_check.workspace = true
+zksync_types.workspace = true
+zksync_object_store.workspace = true
+zksync_web3_decl.workspace = true
+zksync_utils.workspace = true
+
+vise.workspace = true
+
+anyhow.workspace = true
+async-trait.workspace = true
+tokio = { workspace = true, features = ["time"] }
+tracing.workspace = true
+thiserror.workspace = true
+serde = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+assert_matches.workspace = true
+test-casing.workspace = true

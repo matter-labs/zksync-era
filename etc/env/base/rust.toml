@@ -1,0 +1,42 @@
+# Environment configuration for the Rust code
+# We don't provide the group name like `[rust]` here, because we don't want
+# these variables to be prefixed during the compiling. 
+
+# `RUST_LOG` environment variable for `env_logger`
+# Here we use TOML multiline strings: newlines will be trimmed.
+RUST_LOG="""\
+zksync_node_framework=info,\
+zksync_consensus_bft=info,\
+zksync_consensus_network=info,\
+zksync_consensus_storage=info,\
+zksync_core=debug,\
+zksync_server=debug,\
+zksync_contract_verifier=debug,\
+zksync_dal=info,\
+zksync_eth_client=info,\
+zksync_eth_watch=debug,\
+zksync_storage=info,\
+zksync_db_manager=info,\
+zksync_merkle_tree=info,\
+zksync_state=debug,\
+zksync_utils=debug,\
+zksync_queued_job_processor=info,\
+zksync_types=info,\
+zksync_mempool=debug,\
+loadnext=info,\
+vm=info,\
+zksync_object_store=info,\
+zksync_external_node=info,\
+zksync_witness_generator=info,\
+zksync_prover_fri=info,\
+zksync_witness_vector_generator=info,\
+zksync_web3_decl=debug,\
+zksync_health_check=debug,\
+zksync_proof_fri_compressor=info,\
+vise_exporter=debug,\
+snapshots_creator=debug,\
+"""
+
+# `RUST_BACKTRACE` variable
+RUST_BACKTRACE="full"
+RUST_LIB_BACKTRACE="1"

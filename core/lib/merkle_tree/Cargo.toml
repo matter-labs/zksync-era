@@ -1,0 +1,40 @@
+[package]
+name = "zksync_merkle_tree"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+vise.workspace = true
+zksync_types.workspace = true
+zksync_crypto.workspace = true
+zksync_storage.workspace = true
+zksync_prover_interface.workspace = true
+zksync_utils.workspace = true
+
+anyhow.workspace = true
+leb128.workspace = true
+once_cell.workspace = true
+rayon.workspace = true
+thiserror.workspace = true
+thread_local.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+zksync_system_constants.workspace = true
+
+assert_matches.workspace = true
+clap = { workspace = true, features = ["derive"] }
+insta = { workspace = true, features = ["yaml"] }
+rand.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+serde_with = { workspace = true, features = ["hex"] }
+tempfile.workspace = true
+test-casing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }

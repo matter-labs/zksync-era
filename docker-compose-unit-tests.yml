@@ -1,0 +1,12 @@
+version: '3.2'
+name: unit_tests
+services:
+  # An instance of postgres configured to execute Rust unit-tests, tuned for performance.
+  postgres:
+    image: "postgres:14"
+    command: "postgres -c fsync=false -c max_connections=1000"
+    ports:
+      - "5433:5432"
+    environment:
+      # We bind only to 127.0.0.1, so setting insecure password is acceptable here
+      - POSTGRES_PASSWORD=notsecurepassword

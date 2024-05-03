@@ -1,0 +1,21 @@
+DROP INDEX IF EXISTS ix_prover_jobs_circuits_0;
+DROP INDEX IF EXISTS ix_prover_jobs_circuits_1;
+DROP INDEX IF EXISTS ix_prover_jobs_circuits_2;
+DROP INDEX IF EXISTS ix_prover_jobs_circuits_3;
+DROP INDEX IF EXISTS ix_prover_jobs_circuits_4;
+DROP INDEX IF EXISTS ix_prover_jobs_circuits_5;
+DROP INDEX IF EXISTS ix_prover_jobs_circuits_6;
+DROP INDEX IF EXISTS ix_prover_jobs_circuits_7;
+DROP INDEX IF EXISTS ix_prover_jobs_circuits_8;
+DROP INDEX IF EXISTS ix_prover_jobs_circuits_9;
+
+CREATE INDEX IF NOT EXISTS ix_prover_jobs_circuits_0_1 ON public.prover_jobs USING btree (protocol_version, aggregation_round DESC, l1_batch_number, id) WHERE ((status = 'queued'::text) AND (circuit_type = ANY ('{Scheduler,"L1 messages merklizer"}'::text[])));
+CREATE INDEX IF NOT EXISTS ix_prover_jobs_circuits_1_1 ON public.prover_jobs USING btree (protocol_version, aggregation_round DESC, l1_batch_number, id) WHERE ((status = 'queued'::text) AND (circuit_type = ANY ('{"Node aggregation","Decommitts sorter"}'::text[])));
+CREATE INDEX IF NOT EXISTS ix_prover_jobs_circuits_2_1 ON public.prover_jobs USING btree (protocol_version, aggregation_round DESC, l1_batch_number, id) WHERE ((status = 'queued'::text) AND (circuit_type = ANY ('{"Leaf aggregation","Code decommitter"}'::text[])));
+CREATE INDEX IF NOT EXISTS ix_prover_jobs_circuits_3_1 ON public.prover_jobs USING btree (protocol_version, aggregation_round DESC, l1_batch_number, id) WHERE ((status = 'queued'::text) AND (circuit_type = ANY ('{"Log demuxer",Keccak}'::text[])));
+CREATE INDEX IF NOT EXISTS ix_prover_jobs_circuits_4_1 ON public.prover_jobs USING btree (protocol_version, aggregation_round DESC, l1_batch_number, id) WHERE ((status = 'queued'::text) AND (circuit_type = ANY ('{SHA256,ECRecover}'::text[])));
+CREATE INDEX IF NOT EXISTS ix_prover_jobs_circuits_5_1 ON public.prover_jobs USING btree (protocol_version, aggregation_round DESC, l1_batch_number, id) WHERE ((status = 'queued'::text) AND (circuit_type = ANY ('{"RAM permutation","Storage sorter"}'::text[])));
+CREATE INDEX IF NOT EXISTS ix_prover_jobs_circuits_6_1 ON public.prover_jobs USING btree (protocol_version, aggregation_round DESC, l1_batch_number, id) WHERE ((status = 'queued'::text) AND (circuit_type = ANY ('{"Storage application","Initial writes pubdata rehasher"}'::text[])));
+CREATE INDEX IF NOT EXISTS ix_prover_jobs_circuits_7_1 ON public.prover_jobs USING btree (protocol_version, aggregation_round DESC, l1_batch_number, id) WHERE ((status = 'queued'::text) AND (circuit_type = ANY ('{"Repeated writes pubdata rehasher","Events sorter"}'::text[])));
+CREATE INDEX IF NOT EXISTS ix_prover_jobs_circuits_8_1 ON public.prover_jobs USING btree (protocol_version, aggregation_round DESC, l1_batch_number, id) WHERE ((status = 'queued'::text) AND (circuit_type = ANY ('{"L1 messages sorter","L1 messages rehasher"}'::text[])));
+CREATE INDEX IF NOT EXISTS ix_prover_jobs_circuits_9_1 ON public.prover_jobs USING btree (protocol_version, aggregation_round DESC, l1_batch_number, id) WHERE ((status = 'queued'::text) AND (circuit_type = ANY ('{"Main VM"}'::text[])));

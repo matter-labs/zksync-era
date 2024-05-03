@@ -1,0 +1,19 @@
+[package]
+name = "zksync_basic_types"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+web3 = { workspace = true, features = ["http-rustls-tls", "test", "signing"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+chrono.workspace = true
+strum = { workspace = true, features = ["derive"] }
+num_enum.workspace = true
+anyhow.workspace = true

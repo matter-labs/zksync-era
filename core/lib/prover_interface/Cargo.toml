@@ -1,0 +1,26 @@
+[package]
+name = "zksync_prover_interface"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_types.workspace = true
+zksync_object_store.workspace = true
+
+# We can use the newest api to send proofs to L1.
+circuit_sequencer_api_1_5_0.workspace = true
+
+serde.workspace = true
+strum = { workspace = true, features = ["derive"] }
+serde_with = { workspace = true, features = ["base64"] }
+chrono = { workspace = true, features = ["serde"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }
+bincode.workspace = true

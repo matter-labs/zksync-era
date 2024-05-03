@@ -1,0 +1,29 @@
+[package]
+name = "zksync_l1_contract_interface"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_types.workspace = true
+zksync_prover_interface.workspace = true
+
+# Used to serialize proof data
+crypto_codegen.workspace = true
+# Used to calculate the kzg commitment and proofs
+kzg.workspace = true
+
+sha2.workspace = true
+sha3.workspace = true
+hex.workspace = true
+once_cell.workspace = true
+
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true
+serde_with = { workspace = true, features = ["base64", "hex"] }

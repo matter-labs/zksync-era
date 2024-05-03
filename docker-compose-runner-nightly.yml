@@ -1,0 +1,17 @@
+version: '3.2'
+services:
+  zk:
+    image: matterlabs/zk-environment:latest2.0-lightweight-nightly
+    extends:
+      file: docker-compose.yml
+      service: zk
+
+  postgres:
+    extends:
+      file: docker-compose.yml
+      service: postgres
+
+  reth:
+    extends:
+      file: docker-compose.yml
+      service: reth

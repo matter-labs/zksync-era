@@ -1,0 +1,80 @@
+{
+  "event": {
+    "location": [
+      0,
+      0
+    ],
+    "address": "0x0000000000000000000000000000000000008008",
+    "indexed_topics": [
+      "0x27fe8c0b49f49507b9d4fe5968c9f49edfe5c9df277d433a07a0717ede97638d"
+    ],
+    "value": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,128,1,131,93,77,80,77,27,248,56,5,106,236,164,80,162,118,139,64,10,85,255,36,123,49,178,158,152,204,57,43,174,113,25,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]
+  },
+  "list": [
+    {
+      "key": "0xc000000002",
+      "address": "0x000000000000000000000000000000000000800d",
+      "rw_flag": false,
+      "aux_byte": 0,
+      "rollback": false,
+      "shard_id": 0,
+      "timestamp": 0,
+      "is_service": true,
+      "read_value": "0x0",
+      "written_value": "0x8008",
+      "tx_number_in_block": 0
+    },
+    {
+      "key": "0x27fe8c0b49f49507b9d4fe5968c9f49edfe5c9df277d433a07a0717ede97638d",
+      "address": "0x000000000000000000000000000000000000800d",
+      "rw_flag": false,
+      "aux_byte": 0,
+      "rollback": false,
+      "shard_id": 0,
+      "timestamp": 0,
+      "is_service": false,
+      "read_value": "0x0",
+      "written_value": "0x0",
+      "tx_number_in_block": 0
+    },
+    {
+      "key": "0x1",
+      "address": "0x000000000000000000000000000000000000800d",
+      "rw_flag": false,
+      "aux_byte": 0,
+      "rollback": false,
+      "shard_id": 0,
+      "timestamp": 0,
+      "is_service": false,
+      "read_value": "0x0",
+      "written_value": "0x0",
+      "tx_number_in_block": 0
+    },
+    {
+      "key": "0x8001",
+      "address": "0x000000000000000000000000000000000000800d",
+      "rw_flag": false,
+      "aux_byte": 0,
+      "rollback": false,
+      "shard_id": 0,
+      "timestamp": 0,
+      "is_service": false,
+      "read_value": "0x0",
+      "written_value": "0x835d4d504d1bf838056aeca450a2768b400a55ff247b31b29e98cc392bae7119",
+      "tx_number_in_block": 0
+    },
+    {
+      "key": "0x1",
+      "address": "0x000000000000000000000000000000000000800d",
+      "rw_flag": false,
+      "aux_byte": 0,
+      "rollback": false,
+      "shard_id": 0,
+      "timestamp": 0,
+      "is_service": false,
+      "read_value": "0x0",
+      "written_value": "0x0",
+      "tx_number_in_block": 0
+    }
+  ]
+}

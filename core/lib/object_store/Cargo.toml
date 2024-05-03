@@ -1,0 +1,30 @@
+[package]
+name = "zksync_object_store"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+vise.workspace = true
+zksync_config.workspace = true
+zksync_types.workspace = true
+zksync_protobuf.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+bincode.workspace = true
+google-cloud-storage.workspace = true
+google-cloud-auth.workspace = true
+http.workspace = true
+serde_json.workspace = true
+flate2.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+prost.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
