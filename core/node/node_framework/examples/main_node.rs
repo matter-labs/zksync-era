@@ -3,14 +3,11 @@
 //! initializes a single task with a health check server.
 
 use anyhow::Context;
-use zksync_commitment_generator::input_generation::{
-    InputGenerator, RollupInputGenerator, ValidiumInputGenerator,
-};
 use zksync_config::{
     configs::{
         chain::{
-            CircuitBreakerConfig, L1BatchCommitDataGeneratorMode, MempoolConfig, NetworkConfig,
-            OperationsManagerConfig, StateKeeperConfig,
+            CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
+            StateKeeperConfig,
         },
         consensus::{ConsensusConfig, ConsensusSecrets},
         fri_prover_group::FriProverGroupConfig,
