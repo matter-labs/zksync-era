@@ -17,79 +17,55 @@ if [ -z "$ETH_CLIENT_WEB3_URL" ]; then
   exit 1
 fi
 
-# Updates the value in the .toml config.
+if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
+  echo "LEGACY_BRIDGE_TESTING is set to $LEGACY_BRIDGE_TESTING"
+fi
+
+# Updates the value in the .toml config or .env file.
 update_config() {
     # Assigning arguments to readable variable names
     local file="$1"
     local parameter="$2"
     local new_value="$3"
-    local pattern="^${parameter} =.*$"
+    local pattern_toml="^${parameter} =.*$"
+    local pattern_env="^${parameter}=.*$"
 
     # Check if the parameter exists in the file
-    if grep -q "$pattern" "$file"; then
-        # The parameter exists, so replace its value
-        sed -i "s!$pattern!${parameter} =\"${new_value}\"!" "$file"
-        echo "Update successful for $parameter in $file."
+    if grep -q "$pattern_toml" "$file"; then
+      # The parameter exists in the .toml file, so replace its value
+      sed -i "s!$pattern_toml!${parameter} = \"$new_value\"!" "$file"
+      echo "Update successful for $parameter in $file."
+    elif grep -q "$pattern_env" "$file"; then
+      # The parameter exists in the .env file, so replace its value
+      sed -i "s!$pattern_env!${parameter}=$new_value!" "$file"
+      echo "Update successful for $parameter in $file."
     else
-        # The parameter does not exist in the file, output error message and return non-zero status
-        echo "Error: '$parameter' not found in $file."
-        return 1  # Return with an error status
+      # The parameter does not exist in the file, output error message and return non-zero status
+      echo "Error: '$parameter' not found in $file."
+      return 1  # Return with an error status
     fi
 }
 
-# Reads the value of the parameter from the .toml config.
+# Reads the value of the parameter from the .toml config or .env file.
 read_value_from_config() {
     local file="$1"
     local parameter="$2"
-    local pattern="^${parameter} =.*$"
+    local pattern_toml="^${parameter} =.*$"
+    local pattern_env="^${parameter}=.*$"
 
     # Check if the parameter exists in the file
-    if grep -q "$pattern" "$file"; then
-        # The parameter exists, so extract its value
-        local value=$(grep "$pattern" "$file" | sed "s/${parameter} = //; s/\"//g")
-        echo "$value"
+    if grep -q "$pattern_toml" "$file"; then
+      # The parameter exists in the .toml file, so extract its value
+      local value=$(grep "$pattern_toml" "$file" | sed "s/${parameter} = //; s/\"//g")
+      echo "$value"
+    elif grep -q "$pattern_env" "$file"; then
+      # The parameter exists in the .env file, so extract its value
+      local value=$(grep "$pattern_env" "$file" | sed "s/${parameter}=//; s/\"//g")
+      echo "$value"
     else
-        # The parameter does not exist in the file, output error message and return non-zero status
-        echo "Error: '$parameter' not found in $file."
-        return 1  # Return with an error status
-    fi
-}
-
-# Updates the value in the .toml config.
-update_env() {
-    # Assigning arguments to readable variable names
-    local file="$1"
-    local parameter="$2"
-    local new_value="$3"
-    local pattern="^${parameter}=.*$"
-
-    # Check if the parameter exists in the file
-    if grep -q "$pattern" "$file"; then
-        # The parameter exists, so replace its value
-        sed -i "s!$pattern!${parameter}=${new_value}!" "$file"
-        echo "Update successful for $parameter in $file."
-    else
-        # The parameter does not exist in the file, output error message and return non-zero status
-        echo "Error: '$parameter' not found in $file."
-        return 1  # Return with an error status
-    fi
-}
-
-# Reads the value of the parameter from the .toml config.
-read_value_from_env() {
-    local file="$1"
-    local parameter="$2"
-    local pattern="^${parameter}=.*$"
-
-    # Check if the parameter exists in the file
-    if grep -q "$pattern" "$file"; then
-        # The parameter exists, so extract its value
-        local value=$(grep "$pattern" "$file" | sed "s/${parameter}=//; s/\"//g")
-        echo "$value"
-    else
-        # The parameter does not exist in the file, output error message and return non-zero status
-        echo "Error: '$parameter' not found in $file."
-        return 1  # Return with an error status
+      # The parameter does not exist in the file, output error message and return non-zero status
+      echo "Error: '$parameter' not found in $file."
+      return 1  # Return with an error status
     fi
 }
 
@@ -168,14 +144,14 @@ else
       FILE_PATH="/etc/env/target/dev.env"
       PARAM_NAME="CONTRACTS_DIAMOND_PROXY_ADDR"
 
-      CONTRACTS_DIAMOND_PROXY_ADDR=$(read_value_from_env "$FILE_PATH" "$PARAM_NAME")
+      CONTRACTS_DIAMOND_PROXY_ADDR=$(read_value_from_config "$FILE_PATH" "$PARAM_NAME")
 
       if [ -z "$CONTRACTS_DIAMOND_PROXY_ADDR" ]; then
         echo "ERROR: $PARAM_NAME is not set in $FILE_PATH."
         exit 1
       fi
 
-      update_env "/etc/env/target/dev.env" "CONTRACTS_ERA_DIAMOND_PROXY_ADDR" "$CONTRACTS_DIAMOND_PROXY_ADDR"
+      update_config "/etc/env/target/dev.env" "CONTRACTS_ERA_DIAMOND_PROXY_ADDR" "$CONTRACTS_DIAMOND_PROXY_ADDR"
     fi
   
     zk f yarn --cwd /infrastructure/local-setup-preparation start
