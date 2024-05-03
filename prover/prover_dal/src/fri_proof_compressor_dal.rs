@@ -347,10 +347,7 @@ impl FriProofCompressorDal<'_, '_> {
                 WHERE
                     l1_batch_number = $1
                     AND attempts >= $2
-                    AND NOT (
-                        status = 'successful'
-                        OR status = 'sent_to_server'
-                    )
+                    AND (status = 'in_progress' OR status = 'failed')
                 RETURNING
                     status,
                     attempts

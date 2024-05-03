@@ -1479,7 +1479,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             WHERE
                 l1_batch_number = {}
                 AND attempts >= {}
-                AND NOT status = 'successful'
+                AND (status = 'in_progress' OR status = 'failed')
             RETURNING
                 {},
                 status,
