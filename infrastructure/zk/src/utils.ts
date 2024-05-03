@@ -173,14 +173,16 @@ export const announced = async (fn: string, promise: Promise<void> | void) => {
     console.log(`${successLine} ${timestampLine}`);
 };
 
-const LOCAL_NETWORKS = ['localhost', 'localhostL2'];
-
 export function isNetworkLocal(network: string): boolean {
-    return LOCAL_NETWORKS.includes(network);
+    return isNetworkLocalL1(network) || isNetworkLocalL2(network);
 }
 
 export function isNetworkLocalL1(network: string): boolean {
     return network == 'localhost';
+}
+
+export function isNetworkLocalL2(network: string): boolean {
+    return network == 'localhostL2';
 }
 
 export function isCurrentNetworkLocal(): boolean {
