@@ -10,6 +10,7 @@ use zksync_config::{
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::clients::MockEthereum;
+use zksync_node_shared::genesis::create_genesis_l1_batch;
 use zksync_types::{
     block::L2BlockHeader,
     fee::TransactionExecutionMetrics,
@@ -23,7 +24,6 @@ use zksync_types::{
 
 use crate::{
     fee_model::MainNodeFeeInputProvider,
-    genesis::create_genesis_l1_batch,
     l1_gas_price::{GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing},
     state_keeper::{MempoolGuard, MempoolIO},
     utils::testonly::{

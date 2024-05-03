@@ -191,7 +191,7 @@ pub(super) async fn save_genesis_l1_batch_metadata(
 pub(super) async fn insert_system_contracts(
     storage: &mut Connection<'_, Core>,
     factory_deps: HashMap<H256, Vec<u8>>,
-    storage_logs: &Vec<(H256, Vec<StorageLog>)>,
+    storage_logs: &[(H256, Vec<StorageLog>)],
 ) -> Result<(), GenesisError> {
     let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) =
         get_deduped_log_queries(storage_logs)

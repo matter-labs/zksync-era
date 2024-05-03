@@ -2,11 +2,11 @@
 
 use assert_matches::assert_matches;
 use zksync_dal::ConnectionPool;
+use zksync_node_shared::genesis::{insert_genesis_batch, GenesisParams};
 
 use super::*;
 use crate::{
     api_server::{execution_sandbox::apply::apply_vm_in_sandbox, tx_sender::ApiContracts},
-    genesis::{insert_genesis_batch, GenesisParams},
     utils::testonly::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot},
 };
 

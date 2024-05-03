@@ -4,12 +4,10 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::validator;
 use zksync_dal::ConnectionPool;
+use zksync_node_shared::genesis::{insert_genesis_batch, GenesisParams};
 
 use super::Store;
-use crate::{
-    genesis::{insert_genesis_batch, GenesisParams},
-    utils::testonly::{recover, snapshot, Snapshot},
-};
+use crate::utils::testonly::{recover, snapshot, Snapshot};
 
 impl Store {
     /// Waits for the `number` L2 block to have a certificate.

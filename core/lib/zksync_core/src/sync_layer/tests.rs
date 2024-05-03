@@ -6,6 +6,7 @@ use test_casing::test_casing;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_node_shared::genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{
     api,
     block::L2BlockHasher,
@@ -17,7 +18,6 @@ use zksync_types::{
 use super::{fetcher::FetchedTransaction, sync_action::SyncAction, *};
 use crate::{
     consensus::testonly::MockMainNodeClient,
-    genesis::{insert_genesis_batch, GenesisParams},
     state_keeper::{
         io::{L1BatchParams, L2BlockParams},
         seal_criteria::NoopSealer,

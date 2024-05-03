@@ -8662,6 +8662,7 @@ dependencies = [
  "zksync_eth_client",
  "zksync_health_check",
  "zksync_l1_contract_interface",
+ "zksync_node_shared",
  "zksync_object_store",
  "zksync_protobuf_config",
  "zksync_shared_metrics",

@@ -8,6 +8,7 @@ use tokio::sync::mpsc;
 use zksync_config::GenesisConfig;
 use zksync_dal::Connection;
 use zksync_eth_client::{clients::MockEthereum, Options};
+use zksync_node_shared::genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, Log,
     ProtocolVersion, ProtocolVersionId, H256,
@@ -18,7 +19,6 @@ use crate::{
     eth_sender::l1_batch_commit_data_generator::{
         RollupModeL1BatchCommitDataGenerator, ValidiumModeL1BatchCommitDataGenerator,
     },
-    genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams},
     utils::testonly::{
         create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
         DeploymentMode,

@@ -13,6 +13,7 @@ use zksync_config::configs::{
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{CheckHealth, HealthStatus};
 use zksync_merkle_tree::domain::ZkSyncTree;
+use zksync_node_shared::genesis::{insert_genesis_batch, GenesisParams};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
 use zksync_storage::RocksDB;
@@ -22,11 +23,10 @@ use zksync_types::{
 };
 use zksync_utils::u32_to_h256;
 
-use super::{GenericAsyncTree, L1BatchWithLogs, MetadataCalculator, MetadataCalculatorConfig};
-use crate::{
-    genesis::{insert_genesis_batch, GenesisParams},
-    utils::testonly::{create_l1_batch, create_l2_block},
+use super::{
+    helpers::L1BatchWithLogs, GenericAsyncTree, MetadataCalculator, MetadataCalculatorConfig,
 };
+use crate::utils::testonly::{create_l1_batch, create_l2_block};
 
 const RUN_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -116,6 +116,7 @@ async fn expected_tree_hash(pool: &ConnectionPool<Core>) -> H256 {
                 .await
                 .unwrap();
         let logs = logs.expect("no L1 batch").storage_logs;
+
         all_logs.extend(logs);
     }
     ZkSyncTree::process_genesis_batch(&all_logs).root_hash
