@@ -4,9 +4,11 @@ use std::{any, fmt, num, path::PathBuf};
 
 #[doc(hidden)] // used in the derive macro
 pub use once_cell::sync::Lazy;
+use serde::de::DeserializeOwned;
+pub use zksync_config_derive::DescribeConfig;
 
 /// Describes a configuration (i.e., a group of related parameters).
-pub trait DescribeConfig: 'static {
+pub trait DescribeConfig: 'static + DeserializeOwned {
     /// Provides the description.
     fn describe_config() -> &'static ConfigMetadata;
 }

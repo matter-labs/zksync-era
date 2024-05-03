@@ -7545,8 +7545,18 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "zksync_basic_types",
+ "zksync_config_derive",
  "zksync_consensus_utils",
  "zksync_crypto_primitives",
+]
+
+[[package]]
+name = "zksync_config_derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2 1.0.78",
+ "quote 1.0.35",
+ "syn 2.0.48",
 ]
 
 [[package]]

@@ -11,7 +11,7 @@ use crate::metadata::DescribeConfig;
 /// Engine powering [`EnvironmentParser`]. Responsible for converting environment `vars` into
 /// a deserializable configuration.
 pub trait EnvParserEngine {
-    fn parse_from_env<C: DeserializeOwned>(
+    fn parse_from_env<C: DescribeConfig>(
         &self,
         prefix: &str,
         vars: &HashMap<String, String>,

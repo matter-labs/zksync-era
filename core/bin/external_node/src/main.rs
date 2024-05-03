@@ -788,7 +788,7 @@ async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
     if let Some(filter) = &opt.list_configs {
-        ExternalNodeConfig::print_help(filter.as_deref());
+        ExternalNodeConfig::print_help(filter.as_deref())?;
         return Ok(());
     }
 

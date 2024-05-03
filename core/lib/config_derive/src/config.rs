@@ -156,8 +156,7 @@ impl ConfigField {
         angle_bracketed.args.len() == 1
     }
 
-    fn describe(&self) -> proc_macro2::TokenStream {
-        let cr = quote!(::zksync_config::metadata);
+    fn describe(&self, cr: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
         let name = &self.name;
         let name_str = self
             .serde_data
@@ -210,7 +209,31 @@ impl ConfigField {
     }
 }
 
+struct DescribeConfigAttrs {
+    cr: Option<Path>,
+}
+
+impl DescribeConfigAttrs {
+    fn new(attrs: &[Attribute]) -> syn::Result<Self> {
+        let config_attrs = attrs.iter().filter(|attr| attr.path().is_ident("config"));
+        let mut cr = None;
+        for attr in config_attrs {
+            attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("crate") {
+                    let path: Path = meta.value()?.parse()?;
+                    cr = Some(path);
+                    Ok(())
+                } else {
+                    Err(meta.error("unsupported attribute; only `crate` is supported"))
+                }
+            })?;
+        }
+        Ok(Self { cr })
+    }
+}
+
 struct DescribeConfigImpl {
+    attrs: DescribeConfigAttrs,
     name: Ident,
     help: String,
     fields: Vec<ConfigField>,
@@ -230,6 +253,7 @@ impl DescribeConfigImpl {
             return Err(syn::Error::new_spanned(&raw.generics, message));
         }
 
+        let attrs = DescribeConfigAttrs::new(&raw.attrs)?;
         let name = raw.ident.clone();
         let fields = data
             .fields
@@ -237,17 +261,27 @@ impl DescribeConfigImpl {
             .map(ConfigField::new)
             .collect::<syn::Result<_>>()?;
         Ok(Self {
+            attrs,
             name,
             help: parse_docs(&raw.attrs),
             fields,
         })
     }
 
+    fn cr(&self) -> proc_macro2::TokenStream {
+        if let Some(cr) = &self.attrs.cr {
+            quote!(#cr::metadata)
+        } else {
+            let span = self.name.span();
+            quote_spanned!(span=> ::zksync_config::metadata)
+        }
+    }
+
     fn derive_describe_config(&self) -> proc_macro2::TokenStream {
-        let cr = quote!(::zksync_config::metadata);
+        let cr = self.cr();
         let name = &self.name;
         let help = &self.help;
-        let params = self.fields.iter().map(ConfigField::describe);
+        let params = self.fields.iter().map(|field| field.describe(&cr));
 
         quote! {
             impl #cr::DescribeConfig for #name {

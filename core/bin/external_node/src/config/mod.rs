@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    env, fmt,
+    env, fmt, io,
     num::{NonZeroU32, NonZeroU64, NonZeroUsize},
     path::PathBuf,
     str::FromStr,
@@ -17,13 +17,13 @@ use zksync_config::{
         chain::L1BatchCommitDataGeneratorMode,
         consensus::{ConsensusConfig, ConsensusSecrets},
     },
+    metadata::DescribeConfig,
     schema::{
         env::{EnvParserEngine, Environment},
         Alias, ConfigSchema,
     },
     ObjectStoreConfig,
 };
-use zksync_config_derive::DescribeConfig;
 use zksync_core::{
     api_server::{
         tx_sender::TxSenderConfig,
@@ -847,20 +847,23 @@ impl ExternalNodeConfig {
             .insert::<TreeComponentConfig>("tree")
     }
 
-    pub fn print_help(filter: Option<&str>) {
+    pub fn print_help(filter: Option<&str>) -> io::Result<()> {
         println!(
             "Configuration is supplied to the node as environment variables. The name of an env variable is obtained \
              by converting the parameter name to upper case and replacing '.' chars with '_' and prepending `EN_` \
              (other than for `database_url` and `database_pool_size` params, which do not have such a prefix). \
              For example, `prometheus_port` parameter is mapped to the `EN_PROMETHEUS_PORT` env var.\n"
         );
-        Self::schema().print_help(|param| {
+        let mut writer = io::LineWriter::new(io::stdout().lock());
+        Self::schema().write_help(&mut writer, |param| {
             if let Some(filter) = filter {
-                param.name.contains(filter) || param.help.contains(filter)
+                param.name.contains(filter)
+                    || param.help.contains(filter)
+                    || param.aliases.iter().any(|alias| alias.contains(filter))
             } else {
                 true // print all params
             }
-        });
+        })
     }
 
     /// Loads config from the environment variables and

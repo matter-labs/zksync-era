@@ -16,7 +16,6 @@ zksync_commitment_generator.workspace = true
 zksync_dal.workspace = true
 zksync_db_connection.workspace = true
 zksync_config.workspace = true
-zksync_config_derive.workspace = true
 zksync_protobuf_config.workspace = true
 zksync_eth_client.workspace = true
 zksync_storage.workspace = true

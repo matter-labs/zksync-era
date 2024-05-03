@@ -3,6 +3,7 @@
 use std::{
     any,
     collections::{HashMap, HashSet},
+    io,
     marker::PhantomData,
 };
 
@@ -11,6 +12,8 @@ use serde::de::DeserializeOwned;
 use crate::metadata::{ConfigMetadata, DescribeConfig, ParamMetadata};
 
 pub mod env;
+#[cfg(test)]
+mod tests;
 
 const INDENT: &str = "    ";
 
@@ -96,8 +99,14 @@ impl ConfigSchema {
         self
     }
 
-    /// Prints help about this schema.
-    pub fn print_help(&self, mut param_filter: impl FnMut(&ParamMetadata) -> bool) {
+    /// Writes help about this schema to the provided writer.
+    ///
+    /// `param_filter` can be used to filter displayed parameters.
+    pub fn write_help(
+        &self,
+        writer: &mut impl io::Write,
+        mut param_filter: impl FnMut(&ParamMetadata) -> bool,
+    ) -> io::Result<()> {
         for config_data in self.configs.values() {
             let filtered_params: Vec<_> = config_data
                 .metadata
@@ -106,25 +115,30 @@ impl ConfigSchema {
                 .filter(|&param| param_filter(param))
                 .collect();
             if filtered_params.is_empty() {
-                return;
+                continue;
             }
 
-            println!("{}\n", config_data.metadata.help);
+            writeln!(writer, "{}\n", config_data.metadata.help)?;
             for param in filtered_params {
-                Self::print_parameter(param, config_data);
-                println!();
+                Self::write_parameter(writer, param, config_data)?;
+                writeln!(writer)?;
             }
         }
+        Ok(())
     }
 
-    fn print_parameter(param: &ParamMetadata, config_data: &ConfigData) {
+    fn write_parameter(
+        writer: &mut impl io::Write,
+        param: &ParamMetadata,
+        config_data: &ConfigData,
+    ) -> io::Result<()> {
         let prefix = config_data.prefix;
         let prefix_sep = if prefix.is_empty() || prefix.ends_with('.') {
             ""
         } else {
             "."
         };
-        println!("{prefix}{prefix_sep}{}", param.name);
+        writeln!(writer, "{prefix}{prefix_sep}{}", param.name)?;
 
         let local_aliases = param.aliases.iter().copied();
         let global_aliases = config_data.aliases.iter().flat_map(|alias| {
@@ -145,7 +159,7 @@ impl ConfigSchema {
             } else {
                 "."
             };
-            println!("{prefix}{prefix_sep}{alias}");
+            writeln!(writer, "{prefix}{prefix_sep}{alias}")?;
         }
 
         let ty = if let Some(kind) = param.base_type.kind() {
@@ -163,12 +177,13 @@ impl ConfigSchema {
         } else {
             String::new()
         };
-        println!("{INDENT}Type: {ty}{default}{unit}");
+        writeln!(writer, "{INDENT}Type: {ty}{default}{unit}")?;
 
         if !param.help.is_empty() {
             for line in param.help.lines() {
-                println!("{INDENT}{line}");
+                writeln!(writer, "{INDENT}{line}")?;
             }
         }
+        Ok(())
     }
 }
