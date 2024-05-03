@@ -97,14 +97,14 @@ output.
 ## Gas Price Oracle
 
 As prices in a custom base token setting need to be in the native currency of the chain. These prices are partially
-determined by l1 gas prices in L1, which are in eth, so a conversion is required.
+determined by l1 gas prices in L1, which are in ETH, so a conversion is required.
 
 ### Conversion rate API
 
 To use a conversion rate oracle, you will need to add the component to the command:
 
 ```
-zk server --components "api,tree,eth,state_keeper,housekeeper,commitment_generator,base_token_fetcher"
+zk server --components="api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator,base_token_fetcher"
 ```
 
 In order to run the server with the conversion rate, you will need to configure the variables in the
@@ -122,7 +122,7 @@ rate API, this component is only meant for development purposes and should not b
 fixed conversion rate for all tokens:
 
 ```
-zk server --components "api,tree,eth,state_keeper,housekeeper,commitment_generator,base_token_fetcher,dev_conversion_rate_api"
+zk server --components="api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator,base_token_fetcher,dev_conversion_rate_api"
 ```
 
 This server will use the host setted in the environment variable previously mentioned.
