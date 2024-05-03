@@ -1,9 +1,6 @@
 use clap::{command, Parser, Subcommand};
 
-use crate::{
-    commands::{self, get_file_info},
-    errors::CLIErrors,
-};
+use crate::commands::{self, get_file_info};
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 

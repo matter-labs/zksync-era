@@ -18,6 +18,45 @@ Options:
 
 ## Status
 
+### Status batch
+
+Displays the proof status for a given batch or a set of batches.
+
+Example:
+
+```bash
+$ zk f run --release -- status batch -n 1
+
+== Batch 1 Status ==
+> In Progress ⌛️
+
+== Proving Stages ==
+-- Aggregation Round 0 --
+Basic Witness Generator: Done ✅
+> Prover Jobs: In progress ⌛️
+
+-- Aggregation Round 1 --
+Leaf Witness Generator: In progress ⌛️
+> Prover Jobs: Waiting for proofs ⏱️
+
+-- Aggregation Round 2 --
+Node Witness Generator: In progress ⌛️
+> Prover Jobs: Waiting for proofs ⏱️
+
+-- Aggregation Round 3 --
+Recursion Tip: In progress ⌛️
+> Prover Jobs: Waiting for proofs ⏱️
+
+-- Aggregation Round 4 --
+Scheduler: In progress ⌛️
+> Prover Jobs: Waiting for proofs ⏱️
+
+-- Compressor --
+> Compressor job not found 🚫
+```
+
+## Status
+
 ### Status l1
 
 Retrieve information about the state of the batches sent to L1 and compare the contract hashes in L1 with those stored
@@ -50,7 +89,7 @@ DB hash: 0x0000000000000000000000000000000000000000000000000000000000000000
 
 ## File-Info
 
-Displays de information about a given file:
+Displays the information about a given file:
 
 ```bash
 cargo run -- file-info --file-path /zksync-era/prover/artifacts/proofs_fri/l1_batch_proof_1.bin
