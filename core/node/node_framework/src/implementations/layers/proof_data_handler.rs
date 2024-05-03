@@ -5,7 +5,10 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 
 use crate::{
-    implementations::resources::{object_store::ObjectStoreResource, pools::MasterPoolResource},
+    implementations::resources::{
+        object_store::ObjectStoreResource,
+        pools::{MasterPool, PoolResource},
+    },
     service::{ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
@@ -15,7 +18,7 @@ use crate::{
 ///
 /// ## Effects
 ///
-/// - Resolves `MasterPoolResource`.
+/// - Resolves `PoolResource<MasterPool>`.
 /// - Resolves `ObjectStoreResource`.
 /// - Adds `proof_data_handler` to the node.
 #[derive(Debug)]
@@ -38,7 +41,7 @@ impl WiringLayer for ProofDataHandlerLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool_resource = context.get_resource::<MasterPoolResource>().await?;
+        let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
         let main_pool = pool_resource.get().await.unwrap();
 
         let object_store = context.get_resource::<ObjectStoreResource>().await?;

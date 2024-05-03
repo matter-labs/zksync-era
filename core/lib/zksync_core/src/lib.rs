@@ -63,7 +63,7 @@ use zksync_node_genesis::{ensure_genesis_state, GenesisParams};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_shared_metrics::{InitStage, APP_METRICS};
-use zksync_state::PostgresStorageCaches;
+use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
 
 use crate::{
@@ -864,8 +864,17 @@ async fn add_state_keeper_to_task_futures(
         .build()
         .await
         .context("failed to build async_cache_pool")?;
-    let (async_cache, async_catchup_task) =
-        AsyncRocksdbCache::new(async_cache_pool, db_config.state_keeper_db_path.clone());
+    let cache_options = RocksdbStorageOptions {
+        block_cache_capacity: db_config
+            .experimental
+            .state_keeper_db_block_cache_capacity(),
+        max_open_files: db_config.experimental.state_keeper_db_max_open_files,
+    };
+    let (async_cache, async_catchup_task) = AsyncRocksdbCache::new(
+        async_cache_pool,
+        db_config.state_keeper_db_path.clone(),
+        cache_options,
+    );
     let state_keeper = create_state_keeper(
         state_keeper_config,
         state_keeper_wallets,
