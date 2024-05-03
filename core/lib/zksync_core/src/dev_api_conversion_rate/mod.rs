@@ -30,7 +30,9 @@ pub(crate) async fn run_server(
 
 // basic handler that responds with a static string
 async fn get_conversion_rate(extract::Path(token_address): extract::Path<String>) -> Json<u64> {
-    if token_address == "0x0000000000000000000000000000000000000000" {
+    if token_address == "0x0000000000000000000000000000000000000000"
+        || token_address == "0x0000000000000000000000000000000000000001"
+    {
         return Json(1);
     }
     tracing::info!("Received request for conversion rate");
