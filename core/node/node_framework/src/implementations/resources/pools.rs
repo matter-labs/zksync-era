@@ -11,6 +11,7 @@ use prover_dal::Prover;
 use tokio::sync::Mutex;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_db_connection::connection_pool::ConnectionPoolBuilder;
+use zksync_types::url::SensitiveUrl;
 
 use crate::resource::Resource;
 
@@ -18,7 +19,7 @@ use crate::resource::Resource;
 #[derive(Clone)]
 pub struct PoolResource<P: PoolKind> {
     connections_count: Arc<AtomicU32>,
-    url: String,
+    url: SensitiveUrl,
     max_connections: u32,
     statement_timeout: Option<Duration>,
     unbound_pool: Arc<Mutex<Option<ConnectionPool<P::DbMarker>>>>,
@@ -29,7 +30,7 @@ impl<P: PoolKind> fmt::Debug for PoolResource<P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("PoolResource")
             .field("connections_count", &self.connections_count)
-            .field("url", &"...")
+            .field("url", &self.url)
             .field("max_connections", &self.max_connections)
             .field("statement_timeout", &self.statement_timeout)
             .field("unbound_pool", &self.unbound_pool)
@@ -44,7 +45,11 @@ impl<P: PoolKind> Resource for PoolResource<P> {
 }
 
 impl<P: PoolKind> PoolResource<P> {
-    pub fn new(url: String, max_connections: u32, statement_timeout: Option<Duration>) -> Self {
+    pub fn new(
+        url: SensitiveUrl,
+        max_connections: u32,
+        statement_timeout: Option<Duration>,
+    ) -> Self {
         Self {
             connections_count: Arc::new(AtomicU32::new(0)),
             url,
@@ -56,7 +61,7 @@ impl<P: PoolKind> PoolResource<P> {
     }
 
     fn builder(&self) -> ConnectionPoolBuilder<P::DbMarker> {
-        let mut builder = ConnectionPool::builder(&self.url, self.max_connections);
+        let mut builder = ConnectionPool::builder(self.url.clone(), self.max_connections);
         builder.set_statement_timeout(self.statement_timeout);
         builder
     }

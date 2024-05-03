@@ -10,7 +10,7 @@ use crate::{
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct GeneralConfig {
     pub postgres_config: Option<PostgresConfig>,
     pub api_config: Option<ApiConfig>,

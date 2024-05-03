@@ -235,7 +235,6 @@ impl FromStr for GpuProverInstanceStatus {
     }
 }
 
-#[derive(Debug)]
 pub struct ProverJobFriInfo {
     pub id: u32,
     pub l1_batch_number: L1BatchNumber,
@@ -258,7 +257,6 @@ pub struct ProverJobFriInfo {
     pub picked_by: Option<String>,
 }
 
-#[derive(Debug)]
 pub struct BasicWitnessGeneratorJobInfo {
     pub l1_batch_number: L1BatchNumber,
     pub merkle_tree_paths_blob_url: Option<String>,
@@ -341,7 +339,6 @@ pub enum ProofCompressionJobStatus {
     Skipped,
 }
 
-#[derive(Debug)]
 pub struct ProofCompressionJobInfo {
     pub l1_batch_number: L1BatchNumber,
     pub attempts: u32,
