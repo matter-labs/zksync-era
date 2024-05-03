@@ -1,6 +1,6 @@
 use clap::{command, Parser, Subcommand};
 
-use crate::commands::{delete, get_file_info};
+use crate::commands::{self, delete, get_file_info};
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
@@ -15,6 +15,8 @@ struct ProverCLI {
 enum ProverCommand {
     FileInfo(get_file_info::Args),
     Delete(delete::Args),
+    #[command(subcommand)]
+    Status(commands::StatusCommand),
 }
 
 pub async fn start() -> anyhow::Result<()> {
@@ -22,6 +24,7 @@ pub async fn start() -> anyhow::Result<()> {
     match command {
         ProverCommand::FileInfo(args) => get_file_info::run(args).await?,
         ProverCommand::Delete(args) => delete::run(args).await?,
+        ProverCommand::Status(cmd) => cmd.run().await?,
     };
 
     Ok(())

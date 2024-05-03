@@ -4396,6 +4396,7 @@ dependencies = [
  "hex",
  "log",
  "prover_dal",
+ "strum",
  "tokio",
  "tracing",
  "tracing-subscriber",

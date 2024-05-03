@@ -1,10 +1,12 @@
 #![doc = include_str!("../doc/FriProverDal.md")]
-use std::{collections::HashMap, convert::TryFrom, time::Duration};
+use std::{collections::HashMap, convert::TryFrom, str::FromStr, time::Duration};
 
 use zksync_basic_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     protocol_version::ProtocolVersionId,
-    prover_dal::{FriProverJobMetadata, JobCountStatistics, StuckJobs},
+    prover_dal::{
+        FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo, ProverJobStatus, StuckJobs,
+    },
     L1BatchNumber,
 };
 use zksync_db_connection::{
@@ -640,6 +642,54 @@ impl FriProverDal<'_, '_> {
         .unwrap()
         .into_iter()
         .map(|row| (row.circuit_id as u8, row.id as u32))
+        .collect()
+    }
+
+    pub async fn get_prover_jobs_stats_for_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        aggregation_round: AggregationRound,
+    ) -> Vec<ProverJobFriInfo> {
+        sqlx::query!(
+            r#"
+            SELECT
+                *
+            FROM
+                prover_jobs_fri
+            WHERE
+                l1_batch_number = $1
+                AND aggregation_round = $2
+            "#,
+            i64::from(l1_batch_number.0),
+            aggregation_round as i16
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .iter()
+        .map(|row| ProverJobFriInfo {
+            id: row.id as u32,
+            l1_batch_number,
+            circuit_id: row.circuit_id as u32,
+            circuit_blob_url: row.circuit_blob_url.clone(),
+            aggregation_round,
+            sequence_number: row.sequence_number as u32,
+            status: ProverJobStatus::from_str(&row.status).unwrap(),
+            error: row.error.clone(),
+            attempts: row.attempts as u8,
+            processing_started_at: row.processing_started_at,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            time_taken: row.time_taken,
+            is_blob_cleaned: row.is_blob_cleaned,
+            depth: row.depth as u32,
+            is_node_final_proof: row.is_node_final_proof,
+            proof_blob_url: row.proof_blob_url.clone(),
+            protocol_version: row.protocol_version.map(|protocol_version| {
+                ProtocolVersionId::try_from(protocol_version as u16).unwrap()
+            }),
+            picked_by: row.picked_by.clone(),
+        })
         .collect()
     }
 

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
-use prover_dal::{fri_proof_compressor_dal::ProofCompressionJobStatus, ProverDal};
+use prover_dal::ProverDal;
 use zksync_prover_interface::api::{SubmitProofRequest, SubmitProofResponse};
-use zksync_types::L1BatchNumber;
+use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchNumber};
 
 use crate::api_data_fetcher::{PeriodicApi, PeriodicApiStruct};
 
