@@ -1,5 +1,7 @@
 //! Tests for EN configuration.
 
+use std::path::Path;
+
 use super::*;
 
 #[test]
@@ -9,7 +11,10 @@ fn parsing_optional_config_from_empty_env() {
         .parser(Envy, &schema)
         .parse()
         .unwrap();
+    assert_default_optional_config(&config);
+}
 
+fn assert_default_optional_config(config: &OptionalENConfig) {
     assert_eq!(config.filters_limit, 10_000);
     assert_eq!(config.subscriptions_limit, 10_000);
     assert_eq!(config.fee_history_limit, 1_024);
@@ -121,7 +126,10 @@ fn parsing_experimental_config_from_empty_env() {
         .parser(Envy, &schema)
         .parse()
         .unwrap();
+    assert_default_experimental_config(&config);
+}
 
+fn assert_default_experimental_config(config: &ExperimentalENConfig) {
     assert_eq!(config.state_keeper_db_block_cache_capacity(), 128 << 20);
     assert_eq!(config.state_keeper_db_max_open_files, None);
     assert!(!config.pruning_enabled);
@@ -162,4 +170,96 @@ fn parsing_experimental_config_from_env() {
     assert!(config.pruning_enabled);
     assert_eq!(config.pruning_chunk_size, 5);
     assert_eq!(config.pruning_removal_delay(), Duration::from_secs(90));
+}
+
+// All environment variables necessary to initialize the node.
+const REQUIRED_VARS: &[(&str, &str)] = &[
+    ("EN_MAIN_NODE_URL", "http://127.0.0.1:3050"),
+    ("EN_ETH_CLIENT_URL", "http://127.0.0.1:8545"),
+    ("EN_HTTP_PORT", "3060"),
+    ("EN_WS_PORT", "3061"),
+    ("EN_HEALTHCHECK_PORT", "3080"),
+    (
+        "EN_DATABASE_URL",
+        "postgres://postgres:notsecurepassword@localhost/zksync_local_ext_node",
+    ),
+    ("EN_DATABASE_POOL_SIZE", "50"),
+    ("EN_STATE_CACHE_PATH", "./db/ext-node/state_keeper"),
+    ("EN_MERKLE_TREE_PATH", "./db/ext-node/lightweight"),
+];
+
+#[test]
+fn parsing_minimal_entire_configuration() {
+    let schema = ExternalNodeConfig::schema();
+    let parser = Environment::from_iter("EN_", REQUIRED_VARS.iter().copied()).parser(Envy, &schema);
+    let required: RequiredENConfig = parser.parse().unwrap();
+    assert_required_config(&required);
+
+    let database: PostgresConfig = parser.parse().unwrap();
+    assert_eq!(
+        database.database_url,
+        "postgres://postgres:notsecurepassword@localhost/zksync_local_ext_node"
+    );
+    assert_eq!(database.database_pool_size, 50);
+
+    let optional: OptionalENConfig = parser.parse().unwrap();
+    assert_default_optional_config(&optional);
+
+    let experimental: ExperimentalENConfig = parser.parse().unwrap();
+    assert_default_experimental_config(&experimental);
+}
+
+fn assert_required_config(config: &RequiredENConfig) {
+    assert_eq!(config.main_node_url, "http://127.0.0.1:3050");
+    assert_eq!(config.eth_client_url, "http://127.0.0.1:8545");
+    assert_eq!(config.http_port, 3060);
+    assert_eq!(config.ws_port, 3061);
+    assert_eq!(config.healthcheck_port, 3080);
+    assert_eq!(
+        config.state_cache_path,
+        Path::new("./db/ext-node/state_keeper")
+    );
+    assert_eq!(
+        config.merkle_tree_path,
+        Path::new("./db/ext-node/lightweight")
+    );
+}
+
+#[test]
+fn parsing_entire_configuration() {
+    let schema = ExternalNodeConfig::schema();
+    let env_vars = REQUIRED_VARS.iter().copied().chain([
+        ("EN_FILTERS_DISABLED", "true"),
+        ("EN_VM_CONCURRENCY_LIMIT", "64"),
+        ("EN_MERKLE_TREE_PROCESSING_DELAY_MS", "50"),
+        ("EN_PRUNING_ENABLED", "true"),
+        ("EN_EXPERIMENTAL_PRUNING_CHUNK_SIZE", "3"),
+        ("EN_EXPERIMENTAL_PRUNING_REMOVAL_DELAY_SEC", "120"),
+    ]);
+    let parser = Environment::from_iter("EN_", env_vars).parser(Envy, &schema);
+    let required: RequiredENConfig = parser.parse().unwrap();
+    assert_required_config(&required);
+
+    let database: PostgresConfig = parser.parse().unwrap();
+    assert_eq!(
+        database.database_url,
+        "postgres://postgres:notsecurepassword@localhost/zksync_local_ext_node"
+    );
+    assert_eq!(database.database_pool_size, 50);
+
+    let optional: OptionalENConfig = parser.parse().unwrap();
+    assert!(optional.filters_disabled);
+    assert_eq!(optional.vm_concurrency_limit, 64);
+    assert_eq!(
+        optional.merkle_tree_processing_delay(),
+        Duration::from_millis(50)
+    );
+
+    let experimental: ExperimentalENConfig = parser.parse().unwrap();
+    assert!(experimental.pruning_enabled);
+    assert_eq!(experimental.pruning_chunk_size, 3);
+    assert_eq!(
+        experimental.pruning_removal_delay(),
+        Duration::from_secs(120)
+    );
 }
