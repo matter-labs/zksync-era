@@ -10,10 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
-env_logger = "0.10"
-log = "0.4"
-
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 clap = { workspace = true, features = ["derive"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
@@ -29,4 +26,3 @@ zksync_types.workspace = true
 zksync_prover_fri_types.workspace = true
 zksync_prover_interface.workspace = true
 prover_dal.workspace = true
-
