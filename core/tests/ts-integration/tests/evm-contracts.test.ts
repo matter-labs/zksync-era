@@ -99,7 +99,7 @@ describe('EVM equivalence contract', () => {
             let result = (await gasCallerContract.callStatic.callAndGetGas(counterContract.address)).toString();
 
             const expected_gas = '34763'; // Gas cost when run with solidity interpreter
-            expect(result).toEqual(expected_gas); 
+            expect(result).toEqual(expected_gas);
         });
     });
 
