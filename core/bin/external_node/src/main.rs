@@ -59,7 +59,10 @@ use zksync_web3_decl::{
 };
 
 use crate::{
-    config::{observability::observability_config_from_env, ExternalNodeConfig},
+    config::{
+        observability::observability_config_from_env, ExternalNodeConfig, OptionalENConfig,
+        RequiredENConfig,
+    },
     helpers::MainNodeHealthCheck,
     init::ensure_storage_initialized,
     metrics::RUST_METRICS,
@@ -157,7 +160,7 @@ async fn run_tree(
         format!("snapshot recovery max concurrency ({max_concurrency}) is too large")
     })?;
     let recovery_pool = ConnectionPool::builder(
-        tree_pool.database_url(),
+        tree_pool.database_url().clone(),
         max_concurrency.min(config.postgres.max_connections),
     )
     .build()
@@ -805,9 +808,29 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("No sentry URL was provided");
     }
 
-    let mut config = ExternalNodeConfig::collect()
-        .await
-        .context("Failed to load external node config")?;
+    let required_config = RequiredENConfig::from_env()?;
+    let optional_config = OptionalENConfig::from_env()?;
+
+    // Build L1 and L2 clients.
+    let main_node_url = &required_config.main_node_url;
+    tracing::info!("Main node URL is: {main_node_url:?}");
+    let main_node_client = L2Client::http(main_node_url.clone())
+        .context("Failed creating JSON-RPC client for main node")?
+        .with_allowed_requests_per_second(optional_config.main_node_rate_limit_rps)
+        .build();
+    let main_node_client = BoxedL2Client::new(main_node_client);
+
+    let eth_client_url = &required_config.eth_client_url;
+    let eth_client = Arc::new(QueryClient::new(eth_client_url.clone())?);
+
+    let mut config = ExternalNodeConfig::new(
+        required_config,
+        optional_config,
+        &main_node_client,
+        eth_client.as_ref(),
+    )
+    .await
+    .context("Failed to load external node config")?;
     if !opt.enable_consensus {
         config.consensus = None;
     }
@@ -821,31 +844,14 @@ async fn main() -> anyhow::Result<()> {
     RUST_METRICS.initialize();
     EN_METRICS.observe_config(&config);
 
-    let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
+    let singleton_pool_builder = ConnectionPool::singleton(config.postgres.database_url());
     let connection_pool = ConnectionPool::<Core>::builder(
-        &config.postgres.database_url,
+        config.postgres.database_url(),
         config.postgres.max_connections,
     )
     .build()
     .await
     .context("failed to build a connection_pool")?;
-
-    let main_node_url = config
-        .required
-        .main_node_url()
-        .expect("Main node URL is incorrect");
-    tracing::info!("Main node URL is: {main_node_url}");
-    let main_node_client = L2Client::http(&main_node_url)
-        .context("Failed creating JSON-RPC client for main node")?
-        .with_allowed_requests_per_second(config.optional.main_node_rate_limit_rps)
-        .build();
-    let main_node_client = BoxedL2Client::new(main_node_client);
-
-    let eth_client_url = config
-        .required
-        .eth_client_url()
-        .context("L1 client URL is incorrect")?;
-    let eth_client = Arc::new(QueryClient::new(&eth_client_url)?);
 
     run_node(
         (),
