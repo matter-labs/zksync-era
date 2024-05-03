@@ -199,17 +199,25 @@ impl StorageLogsDal<'_, '_> {
                         *
                     FROM
                         storage_logs
-                        LEFT JOIN miniblocks ON miniblocks.number = storage_logs.miniblock_number
-                        LEFT JOIN snapshot_recovery ON snapshot_recovery.miniblock_number = storage_logs.miniblock_number
                     WHERE
-                        storage_logs.hashed_key = $1
-                        AND (
-                            miniblocks.number IS NOT NULL
-                            OR snapshot_recovery.miniblock_number IS NOT NULL
+                        hashed_key = $1
+                        AND miniblock_number <= COALESCE(
+                            (
+                                SELECT
+                                    MAX(number)
+                                FROM
+                                    miniblocks
+                            ),
+                            (
+                                SELECT
+                                    miniblock_number
+                                FROM
+                                    snapshot_recovery
+                            )
                         )
                     ORDER BY
-                        storage_logs.miniblock_number DESC,
-                        storage_logs.operation_number DESC
+                        miniblock_number DESC,
+                        operation_number DESC
                     LIMIT
                         1
                 ) sl
@@ -246,23 +254,31 @@ impl StorageLogsDal<'_, '_> {
             r#"
             SELECT DISTINCT
                 ON (hashed_key) hashed_key,
-                storage_logs.miniblock_number,
-                storage_logs.value
+                miniblock_number,
+                value
             FROM
                 storage_logs
-                LEFT JOIN miniblocks ON miniblocks.number = storage_logs.miniblock_number
-                LEFT JOIN snapshot_recovery ON snapshot_recovery.miniblock_number = storage_logs.miniblock_number
             WHERE
-                storage_logs.hashed_key = ANY ($1)
-                AND storage_logs.miniblock_number <= $2
-                AND (
-                    miniblocks.number IS NOT NULL
-                    OR snapshot_recovery.miniblock_number IS NOT NULL
+                hashed_key = ANY ($1)
+                AND miniblock_number <= $2
+                AND miniblock_number <= COALESCE(
+                    (
+                        SELECT
+                            MAX(number)
+                        FROM
+                            miniblocks
+                    ),
+                    (
+                        SELECT
+                            miniblock_number
+                        FROM
+                            snapshot_recovery
+                    )
                 )
             ORDER BY
-                storage_logs.hashed_key,
-                storage_logs.miniblock_number DESC,
-                storage_logs.operation_number DESC
+                hashed_key,
+                miniblock_number DESC,
+                operation_number DESC
             "#,
             &bytecode_hashed_keys as &[_],
             i64::from(max_l2_block_number)

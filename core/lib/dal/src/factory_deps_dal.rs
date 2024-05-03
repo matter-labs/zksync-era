@@ -64,13 +64,21 @@ impl FactoryDepsDal<'_, '_> {
                 bytecode
             FROM
                 factory_deps
-                LEFT JOIN miniblocks ON miniblocks.number = factory_deps.miniblock_number
-                LEFT JOIN snapshot_recovery ON snapshot_recovery.miniblock_number = factory_deps.miniblock_number
             WHERE
                 bytecode_hash = $1
-                AND (
-                    miniblocks.number IS NOT NULL
-                    OR snapshot_recovery.miniblock_number IS NOT NULL
+                AND miniblock_number <= COALESCE(
+                    (
+                        SELECT
+                            MAX(number)
+                        FROM
+                            miniblocks
+                    ),
+                    (
+                        SELECT
+                            miniblock_number
+                        FROM
+                            snapshot_recovery
+                    )
                 )
             "#,
             hash.as_bytes(),
