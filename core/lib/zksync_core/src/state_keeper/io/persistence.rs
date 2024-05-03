@@ -249,9 +249,10 @@ mod tests {
     use multivm::zk_evm_latest::ethereum_types::{H256, U256};
     use zksync_dal::CoreDal;
     use zksync_types::{
-        api::TransactionStatus, block::BlockGasCount, tx::ExecutionMetrics, L1BatchNumber,
-        L2BlockNumber,
+        api::TransactionStatus, block::BlockGasCount, tx::ExecutionMetrics, AccountTreeId,
+        L1BatchNumber, L2BlockNumber, StorageKey, StorageLogQueryType,
     };
+    use zksync_utils::u256_to_h256;
 
     use super::*;
     use crate::{
@@ -352,9 +353,24 @@ mod tests {
         batch_result
             .final_execution_state
             .deduplicated_storage_log_queries = storage_logs
-            .into_iter()
-            .map(|query| query.log_query)
+            .iter()
+            .map(|query| query.log_query.clone())
             .collect();
+        batch_result.initially_written_slots = Some(
+            storage_logs
+                .into_iter()
+                .filter_map(|log| {
+                    (log.log_type == StorageLogQueryType::InitialWrite).then(|| {
+                        let key = StorageKey::new(
+                            AccountTreeId::new(log.log_query.address),
+                            u256_to_h256(log.log_query.key),
+                        );
+                        key.hashed_key()
+                    })
+                })
+                .collect(),
+        );
+
         updates.finish_batch(batch_result);
         persistence.handle_l1_batch(&updates).await.unwrap();
 
