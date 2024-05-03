@@ -329,38 +329,20 @@ impl FriProofCompressorDal<'_, '_> {
         }
     }
 
-    pub async fn delete_batch_data_with_status(
+    pub async fn delete_batch_data(
         &mut self,
         block_number: L1BatchNumber,
-        status: Option<ProofCompressionJobStatus>,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        if let Some(status) = status {
-            sqlx::query(
-                format!(
-                    "
-                DELETE FROM proof_compression_jobs_fri
-                WHERE
-                    l1_batch_number = {l1_batch_number}
-                    AND status = '{status}'
-                ",
-                    l1_batch_number = i64::from(block_number.0),
-                )
-                .as_str(),
-            )
-            .execute(self.storage.conn())
-            .await
-        } else {
-            sqlx::query!(
-                r#"
-                DELETE FROM proof_compression_jobs_fri
-                WHERE
-                    l1_batch_number = $1
-                "#,
-                i64::from(block_number.0)
-            )
-            .execute(self.storage.conn())
-            .await
-        }
+        sqlx::query!(
+            r#"
+            DELETE FROM proof_compression_jobs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .execute(self.storage.conn())
+        .await
     }
 
     pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {

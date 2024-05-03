@@ -1395,77 +1395,46 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .map(|id| ProtocolVersionId::try_from(id as u16).unwrap())
         .unwrap()
     }
-    pub async fn delete_witness_generator_data_for_batch_with_status(
+    pub async fn delete_witness_generator_data_for_batch(
         &mut self,
         block_number: L1BatchNumber,
         aggregation_round: AggregationRound,
-        status: &Option<FriWitnessJobStatus>,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        if let Some(status) = status {
-            sqlx::query(
-                format!(
-                    r#"
-                DELETE FROM
-                    {table}
-                WHERE
-                    l1_batch_number = {l1_batch_number}
-                    AND status = '{status}'
-                "#,
-                    table = Self::input_table_name_for(aggregation_round),
-                    l1_batch_number = i64::from(block_number.0),
-                )
-                .as_str(),
+        sqlx::query(
+            format!(
+                r#"
+            DELETE FROM
+                {table}
+            WHERE
+                l1_batch_number = {l1_batch_number}
+            "#,
+                table = Self::input_table_name_for(aggregation_round),
+                l1_batch_number = i64::from(block_number.0),
             )
-            .execute(self.storage.conn())
-            .await
-        } else {
-            sqlx::query(
-                format!(
-                    r#"
-                DELETE FROM
-                    {}
-                WHERE
-                    l1_batch_number = {}
-                "#,
-                    Self::input_table_name_for(aggregation_round),
-                    i64::from(block_number.0),
-                )
-                .as_str(),
-            )
-            .execute(self.storage.conn())
-            .await
-        }
+            .as_str(),
+        )
+        .execute(self.storage.conn())
+        .await
     }
 
-    pub async fn delete_batch_data_with_status(
+    pub async fn delete_batch_data(
         &mut self,
         block_number: L1BatchNumber,
-        status: Option<FriWitnessJobStatus>,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        self.delete_witness_generator_data_for_batch_with_status(
-            block_number,
-            AggregationRound::BasicCircuits,
-            &status,
-        )
-        .await?;
-        self.delete_witness_generator_data_for_batch_with_status(
+        self.delete_witness_generator_data_for_batch(block_number, AggregationRound::BasicCircuits)
+            .await?;
+        self.delete_witness_generator_data_for_batch(
             block_number,
             AggregationRound::LeafAggregation,
-            &status,
         )
         .await?;
-        self.delete_witness_generator_data_for_batch_with_status(
+        self.delete_witness_generator_data_for_batch(
             block_number,
             AggregationRound::NodeAggregation,
-            &status,
         )
         .await?;
-        self.delete_witness_generator_data_for_batch_with_status(
-            block_number,
-            AggregationRound::Scheduler,
-            &status,
-        )
-        .await
+        self.delete_witness_generator_data_for_batch(block_number, AggregationRound::Scheduler)
+            .await
     }
 
     pub async fn delete_witness_generator_data(
@@ -1492,6 +1461,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
         self.delete_witness_generator_data(AggregationRound::LeafAggregation)
             .await?;
         self.delete_witness_generator_data(AggregationRound::NodeAggregation)
+            .await?;
+        self.delete_witness_generator_data(AggregationRound::RecursionTip)
             .await?;
         self.delete_witness_generator_data(AggregationRound::Scheduler)
             .await

@@ -643,84 +643,49 @@ impl FriProverDal<'_, '_> {
         .collect()
     }
 
-    pub async fn delete_prover_jobs_fri_batch_data_with_status(
+    pub async fn delete_prover_jobs_fri_batch_data(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        status: &Option<ProverJobStatus>,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        if let Some(status) = status {
-            sqlx::query(&format!(
-                "
-                DELETE FROM
-                    prover_jobs_fri
-                WHERE
-                    l1_batch_number = {l1_batch_number}
-                    AND status = '{status}'
-                
-                ",
-                l1_batch_number = i64::from(l1_batch_number.0),
-            ))
-            .execute(self.storage.conn())
-            .await
-        } else {
-            sqlx::query!(
-                r#"
-                DELETE FROM
-                    prover_jobs_fri
-                WHERE
-                    l1_batch_number = $1;
-                
-                "#,
-                i64::from(l1_batch_number.0)
-            )
-            .execute(self.storage.conn())
-            .await
-        }
+        sqlx::query!(
+            r#"
+            DELETE FROM
+                prover_jobs_fri
+            WHERE
+                l1_batch_number = $1;
+            
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .execute(self.storage.conn())
+        .await
     }
 
-    pub async fn delete_prover_jobs_fri_archive_batch_data_with_status(
+    pub async fn delete_prover_jobs_fri_archive_batch_data(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        status: &Option<ProverJobStatus>,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        if let Some(status) = status {
-            sqlx::query(&format!(
-                "
-                DELETE FROM
-                    prover_jobs_fri_archive
-                WHERE
-                    l1_batch_number = {l1_batch_number}
-                    AND status = '{status}'
-                
-                ",
-                l1_batch_number = i64::from(l1_batch_number.0),
-            ))
-            .execute(self.storage.conn())
-            .await
-        } else {
-            sqlx::query!(
-                r#"
-                DELETE FROM
-                    prover_jobs_fri_archive
-                WHERE
-                    l1_batch_number = $1;
-                
-                "#,
-                i64::from(l1_batch_number.0)
-            )
-            .execute(self.storage.conn())
-            .await
-        }
+        sqlx::query!(
+            r#"
+            DELETE FROM
+                prover_jobs_fri_archive
+            WHERE
+                l1_batch_number = $1;
+            
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .execute(self.storage.conn())
+        .await
     }
 
-    pub async fn delete_batch_data_with_status(
+    pub async fn delete_batch_data(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        status: Option<ProverJobStatus>,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        self.delete_prover_jobs_fri_batch_data_with_status(l1_batch_number, &status)
+        self.delete_prover_jobs_fri_batch_data(l1_batch_number)
             .await?;
-        self.delete_prover_jobs_fri_archive_batch_data_with_status(l1_batch_number, &status)
+        self.delete_prover_jobs_fri_archive_batch_data(l1_batch_number)
             .await
     }
 
