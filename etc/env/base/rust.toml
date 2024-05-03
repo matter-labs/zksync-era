@@ -13,6 +13,7 @@ zksync_core=debug,\
 zksync_server=debug,\
 zksync_contract_verifier=debug,\
 zksync_dal=info,\
+zksync_db_connection=info,\
 zksync_eth_client=info,\
 zksync_eth_watch=debug,\
 zksync_storage=info,\

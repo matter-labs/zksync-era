@@ -8115,11 +8115,13 @@ name = "zksync_basic_types"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bincode",
  "chrono",
  "num_enum 0.7.2",
  "serde",
  "serde_json",
  "strum",
+ "url",
  "web3",
 ]
 
@@ -8210,6 +8212,7 @@ dependencies = [
  "once_cell",
  "rand 0.8.5",
  "serde",
+ "url",
  "zksync_basic_types",
  "zksync_config_derive",
  "zksync_consensus_utils",
@@ -8559,7 +8562,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "url",
  "vise",
  "zksync_basic_types",
  "zksync_health_check",
@@ -8955,6 +8957,7 @@ dependencies = [
  "zksync_consensus_roles",
  "zksync_core",
  "zksync_env_config",
+ "zksync_eth_client",
  "zksync_protobuf_config",
  "zksync_storage",
  "zksync_types",

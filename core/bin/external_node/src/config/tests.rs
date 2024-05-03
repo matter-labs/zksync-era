@@ -197,8 +197,10 @@ fn parsing_minimal_entire_configuration() {
 
     let database: PostgresConfig = parser.parse().unwrap();
     assert_eq!(
-        database.database_url,
+        *database.database_url.expose_url(),
         "postgres://postgres:notsecurepassword@localhost/zksync_local_ext_node"
+            .parse()
+            .unwrap()
     );
     assert_eq!(database.database_pool_size, 50);
 
@@ -210,8 +212,14 @@ fn parsing_minimal_entire_configuration() {
 }
 
 fn assert_required_config(config: &RequiredENConfig) {
-    assert_eq!(config.main_node_url, "http://127.0.0.1:3050");
-    assert_eq!(config.eth_client_url, "http://127.0.0.1:8545");
+    assert_eq!(
+        *config.main_node_url.expose_url(),
+        "http://127.0.0.1:3050".parse().unwrap()
+    );
+    assert_eq!(
+        *config.eth_client_url.expose_url(),
+        "http://127.0.0.1:8545".parse().unwrap()
+    );
     assert_eq!(config.http_port, 3060);
     assert_eq!(config.ws_port, 3061);
     assert_eq!(config.healthcheck_port, 3080);
@@ -242,8 +250,10 @@ fn parsing_entire_configuration() {
 
     let database: PostgresConfig = parser.parse().unwrap();
     assert_eq!(
-        database.database_url,
+        *database.database_url.expose_url(),
         "postgres://postgres:notsecurepassword@localhost/zksync_local_ext_node"
+            .parse()
+            .unwrap()
     );
     assert_eq!(database.database_pool_size, 50);
 
