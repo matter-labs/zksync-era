@@ -6,7 +6,8 @@ use once_cell::sync::OnceCell;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_state::{
-    AsyncCatchupTask, PgOrRocksdbStorage, ReadStorageFactory, StateKeeperColumnFamily,
+    AsyncCatchupTask, PgOrRocksdbStorage, ReadStorageFactory, RocksdbStorageOptions,
+    StateKeeperColumnFamily,
 };
 use zksync_storage::RocksDB;
 use zksync_types::L1BatchNumber;
@@ -54,11 +55,13 @@ impl AsyncRocksdbCache {
     pub fn new(
         pool: ConnectionPool<Core>,
         state_keeper_db_path: String,
+        state_keeper_db_options: RocksdbStorageOptions,
     ) -> (Self, AsyncCatchupTask) {
         let rocksdb_cell = Arc::new(OnceCell::new());
         let task = AsyncCatchupTask::new(
             pool.clone(),
             state_keeper_db_path,
+            state_keeper_db_options,
             rocksdb_cell.clone(),
             None,
         );

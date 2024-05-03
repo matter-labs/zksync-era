@@ -1,12 +1,14 @@
 #![doc = include_str!("../doc/FriWitnessGeneratorDal.md")]
-use std::{collections::HashMap, convert::TryFrom, time::Duration};
+use std::{collections::HashMap, convert::TryFrom, str::FromStr, time::Duration};
 
 use sqlx::Row;
 use zksync_basic_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     protocol_version::ProtocolVersionId,
     prover_dal::{
-        JobCountStatistics, LeafAggregationJobMetadata, NodeAggregationJobMetadata, StuckJobs,
+        BasicWitnessGeneratorJobInfo, JobCountStatistics, LeafAggregationJobMetadata,
+        LeafWitnessGeneratorJobInfo, NodeAggregationJobMetadata, NodeWitnessGeneratorJobInfo,
+        SchedulerWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus,
     },
     L1BatchNumber,
 };
@@ -1394,5 +1396,158 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .protocol_version
         .map(|id| ProtocolVersionId::try_from(id as u16).unwrap())
         .unwrap()
+    }
+
+    pub async fn get_basic_witness_generator_job_for_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Option<BasicWitnessGeneratorJobInfo> {
+        sqlx::query!(
+            r#"
+            SELECT
+                *
+            FROM
+                witness_inputs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| BasicWitnessGeneratorJobInfo {
+            l1_batch_number,
+            merkle_tree_paths_blob_url: row.merkle_tree_paths_blob_url,
+            attempts: row.attempts as u32,
+            status: WitnessJobStatus::from_str(&row.status).unwrap(),
+            error: row.error,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            processing_started_at: row.processing_started_at,
+            time_taken: row.time_taken,
+            is_blob_cleaned: row.is_blob_cleaned,
+            protocol_version: row.protocol_version,
+            picked_by: row.picked_by,
+            eip_4844_blobs: row
+                .eip_4844_blobs
+                .as_deref()
+                .map(Eip4844Blobs::decode)
+                .transpose()
+                .unwrap(),
+        })
+    }
+
+    pub async fn get_leaf_witness_generator_jobs_for_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Vec<LeafWitnessGeneratorJobInfo> {
+        sqlx::query!(
+            r#"
+            SELECT
+                *
+            FROM
+                leaf_aggregation_witness_jobs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .iter()
+        .map(|row| LeafWitnessGeneratorJobInfo {
+            id: row.id as u32,
+            l1_batch_number,
+            circuit_id: row.circuit_id as u32,
+            closed_form_inputs_blob_url: row.closed_form_inputs_blob_url.clone(),
+            attempts: row.attempts as u32,
+            status: WitnessJobStatus::from_str(&row.status).unwrap(),
+            error: row.error.clone(),
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            processing_started_at: row.processing_started_at,
+            time_taken: row.time_taken,
+            is_blob_cleaned: row.is_blob_cleaned,
+            protocol_version: row.protocol_version,
+            picked_by: row.picked_by.clone(),
+            number_of_basic_circuits: row.number_of_basic_circuits,
+        })
+        .collect()
+    }
+
+    pub async fn get_node_witness_generator_jobs_for_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Vec<NodeWitnessGeneratorJobInfo> {
+        sqlx::query!(
+            r#"
+            SELECT
+                *
+            FROM
+                node_aggregation_witness_jobs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .iter()
+        .map(|row| NodeWitnessGeneratorJobInfo {
+            id: row.id as u32,
+            l1_batch_number,
+            circuit_id: row.circuit_id as u32,
+            depth: row.depth as u32,
+            status: WitnessJobStatus::from_str(&row.status).unwrap(),
+            attempts: row.attempts as u32,
+            aggregations_url: row.aggregations_url.clone(),
+            processing_started_at: row.processing_started_at,
+            time_taken: row.time_taken,
+            error: row.error.clone(),
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            number_of_dependent_jobs: row.number_of_dependent_jobs,
+            protocol_version: row.protocol_version,
+            picked_by: row.picked_by.clone(),
+        })
+        .collect()
+    }
+
+    pub async fn get_scheduler_witness_generator_jobs_for_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Vec<SchedulerWitnessGeneratorJobInfo> {
+        sqlx::query!(
+            r#"
+            SELECT
+                *
+            FROM
+                scheduler_witness_jobs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .iter()
+        .map(|row| SchedulerWitnessGeneratorJobInfo {
+            l1_batch_number,
+            scheduler_partial_input_blob_url: row.scheduler_partial_input_blob_url.clone(),
+            status: WitnessJobStatus::from_str(&row.status).unwrap(),
+            processing_started_at: row.processing_started_at,
+            time_taken: row.time_taken,
+            error: row.error.clone(),
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            attempts: row.attempts as u32,
+            protocol_version: row.protocol_version,
+            picked_by: row.picked_by.clone(),
+        })
+        .collect()
     }
 }
