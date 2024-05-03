@@ -48,7 +48,7 @@ use zksync_db_connection::{
 };
 use zksync_eth_client::{clients::QueryClient, EthInterface};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
-use zksync_state::PostgresStorageCaches;
+use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
@@ -59,7 +59,10 @@ use zksync_web3_decl::{
 };
 
 use crate::{
-    config::{observability::observability_config_from_env, ExternalNodeConfig},
+    config::{
+        observability::observability_config_from_env, ExternalNodeConfig, OptionalENConfig,
+        RequiredENConfig,
+    },
     helpers::MainNodeHealthCheck,
     init::ensure_storage_initialized,
     metrics::RUST_METRICS,
@@ -85,15 +88,19 @@ async fn build_state_keeper(
     output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
-    task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
+    task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
 ) -> anyhow::Result<ZkSyncStateKeeper> {
     // We only need call traces on the external node if the `debug_` namespace is enabled.
     let save_call_traces = config.optional.api_namespaces().contains(&Namespace::Debug);
 
+    let cache_options = RocksdbStorageOptions {
+        block_cache_capacity: config.experimental.state_keeper_db_block_cache_capacity(),
+        max_open_files: config.experimental.state_keeper_db_max_open_files,
+    };
     let (storage_factory, task) =
-        AsyncRocksdbCache::new(connection_pool.clone(), state_keeper_db_path);
+        AsyncRocksdbCache::new(connection_pool.clone(), state_keeper_db_path, cache_options);
     let mut stop_receiver_clone = stop_receiver.clone();
-    task_handles.push(tokio::task::spawn(async move {
+    task_handles.push(tokio::spawn(async move {
         let result = task.run(stop_receiver_clone.clone()).await;
         stop_receiver_clone.changed().await?;
         result
@@ -153,20 +160,31 @@ async fn run_tree(
         format!("snapshot recovery max concurrency ({max_concurrency}) is too large")
     })?;
     let recovery_pool = ConnectionPool::builder(
-        tree_pool.database_url(),
+        tree_pool.database_url().clone(),
         max_concurrency.min(config.postgres.max_connections),
     )
     .build()
     .await
     .context("failed creating DB pool for Merkle tree recovery")?;
 
-    let metadata_calculator = MetadataCalculator::new(metadata_calculator_config, None, tree_pool)
-        .await
-        .context("failed initializing metadata calculator")?
-        .with_recovery_pool(recovery_pool);
+    let mut metadata_calculator =
+        MetadataCalculator::new(metadata_calculator_config, None, tree_pool)
+            .await
+            .context("failed initializing metadata calculator")?
+            .with_recovery_pool(recovery_pool);
 
     let tree_reader = Arc::new(metadata_calculator.tree_reader());
-    app_health.insert_component(metadata_calculator.tree_health_check())?;
+    app_health.insert_custom_component(Arc::new(metadata_calculator.tree_health_check()))?;
+
+    if config.optional.pruning_enabled {
+        tracing::warn!("Proceeding with node state pruning for the Merkle tree. This is an experimental feature; use at your own risk");
+
+        let pruning_task =
+            metadata_calculator.pruning_task(config.optional.pruning_removal_delay() / 2);
+        app_health.insert_component(pruning_task.health_check())?;
+        let pruning_task_handle = tokio::spawn(pruning_task.run(stop_receiver.clone()));
+        task_futures.push(pruning_task_handle);
+    }
 
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
@@ -281,21 +299,22 @@ async fn run_core(
         }
     }));
 
-    if let Some(data_retention_hours) = config.optional.pruning_data_retention_hours {
-        let minimum_l1_batch_age = Duration::from_secs(3600 * data_retention_hours);
+    if config.optional.pruning_enabled {
+        tracing::warn!("Proceeding with node state pruning for Postgres. This is an experimental feature; use at your own risk");
+
+        let minimum_l1_batch_age = config.optional.pruning_data_retention();
         tracing::info!(
             "Configured pruning of batches after they become {minimum_l1_batch_age:?} old"
         );
         let db_pruner = DbPruner::new(
             DbPrunerConfig {
-                // don't change this value without adjusting API server pruning info cache max age
-                soft_and_hard_pruning_time_delta: Duration::from_secs(60),
-                next_iterations_delay: Duration::from_secs(30),
+                removal_delay: config.optional.pruning_removal_delay(),
                 pruned_batch_chunk_size: config.optional.pruning_chunk_size,
                 minimum_l1_batch_age,
             },
             connection_pool.clone(),
         );
+        app_health.insert_component(db_pruner.health_check())?;
         task_handles.push(tokio::spawn(db_pruner.run(stop_receiver.clone())));
     }
 
@@ -498,6 +517,10 @@ async fn run_api(
         mempool_cache_update_task.run(stop_receiver.clone()),
     ));
 
+    // The refresh interval should be several times lower than the pruning removal delay, so that
+    // soft-pruning will timely propagate to the API server.
+    let pruning_info_refresh_interval = config.optional.pruning_removal_delay() / 5;
+
     if components.contains(&Component::HttpApi) {
         let mut builder =
             ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
@@ -505,6 +528,7 @@ async fn run_api(
                 .with_filter_limit(config.optional.filters_limit)
                 .with_batch_request_size_limit(config.optional.max_batch_request_size)
                 .with_response_body_size_limit(config.optional.max_response_body_size())
+                .with_pruning_info_refresh_interval(pruning_info_refresh_interval)
                 .with_tx_sender(tx_sender.clone())
                 .with_vm_barrier(vm_barrier.clone())
                 .with_sync_state(sync_state.clone())
@@ -534,6 +558,7 @@ async fn run_api(
                 .with_batch_request_size_limit(config.optional.max_batch_request_size)
                 .with_response_body_size_limit(config.optional.max_response_body_size())
                 .with_polling_interval(config.optional.polling_interval())
+                .with_pruning_info_refresh_interval(pruning_info_refresh_interval)
                 .with_tx_sender(tx_sender)
                 .with_vm_barrier(vm_barrier)
                 .with_sync_state(sync_state)
@@ -783,9 +808,29 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("No sentry URL was provided");
     }
 
-    let mut config = ExternalNodeConfig::collect()
-        .await
-        .context("Failed to load external node config")?;
+    let required_config = RequiredENConfig::from_env()?;
+    let optional_config = OptionalENConfig::from_env()?;
+
+    // Build L1 and L2 clients.
+    let main_node_url = &required_config.main_node_url;
+    tracing::info!("Main node URL is: {main_node_url:?}");
+    let main_node_client = L2Client::http(main_node_url.clone())
+        .context("Failed creating JSON-RPC client for main node")?
+        .with_allowed_requests_per_second(optional_config.main_node_rate_limit_rps)
+        .build();
+    let main_node_client = BoxedL2Client::new(main_node_client);
+
+    let eth_client_url = &required_config.eth_client_url;
+    let eth_client = Arc::new(QueryClient::new(eth_client_url.clone())?);
+
+    let mut config = ExternalNodeConfig::new(
+        required_config,
+        optional_config,
+        &main_node_client,
+        eth_client.as_ref(),
+    )
+    .await
+    .context("Failed to load external node config")?;
     if !opt.enable_consensus {
         config.consensus = None;
     }
@@ -799,31 +844,14 @@ async fn main() -> anyhow::Result<()> {
     RUST_METRICS.initialize();
     EN_METRICS.observe_config(&config);
 
-    let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
+    let singleton_pool_builder = ConnectionPool::singleton(config.postgres.database_url());
     let connection_pool = ConnectionPool::<Core>::builder(
-        &config.postgres.database_url,
+        config.postgres.database_url(),
         config.postgres.max_connections,
     )
     .build()
     .await
     .context("failed to build a connection_pool")?;
-
-    let main_node_url = config
-        .required
-        .main_node_url()
-        .expect("Main node URL is incorrect");
-    tracing::info!("Main node URL is: {main_node_url}");
-    let main_node_client = L2Client::http(&main_node_url)
-        .context("Failed creating JSON-RPC client for main node")?
-        .with_allowed_requests_per_second(config.optional.main_node_rate_limit_rps)
-        .build();
-    let main_node_client = BoxedL2Client::new(main_node_client);
-
-    let eth_client_url = config
-        .required
-        .eth_client_url()
-        .context("L1 client URL is incorrect")?;
-    let eth_client = Arc::new(QueryClient::new(&eth_client_url)?);
 
     run_node(
         (),

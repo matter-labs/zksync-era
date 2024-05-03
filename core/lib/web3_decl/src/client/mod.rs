@@ -12,6 +12,7 @@
 //!   instead of `L2Client`. Both `L2Client` and `MockL2Client` are convertible to `BoxedL2Client`.
 
 use std::{
+    any,
     collections::HashSet,
     fmt,
     num::NonZeroUsize,
@@ -30,6 +31,7 @@ use jsonrpsee::{
 };
 use serde::de::DeserializeOwned;
 use tokio::time::Instant;
+use zksync_types::url::SensitiveUrl;
 
 use self::metrics::{L2ClientMetrics, METRICS};
 pub use self::{boxed::BoxedL2Client, mock::MockL2Client};
@@ -104,19 +106,34 @@ pub trait TaggedClient {
 // - Naming the HTTP middleware type is problematic if middleware is complex. Tower provides
 //   [a boxed cloneable version of services](https://docs.rs/tower/latest/tower/util/struct.BoxCloneService.html),
 //   but it doesn't fit (it's unconditionally `!Sync`, and `Sync` is required for `HttpClient<_>` to implement RPC traits).
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct L2Client<C = HttpClient> {
     inner: C,
+    url: SensitiveUrl,
     rate_limit: SharedRateLimit,
     component_name: &'static str,
     metrics: &'static L2ClientMetrics,
 }
 
+impl<C: 'static> fmt::Debug for L2Client<C> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("L2Client")
+            // Do not expose the entire client `Debug` representation, which may (and in case of `HttpClient`, does)
+            // include potentially sensitive URL and/or HTTP headers
+            .field("inner", &any::type_name::<C>())
+            .field("url", &self.url)
+            .field("rate_limit", &self.rate_limit)
+            .field("component_name", &self.component_name)
+            .finish_non_exhaustive()
+    }
+}
+
 impl L2Client {
     /// Creates an HTTP-backed L2 client.
-    pub fn http(url: &str) -> anyhow::Result<L2ClientBuilder> {
-        let client = HttpClientBuilder::default().build(url)?;
-        Ok(L2ClientBuilder::new(client))
+    pub fn http(url: SensitiveUrl) -> anyhow::Result<L2ClientBuilder> {
+        let client = HttpClientBuilder::default().build(url.expose_str())?;
+        Ok(L2ClientBuilder::new(client, url))
     }
 }
 
@@ -248,17 +265,29 @@ impl<C: L2ClientBase> SubscriptionClientT for L2Client<C> {
 }
 
 /// Builder for the [`L2Client`].
-#[derive(Debug)]
 pub struct L2ClientBuilder<C = HttpClient> {
     client: C,
+    url: SensitiveUrl,
     rate_limit: (usize, Duration),
+}
+
+impl<C: 'static> fmt::Debug for L2ClientBuilder<C> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("L2ClientBuilder")
+            .field("client", &any::type_name::<C>())
+            .field("url", &self.url)
+            .field("rate_limit", &self.rate_limit)
+            .finish_non_exhaustive()
+    }
 }
 
 impl<C: L2ClientBase> L2ClientBuilder<C> {
     /// Wraps the provided client.
-    pub fn new(client: C) -> Self {
+    fn new(client: C, url: SensitiveUrl) -> Self {
         Self {
             client,
+            url,
             rate_limit: (1, Duration::ZERO),
         }
     }
@@ -291,6 +320,7 @@ impl<C: L2ClientBase> L2ClientBuilder<C> {
 
         L2Client {
             inner: self.client,
+            url: self.url,
             rate_limit,
             component_name: "",
             metrics: &METRICS,

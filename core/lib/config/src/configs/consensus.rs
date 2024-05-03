@@ -45,9 +45,6 @@ pub struct ConsensusConfig {
     /// node.
     pub public_addr: Host,
 
-    /// Validators participating in consensus.
-    pub validators: BTreeSet<ValidatorPublicKey>,
-
     /// Maximal allowed size of the payload in bytes.
     pub max_payload_size: usize,
 

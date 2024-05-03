@@ -1,8 +1,8 @@
 use zksync_types::ProtocolVersionId;
 
-use crate::{
-    gas_tracker::new_block_gas_count,
-    state_keeper::seal_criteria::{SealCriterion, SealData, SealResolution, StateKeeperConfig},
+use crate::state_keeper::{
+    seal_criteria::{SealCriterion, SealData, SealResolution, StateKeeperConfig},
+    utils::new_block_gas_count,
 };
 
 /// This is a temporary solution.

@@ -1,4 +1,4 @@
-use zksync_config::GenesisConfig;
+use zksync_config::{configs::EcosystemContracts, GenesisConfig};
 use zksync_types::{api::en, tokens::TokenInfo, Address, L2BlockNumber};
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
@@ -39,6 +39,12 @@ impl EnNamespaceServer for EnNamespace {
 
     async fn whitelisted_tokens_for_aa(&self) -> RpcResult<Vec<Address>> {
         self.whitelisted_tokens_for_aa_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn get_ecosystem_contracts(&self) -> RpcResult<EcosystemContracts> {
+        self.get_ecosystem_contracts_impl()
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

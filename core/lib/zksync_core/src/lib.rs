@@ -62,7 +62,7 @@ use zksync_house_keeper::{
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_shared_metrics::{InitStage, APP_METRICS};
-use zksync_state::PostgresStorageCaches;
+use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
 
 use crate::{
@@ -101,11 +101,9 @@ pub mod consistency_checker;
 pub mod db_pruner;
 pub mod eth_sender;
 pub mod fee_model;
-pub mod gas_tracker;
 pub mod genesis;
 pub mod l1_gas_price;
 pub mod metadata_calculator;
-pub mod proof_data_handler;
 pub mod proto;
 pub mod reorg_detector;
 pub mod state_keeper;
@@ -305,7 +303,8 @@ pub async fn initialize_components(
         panic!("Circuit breaker triggered: {}", err);
     });
 
-    let query_client = QueryClient::new(&eth.web3_url).unwrap();
+    let query_client = QueryClient::new(eth.web3_url.clone()).context("Ethereum client")?;
+    let query_client = Arc::new(query_client);
     let gas_adjuster_config = eth.gas_adjuster.context("gas_adjuster")?;
     let sender = eth.sender.as_ref().context("sender")?;
     let pubdata_pricing: Arc<dyn PubdataPricing> =
@@ -546,8 +545,8 @@ pub async fn initialize_components(
     }
 
     let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
-    let state_transition_manager_addr = genesis_config
-        .shared_bridge
+    let state_transition_manager_addr = contracts_config
+        .ecosystem_contracts
         .as_ref()
         .map(|a| a.state_transition_proxy_addr);
 
@@ -558,6 +557,7 @@ pub async fn initialize_components(
                 .as_ref()
                 .context("consensus component's config is missing")?,
             secrets,
+            l2_chain_id,
         )?;
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");
@@ -601,7 +601,7 @@ pub async fn initialize_components(
             start_eth_watch(
                 eth_watch_config,
                 eth_watch_pool,
-                Arc::new(query_client.clone()),
+                query_client.clone(),
                 diamond_proxy_addr,
                 state_transition_manager_addr,
                 governance,
@@ -632,14 +632,13 @@ pub async fn initialize_components(
             .context("gas_adjuster")?
             .default_priority_fee_per_gas;
         let l1_chain_id = genesis_config.l1_chain_id;
-        let web3_url = &eth.web3_url;
 
         let eth_client = PKSigningClient::new_raw(
             operator_private_key.clone(),
             diamond_proxy_addr,
             default_priority_fee_per_gas,
             l1_chain_id,
-            web3_url,
+            query_client.clone(),
         );
 
         let l1_batch_commit_data_generator_mode =
@@ -647,7 +646,7 @@ pub async fn initialize_components(
         ensure_l1_batch_commit_data_generation_mode(
             l1_batch_commit_data_generator_mode,
             contracts_config.diamond_proxy_addr,
-            &eth_client,
+            eth_client.as_ref(),
         )
         .await?;
 
@@ -707,14 +706,13 @@ pub async fn initialize_components(
             .context("gas_adjuster")?
             .default_priority_fee_per_gas;
         let l1_chain_id = genesis_config.l1_chain_id;
-        let web3_url = &eth.web3_url;
 
         let eth_client = PKSigningClient::new_raw(
             operator_private_key.clone(),
             diamond_proxy_addr,
             default_priority_fee_per_gas,
             l1_chain_id,
-            web3_url,
+            query_client.clone(),
         );
 
         let eth_client_blobs = if let Some(blob_operator) = eth_sender_wallets.blob_operator {
@@ -724,7 +722,7 @@ pub async fn initialize_components(
                 diamond_proxy_addr,
                 default_priority_fee_per_gas,
                 l1_chain_id,
-                web3_url,
+                query_client,
             ))
         } else {
             None
@@ -783,7 +781,7 @@ pub async fn initialize_components(
     }
 
     if components.contains(&Component::ProofDataHandler) {
-        task_futures.push(tokio::spawn(proof_data_handler::run_server(
+        task_futures.push(tokio::spawn(zksync_proof_data_handler::run_server(
             configs
                 .proof_data_handler_config
                 .clone()
@@ -866,8 +864,17 @@ async fn add_state_keeper_to_task_futures(
         .build()
         .await
         .context("failed to build async_cache_pool")?;
-    let (async_cache, async_catchup_task) =
-        AsyncRocksdbCache::new(async_cache_pool, db_config.state_keeper_db_path.clone());
+    let cache_options = RocksdbStorageOptions {
+        block_cache_capacity: db_config
+            .experimental
+            .state_keeper_db_block_cache_capacity(),
+        max_open_files: db_config.experimental.state_keeper_db_max_open_files,
+    };
+    let (async_cache, async_catchup_task) = AsyncRocksdbCache::new(
+        async_cache_pool,
+        db_config.state_keeper_db_path.clone(),
+        cache_options,
+    );
     let state_keeper = create_state_keeper(
         state_keeper_config,
         state_keeper_wallets,
@@ -1034,7 +1041,7 @@ async fn run_tree(
     }
 
     let tree_health_check = metadata_calculator.tree_health_check();
-    app_health.insert_component(tree_health_check)?;
+    app_health.insert_custom_component(Arc::new(tree_health_check))?;
     let tree_task = tokio::spawn(metadata_calculator.run(stop_receiver));
     task_futures.push(tree_task);
 
