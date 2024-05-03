@@ -21,3 +21,12 @@ impl Resource for BoundEthInterfaceResource {
         "common/bound_eth_interface".into()
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct BoundEthInterfaceForBlobsResource(pub Arc<dyn BoundEthInterface>);
+
+impl Resource for BoundEthInterfaceForBlobsResource {
+    fn name() -> String {
+        "common/bound_eth_interface_for_blobs".into()
+    }
+}

@@ -1,6 +1,5 @@
 use std::time::Instant;
 
-use zksync_eth_client::EthInterface;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
     api::{BlockNumber, TransactionReceipt},
@@ -103,6 +102,7 @@ impl AccountLifespan {
         ethereum.set_polling_interval(ETH_POLLING_INTERVAL);
         let gas_price = ethereum
             .client()
+            .as_ref()
             .get_gas_price("executor")
             .await
             .map_err(|_| ClientError::Other)?;

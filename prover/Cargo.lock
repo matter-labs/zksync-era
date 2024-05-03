@@ -7554,6 +7554,7 @@ dependencies = [
  "serde",
  "serde_json",
  "strum",
+ "url",
  "web3",
 ]
 
@@ -7582,6 +7583,7 @@ dependencies = [
  "anyhow",
  "rand 0.8.5",
  "serde",
+ "url",
  "zksync_basic_types",
  "zksync_consensus_utils",
  "zksync_crypto_primitives",
@@ -7742,8 +7744,8 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "url",
  "vise",
+ "zksync_basic_types",
  "zksync_health_check",
 ]
 
