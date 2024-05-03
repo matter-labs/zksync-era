@@ -54,6 +54,11 @@ pub async fn run(args: Args) -> anyhow::Result<()> {
         AggregationRound::NodeAggregation,
     );
 
+    let stuck_recursion_tip_job = fri_witness_generator_dal
+        .requeue_stuck_recursion_tip_jobs_for_batch(args.batch, args.max_attempts)
+        .await;
+    display_requeued_stuck_jobs(stuck_recursion_tip_job, AggregationRound::RecursionTip);
+
     let stuck_scheduler_jobs = fri_witness_generator_dal
         .requeue_stuck_scheduler_jobs_for_batch(args.batch, args.max_attempts)
         .await;

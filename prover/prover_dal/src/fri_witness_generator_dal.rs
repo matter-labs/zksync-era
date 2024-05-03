@@ -1435,6 +1435,19 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .await
     }
 
+    pub async fn requeue_stuck_recursion_tip_jobs_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+        max_attempts: u32,
+    ) -> Vec<StuckJobs> {
+        self.requeue_stuck_jobs_for_batch_in_aggregation_round(
+            AggregationRound::RecursionTip,
+            block_number,
+            max_attempts,
+        )
+        .await
+    }
+
     pub async fn requeue_stuck_scheduler_jobs_for_batch(
         &mut self,
         block_number: L1BatchNumber,
@@ -1492,9 +1505,10 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     fn job_id_table_name_for(aggregation_round: AggregationRound) -> &'static str {
         match aggregation_round {
-            AggregationRound::BasicCircuits | AggregationRound::Scheduler => "l1_batch_number",
+            AggregationRound::BasicCircuits
+            | AggregationRound::RecursionTip
+            | AggregationRound::Scheduler => "l1_batch_number",
             AggregationRound::LeafAggregation | AggregationRound::NodeAggregation => "id",
-            AggregationRound::RecursionTip => todo!(),
         }
     }
 }
