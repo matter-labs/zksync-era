@@ -280,6 +280,7 @@ impl DescribeConfigImpl {
     fn derive_describe_config(&self) -> proc_macro2::TokenStream {
         let cr = self.cr();
         let name = &self.name;
+        let name_str = name.to_string();
         let help = &self.help;
         let params = self.fields.iter().map(|field| field.describe(&cr));
 
@@ -287,6 +288,7 @@ impl DescribeConfigImpl {
             impl #cr::DescribeConfig for #name {
                 fn describe_config() -> &'static #cr::ConfigMetadata {
                     static METADATA_CELL: #cr::Lazy<#cr::ConfigMetadata> = #cr::Lazy::new(|| #cr::ConfigMetadata {
+                        ty: #cr::RustType::of::<#name>(#name_str),
                         help: #help,
                         params: ::std::boxed::Box::new([#(#params,)*]),
                     });

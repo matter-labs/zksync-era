@@ -73,7 +73,9 @@ impl TestConfig {
 #[test]
 fn getting_config_metadata() {
     let metadata = TestConfig::describe_config();
+    assert_eq!(metadata.ty.name_in_code(), "TestConfig");
     assert_eq!(metadata.help, "# Test configuration\nExtended description.");
+    assert_eq!(metadata.help_header(), Some("Test configuration"));
     assert_eq!(metadata.params.len(), 2);
 
     let str_metadata = &metadata.params[0];

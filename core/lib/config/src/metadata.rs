@@ -16,10 +16,19 @@ pub trait DescribeConfig: 'static + DeserializeOwned {
 /// Metadata for a configuration (i.e., a group of related parameters).
 #[derive(Debug, Clone)]
 pub struct ConfigMetadata {
+    /// Type of this configuration.
+    pub ty: RustType,
     /// Help regarding the config itself.
     pub help: &'static str,
     /// Parameters included in the config.
     pub params: Box<[ParamMetadata]>,
+}
+
+impl ConfigMetadata {
+    pub(crate) fn help_header(&self) -> Option<&'static str> {
+        let first_line = self.help.lines().next()?;
+        first_line.strip_prefix("# ")
+    }
 }
 
 /// Metadata for a specific configuration parameter.
@@ -86,7 +95,6 @@ impl UnitOfMeasurement {
 pub struct RustType {
     id: any::TypeId,
     name_in_code: &'static str,
-    canonical_name: &'static str,
 }
 
 impl RustType {
@@ -94,16 +102,11 @@ impl RustType {
         Self {
             id: any::TypeId::of::<T>(),
             name_in_code,
-            canonical_name: any::type_name::<T>(),
         }
     }
 
     pub fn name_in_code(&self) -> &'static str {
         self.name_in_code
-    }
-
-    pub fn canonical_name(self) -> &'static str {
-        self.canonical_name
     }
 
     pub fn kind(self) -> Option<TypeKind> {

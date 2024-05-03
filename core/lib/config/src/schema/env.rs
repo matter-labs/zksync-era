@@ -9,7 +9,7 @@ use super::{Alias, ConfigSchema};
 use crate::metadata::DescribeConfig;
 
 /// Engine powering [`EnvironmentParser`]. Responsible for converting environment `vars` into
-/// a deserializable configuration.
+/// configuration instances.
 pub trait EnvParserEngine {
     fn parse_from_env<C: DescribeConfig>(
         &self,
@@ -71,7 +71,7 @@ impl Environment {
         }
     }
 
-    /// Converts a logical prefix like 'api.limits' to 'API_LIMITS_'.
+    /// Converts a logical prefix like `api.limits` to `API_LIMITS_`.
     fn env_prefix(prefix: &str) -> String {
         let mut prefix = prefix.to_uppercase().replace('.', "_");
         if !prefix.is_empty() && !prefix.ends_with('_') {
@@ -137,10 +137,16 @@ impl<E: EnvParserEngine> EnvironmentParser<'_, E> {
         self.engine
             .parse_from_env(&env_prefix, &self.vars)
             .with_context(|| {
-                // FIXME: capture config type name
+                let summary = if let Some(header) = config_data.metadata.help_header() {
+                    format!(" ({})", header.trim().to_lowercase())
+                } else {
+                    String::new()
+                };
                 format!(
-                    "error parsing configuration `FIXME` at `{}` (aliases: {:?})",
-                    config_data.prefix, config_data.aliases
+                    "error parsing configuration `{name}`{summary} at `{prefix}` (aliases: {aliases:?})",
+                    name = config_data.metadata.ty.name_in_code(),
+                    prefix = config_data.prefix,
+                    aliases = config_data.aliases
                 )
             })
     }
