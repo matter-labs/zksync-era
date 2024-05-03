@@ -10,6 +10,8 @@ use wrapper_prover::{
     Bn256, GPUWrapperConfigs, Proof as SnarkProof, WrapperProver, ZkSyncSnarkWrapperCircuit,
     DEFAULT_WRAPPER_CONFIG,
 };
+#[cfg(not(feature = "gpu"))]
+use zkevm_test_harness::proof_wrapper_utils::WrapperConfig;
 #[allow(unused_imports)]
 use zkevm_test_harness::proof_wrapper_utils::{get_trusted_setup, wrap_proof};
 #[cfg(not(feature = "gpu"))]
