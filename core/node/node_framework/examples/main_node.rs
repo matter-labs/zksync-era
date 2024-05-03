@@ -301,14 +301,11 @@ impl MainNodeBuilder {
         let contracts_config = ContractsConfig::from_env()?;
         let network_config = NetworkConfig::from_env()?;
         let genesis_config = GenesisConfig::from_env()?;
-        let wallets = Wallets::from_env()?;
 
         self.node.add_layer(EthSenderLayer::new(
             eth_sender_config,
             contracts_config,
             network_config,
-            genesis_config.l1_chain_id,
-            wallets.eth_sender.context("Eth sender wallets")?,
             genesis_config.l1_batch_commit_data_generator_mode,
         ));
 
