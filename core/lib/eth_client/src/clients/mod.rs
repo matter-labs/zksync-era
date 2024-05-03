@@ -1,6 +1,5 @@
 //! Various Ethereum client implementations.
 
-mod generic;
 mod http;
 mod mock;
 

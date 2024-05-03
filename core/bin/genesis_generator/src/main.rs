@@ -18,7 +18,7 @@ use zksync_protobuf::{
     ProtoRepr,
 };
 use zksync_protobuf_config::proto::genesis::Genesis;
-use zksync_types::ProtocolVersionId;
+use zksync_types::{url::SensitiveUrl, ProtocolVersionId};
 
 const DEFAULT_GENESIS_FILE_PATH: &str = "./etc/env/file_based/genesis.yaml";
 
@@ -66,7 +66,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn generate_new_config(
-    db_url: &str,
+    db_url: SensitiveUrl,
     genesis_config: GenesisConfig,
 ) -> anyhow::Result<GenesisConfig> {
     let pool = ConnectionPool::<Core>::singleton(db_url)

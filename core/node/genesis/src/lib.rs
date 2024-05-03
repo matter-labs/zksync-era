@@ -404,7 +404,7 @@ pub async fn create_genesis_l1_batch(
 // Save chain id transaction into the database
 // We keep returning anyhow and will refactor it later
 pub async fn save_set_chain_id_tx(
-    eth_client_url: &str,
+    eth_client: &QueryClient,
     diamond_proxy_address: Address,
     state_transition_manager_address: Address,
     postgres_config: &PostgresConfig,
@@ -413,7 +413,6 @@ pub async fn save_set_chain_id_tx(
     let pool = ConnectionPool::<Core>::singleton(db_url).build().await?;
     let mut storage = pool.connection().await?;
 
-    let eth_client = QueryClient::new(eth_client_url)?;
     let to = eth_client.block_number("fetch_chain_id_tx").await?.as_u64();
     let from = to.saturating_sub(PRIORITY_EXPIRATION);
     let filter = FilterBuilder::default()
