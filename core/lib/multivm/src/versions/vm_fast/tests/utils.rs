@@ -1,12 +1,15 @@
+use std::collections::BTreeMap;
+
 use ethabi::Contract;
 use once_cell::sync::Lazy;
 use vm2::State;
 use zksync_contracts::{
     load_contract, read_bytecode, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
 };
-use zksync_state::{StoragePtr, WriteStorage};
+use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{
-    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, StorageKey, H256, U256,
+    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, StorageKey, H160, H256,
+    U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
@@ -35,13 +38,18 @@ pub(crate) fn verify_required_memory(state: &State, required_values: Vec<(U256, 
     }
 }
 
-pub(crate) fn get_balance<S: WriteStorage>(
+pub(crate) fn get_balance<S: ReadStorage>(
     token_id: AccountTreeId,
     account: &Address,
     main_storage: StoragePtr<S>,
+    storage_changes: &BTreeMap<(H160, U256), U256>,
 ) -> U256 {
     let key = storage_key_for_standard_token_balance(token_id, account);
-    h256_to_u256(main_storage.borrow_mut().read_value(&key))
+
+    storage_changes
+        .get(&(*key.account().address(), h256_to_u256(*key.key())))
+        .cloned()
+        .unwrap_or_else(|| h256_to_u256(main_storage.borrow_mut().read_value(&key)))
 }
 
 pub(crate) fn read_test_contract() -> Vec<u8> {

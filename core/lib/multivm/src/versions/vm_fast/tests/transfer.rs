@@ -92,6 +92,7 @@ fn test_send_or_transfer(test_option: TestOptions) {
         AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
         &recipient_address,
         vm.vm.storage.clone(),
+        vm.vm.inner.world.get_storage_changes(),
     );
 
     assert_eq!(new_recipient_balance, value);
