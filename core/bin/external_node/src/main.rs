@@ -227,7 +227,7 @@ async fn run_core(
             .remote
             .l2_shared_bridge_addr
             .expect("L2 shared bridge address is not set"),
-        config.optional.miniblock_seal_queue_capacity,
+        config.optional.l2_block_seal_queue_capacity,
     );
     task_handles.push(tokio::spawn(miniblock_sealer.run()));
 

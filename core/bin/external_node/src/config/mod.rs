@@ -381,11 +381,14 @@ pub(crate) struct OptionalENConfig {
     // Other config settings
     /// Port on which the Prometheus exporter server is listening. If not specified, the Prometheus exporter won't be started.
     pub prometheus_port: Option<u16>,
-    /// Capacity of the queue for asynchronous miniblock sealing. Once this many miniblocks are queued,
-    /// sealing will block until some of the miniblocks from the queue are processed.
+    /// Capacity of the queue for asynchronous L2 block sealing. Once this many L2 blocks are queued,
+    /// sealing will block until some of the L2 blocks from the queue are processed.
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
-    #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
-    pub miniblock_seal_queue_capacity: usize,
+    #[serde(
+        alias = "miniblock_seal_queue_capacity",
+        default = "OptionalENConfig::default_l2_block_seal_queue_capacity"
+    )]
+    pub l2_block_seal_queue_capacity: usize,
     /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
     /// Protective reads are never required by full nodes so far, not until such a node runs a full Merkle tree
     /// (presumably, to participate in L1 batch proving).
@@ -496,7 +499,7 @@ impl OptionalENConfig {
         10
     }
 
-    const fn default_miniblock_seal_queue_capacity() -> usize {
+    const fn default_l2_block_seal_queue_capacity() -> usize {
         10
     }
 
@@ -676,8 +679,8 @@ impl RequiredENConfig {
 
 /// # Postgres database configuration
 ///
-/// For historic reasons, these params do not use `EN_` prefix when read from env variables.
-/// E.g., `database_url` is read from `DATABASE_URL`, *not* `EN_DATABASE_URL`.
+/// For historic reasons, these params did not use `EN_` prefix when read from env variables.
+/// E.g., `database_url` is read both from either `DATABASE_URL` or `EN_DATABASE_URL`.
 #[derive(Debug, Clone, Deserialize, PartialEq, DescribeConfig)]
 pub(crate) struct PostgresConfig {
     /// Postgres URL to connect to the database.
