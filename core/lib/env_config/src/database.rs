@@ -23,6 +23,7 @@ impl FromEnv for DBConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             merkle_tree: envy_load("database_merkle_tree", "DATABASE_MERKLE_TREE_")?,
+            experimental: envy_load("database_experimental", "DATABASE_EXPERIMENTAL_")?,
             ..envy_load("database", "DATABASE_")?
         })
     }
@@ -65,7 +66,7 @@ impl FromEnv for PostgresConfig {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::{num::NonZeroU32, time::Duration};
 
     use zksync_config::configs::database::MerkleTreeMode;
 
@@ -85,6 +86,8 @@ mod tests {
             DATABASE_MERKLE_TREE_MEMTABLE_CAPACITY_MB=512
             DATABASE_MERKLE_TREE_STALLED_WRITES_TIMEOUT_SEC=60
             DATABASE_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER=50
+            DATABASE_EXPERIMENTAL_STATE_KEEPER_DB_BLOCK_CACHE_CAPACITY_MB=64
+            DATABASE_EXPERIMENTAL_STATE_KEEPER_DB_MAX_OPEN_FILES=100
         "#;
         lock.set_env(config);
 
@@ -96,6 +99,16 @@ mod tests {
         assert_eq!(db_config.merkle_tree.max_l1_batches_per_iter, 50);
         assert_eq!(db_config.merkle_tree.memtable_capacity_mb, 512);
         assert_eq!(db_config.merkle_tree.stalled_writes_timeout_sec, 60);
+        assert_eq!(
+            db_config
+                .experimental
+                .state_keeper_db_block_cache_capacity_mb,
+            64
+        );
+        assert_eq!(
+            db_config.experimental.state_keeper_db_max_open_files,
+            NonZeroU32::new(100)
+        );
     }
 
     #[test]
@@ -103,6 +116,8 @@ mod tests {
         let mut lock = MUTEX.lock();
         lock.remove_env(&[
             "DATABASE_STATE_KEEPER_DB_PATH",
+            "DATABASE_EXPERIMENTAL_STATE_KEEPER_DB_MAX_OPEN_FILES",
+            "DATABASE_EXPERIMENTAL_STATE_KEEPER_DB_BLOCK_CACHE_CAPACITY_MB",
             "DATABASE_MERKLE_TREE_BACKUP_PATH",
             "DATABASE_MERKLE_TREE_PATH",
             "DATABASE_MERKLE_TREE_MODE",
@@ -122,6 +137,13 @@ mod tests {
         assert_eq!(db_config.merkle_tree.block_cache_size_mb, 128);
         assert_eq!(db_config.merkle_tree.memtable_capacity_mb, 256);
         assert_eq!(db_config.merkle_tree.stalled_writes_timeout_sec, 30);
+        assert_eq!(
+            db_config
+                .experimental
+                .state_keeper_db_block_cache_capacity_mb,
+            128
+        );
+        assert_eq!(db_config.experimental.state_keeper_db_max_open_files, None);
 
         // Check that new env variable for Merkle tree path is supported
         lock.set_env("DATABASE_MERKLE_TREE_PATH=/db/tree/main");

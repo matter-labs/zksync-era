@@ -121,8 +121,7 @@ pub fn get_all_circuit_id_round_tuples_for(
 }
 
 fn get_all_circuit_id_round_tuples_for_node_aggregation() -> Vec<CircuitIdRoundTuple> {
-    ((ZkSyncRecursionLayerStorageType::LeafLayerCircuitForMainVM as u8)
-        ..=(ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8))
+    ZkSyncRecursionLayerStorageType::leafs_as_iter_u8()
         .map(|circuit_id| CircuitIdRoundTuple {
             circuit_id,
             aggregation_round: AggregationRound::NodeAggregation as u8,
@@ -149,7 +148,7 @@ mod tests {
         let res = get_all_circuit_id_round_tuples_for(ids);
         let expected_circuit_ids: Vec<u8> =
             ((ZkSyncRecursionLayerStorageType::LeafLayerCircuitForMainVM as u8)
-                ..=(ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8))
+                ..=(ZkSyncRecursionLayerStorageType::LeafLayerCircuitForEIP4844Repack as u8))
                 .collect();
         let expected = expected_circuit_ids
             .into_iter()
