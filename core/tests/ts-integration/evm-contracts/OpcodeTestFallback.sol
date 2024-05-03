@@ -85,6 +85,18 @@ contract OpcodeTestFallback {
             // REVERT
             // INVALID
             // selfdestruct(sender)
+            tmp := calldataload(0)
+            calldatacopy(10,0,1)
+            codecopy(10,0,1)
+            tmp := extcodesize(0)
+            extcodecopy(address(),10,0,1)
+            returndatacopy(10,0,1)
+            pop(extcodehash(0))
+            log0(0,30)
+            log1(0,30,30)
+            log2(0,30,30,30)
+            log3(0,30,30,30,30)
+            log4(0,30,30,30,30,30)
         }
 
         // tmp = 0;
