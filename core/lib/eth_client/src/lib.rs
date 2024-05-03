@@ -77,8 +77,7 @@ pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
     fn clone_boxed(&self) -> Box<dyn EthInterface>;
 
     /// Tags this client as working for a specific component. The component name can be used in logging,
-    /// metrics etc. The component name should be the clones of this client, but should not be passed
-    /// to clients this one was cloned from.
+    /// metrics etc. The component name should be copied to the clones of this client, but should not be passed upstream.
     fn for_component(self: Box<Self>, component_name: &'static str) -> Box<dyn EthInterface>;
 
     /// Fetches the L1 chain ID (in contrast to [`BoundEthInterface::chain_id()`] which returns
@@ -161,21 +160,22 @@ static_assertions::assert_obj_safe!(EthInterface);
 /// a certain contract and account.
 ///
 /// The example use cases for this trait would be:
+///
 /// - An operator that sends transactions and interacts with zkSync contract.
 /// - A wallet implementation in the SDK that is tied to a user's account.
 ///
-/// When adding a method to this trait,
+/// When adding a method to this trait:
+///
 /// 1. Make sure that it's indeed "bound". If not, add it to the `EthInterface` trait instead.
 /// 2. Consider adding the "unbound" version to the `EthInterface` trait and create a default method
-/// implementation that invokes `contract` / `contract_addr` / `sender_account` methods.
+///   implementation that invokes `contract` / `contract_addr` / `sender_account` methods.
 #[async_trait]
 pub trait BoundEthInterface: AsRef<dyn EthInterface> + 'static + Sync + Send + fmt::Debug {
     /// Clones this client.
     fn clone_boxed(&self) -> Box<dyn BoundEthInterface>;
 
     /// Tags this client as working for a specific component. The component name can be used in logging,
-    /// metrics etc. The component name should be the clones of this client, but should not be passed
-    /// to clients this one was cloned from.
+    /// metrics etc. The component name should be copied to the clones of this client, but should not be passed upstream.
     fn for_component(self: Box<Self>, component_name: &'static str) -> Box<dyn BoundEthInterface>;
 
     /// ABI of the contract that is used by the implementer.
@@ -209,26 +209,34 @@ pub trait BoundEthInterface: AsRef<dyn EthInterface> + 'static + Sync + Send + f
         contract_addr: H160,
         options: Options,
     ) -> Result<SignedCallResult, Error>;
+}
 
+impl Clone for Box<dyn BoundEthInterface> {
+    fn clone(&self) -> Self {
+        self.clone_boxed()
+    }
+}
+
+impl dyn BoundEthInterface {
     /// Returns the nonce of the `Self::sender_account()` at the specified block.
-    async fn nonce_at(&self, block: BlockNumber) -> Result<U256, Error> {
+    pub async fn nonce_at(&self, block: BlockNumber) -> Result<U256, Error> {
         self.as_ref()
             .nonce_at_for_account(self.sender_account(), block)
             .await
     }
 
     /// Returns the current nonce of the `Self::sender_account()`.
-    async fn current_nonce(&self) -> Result<U256, Error> {
+    pub async fn current_nonce(&self) -> Result<U256, Error> {
         self.nonce_at(BlockNumber::Latest).await
     }
 
     /// Returns the pending nonce of the `Self::sender_account()`.
-    async fn pending_nonce(&self) -> Result<U256, Error> {
+    pub async fn pending_nonce(&self) -> Result<U256, Error> {
         self.nonce_at(BlockNumber::Pending).await
     }
 
     /// Similar to [`EthInterface::sign_prepared_tx_for_addr`], but is fixed over `Self::contract_addr()`.
-    async fn sign_prepared_tx(
+    pub async fn sign_prepared_tx(
         &self,
         data: Vec<u8>,
         options: Options,
@@ -238,22 +246,12 @@ pub trait BoundEthInterface: AsRef<dyn EthInterface> + 'static + Sync + Send + f
     }
 
     /// Returns the ETH balance of `Self::sender_account()`.
-    async fn sender_eth_balance(&self) -> Result<U256, Error> {
+    pub async fn sender_eth_balance(&self) -> Result<U256, Error> {
         self.as_ref().eth_balance(self.sender_account()).await
     }
 
-    /// Returns the certain ERC20 token allowance for the `Self::sender_account()`.
-    async fn allowance(
-        &self,
-        token_address: Address,
-        erc20_abi: ethabi::Contract,
-    ) -> Result<U256, Error> {
-        self.allowance_on_account(token_address, self.contract_addr(), erc20_abi)
-            .await
-    }
-
     /// Invokes a function on a contract specified by `Self::contract()` / `Self::contract_addr()`.
-    async fn call_main_contract_function(
+    pub async fn call_main_contract_function(
         &self,
         args: CallFunctionArgs,
     ) -> Result<Vec<ethabi::Token>, Error> {
@@ -267,7 +265,7 @@ pub trait BoundEthInterface: AsRef<dyn EthInterface> + 'static + Sync + Send + f
     /// [`Tokenize`][tokenize] trait to convert the parameters into tokens.
     ///
     /// [tokenize]: https://docs.rs/web3/latest/web3/contract/tokens/trait.Tokenize.html
-    fn encode_tx_data(&self, func: &str, params: Vec<ethabi::Token>) -> Vec<u8> {
+    pub fn encode_tx_data(&self, func: &str, params: Vec<ethabi::Token>) -> Vec<u8> {
         let f = self
             .contract()
             .function(func)
@@ -275,11 +273,5 @@ pub trait BoundEthInterface: AsRef<dyn EthInterface> + 'static + Sync + Send + f
 
         f.encode_input(&params)
             .expect("failed to encode parameters")
-    }
-}
-
-impl Clone for Box<dyn BoundEthInterface> {
-    fn clone(&self) -> Self {
-        self.clone_boxed()
     }
 }

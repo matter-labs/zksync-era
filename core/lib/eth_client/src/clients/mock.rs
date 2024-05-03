@@ -181,6 +181,8 @@ impl Default for MockEthereum {
 }
 
 impl MockEthereum {
+    const SENDER_ACCOUNT: Address = Address::repeat_byte(0x11);
+
     /// A fake `sha256` hasher, which calculates an `std::hash` instead.
     /// This is done for simplicity and it's also much faster.
     fn fake_sha256(data: &[u8]) -> H256 {
@@ -339,10 +341,26 @@ impl EthInterface for MockEthereum {
 
     async fn nonce_at_for_account(
         &self,
-        _account: Address,
-        _block: BlockNumber,
+        account: Address,
+        block: BlockNumber,
     ) -> Result<U256, Error> {
-        unimplemented!("Getting nonce for custom account is not supported")
+        if account != Self::SENDER_ACCOUNT {
+            unimplemented!("Getting nonce for custom account is not supported");
+        }
+
+        let inner = self.inner.read().unwrap();
+        Ok(match block {
+            BlockNumber::Number(block_number) => {
+                let mut nonce_range = inner.nonces.range(..=block_number.as_u64());
+                let (_, &nonce) = nonce_range.next_back().unwrap_or((&0, &0));
+                nonce.into()
+            }
+            BlockNumber::Pending => inner.pending_nonce.into(),
+            BlockNumber::Latest => inner.current_nonce.into(),
+            _ => unimplemented!(
+                "`nonce_at_for_account()` called with unsupported block number: {block:?}"
+            ),
+        })
     }
 
     async fn get_gas_price(&self) -> Result<U256, Error> {
@@ -453,7 +471,7 @@ impl BoundEthInterface for MockEthereum {
     }
 
     fn sender_account(&self) -> Address {
-        Address::repeat_byte(0x11)
+        Self::SENDER_ACCOUNT
     }
 
     async fn sign_prepared_tx_for_addr(
@@ -472,25 +490,6 @@ impl BoundEthInterface for MockEthereum {
         _erc20_abi: ethabi::Contract,
     ) -> Result<U256, Error> {
         unimplemented!("Not needed right now")
-    }
-
-    async fn nonce_at(&self, block: BlockNumber) -> Result<U256, Error> {
-        if let BlockNumber::Number(block_number) = block {
-            let inner = self.inner.read().unwrap();
-            let mut nonce_range = inner.nonces.range(..=block_number.as_u64());
-            let (_, &nonce) = nonce_range.next_back().unwrap_or((&0, &0));
-            Ok(nonce.into())
-        } else {
-            panic!("MockEthereum::nonce_at called with non-number block tag");
-        }
-    }
-
-    async fn pending_nonce(&self) -> Result<U256, Error> {
-        Ok(self.inner.read().unwrap().pending_nonce.into())
-    }
-
-    async fn current_nonce(&self) -> Result<U256, Error> {
-        Ok(self.inner.read().unwrap().current_nonce.into())
     }
 }
 

@@ -123,7 +123,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
     }
 
     /// Exposes Ethereum node `web3` API.
-    pub fn client(&self) -> &SigningClient<S> {
+    pub fn client(&self) -> &dyn BoundEthInterface {
         &self.eth_client
     }
 
@@ -367,7 +367,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             "l2TransactionBaseCost",
             (gas_price, gas_limit, gas_per_pubdata_byte),
         );
-        let res = self.eth_client.call_main_contract_function(args).await?;
+        let res = self.client().call_main_contract_function(args).await?;
         Ok(U256::from_tokens(res)?)
     }
 
@@ -398,7 +398,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .await
             .map_err(|e| ClientError::NetworkError(e.to_string()))?;
         let value = base_cost + operator_tip + l2_value;
-        let tx_data = self.eth_client.encode_tx_data(
+        let tx_data = self.client().encode_tx_data(
             "requestL2Transaction",
             (
                 contract_address,
@@ -413,7 +413,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         );
 
         let tx = self
-            .eth_client
+            .client()
             .sign_prepared_tx(
                 tx_data,
                 Options::with(|f| {

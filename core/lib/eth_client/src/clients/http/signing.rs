@@ -153,18 +153,14 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
 
         let nonce = match options.nonce {
             Some(nonce) => nonce,
-            None => self.pending_nonce().await?,
+            None => <dyn BoundEthInterface>::pending_nonce(self).await?,
         };
 
         let gas = options.gas.unwrap_or_else(|| {
             // Verbosity level is set to `error`, since we expect all the transactions to have
             // a set limit, but don't want to crаsh the application if for some reason in some
             // place limit was not set.
-            tracing::error!(
-                "No gas limit was set for transaction, using the default limit: {}",
-                FALLBACK_GAS_LIMIT
-            );
-
+            tracing::error!("No gas limit was set for transaction, using the default limit: {FALLBACK_GAS_LIMIT}");
             U256::from(FALLBACK_GAS_LIMIT)
         });
 
