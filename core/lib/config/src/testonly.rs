@@ -284,11 +284,21 @@ impl Distribution<configs::database::MerkleTreeConfig> for EncodeDist {
     }
 }
 
+impl Distribution<configs::ExperimentalDBConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ExperimentalDBConfig {
+        configs::ExperimentalDBConfig {
+            state_keeper_db_block_cache_capacity_mb: self.sample(rng),
+            state_keeper_db_max_open_files: self.sample(rng),
+        }
+    }
+}
+
 impl Distribution<configs::database::DBConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::database::DBConfig {
         configs::database::DBConfig {
             state_keeper_db_path: self.sample(rng),
             merkle_tree: self.sample(rng),
+            experimental: self.sample(rng),
         }
     }
 }
@@ -296,9 +306,9 @@ impl Distribution<configs::database::DBConfig> for EncodeDist {
 impl Distribution<configs::database::PostgresConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::database::PostgresConfig {
         configs::database::PostgresConfig {
-            master_url: self.sample(rng),
-            replica_url: self.sample(rng),
-            prover_url: self.sample(rng),
+            master_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
+            replica_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
+            prover_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
             max_connections: self.sample(rng),
             max_connections_master: self.sample(rng),
             acquire_timeout_sec: self.sample(rng),
@@ -317,7 +327,7 @@ impl Distribution<configs::EthConfig> for EncodeDist {
             sender: self.sample(rng),
             gas_adjuster: self.sample(rng),
             watcher: self.sample(rng),
-            web3_url: self.sample(rng),
+            web3_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
         }
     }
 }

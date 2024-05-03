@@ -36,7 +36,6 @@ use self::tester::{
 };
 pub(crate) use self::tester::{MockBatchExecutor, TestBatchExecutorBuilder};
 use crate::{
-    gas_tracker::l1_batch_base_cost,
     state_keeper::{
         batch_executor::TxExecutionResult,
         keeper::POLL_WAIT_DURATION,
@@ -46,6 +45,7 @@ use crate::{
         },
         types::ExecutionMetricsForCriteria,
         updates::UpdatesManager,
+        utils::l1_batch_base_cost,
         ZkSyncStateKeeper,
     },
     utils::testonly::create_l2_transaction,
