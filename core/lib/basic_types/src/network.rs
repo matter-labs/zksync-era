@@ -28,6 +28,9 @@ pub enum Network {
     Sepolia,
     /// Self-hosted Ethereum network.
     Localhost,
+    /// Default L2 development network. Note, that unlike other networks, it
+    /// is actually an Era-based L2, not an L1.
+    LocalhostL2,
     /// Unknown network type.
     Unknown,
     /// Test network for testkit purposes
@@ -44,6 +47,7 @@ impl FromStr for Network {
             "ropsten" => Self::Ropsten,
             "goerli" => Self::Goerli,
             "localhost" => Self::Localhost,
+            "localhostL2" => Self::LocalhostL2,
             "sepolia" => Self::Sepolia,
             "test" => Self::Test,
             another => return Err(another.to_owned()),
@@ -59,6 +63,7 @@ impl fmt::Display for Network {
             Self::Ropsten => write!(f, "ropsten"),
             Self::Goerli => write!(f, "goerli"),
             Self::Localhost => write!(f, "localhost"),
+            Self::LocalhostL2 => write!(f, "LocalhostL2"),
             Self::Sepolia => write!(f, "sepolia"),
             Self::Unknown => write!(f, "unknown"),
             Self::Test => write!(f, "test"),
@@ -75,6 +80,7 @@ impl Network {
             4 => Self::Rinkeby,
             5 => Self::Goerli,
             9 => Self::Localhost,
+            270 => Self::LocalhostL2,
             11155111 => Self::Sepolia,
             _ => Self::Unknown,
         }
@@ -88,6 +94,7 @@ impl Network {
             Self::Rinkeby => L1ChainId(4),
             Self::Goerli => L1ChainId(5),
             Self::Localhost => L1ChainId(9),
+            Self::LocalhostL2 => L1ChainId(270),
             Self::Sepolia => L1ChainId(11155111),
             Self::Unknown => panic!("Unknown chain ID"),
             Self::Test => panic!("Test chain ID"),

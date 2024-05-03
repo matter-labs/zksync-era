@@ -5,6 +5,7 @@ import * as zksync from 'zksync-ethers';
 import { TestEnvironment } from './types';
 import { Reporter } from './reporter';
 import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/src/utils';
+import { isNetworkLocal } from 'zk/src/utils';
 
 /**
  * Attempts to connect to server.
@@ -52,7 +53,7 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
     const network = process.env.CHAIN_ETH_NETWORK || 'localhost';
 
     let mainWalletPK;
-    if (network == 'localhost') {
+    if (isNetworkLocal(network)) {
         const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant`);
         const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
         mainWalletPK = ethers.Wallet.fromMnemonic(ethTestConfig.test_mnemonic as string, "m/44'/60'/0'/0/0").privateKey;

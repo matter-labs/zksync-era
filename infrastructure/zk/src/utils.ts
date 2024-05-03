@@ -172,3 +172,17 @@ export const announced = async (fn: string, promise: Promise<void> | void) => {
     const timestampLine = timestamp(`(${time}ms)`);
     console.log(`${successLine} ${timestampLine}`);
 };
+
+const LOCAL_NETWORKS = ['localhost', 'localhostL2'];
+
+export function isNetworkLocal(network: string): boolean {
+    return LOCAL_NETWORKS.includes(network);
+}
+
+export function isNetworkLocalL1(network: string): boolean {
+    return network == 'localhost';
+}
+
+export function isCurrentNetworkLocal(): boolean {
+    return process.env.CHAIN_ETH_NETWORK ? isNetworkLocal(process.env.CHAIN_ETH_NETWORK) : true;
+}

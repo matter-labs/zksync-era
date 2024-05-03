@@ -11,7 +11,7 @@ export async function build(): Promise<void> {
 export async function verifyL1Contracts(): Promise<void> {
     // Spawning a new script is expensive, so if we know that publishing is disabled, it's better to not launch
     // it at all (even though `verify` checks the network as well).
-    if (process.env.CHAIN_ETH_NETWORK == 'localhost') {
+    if (utils.isCurrentNetworkLocal()) {
         console.log('Skip contract verification on localhost');
         return;
     }
