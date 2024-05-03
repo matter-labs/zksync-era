@@ -31,12 +31,19 @@ impl FromEnv for DBConfig {
 
 impl FromEnv for PostgresConfig {
     fn from_env() -> anyhow::Result<Self> {
-        let master_url = env::var("DATABASE_URL").ok();
+        let master_url = env::var("DATABASE_URL")
+            .ok()
+            .map(|s| s.parse())
+            .transpose()?;
         let replica_url = env::var("DATABASE_REPLICA_URL")
             .ok()
+            .map(|s| s.parse())
+            .transpose()?
             .or_else(|| master_url.clone());
         let prover_url = env::var("DATABASE_PROVER_URL")
             .ok()
+            .map(|s| s.parse())
+            .transpose()?
             .or_else(|| master_url.clone());
         let test_server_url = env::var("TEST_DATABASE_URL").ok();
         let test_prover_url = env::var("TEST_DATABASE_PROVER_URL").ok();
@@ -180,6 +187,8 @@ mod tests {
         assert_eq!(
             postgres_config.master_url().unwrap(),
             "postgres://postgres:notsecurepassword@localhost/zksync_local"
+                .parse()
+                .unwrap()
         );
         assert_eq!(postgres_config.max_connections().unwrap(), 50);
         assert_eq!(

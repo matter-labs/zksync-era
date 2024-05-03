@@ -7,7 +7,6 @@ use std::{
 
 use anyhow::Context;
 use serde::Deserialize;
-use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
 use zksync_config::{
     configs::{
@@ -26,15 +25,19 @@ use zksync_core::{
 };
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
+use zksync_eth_client::EthInterface;
 use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
-use zksync_types::{api::BridgeAddresses, fee_model::FeeParams, ETHEREUM_ADDRESS};
+use zksync_types::{
+    api::BridgeAddresses, fee_model::FeeParams, url::SensitiveUrl, ETHEREUM_ADDRESS,
+};
 use zksync_web3_decl::{
-    client::L2Client,
+    client::BoxedL2Client,
     error::ClientRpcContext,
-    jsonrpsee::{core::ClientError, http_client::HttpClientBuilder, types::error::ErrorCode},
+    jsonrpsee::{core::ClientError, types::error::ErrorCode},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
+
 pub(crate) mod observability;
 #[cfg(test)]
 mod tests;
@@ -67,7 +70,7 @@ pub(crate) struct RemoteENConfig {
 }
 
 impl RemoteENConfig {
-    pub async fn fetch(client: &L2Client) -> anyhow::Result<Self> {
+    pub async fn fetch(client: &BoxedL2Client) -> anyhow::Result<Self> {
         let bridges = client
             .get_bridge_contracts()
             .rpc_context("get_bridge_contracts")
@@ -536,6 +539,12 @@ impl OptionalENConfig {
         3_600 // 1 hour
     }
 
+    pub fn from_env() -> anyhow::Result<Self> {
+        envy::prefixed("EN_")
+            .from_env()
+            .context("could not load external node config")
+    }
+
     pub fn polling_interval(&self) -> Duration {
         Duration::from_millis(self.polling_interval)
     }
@@ -637,11 +646,9 @@ pub(crate) struct RequiredENConfig {
     /// Port on which the healthcheck REST server is listening.
     pub healthcheck_port: u16,
     /// Address of the Ethereum node API.
-    /// Intentionally private: use getter method as it manages the missing port.
-    eth_client_url: String,
+    pub eth_client_url: SensitiveUrl,
     /// Main node URL - used by external node to proxy transactions to, query state from, etc.
-    /// Intentionally private: use getter method as it manages the missing port.
-    main_node_url: String,
+    pub main_node_url: SensitiveUrl,
     /// Path to the database data directory that serves state cache.
     pub state_cache_path: String,
     /// Fast SSD path. Used as a RocksDB dir for the Merkle tree (*new* implementation).
@@ -649,14 +656,21 @@ pub(crate) struct RequiredENConfig {
 }
 
 impl RequiredENConfig {
+    pub fn from_env() -> anyhow::Result<Self> {
+        envy::prefixed("EN_")
+            .from_env()
+            .context("could not load external node config")
+    }
+
     #[cfg(test)]
     fn mock(temp_dir: &tempfile::TempDir) -> Self {
         Self {
             http_port: 0,
             ws_port: 0,
             healthcheck_port: 0,
-            eth_client_url: "unused".to_owned(), // L1 and L2 clients must be instantiated before accessing mocks
-            main_node_url: "unused".to_owned(),
+            // L1 and L2 clients must be instantiated before accessing mocks, so these values don't matter
+            eth_client_url: "http://localhost".parse().unwrap(),
+            main_node_url: "http://localhost".parse().unwrap(),
             state_cache_path: temp_dir
                 .path()
                 .join("state_keeper_cache")
@@ -666,19 +680,6 @@ impl RequiredENConfig {
             merkle_tree_path: temp_dir.path().join("tree").to_str().unwrap().to_owned(),
         }
     }
-
-    pub fn main_node_url(&self) -> anyhow::Result<String> {
-        Self::get_url(&self.main_node_url).context("Could not parse main node URL")
-    }
-
-    pub fn eth_client_url(&self) -> anyhow::Result<String> {
-        Self::get_url(&self.eth_client_url).context("Could not parse L1 client URL")
-    }
-
-    fn get_url(url_str: &str) -> anyhow::Result<String> {
-        let url = Url::parse(url_str).context("URL can not be parsed")?;
-        format_url_with_port(&url)
-    }
 }
 
 /// Configuration for Postgres database.
@@ -687,7 +688,7 @@ impl RequiredENConfig {
 /// Thus it is kept separately for backward compatibility and ease of deserialization.
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 pub(crate) struct PostgresConfig {
-    pub database_url: String,
+    database_url: SensitiveUrl,
     pub max_connections: u32,
 }
 
@@ -695,7 +696,9 @@ impl PostgresConfig {
     pub fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             database_url: env::var("DATABASE_URL")
-                .context("DATABASE_URL env variable is not set")?,
+                .context("DATABASE_URL env variable is not set")?
+                .parse()
+                .context("DATABASE_URL env variable is not a valid Postgres URL")?,
             max_connections: env::var("DATABASE_POOL_SIZE")
                 .context("DATABASE_POOL_SIZE env variable is not set")?
                 .parse()
@@ -703,10 +706,14 @@ impl PostgresConfig {
         })
     }
 
+    pub fn database_url(&self) -> SensitiveUrl {
+        self.database_url.clone()
+    }
+
     #[cfg(test)]
     fn mock(test_pool: &ConnectionPool<Core>) -> Self {
         Self {
-            database_url: test_pool.database_url().to_owned(),
+            database_url: test_pool.database_url().clone(),
             max_connections: test_pool.max_size(),
         }
     }
@@ -810,15 +817,13 @@ pub(crate) struct ExternalNodeConfig {
 }
 
 impl ExternalNodeConfig {
-    /// Loads config from the environment variables and
-    /// fetches contracts addresses from the main node.
-    pub async fn collect() -> anyhow::Result<Self> {
-        let required = envy::prefixed("EN_")
-            .from_env::<RequiredENConfig>()
-            .context("could not load external node config (required params)")?;
-        let optional = envy::prefixed("EN_")
-            .from_env::<OptionalENConfig>()
-            .context("could not load external node config (optional params)")?;
+    /// Loads config from the environment variables and fetches contracts addresses from the main node.
+    pub async fn new(
+        required: RequiredENConfig,
+        optional: OptionalENConfig,
+        main_node_client: &BoxedL2Client,
+        eth_client: &dyn EthInterface,
+    ) -> anyhow::Result<Self> {
         let experimental = envy::prefixed("EN_EXPERIMENTAL_")
             .from_env::<ExperimentalENConfig>()
             .context("could not load external node config (experimental params)")?;
@@ -830,51 +835,41 @@ impl ExternalNodeConfig {
             .from_env::<TreeComponentConfig>()
             .context("could not load external node config (tree component params)")?;
 
-        let client = L2Client::http(&required.main_node_url()?)
-            .context("Unable to build HTTP client for main node")?
-            .build();
-        let remote = RemoteENConfig::fetch(&client)
+        let remote = RemoteENConfig::fetch(main_node_client)
             .await
             .context("Unable to fetch required config values from the main node")?;
         // We can query them from main node, but it's better to set them explicitly
         // as well to avoid connecting to wrong environment variables unintentionally.
-        let eth_chain_id = HttpClientBuilder::default()
-            .build(required.eth_client_url()?)
-            .expect("Unable to build HTTP client for L1 client")
-            .chain_id()
+        let eth_chain_id = eth_client
+            .fetch_chain_id("en")
             .await
             .context("Unable to check L1 chain ID through the configured L1 client")?;
 
         let l2_chain_id: L2ChainId = env_var("EN_L2_CHAIN_ID")?;
-        let l1_chain_id: u64 = env_var("EN_L1_CHAIN_ID")?;
-        if l2_chain_id != remote.l2_chain_id {
-            anyhow::bail!(
-                "Configured L2 chain id doesn't match the one from main node.
-                Make sure your configuration is correct and you are corrected to the right main node.
-                Main node L2 chain id: {:?}. Local config value: {:?}",
-                remote.l2_chain_id, l2_chain_id
-            );
-        }
-        if l1_chain_id != remote.l1_chain_id.0 {
-            anyhow::bail!(
-                "Configured L1 chain id doesn't match the one from main node.
-                Make sure your configuration is correct and you are corrected to the right main node.
-                Main node L1 chain id: {}. Local config value: {}",
-                remote.l1_chain_id.0, l1_chain_id
-            );
-        }
-        if l1_chain_id != eth_chain_id.as_u64() {
-            anyhow::bail!(
-                "Configured L1 chain id doesn't match the one from eth node.
-                Make sure your configuration is correct and you are corrected to the right eth node.
-                Eth node chain id: {}. Local config value: {}",
-                eth_chain_id,
-                l1_chain_id
-            );
-        }
+        anyhow::ensure!(
+            l2_chain_id == remote.l2_chain_id,
+            "Configured L2 chain id doesn't match the one from main node.
+            Make sure your configuration is correct and you are corrected to the right main node.
+            Main node L2 chain id: {:?}. Local config value: {l2_chain_id:?}",
+            remote.l2_chain_id,
+        );
+
+        let l1_chain_id: L1ChainId = env_var("EN_L1_CHAIN_ID")?;
+        anyhow::ensure!(
+            l1_chain_id == remote.l1_chain_id,
+            "Configured L1 chain id doesn't match the one from main node.
+            Make sure your configuration is correct and you are corrected to the right main node.
+            Main node L1 chain id: {}. Local config value: {l1_chain_id}",
+            remote.l1_chain_id,
+        );
+        anyhow::ensure!(
+            l1_chain_id == eth_chain_id,
+            "Configured L1 chain id doesn't match the one from eth node.
+            Make sure your configuration is correct and you are corrected to the right eth node.
+            Eth node chain id: {eth_chain_id}. Local config value: {l1_chain_id}"
+        );
 
         let postgres = PostgresConfig::from_env()?;
-
         Ok(Self {
             remote,
             postgres,
@@ -969,29 +964,4 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
             whitelisted_tokens_for_aa: Default::default(),
         }
     }
-}
-
-/// Converts the URL into a String with port provided,
-/// even if it's the default one.
-///
-/// `url` library does not contain required functionality, yet the library we use for RPC
-/// requires the port to always explicitly be set.
-fn format_url_with_port(url: &Url) -> anyhow::Result<String> {
-    let scheme = url.scheme();
-    let host = url.host_str().context("No host in the URL")?;
-    let port_str = match url.port_or_known_default() {
-        Some(port) => format!(":{port}"),
-        None => String::new(),
-    };
-    let path = url.path();
-    let query_str = url.query().map(|q| format!("?{}", q)).unwrap_or_default();
-
-    Ok(format!(
-        "{scheme}://{host}{port}{path}{query_str}",
-        scheme = scheme,
-        host = host,
-        port = port_str,
-        path = path,
-        query_str = query_str
-    ))
 }

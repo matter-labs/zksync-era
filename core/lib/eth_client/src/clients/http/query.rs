@@ -1,17 +1,21 @@
-use std::sync::Arc;
+use std::fmt;
 
 use async_trait::async_trait;
-use zksync_types::web3::{
-    self,
-    contract::Contract,
-    ethabi, helpers,
-    helpers::CallFuture,
-    transports::Http,
-    types::{
-        Address, BlockId, BlockNumber, Bytes, Filter, Log, Transaction, TransactionId,
-        TransactionReceipt, H256, U256, U64,
+use zksync_types::{
+    url::SensitiveUrl,
+    web3::{
+        self,
+        contract::Contract,
+        ethabi, helpers,
+        helpers::CallFuture,
+        transports::Http,
+        types::{
+            Address, BlockId, BlockNumber, Bytes, Filter, Log, Transaction, TransactionId,
+            TransactionReceipt, H256, U256, U64,
+        },
+        Transport, Web3,
     },
-    Transport, Web3,
+    L1ChainId,
 };
 
 use crate::{
@@ -22,29 +26,44 @@ use crate::{
 
 /// An "anonymous" Ethereum client that can invoke read-only methods that aren't
 /// tied to a particular account.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct QueryClient {
-    web3: Arc<Web3<Http>>,
+    web3: Web3<Http>,
+    url: SensitiveUrl,
 }
 
-impl From<Http> for QueryClient {
-    fn from(transport: Http) -> Self {
-        Self {
-            web3: Arc::new(Web3::new(transport)),
-        }
+impl fmt::Debug for QueryClient {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("QueryClient")
+            .field("url", &self.url)
+            .finish()
     }
 }
 
 impl QueryClient {
     /// Creates a new HTTP client.
-    pub fn new(node_url: &str) -> Result<Self, Error> {
-        let transport = Http::new(node_url)?;
-        Ok(transport.into())
+    pub fn new(url: SensitiveUrl) -> Result<Self, Error> {
+        let transport = Http::new(url.expose_str())?;
+        Ok(Self {
+            web3: Web3::new(transport),
+            url,
+        })
     }
 }
 
 #[async_trait]
 impl EthInterface for QueryClient {
+    async fn fetch_chain_id(&self, component: &'static str) -> Result<L1ChainId, Error> {
+        COUNTERS.call[&(Method::ChainId, component)].inc();
+        let latency = LATENCIES.direct[&Method::ChainId].start();
+        let raw_chain_id = self.web3.eth().chain_id().await?;
+        latency.observe();
+        let chain_id =
+            u64::try_from(raw_chain_id).map_err(|err| ethabi::Error::Other(err.into()))?;
+        Ok(L1ChainId(chain_id))
+    }
+
     async fn nonce_at_for_account(
         &self,
         account: Address,

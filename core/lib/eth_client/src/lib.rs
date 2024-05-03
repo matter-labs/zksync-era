@@ -80,6 +80,10 @@ impl Options {
 /// per component and expose them to Prometheus.
 #[async_trait]
 pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
+    /// Fetches the L1 chain ID (in contrast to [`BoundEthInterface::chain_id()`] which returns
+    /// the *expected* L1 chain ID).
+    async fn fetch_chain_id(&self, component: &'static str) -> Result<L1ChainId, Error>;
+
     /// Returns the nonce of the provided account at the specified block.
     async fn nonce_at_for_account(
         &self,
@@ -179,7 +183,7 @@ static_assertions::assert_obj_safe!(EthInterface);
 /// 2. Consider adding the "unbound" version to the `EthInterface` trait and create a default method
 /// implementation that invokes `contract` / `contract_addr` / `sender_account` methods.
 #[async_trait]
-pub trait BoundEthInterface: EthInterface {
+pub trait BoundEthInterface: AsRef<dyn EthInterface> + 'static + Sync + Send + fmt::Debug {
     /// ABI of the contract that is used by the implementer.
     fn contract(&self) -> &ethabi::Contract;
 
@@ -215,7 +219,8 @@ pub trait BoundEthInterface: EthInterface {
 
     /// Returns the nonce of the `Self::sender_account()` at the specified block.
     async fn nonce_at(&self, block: BlockNumber, component: &'static str) -> Result<U256, Error> {
-        self.nonce_at_for_account(self.sender_account(), block, component)
+        self.as_ref()
+            .nonce_at_for_account(self.sender_account(), block, component)
             .await
     }
 
@@ -242,7 +247,9 @@ pub trait BoundEthInterface: EthInterface {
 
     /// Returns the ETH balance of `Self::sender_account()`.
     async fn sender_eth_balance(&self, component: &'static str) -> Result<U256, Error> {
-        self.eth_balance(self.sender_account(), component).await
+        self.as_ref()
+            .eth_balance(self.sender_account(), component)
+            .await
     }
 
     /// Returns the certain ERC20 token allowance for the `Self::sender_account()`.
@@ -261,7 +268,7 @@ pub trait BoundEthInterface: EthInterface {
         args: CallFunctionArgs,
     ) -> Result<Vec<ethabi::Token>, Error> {
         let args = args.for_contract(self.contract_addr(), self.contract().clone());
-        self.call_contract_function(args).await
+        self.as_ref().call_contract_function(args).await
     }
 
     /// Encodes a function using the `Self::contract()` ABI.
