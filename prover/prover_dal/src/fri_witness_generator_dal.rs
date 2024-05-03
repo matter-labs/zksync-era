@@ -1589,6 +1589,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
             AggregationRound::NodeAggregation,
         )
         .await?;
+        self.delete_witness_generator_data(AggregationRound::RecursionTip)
+            .await?;
         self.delete_witness_generator_data_for_batch(block_number, AggregationRound::Scheduler)
             .await
     }
