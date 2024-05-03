@@ -22,12 +22,12 @@ pub(crate) async fn run() -> Result<(), CLIErrors> {
     })?;
     let eth_config = EthConfig::from_env()
         .map_err(|e| CLIErrors::FromEnvError("EthConfig::from_env()".to_owned(), e.to_string()))?;
-    let query_client = QueryClient::new(&eth_config.web3_url)?;
+    let query_client = QueryClient::new(eth_config.web3_url)?;
 
     let total_batches_committed_tokens = contract_call(
         "getTotalBatchesCommitted",
         contracts_config.diamond_proxy_addr,
-        zksync_contracts::state_transition_manager_contract(),
+        zksync_contracts::hyperchain_contract(),
         &query_client,
     )
     .await?;
@@ -40,7 +40,7 @@ pub(crate) async fn run() -> Result<(), CLIErrors> {
     let total_batches_verified_tokens = contract_call(
         "getTotalBatchesVerified",
         contracts_config.diamond_proxy_addr,
-        zksync_contracts::state_transition_manager_contract(),
+        zksync_contracts::hyperchain_contract(),
         &query_client,
     )
     .await?;
@@ -105,7 +105,7 @@ pub(crate) async fn run() -> Result<(), CLIErrors> {
     let node_verifier_params_tokens = contract_call(
         "getVerifierParams",
         contracts_config.diamond_proxy_addr,
-        zksync_contracts::state_transition_manager_contract(),
+        zksync_contracts::hyperchain_contract(),
         &query_client,
     )
     .await?;
