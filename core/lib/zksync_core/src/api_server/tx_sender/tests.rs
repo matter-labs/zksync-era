@@ -3,7 +3,7 @@
 use assert_matches::assert_matches;
 use multivm::interface::ExecutionResult;
 use zksync_config::configs::wallets::Wallets;
-use zksync_node_shared::genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{get_nonce_key, L1BatchNumber, L2BlockNumber, StorageLog};
 use zksync_utils::u256_to_h256;
 

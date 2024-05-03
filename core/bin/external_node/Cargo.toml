@@ -32,7 +32,7 @@ zksync_web3_decl.workspace = true
 zksync_types.workspace = true
 zksync_block_reverter.workspace = true
 zksync_shared_metrics.workspace = true
-zksync_node_shared.workspace = true
+zksync_node_genesis.workspace = true
 vlog.workspace = true
 
 zksync_concurrency.workspace = true

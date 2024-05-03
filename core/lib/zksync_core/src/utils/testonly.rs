@@ -5,7 +5,7 @@ use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
-use zksync_node_shared::genesis::GenesisParams;
+use zksync_node_genesis::GenesisParams;
 use zksync_system_constants::{get_intrinsic_constants, ZKPORTER_IS_AVAILABLE};
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},

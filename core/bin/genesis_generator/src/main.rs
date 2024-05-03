@@ -12,7 +12,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_core::temp_config_store::decode_yaml_repr;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
-use zksync_node_shared::genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_protobuf::{
     build::{prost_reflect, prost_reflect::ReflectMessage},
     ProtoRepr,

@@ -13,7 +13,7 @@ use zksync_config::configs::{
 use zksync_dal::CoreDal;
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
-use zksync_node_shared::genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{L1BatchNumber, ProtocolVersionId, StorageLog};
 
 use super::*;

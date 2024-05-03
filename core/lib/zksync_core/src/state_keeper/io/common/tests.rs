@@ -10,7 +10,7 @@ use vm_utils::storage::L1BatchParamsProvider;
 use zksync_config::GenesisConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core};
-use zksync_node_shared::genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_types::{
     block::L2BlockHasher, fee::TransactionExecutionMetrics, L2ChainId, ProtocolVersion,
     ProtocolVersionId,

@@ -146,7 +146,7 @@ impl MerkleTreePruningTask {
 mod tests {
     use tempfile::TempDir;
     use test_casing::test_casing;
-    use zksync_node_shared::genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{L1BatchNumber, L2BlockNumber};
 
     use super::*;

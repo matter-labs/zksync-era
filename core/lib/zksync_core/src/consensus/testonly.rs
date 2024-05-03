@@ -9,7 +9,7 @@ use zksync_config::{configs, GenesisConfig};
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{CoreDal, DalError};
-use zksync_node_shared::genesis::{mock_genesis_config, GenesisParams};
+use zksync_node_genesis::{mock_genesis_config, GenesisParams};
 use zksync_types::{
     api, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersionId, H256,

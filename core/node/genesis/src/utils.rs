@@ -19,7 +19,7 @@ use zksync_types::{
 };
 use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
-use super::GenesisError;
+use crate::GenesisError;
 
 pub(super) async fn add_eth_token(transaction: &mut Connection<'_, Core>) -> anyhow::Result<()> {
     assert!(transaction.in_transaction()); // sanity check

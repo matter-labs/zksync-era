@@ -24,7 +24,6 @@ use zksync_core::{
     Component, Components,
 };
 use zksync_env_config::FromEnv;
-use zksync_node_shared::genesis;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
@@ -181,7 +180,7 @@ async fn main() -> anyhow::Result<()> {
 
         if let Some(ecosystem_contracts) = &contracts_config.ecosystem_contracts {
             let eth_client = configs.eth.as_ref().context("eth config")?;
-            genesis::save_set_chain_id_tx(
+            zksync_node_genesis::save_set_chain_id_tx(
                 &eth_client.web3_url,
                 contracts_config.diamond_proxy_addr,
                 ecosystem_contracts.state_transition_proxy_addr,

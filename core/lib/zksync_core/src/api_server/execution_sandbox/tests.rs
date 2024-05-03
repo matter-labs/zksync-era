@@ -2,7 +2,7 @@
 
 use assert_matches::assert_matches;
 use zksync_dal::ConnectionPool;
-use zksync_node_shared::genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 
 use super::*;
 use crate::{

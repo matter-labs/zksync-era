@@ -6,7 +6,7 @@ use test_casing::test_casing;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_node_shared::genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{
     api,
     block::L2BlockHasher,

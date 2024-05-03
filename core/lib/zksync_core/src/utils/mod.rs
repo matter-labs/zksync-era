@@ -220,7 +220,7 @@ mod tests {
     use zksync_eth_client::{
         Block, ContractCall, ExecutedTxStatus, FailureInfo, RawTransactionBytes,
     };
-    use zksync_node_shared::genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{
         web3::types::{BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt},
         H160, H256, U256, U64,

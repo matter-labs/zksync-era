@@ -6,7 +6,7 @@ use chrono::TimeZone;
 use test_casing::{test_casing, Product};
 use tokio::sync::{watch, Mutex};
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_node_shared::genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{Address, ProtocolVersionId};
 
 use super::*;

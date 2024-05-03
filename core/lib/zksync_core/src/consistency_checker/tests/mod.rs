@@ -8,7 +8,7 @@ use tokio::sync::mpsc;
 use zksync_config::GenesisConfig;
 use zksync_dal::Connection;
 use zksync_eth_client::{clients::MockEthereum, Options};
-use zksync_node_shared::genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, Log,
     ProtocolVersion, ProtocolVersionId, H256,

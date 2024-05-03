@@ -13,7 +13,7 @@ use zksync_config::configs::{
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{CheckHealth, HealthStatus};
 use zksync_merkle_tree::domain::ZkSyncTree;
-use zksync_node_shared::genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
 use zksync_storage::RocksDB;

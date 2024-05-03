@@ -47,7 +47,7 @@ zksync_shared_metrics.workspace = true
 zksync_proof_data_handler.workspace = true
 zksync_commitment_generator.workspace = true
 zksync_house_keeper.workspace = true
-zksync_node_shared.workspace = true
+zksync_node_genesis.workspace = true
 multivm.workspace = true
 
 # Consensus dependenices

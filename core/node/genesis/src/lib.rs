@@ -25,7 +25,7 @@ use zksync_types::{
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
-use crate::genesis::utils::{
+use crate::utils::{
     add_eth_token, get_deduped_log_queries, get_storage_logs,
     insert_base_system_contracts_to_factory_deps, insert_system_contracts,
     save_genesis_l1_batch_metadata,

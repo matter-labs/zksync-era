@@ -9,7 +9,7 @@ use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_dal::{Connection, CoreDal};
-use zksync_node_shared::genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{
     block::{L2BlockHasher, L2BlockHeader},
     ProtocolVersion,

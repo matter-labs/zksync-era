@@ -612,7 +612,7 @@ impl L1BatchWithLogs {
 mod tests {
     use tempfile::TempDir;
     use zksync_dal::{ConnectionPool, Core};
-    use zksync_node_shared::genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
     use zksync_types::{StorageKey, StorageLog};
 

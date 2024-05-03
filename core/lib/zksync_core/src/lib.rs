@@ -59,7 +59,7 @@ use zksync_house_keeper::{
     periodic_job::PeriodicJob,
     waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
 };
-use zksync_node_shared::genesis::{ensure_genesis_state, GenesisParams};
+use zksync_node_genesis::{ensure_genesis_state, GenesisParams};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_shared_metrics::{InitStage, APP_METRICS};
