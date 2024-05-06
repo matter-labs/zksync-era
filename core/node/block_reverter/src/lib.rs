@@ -20,7 +20,7 @@ use zksync_types::{
         SnapshotFactoryDependencies, SnapshotMetadata, SnapshotStorageLogsChunk,
         SnapshotStorageLogsStorageKey,
     },
-    web3::{BlockId, BlockNumber},
+    web3::BlockNumber,
     Address, L1BatchNumber, L2ChainId, H160, H256, U256,
 };
 
@@ -440,12 +440,11 @@ impl BlockReverter {
         eth_client: &dyn BoundEthInterface,
         eth_config: &BlockReverterEthConfig,
         last_l1_batch_to_keep: L1BatchNumber,
-        priority_fee_per_gas: U256,
         nonce: u64,
     ) -> anyhow::Result<()> {
         tracing::info!(
             "Sending Ethereum revert transaction for L1 batch #{last_l1_batch_to_keep} with config {eth_config:?}, \
-             priority fee: {priority_fee_per_gas}, nonce: {nonce}"
+             nonce: {nonce}"
         );
 
         let contract = hyperchain_contract();
@@ -472,35 +471,8 @@ impl BlockReverter {
                 .context("failed encoding `revertBatchesSharedBridge` input")?
         };
 
-        let base_fee = eth_client
-            .as_ref()
-            .block(BlockId::Number(BlockNumber::Pending))
-            .await
-            .context("failed getting pending L1 block")?
-            .map(|block| {
-                block
-                    .base_fee_per_gas
-                    .context("no base_fee_per_gas in pending block")
-            })
-            .transpose()?;
-        let base_fee = if let Some(base_fee) = base_fee {
-            base_fee
-        } else {
-            // Pending block doesn't exist, use the latest one.
-            eth_client
-                .as_ref()
-                .block(BlockId::Number(BlockNumber::Latest))
-                .await
-                .context("failed geting latest L1 block")?
-                .context("no latest L1 block")?
-                .base_fee_per_gas
-                .context("no base_fee_per_gas in latest block")?
-        };
-
         let options = Options {
             nonce: Some(nonce.into()),
-            max_priority_fee_per_gas: Some(priority_fee_per_gas),
-            max_fee_per_gas: Some(base_fee + priority_fee_per_gas),
             gas: Some(5_000_000.into()),
             ..Default::default()
         };
