@@ -17,6 +17,8 @@ on:
       - core-v**
       - prover-v**
       - contract_verifier-v**
+    branches:
+      - en-alpha-release
 
 concurrency: docker-build
 
