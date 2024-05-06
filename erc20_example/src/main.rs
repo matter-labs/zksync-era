@@ -1,4 +1,4 @@
-use validium_mode_example::{helpers::TxKind, scenario};
+use erc20_example::{helpers::TxKind, scenario};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {

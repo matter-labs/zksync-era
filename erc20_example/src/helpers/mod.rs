@@ -9,12 +9,12 @@ pub use batch_data::BatchData;
 use colored::Colorize;
 use ethers::{
     abi::{Abi, Address, Hash},
+    contract::ContractFactory,
     core::k256::ecdsa::SigningKey,
+    middleware::SignerMiddleware,
     providers::Http,
     types::TransactionReceipt,
     utils::parse_units,
-    contract::ContractFactory,
-    middleware::SignerMiddleware,
 };
 pub use l1_tx_data::L1TxData;
 use loadnext::config::LoadtestConfig;
@@ -79,7 +79,9 @@ pub async fn deposit_eth(
         .expect("Failed to perform deposit transaction");
 }
 
-pub async fn deploy_erc20_evm_compatible(zks_wallet: Arc<ZKSWallet<Provider<Http>, SigningKey>>) -> TransactionReceipt {
+pub async fn deploy_erc20_evm_compatible(
+    zks_wallet: Arc<ZKSWallet<Provider<Http>, SigningKey>>,
+) -> TransactionReceipt {
     // Read both files from disk:
     let abi = Abi::load(constants::ERC20_ABI.as_bytes()).unwrap();
     let contract_bin = hex::decode(constants::ERC20_BIN).unwrap().to_vec();
@@ -87,11 +89,13 @@ pub async fn deploy_erc20_evm_compatible(zks_wallet: Arc<ZKSWallet<Provider<Http
     let factory = ContractFactory::new(
         abi,
         contract_bin.into(),
-        zks_wallet.as_ref().era_provider.clone().unwrap()
+        zks_wallet.as_ref().era_provider.clone().unwrap(),
     );
 
-    let mut deployer = factory.deploy(("ToniToken".to_owned(), "teth".to_owned())).unwrap();
-    let (_,receipt) = deployer.send_with_receipt().await.expect("send");
+    let mut deployer = factory
+        .deploy(("ToniToken".to_owned(), "teth".to_owned()))
+        .unwrap();
+    let (_, receipt) = deployer.send_with_receipt().await.expect("send");
 
     receipt
 
