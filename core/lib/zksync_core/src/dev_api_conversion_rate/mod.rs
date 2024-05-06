@@ -9,7 +9,7 @@ pub(crate) async fn run_server(
     let app = Router::new().route("/conversion_rate/:token_address", get(get_conversion_rate));
 
     let bind_address = if server_configs.host.starts_with("http://") {
-        &server_configs.host[7..] // If it starts with "http://", strip the prefix
+        &server_configs.host[7..] // If it starts with "HTTP://", strip the prefix
     } else {
         &server_configs.host // Otherwise, return the original string
     };
