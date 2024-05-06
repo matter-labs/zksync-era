@@ -9,7 +9,7 @@ use zksync_config::GenesisConfig;
 use zksync_dal::Connection;
 use zksync_eth_client::{clients::MockEthereum, Options};
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, Log,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, web3::Log,
     ProtocolVersion, ProtocolVersionId, H256,
 };
 

@@ -19,7 +19,7 @@ use zksync_types::{
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, VerifierParams},
     pubdata_da::PubdataDA,
-    web3::{contract::Error as Web3ContractError, types::BlockNumber},
+    web3::{contract::Error as Web3ContractError, BlockNumber},
     Address, L2ChainId, ProtocolVersionId, H256, U256,
 };
 

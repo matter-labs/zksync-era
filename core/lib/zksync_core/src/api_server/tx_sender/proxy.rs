@@ -122,7 +122,7 @@ impl TxProxy {
 
     async fn submit_tx_impl(&self, tx: &L2Tx) -> EnrichedClientResult<H256> {
         let input_data = tx.common_data.input_data().expect("raw tx is absent");
-        let raw_tx = zksync_types::Bytes(input_data.to_vec());
+        let raw_tx = zksync_types::web3::Bytes(input_data.to_vec());
         let tx_hash = tx.hash();
         tracing::info!("Proxying tx {tx_hash:?}");
         self.client

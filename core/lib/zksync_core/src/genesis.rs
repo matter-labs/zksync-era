@@ -29,7 +29,7 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
     tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS},
-    web3::types::{BlockNumber, FilterBuilder},
+    web3::{BlockNumber, FilterBuilder},
     zk_evm_types::{LogQuery, Timestamp},
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
     ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, H256,

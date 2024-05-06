@@ -216,7 +216,7 @@ pub async fn ensure_l1_batch_commit_data_generation_mode(
 mod tests {
     use std::{mem, sync::Mutex};
 
-    use zksync_eth_client::clients::MockEthereum;
+    use zksync_eth_client::{clients::MockEthereum, ClientError, ContractError};
     use zksync_types::U256;
 
     use super::*;
@@ -280,13 +280,14 @@ mod tests {
     }
 
     fn mock_ethereum_with_legacy_contract() -> MockEthereum {
-        let err =
-            EthClientError::Contract(zksync_types::web3::contract::Error::InterfaceUnsupported);
+        let abi_err = ethabi::Error::InvalidName("undefined".into());
+        let err = EthClientError::Contract(ContractError::Function(abi_err));
         mock_ethereum(ethabi::Token::Uint(U256::zero()), Some(err))
     }
 
-    fn mock_ethereum_with_tx_error() -> MockEthereum {
-        let err = EthClientError::EthereumGateway(zksync_types::web3::Error::Unreachable);
+    fn mock_ethereum_with_transport_error() -> MockEthereum {
+        let err =
+            EthClientError::EthereumGateway(ClientError::Transport(anyhow::anyhow!("unreachable")));
         mock_ethereum(ethabi::Token::Uint(U256::zero()), Some(err))
     }
 
@@ -368,14 +369,13 @@ mod tests {
         let err = ensure_l1_batch_commit_data_generation_mode(
             L1BatchCommitDataGeneratorMode::Rollup,
             addr,
-            &mock_ethereum_with_tx_error(),
+            &mock_ethereum_with_transport_error(),
         )
         .await
         .unwrap_err();
 
         assert!(
-            err.chain()
-                .any(|cause| cause.is::<zksync_types::web3::Error>()),
+            err.chain().any(|cause| cause.is::<ClientError>()),
             "{err:?}"
         );
     }
