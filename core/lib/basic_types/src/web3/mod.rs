@@ -1,6 +1,6 @@
-//! Selected Web3 types vendored from the `web3` crate.
+//! Selected Web3 types copied from the `web3` crate.
 //!
-//! The majority of the code is copied from the `web3` crate v0.19.0, https://github.com/tomusdrw/rust-web3,
+//! The majority of the code is copied verbatim from the `web3` crate 0.19.0, https://github.com/tomusdrw/rust-web3,
 //! licensed under the MIT open-source license.
 
 use std::fmt;
@@ -21,11 +21,11 @@ mod tests;
 
 pub type Index = U64;
 
-// Signature, keccak256: from web3::signing
+// `Signature`, `keccak256`: from `web3::signing`
 
 /// A struct that represents the components of a secp256k1 signature.
 pub struct Signature {
-    /// V component in electrum format with chain-id replay protection.
+    /// V component in Electrum format with chain-id replay protection.
     pub v: u64,
     /// R component of the signature.
     pub r: H256,
@@ -44,7 +44,7 @@ pub fn keccak256(bytes: &[u8]) -> [u8; 32] {
     output
 }
 
-// Bytes: from web3::types::bytes::Bytes
+// `Bytes`: from `web3::types::bytes`
 
 /// Raw bytes wrapper
 #[derive(Clone, Default, PartialEq, Eq, Hash)]
@@ -113,7 +113,7 @@ impl<'a> Visitor<'a> for BytesVisitor {
     }
 }
 
-// Log: from web3::types::log
+// `Log`: from `web3::types::log`
 
 /// Filter
 #[derive(Default, Debug, PartialEq, Clone, Serialize)]
@@ -297,7 +297,7 @@ impl Log {
     }
 }
 
-// BlockHeader, BlockId, BlockNumber: from web3::types::block
+// `BlockHeader`, `BlockId`, `BlockNumber`: from `web3::types::block`
 
 /// The block header type returned from RPC calls.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -311,7 +311,7 @@ pub struct BlockHeader {
     #[serde(rename = "sha3Uncles")]
     #[serde(default)]
     pub uncles_hash: H256,
-    /// Miner/author's address.
+    /// Miner / author's address.
     #[serde(rename = "miner", default, deserialize_with = "null_to_default")]
     pub author: H160,
     /// State root hash
@@ -533,7 +533,7 @@ impl<'a> Deserialize<'a> for BlockNumber {
     }
 }
 
-// AccessList, AccessListItem, TransactionReceipt, SignedTransaction: from web3::types::transaction
+// `AccessList`, `AccessListItem`, `TransactionReceipt`, `SignedTransaction`: from `web3::types::transaction`
 
 /// Access list
 pub type AccessList = Vec<AccessListItem>;
@@ -569,7 +569,7 @@ pub struct Transaction {
     pub from: Option<Address>,
     /// Recipient (None when contract creation)
     pub to: Option<Address>,
-    /// Transfered value
+    /// Transferred value
     pub value: U256,
     /// Gas Price
     #[serde(rename = "gasPrice")]
@@ -696,7 +696,7 @@ impl From<H256> for TransactionId {
     }
 }
 
-// CallRequest, TransactionCondition: from web3::types::transaction_request
+// `CallRequest`, `TransactionCondition`: from `web3::types::transaction_request`
 
 /// Call contract request (eth_call / eth_estimateGas)
 ///
@@ -718,7 +718,7 @@ pub struct CallRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "gasPrice")]
     pub gas_price: Option<U256>,
-    /// Transfered value (None for no transfer)
+    /// Transferred value (None for no transfer)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<U256>,
     /// Data (None for empty data)
@@ -752,12 +752,12 @@ pub enum TransactionCondition {
     /// Valid at this minimum block number.
     #[serde(rename = "block")]
     Block(u64),
-    /// Valid at given unix time.
+    /// Valid at given Unix time.
     #[serde(rename = "time")]
     Timestamp(u64),
 }
 
-// CallRequest: from web3::types::fee_history
+// `FeeHistory`: from `web3::types::fee_history`
 
 /// The fee history type returned from `eth_feeHistory` call.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -775,7 +775,7 @@ pub struct FeeHistory {
     pub reward: Option<Vec<Vec<U256>>>,
 }
 
-// SyncInfo, SyncState: from web3::types::sync_state
+// `SyncInfo`, `SyncState`: from `web3::types::sync_state`
 
 /// Information about current blockchain syncing operations.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -875,7 +875,7 @@ impl Serialize for SyncState {
     }
 }
 
-// TraceFilter: from web3::types::trace_filtering
+// `TraceFilter`: from `web3::types::trace_filtering`
 
 /// Trace filter
 #[derive(Debug, Default, Clone, PartialEq, Serialize)]
@@ -901,7 +901,7 @@ pub struct TraceFilter {
     count: Option<usize>,
 }
 
-// Work: from web3::types::work
+// `Work`: from `web3::types::work`
 
 /// Miner's work package
 #[derive(Debug, PartialEq, Eq)]

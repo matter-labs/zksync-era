@@ -1,6 +1,7 @@
-//! Tokenization / detokenization logic.
+//! Serialization logic allowing to convert between [`ethabi::Token`]s and domain types, such as `H256`,
+//! `U256` and `Address`.
 //!
-//! The majority of the code is vendored from the `web3` crate v0.19.0, https://github.com/tomusdrw/rust-web3,
+//! The majority of the code is copied from the `web3` crate 0.19.0, https://github.com/tomusdrw/rust-web3,
 //! licensed under the MIT open-source license.
 
 #[derive(Debug, thiserror::Error)]
