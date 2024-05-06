@@ -1,26 +1,17 @@
 use std::fmt;
 
 use async_trait::async_trait;
+use jsonrpsee::{core::ClientError, http_client::HttpClient};
 use zksync_types::{
+    ethabi,
     url::SensitiveUrl,
-    web3::{
-        self,
-        contract::Contract,
-        ethabi, helpers,
-        helpers::CallFuture,
-        transports::Http,
-        types::{
-            Address, BlockId, BlockNumber, Bytes, Filter, Log, Transaction, TransactionId,
-            TransactionReceipt, H256, U256, U64,
-        },
-        Transport, Web3,
-    },
-    L1ChainId,
+    web3::{self, BlockId, BlockNumber, Bytes, Filter, Log, Transaction, TransactionReceipt},
+    Address, L1ChainId, H256, U256, U64,
 };
 
+use super::{decl::L1EthNamespaceClient, Method, COUNTERS, LATENCIES};
 use crate::{
-    clients::http::{Method, COUNTERS, LATENCIES},
-    types::{Error, ExecutedTxStatus, FailureInfo, FeeHistory, RawTokens},
+    types::{ContractError, Error, ExecutedTxStatus, FailureInfo},
     Block, ContractCall, EthInterface, RawTransactionBytes,
 };
 
@@ -28,7 +19,7 @@ use crate::{
 /// tied to a particular account.
 #[derive(Clone)]
 pub struct QueryClient {
-    web3: Web3<Http>,
+    web3: HttpClient,
     url: SensitiveUrl,
 }
 
@@ -44,9 +35,8 @@ impl fmt::Debug for QueryClient {
 impl QueryClient {
     /// Creates a new HTTP client.
     pub fn new(url: SensitiveUrl) -> Result<Self, Error> {
-        let transport = Http::new(url.expose_str())?;
         Ok(Self {
-            web3: Web3::new(transport),
+            web3: <HttpClient>::builder().build(url.expose_str())?,
             url,
         })
     }
@@ -57,10 +47,11 @@ impl EthInterface for QueryClient {
     async fn fetch_chain_id(&self, component: &'static str) -> Result<L1ChainId, Error> {
         COUNTERS.call[&(Method::ChainId, component)].inc();
         let latency = LATENCIES.direct[&Method::ChainId].start();
-        let raw_chain_id = self.web3.eth().chain_id().await?;
+        let raw_chain_id = self.web3.chain_id().await?;
         latency.observe();
-        let chain_id =
-            u64::try_from(raw_chain_id).map_err(|err| ethabi::Error::Other(err.into()))?;
+        let chain_id = u64::try_from(raw_chain_id).map_err(|err| {
+            Error::EthereumGateway(ClientError::Custom(format!("invalid chainId: {err}")))
+        })?;
         Ok(L1ChainId(chain_id))
     }
 
@@ -74,8 +65,7 @@ impl EthInterface for QueryClient {
         let latency = LATENCIES.direct[&Method::NonceAtForAccount].start();
         let nonce = self
             .web3
-            .eth()
-            .transaction_count(account, Some(block))
+            .get_transaction_count(account, Some(block))
             .await?;
         latency.observe();
         Ok(nonce)
@@ -84,7 +74,7 @@ impl EthInterface for QueryClient {
     async fn block_number(&self, component: &'static str) -> Result<U64, Error> {
         COUNTERS.call[&(Method::BlockNumber, component)].inc();
         let latency = LATENCIES.direct[&Method::BlockNumber].start();
-        let block_number = self.web3.eth().block_number().await?;
+        let block_number = self.web3.get_block_number().await?;
         latency.observe();
         Ok(block_number)
     }
@@ -92,14 +82,14 @@ impl EthInterface for QueryClient {
     async fn get_gas_price(&self, component: &'static str) -> Result<U256, Error> {
         COUNTERS.call[&(Method::GetGasPrice, component)].inc();
         let latency = LATENCIES.direct[&Method::GetGasPrice].start();
-        let network_gas_price = self.web3.eth().gas_price().await?;
+        let network_gas_price = self.web3.gas_price().await?;
         latency.observe();
         Ok(network_gas_price)
     }
 
     async fn send_raw_tx(&self, tx: RawTransactionBytes) -> Result<H256, Error> {
         let latency = LATENCIES.direct[&Method::SendRawTx].start();
-        let tx = self.web3.eth().send_raw_transaction(Bytes(tx.0)).await?;
+        let tx = self.web3.send_raw_transaction(Bytes(tx.0)).await?;
         latency.observe();
         Ok(tx)
     }
@@ -124,15 +114,10 @@ impl EthInterface for QueryClient {
             let chunk_end = (chunk_start + MAX_REQUEST_CHUNK).min(upto_block);
             let chunk_size = chunk_end - chunk_start;
 
-            let block_count = helpers::serialize(&U256::from(chunk_size));
-            let newest_block = helpers::serialize(&web3::types::BlockNumber::from(chunk_end));
-            let reward_percentiles = helpers::serialize(&Option::<()>::None);
-
-            let fee_history: FeeHistory = CallFuture::new(self.web3.transport().execute(
-                "eth_feeHistory",
-                vec![block_count, newest_block, reward_percentiles],
-            ))
-            .await?;
+            let fee_history = self
+                .web3
+                .fee_history(U64::from(chunk_size), BlockNumber::from(chunk_end), None)
+                .await?;
             if let Some(base_fees) = fee_history.base_fee_per_gas {
                 history.extend(base_fees);
             }
@@ -151,8 +136,7 @@ impl EthInterface for QueryClient {
 
         let block = self
             .web3
-            .eth()
-            .block(BlockId::Number(BlockNumber::Pending))
+            .get_block_by_number(BlockNumber::Pending, false)
             .await?;
         let block = if let Some(block) = block {
             block
@@ -160,8 +144,7 @@ impl EthInterface for QueryClient {
             // Fallback for local reth. Because of artificial nature of producing blocks in local reth setup
             // there may be no pending block
             self.web3
-                .eth()
-                .block(BlockId::Number(BlockNumber::Latest))
+                .get_block_by_number(BlockNumber::Latest, false)
                 .await?
                 .expect("Latest block always exists")
         };
@@ -199,15 +182,15 @@ impl EthInterface for QueryClient {
 
     async fn failure_reason(&self, tx_hash: H256) -> Result<Option<FailureInfo>, Error> {
         let latency = LATENCIES.direct[&Method::FailureReason].start();
-        let transaction = self.web3.eth().transaction(tx_hash.into()).await?;
-        let receipt = self.web3.eth().transaction_receipt(tx_hash).await?;
+        let transaction = self.web3.get_transaction_by_hash(tx_hash).await?;
+        let receipt = self.web3.get_transaction_receipt(tx_hash).await?;
 
         match (transaction, receipt) {
             (Some(transaction), Some(receipt)) => {
                 let gas_limit = transaction.gas;
                 let gas_used = receipt.gas_used;
 
-                let call_request = web3::types::CallRequest {
+                let call_request = web3::CallRequest {
                     from: transaction.from,
                     to: transaction.to,
                     gas: Some(transaction.gas),
@@ -220,18 +203,18 @@ impl EthInterface for QueryClient {
                     access_list: None,
                 };
 
-                let call_error = self
+                let err = self
                     .web3
-                    .eth()
                     .call(call_request, receipt.block_number.map(Into::into))
                     .await
                     .err();
 
-                let failure_info = match call_error {
-                    Some(web3::Error::Rpc(rpc_error)) => {
-                        let revert_code = rpc_error.code.code();
-                        let message_len = "execution reverted: ".len().min(rpc_error.message.len());
-                        let revert_reason = rpc_error.message[message_len..].to_string();
+                let failure_info = match err {
+                    Some(ClientError::Call(call_err)) => {
+                        let revert_code = call_err.code().into();
+                        let message_len =
+                            "execution reverted: ".len().min(call_err.message().len());
+                        let revert_reason = call_err.message()[message_len..].to_string();
 
                         Ok(Some(FailureInfo {
                             revert_code,
@@ -257,11 +240,7 @@ impl EthInterface for QueryClient {
         component: &'static str,
     ) -> Result<Option<Transaction>, Error> {
         COUNTERS.call[&(Method::GetTx, component)].inc();
-        let tx = self
-            .web3
-            .eth()
-            .transaction(TransactionId::Hash(hash))
-            .await?;
+        let tx = self.web3.get_transaction_by_hash(hash).await?;
         Ok(tx)
     }
 
@@ -270,18 +249,41 @@ impl EthInterface for QueryClient {
         call: ContractCall,
     ) -> Result<Vec<ethabi::Token>, Error> {
         let latency = LATENCIES.direct[&Method::CallContractFunction].start();
-        let contract = Contract::new(self.web3.eth(), call.contract_address, call.contract_abi);
-        let RawTokens(res) = contract
-            .query(
-                &call.inner.name,
-                call.inner.params,
-                call.inner.from,
-                call.inner.options,
-                call.inner.block,
-            )
-            .await?;
+        let func = call
+            .contract_abi
+            .function(&call.inner.name)
+            .map_err(ContractError::Function)?;
+        let encoded_input =
+            func.encode_input(&call.inner.params)
+                .map_err(|source| ContractError::EncodeInput {
+                    signature: func.signature(),
+                    input: call.inner.params,
+                    source,
+                })?;
+
+        let request = web3::CallRequest {
+            from: call.inner.from,
+            to: Some(call.contract_address),
+            data: Some(Bytes(encoded_input)),
+            // Other options are never set
+            gas: None,
+            gas_price: None,
+            value: None,
+            transaction_type: None,
+            access_list: None,
+            max_fee_per_gas: None,
+            max_priority_fee_per_gas: None,
+        };
+
+        let encoded_output = self.web3.call(request, call.inner.block).await?;
         latency.observe();
-        Ok(res)
+        Ok(func
+            .decode_output(&encoded_output.0)
+            .map_err(|source| ContractError::DecodeOutput {
+                signature: func.signature(),
+                output: encoded_output,
+                source,
+            })?)
     }
 
     async fn tx_receipt(
@@ -291,7 +293,7 @@ impl EthInterface for QueryClient {
     ) -> Result<Option<TransactionReceipt>, Error> {
         COUNTERS.call[&(Method::TxReceipt, component)].inc();
         let latency = LATENCIES.direct[&Method::TxReceipt].start();
-        let receipt = self.web3.eth().transaction_receipt(tx_hash).await?;
+        let receipt = self.web3.get_transaction_receipt(tx_hash).await?;
         latency.observe();
         Ok(receipt)
     }
@@ -299,7 +301,7 @@ impl EthInterface for QueryClient {
     async fn eth_balance(&self, address: Address, component: &'static str) -> Result<U256, Error> {
         COUNTERS.call[&(Method::EthBalance, component)].inc();
         let latency = LATENCIES.direct[&Method::EthBalance].start();
-        let balance = self.web3.eth().balance(address, None).await?;
+        let balance = self.web3.get_balance(address, None).await?;
         latency.observe();
         Ok(balance)
     }
@@ -307,7 +309,7 @@ impl EthInterface for QueryClient {
     async fn logs(&self, filter: Filter, component: &'static str) -> Result<Vec<Log>, Error> {
         COUNTERS.call[&(Method::Logs, component)].inc();
         let latency = LATENCIES.direct[&Method::Logs].start();
-        let logs = self.web3.eth().logs(filter).await?;
+        let logs = self.web3.get_logs(filter).await?;
         latency.observe();
         Ok(logs)
     }
@@ -319,27 +321,9 @@ impl EthInterface for QueryClient {
     ) -> Result<Option<Block<H256>>, Error> {
         COUNTERS.call[&(Method::Block, component)].inc();
         let latency = LATENCIES.direct[&Method::Block].start();
-        // Copy of `web3::block` implementation. It's required to deserialize response as `crate::types::Block`
-        // that has EIP-4844 fields.
-        let block = {
-            let include_txs = helpers::serialize(&false);
-
-            let result = match block_id {
-                BlockId::Hash(hash) => {
-                    let hash = helpers::serialize(&hash);
-                    self.web3
-                        .transport()
-                        .execute("eth_getBlockByHash", vec![hash, include_txs])
-                }
-                BlockId::Number(num) => {
-                    let num = helpers::serialize(&num);
-                    self.web3
-                        .transport()
-                        .execute("eth_getBlockByNumber", vec![num, include_txs])
-                }
-            };
-
-            CallFuture::new(result).await?
+        let block = match block_id {
+            BlockId::Hash(hash) => self.web3.get_block_by_hash(hash, false).await?,
+            BlockId::Number(num) => self.web3.get_block_by_number(num, false).await?,
         };
         latency.observe();
         Ok(block)

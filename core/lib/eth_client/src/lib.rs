@@ -1,21 +1,20 @@
 use std::fmt;
 
 use async_trait::async_trait;
+pub use jsonrpsee::core::ClientError;
 use zksync_types::{
     eth_sender::EthTxBlobSidecar,
+    ethabi,
     web3::{
-        ethabi,
-        types::{
-            AccessList, Address, BlockId, BlockNumber, Filter, Log, Transaction,
-            TransactionCondition, TransactionReceipt, H160, H256, U256, U64,
-        },
+        AccessList, BlockId, BlockNumber, Filter, Log, Transaction, TransactionCondition,
+        TransactionReceipt,
     },
-    L1ChainId,
+    Address, L1ChainId, H160, H256, U256, U64,
 };
 
 pub use crate::types::{
-    encode_blob_tx_with_sidecar, Block, CallFunctionArgs, ContractCall, Error, ExecutedTxStatus,
-    FailureInfo, RawTransactionBytes, SignedCallResult,
+    encode_blob_tx_with_sidecar, Block, CallFunctionArgs, ContractCall, ContractError, Error,
+    ExecutedTxStatus, FailureInfo, RawTransactionBytes, SignedCallResult,
 };
 
 pub mod clients;

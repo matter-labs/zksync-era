@@ -5,15 +5,13 @@ use std::{
 };
 
 use async_trait::async_trait;
-use jsonrpc_core::types::error::Error as RpcError;
+use jsonrpsee::{core::ClientError, types::ErrorObject};
 use zksync_types::{
+    ethabi,
     web3::{
-        contract::tokens::Tokenize,
-        ethabi,
-        types::{BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, U64},
-        Error as Web3Error,
+        contract::Tokenize, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt,
     },
-    Address, L1ChainId, H160, H256, U256,
+    Address, L1ChainId, H160, H256, U256, U64,
 };
 
 use crate::{
@@ -318,11 +316,12 @@ impl EthInterface for MockEthereum {
         let mut inner = self.inner.write().unwrap();
 
         if mock_tx.nonce < inner.current_nonce {
-            return Err(Error::EthereumGateway(Web3Error::Rpc(RpcError {
-                message: "transaction with the same nonce already processed".to_string(),
-                code: 101.into(),
-                data: None,
-            })));
+            let err = ErrorObject::owned(
+                101,
+                "transaction with the same nonce already processed",
+                None::<()>,
+            );
+            return Err(Error::EthereumGateway(ClientError::Call(err)));
         }
 
         if mock_tx.nonce == inner.pending_nonce {

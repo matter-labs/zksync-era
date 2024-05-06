@@ -2,42 +2,18 @@ use rlp::RlpStream;
 use serde::{Deserialize, Deserializer, Serialize};
 use zksync_types::{
     eth_sender::EthTxBlobSidecar,
-    ethabi::ethereum_types::H64,
-    web3::{
-        contract::{
-            tokens::{Detokenize, Tokenize},
-            Error as ContractError, Options,
-        },
-        ethabi,
-        types::{Address, BlockId, BlockNumber, TransactionReceipt, H256, U256},
-    },
-    Bytes, EIP_4844_TX_TYPE, H160, H2048, U64,
+    ethabi, web3,
+    web3::{contract::Tokenize, BlockId, BlockNumber, Bytes, TransactionReceipt},
+    Address, EIP_4844_TX_TYPE, H160, H2048, H256, H64, U256, U64,
 };
-
-/// Wrapper for `Vec<ethabi::Token>` that doesn't wrap them in an additional array in `Tokenize` implementation.
-#[derive(Debug)]
-pub(crate) struct RawTokens(pub Vec<ethabi::Token>);
-
-impl Tokenize for RawTokens {
-    fn into_tokens(self) -> Vec<ethabi::Token> {
-        self.0
-    }
-}
-
-impl Detokenize for RawTokens {
-    fn from_tokens(tokens: Vec<ethabi::Token>) -> Result<Self, ContractError> {
-        Ok(Self(tokens))
-    }
-}
 
 /// Arguments for calling a function in an unspecified Ethereum smart contract.
 #[derive(Debug)]
 pub struct CallFunctionArgs {
     pub(crate) name: String,
     pub(crate) from: Option<Address>,
-    pub(crate) options: Options,
     pub(crate) block: Option<BlockId>,
-    pub(crate) params: RawTokens,
+    pub(crate) params: Vec<ethabi::Token>,
 }
 
 impl CallFunctionArgs {
@@ -45,9 +21,8 @@ impl CallFunctionArgs {
         Self {
             name: name.to_owned(),
             from: None,
-            options: Options::default(),
             block: None,
-            params: RawTokens(params.into_tokens()),
+            params: params.into_tokens(),
         }
     }
 
@@ -93,8 +68,31 @@ impl ContractCall {
     }
 
     pub fn args(&self) -> &[ethabi::Token] {
-        &self.inner.params.0
+        &self.inner.params
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ContractError {
+    #[error("failed resolving contract function: {0}")]
+    Function(#[source] ethabi::Error),
+    #[error("failed encoding input {input:?} for function `{signature}`: {source}")]
+    EncodeInput {
+        signature: String,
+        input: Vec<ethabi::Token>,
+        #[source]
+        source: ethabi::Error,
+    },
+    #[error("failed decoding output {output:?} for function `{signature}`: {source}")]
+    DecodeOutput {
+        signature: String,
+        output: Bytes,
+        #[source]
+        source: ethabi::Error,
+    },
+    // FIXME: better error handling
+    #[error("failed detokenizing output: {0}")]
+    DetokenizeOutput(#[source] web3::contract::Error),
 }
 
 /// Common error type exposed by the crate,
@@ -102,16 +100,13 @@ impl ContractCall {
 pub enum Error {
     /// Problem on the Ethereum client side (e.g. bad RPC call, network issues).
     #[error("Request to ethereum gateway failed: {0}")]
-    EthereumGateway(#[from] zksync_types::web3::Error),
+    EthereumGateway(#[from] jsonrpsee::core::ClientError),
     /// Problem with a contract call.
     #[error("Call to contract failed: {0}")]
-    Contract(#[from] zksync_types::web3::contract::Error),
+    Contract(#[from] ContractError),
     /// Problem with transaction signer.
     #[error("Transaction signing failed: {0}")]
     Signer(#[from] zksync_eth_signer::error::SignerError),
-    /// Problem with transaction decoding.
-    #[error("Decoding revert reason failed: {0}")]
-    Decode(#[from] ethabi::Error),
     /// Incorrect fee provided for a transaction.
     #[error("Max fee {0} less than priority fee {1}")]
     WrongFeeProvided(U256, U256),
@@ -121,6 +116,13 @@ pub enum Error {
     /// EIP4844 transaction lacks `blob_versioned_hashes` field
     #[error("EIP4844 transaction lacks blob_versioned_hashes field")]
     Eip4844MissingBlobVersionedHashes,
+}
+
+// FIXME: remove
+impl From<web3::contract::Error> for Error {
+    fn from(err: web3::contract::Error) -> Self {
+        Self::Contract(ContractError::DetokenizeOutput(err))
+    }
 }
 
 /// Raw transaction bytes.
@@ -260,6 +262,7 @@ pub struct FailureInfo {
     pub gas_limit: U256,
 }
 
+// FIXME: move to `web3` module
 /// The fee history type returned from RPC calls.
 /// We don't use `FeeHistory` from `web3` crate because it's not compatible
 /// with node implementations that skip empty `base_fee_per_gas`.
@@ -276,6 +279,7 @@ pub struct FeeHistory {
     pub reward: Option<Vec<Vec<U256>>>,
 }
 
+// FIXME: move to `web3` module
 /// The block type returned from RPC calls.
 /// This is generic over a `TX` type.
 /// We can't use `Block` from `web3` crate because it doesn't support `excessBlobGas`.
@@ -371,19 +375,6 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn raw_tokens_are_compatible_with_actual_call() {
-        let vk_contract = zksync_contracts::verifier_contract();
-        let args = CallFunctionArgs::new("verificationKeyHash", ());
-        let func = vk_contract.function(&args.name).unwrap();
-        func.encode_input(&args.params.into_tokens()).unwrap();
-
-        let output_tokens = vec![ethabi::Token::FixedBytes(vec![1; 32])];
-        let RawTokens(output_tokens) = RawTokens::from_tokens(output_tokens).unwrap();
-        let hash = H256::from_tokens(output_tokens).unwrap();
-        assert_eq!(hash, H256::repeat_byte(1));
-    }
-
     #[tokio::test]
     // Tests the encoding of the `EIP_4844_TX_TYPE` transaction to
     // network format defined by the `EIP`. That is, a signed transaction
@@ -441,7 +432,7 @@ mod tests {
             .await
             .unwrap();
 
-        let hash = web3::signing::keccak256(&raw_tx).into();
+        let hash = web3::keccak256(&raw_tx).into();
         // Transaction generated with https://github.com/inphi/blob-utils with
         // the above parameters.
         let expected_str = include_str!("testdata/4844_tx_1.txt");
@@ -546,7 +537,7 @@ mod tests {
             .await
             .unwrap();
 
-        let hash = web3::signing::keccak256(&raw_tx).into();
+        let hash = web3::keccak256(&raw_tx).into();
         // Transaction generated with https://github.com/inphi/blob-utils with
         // the above parameters.
         let expected_str = include_str!("testdata/4844_tx_2.txt");
