@@ -2,17 +2,11 @@ use std::fmt::Debug;
 
 use colored::*;
 use strum::{Display, EnumString};
-use zksync_config::PostgresConfig;
-use zksync_env_config::FromEnv;
 use zksync_types::{
     basic_fri_types::AggregationRound,
     prover_dal::{ProofCompressionJobStatus, ProverJobFriInfo, ProverJobStatus, WitnessJobStatus},
     L1BatchNumber,
 };
-
-pub fn postgres_config() -> anyhow::Result<PostgresConfig> {
-    PostgresConfig::from_env()
-}
 
 /// Represents the proving data of a batch.
 pub struct BatchData {
