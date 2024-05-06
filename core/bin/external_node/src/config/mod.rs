@@ -128,7 +128,7 @@ impl RemoteENConfig {
         // TODO(EVM-578): double check and potentially forbid both of them being `None`.
         let l2_erc20_default_bridge = bridges
             .l2_erc20_default_bridge
-            .or(Some(bridges.l2_shared_default_bridge));
+            .or(bridges.l2_shared_default_bridge);
         let l2_erc20_shared_bridge = bridges
             .l2_shared_default_bridge
             .or(bridges.l2_erc20_default_bridge);
@@ -153,7 +153,7 @@ impl RemoteENConfig {
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
             l2_erc20_bridge_addr: l2_erc20_default_bridge,
-            l1_shared_bridge_proxy_addr: Some(bridges.l1_shared_default_bridge),
+            l1_shared_bridge_proxy_addr: bridges.l1_shared_default_bridge,
             l2_shared_bridge_addr: l2_erc20_shared_bridge,
             l1_weth_bridge_addr: bridges.l1_weth_bridge,
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
