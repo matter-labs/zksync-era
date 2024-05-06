@@ -10,6 +10,7 @@ use zksync_types::{
     event::{extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages},
     l1::is_l1_tx_type,
     l2_to_l1_log::UserL2ToL1Log,
+    utils::storage_key_for_eth_balance,
     writes::StateDiffRecord,
     AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS, U256,
 };
@@ -381,6 +382,11 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
                 default_aa_code_hash,
                 // this will change after 1.5
                 evm_interpreter_code_hash: default_aa_code_hash,
+                storage_key_for_eth_balance: storage_key_for_eth_balance(&BOOTLOADER_ADDRESS)
+                    .hashed_key()
+                    .as_bytes()
+                    .try_into()
+                    .unwrap(),
                 hook_address: VM_HOOK_POSITION * 32,
             },
         );
@@ -433,6 +439,8 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
             enable_refund_tracer = true;
         }
 
+        let pubdata_before = self.inner.state.current_frame.total_pubdata_spent;
+
         let result = self.run(execution_mode);
 
         let events = merge_events(self.inner.world.events(), self.batch_env.number);
@@ -441,6 +449,7 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
             .map(Into::into)
             .map(UserL2ToL1Log)
             .collect();
+        let pubdata_after = self.inner.state.current_frame.total_pubdata_spent;
 
         VmExecutionResultAndLogs {
             result,
@@ -464,7 +473,7 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
                 gas_remaining: 0,          // TODO
                 computational_gas_used: 0, // TODO
                 total_log_queries: 0,      // TODO
-                pubdata_published: self.inner.state.current_frame.total_pubdata_spent as u32, // TODO
+                pubdata_published: (pubdata_after - pubdata_before).max(0) as u32,
                 circuit_statistic: Default::default(), // TODO
             },
             refunds: Default::default(),
