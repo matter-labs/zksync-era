@@ -1,7 +1,6 @@
 //! Handling outputs produced by the state keeper.
 
-use std::fmt;
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 use anyhow::Context as _;
 use async_trait::async_trait;

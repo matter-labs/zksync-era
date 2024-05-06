@@ -53,6 +53,14 @@ impl VmRunnerStorageLoader for Arc<RwLock<LoaderMock>> {
     ) -> anyhow::Result<L1BatchNumber> {
         Ok(self.read().await.max)
     }
+
+    async fn mark_l1_batch_as_completed(
+        &self,
+        _conn: &mut Connection<'_, Core>,
+        _l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Debug)]

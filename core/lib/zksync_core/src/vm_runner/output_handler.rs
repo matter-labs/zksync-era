@@ -1,16 +1,21 @@
-use crate::state_keeper::updates::UpdatesManager;
-use crate::state_keeper::StateKeeperOutputHandler;
-use crate::vm_runner::VmRunnerStorageLoader;
+use std::{
+    fmt::{Debug, Formatter},
+    sync::Arc,
+    time::Duration,
+};
+
 use async_trait::async_trait;
 use dashmap::DashMap;
 use futures::future::BoxFuture;
-use std::fmt::{Debug, Formatter};
-use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::{oneshot, watch};
 use zksync_dal::Core;
 use zksync_db_connection::connection_pool::ConnectionPool;
 use zksync_types::L1BatchNumber;
+
+use crate::{
+    state_keeper::{updates::UpdatesManager, StateKeeperOutputHandler},
+    vm_runner::VmRunnerStorageLoader,
+};
 
 #[async_trait]
 pub trait OutputHandlerFactory: Debug + Send {

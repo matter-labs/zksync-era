@@ -1,7 +1,6 @@
 //! State keeper persistence logic.
 
-use std::sync::Arc;
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -360,7 +359,10 @@ mod tests {
             .map(|query| query.log_query)
             .collect();
         updates.finish_batch(batch_result);
-        persistence.handle_l1_batch(&updates).await.unwrap();
+        persistence
+            .handle_l1_batch(Arc::new(updates))
+            .await
+            .unwrap();
 
         tx_hash
     }
