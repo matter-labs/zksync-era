@@ -53,7 +53,7 @@ jobs:
     name: Build and push image
     needs: [setup]
     uses: ./.github/workflows/build-core-template.yml
-    if: contains(github.ref_name, 'core')
+#    if: contains(github.ref_name, 'core')
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
