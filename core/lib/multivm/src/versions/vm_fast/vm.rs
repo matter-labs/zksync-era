@@ -38,6 +38,7 @@ use crate::{
         },
         BootloaderMemory, CurrentExecutionState, ExecutionResult, HistoryEnabled, L1BatchEnv,
         L2BlockEnv, SystemEnv, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs,
+        VmExecutionStatistics,
     },
 };
 
@@ -118,8 +119,8 @@ impl<S: ReadStorage + 'static> Vm<S> {
                         .read_heap_word(tx_description_offset + TX_GAS_LIMIT_OFFSET)
                         .as_u64();
 
-                    // TODO: not supported in the VM yet
-                    let pubdata_published = 0;
+                    let pubdata_published =
+                        self.inner.state.current_frame.total_pubdata_spent as u32;
 
                     let refund = compute_refund(
                         &self.batch_env,
@@ -456,7 +457,16 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
                     .collect(),
                 total_log_queries_count: 0, // This field is unused
             },
-            statistics: Default::default(),
+            statistics: VmExecutionStatistics {
+                contracts_used: 0,         // TODO
+                cycles_used: 0,            // TODO
+                gas_used: 0,               // TODO
+                gas_remaining: 0,          // TODO
+                computational_gas_used: 0, // TODO
+                total_log_queries: 0,      // TODO
+                pubdata_published: self.inner.state.current_frame.total_pubdata_spent as u32, // TODO
+                circuit_statistic: Default::default(), // TODO
+            },
             refunds: Default::default(),
         }
     }
