@@ -438,11 +438,12 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
             enable_refund_tracer = true;
         }
 
+        let start = self.inner.world.snapshot();
         let pubdata_before = self.inner.state.current_frame.total_pubdata_spent;
 
         let result = self.run(execution_mode);
 
-        let events = merge_events(self.inner.world.events(), self.batch_env.number);
+        let events = merge_events(self.inner.world.events_after(&start), self.batch_env.number);
         let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
             .into_iter()
             .map(Into::into)
@@ -459,7 +460,7 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
                 system_l2_to_l1_logs: self
                     .inner
                     .world
-                    .l2_to_l1_logs()
+                    .l2_to_l1_logs_after(&start)
                     .iter()
                     .map(|x| x.glue_into())
                     .collect(),
