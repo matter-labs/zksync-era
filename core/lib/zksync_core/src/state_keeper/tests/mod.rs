@@ -113,6 +113,7 @@ pub(super) fn default_vm_batch_result() -> FinishedL1Batch {
         },
         final_bootloader_memory: Some(vec![]),
         pubdata_input: Some(vec![]),
+        initially_written_slots: Some(vec![]),
     }
 }
 
