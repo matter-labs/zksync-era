@@ -352,21 +352,18 @@ mod tests {
         let mut batch_result = default_vm_batch_result();
         batch_result
             .final_execution_state
-            .deduplicated_storage_log_queries = storage_logs
-            .iter()
-            .map(|query| query.log_query.clone())
-            .collect();
+            .deduplicated_storage_log_queries =
+            storage_logs.iter().map(|query| query.log_query).collect();
         batch_result.initially_written_slots = Some(
             storage_logs
                 .into_iter()
-                .filter_map(|log| {
-                    (log.log_type == StorageLogQueryType::InitialWrite).then(|| {
-                        let key = StorageKey::new(
-                            AccountTreeId::new(log.log_query.address),
-                            u256_to_h256(log.log_query.key),
-                        );
-                        key.hashed_key()
-                    })
+                .filter(|&log| log.log_type == StorageLogQueryType::InitialWrite)
+                .map(|log| {
+                    let key = StorageKey::new(
+                        AccountTreeId::new(log.log_query.address),
+                        u256_to_h256(log.log_query.key),
+                    );
+                    key.hashed_key()
                 })
                 .collect(),
         );
