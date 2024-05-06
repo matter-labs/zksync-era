@@ -1,9 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use vm2::{decode::decode_program, ExecutionEnd, Program, Settings, VirtualMachine};
-use zk_evm_1_5_0::{
-    aux_structures::LogQuery, zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION,
-};
+use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
 use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{
@@ -15,8 +13,9 @@ use zksync_types::{
         compression::compress_with_best_strategy, StateDiffRecord, BYTES_PER_DERIVED_KEY,
         BYTES_PER_ENUMERATION_INDEX,
     },
-    AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS,
-    L2_ETH_TOKEN_ADDRESS, U256,
+    zk_evm_types::{LogQuery, Timestamp},
+    AccountTreeId, StorageKey, StorageLogQuery, BOOTLOADER_ADDRESS, H160,
+    KNOWN_CODES_STORAGE_ADDRESS, L2_ETH_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
@@ -340,7 +339,10 @@ impl<S: ReadStorage + 'static> Vm<S> {
                 StateDiffRecord {
                     address,
                     key,
-                    derived_key: LogQuery::derive_final_address_for_params(&address, &key),
+                    derived_key:
+                        zk_evm_1_5_0::aux_structures::LogQuery::derive_final_address_for_params(
+                            &address, &key,
+                        ),
                     enumeration_index: storage
                         .get_enumeration_index(&storage_key)
                         .unwrap_or_default(),
@@ -407,7 +409,7 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
             last_tx_result: None,
             bootloader_state: BootloaderState::new(
                 system_env.execution_mode,
-                bootloader_initial_memory(&batch_env),
+                bootloader_memory.clone(),
                 batch_env.first_l2_block,
             ),
             storage,
@@ -454,7 +456,28 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
         VmExecutionResultAndLogs {
             result,
             logs: VmExecutionLogs {
-                storage_logs: Default::default(),
+                storage_logs: self
+                    .inner
+                    .world
+                    .get_storage_changes_after(&start)
+                    .into_iter()
+                    .map(|((address, key), (before, after))| StorageLogQuery {
+                        log_query: LogQuery {
+                            timestamp: Timestamp(0),
+                            tx_number_in_block: 0, // incorrect and hopefully unused
+                            aux_byte: 0,           // incorrect and hopefully unused
+                            shard_id: 0,
+                            address,
+                            key,
+                            read_value: before.unwrap_or_default(),
+                            written_value: after,
+                            rw_flag: true,
+                            rollback: false,
+                            is_service: false, // incorrect and hopefully unused
+                        },
+                        log_type: zksync_types::StorageLogQueryType::RepeatedWrite, // incorrect and hopefully unused
+                    })
+                    .collect(),
                 events,
                 user_l2_to_l1_logs,
                 system_l2_to_l1_logs: self
