@@ -10,8 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-dialoguer = "0.11"
-
+dialoguer.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 colored.workspace = true
 clap = { workspace = true, features = ["derive"] }
