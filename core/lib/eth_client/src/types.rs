@@ -1,10 +1,9 @@
 use rlp::RlpStream;
-use serde::{Deserialize, Deserializer, Serialize};
 use zksync_types::{
     eth_sender::EthTxBlobSidecar,
     ethabi, web3,
-    web3::{contract::Tokenize, BlockId, BlockNumber, Bytes, TransactionReceipt},
-    Address, EIP_4844_TX_TYPE, H160, H2048, H256, H64, U256, U64,
+    web3::{contract::Tokenize, BlockId, Bytes, TransactionReceipt},
+    Address, EIP_4844_TX_TYPE, H256, U256,
 };
 
 /// Arguments for calling a function in an unspecified Ethereum smart contract.
@@ -262,115 +261,13 @@ pub struct FailureInfo {
     pub gas_limit: U256,
 }
 
-// FIXME: move to `web3` module
-/// The fee history type returned from RPC calls.
-/// We don't use `FeeHistory` from `web3` crate because it's not compatible
-/// with node implementations that skip empty `base_fee_per_gas`.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FeeHistory {
-    /// Lowest number block of the returned range.
-    pub oldest_block: BlockNumber,
-    /// A vector of block base fees per gas. This includes the next block after the newest of the returned range, because this value can be derived from the newest block. Zeroes are returned for pre-EIP-1559 blocks.
-    pub base_fee_per_gas: Option<Vec<U256>>,
-    /// A vector of block gas used ratios. These are calculated as the ratio of gas used and gas limit.
-    pub gas_used_ratio: Option<Vec<f64>>,
-    /// A vector of effective priority fee per gas data points from a single block. All zeroes are returned if the block is empty. Returned only if requested.
-    pub reward: Option<Vec<Vec<U256>>>,
-}
-
-// FIXME: move to `web3` module
-/// The block type returned from RPC calls.
-/// This is generic over a `TX` type.
-/// We can't use `Block` from `web3` crate because it doesn't support `excessBlobGas`.
-#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
-pub struct Block<TX> {
-    /// Hash of the block
-    pub hash: Option<H256>,
-    /// Hash of the parent
-    #[serde(rename = "parentHash")]
-    pub parent_hash: H256,
-    /// Hash of the uncles
-    #[serde(rename = "sha3Uncles")]
-    #[cfg_attr(feature = "allow-missing-fields", serde(default))]
-    pub uncles_hash: H256,
-    /// Author's address.
-    #[serde(rename = "miner", default, deserialize_with = "null_to_default")]
-    pub author: H160,
-    /// State root hash
-    #[serde(rename = "stateRoot")]
-    pub state_root: H256,
-    /// Transactions root hash
-    #[serde(rename = "transactionsRoot")]
-    pub transactions_root: H256,
-    /// Transactions receipts root hash
-    #[serde(rename = "receiptsRoot")]
-    pub receipts_root: H256,
-    /// Block number. None if pending.
-    pub number: Option<U64>,
-    /// Gas Used
-    #[serde(rename = "gasUsed")]
-    pub gas_used: U256,
-    /// Gas Limit
-    #[serde(rename = "gasLimit")]
-    #[cfg_attr(feature = "allow-missing-fields", serde(default))]
-    pub gas_limit: U256,
-    /// Base fee per unit of gas (if past London)
-    #[serde(rename = "baseFeePerGas", skip_serializing_if = "Option::is_none")]
-    pub base_fee_per_gas: Option<U256>,
-    /// Extra data
-    #[serde(rename = "extraData")]
-    pub extra_data: Bytes,
-    /// Logs bloom
-    #[serde(rename = "logsBloom")]
-    pub logs_bloom: Option<H2048>,
-    /// Timestamp
-    pub timestamp: U256,
-    /// Difficulty
-    #[cfg_attr(feature = "allow-missing-fields", serde(default))]
-    pub difficulty: U256,
-    /// Total difficulty
-    #[serde(rename = "totalDifficulty")]
-    pub total_difficulty: Option<U256>,
-    /// Seal fields
-    #[serde(default, rename = "sealFields")]
-    pub seal_fields: Vec<Bytes>,
-    /// Uncles' hashes
-    #[cfg_attr(feature = "allow-missing-fields", serde(default))]
-    pub uncles: Vec<H256>,
-    /// Transactions
-    pub transactions: Vec<TX>,
-    /// Size in bytes
-    pub size: Option<U256>,
-    /// Mix Hash
-    #[serde(rename = "mixHash")]
-    pub mix_hash: Option<H256>,
-    /// Nonce
-    pub nonce: Option<H64>,
-    /// Excess blob gas
-    #[serde(rename = "excessBlobGas")]
-    pub excess_blob_gas: Option<U64>,
-}
-
-fn null_to_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
-where
-    T: Default + Deserialize<'de>,
-    D: Deserializer<'de>,
-{
-    let option = Option::deserialize(deserializer)?;
-    Ok(option.unwrap_or_default())
-}
-
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
-    use pretty_assertions::assert_eq;
     use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
     use zksync_types::{
         eth_sender::{EthTxBlobSidecarV1, SidecarBlobV1},
         web3::{self},
-        K256PrivateKey, EIP_4844_TX_TYPE, H160, H256, U256, U64,
+        K256PrivateKey, EIP_4844_TX_TYPE, H256, U256, U64,
     };
 
     use super::*;
@@ -413,7 +310,11 @@ mod tests {
             nonce: 0.into(),
             max_priority_fee_per_gas: U256::from(1),
             gas_price: Some(U256::from(4)),
-            to: Some(H160::from_str("0x0000000000000000000000000000000000000001").unwrap()),
+            to: Some(
+                "0x0000000000000000000000000000000000000001"
+                    .parse()
+                    .unwrap(),
+            ),
             gas: 0x3.into(),
             value: Default::default(),
             data: Default::default(),
@@ -468,9 +369,9 @@ mod tests {
     // network format defined by the `EIP`. That is, a signed transaction
     // itself and the sidecar containing the blobs.
     async fn test_generating_signed_raw_transaction_with_4844_sidecar_two_blobs() {
-        let private_key =
-            H256::from_str("27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be")
-                .unwrap();
+        let private_key = "27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be"
+            .parse()
+            .unwrap();
         let private_key = K256PrivateKey::from_bytes(private_key).unwrap();
 
         let commitment_1 = hex::decode(
@@ -521,7 +422,11 @@ mod tests {
             nonce: 0.into(),
             max_priority_fee_per_gas: U256::from(1),
             gas_price: Some(U256::from(4)),
-            to: Some(H160::from_str("0x0000000000000000000000000000000000000001").unwrap()),
+            to: Some(
+                "0x0000000000000000000000000000000000000001"
+                    .parse()
+                    .unwrap(),
+            ),
             gas: 0x3.into(),
             value: Default::default(),
             data: Default::default(),
@@ -574,89 +479,5 @@ mod tests {
 
         let expected_str = expected_str.to_owned();
         pretty_assertions::assert_eq!(raw_tx_str, expected_str);
-    }
-
-    #[test]
-    fn block_can_be_deserialized() {
-        let post_dencun = r#"
-        {
-            "baseFeePerGas": "0x3e344c311",
-            "blobGasUsed": "0xc0000",
-            "difficulty": "0x0",
-            "excessBlobGas": "0x4b40000",
-            "extraData": "0xd883010d0d846765746888676f312e32302e34856c696e7578",
-            "gasLimit": "0x1c9c380",
-            "gasUsed": "0x96070e",
-            "hash": "0x2c77691707319e5b8a5afde5b75c77ec0ccb1f556c1ccd9e0e49ef5795bc9015",
-            "logsBloom": "0x08a212844c2050e028d95b42b718a550c7215100101028408e90520820c81c1171400212a0200483f89c89010a0604934650804fc0a283a06d011041a22c000296e0880394850081700ac41a156812a59ea5de0518a43bcb0000a865c242c42348f570a9a3704350c484424d0400ab04000805e0840094680028a218c0099dc2ca42b01c63224045510375050860308894480901e8a6d0e818035158805218400e493001c9a8060a205c1112611442040804041fc00088cca49e262b068000349cf611ebc61c1b00220282150c16096c1370921412420815008398200041721d12d2988ea090d0429208010564809845080808707a1d3052f343020e88091221",
-            "miner": "0x0000000000000000000000000000000000000000",
-            "mixHash": "0xcae6acf2f1e34499c234db81aff35299979046ab0e544276005899ce5f320858",
-            "nonce": "0x0000000000000000",
-            "number": "0x51fca7",
-            "parentBeaconBlockRoot": "0x08750d6ce3bf47639efc14c43f44fc1c018d593f1b48aacd222668422ed289ce",
-            "parentHash": "0x2f3978cb0dec7ecbb01fff2be87b101cf61e9bfb31d64c15a19aca7c4f74c87e",
-            "receiptsRoot": "0xdad010222b2ce0862e928402b2d10d9651d78d9276c8ad30bc9c0793aba9dd18",
-            "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-            "size": "0xa862",
-            "stateRoot": "0xf77a819b26fef9fe5c7cd9511b0fff950725e878cb311914de162be068fb8c70",
-            "timestamp": "0x65ddadfc",
-            "totalDifficulty": "0x3c656d23029ab0",
-            "transactions": ["0x8660a77cc4f13681e039b8f980579c53f522ba13aad64481a5bdfe5f62b54bbb", "0xab5820f72a6374db701a5e27668f14dac867ade71806bb754b561a63a9441df4"],
-            "transactionsRoot": "0xd9f4b814ee427db492c4fcc249df665b616db61bd423413ad7ffd9b464aced1e",
-            "uncles": [],
-            "withdrawals": [{
-                "address": "0xe276bc378a527a8792b353cdca5b5e53263dfb9e",
-                "amount": "0x24e0",
-                "index": "0x2457a70",
-                "validatorIndex": "0x3df"
-            }, {
-                "address": "0xe276bc378a527a8792b353cdca5b5e53263dfb9e",
-                "amount": "0x24e0",
-                "index": "0x2457a71",
-                "validatorIndex": "0x3e1"
-            }],
-            "withdrawalsRoot": "0x576ea3c5cc0bf9d73f64e9786e7b44595a62a76a54989acc8ae84b2015fde929"
-        }"#;
-        let block: Block<H256> = serde_json::from_str(post_dencun).unwrap();
-        assert_eq!(block.excess_blob_gas, Some(U64::from(0x4b40000)));
-
-        let pre_dencun = r#"
-        {
-            "baseFeePerGas": "0x910fe39fd",
-            "difficulty": "0x0",
-            "extraData": "0x546974616e2028746974616e6275696c6465722e78797a29",
-            "gasLimit": "0x1c9c380",
-            "gasUsed": "0x10d5e31",
-            "hash": "0x40a92d343f724efbc2c85b710a433391b9102813560704ec7db89572a3b23451",
-            "logsBloom": "0x15a15083ea8148119f3845a4a7f01c291a1393153ec36e21ecdc60cffea60c55c16397c190e48eb7efa27f96500959541a91c251a8e0aeca5ed0942a4dec8a118b6a25bdd9248c6b8b53556ed62c0be8daec00f984ec196f5faa4f52cae5ceb76ade34648e73ac6371bed5ecd1491fc7083a2d75ea88e7e0f7448d56969cb8069fc09a768d1a93f1833f81c1050e36e465220cf99f9502bbc4e0b5475d52b8e1ea819ecb7bacb8baeb16d8f59b9904cc171b970d0834c8fecd6291df1514dae1ff474e939c5af95773a013f6926d1dd5915591d28e18201daf707923f417a9ead1796959c3cfe6facf0c85a7a620aac8a44616eb484db2d78039fb606de4549d",
-            "miner": "0x4838b106fce9647bdf1e7877bf73ce8b0bad5f97",
-            "mixHash": "0x041736203c26f01d68a6a3b5728205cc27cb1674fdad8cc85dd722933483b446",
-            "nonce": "0x0000000000000000",
-            "number": "0x126c531",
-            "parentHash": "0x57535175149b25b4258e6de43e7484f6b6f144dcddbb0add5c2f25e700c57508",
-            "receiptsRoot": "0x8cc94702aca57e058aaa5da92e7e776f76ac67191a638c5664844deb59616c8f",
-            "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-            "size": "0x3bfca",
-            "stateRoot": "0xbeb859bb91bc80792f6640ff469837927dc5a7ad5393484b2e1b536f3815af2f",
-            "timestamp": "0x65ddae8b",
-            "totalDifficulty": "0xc70d815d562d3cfa955",
-            "transactions": ["0x61b183ea82664e6afb05d3fa692f71561381e5c9280e80062770ff88d4c3c8be", "0x3dd322f75e4315dd265c22a8ae3e51bd32253f43664d1dc4d2afb68746da7e70"],
-            "transactionsRoot": "0xba2b8ff471608f8877abc6d06f7f599e3c942671b11598b0595fc13185681458",
-            "uncles": [],
-            "withdrawals": [{
-                "address": "0xb9d7934878b5fb9610b3fe8a5e441e8fad7e293f",
-                "amount": "0x1168dd0",
-                "index": "0x22d6606",
-                "validatorIndex": "0x5c797"
-            }, {
-                "address": "0xb9d7934878b5fb9610b3fe8a5e441e8fad7e293f",
-                "amount": "0x117bae7",
-                "index": "0x22d6607",
-                "validatorIndex": "0x5c798"
-            }],
-            "withdrawalsRoot": "0xf3386eae1beb91726fe62e2aba4b975ed4f3be2222c739bf2b4d72dd20324a8b"
-        }"#;
-        let block: Block<H256> = serde_json::from_str(pre_dencun).unwrap();
-        assert!(block.excess_blob_gas.is_none());
     }
 }

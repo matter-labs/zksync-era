@@ -2,17 +2,12 @@ use std::fmt;
 
 use async_trait::async_trait;
 use jsonrpsee::{core::ClientError, http_client::HttpClient};
-use zksync_types::{
-    ethabi,
-    url::SensitiveUrl,
-    web3::{self, BlockId, BlockNumber, Bytes, Filter, Log, Transaction, TransactionReceipt},
-    Address, L1ChainId, H256, U256, U64,
-};
+use zksync_types::{ethabi, url::SensitiveUrl, web3, Address, L1ChainId, H256, U256, U64};
 
 use super::{decl::L1EthNamespaceClient, Method, COUNTERS, LATENCIES};
 use crate::{
     types::{ContractError, Error, ExecutedTxStatus, FailureInfo},
-    Block, ContractCall, EthInterface, RawTransactionBytes,
+    ContractCall, EthInterface, RawTransactionBytes,
 };
 
 /// An "anonymous" Ethereum client that can invoke read-only methods that aren't
@@ -58,7 +53,7 @@ impl EthInterface for QueryClient {
     async fn nonce_at_for_account(
         &self,
         account: Address,
-        block: BlockNumber,
+        block: web3::BlockNumber,
         component: &'static str,
     ) -> Result<U256, Error> {
         COUNTERS.call[&(Method::NonceAtForAccount, component)].inc();
@@ -89,7 +84,7 @@ impl EthInterface for QueryClient {
 
     async fn send_raw_tx(&self, tx: RawTransactionBytes) -> Result<H256, Error> {
         let latency = LATENCIES.direct[&Method::SendRawTx].start();
-        let tx = self.web3.send_raw_transaction(Bytes(tx.0)).await?;
+        let tx = self.web3.send_raw_transaction(web3::Bytes(tx.0)).await?;
         latency.observe();
         Ok(tx)
     }
@@ -116,11 +111,13 @@ impl EthInterface for QueryClient {
 
             let fee_history = self
                 .web3
-                .fee_history(U64::from(chunk_size), BlockNumber::from(chunk_end), None)
+                .fee_history(
+                    U64::from(chunk_size),
+                    web3::BlockNumber::from(chunk_end),
+                    None,
+                )
                 .await?;
-            if let Some(base_fees) = fee_history.base_fee_per_gas {
-                history.extend(base_fees);
-            }
+            history.extend(fee_history.base_fee_per_gas);
         }
 
         latency.observe();
@@ -136,7 +133,7 @@ impl EthInterface for QueryClient {
 
         let block = self
             .web3
-            .get_block_by_number(BlockNumber::Pending, false)
+            .get_block_by_number(web3::BlockNumber::Pending, false)
             .await?;
         let block = if let Some(block) = block {
             block
@@ -144,7 +141,7 @@ impl EthInterface for QueryClient {
             // Fallback for local reth. Because of artificial nature of producing blocks in local reth setup
             // there may be no pending block
             self.web3
-                .get_block_by_number(BlockNumber::Latest, false)
+                .get_block_by_number(web3::BlockNumber::Latest, false)
                 .await?
                 .expect("Latest block always exists")
         };
@@ -238,7 +235,7 @@ impl EthInterface for QueryClient {
         &self,
         hash: H256,
         component: &'static str,
-    ) -> Result<Option<Transaction>, Error> {
+    ) -> Result<Option<web3::Transaction>, Error> {
         COUNTERS.call[&(Method::GetTx, component)].inc();
         let tx = self.web3.get_transaction_by_hash(hash).await?;
         Ok(tx)
@@ -264,7 +261,7 @@ impl EthInterface for QueryClient {
         let request = web3::CallRequest {
             from: call.inner.from,
             to: Some(call.contract_address),
-            data: Some(Bytes(encoded_input)),
+            data: Some(web3::Bytes(encoded_input)),
             // Other options are never set
             gas: None,
             gas_price: None,
@@ -290,7 +287,7 @@ impl EthInterface for QueryClient {
         &self,
         tx_hash: H256,
         component: &'static str,
-    ) -> Result<Option<TransactionReceipt>, Error> {
+    ) -> Result<Option<web3::TransactionReceipt>, Error> {
         COUNTERS.call[&(Method::TxReceipt, component)].inc();
         let latency = LATENCIES.direct[&Method::TxReceipt].start();
         let receipt = self.web3.get_transaction_receipt(tx_hash).await?;
@@ -306,7 +303,11 @@ impl EthInterface for QueryClient {
         Ok(balance)
     }
 
-    async fn logs(&self, filter: Filter, component: &'static str) -> Result<Vec<Log>, Error> {
+    async fn logs(
+        &self,
+        filter: web3::Filter,
+        component: &'static str,
+    ) -> Result<Vec<web3::Log>, Error> {
         COUNTERS.call[&(Method::Logs, component)].inc();
         let latency = LATENCIES.direct[&Method::Logs].start();
         let logs = self.web3.get_logs(filter).await?;
@@ -316,14 +317,14 @@ impl EthInterface for QueryClient {
 
     async fn block(
         &self,
-        block_id: BlockId,
+        block_id: web3::BlockId,
         component: &'static str,
-    ) -> Result<Option<Block<H256>>, Error> {
+    ) -> Result<Option<web3::Block<H256>>, Error> {
         COUNTERS.call[&(Method::Block, component)].inc();
         let latency = LATENCIES.direct[&Method::Block].start();
         let block = match block_id {
-            BlockId::Hash(hash) => self.web3.get_block_by_hash(hash, false).await?,
-            BlockId::Number(num) => self.web3.get_block_by_number(num, false).await?,
+            web3::BlockId::Hash(hash) => self.web3.get_block_by_hash(hash, false).await?,
+            web3::BlockId::Number(num) => self.web3.get_block_by_number(num, false).await?,
         };
         latency.observe();
         Ok(block)

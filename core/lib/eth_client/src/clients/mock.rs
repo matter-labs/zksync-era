@@ -8,15 +8,13 @@ use async_trait::async_trait;
 use jsonrpsee::{core::ClientError, types::ErrorObject};
 use zksync_types::{
     ethabi,
-    web3::{
-        contract::Tokenize, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt,
-    },
+    web3::{self, contract::Tokenize},
     Address, L1ChainId, H160, H256, U256, U64,
 };
 
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
-    Block, BoundEthInterface, ContractCall, EthInterface, Options, RawTransactionBytes,
+    BoundEthInterface, ContractCall, EthInterface, Options, RawTransactionBytes,
 };
 
 #[derive(Debug, Clone)]
@@ -53,7 +51,7 @@ impl From<Vec<u8>> for MockTx {
     }
 }
 
-impl From<MockTx> for Transaction {
+impl From<MockTx> for web3::Transaction {
     fn from(tx: MockTx) -> Self {
         Self {
             to: Some(tx.recipient),
@@ -104,11 +102,11 @@ impl MockEthereumInner {
         let status = ExecutedTxStatus {
             tx_hash,
             success,
-            receipt: TransactionReceipt {
+            receipt: web3::TransactionReceipt {
                 gas_used: Some(21000u32.into()),
                 block_number: Some(block_number.into()),
                 transaction_hash: tx_hash,
-                ..TransactionReceipt::default()
+                ..web3::TransactionReceipt::default()
             },
         };
         self.tx_statuses.insert(tx_hash, status);
@@ -122,7 +120,7 @@ pub struct MockExecutedTxHandle<'a> {
 }
 
 impl MockExecutedTxHandle<'_> {
-    pub fn with_logs(&mut self, logs: Vec<Log>) -> &mut Self {
+    pub fn with_logs(&mut self, logs: Vec<web3::Log>) -> &mut Self {
         let status = self.inner.tx_statuses.get_mut(&self.tx_hash).unwrap();
         status.receipt.logs = logs;
         self
@@ -334,7 +332,7 @@ impl EthInterface for MockEthereum {
     async fn nonce_at_for_account(
         &self,
         _account: Address,
-        _block: BlockNumber,
+        _block: web3::BlockNumber,
         _: &'static str,
     ) -> Result<U256, Error> {
         unimplemented!("Getting nonce for custom account is not supported")
@@ -383,7 +381,7 @@ impl EthInterface for MockEthereum {
         &self,
         hash: H256,
         _component: &'static str,
-    ) -> Result<Option<Transaction>, Error> {
+    ) -> Result<Option<web3::Transaction>, Error> {
         let txs = &self.inner.read().unwrap().sent_txs;
         let Some(tx) = txs.get(&hash) else {
             return Ok(None);
@@ -395,7 +393,7 @@ impl EthInterface for MockEthereum {
         &self,
         _tx_hash: H256,
         _component: &'static str,
-    ) -> Result<Option<TransactionReceipt>, Error> {
+    ) -> Result<Option<web3::TransactionReceipt>, Error> {
         unimplemented!("Not needed right now")
     }
 
@@ -407,17 +405,21 @@ impl EthInterface for MockEthereum {
         unimplemented!("Not needed right now")
     }
 
-    async fn logs(&self, _filter: Filter, _component: &'static str) -> Result<Vec<Log>, Error> {
+    async fn logs(
+        &self,
+        _filter: web3::Filter,
+        _component: &'static str,
+    ) -> Result<Vec<web3::Log>, Error> {
         unimplemented!("Not needed right now")
     }
 
     async fn block(
         &self,
-        block_id: BlockId,
+        block_id: web3::BlockId,
         _component: &'static str,
-    ) -> Result<Option<Block<H256>>, Error> {
+    ) -> Result<Option<web3::Block<H256>>, Error> {
         match block_id {
-            BlockId::Number(BlockNumber::Number(number)) => {
+            web3::BlockId::Number(web3::BlockNumber::Number(number)) => {
                 let excess_blob_gas = self
                     .excess_blob_gas_history
                     .get(number.as_usize())
@@ -427,7 +429,7 @@ impl EthInterface for MockEthereum {
                     .get(number.as_usize())
                     .map(|base_fee| (*base_fee).into());
 
-                Ok(Some(Block {
+                Ok(Some(web3::Block {
                     number: Some(number),
                     excess_blob_gas,
                     base_fee_per_gas,
@@ -482,8 +484,12 @@ impl BoundEthInterface for MockEthereum {
         unimplemented!("Not needed right now")
     }
 
-    async fn nonce_at(&self, block: BlockNumber, _component: &'static str) -> Result<U256, Error> {
-        if let BlockNumber::Number(block_number) = block {
+    async fn nonce_at(
+        &self,
+        block: web3::BlockNumber,
+        _component: &'static str,
+    ) -> Result<U256, Error> {
+        if let web3::BlockNumber::Number(block_number) = block {
             let inner = self.inner.read().unwrap();
             let mut nonce_range = inner.nonces.range(..=block_number.as_u64());
             let (_, &nonce) = nonce_range.next_back().unwrap_or((&0, &0));

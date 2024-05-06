@@ -10,19 +10,21 @@ pub(super) trait L1EthNamespace {
     #[method(name = "blockNumber")]
     async fn get_block_number(&self) -> RpcResult<U64>;
 
+    // **Important.** Must be called with `full_transactions = false` only.
     #[method(name = "getBlockByNumber")]
     async fn get_block_by_number(
         &self,
         block_number: web3::BlockNumber,
         full_transactions: bool,
-    ) -> RpcResult<Option<crate::types::Block<H256>>>; // FIXME: the return type is not general enough
+    ) -> RpcResult<Option<web3::Block<H256>>>;
 
+    // **Important.** Must be called with `full_transactions = false` only.
     #[method(name = "getBlockByHash")]
     async fn get_block_by_hash(
         &self,
         hash: H256,
         full_transactions: bool,
-    ) -> RpcResult<Option<crate::types::Block<H256>>>; // FIXME: the return type is not general enough
+    ) -> RpcResult<Option<web3::Block<H256>>>;
 
     #[method(name = "getTransactionCount")]
     async fn get_transaction_count(
@@ -60,7 +62,7 @@ pub(super) trait L1EthNamespace {
         block_count: U64,
         newest_block: web3::BlockNumber,
         reward_percentiles: Option<Vec<f32>>,
-    ) -> RpcResult<crate::types::FeeHistory>;
+    ) -> RpcResult<web3::FeeHistory>;
 
     #[method(name = "getTransactionByHash")]
     async fn get_transaction_by_hash(&self, hash: H256) -> RpcResult<Option<web3::Transaction>>;

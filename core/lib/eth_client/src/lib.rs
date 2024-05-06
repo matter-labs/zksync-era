@@ -6,14 +6,14 @@ use zksync_types::{
     eth_sender::EthTxBlobSidecar,
     ethabi,
     web3::{
-        AccessList, BlockId, BlockNumber, Filter, Log, Transaction, TransactionCondition,
+        AccessList, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionCondition,
         TransactionReceipt,
     },
     Address, L1ChainId, H160, H256, U256, U64,
 };
 
 pub use crate::types::{
-    encode_blob_tx_with_sidecar, Block, CallFunctionArgs, ContractCall, ContractError, Error,
+    encode_blob_tx_with_sidecar, CallFunctionArgs, ContractCall, ContractError, Error,
     ExecutedTxStatus, FailureInfo, RawTransactionBytes, SignedCallResult,
 };
 

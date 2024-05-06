@@ -16,6 +16,8 @@ use serde_json::Value;
 use crate::{H160, H2048, H256, U256, U64};
 
 pub mod contract;
+#[cfg(test)]
+mod tests;
 
 pub type Index = U64;
 
@@ -307,7 +309,7 @@ pub struct BlockHeader {
     pub parent_hash: H256,
     /// Hash of the uncles
     #[serde(rename = "sha3Uncles")]
-    #[cfg_attr(feature = "allow-missing-fields", serde(default))]
+    #[serde(default)]
     pub uncles_hash: H256,
     /// Miner/author's address.
     #[serde(rename = "miner", default, deserialize_with = "null_to_default")]
@@ -327,8 +329,7 @@ pub struct BlockHeader {
     #[serde(rename = "gasUsed")]
     pub gas_used: U256,
     /// Gas Limit
-    #[serde(rename = "gasLimit")]
-    #[cfg_attr(feature = "allow-missing-fields", serde(default))]
+    #[serde(rename = "gasLimit", default)]
     pub gas_limit: U256,
     /// Base fee per unit of gas (if past London)
     #[serde(rename = "baseFeePerGas", skip_serializing_if = "Option::is_none")]
@@ -342,13 +343,81 @@ pub struct BlockHeader {
     /// Timestamp
     pub timestamp: U256,
     /// Difficulty
-    #[cfg_attr(feature = "allow-missing-fields", serde(default))]
+    #[serde(default)]
     pub difficulty: U256,
     /// Mix Hash
     #[serde(rename = "mixHash")]
     pub mix_hash: Option<H256>,
     /// Nonce
     pub nonce: Option<H64>,
+}
+
+/// The block type returned from RPC calls.
+#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
+pub struct Block<TX> {
+    /// Hash of the block
+    pub hash: Option<H256>,
+    /// Hash of the parent
+    #[serde(rename = "parentHash")]
+    pub parent_hash: H256,
+    /// Hash of the uncles
+    #[serde(rename = "sha3Uncles", default)]
+    pub uncles_hash: H256,
+    /// Author's address.
+    #[serde(rename = "miner", default, deserialize_with = "null_to_default")]
+    pub author: H160,
+    /// State root hash
+    #[serde(rename = "stateRoot")]
+    pub state_root: H256,
+    /// Transactions root hash
+    #[serde(rename = "transactionsRoot")]
+    pub transactions_root: H256,
+    /// Transactions receipts root hash
+    #[serde(rename = "receiptsRoot")]
+    pub receipts_root: H256,
+    /// Block number. None if pending.
+    pub number: Option<U64>,
+    /// Gas Used
+    #[serde(rename = "gasUsed")]
+    pub gas_used: U256,
+    /// Gas Limit
+    #[serde(rename = "gasLimit", default)]
+    pub gas_limit: U256,
+    /// Base fee per unit of gas (if past London)
+    #[serde(rename = "baseFeePerGas", skip_serializing_if = "Option::is_none")]
+    pub base_fee_per_gas: Option<U256>,
+    /// Extra data
+    #[serde(rename = "extraData")]
+    pub extra_data: Bytes,
+    /// Logs bloom
+    #[serde(rename = "logsBloom")]
+    pub logs_bloom: Option<H2048>,
+    /// Timestamp
+    pub timestamp: U256,
+    /// Difficulty
+    #[serde(default)]
+    pub difficulty: U256,
+    /// Total difficulty
+    #[serde(rename = "totalDifficulty")]
+    pub total_difficulty: Option<U256>,
+    /// Seal fields
+    #[serde(default, rename = "sealFields")]
+    pub seal_fields: Vec<Bytes>,
+    /// Uncles' hashes
+    #[serde(default)]
+    pub uncles: Vec<H256>,
+    /// Transactions
+    pub transactions: Vec<TX>,
+    /// Size in bytes
+    pub size: Option<U256>,
+    /// Mix Hash
+    #[serde(rename = "mixHash")]
+    pub mix_hash: Option<H256>,
+    /// Nonce
+    pub nonce: Option<H64>,
+    /// Excess blob gas
+    #[serde(rename = "excessBlobGas")]
+    pub excess_blob_gas: Option<U64>,
 }
 
 fn null_to_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
@@ -697,8 +766,10 @@ pub struct FeeHistory {
     /// Lowest number block of the returned range.
     pub oldest_block: BlockNumber,
     /// A vector of block base fees per gas. This includes the next block after the newest of the returned range, because this value can be derived from the newest block. Zeroes are returned for pre-EIP-1559 blocks.
+    #[serde(default)] // some node implementations skip empty lists
     pub base_fee_per_gas: Vec<U256>,
     /// A vector of block gas used ratios. These are calculated as the ratio of gas used and gas limit.
+    #[serde(default)] // some node implementations skip empty lists
     pub gas_used_ratio: Vec<f64>,
     /// A vector of effective priority fee per gas data points from a single block. All zeroes are returned if the block is empty. Returned only if requested.
     pub reward: Option<Vec<Vec<U256>>>,
