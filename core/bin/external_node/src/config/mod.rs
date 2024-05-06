@@ -841,7 +841,7 @@ impl ExternalNodeConfig {
         // We can query them from main node, but it's better to set them explicitly
         // as well to avoid connecting to wrong environment variables unintentionally.
         let eth_chain_id = eth_client
-            .fetch_chain_id("en")
+            .fetch_chain_id()
             .await
             .context("Unable to check L1 chain ID through the configured L1 client")?;
 
