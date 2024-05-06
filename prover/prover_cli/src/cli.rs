@@ -23,7 +23,7 @@ pub struct ProverCLIConfig {
         long,
         default_value = "postgres://postgres:notsecurepassword@localhost/prover_local"
     )]
-    pub db_url: Option<SensitiveUrl>,
+    pub db_url: SensitiveUrl,
 }
 
 #[derive(Subcommand)]

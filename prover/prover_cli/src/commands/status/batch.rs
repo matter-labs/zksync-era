@@ -23,7 +23,7 @@ pub(crate) async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<(
         "At least one batch number should be provided"
     );
 
-    let batches_data = get_batches_data(args.batches, config.db_url.unwrap()).await?;
+    let batches_data = get_batches_data(args.batches, config.db_url).await?;
 
     for batch_data in batches_data {
         println!("{batch_data:?}");
