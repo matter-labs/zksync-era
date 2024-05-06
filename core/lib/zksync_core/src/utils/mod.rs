@@ -217,10 +217,10 @@ mod tests {
     use std::{mem, sync::Mutex};
 
     use zksync_eth_client::clients::MockEthereum;
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::U256;
 
     use super::*;
-    use crate::genesis::{insert_genesis_batch, GenesisParams};
 
     #[tokio::test]
     async fn test_binary_search() {
