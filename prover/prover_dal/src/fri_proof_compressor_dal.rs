@@ -2,9 +2,10 @@
 use std::{collections::HashMap, str::FromStr, time::Duration};
 
 use sqlx::Row;
-use strum::{Display, EnumString};
 use zksync_basic_types::{
-    prover_dal::{JobCountStatistics, StuckJobs},
+    prover_dal::{
+        JobCountStatistics, ProofCompressionJobInfo, ProofCompressionJobStatus, StuckJobs,
+    },
     L1BatchNumber,
 };
 use zksync_db_connection::connection::Connection;
@@ -14,22 +15,6 @@ use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
 #[derive(Debug)]
 pub struct FriProofCompressorDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Prover>,
-}
-
-#[derive(Debug, EnumString, Display)]
-pub enum ProofCompressionJobStatus {
-    #[strum(serialize = "queued")]
-    Queued,
-    #[strum(serialize = "in_progress")]
-    InProgress,
-    #[strum(serialize = "successful")]
-    Successful,
-    #[strum(serialize = "failed")]
-    Failed,
-    #[strum(serialize = "sent_to_server")]
-    SentToServer,
-    #[strum(serialize = "skipped")]
-    Skipped,
 }
 
 impl FriProofCompressorDal<'_, '_> {
@@ -327,5 +312,38 @@ impl FriProofCompressorDal<'_, '_> {
             })
             .collect()
         }
+    }
+
+    pub async fn get_proof_compression_job_for_batch(
+        &mut self,
+        block_number: L1BatchNumber,
+    ) -> Option<ProofCompressionJobInfo> {
+        sqlx::query!(
+            r#"
+            SELECT
+                *
+            FROM
+                proof_compression_jobs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| ProofCompressionJobInfo {
+            l1_batch_number: block_number,
+            attempts: row.attempts as u32,
+            status: ProofCompressionJobStatus::from_str(&row.status).unwrap(),
+            fri_proof_blob_url: row.fri_proof_blob_url,
+            l1_proof_blob_url: row.l1_proof_blob_url,
+            error: row.error,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            processing_started_at: row.processing_started_at,
+            time_taken: row.time_taken,
+            picked_by: row.picked_by,
+        })
     }
 }

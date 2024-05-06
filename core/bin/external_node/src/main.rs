@@ -210,7 +210,7 @@ async fn run_core(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
     main_node_client: BoxedL2Client,
-    eth_client: Arc<dyn EthInterface>,
+    eth_client: Box<dyn EthInterface>,
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
@@ -588,7 +588,7 @@ async fn init_tasks(
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
     main_node_client: BoxedL2Client,
-    eth_client: Arc<dyn EthInterface>,
+    eth_client: Box<dyn EthInterface>,
     task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
@@ -821,7 +821,7 @@ async fn main() -> anyhow::Result<()> {
     let main_node_client = BoxedL2Client::new(main_node_client);
 
     let eth_client_url = &required_config.eth_client_url;
-    let eth_client = Arc::new(QueryClient::new(eth_client_url.clone())?);
+    let eth_client = Box::new(QueryClient::new(eth_client_url.clone())?);
 
     let mut config = ExternalNodeConfig::new(
         required_config,
@@ -891,7 +891,7 @@ async fn run_node(
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
     main_node_client: BoxedL2Client,
-    eth_client: Arc<dyn EthInterface>,
+    eth_client: Box<dyn EthInterface>,
 ) -> anyhow::Result<()> {
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");

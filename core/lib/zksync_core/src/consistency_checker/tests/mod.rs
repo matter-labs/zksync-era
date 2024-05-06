@@ -99,7 +99,7 @@ pub(crate) fn create_mock_checker(
         diamond_proxy_addr: Some(DIAMOND_PROXY_ADDR),
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
-        l1_client: Arc::new(client),
+        l1_client: Box::new(client),
         event_handler: Box::new(health_updater),
         l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
         pool,

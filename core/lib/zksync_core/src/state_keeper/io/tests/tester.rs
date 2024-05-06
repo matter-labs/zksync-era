@@ -75,7 +75,7 @@ impl Tester {
         };
 
         GasAdjuster::new(
-            Arc::new(eth_client),
+            Box::new(eth_client),
             gas_adjuster_config,
             PubdataSendingMode::Calldata,
             self.pubdata_pricing.clone(),

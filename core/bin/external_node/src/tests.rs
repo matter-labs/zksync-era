@@ -176,7 +176,7 @@ async fn external_node_basics(components_str: &'static str) {
         }
         panic!("Unexpected L1 call: {call:?}");
     });
-    let eth_client = Arc::new(eth_client);
+    let eth_client = Box::new(eth_client);
 
     let (env, env_handles) = TestEnvironment::new();
     let node_handle = tokio::spawn(async move {
