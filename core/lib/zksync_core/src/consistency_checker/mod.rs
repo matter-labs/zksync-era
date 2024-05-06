@@ -512,22 +512,12 @@ impl ConsistencyChecker {
         };
         tracing::debug!("Performing sanity checks for diamond proxy contract {address:?}");
 
-        let call = CallFunctionArgs::new("getProtocolVersion", ())
-            .for_contract(address, self.contract.clone());
-        let response = self.l1_client.call_contract_function(call).await?;
-        // Response should be a single token with the contract name.
-        match response.as_slice() {
-            [ethabi::Token::Uint(version)] => {
-                tracing::info!("Checked diamond proxy {address:?} (protocol version: {version})");
-                Ok(())
-            }
-            _ => {
-                let err = anyhow::anyhow!(
-                    "unexpected `getProtocolVersion` response from contract {address:?}: {response:?}"
-                );
-                Err(CheckError::Internal(err))
-            }
-        }
+        let version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
+            .for_contract(address, self.contract.clone())
+            .call(self.l1_client.as_ref())
+            .await?;
+        tracing::info!("Checked diamond proxy {address:?} (protocol version: {version})");
+        Ok(())
     }
 
     pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {

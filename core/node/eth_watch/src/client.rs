@@ -5,7 +5,7 @@ pub(super) use zksync_eth_client::Error as EthClientError;
 use zksync_eth_client::{CallFunctionArgs, ClientError, EthInterface};
 use zksync_types::{
     ethabi::Contract,
-    web3::{contract::Detokenize, BlockId, BlockNumber, FilterBuilder, Log},
+    web3::{BlockId, BlockNumber, FilterBuilder, Log},
     Address, H256,
 };
 
@@ -97,10 +97,10 @@ impl EthHttpQueryClient {
 impl EthClient for EthHttpQueryClient {
     async fn scheduler_vk_hash(&self, verifier_address: Address) -> Result<H256, EthClientError> {
         // New verifier returns the hash of the verification key.
-        let args = CallFunctionArgs::new("verificationKeyHash", ())
-            .for_contract(verifier_address, self.verifier_contract_abi.clone());
-        let vk_hash_tokens = self.client.call_contract_function(args).await?;
-        Ok(H256::from_tokens(vk_hash_tokens)?)
+        CallFunctionArgs::new("verificationKeyHash", ())
+            .for_contract(verifier_address, self.verifier_contract_abi.clone())
+            .call(self.client.as_ref())
+            .await
     }
 
     async fn get_events(

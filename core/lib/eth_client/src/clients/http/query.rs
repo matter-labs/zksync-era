@@ -2,12 +2,12 @@ use std::fmt;
 
 use async_trait::async_trait;
 use jsonrpsee::{core::ClientError, http_client::HttpClient};
-use zksync_types::{ethabi, url::SensitiveUrl, web3, Address, L1ChainId, H256, U256, U64};
+use zksync_types::{url::SensitiveUrl, web3, Address, L1ChainId, H256, U256, U64};
 
 use super::{decl::L1EthNamespaceClient, Method, COUNTERS, LATENCIES};
 use crate::{
-    types::{ContractError, Error, ExecutedTxStatus, FailureInfo},
-    ContractCall, EthInterface, RawTransactionBytes,
+    types::{Error, ExecutedTxStatus, FailureInfo},
+    EthInterface, RawTransactionBytes,
 };
 
 /// An "anonymous" Ethereum client that can invoke read-only methods that aren't
@@ -243,44 +243,13 @@ impl EthInterface for QueryClient {
 
     async fn call_contract_function(
         &self,
-        call: ContractCall,
-    ) -> Result<Vec<ethabi::Token>, Error> {
+        request: web3::CallRequest,
+        block: Option<web3::BlockId>,
+    ) -> Result<web3::Bytes, Error> {
         let latency = LATENCIES.direct[&Method::CallContractFunction].start();
-        let func = call
-            .contract_abi
-            .function(&call.inner.name)
-            .map_err(ContractError::Function)?;
-        let encoded_input =
-            func.encode_input(&call.inner.params)
-                .map_err(|source| ContractError::EncodeInput {
-                    signature: func.signature(),
-                    input: call.inner.params,
-                    source,
-                })?;
-
-        let request = web3::CallRequest {
-            from: call.inner.from,
-            to: Some(call.contract_address),
-            data: Some(web3::Bytes(encoded_input)),
-            // Other options are never set
-            gas: None,
-            gas_price: None,
-            value: None,
-            transaction_type: None,
-            access_list: None,
-            max_fee_per_gas: None,
-            max_priority_fee_per_gas: None,
-        };
-
-        let encoded_output = self.web3.call(request, call.inner.block).await?;
+        let output_bytes = self.web3.call(request, block).await?;
         latency.observe();
-        Ok(func
-            .decode_output(&encoded_output.0)
-            .map_err(|source| ContractError::DecodeOutput {
-                signature: func.signature(),
-                output: encoded_output,
-                source,
-            })?)
+        Ok(output_bytes)
     }
 
     async fn tx_receipt(

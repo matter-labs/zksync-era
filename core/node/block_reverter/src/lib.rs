@@ -20,7 +20,7 @@ use zksync_types::{
         SnapshotFactoryDependencies, SnapshotMetadata, SnapshotStorageLogsChunk,
         SnapshotStorageLogsStorageKey,
     },
-    web3::{contract::Detokenize, BlockId, BlockNumber},
+    web3::{BlockId, BlockNumber},
     Address, L1BatchNumber, L2ChainId, H160, H256, U256,
 };
 
@@ -553,16 +553,13 @@ impl BlockReverter {
             AggregatedActionType::PublishProofOnchain => "getTotalBatchesVerified",
             AggregatedActionType::Execute => "getTotalBatchesExecuted",
         };
-        let call = CallFunctionArgs::new(function_name, ())
-            .for_contract(contract_address, hyperchain_contract());
-
-        let block_number = eth_client
-            .call_contract_function(call)
+        let block_number: U256 = CallFunctionArgs::new(function_name, ())
+            .for_contract(contract_address, hyperchain_contract())
+            .call(eth_client)
             .await
             .with_context(|| {
                 format!("failed calling `{function_name}` for contract {contract_address:?}")
             })?;
-        let block_number = U256::from_tokens(block_number)?;
         Ok(L1BatchNumber(block_number.as_u32()))
     }
 

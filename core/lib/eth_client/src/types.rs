@@ -2,9 +2,14 @@ use rlp::RlpStream;
 use zksync_types::{
     eth_sender::EthTxBlobSidecar,
     ethabi, web3,
-    web3::{contract::Tokenize, BlockId, Bytes, TransactionReceipt},
+    web3::{
+        contract::{Detokenize, Tokenize},
+        BlockId, Bytes, TransactionReceipt,
+    },
     Address, EIP_4844_TX_TYPE, H256, U256,
 };
+
+use crate::EthInterface;
 
 /// Arguments for calling a function in an unspecified Ethereum smart contract.
 #[derive(Debug)]
@@ -38,7 +43,7 @@ impl CallFunctionArgs {
     pub fn for_contract(
         self,
         contract_address: Address,
-        contract_abi: ethabi::Contract,
+        contract_abi: ethabi::Contract, // FIXME: take by ref?
     ) -> ContractCall {
         ContractCall {
             contract_address,
@@ -69,29 +74,84 @@ impl ContractCall {
     pub fn args(&self) -> &[ethabi::Token] {
         &self.inner.params
     }
+
+    pub async fn call<Res: Detokenize>(&self, client: &dyn EthInterface) -> Result<Res, Error> {
+        let func = self
+            .contract_abi
+            .function(&self.inner.name)
+            .map_err(ContractError::Function)?;
+        let encoded_input =
+            func.encode_input(&self.inner.params)
+                .map_err(|source| ContractError::EncodeInput {
+                    signature: func.signature(),
+                    input: self.inner.params.clone(),
+                    source,
+                })?;
+
+        let request = web3::CallRequest {
+            from: self.inner.from,
+            to: Some(self.contract_address),
+            data: Some(Bytes(encoded_input)),
+            // Other options are never set
+            gas: None,
+            gas_price: None,
+            value: None,
+            transaction_type: None,
+            access_list: None,
+            max_fee_per_gas: None,
+            max_priority_fee_per_gas: None,
+        };
+
+        let encoded_output = client
+            .call_contract_function(request, self.inner.block)
+            .await?;
+        let output_tokens = func.decode_output(&encoded_output.0).map_err(|source| {
+            ContractError::DecodeOutput {
+                signature: func.signature(),
+                output: encoded_output,
+                source,
+            }
+        })?;
+        Ok(Res::from_tokens(output_tokens.clone()).map_err(|source| {
+            ContractError::DetokenizeOutput {
+                signature: func.signature(),
+                output: output_tokens,
+                source,
+            }
+        })?)
+    }
 }
 
+/// Contract-related subset of Ethereum client errors.
 #[derive(Debug, thiserror::Error)]
 pub enum ContractError {
+    /// Failed resolving a function specified for the contract call in the contract ABI.
     #[error("failed resolving contract function: {0}")]
     Function(#[source] ethabi::Error),
-    #[error("failed encoding input {input:?} for function `{signature}`: {source}")]
+    /// Failed encoding input for the contract call.
+    #[error("failed encoding input {input:?} for call to `{signature}`: {source}")]
     EncodeInput {
         signature: String,
         input: Vec<ethabi::Token>,
         #[source]
         source: ethabi::Error,
     },
-    #[error("failed decoding output {output:?} for function `{signature}`: {source}")]
+    /// Failed decoding contract call output from bytes into tokens.
+    #[error("failed decoding output {output:?} for call to `{signature}`: {source}")]
     DecodeOutput {
         signature: String,
         output: Bytes,
         #[source]
         source: ethabi::Error,
     },
-    // FIXME: better error handling
-    #[error("failed detokenizing output: {0}")]
-    DetokenizeOutput(#[source] web3::contract::Error),
+    /// Failed decoding contract call output from tokens into a final response value.
+    #[error("failed decoding output {output:?} for call to `{signature}`: {source}")]
+    DetokenizeOutput {
+        signature: String,
+        output: Vec<ethabi::Token>,
+        #[source]
+        source: web3::contract::Error,
+    },
 }
 
 /// Common error type exposed by the crate,
@@ -115,13 +175,6 @@ pub enum Error {
     /// EIP4844 transaction lacks `blob_versioned_hashes` field
     #[error("EIP4844 transaction lacks blob_versioned_hashes field")]
     Eip4844MissingBlobVersionedHashes,
-}
-
-// FIXME: remove
-impl From<web3::contract::Error> for Error {
-    fn from(err: web3::contract::Error) -> Self {
-        Self::Contract(ContractError::DetokenizeOutput(err))
-    }
 }
 
 /// Raw transaction bytes.

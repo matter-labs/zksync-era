@@ -11,12 +11,8 @@ use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_config::configs::chain::L1BatchCommitDataGeneratorMode;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{CallFunctionArgs, Error as EthClientError, EthInterface};
-use zksync_l1_contract_interface::Detokenize;
-use zksync_types::{
-    ethabi::{self, Address},
-    L1BatchNumber, ProtocolVersionId,
-};
+use zksync_eth_client::{CallFunctionArgs, ContractError, Error as EthClientError, EthInterface};
+use zksync_types::{Address, L1BatchNumber, ProtocolVersionId};
 
 #[cfg(test)]
 pub(crate) mod testonly;
@@ -169,12 +165,12 @@ pub(crate) async fn pending_protocol_version(
 async fn get_pubdata_pricing_mode(
     diamond_proxy_address: Address,
     eth_client: &dyn EthInterface,
-) -> Result<Vec<ethabi::Token>, EthClientError> {
+) -> Result<L1BatchCommitDataGeneratorMode, EthClientError> {
     let args = CallFunctionArgs::new("getPubdataPricingMode", ()).for_contract(
         diamond_proxy_address,
-        zksync_contracts::state_transition_manager_contract(),
+        zksync_contracts::hyperchain_contract(),
     );
-    eth_client.call_contract_function(args).await
+    args.call(eth_client).await
 }
 
 pub async fn ensure_l1_batch_commit_data_generation_mode(
@@ -184,14 +180,7 @@ pub async fn ensure_l1_batch_commit_data_generation_mode(
 ) -> anyhow::Result<()> {
     match get_pubdata_pricing_mode(diamond_proxy_address, eth_client).await {
         // Getters contract support getPubdataPricingMode method
-        Ok(l1_contract_pubdata_pricing_mode) => {
-            let l1_contract_batch_commitment_mode =
-                L1BatchCommitDataGeneratorMode::from_tokens(l1_contract_pubdata_pricing_mode)
-                    .context(
-                        "Unable to parse L1BatchCommitDataGeneratorMode received from L1 contract",
-                    )?;
-
-            // contracts mode == server mode
+        Ok(l1_contract_batch_commitment_mode) => {
             anyhow::ensure!(
                 l1_contract_batch_commitment_mode == selected_l1_batch_commit_data_generator_mode,
                 "The selected L1BatchCommitDataGeneratorMode ({:?}) does not match the commitment mode used on L1 contract ({:?})",
@@ -204,7 +193,7 @@ pub async fn ensure_l1_batch_commit_data_generation_mode(
         // Getters contract does not support getPubdataPricingMode method.
         // This case is accepted for backwards compatibility with older contracts, but emits a
         // warning in case the wrong contract address was passed by the caller.
-        Err(EthClientError::Contract(_)) => {
+        Err(EthClientError::Contract(ContractError::Function(_))) => {
             tracing::warn!("Getters contract does not support getPubdataPricingMode method");
             Ok(())
         }
@@ -217,7 +206,7 @@ mod tests {
     use std::{mem, sync::Mutex};
 
     use zksync_eth_client::{clients::MockEthereum, ClientError, ContractError};
-    use zksync_types::U256;
+    use zksync_types::{ethabi, U256};
 
     use super::*;
     use crate::genesis::{insert_genesis_batch, GenesisParams};
@@ -269,7 +258,7 @@ mod tests {
 
     fn mock_ethereum(token: ethabi::Token, err: Option<EthClientError>) -> MockEthereum {
         let err_mutex = Mutex::new(err);
-        MockEthereum::default().with_fallible_call_handler(move |_call| {
+        MockEthereum::default().with_fallible_call_handler(move |call, block_id| {
             let err = mem::take(&mut *err_mutex.lock().unwrap());
             if let Some(err) = err {
                 Err(err)
@@ -280,7 +269,7 @@ mod tests {
     }
 
     fn mock_ethereum_with_legacy_contract() -> MockEthereum {
-        let abi_err = ethabi::Error::InvalidName("undefined".into());
+        let abi_err = ethabi::Error::InvalidName("getPubdataPricingMode".into());
         let err = EthClientError::Contract(ContractError::Function(abi_err));
         mock_ethereum(ethabi::Token::Uint(U256::zero()), Some(err))
     }
@@ -394,7 +383,7 @@ mod tests {
         .to_string();
 
         assert!(
-            err.contains("Unable to parse L1BatchCommitDataGeneratorMode"),
+            err.contains("L1BatchCommitDataGeneratorMode::from_tokens"),
             "{err}",
         );
     }

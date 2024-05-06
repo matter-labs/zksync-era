@@ -4,7 +4,7 @@ use async_trait::async_trait;
 pub use jsonrpsee::core::ClientError;
 use zksync_types::{
     eth_sender::EthTxBlobSidecar,
-    ethabi,
+    ethabi, web3,
     web3::{
         AccessList, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionCondition,
         TransactionReceipt,
@@ -153,8 +153,11 @@ pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
     async fn eth_balance(&self, address: Address, component: &'static str) -> Result<U256, Error>;
 
     /// Invokes a function on a contract specified by `contract_address` / `contract_abi` using `eth_call`.
-    async fn call_contract_function(&self, call: ContractCall)
-        -> Result<Vec<ethabi::Token>, Error>;
+    async fn call_contract_function(
+        &self,
+        request: web3::CallRequest,
+        block: Option<BlockId>,
+    ) -> Result<web3::Bytes, Error>;
 
     /// Returns the logs for the specified filter.
     async fn logs(&self, filter: Filter, component: &'static str) -> Result<Vec<Log>, Error>;
@@ -259,15 +262,6 @@ pub trait BoundEthInterface: AsRef<dyn EthInterface> + 'static + Sync + Send + f
     ) -> Result<U256, Error> {
         self.allowance_on_account(token_address, self.contract_addr(), erc20_abi)
             .await
-    }
-
-    /// Invokes a function on a contract specified by `Self::contract()` / `Self::contract_addr()`.
-    async fn call_main_contract_function(
-        &self,
-        args: CallFunctionArgs,
-    ) -> Result<Vec<ethabi::Token>, Error> {
-        let args = args.for_contract(self.contract_addr(), self.contract().clone());
-        self.as_ref().call_contract_function(args).await
     }
 
     /// Encodes a function using the `Self::contract()` ABI.

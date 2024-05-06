@@ -18,10 +18,7 @@ use zksync_types::{
     l1::L1Tx,
     network::Network,
     url::SensitiveUrl,
-    web3::{
-        contract::{Detokenize, Tokenize},
-        TransactionReceipt,
-    },
+    web3::{contract::Tokenize, TransactionReceipt},
     Address, L1ChainId, L1TxCommonData, H160, H256, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
 };
 use zksync_web3_decl::namespaces::{EthNamespaceClient, ZksNamespaceClient};
@@ -154,14 +151,14 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         address: Address,
         token_address: Address,
     ) -> Result<U256, ClientError> {
-        let args = CallFunctionArgs::new("balanceOf", address)
-            .for_contract(token_address, self.erc20_abi.clone());
-        let res = self
-            .query_client()
-            .call_contract_function(args)
+        CallFunctionArgs::new("balanceOf", address)
+            .for_contract(token_address, self.erc20_abi.clone())
+            .call(self.query_client())
             .await
-            .map_err(|err| ClientError::NetworkError(err.to_string()))?;
-        U256::from_tokens(res).map_err(|err| ClientError::MalformedResponse(err.to_string()))
+            .map_err(|err| match err {
+                Error::EthereumGateway(err) => ClientError::NetworkError(err.to_string()),
+                _ => ClientError::MalformedResponse(err.to_string()),
+            })
     }
 
     /// Returns the pending nonce for the Ethereum account.
@@ -189,14 +186,14 @@ impl<S: EthereumSigner> EthereumProvider<S> {
     ) -> Result<Address, ClientError> {
         // TODO(EVM-571): This should be moved to the shared bridge, which does not have `l2_token_address` on L1. Use L2 contracts instead.
         let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge.unwrap());
-        let args = CallFunctionArgs::new("l2TokenAddress", l1_token_address)
-            .for_contract(bridge, self.l1_erc20_bridge_abi.clone());
-        let res = self
-            .query_client()
-            .call_contract_function(args)
+        CallFunctionArgs::new("l2TokenAddress", l1_token_address)
+            .for_contract(bridge, self.l1_erc20_bridge_abi.clone())
+            .call(self.query_client())
             .await
-            .map_err(|err| ClientError::NetworkError(err.to_string()))?;
-        Address::from_tokens(res).map_err(|err| ClientError::MalformedResponse(err.to_string()))
+            .map_err(|err| match err {
+                Error::EthereumGateway(err) => ClientError::NetworkError(err.to_string()),
+                _ => ClientError::MalformedResponse(err.to_string()),
+            })
     }
 
     /// Checks whether ERC20 of a certain token deposit with limit is approved for account.
@@ -374,8 +371,12 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             "l2TransactionBaseCost",
             (gas_price, gas_limit, U256::from(gas_per_pubdata_byte)),
         );
-        let res = self.eth_client.call_main_contract_function(args).await?;
-        Ok(U256::from_tokens(res)?)
+        args.for_contract(
+            self.eth_client.contract_addr(),
+            self.eth_client.contract().clone(),
+        )
+        .call(self.query_client())
+        .await
     }
 
     #[allow(clippy::too_many_arguments)]

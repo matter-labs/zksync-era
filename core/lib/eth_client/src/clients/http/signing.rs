@@ -4,14 +4,12 @@ use async_trait::async_trait;
 use zksync_contracts::hyperchain_contract;
 use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
 use zksync_types::{
-    ethabi,
-    web3::{self, contract::Detokenize},
-    Address, K256PrivateKey, L1ChainId, EIP_4844_TX_TYPE, H160, U256,
+    ethabi, web3, Address, K256PrivateKey, L1ChainId, EIP_4844_TX_TYPE, H160, U256,
 };
 
 use super::{Method, LATENCIES};
 use crate::{
-    types::{encode_blob_tx_with_sidecar, ContractError, Error, SignedCallResult},
+    types::{encode_blob_tx_with_sidecar, Error, SignedCallResult},
     BoundEthInterface, CallFunctionArgs, EthInterface, Options, RawTransactionBytes,
 };
 
@@ -197,11 +195,13 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         erc20_abi: ethabi::Contract,
     ) -> Result<U256, Error> {
         let latency = LATENCIES.direct[&Method::Allowance].start();
-        let args = CallFunctionArgs::new("allowance", (self.inner.sender_account, address))
-            .for_contract(token_address, erc20_abi);
-        let res = self.as_ref().call_contract_function(args).await?;
+        let allowance: U256 =
+            CallFunctionArgs::new("allowance", (self.inner.sender_account, address))
+                .for_contract(token_address, erc20_abi)
+                .call(self.as_ref())
+                .await?;
         latency.observe();
-        Ok(U256::from_tokens(res).map_err(ContractError::DetokenizeOutput)?)
+        Ok(allowance)
     }
 }
 

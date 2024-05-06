@@ -8,13 +8,13 @@ use async_trait::async_trait;
 use jsonrpsee::{core::ClientError, types::ErrorObject};
 use zksync_types::{
     ethabi,
-    web3::{self, contract::Tokenize},
+    web3::{self, contract::Tokenize, BlockId},
     Address, L1ChainId, H160, H256, U256, U64,
 };
 
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
-    BoundEthInterface, ContractCall, EthInterface, Options, RawTransactionBytes,
+    BoundEthInterface, EthInterface, Options, RawTransactionBytes,
 };
 
 #[derive(Debug, Clone)]
@@ -127,7 +127,8 @@ impl MockExecutedTxHandle<'_> {
     }
 }
 
-type CallHandler = dyn Fn(&ContractCall) -> Result<ethabi::Token, Error> + Send + Sync;
+type CallHandler =
+    dyn Fn(&web3::CallRequest, BlockId) -> Result<ethabi::Token, Error> + Send + Sync;
 
 /// Mock Ethereum client is capable of recording all the incoming requests for the further analysis.
 pub struct MockEthereum {
@@ -168,8 +169,8 @@ impl Default for MockEthereum {
             excess_blob_gas_history: vec![],
             non_ordering_confirmations: false,
             inner: RwLock::default(),
-            call_handler: Box::new(|call| {
-                panic!("Unexpected eth_call: {call:?}");
+            call_handler: Box::new(|call, block_id| {
+                panic!("Unexpected eth_call: {call:?}, {block_id:?}");
             }),
         }
     }
@@ -271,17 +272,17 @@ impl MockEthereum {
 
     pub fn with_call_handler<F>(self, call_handler: F) -> Self
     where
-        F: 'static + Send + Sync + Fn(&ContractCall) -> ethabi::Token,
+        F: 'static + Send + Sync + Fn(&web3::CallRequest, BlockId) -> ethabi::Token,
     {
         Self {
-            call_handler: Box::new(move |call| Ok(call_handler(call))),
+            call_handler: Box::new(move |call, block_id| Ok(call_handler(call, block_id))),
             ..self
         }
     }
 
     pub fn with_fallible_call_handler<F>(self, call_handler: F) -> Self
     where
-        F: 'static + Send + Sync + Fn(&ContractCall) -> Result<ethabi::Token, Error>,
+        F: 'static + Send + Sync + Fn(&web3::CallRequest, BlockId) -> Result<ethabi::Token, Error>,
     {
         Self {
             call_handler: Box::new(call_handler),
@@ -372,9 +373,11 @@ impl EthInterface for MockEthereum {
 
     async fn call_contract_function(
         &self,
-        call: ContractCall,
-    ) -> Result<Vec<ethabi::Token>, Error> {
-        (self.call_handler)(&call).map(|token| vec![token])
+        request: web3::CallRequest,
+        block: Option<BlockId>,
+    ) -> Result<web3::Bytes, Error> {
+        (self.call_handler)(&request, block.unwrap_or(web3::BlockNumber::Pending.into()))
+            .map(|token| web3::Bytes(ethabi::encode(&[token])))
     }
 
     async fn get_tx(
