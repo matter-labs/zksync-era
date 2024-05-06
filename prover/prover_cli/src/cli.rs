@@ -14,6 +14,9 @@ struct ProverCLI {
     config: ProverCLIConfig,
 }
 
+// Note: This is a temporary solution for the configuration of the CLI. In the
+// future, we should have an `config` command to set the configuration in a
+// `.config` file.
 #[derive(Args)]
 pub struct ProverCLIConfig {
     #[clap(
