@@ -10,8 +10,6 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-thiserror = "1.0.58"
-
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 clap = { workspace = true, features = ["derive"] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }

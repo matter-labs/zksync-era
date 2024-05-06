@@ -1,3 +1,4 @@
+use anyhow::Context;
 use prover_dal::{Prover, ProverDal};
 use zksync_basic_types::{
     ethabi::{Contract, Token},
@@ -10,18 +11,11 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_eth_client::{clients::QueryClient, CallFunctionArgs, EthInterface};
 
-use crate::errors::CLIErrors;
-
-pub(crate) async fn run() -> Result<(), CLIErrors> {
+pub(crate) async fn run() -> anyhow::Result<()> {
     println!(" ====== L1 Status ====== ");
-    let postgres_config = PostgresConfig::from_env().map_err(|e| {
-        CLIErrors::FromEnvError("PostgresConfig::from_env()".to_owned(), e.to_string())
-    })?;
-    let contracts_config = ContractsConfig::from_env().map_err(|e| {
-        CLIErrors::FromEnvError("ContractsConfig::from_env()".to_owned(), e.to_string())
-    })?;
-    let eth_config = EthConfig::from_env()
-        .map_err(|e| CLIErrors::FromEnvError("EthConfig::from_env()".to_owned(), e.to_string()))?;
+    let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env")?;
+    let contracts_config = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
+    let eth_config = EthConfig::from_env().context("EthConfig::from_env")?;
     let query_client = QueryClient::new(eth_config.web3_url)?;
 
     let total_batches_committed_tokens = contract_call(
@@ -51,27 +45,16 @@ pub(crate) async fn run() -> Result<(), CLIErrors> {
     }
 
     let connection_pool = ConnectionPool::<Core>::builder(
-        postgres_config.replica_url().map_err(|e| {
-            CLIErrors::PostgresConfigError(
-                "postgres_config.replica_url()".to_owned(),
-                e.to_string(),
-            )
-        })?,
-        postgres_config.max_connections().map_err(|e| {
-            CLIErrors::PostgresConfigError(
-                "postgres_config.max_connections()".to_owned(),
-                e.to_string(),
-            )
-        })?,
+        postgres_config
+            .replica_url()
+            .context("postgres_config.replica_url()")?,
+        postgres_config
+            .max_connections()
+            .context("postgres_config.max_connections()")?,
     )
     .build()
     .await
-    .map_err(|e| {
-        CLIErrors::ConnectionPoolBuilderError(
-            "ConnectionPoolBuilder::build()".to_owned(),
-            e.to_string(),
-        )
-    })?;
+    .context("ConnectionPoolBuilder::build()")?;
 
     let mut conn = connection_pool.connection().await?;
 
@@ -116,27 +99,16 @@ pub(crate) async fn run() -> Result<(), CLIErrors> {
     };
 
     let prover_connection_pool = ConnectionPool::<Prover>::builder(
-        postgres_config.prover_url().map_err(|e| {
-            CLIErrors::PostgresConfigError(
-                "postgres_config.replica_url()".to_owned(),
-                e.to_string(),
-            )
-        })?,
-        postgres_config.max_connections().map_err(|e| {
-            CLIErrors::PostgresConfigError(
-                "postgres_config.max_connections()".to_owned(),
-                e.to_string(),
-            )
-        })?,
+        postgres_config
+            .prover_url()
+            .context("postgres_config.replica_url()")?,
+        postgres_config
+            .max_connections()
+            .context("postgres_config.max_connections()")?,
     )
     .build()
     .await
-    .map_err(|e| {
-        CLIErrors::ConnectionPoolBuilderError(
-            "ConnectionPoolBuilder::build()".to_owned(),
-            e.to_string(),
-        )
-    })?;
+    .context("ConnectionPoolBuilder::build()")?;
 
     let mut conn = prover_connection_pool.connection().await.unwrap();
 

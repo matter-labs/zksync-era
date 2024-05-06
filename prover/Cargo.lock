@@ -4348,7 +4348,6 @@ dependencies = [
  "prover_dal",
  "sqlx",
  "strum",
- "thiserror",
  "tokio",
  "tracing",
  "tracing-subscriber",
