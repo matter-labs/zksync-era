@@ -8,7 +8,7 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
 
-use crate::proof_data_handler::request_processor::RequestProcessor;
+use crate::request_processor::RequestProcessor;
 
 mod request_processor;
 

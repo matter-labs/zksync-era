@@ -23,6 +23,7 @@ mod tests;
 pub struct MainNodeConfig {
     pub executor: executor::Config,
     pub validator_key: validator::SecretKey,
+    pub chain_id: validator::ChainId,
 }
 
 impl MainNodeConfig {
@@ -31,7 +32,7 @@ impl MainNodeConfig {
     pub async fn run(self, ctx: &ctx::Ctx, store: Store) -> anyhow::Result<()> {
         scope::run!(&ctx, |ctx, s| async {
             store
-                .try_init_genesis(ctx, &self.validator_key.public())
+                .try_init_genesis(ctx, self.chain_id, &self.validator_key.public())
                 .await
                 .wrap("block_store.try_init_genesis()")?;
             let (block_store, runner) = store

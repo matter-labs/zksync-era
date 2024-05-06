@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package zksync.config.database;
 
+import "zksync/config/experimental.proto";
+
 enum MerkleTreeMode {
   FULL = 0;
   LIGHTWEIGHT = 1;
@@ -20,6 +22,7 @@ message MerkleTree {
 message DB {
   optional string state_keeper_db_path = 1; // optional; fs path
   optional MerkleTree merkle_tree = 2; // optional
+  optional experimental.DB experimental = 3; // optional
 }
 
 message Postgres {

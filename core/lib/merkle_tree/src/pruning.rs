@@ -138,13 +138,13 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
         // We must retain at least one tree version.
         let last_prunable_version = self.last_prunable_version();
         if last_prunable_version.is_none() {
-            tracing::info!("Nothing to prune; skipping");
+            tracing::debug!("Nothing to prune; skipping");
             return None;
         }
         let target_retained_version = last_prunable_version?.min(target_retained_version);
         let stale_key_new_versions = min_stale_key_version..=target_retained_version;
         if stale_key_new_versions.is_empty() {
-            tracing::info!(
+            tracing::debug!(
                 "No Merkle tree versions can be pruned; min stale key version is {min_stale_key_version}, \
                  target retained version is {target_retained_version}"
             );
@@ -165,7 +165,7 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
         load_stale_keys_latency.observe();
 
         if pruned_keys.is_empty() {
-            tracing::info!("No stale keys to remove; skipping");
+            tracing::debug!("No stale keys to remove; skipping");
             return None;
         }
         let deleted_stale_key_versions = min_stale_key_version..(max_stale_key_version + 1);
@@ -203,21 +203,24 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
         let mut wait_interval = Duration::ZERO;
         while !self.wait_for_abort(wait_interval) {
             let retained_version = self.target_retained_version.load(Ordering::Relaxed);
-            if let Some(stats) = self.prune_up_to(retained_version) {
+            wait_interval = if let Some(stats) = self.prune_up_to(retained_version) {
                 tracing::debug!(
                     "Performed pruning for target retained version {retained_version}: {stats:?}"
                 );
                 stats.report();
                 if stats.has_more_work() {
-                    continue;
+                    // Continue pruning right away instead of waiting for abort.
+                    Duration::ZERO
+                } else {
+                    self.poll_interval
                 }
             } else {
                 tracing::debug!(
                     "Pruning was not performed; waiting {:?}",
                     self.poll_interval
                 );
-            }
-            wait_interval = self.poll_interval;
+                self.poll_interval
+            };
         }
     }
 }
