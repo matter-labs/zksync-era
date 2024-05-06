@@ -279,6 +279,13 @@ This linker will speed up the build times, which can be pretty big for Rust bina
 
 Follow the instructions in the repo in order to install it and enable for Rust.
 
+If you installed `mold` to `/usr/local/bin/mold`, then the quickest way to use it without modifying any files is:
+
+```bash
+export RUSTFLAGS='-C link-arg=-fuse-ld=/usr/local/bin/mold'
+export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="clang"
+```
+
 ## Tip: Speeding up building `RocksDB`
 
 By default, each time you compile `rocksdb` crate, it will compile required C++ sources from scratch. It can be avoided
