@@ -33,7 +33,7 @@ const artifacts = {
     uniswapV2Factory: getEVMArtifact('../contracts/uniswap-v2/UniswapV2Factory.sol', 'UniswapV2Factory.sol'),
     opcodeTest: getEVMArtifact('../evm-contracts/OpcodeTest.sol'),
     selfDestruct: getEVMArtifact('../evm-contracts/SelfDestruct.sol'),
-    gasCaller: getEVMArtifact('../evm-contracts/gasCaller.sol'),
+    gasCaller: getEVMArtifact('../evm-contracts/GasCaller.sol'),
     counterFallback: getEVMArtifact('../evm-contracts/CounterFallback.sol'),
     uniswapFallback: getEVMArtifact('../evm-contracts/UniswapFallback.sol'),
     creatorFallback: getEVMArtifact('../evm-contracts/CreatorFallback.sol'),
