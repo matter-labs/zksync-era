@@ -31,35 +31,37 @@ pub struct GasAdjuster {
     pub(super) blob_base_fee_statistics: GasStatistics<U256>,
     pub(super) config: GasAdjusterConfig,
     pubdata_sending_mode: PubdataSendingMode,
-    eth_client: Arc<dyn EthInterface>,
+    eth_client: Box<dyn EthInterface>,
     base_token_fetcher: Arc<dyn ConversionRateFetcher>,
     pubdata_pricing: Arc<dyn PubdataPricing>,
 }
 
 impl GasAdjuster {
     pub async fn new(
-        eth_client: Arc<dyn EthInterface>,
+        eth_client: Box<dyn EthInterface>,
         config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
         base_token_fetcher: Arc<dyn ConversionRateFetcher>,
         pubdata_pricing: Arc<dyn PubdataPricing>,
     ) -> Result<Self, Error> {
+        let eth_client = eth_client.for_component("gas_adjuster");
+
         // Subtracting 1 from the "latest" block number to prevent errors in case
         // the info about the latest block is not yet present on the node.
         // This sometimes happens on Infura.
         let current_block = eth_client
-            .block_number("gas_adjuster")
+            .block_number()
             .await?
             .as_usize()
             .saturating_sub(1);
         let base_fee_history = eth_client
-            .base_fee_history(current_block, config.max_base_fee_samples, "gas_adjuster")
+            .base_fee_history(current_block, config.max_base_fee_samples)
             .await?;
 
         // Web3 API doesn't provide a method to fetch blob fees for multiple blocks using single request,
         // so we request blob base fee only for the latest block.
         let (_, last_block_blob_base_fee) =
-            Self::get_base_fees_history(&eth_client, current_block..=current_block).await?;
+            Self::get_base_fees_history(eth_client.as_ref(), current_block..=current_block).await?;
 
         Ok(Self {
             base_fee_statistics: GasStatistics::new(
@@ -88,7 +90,7 @@ impl GasAdjuster {
         // This sometimes happens on Infura.
         let current_block = self
             .eth_client
-            .block_number("gas_adjuster")
+            .block_number()
             .await?
             .as_usize()
             .saturating_sub(1);
@@ -97,7 +99,7 @@ impl GasAdjuster {
 
         if current_block > last_processed_block {
             let (base_fee_history, blob_base_fee_history) = Self::get_base_fees_history(
-                &self.eth_client,
+                self.eth_client.as_ref(),
                 (last_processed_block + 1)..=current_block,
             )
             .await?;
@@ -217,15 +219,13 @@ impl GasAdjuster {
     /// Returns vector of base fees and blob base fees for given block range.
     /// Note, that data for pre-dencun blocks won't be included in the vector returned.
     async fn get_base_fees_history(
-        eth_client: &Arc<dyn EthInterface>,
+        eth_client: &dyn EthInterface,
         block_range: RangeInclusive<usize>,
     ) -> Result<(Vec<u64>, Vec<U256>), Error> {
         let mut base_fee_history = Vec::new();
         let mut blob_base_fee_history = Vec::new();
         for block_number in block_range {
-            let header = eth_client
-                .block(U64::from(block_number).into(), "gas_adjuster")
-                .await?;
+            let header = eth_client.block(U64::from(block_number).into()).await?;
             if let Some(base_fee_per_gas) =
                 header.as_ref().and_then(|header| header.base_fee_per_gas)
             {

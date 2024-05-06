@@ -36,7 +36,7 @@ fn samples_queue() {
 #[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn kept_updated(deployment_mode: DeploymentMode) {
-    let eth_client = Arc::new(
+    let eth_client = Box::new(
         MockEthereum::default()
             .with_fee_history(vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9])
             .with_excess_blob_gas_history(vec![

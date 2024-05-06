@@ -10,6 +10,7 @@ use zksync_config::{
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::clients::MockEthereum;
+use zksync_node_genesis::create_genesis_l1_batch;
 use zksync_types::{
     block::L2BlockHeader,
     fee::TransactionExecutionMetrics,
@@ -24,7 +25,6 @@ use zksync_types::{
 use crate::{
     base_token_fetcher::NoOpConversionRateFetcher,
     fee_model::MainNodeFeeInputProvider,
-    genesis::create_genesis_l1_batch,
     l1_gas_price::{GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing},
     state_keeper::{MempoolGuard, MempoolIO},
     utils::testonly::{
@@ -78,7 +78,7 @@ impl Tester {
         let base_token_fetcher = Arc::new(NoOpConversionRateFetcher);
 
         GasAdjuster::new(
-            Arc::new(eth_client),
+            Box::new(eth_client),
             gas_adjuster_config,
             PubdataSendingMode::Calldata,
             base_token_fetcher,

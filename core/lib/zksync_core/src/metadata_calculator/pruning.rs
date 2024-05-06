@@ -146,11 +146,11 @@ impl MerkleTreePruningTask {
 mod tests {
     use tempfile::TempDir;
     use test_casing::test_casing;
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{L1BatchNumber, L2BlockNumber};
 
     use super::*;
     use crate::{
-        genesis::{insert_genesis_batch, GenesisParams},
         metadata_calculator::{
             tests::{extend_db_state_from_l1_batch, gen_storage_logs, mock_config, reset_db_state},
             MetadataCalculator,

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use anyhow::Context as _;
 use zksync_config::{
     configs::{wallets, ContractsConfig},
@@ -62,7 +60,7 @@ impl WiringLayer for PKSigningEthClientLayer {
             self.l1_chain_id,
             query_client.clone(),
         );
-        context.insert_resource(BoundEthInterfaceResource(Arc::new(signing_client)))?;
+        context.insert_resource(BoundEthInterfaceResource(Box::new(signing_client)))?;
 
         if let Some(blob_operator) = &self.wallets.blob_operator {
             let private_key = blob_operator.private_key();
@@ -73,7 +71,7 @@ impl WiringLayer for PKSigningEthClientLayer {
                 self.l1_chain_id,
                 query_client,
             );
-            context.insert_resource(BoundEthInterfaceForBlobsResource(Arc::new(
+            context.insert_resource(BoundEthInterfaceForBlobsResource(Box::new(
                 signing_client_for_blobs,
             )))?;
         }

@@ -68,7 +68,7 @@ fn mock_multicall_response() -> Token {
 #[derive(Debug)]
 struct EthSenderTester {
     conn: ConnectionPool<Core>,
-    gateway: Arc<MockEthereum>,
+    gateway: Box<MockEthereum>,
     manager: MockEthTxManager,
     aggregator: EthTxAggregator,
     gas_adjuster: Arc<GasAdjuster>,
@@ -105,7 +105,7 @@ impl EthSenderTester {
                 mock_multicall_response()
             });
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
-        let gateway = Arc::new(gateway);
+        let gateway = Box::new(gateway);
 
         let pubdata_pricing: Arc<dyn PubdataPricing> = match deployment_mode {
             DeploymentMode::Validium => Arc::new(ValidiumPubdataPricing {}),
@@ -185,7 +185,7 @@ impl EthSenderTester {
     }
 
     async fn get_block_numbers(&self) -> L1BlockNumbers {
-        let latest = self.gateway.block_number("").await.unwrap().as_u32().into();
+        let latest = self.gateway.block_number().await.unwrap().as_u32().into();
         let finalized = latest - Self::WAIT_CONFIRMATIONS as u32;
         L1BlockNumbers {
             finalized,
@@ -260,7 +260,7 @@ async fn confirm_many(
                 &mut tester.conn.connection().await.unwrap(),
                 &tx,
                 0,
-                L1BlockNumber(tester.gateway.block_number("").await?.as_u32()),
+                L1BlockNumber(tester.gateway.block_number().await?.as_u32()),
             )
             .await?;
         hashes.push(hash);
@@ -330,7 +330,7 @@ async fn resend_each_block(deployment_mode: DeploymentMode) -> anyhow::Result<()
     tester.gateway.advance_block_number(3);
     tester.gas_adjuster.keep_updated().await?;
 
-    let block = L1BlockNumber(tester.gateway.block_number("").await?.as_u32());
+    let block = L1BlockNumber(tester.gateway.block_number().await?.as_u32());
     let tx = tester
         .aggregator
         .save_eth_tx(
@@ -361,7 +361,7 @@ async fn resend_each_block(deployment_mode: DeploymentMode) -> anyhow::Result<()
 
     let sent_tx = tester
         .gateway
-        .get_tx(hash, "")
+        .get_tx(hash)
         .await
         .unwrap()
         .expect("no transaction");
@@ -409,7 +409,7 @@ async fn resend_each_block(deployment_mode: DeploymentMode) -> anyhow::Result<()
 
     let resent_tx = tester
         .gateway
-        .get_tx(resent_hash, "")
+        .get_tx(resent_hash)
         .await
         .unwrap()
         .expect("no transaction");
@@ -452,7 +452,7 @@ async fn dont_resend_already_mined(deployment_mode: DeploymentMode) -> anyhow::R
             &mut tester.conn.connection().await.unwrap(),
             &tx,
             0,
-            L1BlockNumber(tester.gateway.block_number("").await.unwrap().as_u32()),
+            L1BlockNumber(tester.gateway.block_number().await.unwrap().as_u32()),
         )
         .await
         .unwrap();
@@ -534,7 +534,7 @@ async fn three_scenarios(deployment_mode: DeploymentMode) -> anyhow::Result<()> 
                 &mut tester.conn.connection().await.unwrap(),
                 &tx,
                 0,
-                L1BlockNumber(tester.gateway.block_number("").await.unwrap().as_u32()),
+                L1BlockNumber(tester.gateway.block_number().await.unwrap().as_u32()),
             )
             .await
             .unwrap();
@@ -611,7 +611,7 @@ async fn failed_eth_tx(deployment_mode: DeploymentMode) {
             &mut tester.conn.connection().await.unwrap(),
             &tx,
             0,
-            L1BlockNumber(tester.gateway.block_number("").await.unwrap().as_u32()),
+            L1BlockNumber(tester.gateway.block_number().await.unwrap().as_u32()),
         )
         .await
         .unwrap();
@@ -1085,7 +1085,7 @@ async fn send_operation(
             &mut tester.conn.connection().await.unwrap(),
             &tx,
             0,
-            L1BlockNumber(tester.gateway.block_number("").await.unwrap().as_u32()),
+            L1BlockNumber(tester.gateway.block_number().await.unwrap().as_u32()),
         )
         .await
         .unwrap();

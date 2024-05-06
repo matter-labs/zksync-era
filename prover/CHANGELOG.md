@@ -1,5 +1,28 @@
 # Changelog
 
+## [14.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v13.0.0...prover-v14.0.0) (2024-05-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* **prover:** Protocol Upgrade 1.5.0 ([#1699](https://github.com/matter-labs/zksync-era/issues/1699))
+* shared bridge ([#298](https://github.com/matter-labs/zksync-era/issues/298))
+
+### Features
+
+* **config:** Wrap sensitive urls ([#1828](https://github.com/matter-labs/zksync-era/issues/1828)) ([c8ee740](https://github.com/matter-labs/zksync-era/commit/c8ee740a4cc7dc9196d4223397e0bfc9fd8198cf))
+* **Prover CLI:** `status batch` command ([#1638](https://github.com/matter-labs/zksync-era/issues/1638)) ([3fd6d65](https://github.com/matter-labs/zksync-era/commit/3fd6d653cad1e783f7a52eead13b322d4c6639a9))
+* **prover:** Protocol Upgrade 1.5.0 ([#1699](https://github.com/matter-labs/zksync-era/issues/1699)) ([6a557f7](https://github.com/matter-labs/zksync-era/commit/6a557f7766b727f72195d65e338cc41740cdbdbd))
+* **prover:** remove redundant config fields ([#1787](https://github.com/matter-labs/zksync-era/issues/1787)) ([a784ea6](https://github.com/matter-labs/zksync-era/commit/a784ea64c847f31010af0ee71b1e64e9961dc5e1))
+* shared bridge ([#298](https://github.com/matter-labs/zksync-era/issues/298)) ([8c3478a](https://github.com/matter-labs/zksync-era/commit/8c3478ae27c78a60c272f68c15d2bd59c99c8391))
+* **vm-runner:** implement VM runner storage layer ([#1651](https://github.com/matter-labs/zksync-era/issues/1651)) ([543f9e9](https://github.com/matter-labs/zksync-era/commit/543f9e9397915e893d7b747ceccd9b76f9d571aa))
+
+
+### Bug Fixes
+
+* **en:** Remove duplicate reorg detector ([#1783](https://github.com/matter-labs/zksync-era/issues/1783)) ([3417941](https://github.com/matter-labs/zksync-era/commit/34179412aa9bb11b8b2809d4028fbc200cf4d712))
+* **prover:** Use all 1.5.0 groups for nodes ([#1851](https://github.com/matter-labs/zksync-era/issues/1851)) ([70178e5](https://github.com/matter-labs/zksync-era/commit/70178e589dc8db0d8eeead63b645e8bd9c570966))
+
 ## [13.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v12.2.0...prover-v13.0.0) (2024-04-22)
 
 
