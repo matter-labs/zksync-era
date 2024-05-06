@@ -1,4 +1,4 @@
-use anyhow::{bail, Context};
+use anyhow::Context;
 use clap::Args as ClapArgs;
 use dialoguer::{theme::ColorfulTheme, Input};
 use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
@@ -8,19 +8,21 @@ use zksync_types::L1BatchNumber;
 
 #[derive(ClapArgs)]
 pub(crate) struct Args {
-    /// Batch number to delete
-    #[clap(short, long, conflicts_with = "all")]
-    batch: Option<L1BatchNumber>,
     /// Delete data from all batches
-    #[clap(short, long, conflicts_with = "batch", default_value_t = false)]
+    #[clap(
+        short,
+        long,
+        required_unless_present = "batch",
+        conflicts_with = "batch",
+        default_value_t = false
+    )]
     all: bool,
+    /// Batch number to delete
+    #[clap(short, long, required_unless_present = "all", conflicts_with = "all", default_value_t = L1BatchNumber(0))]
+    batch: L1BatchNumber,
 }
 
 pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
-    if !args.all && args.batch.is_none() {
-        bail!("Either --all or --batch should be provided");
-    }
-
     let confirmation = Input::<String>::with_theme(&ColorfulTheme::default())
         .with_prompt("Are you sure you want to delete the data?")
         .default("no".to_owned())
@@ -42,7 +44,7 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
     if args.all {
         delete_prover_db(conn).await?;
     } else {
-        delete_batch_data(conn, args.batch.unwrap()).await?;
+        delete_batch_data(conn, args.batch).await?;
     }
 
     Ok(())
