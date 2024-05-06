@@ -172,7 +172,7 @@ async fn get_pubdata_pricing_mode(
 ) -> Result<Vec<ethabi::Token>, EthClientError> {
     let args = CallFunctionArgs::new("getPubdataPricingMode", ()).for_contract(
         diamond_proxy_address,
-        zksync_contracts::state_transition_manager_contract(),
+        zksync_contracts::hyperchain_contract(),
     );
     eth_client.call_contract_function(args).await
 }
