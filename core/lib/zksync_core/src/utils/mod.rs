@@ -166,11 +166,13 @@ async fn get_pubdata_pricing_mode(
     diamond_proxy_address: Address,
     eth_client: &dyn EthInterface,
 ) -> Result<L1BatchCommitDataGeneratorMode, EthClientError> {
-    let args = CallFunctionArgs::new("getPubdataPricingMode", ()).for_contract(
-        diamond_proxy_address,
-        zksync_contracts::hyperchain_contract(),
-    );
-    args.call(eth_client).await
+    CallFunctionArgs::new("getPubdataPricingMode", ())
+        .for_contract(
+            diamond_proxy_address,
+            &zksync_contracts::hyperchain_contract(),
+        )
+        .call(eth_client)
+        .await
 }
 
 pub async fn ensure_l1_batch_commit_data_generation_mode(
@@ -258,7 +260,7 @@ mod tests {
 
     fn mock_ethereum(token: ethabi::Token, err: Option<EthClientError>) -> MockEthereum {
         let err_mutex = Mutex::new(err);
-        MockEthereum::default().with_fallible_call_handler(move |call, block_id| {
+        MockEthereum::default().with_fallible_call_handler(move |_, _| {
             let err = mem::take(&mut *err_mutex.lock().unwrap());
             if let Some(err) = err {
                 Err(err)

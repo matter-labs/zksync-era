@@ -43,8 +43,8 @@ impl CallFunctionArgs {
     pub fn for_contract(
         self,
         contract_address: Address,
-        contract_abi: ethabi::Contract, // FIXME: take by ref?
-    ) -> ContractCall {
+        contract_abi: &ethabi::Contract,
+    ) -> ContractCall<'_> {
         ContractCall {
             contract_address,
             contract_abi,
@@ -56,13 +56,13 @@ impl CallFunctionArgs {
 /// Information sufficient for calling a function in a specific Ethereum smart contract. Instantiated
 /// using [`CallFunctionArgs::for_contract()`].
 #[derive(Debug)]
-pub struct ContractCall {
+pub struct ContractCall<'a> {
     pub(crate) contract_address: Address,
-    pub(crate) contract_abi: ethabi::Contract,
+    pub(crate) contract_abi: &'a ethabi::Contract,
     pub(crate) inner: CallFunctionArgs,
 }
 
-impl ContractCall {
+impl ContractCall<'_> {
     pub fn contract_address(&self) -> Address {
         self.contract_address
     }

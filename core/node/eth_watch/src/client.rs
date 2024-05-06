@@ -98,7 +98,7 @@ impl EthClient for EthHttpQueryClient {
     async fn scheduler_vk_hash(&self, verifier_address: Address) -> Result<H256, EthClientError> {
         // New verifier returns the hash of the verification key.
         CallFunctionArgs::new("verificationKeyHash", ())
-            .for_contract(verifier_address, self.verifier_contract_abi.clone())
+            .for_contract(verifier_address, &self.verifier_contract_abi)
             .call(self.client.as_ref())
             .await
     }

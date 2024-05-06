@@ -144,7 +144,7 @@ impl EthTxAggregator {
         let calldata = self.generate_calldata_for_multicall();
         let args = CallFunctionArgs::new(&self.functions.aggregate3.name, calldata).for_contract(
             self.l1_multicall3_address,
-            self.functions.multicall_contract.clone(),
+            &self.functions.multicall_contract,
         );
         let aggregate3_result: Token = args.call((*self.eth_client).as_ref()).await?;
         self.parse_multicall_data(aggregate3_result)
@@ -337,7 +337,7 @@ impl EthTxAggregator {
     ) -> Result<H256, ETHSenderError> {
         let get_vk_hash = &self.functions.verification_key_hash;
         let vk_hash: H256 = CallFunctionArgs::new(&get_vk_hash.name, ())
-            .for_contract(verifier_address, self.functions.verifier_contract.clone())
+            .for_contract(verifier_address, &self.functions.verifier_contract)
             .call((*self.eth_client).as_ref())
             .await?;
         Ok(vk_hash)

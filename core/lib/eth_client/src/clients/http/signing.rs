@@ -192,7 +192,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         &self,
         token_address: Address,
         address: Address,
-        erc20_abi: ethabi::Contract,
+        erc20_abi: &ethabi::Contract,
     ) -> Result<U256, Error> {
         let latency = LATENCIES.direct[&Method::Allowance].start();
         let allowance: U256 =

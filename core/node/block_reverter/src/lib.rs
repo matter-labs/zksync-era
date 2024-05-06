@@ -554,7 +554,7 @@ impl BlockReverter {
             AggregatedActionType::Execute => "getTotalBatchesExecuted",
         };
         let block_number: U256 = CallFunctionArgs::new(function_name, ())
-            .for_contract(contract_address, hyperchain_contract())
+            .for_contract(contract_address, &hyperchain_contract())
             .call(eth_client)
             .await
             .with_context(|| {

@@ -152,7 +152,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         token_address: Address,
     ) -> Result<U256, ClientError> {
         CallFunctionArgs::new("balanceOf", address)
-            .for_contract(token_address, self.erc20_abi.clone())
+            .for_contract(token_address, &self.erc20_abi)
             .call(self.query_client())
             .await
             .map_err(|err| match err {
@@ -187,7 +187,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         // TODO(EVM-571): This should be moved to the shared bridge, which does not have `l2_token_address` on L1. Use L2 contracts instead.
         let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge.unwrap());
         CallFunctionArgs::new("l2TokenAddress", l1_token_address)
-            .for_contract(bridge, self.l1_erc20_bridge_abi.clone())
+            .for_contract(bridge, &self.l1_erc20_bridge_abi)
             .call(self.query_client())
             .await
             .map_err(|err| match err {
@@ -207,7 +207,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge.unwrap());
         let current_allowance = self
             .client()
-            .allowance_on_account(token_address, bridge, self.erc20_abi.clone())
+            .allowance_on_account(token_address, bridge, &self.erc20_abi)
             .await
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
 
@@ -371,12 +371,9 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             "l2TransactionBaseCost",
             (gas_price, gas_limit, U256::from(gas_per_pubdata_byte)),
         );
-        args.for_contract(
-            self.eth_client.contract_addr(),
-            self.eth_client.contract().clone(),
-        )
-        .call(self.query_client())
-        .await
+        args.for_contract(self.eth_client.contract_addr(), self.eth_client.contract())
+            .call(self.query_client())
+            .await
     }
 
     #[allow(clippy::too_many_arguments)]

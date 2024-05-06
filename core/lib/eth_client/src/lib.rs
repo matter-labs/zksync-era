@@ -206,7 +206,7 @@ pub trait BoundEthInterface: AsRef<dyn EthInterface> + 'static + Sync + Send + f
         &self,
         token_address: Address,
         address: Address,
-        erc20_abi: ethabi::Contract,
+        erc20_abi: &ethabi::Contract,
     ) -> Result<U256, Error>;
 
     /// Signs the transaction and sends it to the Ethereum network.
@@ -258,7 +258,7 @@ pub trait BoundEthInterface: AsRef<dyn EthInterface> + 'static + Sync + Send + f
     async fn allowance(
         &self,
         token_address: Address,
-        erc20_abi: ethabi::Contract,
+        erc20_abi: &ethabi::Contract,
     ) -> Result<U256, Error> {
         self.allowance_on_account(token_address, self.contract_addr(), erc20_abi)
             .await

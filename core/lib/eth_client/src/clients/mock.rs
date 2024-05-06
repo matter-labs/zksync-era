@@ -482,7 +482,7 @@ impl BoundEthInterface for MockEthereum {
         &self,
         _token_address: Address,
         _contract_address: Address,
-        _erc20_abi: ethabi::Contract,
+        _erc20_abi: &ethabi::Contract,
     ) -> Result<U256, Error> {
         unimplemented!("Not needed right now")
     }
