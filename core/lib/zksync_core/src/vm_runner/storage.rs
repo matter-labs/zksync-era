@@ -63,6 +63,12 @@ pub trait VmRunnerStorageLoader: Debug + Send + Sync + 'static {
         &self,
         conn: &mut Connection<'_, Core>,
     ) -> anyhow::Result<L1BatchNumber>;
+
+    async fn mark_l1_batch_as_completed(
+        &self,
+        conn: &mut Connection<'_, Core>,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<()>;
 }
 
 /// Abstraction for VM runner's storage layer that provides two main features:

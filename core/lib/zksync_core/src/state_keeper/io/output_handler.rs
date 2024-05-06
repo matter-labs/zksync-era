@@ -1,6 +1,7 @@
 //! Handling outputs produced by the state keeper.
 
 use std::fmt;
+use std::sync::Arc;
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -20,7 +21,10 @@ pub trait StateKeeperOutputHandler: 'static + Send + fmt::Debug {
     async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()>;
 
     /// Handles an L1 batch produced by the state keeper.
-    async fn handle_l1_batch(&mut self, _updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+    async fn handle_l1_batch(
+        &mut self,
+        _updates_manager: Arc<UpdatesManager>,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 }
@@ -81,11 +85,11 @@ impl OutputHandler {
 
     pub(crate) async fn handle_l1_batch(
         &mut self,
-        updates_manager: &UpdatesManager,
+        updates_manager: Arc<UpdatesManager>,
     ) -> anyhow::Result<()> {
         for handler in &mut self.inner {
             handler
-                .handle_l1_batch(updates_manager)
+                .handle_l1_batch(updates_manager.clone())
                 .await
                 .with_context(|| {
                     format!(
