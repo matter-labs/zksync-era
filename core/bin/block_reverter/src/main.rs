@@ -1,9 +1,12 @@
-use std::env;
+use std::{env, sync::Arc};
 
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
-use zksync_block_reverter::{BlockReverter, BlockReverterEthConfig, NodeRole};
+use zksync_block_reverter::{
+    eth_client::clients::{PKSigningClient, QueryClient},
+    BlockReverter, BlockReverterEthConfig, NodeRole,
+};
 use zksync_config::{
     configs::{chain::NetworkConfig, ObservabilityConfig},
     ContractsConfig, DBConfig, EthConfig, PostgresConfig,
@@ -109,7 +112,7 @@ async fn main() -> anyhow::Result<()> {
         .map_err(|err| {
             anyhow::anyhow!("failed parsing `CONTRACTS_ERA_CHAIN_ID` env variable: {err}")
         })?;
-    let config = BlockReverterEthConfig::new(eth_sender, &contracts, &network, era_chain_id)?;
+    let config = BlockReverterEthConfig::new(&eth_sender, &contracts, &network, era_chain_id)?;
 
     let connection_pool = ConnectionPool::<Core>::builder(
         postgres_config.master_url()?,
@@ -125,8 +128,11 @@ async fn main() -> anyhow::Result<()> {
             json,
             operator_address,
         } => {
+            let eth_client =
+                QueryClient::new(eth_sender.web3_url.clone()).context("Ethereum client")?;
+
             let suggested_values = block_reverter
-                .suggested_values(&config, operator_address)
+                .suggested_values(&eth_client, &config, operator_address)
                 .await?;
             if json {
                 println!("{}", serde_json::to_string(&suggested_values)?);
@@ -139,10 +145,29 @@ async fn main() -> anyhow::Result<()> {
             priority_fee_per_gas,
             nonce,
         } => {
+            let eth_client =
+                QueryClient::new(eth_sender.web3_url.clone()).context("Ethereum client")?;
+            #[allow(deprecated)]
+            let reverter_private_key = eth_sender
+                .sender
+                .context("eth_sender_config")?
+                .private_key()
+                .context("eth_sender_config.private_key")?
+                .context("eth_sender_config.private_key is not set")?;
+
+            let eth_client = PKSigningClient::new_raw(
+                reverter_private_key,
+                contracts.diamond_proxy_addr,
+                priority_fee_per_gas.unwrap_or_default(), // FIXME: make optional?
+                9.into(),                                 // FIXME: make optional?
+                Arc::new(eth_client),
+            );
+
             let priority_fee_per_gas =
                 priority_fee_per_gas.map_or(default_priority_fee_per_gas, U256::from);
             block_reverter
                 .send_ethereum_revert_transaction(
+                    &eth_client,
                     &config,
                     L1BatchNumber(l1_batch_number),
                     priority_fee_per_gas,
