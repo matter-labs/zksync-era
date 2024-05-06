@@ -1,10 +1,6 @@
 //! Utilities for the on-chain operations, such as `Deposit` and `FullExit`.
 
-use std::{
-    convert::TryFrom,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use serde_json::{Map, Value};
 use zksync_eth_client::{
@@ -105,7 +101,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         let query_client = QueryClient::new(eth_web3_url)
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
         let eth_client = SigningClient::new(
-            Arc::new(query_client),
+            Box::new(query_client).for_component("provider"),
             hyperchain_contract(),
             eth_addr,
             eth_signer,
@@ -127,7 +123,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
     }
 
     /// Exposes Ethereum node `web3` API.
-    pub fn client(&self) -> &SigningClient<S> {
+    pub fn client(&self) -> &dyn BoundEthInterface {
         &self.eth_client
     }
 
@@ -143,7 +139,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
     /// Returns the Ethereum account balance.
     pub async fn balance(&self) -> Result<U256, ClientError> {
         self.client()
-            .sender_eth_balance("provider")
+            .sender_eth_balance()
             .await
             .map_err(|err| ClientError::NetworkError(err.to_string()))
     }
@@ -167,7 +163,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
     /// Returns the pending nonce for the Ethereum account.
     pub async fn nonce(&self) -> Result<U256, ClientError> {
         self.client()
-            .pending_nonce("provider")
+            .pending_nonce()
             .await
             .map_err(|err| ClientError::NetworkError(err.to_string()))
     }
@@ -254,7 +250,6 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                     gas: Some(300_000.into()),
                     ..Default::default()
                 },
-                "provider",
             )
             .await
             .map_err(|_| ClientError::IncorrectCredentials)?;
@@ -284,7 +279,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                 ..options.unwrap_or_default()
             };
             self.client()
-                .sign_prepared_tx_for_addr(Vec::new(), to, options, "provider")
+                .sign_prepared_tx_for_addr(Vec::new(), to, options)
                 .await
                 .map_err(|_| ClientError::IncorrectCredentials)?
         } else {
@@ -305,7 +300,6 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                         gas: Some(300_000.into()),
                         ..options.unwrap_or_default()
                     },
-                    "provider",
                 )
                 .await
                 .map_err(|_| ClientError::IncorrectCredentials)?
@@ -344,7 +338,6 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                         gas: Some(100_000.into()),
                         ..Default::default()
                     },
-                    "provider",
                 )
                 .await
                 .map_err(|_| ClientError::IncorrectCredentials)?
@@ -368,13 +361,13 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         let gas_price = if let Some(gas_price) = gas_price {
             gas_price
         } else {
-            self.query_client().get_gas_price("zksync-rs").await?
+            self.query_client().get_gas_price().await?
         };
         let args = CallFunctionArgs::new(
             "l2TransactionBaseCost",
             (gas_price, gas_limit, gas_per_pubdata_byte),
         );
-        let res = self.eth_client.call_main_contract_function(args).await?;
+        let res = self.client().call_main_contract_function(args).await?;
         Ok(U256::from_tokens(res)?)
     }
 
@@ -396,7 +389,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             gas_price
         } else {
             self.query_client()
-                .get_gas_price("zksync-rs")
+                .get_gas_price()
                 .await
                 .map_err(|e| ClientError::NetworkError(e.to_string()))?
         };
@@ -405,7 +398,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .await
             .map_err(|e| ClientError::NetworkError(e.to_string()))?;
         let value = base_cost + operator_tip + l2_value;
-        let tx_data = self.eth_client.encode_tx_data(
+        let tx_data = self.client().encode_tx_data(
             "requestL2Transaction",
             (
                 contract_address,
@@ -420,7 +413,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         );
 
         let tx = self
-            .eth_client
+            .client()
             .sign_prepared_tx(
                 tx_data,
                 Options::with(|f| {
@@ -428,7 +421,6 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                     f.value = Some(value);
                     f.gas_price = Some(gas_price)
                 }),
-                "zksync-rs",
             )
             .await
             .map_err(|e| ClientError::NetworkError(e.to_string()))?;
@@ -488,7 +480,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         } else {
             let gas_price = self
                 .query_client()
-                .get_gas_price("zksync-rs")
+                .get_gas_price()
                 .await
                 .map_err(|e| ClientError::NetworkError(e.to_string()))?;
 
@@ -554,7 +546,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
 
             let signed_tx = self
                 .eth_client
-                .sign_prepared_tx_for_addr(data, bridge_address, options, "provider")
+                .sign_prepared_tx_for_addr(data, bridge_address, options)
                 .await
                 .map_err(|_| ClientError::IncorrectCredentials)?;
             self.query_client()
@@ -584,7 +576,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         loop {
             if let Some(receipt) = self
                 .query_client()
-                .tx_receipt(tx_hash, "provider")
+                .tx_receipt(tx_hash)
                 .await
                 .map_err(|err| ClientError::NetworkError(err.to_string()))?
             {
