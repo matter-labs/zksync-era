@@ -30,7 +30,7 @@ You can run it with `dryrun`.
 
 ```shell
 ZKSYNC_HOME=xxx cargo run --release --bin key_generator update-commitments // to update hashs to the configuration file
-ZKSYNC_HOME=xxx cargo run --release --bin key_generator update-commitments --dryrun  // not to update hashs
+ZKSYNC_HOME=xxx cargo run --release --bin key_generator update-commitments --dryrun  // not to update hashes
 ```
 
 ## Setup keys
