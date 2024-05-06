@@ -23,6 +23,7 @@ use crate::sdk::{
 pub struct Wallet<S: EthereumSigner, P> {
     pub provider: P,
     pub signer: Signer<S>,
+    pub use_legacy: bool,
 }
 
 impl<S> Wallet<S, HttpClient>
@@ -37,12 +38,14 @@ where
     pub fn with_http_client(
         rpc_address: &str,
         signer: Signer<S>,
+        use_legacy: bool,
     ) -> Result<Wallet<S, HttpClient>, ClientError> {
         let client = HttpClientBuilder::default().build(rpc_address)?;
 
         Ok(Wallet {
             provider: client,
             signer,
+            use_legacy,
         })
     }
 }
@@ -52,8 +55,12 @@ where
     S: EthereumSigner,
     P: EthNamespaceClient + ZksNamespaceClient + NetNamespaceClient + Web3NamespaceClient + Sync,
 {
-    pub fn new(provider: P, signer: Signer<S>) -> Self {
-        Self { provider, signer }
+    pub fn new(provider: P, signer: Signer<S>, use_legacy: bool) -> Self {
+        Self {
+            provider,
+            signer,
+            use_legacy,
+        }
     }
 
     /// Returns the wallet address.
@@ -177,6 +184,7 @@ where
             web3_addr,
             self.signer.eth_signer.clone(),
             self.signer.address,
+            self.use_legacy,
         )
         .await?;
 
