@@ -9,7 +9,10 @@ use tokio::{
     task::{self, JoinHandle},
 };
 use zksync_block_reverter::{BlockReverter, NodeRole};
-use zksync_commitment_generator::CommitmentGenerator;
+use zksync_commitment_generator::{
+    input_generation::{InputGenerator, RollupInputGenerator, ValidiumInputGenerator},
+    CommitmentGenerator,
+};
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{
     api::MerkleTreeApiConfig, chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode,
@@ -209,7 +212,7 @@ async fn run_core(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
     main_node_client: BoxedL2Client,
-    eth_client: Arc<dyn EthInterface>,
+    eth_client: Box<dyn EthInterface>,
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
@@ -342,14 +345,18 @@ async fn run_core(
     )
     .await?;
 
-    let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match config
-        .optional
-        .l1_batch_commit_data_generator_mode
-    {
-        L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
-        L1BatchCommitDataGeneratorMode::Validium => {
-            Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
-        }
+    let (l1_batch_commit_data_generator, input_generator): (
+        Arc<dyn L1BatchCommitDataGenerator>,
+        Box<dyn InputGenerator>,
+    ) = match config.optional.l1_batch_commit_data_generator_mode {
+        L1BatchCommitDataGeneratorMode::Rollup => (
+            Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+            Box::new(RollupInputGenerator),
+        ),
+        L1BatchCommitDataGeneratorMode::Validium => (
+            Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+            Box::new(ValidiumInputGenerator),
+        ),
     };
 
     let consistency_checker = ConsistencyChecker::new(
@@ -380,7 +387,7 @@ async fn run_core(
         .build()
         .await
         .context("failed to build a commitment_generator_pool")?;
-    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
+    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool, input_generator);
     app_health.insert_component(commitment_generator.health_check())?;
     let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
 
@@ -586,7 +593,7 @@ async fn init_tasks(
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
     main_node_client: BoxedL2Client,
-    eth_client: Arc<dyn EthInterface>,
+    eth_client: Box<dyn EthInterface>,
     task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
@@ -827,7 +834,7 @@ async fn main() -> anyhow::Result<()> {
     let main_node_client = BoxedL2Client::new(main_node_client);
 
     let eth_client_url = &config.required.eth_client_url;
-    let eth_client = Arc::new(QueryClient::new(eth_client_url.clone())?);
+    let eth_client = Box::new(QueryClient::new(eth_client_url.clone())?);
 
     let mut config = config
         .fetch_remote(&main_node_client, eth_client.as_ref())
@@ -893,7 +900,7 @@ async fn run_node(
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
     main_node_client: BoxedL2Client,
-    eth_client: Arc<dyn EthInterface>,
+    eth_client: Box<dyn EthInterface>,
 ) -> anyhow::Result<()> {
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");

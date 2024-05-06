@@ -611,15 +611,13 @@ impl L1BatchWithLogs {
 mod tests {
     use tempfile::TempDir;
     use zksync_dal::{ConnectionPool, Core};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
     use zksync_types::{StorageKey, StorageLog};
 
     use super::*;
-    use crate::{
-        genesis::{insert_genesis_batch, GenesisParams},
-        metadata_calculator::tests::{
-            extend_db_state, gen_storage_logs, mock_config, reset_db_state,
-        },
+    use crate::metadata_calculator::tests::{
+        extend_db_state, gen_storage_logs, mock_config, reset_db_state,
     };
 
     impl L1BatchWithLogs {

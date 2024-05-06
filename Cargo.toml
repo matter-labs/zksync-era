@@ -16,6 +16,8 @@ members = [
     "core/node/block_reverter",
     "core/node/commitment_generator",
     "core/node/house_keeper",
+    "core/node/genesis",
+    "core/node/shared_metrics",
     # Libraries
     "core/lib/db_connection",
     "core/lib/zksync_core",
@@ -233,3 +235,4 @@ zksync_proof_data_handler = { path = "core/node/proof_data_handler" }
 zksync_block_reverter = { path = "core/node/block_reverter" }
 zksync_commitment_generator = { path = "core/node/commitment_generator" }
 zksync_house_keeper = { path = "core/node/house_keeper" }
+zksync_node_genesis = { path = "core/node/genesis" }
