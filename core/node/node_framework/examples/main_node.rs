@@ -331,7 +331,10 @@ impl MainNodeBuilder {
     }
 
     fn add_commitment_generator_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(CommitmentGeneratorLayer);
+        let genesis = GenesisConfig::from_env()?;
+        self.node.add_layer(CommitmentGeneratorLayer::new(
+            genesis.l1_batch_commit_data_generator_mode,
+        ));
 
         Ok(self)
     }

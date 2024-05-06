@@ -21,7 +21,10 @@ use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker,
     CircuitBreakerChecker, CircuitBreakers,
 };
-use zksync_commitment_generator::CommitmentGenerator;
+use zksync_commitment_generator::{
+    input_generation::{InputGenerator, RollupInputGenerator, ValidiumInputGenerator},
+    CommitmentGenerator,
+};
 use zksync_concurrency::{ctx, scope};
 use zksync_config::{
     configs::{
@@ -615,6 +618,15 @@ pub async fn initialize_components(
         tracing::info!("initialized ETH-Watcher in {elapsed:?}");
     }
 
+    let input_generator: Box<dyn InputGenerator> = if genesis_config
+        .l1_batch_commit_data_generator_mode
+        == L1BatchCommitDataGeneratorMode::Validium
+    {
+        Box::new(ValidiumInputGenerator)
+    } else {
+        Box::new(RollupInputGenerator)
+    };
+
     if components.contains(&Component::EthTxAggregator) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-TxAggregator");
@@ -799,7 +811,8 @@ pub async fn initialize_components(
                 .build()
                 .await
                 .context("failed to build commitment_generator_pool")?;
-        let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
+        let commitment_generator =
+            CommitmentGenerator::new(commitment_generator_pool, input_generator);
         app_health.insert_component(commitment_generator.health_check())?;
         task_futures.push(tokio::spawn(
             commitment_generator.run(stop_receiver.clone()),

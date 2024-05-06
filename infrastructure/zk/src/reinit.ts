@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { up } from './up';
 import { announced } from './utils';
 import { initDevCmdAction, initHyperCmdAction } from './init';
+import { DeploymentMode } from './contract';
 
 const reinitDevCmdAction = async (): Promise<void> => {
     await announced('Setting up containers', up(false));
@@ -14,7 +15,7 @@ const reinitDevCmdAction = async (): Promise<void> => {
         skipTestTokenDeployment: true,
         // TODO(EVM-573): support Validium mode
         runObservability: true,
-        validiumMode: false
+        deploymentMode: DeploymentMode.Rollup
     });
 };
 
@@ -22,12 +23,13 @@ type ReinitHyperCmdActionOptions = { baseTokenName?: string; validiumMode: boole
 const reinitHyperCmdAction = async ({ baseTokenName, validiumMode }: ReinitHyperCmdActionOptions): Promise<void> => {
     // skipSetupCompletely, because we only want to compile
     // bumpChainId, because we want to reinitialize hyperchain with a new chain id
+    let deploymentMode = validiumMode !== undefined ? DeploymentMode.Validium : DeploymentMode.Rollup;
     await initHyperCmdAction({
         skipSetupCompletely: true,
         baseTokenName: baseTokenName,
         bumpChainId: true,
         runObservability: false,
-        validiumMode
+        deploymentMode
     });
 };
 
