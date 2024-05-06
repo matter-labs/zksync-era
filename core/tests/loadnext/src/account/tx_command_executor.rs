@@ -103,7 +103,7 @@ impl AccountLifespan {
         let gas_price = ethereum
             .client()
             .as_ref()
-            .get_gas_price("executor")
+            .get_gas_price()
             .await
             .map_err(|_| ClientError::Other)?;
 

@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, HashMap},
     fmt,
-    sync::{RwLock, RwLockWriteGuard},
+    sync::{Arc, RwLock, RwLockWriteGuard},
 };
 
 use async_trait::async_trait;
@@ -131,6 +131,7 @@ type CallHandler =
     dyn Fn(&web3::CallRequest, BlockId) -> Result<ethabi::Token, Error> + Send + Sync;
 
 /// Mock Ethereum client is capable of recording all the incoming requests for the further analysis.
+#[derive(Clone)]
 pub struct MockEthereum {
     max_fee_per_gas: U256,
     max_priority_fee_per_gas: U256,
@@ -139,8 +140,8 @@ pub struct MockEthereum {
     /// If true, the mock will not check the ordering nonces of the transactions.
     /// This is useful for testing the cases when the transactions are executed out of order.
     non_ordering_confirmations: bool,
-    inner: RwLock<MockEthereumInner>,
-    call_handler: Box<CallHandler>,
+    inner: Arc<RwLock<MockEthereumInner>>,
+    call_handler: Arc<CallHandler>,
 }
 
 impl fmt::Debug for MockEthereum {
@@ -168,8 +169,8 @@ impl Default for MockEthereum {
             base_fee_history: vec![],
             excess_blob_gas_history: vec![],
             non_ordering_confirmations: false,
-            inner: RwLock::default(),
-            call_handler: Box::new(|call, block_id| {
+            inner: Arc::default(),
+            call_handler: Arc::new(|call, block_id| {
                 panic!("Unexpected eth_call: {call:?}, {block_id:?}");
             }),
         }
@@ -177,6 +178,8 @@ impl Default for MockEthereum {
 }
 
 impl MockEthereum {
+    const SENDER_ACCOUNT: Address = Address::repeat_byte(0x11);
+
     /// A fake `sha256` hasher, which calculates an `std::hash` instead.
     /// This is done for simplicity and it's also much faster.
     fn fake_sha256(data: &[u8]) -> H256 {
@@ -275,7 +278,7 @@ impl MockEthereum {
         F: 'static + Send + Sync + Fn(&web3::CallRequest, BlockId) -> ethabi::Token,
     {
         Self {
-            call_handler: Box::new(move |call, block_id| Ok(call_handler(call, block_id))),
+            call_handler: Arc::new(move |call, block_id| Ok(call_handler(call, block_id))),
             ..self
         }
     }
@@ -285,7 +288,7 @@ impl MockEthereum {
         F: 'static + Send + Sync + Fn(&web3::CallRequest, BlockId) -> Result<ethabi::Token, Error>,
     {
         Self {
-            call_handler: Box::new(call_handler),
+            call_handler: Arc::new(call_handler),
             ..self
         }
     }
@@ -293,19 +296,23 @@ impl MockEthereum {
 
 #[async_trait]
 impl EthInterface for MockEthereum {
-    async fn fetch_chain_id(&self, _: &'static str) -> Result<L1ChainId, Error> {
+    fn clone_boxed(&self) -> Box<dyn EthInterface> {
+        Box::new(self.clone())
+    }
+
+    fn for_component(self: Box<Self>, _component_name: &'static str) -> Box<dyn EthInterface> {
+        self
+    }
+
+    async fn fetch_chain_id(&self) -> Result<L1ChainId, Error> {
         Ok(L1ChainId(9))
     }
 
-    async fn get_tx_status(
-        &self,
-        hash: H256,
-        _: &'static str,
-    ) -> Result<Option<ExecutedTxStatus>, Error> {
+    async fn get_tx_status(&self, hash: H256) -> Result<Option<ExecutedTxStatus>, Error> {
         Ok(self.inner.read().unwrap().tx_statuses.get(&hash).cloned())
     }
 
-    async fn block_number(&self, _: &'static str) -> Result<U64, Error> {
+    async fn block_number(&self) -> Result<U64, Error> {
         Ok(self.inner.read().unwrap().block_number.into())
     }
 
@@ -332,14 +339,29 @@ impl EthInterface for MockEthereum {
 
     async fn nonce_at_for_account(
         &self,
-        _account: Address,
-        _block: web3::BlockNumber,
-        _: &'static str,
+        account: Address,
+        block: web3::BlockNumber,
     ) -> Result<U256, Error> {
-        unimplemented!("Getting nonce for custom account is not supported")
+        if account != Self::SENDER_ACCOUNT {
+            unimplemented!("Getting nonce for custom account is not supported");
+        }
+
+        let inner = self.inner.read().unwrap();
+        Ok(match block {
+            web3::BlockNumber::Number(block_number) => {
+                let mut nonce_range = inner.nonces.range(..=block_number.as_u64());
+                let (_, &nonce) = nonce_range.next_back().unwrap_or((&0, &0));
+                nonce.into()
+            }
+            web3::BlockNumber::Pending => inner.pending_nonce.into(),
+            web3::BlockNumber::Latest => inner.current_nonce.into(),
+            _ => unimplemented!(
+                "`nonce_at_for_account()` called with unsupported block number: {block:?}"
+            ),
+        })
     }
 
-    async fn get_gas_price(&self, _: &'static str) -> Result<U256, Error> {
+    async fn get_gas_price(&self) -> Result<U256, Error> {
         Ok(self.max_fee_per_gas)
     }
 
@@ -347,21 +369,17 @@ impl EthInterface for MockEthereum {
         &self,
         from_block: usize,
         block_count: usize,
-        _component: &'static str,
     ) -> Result<Vec<u64>, Error> {
         let start_block = from_block.saturating_sub(block_count - 1);
         Ok(self.base_fee_history[start_block..=from_block].to_vec())
     }
 
-    async fn get_pending_block_base_fee_per_gas(
-        &self,
-        _component: &'static str,
-    ) -> Result<U256, Error> {
+    async fn get_pending_block_base_fee_per_gas(&self) -> Result<U256, Error> {
         Ok(U256::from(*self.base_fee_history.last().unwrap()))
     }
 
     async fn failure_reason(&self, tx_hash: H256) -> Result<Option<FailureInfo>, Error> {
-        let tx_status = self.get_tx_status(tx_hash, "failure_reason").await.unwrap();
+        let tx_status = self.get_tx_status(tx_hash).await.unwrap();
 
         Ok(tx_status.map(|status| FailureInfo {
             revert_code: status.success as i64,
@@ -380,11 +398,7 @@ impl EthInterface for MockEthereum {
             .map(|token| web3::Bytes(ethabi::encode(&[token])))
     }
 
-    async fn get_tx(
-        &self,
-        hash: H256,
-        _component: &'static str,
-    ) -> Result<Option<web3::Transaction>, Error> {
+    async fn get_tx(&self, hash: H256) -> Result<Option<web3::Transaction>, Error> {
         let txs = &self.inner.read().unwrap().sent_txs;
         let Some(tx) = txs.get(&hash) else {
             return Ok(None);
@@ -392,35 +406,19 @@ impl EthInterface for MockEthereum {
         Ok(Some(tx.clone().into()))
     }
 
-    async fn tx_receipt(
-        &self,
-        _tx_hash: H256,
-        _component: &'static str,
-    ) -> Result<Option<web3::TransactionReceipt>, Error> {
+    async fn tx_receipt(&self, _tx_hash: H256) -> Result<Option<web3::TransactionReceipt>, Error> {
         unimplemented!("Not needed right now")
     }
 
-    async fn eth_balance(
-        &self,
-        _address: Address,
-        _component: &'static str,
-    ) -> Result<U256, Error> {
+    async fn eth_balance(&self, _address: Address) -> Result<U256, Error> {
         unimplemented!("Not needed right now")
     }
 
-    async fn logs(
-        &self,
-        _filter: web3::Filter,
-        _component: &'static str,
-    ) -> Result<Vec<web3::Log>, Error> {
+    async fn logs(&self, _filter: web3::Filter) -> Result<Vec<web3::Log>, Error> {
         unimplemented!("Not needed right now")
     }
 
-    async fn block(
-        &self,
-        block_id: web3::BlockId,
-        _component: &'static str,
-    ) -> Result<Option<web3::Block<H256>>, Error> {
+    async fn block(&self, block_id: web3::BlockId) -> Result<Option<web3::Block<H256>>, Error> {
         match block_id {
             web3::BlockId::Number(web3::BlockNumber::Number(number)) => {
                 let excess_blob_gas = self
@@ -452,6 +450,14 @@ impl AsRef<dyn EthInterface> for MockEthereum {
 
 #[async_trait::async_trait]
 impl BoundEthInterface for MockEthereum {
+    fn clone_boxed(&self) -> Box<dyn BoundEthInterface> {
+        Box::new(self.clone())
+    }
+
+    fn for_component(self: Box<Self>, _component_name: &'static str) -> Box<dyn BoundEthInterface> {
+        self
+    }
+
     fn contract(&self) -> &ethabi::Contract {
         unimplemented!("Not needed right now")
     }
@@ -465,7 +471,7 @@ impl BoundEthInterface for MockEthereum {
     }
 
     fn sender_account(&self) -> Address {
-        Address::repeat_byte(0x11)
+        Self::SENDER_ACCOUNT
     }
 
     async fn sign_prepared_tx_for_addr(
@@ -473,7 +479,6 @@ impl BoundEthInterface for MockEthereum {
         data: Vec<u8>,
         contract_addr: H160,
         options: Options,
-        _component: &'static str,
     ) -> Result<SignedCallResult, Error> {
         self.sign_prepared_tx(data, contract_addr, options)
     }
@@ -486,29 +491,6 @@ impl BoundEthInterface for MockEthereum {
     ) -> Result<U256, Error> {
         unimplemented!("Not needed right now")
     }
-
-    async fn nonce_at(
-        &self,
-        block: web3::BlockNumber,
-        _component: &'static str,
-    ) -> Result<U256, Error> {
-        if let web3::BlockNumber::Number(block_number) = block {
-            let inner = self.inner.read().unwrap();
-            let mut nonce_range = inner.nonces.range(..=block_number.as_u64());
-            let (_, &nonce) = nonce_range.next_back().unwrap_or((&0, &0));
-            Ok(nonce.into())
-        } else {
-            panic!("MockEthereum::nonce_at called with non-number block tag");
-        }
-    }
-
-    async fn pending_nonce(&self, _: &'static str) -> Result<U256, Error> {
-        Ok(self.inner.read().unwrap().pending_nonce.into())
-    }
-
-    async fn current_nonce(&self, _: &'static str) -> Result<U256, Error> {
-        Ok(self.inner.read().unwrap().current_nonce.into())
-    }
 }
 
 #[cfg(test)]
@@ -518,11 +500,11 @@ mod tests {
     #[tokio::test]
     async fn managing_block_number() {
         let client = MockEthereum::default();
-        let block_number = client.block_number("test").await.unwrap();
+        let block_number = client.block_number().await.unwrap();
         assert_eq!(block_number, 0.into());
 
         client.advance_block_number(5);
-        let block_number = client.block_number("test").await.unwrap();
+        let block_number = client.block_number().await.unwrap();
         assert_eq!(block_number, 5.into());
     }
 
@@ -550,7 +532,7 @@ mod tests {
 
         client.execute_tx(tx_hash, true, 3);
         let returned_tx = client
-            .get_tx(tx_hash, "test")
+            .get_tx(tx_hash)
             .await
             .unwrap()
             .expect("no transaction");
@@ -562,7 +544,7 @@ mod tests {
         assert!(returned_tx.max_fee_per_gas.is_some());
 
         let tx_status = client
-            .get_tx_status(tx_hash, "test")
+            .get_tx_status(tx_hash)
             .await
             .unwrap()
             .expect("no transaction status");

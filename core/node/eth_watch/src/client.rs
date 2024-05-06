@@ -1,4 +1,4 @@
-use std::{fmt, sync::Arc};
+use std::fmt;
 
 use zksync_contracts::verifier_contract;
 pub(super) use zksync_eth_client::Error as EthClientError;
@@ -34,7 +34,7 @@ const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
 /// Implementation of [`EthClient`] based on HTTP JSON-RPC (encapsulated via [`EthInterface`]).
 #[derive(Debug)]
 pub struct EthHttpQueryClient {
-    client: Arc<dyn EthInterface>,
+    client: Box<dyn EthInterface>,
     topics: Vec<H256>,
     diamond_proxy_addr: Address,
     governance_address: Address,
@@ -46,7 +46,7 @@ pub struct EthHttpQueryClient {
 
 impl EthHttpQueryClient {
     pub fn new(
-        client: Arc<dyn EthInterface>,
+        client: Box<dyn EthInterface>,
         diamond_proxy_addr: Address,
         state_transition_manager_address: Option<Address>,
         governance_address: Address,
@@ -58,7 +58,7 @@ impl EthHttpQueryClient {
             governance_address
         );
         Self {
-            client,
+            client: client.for_component("watch"),
             topics: Vec::new(),
             diamond_proxy_addr,
             state_transition_manager_address,
@@ -89,7 +89,7 @@ impl EthHttpQueryClient {
             .to_block(to)
             .topics(Some(topics), None, None, None)
             .build();
-        self.client.logs(filter, "watch").await
+        self.client.logs(filter).await
     }
 }
 
@@ -143,7 +143,7 @@ impl EthClient for EthHttpQueryClient {
                 };
                 let to_number = match to {
                     BlockNumber::Number(num) => num,
-                    BlockNumber::Latest => self.client.block_number("watch").await?,
+                    BlockNumber::Latest => self.client.block_number().await?,
                     _ => {
                         // invalid variant
                         return result;
@@ -180,12 +180,12 @@ impl EthClient for EthHttpQueryClient {
 
     async fn finalized_block_number(&self) -> Result<u64, EthClientError> {
         if let Some(confirmations) = self.confirmations_for_eth_event {
-            let latest_block_number = self.client.block_number("watch").await?.as_u64();
+            let latest_block_number = self.client.block_number().await?.as_u64();
             Ok(latest_block_number.saturating_sub(confirmations))
         } else {
             let block = self
                 .client
-                .block(BlockId::Number(BlockNumber::Finalized), "watch")
+                .block(BlockId::Number(BlockNumber::Finalized))
                 .await?
                 .ok_or_else(|| {
                     ClientError::Custom("Finalized block must be present on L1".into())

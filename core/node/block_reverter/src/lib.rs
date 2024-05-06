@@ -474,7 +474,7 @@ impl BlockReverter {
 
         let base_fee = eth_client
             .as_ref()
-            .block(BlockId::Number(BlockNumber::Pending), "")
+            .block(BlockId::Number(BlockNumber::Pending))
             .await
             .context("failed getting pending L1 block")?
             .map(|block| {
@@ -489,7 +489,7 @@ impl BlockReverter {
             // Pending block doesn't exist, use the latest one.
             eth_client
                 .as_ref()
-                .block(BlockId::Number(BlockNumber::Latest), "")
+                .block(BlockId::Number(BlockNumber::Latest))
                 .await
                 .context("failed geting latest L1 block")?
                 .context("no latest L1 block")?
@@ -506,12 +506,7 @@ impl BlockReverter {
         };
 
         let signed_tx = eth_client
-            .sign_prepared_tx_for_addr(
-                data,
-                eth_config.validator_timelock_addr,
-                options,
-                "block_reverter",
-            )
+            .sign_prepared_tx_for_addr(data, eth_config.validator_timelock_addr, options)
             .await
             .context("cannot sign revert transaction")?;
         let hash = eth_client
@@ -524,7 +519,7 @@ impl BlockReverter {
         loop {
             let maybe_receipt = eth_client
                 .as_ref()
-                .tx_receipt(hash, "block_reverter")
+                .tx_receipt(hash)
                 .await
                 .context("failed getting receipt for revert transaction")?;
             if let Some(receipt) = maybe_receipt {
@@ -600,7 +595,7 @@ impl BlockReverter {
 
         let priority_fee = eth_config.default_priority_fee_per_gas;
         let nonce = eth_client
-            .nonce_at_for_account(reverter_address, BlockNumber::Pending, "block_reverter")
+            .nonce_at_for_account(reverter_address, BlockNumber::Pending)
             .await
             .with_context(|| format!("failed getting transaction count for {reverter_address:?}"))?
             .as_u64();

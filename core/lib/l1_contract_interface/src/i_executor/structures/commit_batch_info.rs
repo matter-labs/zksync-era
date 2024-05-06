@@ -359,14 +359,6 @@ impl<'a> CommitBatchInfoValidium<'a> {
             ]
         }
     }
-
-    fn pubdata_input(&self) -> Vec<u8> {
-        self.l1_batch_with_metadata
-            .header
-            .pubdata_input
-            .clone()
-            .unwrap_or_else(|| self.l1_batch_with_metadata.construct_pubdata())
-    }
 }
 
 impl<'a> Tokenizable for CommitBatchInfoValidium<'a> {
@@ -397,30 +389,18 @@ impl<'a> Tokenizable for CommitBatchInfoValidium<'a> {
                 Token::Bytes(Vec::default()),
             );
         } else {
-            let pubdata = self.pubdata_input();
             match self.pubdata_da {
                 PubdataDA::Calldata => {
-                    // We compute and add the blob commitment to the pubdata payload so that we can verify the proof
-                    // even if we are not using blobs.
-                    let blob_commitment = KzgInfo::new(&pubdata).to_blob_commitment();
-
                     // Here we're not pushing any pubdata on purpose.
                     // We are not sending pubdata in Validium mode.
-                    let result = std::iter::once(PUBDATA_SOURCE_CALLDATA)
-                        .chain(blob_commitment)
-                        .collect();
+                    let result = vec![PUBDATA_SOURCE_CALLDATA];
 
                     tokens.push(Token::Bytes(result));
                 }
                 PubdataDA::Blobs => {
-                    let pubdata_commitments =
-                        pubdata.chunks(ZK_SYNC_BYTES_PER_BLOB).flat_map(|blob| {
-                            let kzg_info = KzgInfo::new(blob);
-                            kzg_info.to_pubdata_commitment()
-                        });
-                    let result = std::iter::once(PUBDATA_SOURCE_BLOBS)
-                        .chain(pubdata_commitments)
-                        .collect();
+                    // Here we're not pushing any pubdata on purpose.
+                    // We are not sending pubdata in Validium mode.
+                    let result = vec![PUBDATA_SOURCE_BLOBS];
 
                     tokens.push(Token::Bytes(result));
                 }

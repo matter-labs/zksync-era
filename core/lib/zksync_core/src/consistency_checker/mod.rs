@@ -307,7 +307,7 @@ pub struct ConsistencyChecker {
     /// How many past batches to check when starting
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
-    l1_client: Arc<dyn EthInterface>,
+    l1_client: Box<dyn EthInterface>,
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool<Core>,
@@ -319,7 +319,7 @@ impl ConsistencyChecker {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
     pub fn new(
-        l1_client: Arc<dyn EthInterface>,
+        l1_client: Box<dyn EthInterface>,
         max_batches_to_recheck: u32,
         pool: ConnectionPool<Core>,
         l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
@@ -330,7 +330,7 @@ impl ConsistencyChecker {
             diamond_proxy_addr: None,
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
-            l1_client,
+            l1_client: l1_client.for_component("consistency_checker"),
             event_handler: Box::new(health_updater),
             l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
@@ -359,7 +359,7 @@ impl ConsistencyChecker {
 
         let commit_tx_status = self
             .l1_client
-            .get_tx_status(commit_tx_hash, "consistency_checker")
+            .get_tx_status(commit_tx_hash)
             .await?
             .with_context(|| format!("receipt for tx {commit_tx_hash:?} not found on L1"))
             .map_err(CheckError::Validation)?;
@@ -371,7 +371,7 @@ impl ConsistencyChecker {
         // We can't get tx calldata from the DB because it can be fake.
         let commit_tx = self
             .l1_client
-            .get_tx(commit_tx_hash, "consistency_checker")
+            .get_tx(commit_tx_hash)
             .await?
             .with_context(|| format!("commit transaction {commit_tx_hash:?} not found on L1"))
             .map_err(CheckError::Internal)?; // we've got a transaction receipt previously, thus an internal error

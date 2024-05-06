@@ -1,4 +1,4 @@
-use std::{env, sync::Arc};
+use std::env;
 
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
@@ -160,7 +160,7 @@ async fn main() -> anyhow::Result<()> {
                 contracts.diamond_proxy_addr,
                 priority_fee_per_gas.unwrap_or_default(), // FIXME: make optional?
                 9.into(),                                 // FIXME: make optional?
-                Arc::new(eth_client),
+                Box::new(eth_client),
             );
 
             let priority_fee_per_gas =
