@@ -1,7 +1,5 @@
 use zksync_types::L1_GAS_PER_PUBDATA_BYTE;
 
-use crate::state_keeper::metrics::KEEPER_METRICS;
-
 pub trait PubdataPricing
 where
     Self: std::fmt::Debug + Sync + Send,
@@ -35,7 +33,6 @@ impl PubdataPricing for RollupPubdataPricing {
     fn bound_blob_base_fee(&self, blob_base_fee: f64, max_blob_base_fee: u64) -> u64 {
         if blob_base_fee > max_blob_base_fee as f64 {
             tracing::error!("Blob base fee is too high: {blob_base_fee}, using max allowed: {max_blob_base_fee}");
-            KEEPER_METRICS.gas_price_too_high.inc();
             return max_blob_base_fee;
         }
         blob_base_fee as u64

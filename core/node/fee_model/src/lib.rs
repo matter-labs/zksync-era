@@ -13,6 +13,8 @@ use zksync_utils::ceil_div_u256;
 
 use crate::l1_gas_price::GasAdjuster;
 
+pub mod l1_gas_price;
+
 /// Trait responsible for providing fee info for a batch
 #[async_trait::async_trait]
 pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
@@ -85,7 +87,7 @@ impl MainNodeFeeInputProvider {
 /// The fee model provider to be used in the API. It returns the maximum batch fee input between the projected main node one and
 /// the one from the last sealed L2 block.
 #[derive(Debug)]
-pub(crate) struct ApiFeeInputProvider {
+pub struct ApiFeeInputProvider {
     inner: Arc<dyn BatchFeeModelInputProvider>,
     connection_pool: ConnectionPool<Core>,
 }
@@ -211,6 +213,23 @@ fn compute_batch_fee_model_input_v2(
         l1_gas_price,
         fair_l2_gas_price,
         fair_pubdata_price,
+    }
+}
+
+/// Mock [`BatchFeeModelInputProvider`] implementation that returns a constant value.
+/// Intended to be used in tests only.
+#[derive(Debug)]
+pub struct MockBatchFeeParamsProvider(pub FeeParams);
+
+impl Default for MockBatchFeeParamsProvider {
+    fn default() -> Self {
+        Self(FeeParams::sensible_v1_default())
+    }
+}
+
+impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
+    fn get_fee_model_params(&self) -> FeeParams {
+        self.0
     }
 }
 

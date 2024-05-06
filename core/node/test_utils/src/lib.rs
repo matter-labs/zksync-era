@@ -14,7 +14,7 @@ use zksync_types::{
         L1BatchMetadata,
     },
     fee::Fee,
-    fee_model::{BatchFeeInput, FeeParams},
+    fee_model::BatchFeeInput,
     l2::L2Tx,
     snapshots::SnapshotRecoveryStatus,
     transaction_request::PaymasterParams,
@@ -23,10 +23,8 @@ use zksync_types::{
     ProtocolVersionId, StorageLog, H256, U256,
 };
 
-use crate::fee_model::BatchFeeModelInputProvider;
-
 /// Creates an L2 block header with the specified number and deterministic contents.
-pub(crate) fn create_l2_block(number: u32) -> L2BlockHeader {
+pub fn create_l2_block(number: u32) -> L2BlockHeader {
     L2BlockHeader {
         number: L2BlockNumber(number),
         timestamp: number.into(),
@@ -45,7 +43,7 @@ pub(crate) fn create_l2_block(number: u32) -> L2BlockHeader {
 }
 
 /// Creates an L1 batch header with the specified number and deterministic contents.
-pub(crate) fn create_l1_batch(number: u32) -> L1BatchHeader {
+pub fn create_l1_batch(number: u32) -> L1BatchHeader {
     L1BatchHeader::new(
         L1BatchNumber(number),
         number.into(),
@@ -55,7 +53,7 @@ pub(crate) fn create_l1_batch(number: u32) -> L1BatchHeader {
 }
 
 /// Creates metadata for an L1 batch with the specified number.
-pub(crate) fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
+pub fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
     L1BatchMetadata {
         root_hash: H256::from_low_u64_be(number.into()),
         rollup_last_leaf_index: u64::from(number) + 20,
@@ -78,7 +76,7 @@ pub(crate) fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
     }
 }
 
-pub(crate) fn l1_batch_metadata_to_commitment_artifacts(
+pub fn l1_batch_metadata_to_commitment_artifacts(
     metadata: &L1BatchMetadata,
 ) -> L1BatchCommitmentArtifacts {
     L1BatchCommitmentArtifacts {
@@ -109,7 +107,7 @@ pub(crate) fn l1_batch_metadata_to_commitment_artifacts(
 }
 
 /// Creates an L2 transaction with randomized parameters.
-pub(crate) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> L2Tx {
+pub fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> L2Tx {
     let fee = Fee {
         gas_limit: (get_intrinsic_constants().l2_tx_intrinsic_gas * 2).into(),
         max_fee_per_gas: fee_per_gas.into(),
@@ -135,7 +133,7 @@ pub(crate) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> L
     tx
 }
 
-pub(crate) fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
+pub fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
     TransactionExecutionResult {
         hash: transaction.hash(),
         transaction: transaction.into(),
@@ -151,7 +149,7 @@ pub(crate) fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionR
 
 /// Concise representation of a storage snapshot for testing recovery.
 #[derive(Debug)]
-pub(crate) struct Snapshot {
+pub struct Snapshot {
     pub l1_batch: L1BatchHeader,
     pub l2_block: L2BlockHeader,
     pub storage_logs: Vec<StorageLog>,
@@ -203,7 +201,7 @@ impl Snapshot {
 }
 
 /// Prepares a recovery snapshot without performing genesis.
-pub(crate) async fn prepare_recovery_snapshot(
+pub async fn prepare_recovery_snapshot(
     storage: &mut Connection<'_, Core>,
     l1_batch: L1BatchNumber,
     l2_block: L2BlockNumber,
@@ -213,7 +211,7 @@ pub(crate) async fn prepare_recovery_snapshot(
 }
 
 /// Takes a storage snapshot at the last sealed L1 batch.
-pub(crate) async fn snapshot(storage: &mut Connection<'_, Core>) -> Snapshot {
+pub async fn snapshot(storage: &mut Connection<'_, Core>) -> Snapshot {
     let l1_batch = storage
         .blocks_dal()
         .get_sealed_l1_batch_number()
@@ -261,7 +259,7 @@ pub(crate) async fn snapshot(storage: &mut Connection<'_, Core>) -> Snapshot {
 
 /// Recovers storage from a snapshot.
 /// L2 block and L1 batch are intentionally **not** inserted into the storage.
-pub(crate) async fn recover(
+pub async fn recover(
     storage: &mut Connection<'_, Core>,
     snapshot: Snapshot,
 ) -> SnapshotRecoveryStatus {
@@ -346,22 +344,6 @@ pub(crate) async fn recover(
 
     storage.commit().await.unwrap();
     snapshot_recovery
-}
-
-/// Mock [`BatchFeeModelInputProvider`] implementation that returns a constant value.
-#[derive(Debug)]
-pub(crate) struct MockBatchFeeParamsProvider(pub FeeParams);
-
-impl Default for MockBatchFeeParamsProvider {
-    fn default() -> Self {
-        Self(FeeParams::sensible_v1_default())
-    }
-}
-
-impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
-    fn get_fee_model_params(&self) -> FeeParams {
-        self.0
-    }
 }
 
 #[derive(Debug, Clone)]

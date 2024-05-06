@@ -8453,6 +8453,7 @@ dependencies = [
  "zksync_dal",
  "zksync_db_connection",
  "zksync_eth_client",
+ "zksync_eth_sender",
  "zksync_eth_signer",
  "zksync_eth_watch",
  "zksync_health_check",
@@ -8461,7 +8462,9 @@ dependencies = [
  "zksync_mempool",
  "zksync_merkle_tree",
  "zksync_mini_merkle_tree",
+ "zksync_node_fee_model",
  "zksync_node_genesis",
+ "zksync_node_test_utils",
  "zksync_object_store",
  "zksync_proof_data_handler",
  "zksync_protobuf",
@@ -8593,6 +8596,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_eth_sender"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "assert_matches",
+ "async-trait",
+ "chrono",
+ "itertools 0.10.5",
+ "once_cell",
+ "test-casing",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_eth_client",
+ "zksync_l1_contract_interface",
+ "zksync_node_fee_model",
+ "zksync_node_test_utils",
+ "zksync_object_store",
+ "zksync_prover_interface",
+ "zksync_shared_metrics",
+ "zksync_system_constants",
+ "zksync_types",
+ "zksync_utils",
+ "zksync_web3_decl",
+]
+
+[[package]]
 name = "zksync_eth_signer"
 version = "0.1.0"
 dependencies = [
@@ -8662,8 +8696,11 @@ dependencies = [
  "zksync_dal",
  "zksync_db_connection",
  "zksync_eth_client",
+ "zksync_eth_sender",
  "zksync_health_check",
  "zksync_l1_contract_interface",
+ "zksync_node_db_pruner",
+ "zksync_node_fee_model",
  "zksync_node_genesis",
  "zksync_object_store",
  "zksync_protobuf_config",
@@ -8774,6 +8811,58 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_node_db_pruner"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "assert_matches",
+ "async-trait",
+ "chrono",
+ "itertools 0.10.5",
+ "multivm",
+ "serde",
+ "serde_json",
+ "test-casing",
+ "test-log",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_db_connection",
+ "zksync_health_check",
+ "zksync_node_test_utils",
+ "zksync_system_constants",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
+name = "zksync_node_fee_model"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "itertools 0.10.5",
+ "test-casing",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_eth_client",
+ "zksync_node_test_utils",
+ "zksync_system_constants",
+ "zksync_types",
+ "zksync_utils",
+ "zksync_web3_decl",
+]
+
+[[package]]
 name = "zksync_node_framework"
 version = "0.1.0"
 dependencies = [
@@ -8799,9 +8888,11 @@ dependencies = [
  "zksync_db_connection",
  "zksync_env_config",
  "zksync_eth_client",
+ "zksync_eth_sender",
  "zksync_eth_watch",
  "zksync_health_check",
  "zksync_house_keeper",
+ "zksync_node_fee_model",
  "zksync_object_store",
  "zksync_proof_data_handler",
  "zksync_protobuf_config",
@@ -8828,6 +8919,28 @@ dependencies = [
  "zksync_dal",
  "zksync_eth_client",
  "zksync_merkle_tree",
+ "zksync_system_constants",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
+name = "zksync_node_test_utils"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "itertools 0.10.5",
+ "multivm",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_eth_client",
+ "zksync_merkle_tree",
+ "zksync_node_genesis",
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
@@ -9121,6 +9234,36 @@ dependencies = [
  "vlog",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zksync_basic_types",
+]
+
+[[package]]
+name = "zksync_vm_runner"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "backon",
+ "itertools 0.10.5",
+ "multivm",
+ "once_cell",
+ "rand 0.8.5",
+ "tempfile",
+ "test-casing",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "vise",
+ "vm_utils",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_node_genesis",
+ "zksync_node_test_utils",
+ "zksync_state",
+ "zksync_storage",
+ "zksync_system_constants",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]

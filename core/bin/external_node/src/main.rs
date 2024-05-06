@@ -27,12 +27,6 @@ use zksync_core::{
     },
     consensus,
     consistency_checker::ConsistencyChecker,
-    db_pruner::{DbPruner, DbPrunerConfig},
-    eth_sender::l1_batch_commit_data_generator::{
-        L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
-        ValidiumModeL1BatchCommitDataGenerator,
-    },
-    l1_gas_price::MainNodeFeeParamsFetcher,
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     reorg_detector::{self, ReorgDetector},
     setup_sigint_handler,
@@ -50,7 +44,13 @@ use zksync_db_connection::{
     connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,
 };
 use zksync_eth_client::{clients::QueryClient, EthInterface};
+use zksync_eth_sender::l1_batch_commit_data_generator::{
+    L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
+    ValidiumModeL1BatchCommitDataGenerator,
+};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
+use zksync_node_db_pruner::{DbPruner, DbPrunerConfig};
+use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
