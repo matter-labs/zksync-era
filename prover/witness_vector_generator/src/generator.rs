@@ -11,15 +11,8 @@ use tokio::{task::JoinHandle, time::sleep};
 use zksync_config::configs::FriWitnessVectorGeneratorConfig;
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
-    circuit_definitions::{
-        boojum::{
-            config::{CSConfig, ProvingCSConfig},
-            dag::StCircuitResolver,
-            field::goldilocks::GoldilocksField,
-        },
-        circuit_definitions::eip4844::synthesis,
-    },
-    CircuitWrapper, ProverJob, WitnessVectorArtifacts,
+    circuit_definitions::boojum::field::goldilocks::GoldilocksField, CircuitWrapper, ProverJob,
+    WitnessVectorArtifacts,
 };
 use zksync_prover_fri_utils::{
     fetch_next_circuit, get_numeric_circuit_id, socket_utils::send_assembly,
@@ -77,10 +70,6 @@ impl WitnessVectorGenerator {
             CircuitWrapper::Recursive(recursive_circuit) => {
                 recursive_circuit.synthesis::<GoldilocksField>(&finalization_hints)
             }
-            CircuitWrapper::Eip4844(circuit) => synthesis::<
-                _,
-                StCircuitResolver<GoldilocksField, <ProvingCSConfig as CSConfig>::ResolverConfig>,
-            >(circuit, &finalization_hints),
         };
         Ok(WitnessVectorArtifacts::new(cs.witness.unwrap(), job))
     }

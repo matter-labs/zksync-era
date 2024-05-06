@@ -27,7 +27,7 @@ pub mod socket_utils;
 pub async fn fetch_next_circuit(
     storage: &mut Connection<'_, Prover>,
     blob_store: &dyn ObjectStore,
-    circuit_ids_for_round_to_be_proven: &Vec<CircuitIdRoundTuple>,
+    circuit_ids_for_round_to_be_proven: &[CircuitIdRoundTuple],
     protocol_version: &ProtocolVersionId,
 ) -> Option<ProverJob> {
     let pod_name = get_current_pod_name();
@@ -99,7 +99,6 @@ pub fn get_numeric_circuit_id(circuit_wrapper: &CircuitWrapper) -> u8 {
     match circuit_wrapper {
         CircuitWrapper::Base(circuit) => circuit.numeric_circuit_type(),
         CircuitWrapper::Recursive(circuit) => circuit.numeric_circuit_type(),
-        CircuitWrapper::Eip4844(_) => ProverServiceDataKey::eip4844().circuit_id,
     }
 }
 
@@ -118,8 +117,7 @@ pub fn get_all_circuit_id_round_tuples_for(
 }
 
 fn get_all_circuit_id_round_tuples_for_node_aggregation() -> Vec<CircuitIdRoundTuple> {
-    ((ZkSyncRecursionLayerStorageType::LeafLayerCircuitForMainVM as u8)
-        ..=(ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8))
+    ZkSyncRecursionLayerStorageType::leafs_as_iter_u8()
         .map(|circuit_id| CircuitIdRoundTuple {
             circuit_id,
             aggregation_round: AggregationRound::NodeAggregation as u8,
@@ -146,7 +144,7 @@ mod tests {
         let res = get_all_circuit_id_round_tuples_for(ids);
         let expected_circuit_ids: Vec<u8> =
             ((ZkSyncRecursionLayerStorageType::LeafLayerCircuitForMainVM as u8)
-                ..=(ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8))
+                ..=(ZkSyncRecursionLayerStorageType::LeafLayerCircuitForEIP4844Repack as u8))
                 .collect();
         let expected = expected_circuit_ids
             .into_iter()

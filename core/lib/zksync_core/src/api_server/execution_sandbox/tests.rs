@@ -7,7 +7,7 @@ use super::*;
 use crate::{
     api_server::{execution_sandbox::apply::apply_vm_in_sandbox, tx_sender::ApiContracts},
     genesis::{insert_genesis_batch, GenesisParams},
-    utils::testonly::{create_l2_transaction, create_miniblock, prepare_recovery_snapshot},
+    utils::testonly::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot},
 };
 
 #[tokio::test]
@@ -17,10 +17,10 @@ async fn creating_block_args() {
     insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
-    let miniblock = create_miniblock(1);
+    let l2_block = create_l2_block(1);
     storage
         .blocks_dal()
-        .insert_l2_block(&miniblock)
+        .insert_l2_block(&l2_block)
         .await
         .unwrap();
 
@@ -32,9 +32,11 @@ async fn creating_block_args() {
     assert_eq!(pending_block_args.resolved_block_number, L2BlockNumber(2));
     assert_eq!(pending_block_args.l1_batch_timestamp_s, None);
 
-    let start_info = BlockStartInfo::new(&mut storage).await.unwrap();
+    let start_info = BlockStartInfo::new(&mut storage, Duration::MAX)
+        .await
+        .unwrap();
     assert_eq!(
-        start_info.first_miniblock(&mut storage).await.unwrap(),
+        start_info.first_l2_block(&mut storage).await.unwrap(),
         L2BlockNumber(0)
     );
     assert_eq!(
@@ -50,7 +52,7 @@ async fn creating_block_args() {
     assert_eq!(latest_block_args.resolved_block_number, L2BlockNumber(1));
     assert_eq!(
         latest_block_args.l1_batch_timestamp_s,
-        Some(miniblock.timestamp)
+        Some(l2_block.timestamp)
     );
 
     let earliest_block = api::BlockId::Number(api::BlockNumber::Earliest);
@@ -86,9 +88,11 @@ async fn creating_block_args_after_snapshot_recovery() {
     );
     assert_eq!(pending_block_args.l1_batch_timestamp_s, None);
 
-    let start_info = BlockStartInfo::new(&mut storage).await.unwrap();
+    let start_info = BlockStartInfo::new(&mut storage, Duration::MAX)
+        .await
+        .unwrap();
     assert_eq!(
-        start_info.first_miniblock(&mut storage).await.unwrap(),
+        start_info.first_l2_block(&mut storage).await.unwrap(),
         snapshot_recovery.l2_block_number + 1
     );
     assert_eq!(
@@ -127,10 +131,10 @@ async fn creating_block_args_after_snapshot_recovery() {
         assert_matches!(err, BlockArgsError::Missing);
     }
 
-    let miniblock = create_miniblock(snapshot_recovery.l2_block_number.0 + 1);
+    let l2_block = create_l2_block(snapshot_recovery.l2_block_number.0 + 1);
     storage
         .blocks_dal()
-        .insert_l2_block(&miniblock)
+        .insert_l2_block(&l2_block)
         .await
         .unwrap();
 
@@ -138,10 +142,10 @@ async fn creating_block_args_after_snapshot_recovery() {
         .await
         .unwrap();
     assert_eq!(latest_block_args.block_id, latest_block);
-    assert_eq!(latest_block_args.resolved_block_number, miniblock.number);
+    assert_eq!(latest_block_args.resolved_block_number, l2_block.number);
     assert_eq!(
         latest_block_args.l1_batch_timestamp_s,
-        Some(miniblock.timestamp)
+        Some(l2_block.timestamp)
     );
 
     for pruned_block in pruned_blocks {
@@ -170,7 +174,9 @@ async fn instantiating_vm() {
 
     let block_args = BlockArgs::pending(&mut storage).await.unwrap();
     test_instantiating_vm(pool.clone(), block_args).await;
-    let start_info = BlockStartInfo::new(&mut storage).await.unwrap();
+    let start_info = BlockStartInfo::new(&mut storage, Duration::MAX)
+        .await
+        .unwrap();
     let block_args = BlockArgs::new(&mut storage, api::BlockId::Number(0.into()), &start_info)
         .await
         .unwrap();
@@ -191,7 +197,7 @@ async fn test_instantiating_vm(pool: ConnectionPool<Core>, block_args: BlockArgs
             &pool,
             transaction.clone(),
             block_args,
-            |_, received_tx| {
+            |_, received_tx, _| {
                 assert_eq!(received_tx, transaction);
             },
         )

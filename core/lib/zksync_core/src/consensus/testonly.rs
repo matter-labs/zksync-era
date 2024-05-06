@@ -47,7 +47,7 @@ pub(crate) struct MockMainNodeClient {
 impl MockMainNodeClient {
     pub fn for_snapshot_recovery(snapshot: &SnapshotRecoveryStatus) -> Self {
         // This block may be requested during node initialization
-        let last_miniblock_in_snapshot_batch = api::en::SyncBlock {
+        let last_l2_block_in_snapshot_batch = api::en::SyncBlock {
             number: snapshot.l2_block_number,
             l1_batch_number: snapshot.l1_batch_number,
             last_in_batch: true,
@@ -64,7 +64,7 @@ impl MockMainNodeClient {
         };
 
         Self {
-            l2_blocks: vec![last_miniblock_in_snapshot_batch],
+            l2_blocks: vec![last_l2_block_in_snapshot_batch],
             block_number_offset: snapshot.l2_block_number.0,
             ..Self::default()
         }
@@ -222,12 +222,12 @@ impl StateKeeper {
                     },
                 },
                 number: self.last_batch,
-                first_miniblock_number: self.last_block,
+                first_l2_block_number: self.last_block,
             }
         } else {
             self.last_block += 1;
             self.last_timestamp += 2;
-            SyncAction::Miniblock {
+            SyncAction::L2Block {
                 params: L2BlockParams {
                     timestamp: self.last_timestamp,
                     virtual_blocks: 0,
@@ -237,7 +237,7 @@ impl StateKeeper {
         }
     }
 
-    /// Pushes a new miniblock with `transactions` transactions to the `StateKeeper`.
+    /// Pushes a new L2 block with `transactions` transactions to the `StateKeeper`.
     pub async fn push_block(&mut self, transactions: usize) {
         assert!(transactions > 0);
         let mut actions = vec![self.open_block()];
@@ -245,7 +245,7 @@ impl StateKeeper {
             let tx = create_l2_transaction(self.fee_per_gas, self.gas_per_pubdata);
             actions.push(FetchedTransaction::new(tx.into()).into());
         }
-        actions.push(SyncAction::SealMiniblock);
+        actions.push(SyncAction::SealL2Block);
         self.actions_sender.push_actions(actions).await;
     }
 
@@ -258,7 +258,7 @@ impl StateKeeper {
         self.batch_sealed = true;
     }
 
-    /// Pushes `count` random miniblocks to the StateKeeper.
+    /// Pushes `count` random L2 blocks to the StateKeeper.
     pub async fn push_random_blocks(&mut self, rng: &mut impl Rng, count: usize) {
         for _ in 0..count {
             // 20% chance to seal an L1 batch.
@@ -282,7 +282,7 @@ impl StateKeeper {
         let addr = sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some)
             .await?
             .unwrap();
-        let client = L2Client::http(&format!("http://{addr}/"))
+        let client = L2Client::http(format!("http://{addr}/").parse().context("url")?)
             .context("json_rpc()")?
             .build();
         Ok(BoxedL2Client::new(client))
@@ -360,7 +360,7 @@ impl StateKeeperRunner {
     pub async fn run(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
         let res = scope::run!(ctx, |ctx, s| async {
             let (stop_send, stop_recv) = sync::watch::channel(false);
-            let (persistence, miniblock_sealer) =
+            let (persistence, l2_block_sealer) =
                 StateKeeperPersistence::new(self.store.0.clone(), Address::repeat_byte(11), 5);
 
             let io = ExternalIO::new(
@@ -371,10 +371,10 @@ impl StateKeeperRunner {
             )
             .await?;
             s.spawn_bg(async {
-                Ok(miniblock_sealer
+                Ok(l2_block_sealer
                     .run()
                     .await
-                    .context("miniblock_sealer.run()")?)
+                    .context("l2_block_sealer.run()")?)
             });
             s.spawn_bg::<()>(async {
                 loop {

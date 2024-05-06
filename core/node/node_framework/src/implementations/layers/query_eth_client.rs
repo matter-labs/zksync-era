@@ -1,7 +1,6 @@
-use std::sync::Arc;
-
 use anyhow::Context;
 use zksync_eth_client::clients::QueryClient;
+use zksync_types::url::SensitiveUrl;
 
 use crate::{
     implementations::resources::eth_interface::EthInterfaceResource,
@@ -11,11 +10,11 @@ use crate::{
 
 #[derive(Debug)]
 pub struct QueryEthClientLayer {
-    web3_url: String,
+    web3_url: SensitiveUrl,
 }
 
 impl QueryEthClientLayer {
-    pub fn new(web3_url: String) -> Self {
+    pub fn new(web3_url: SensitiveUrl) -> Self {
         Self { web3_url }
     }
 }
@@ -27,8 +26,8 @@ impl WiringLayer for QueryEthClientLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let query_client = QueryClient::new(&self.web3_url).context("QueryClient::new()")?;
-        context.insert_resource(EthInterfaceResource(Arc::new(query_client)))?;
+        let query_client = QueryClient::new(self.web3_url.clone()).context("QueryClient::new()")?;
+        context.insert_resource(EthInterfaceResource(Box::new(query_client)))?;
         Ok(())
     }
 }

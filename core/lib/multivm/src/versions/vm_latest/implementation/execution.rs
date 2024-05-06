@@ -49,16 +49,22 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         with_refund_tracer: bool,
         custom_pubdata_tracer: Option<PubdataTracer<S>>,
     ) -> (VmExecutionStopReason, VmExecutionResultAndLogs) {
-        let refund_tracers =
-            with_refund_tracer.then_some(RefundsTracer::new(self.batch_env.clone()));
+        let refund_tracers = with_refund_tracer
+            .then_some(RefundsTracer::new(self.batch_env.clone(), self.subversion));
         let mut tx_tracer: DefaultExecutionTracer<S, H::Vm1_5_0> = DefaultExecutionTracer::new(
             self.system_env.default_validation_computational_gas_limit,
             execution_mode,
             dispatcher,
             self.storage.clone(),
             refund_tracers,
-            custom_pubdata_tracer
-                .or_else(|| Some(PubdataTracer::new(self.batch_env.clone(), execution_mode))),
+            custom_pubdata_tracer.or_else(|| {
+                Some(PubdataTracer::new(
+                    self.batch_env.clone(),
+                    execution_mode,
+                    self.subversion,
+                ))
+            }),
+            self.subversion,
         );
 
         let timestamp_initial = Timestamp(self.state.local_state.timestamp);

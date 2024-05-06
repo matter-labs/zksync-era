@@ -12,7 +12,6 @@ use zksync_house_keeper::{
     fri_prover_job_retry_manager::FriProverJobRetryManager,
     fri_prover_jobs_archiver::FriProverJobArchiver,
     fri_prover_queue_monitor::FriProverStatsReporter,
-    fri_scheduler_circuit_queuer::SchedulerCircuitQueuer,
     fri_witness_generator_jobs_retry_manager::FriWitnessGeneratorJobRetryManager,
     fri_witness_generator_queue_monitor::FriWitnessGeneratorStatsReporter,
     periodic_job::PeriodicJob,
@@ -20,7 +19,7 @@ use zksync_house_keeper::{
 };
 
 use crate::{
-    implementations::resources::pools::{ProverPoolResource, ReplicaPoolResource},
+    implementations::resources::pools::{PoolResource, ProverPool, ReplicaPool},
     service::{ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
@@ -63,10 +62,10 @@ impl WiringLayer for HouseKeeperLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // initialize resources
-        let replica_pool_resource = context.get_resource::<ReplicaPoolResource>().await?;
+        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
         let replica_pool = replica_pool_resource.get().await?;
 
-        let prover_pool_resource = context.get_resource::<ProverPoolResource>().await?;
+        let prover_pool_resource = context.get_resource::<PoolResource<ProverPool>>().await?;
         let prover_pool = prover_pool_resource.get().await?;
 
         // initialize and add tasks
@@ -131,14 +130,6 @@ impl WiringLayer for HouseKeeperLayer {
                 fri_prover_gpu_archiver,
             }));
         }
-
-        let scheduler_circuit_queuer = SchedulerCircuitQueuer::new(
-            self.house_keeper_config.witness_job_moving_interval_ms,
-            prover_pool.clone(),
-        );
-        context.add_task(Box::new(SchedulerCircuitQueuerTask {
-            scheduler_circuit_queuer,
-        }));
 
         let fri_witness_generator_stats_reporter = FriWitnessGeneratorStatsReporter::new(
             prover_pool.clone(),
@@ -272,22 +263,6 @@ impl Task for WaitingToQueuedFriWitnessJobMoverTask {
         self.waiting_to_queued_fri_witness_job_mover
             .run(stop_receiver.0)
             .await
-    }
-}
-
-#[derive(Debug)]
-struct SchedulerCircuitQueuerTask {
-    scheduler_circuit_queuer: SchedulerCircuitQueuer,
-}
-
-#[async_trait::async_trait]
-impl Task for SchedulerCircuitQueuerTask {
-    fn name(&self) -> &'static str {
-        "scheduler_circuit_queuer"
-    }
-
-    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.scheduler_circuit_queuer.run(stop_receiver.0).await
     }
 }
 

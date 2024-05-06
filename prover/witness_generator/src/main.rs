@@ -24,7 +24,7 @@ use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 use crate::{
     basic_circuits::BasicWitnessGenerator, leaf_aggregation::LeafAggregationWitnessGenerator,
     metrics::SERVER_METRICS, node_aggregation::NodeAggregationWitnessGenerator,
-    scheduler::SchedulerWitnessGenerator,
+    recursion_tip::RecursionTipWitnessGenerator, scheduler::SchedulerWitnessGenerator,
 };
 
 mod basic_circuits;
@@ -32,6 +32,7 @@ mod leaf_aggregation;
 mod metrics;
 mod node_aggregation;
 mod precalculated_merkle_paths_provider;
+mod recursion_tip;
 mod scheduler;
 mod storage_oracle;
 mod utils;
@@ -145,6 +146,7 @@ async fn main() -> anyhow::Result<()> {
             AggregationRound::BasicCircuits,
             AggregationRound::LeafAggregation,
             AggregationRound::NodeAggregation,
+            AggregationRound::RecursionTip,
             AggregationRound::Scheduler,
         ],
         (Some(_), true) => {
@@ -227,6 +229,16 @@ async fn main() -> anyhow::Result<()> {
                     &store_factory,
                     prover_connection_pool.clone(),
                     protocol_version,
+                )
+                .await;
+                generator.run(stop_receiver.clone(), opt.batch_size)
+            }
+            AggregationRound::RecursionTip => {
+                let generator = RecursionTipWitnessGenerator::new(
+                    config.clone(),
+                    &store_factory,
+                    prover_connection_pool.clone(),
+                    protocol_versions.clone(),
                 )
                 .await;
                 generator.run(stop_receiver.clone(), opt.batch_size)

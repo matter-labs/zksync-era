@@ -104,7 +104,7 @@ async fn external_node_basics(components_str: &'static str) {
     // Simplest case to mock: the EN already has a genesis L1 batch / L2 block, and it's the only L1 batch / L2 block
     // in the network.
     let connection_pool = ConnectionPool::test_pool().await;
-    let singleton_pool_builder = ConnectionPool::singleton(connection_pool.database_url());
+    let singleton_pool_builder = ConnectionPool::singleton(connection_pool.database_url().clone());
     let mut storage = connection_pool.connection().await.unwrap();
     let genesis_params = insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
@@ -176,7 +176,7 @@ async fn external_node_basics(components_str: &'static str) {
         }
         panic!("Unexpected L1 call: {call:?}");
     });
-    let eth_client = Arc::new(eth_client);
+    let eth_client = Box::new(eth_client);
 
     let (env, env_handles) = TestEnvironment::new();
     let node_handle = tokio::spawn(async move {

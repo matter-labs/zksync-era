@@ -44,6 +44,7 @@ zksync_health_check.workspace = true
 vlog.workspace = true
 zksync_eth_watch.workspace = true
 zksync_shared_metrics.workspace = true
+zksync_proof_data_handler.workspace = true
 zksync_commitment_generator.workspace = true
 zksync_house_keeper.workspace = true
 
@@ -76,7 +77,6 @@ chrono = { workspace = true, features = ["serde"] }
 anyhow.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
-bitflags.workspace = true
 thread_local.workspace = true
 
 reqwest = { workspace = true, features = ["blocking", "json"] }
