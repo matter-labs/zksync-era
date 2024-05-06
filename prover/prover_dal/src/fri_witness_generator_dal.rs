@@ -1056,10 +1056,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn get_next_recursion_tip_witness_job(
         &mut self,
-        protocol_versions: &[ProtocolVersionId],
+        protocol_version: ProtocolVersionId,
         picked_by: &str,
     ) -> Option<L1BatchNumber> {
-        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         sqlx::query!(
             r#"
             UPDATE recursion_tip_witness_jobs_fri
@@ -1077,7 +1076,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     recursion_tip_witness_jobs_fri
                     WHERE
                         status = 'queued'
-                        AND protocol_version = ANY ($1)
+                        AND protocol_version = $1
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
@@ -1088,7 +1087,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 recursion_tip_witness_jobs_fri.l1_batch_number
             "#,
-            &protocol_versions[..],
+            protocol_version as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())

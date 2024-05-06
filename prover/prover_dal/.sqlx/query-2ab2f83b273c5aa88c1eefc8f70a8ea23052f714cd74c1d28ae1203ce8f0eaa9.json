@@ -57,6 +57,11 @@
         "ordinal": 10,
         "name": "picked_by",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "protocol_version",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -73,6 +78,7 @@
       true,
       false,
       false,
+      true,
       true,
       true,
       true

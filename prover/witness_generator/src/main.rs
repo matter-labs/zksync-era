@@ -238,7 +238,7 @@ async fn main() -> anyhow::Result<()> {
                     config.clone(),
                     &store_factory,
                     prover_connection_pool.clone(),
-                    protocol_versions.clone(),
+                    protocol_version,
                 )
                 .await;
                 generator.run(stop_receiver.clone(), opt.batch_size)
