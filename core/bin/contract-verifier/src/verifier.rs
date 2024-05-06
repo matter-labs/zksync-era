@@ -332,9 +332,10 @@ impl ContractVerifier {
                 compiler_input.settings.output_selection = Some(default_output_selection);
                 Ok(ZkSolcInput::StandardJson(compiler_input))
             }
-            SourceCodeData::YulSingleFile(source_code) => {
-                Ok(ZkSolcInput::YulSingleFile(source_code))
-            }
+            SourceCodeData::YulSingleFile(source_code) => Ok(ZkSolcInput::YulSingleFile {
+                source_code,
+                is_system: request.req.is_system,
+            }),
             _ => panic!("Unexpected SourceCode variant"),
         }
     }
