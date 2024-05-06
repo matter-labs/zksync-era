@@ -9,7 +9,10 @@ use tokio::{
     task::{self, JoinHandle},
 };
 use zksync_block_reverter::{BlockReverter, NodeRole};
-use zksync_commitment_generator::CommitmentGenerator;
+use zksync_commitment_generator::{
+    input_generation::{InputGenerator, RollupInputGenerator, ValidiumInputGenerator},
+    CommitmentGenerator,
+};
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{
     api::MerkleTreeApiConfig, chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode,
@@ -48,7 +51,7 @@ use zksync_db_connection::{
 };
 use zksync_eth_client::{clients::QueryClient, EthInterface};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
-use zksync_state::PostgresStorageCaches;
+use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
@@ -59,7 +62,10 @@ use zksync_web3_decl::{
 };
 
 use crate::{
-    config::{observability::observability_config_from_env, ExternalNodeConfig},
+    config::{
+        observability::observability_config_from_env, ExternalNodeConfig, OptionalENConfig,
+        RequiredENConfig,
+    },
     helpers::MainNodeHealthCheck,
     init::ensure_storage_initialized,
     metrics::RUST_METRICS,
@@ -85,15 +91,19 @@ async fn build_state_keeper(
     output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
-    task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
+    task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
 ) -> anyhow::Result<ZkSyncStateKeeper> {
     // We only need call traces on the external node if the `debug_` namespace is enabled.
     let save_call_traces = config.optional.api_namespaces().contains(&Namespace::Debug);
 
+    let cache_options = RocksdbStorageOptions {
+        block_cache_capacity: config.experimental.state_keeper_db_block_cache_capacity(),
+        max_open_files: config.experimental.state_keeper_db_max_open_files,
+    };
     let (storage_factory, task) =
-        AsyncRocksdbCache::new(connection_pool.clone(), state_keeper_db_path);
+        AsyncRocksdbCache::new(connection_pool.clone(), state_keeper_db_path, cache_options);
     let mut stop_receiver_clone = stop_receiver.clone();
-    task_handles.push(tokio::task::spawn(async move {
+    task_handles.push(tokio::spawn(async move {
         let result = task.run(stop_receiver_clone.clone()).await;
         stop_receiver_clone.changed().await?;
         result
@@ -153,7 +163,7 @@ async fn run_tree(
         format!("snapshot recovery max concurrency ({max_concurrency}) is too large")
     })?;
     let recovery_pool = ConnectionPool::builder(
-        tree_pool.database_url(),
+        tree_pool.database_url().clone(),
         max_concurrency.min(config.postgres.max_connections),
     )
     .build()
@@ -203,7 +213,7 @@ async fn run_core(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
     main_node_client: BoxedL2Client,
-    eth_client: Arc<dyn EthInterface>,
+    eth_client: Box<dyn EthInterface>,
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
@@ -337,14 +347,18 @@ async fn run_core(
     )
     .await?;
 
-    let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match config
-        .optional
-        .l1_batch_commit_data_generator_mode
-    {
-        L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
-        L1BatchCommitDataGeneratorMode::Validium => {
-            Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
-        }
+    let (l1_batch_commit_data_generator, input_generator): (
+        Arc<dyn L1BatchCommitDataGenerator>,
+        Box<dyn InputGenerator>,
+    ) = match config.optional.l1_batch_commit_data_generator_mode {
+        L1BatchCommitDataGeneratorMode::Rollup => (
+            Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+            Box::new(RollupInputGenerator),
+        ),
+        L1BatchCommitDataGeneratorMode::Validium => (
+            Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+            Box::new(ValidiumInputGenerator),
+        ),
     };
 
     let consistency_checker = ConsistencyChecker::new(
@@ -375,7 +389,7 @@ async fn run_core(
         .build()
         .await
         .context("failed to build a commitment_generator_pool")?;
-    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
+    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool, input_generator);
     app_health.insert_component(commitment_generator.health_check())?;
     let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
 
@@ -581,7 +595,7 @@ async fn init_tasks(
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
     main_node_client: BoxedL2Client,
-    eth_client: Arc<dyn EthInterface>,
+    eth_client: Box<dyn EthInterface>,
     task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
@@ -801,9 +815,29 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("No sentry URL was provided");
     }
 
-    let mut config = ExternalNodeConfig::collect()
-        .await
-        .context("Failed to load external node config")?;
+    let required_config = RequiredENConfig::from_env()?;
+    let optional_config = OptionalENConfig::from_env()?;
+
+    // Build L1 and L2 clients.
+    let main_node_url = &required_config.main_node_url;
+    tracing::info!("Main node URL is: {main_node_url:?}");
+    let main_node_client = L2Client::http(main_node_url.clone())
+        .context("Failed creating JSON-RPC client for main node")?
+        .with_allowed_requests_per_second(optional_config.main_node_rate_limit_rps)
+        .build();
+    let main_node_client = BoxedL2Client::new(main_node_client);
+
+    let eth_client_url = &required_config.eth_client_url;
+    let eth_client = Box::new(QueryClient::new(eth_client_url.clone())?);
+
+    let mut config = ExternalNodeConfig::new(
+        required_config,
+        optional_config,
+        &main_node_client,
+        eth_client.as_ref(),
+    )
+    .await
+    .context("Failed to load external node config")?;
     if !opt.enable_consensus {
         config.consensus = None;
     }
@@ -817,31 +851,14 @@ async fn main() -> anyhow::Result<()> {
     RUST_METRICS.initialize();
     EN_METRICS.observe_config(&config);
 
-    let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
+    let singleton_pool_builder = ConnectionPool::singleton(config.postgres.database_url());
     let connection_pool = ConnectionPool::<Core>::builder(
-        &config.postgres.database_url,
+        config.postgres.database_url(),
         config.postgres.max_connections,
     )
     .build()
     .await
     .context("failed to build a connection_pool")?;
-
-    let main_node_url = config
-        .required
-        .main_node_url()
-        .expect("Main node URL is incorrect");
-    tracing::info!("Main node URL is: {main_node_url}");
-    let main_node_client = L2Client::http(&main_node_url)
-        .context("Failed creating JSON-RPC client for main node")?
-        .with_allowed_requests_per_second(config.optional.main_node_rate_limit_rps)
-        .build();
-    let main_node_client = BoxedL2Client::new(main_node_client);
-
-    let eth_client_url = config
-        .required
-        .eth_client_url()
-        .context("L1 client URL is incorrect")?;
-    let eth_client = Arc::new(QueryClient::new(&eth_client_url)?);
 
     run_node(
         (),
@@ -881,7 +898,7 @@ async fn run_node(
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
     main_node_client: BoxedL2Client,
-    eth_client: Arc<dyn EthInterface>,
+    eth_client: Box<dyn EthInterface>,
 ) -> anyhow::Result<()> {
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");

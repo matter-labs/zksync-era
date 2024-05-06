@@ -47,7 +47,7 @@ pub struct MulticallData {
 #[derive(Debug)]
 pub struct EthTxAggregator {
     aggregator: Aggregator,
-    eth_client: Arc<dyn BoundEthInterface>,
+    eth_client: Box<dyn BoundEthInterface>,
     config: SenderConfig,
     timelock_contract_address: Address,
     l1_multicall3_address: Address,
@@ -76,7 +76,7 @@ impl EthTxAggregator {
         pool: ConnectionPool<Core>,
         config: SenderConfig,
         aggregator: Aggregator,
-        eth_client: Arc<dyn BoundEthInterface>,
+        eth_client: Box<dyn BoundEthInterface>,
         timelock_contract_address: Address,
         l1_multicall3_address: Address,
         state_transition_chain_contract: Address,
@@ -84,17 +84,15 @@ impl EthTxAggregator {
         custom_commit_sender_addr: Option<Address>,
         l1_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> Self {
+        let eth_client = eth_client.for_component("eth_tx_aggregator");
         let functions = ZkSyncFunctions::default();
-        let base_nonce = eth_client
-            .pending_nonce("eth_sender")
-            .await
-            .unwrap()
-            .as_u64();
+        let base_nonce = eth_client.pending_nonce().await.unwrap().as_u64();
 
         let base_nonce_custom_commit_sender = match custom_commit_sender_addr {
             Some(addr) => Some(
-                eth_client
-                    .nonce_at_for_account(addr, BlockNumber::Pending, "eth_sender")
+                (*eth_client)
+                    .as_ref()
+                    .nonce_at_for_account(addr, BlockNumber::Pending)
                     .await
                     .unwrap()
                     .as_u64(),
@@ -145,7 +143,10 @@ impl EthTxAggregator {
             self.l1_multicall3_address,
             self.functions.multicall_contract.clone(),
         );
-        let aggregate3_result = self.eth_client.call_contract_function(args).await?;
+        let aggregate3_result = (*self.eth_client)
+            .as_ref()
+            .call_contract_function(args)
+            .await?;
         self.parse_multicall_data(Token::from_tokens(aggregate3_result)?)
     }
 
@@ -337,7 +338,10 @@ impl EthTxAggregator {
         let get_vk_hash = &self.functions.verification_key_hash;
         let args = CallFunctionArgs::new(&get_vk_hash.name, ())
             .for_contract(verifier_address, self.functions.verifier_contract.clone());
-        let vk_hash = self.eth_client.call_contract_function(args).await?;
+        let vk_hash = (*self.eth_client)
+            .as_ref()
+            .call_contract_function(args)
+            .await?;
         Ok(H256::from_tokens(vk_hash)?)
     }
 

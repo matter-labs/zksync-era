@@ -12,7 +12,8 @@ use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_state::ReadStorageFactory;
+use zksync_node_genesis::create_genesis_l1_batch;
+use zksync_state::{ReadStorageFactory, RocksdbStorageOptions};
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
     block::L2BlockHasher, ethabi::Token, fee::Fee, snapshots::SnapshotRecoveryStatus,
@@ -29,7 +30,6 @@ use super::{
     StorageType,
 };
 use crate::{
-    genesis::create_genesis_l1_batch,
     state_keeper::{
         batch_executor::{BatchExecutorHandle, TxExecutionResult},
         tests::{default_l1_batch_env, default_system_env, BASE_SYSTEM_CONTRACTS},
@@ -101,8 +101,11 @@ impl Tester {
         match storage_type {
             StorageType::AsyncRocksdbCache => {
                 let (l1_batch_env, system_env) = self.default_batch_params();
-                let (state_keeper_storage, task) =
-                    AsyncRocksdbCache::new(self.pool(), self.state_keeper_db_path());
+                let (state_keeper_storage, task) = AsyncRocksdbCache::new(
+                    self.pool(),
+                    self.state_keeper_db_path(),
+                    RocksdbStorageOptions::default(),
+                );
                 let handle = tokio::task::spawn(async move {
                     let (_stop_sender, stop_receiver) = watch::channel(false);
                     task.run(stop_receiver).await.unwrap()
@@ -156,8 +159,11 @@ impl Tester {
         &mut self,
         snapshot: &SnapshotRecoveryStatus,
     ) -> BatchExecutorHandle {
-        let (storage_factory, task) =
-            AsyncRocksdbCache::new(self.pool(), self.state_keeper_db_path());
+        let (storage_factory, task) = AsyncRocksdbCache::new(
+            self.pool(),
+            self.state_keeper_db_path(),
+            RocksdbStorageOptions::default(),
+        );
         let (_, stop_receiver) = watch::channel(false);
         let handle = tokio::task::spawn(async move { task.run(stop_receiver).await.unwrap() });
         self.tasks.push(handle);
