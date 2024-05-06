@@ -17,11 +17,11 @@ use crate::{
     report::ReportLabel,
     sdk::{
         error::ClientError,
+        ethabi,
         ethereum::PriorityOpHolder,
         utils::{
             get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
         },
-        web3::ethabi,
         EthNamespaceClient,
     },
     utils::format_gwei,

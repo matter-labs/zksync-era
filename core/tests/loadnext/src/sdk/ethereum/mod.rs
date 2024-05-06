@@ -14,23 +14,23 @@ use zksync_eth_client::{
 use zksync_eth_signer::EthereumSigner;
 use zksync_types::{
     api::BridgeAddresses,
+    ethabi,
     l1::L1Tx,
     network::Network,
     url::SensitiveUrl,
     web3::{
-        contract::tokens::{Detokenize, Tokenize},
-        ethabi,
-        types::{TransactionReceipt, H160, H256, U256},
+        contract::{Detokenize, Tokenize},
+        TransactionReceipt,
     },
-    Address, L1ChainId, L1TxCommonData, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+    Address, L1ChainId, L1TxCommonData, H160, H256, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
 };
 use zksync_web3_decl::namespaces::{EthNamespaceClient, ZksNamespaceClient};
 
 use crate::sdk::{
     error::ClientError,
+    ethabi::Bytes,
     operations::SyncTransactionHandle,
     utils::{is_token_eth, load_contract},
-    web3::ethabi::Bytes,
 };
 
 const IERC20_INTERFACE: &str = include_str!("../abi/IERC20.json");
@@ -372,7 +372,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         };
         let args = CallFunctionArgs::new(
             "l2TransactionBaseCost",
-            (gas_price, gas_limit, gas_per_pubdata_byte),
+            (gas_price, gas_limit, U256::from(gas_per_pubdata_byte)),
         );
         let res = self.eth_client.call_main_contract_function(args).await?;
         Ok(U256::from_tokens(res)?)
@@ -412,7 +412,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                 l2_value,
                 calldata,
                 gas_limit,
-                L1_TO_L2_GAS_PER_PUBDATA,
+                U256::from(L1_TO_L2_GAS_PER_PUBDATA),
                 factory_deps,
                 refund_recipient,
             )

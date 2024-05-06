@@ -6,7 +6,7 @@ use crate::sdk::{
     ethereum::ierc20_contract,
     operations::SyncTransactionHandle,
     wallet::Wallet,
-    web3::contract::tokens::Tokenize,
+    web3::contract::Tokenize,
     zksync_types::{transaction_request::PaymasterParams, Execute, L2TxCommonData},
     EthNamespaceClient, ZksNamespaceClient,
 };
