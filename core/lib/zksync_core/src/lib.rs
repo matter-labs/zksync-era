@@ -62,6 +62,7 @@ use zksync_house_keeper::{
     periodic_job::PeriodicJob,
     waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
 };
+use zksync_node_genesis::{ensure_genesis_state, GenesisParams};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_shared_metrics::{InitStage, APP_METRICS};
@@ -85,7 +86,6 @@ use crate::{
         },
         Aggregator, EthTxAggregator, EthTxManager,
     },
-    genesis::GenesisParams,
     l1_gas_price::{
         GasAdjusterSingleton, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
     },
@@ -104,7 +104,6 @@ pub mod consistency_checker;
 pub mod db_pruner;
 pub mod eth_sender;
 pub mod fee_model;
-pub mod genesis;
 pub mod l1_gas_price;
 pub mod metadata_calculator;
 pub mod proto;
@@ -128,7 +127,7 @@ pub async fn genesis_init(
     let mut storage = pool.connection().await.context("connection()")?;
 
     let params = GenesisParams::load_genesis_params(genesis_config)?;
-    genesis::ensure_genesis_state(&mut storage, &params).await?;
+    ensure_genesis_state(&mut storage, &params).await?;
 
     Ok(())
 }

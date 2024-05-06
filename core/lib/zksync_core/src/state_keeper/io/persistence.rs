@@ -248,6 +248,7 @@ mod tests {
     use futures::FutureExt;
     use multivm::zk_evm_latest::ethereum_types::{H256, U256};
     use zksync_dal::CoreDal;
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{
         api::TransactionStatus, block::BlockGasCount, tx::ExecutionMetrics, AccountTreeId,
         L1BatchNumber, L2BlockNumber, StorageKey, StorageLogQueryType,
@@ -255,14 +256,11 @@ mod tests {
     use zksync_utils::u256_to_h256;
 
     use super::*;
-    use crate::{
-        genesis::{insert_genesis_batch, GenesisParams},
-        state_keeper::{
-            io::L2BlockParams,
-            tests::{
-                create_execution_result, create_transaction, create_updates_manager,
-                default_l1_batch_env, default_system_env, default_vm_batch_result, Query,
-            },
+    use crate::state_keeper::{
+        io::L2BlockParams,
+        tests::{
+            create_execution_result, create_transaction, create_updates_manager,
+            default_l1_batch_env, default_system_env, default_vm_batch_result, Query,
         },
     };
 
