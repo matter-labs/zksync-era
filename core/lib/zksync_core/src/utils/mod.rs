@@ -207,11 +207,11 @@ pub async fn ensure_l1_batch_commit_data_generation_mode(
 mod tests {
     use std::{mem, sync::Mutex};
 
-    use zksync_eth_client::{clients::MockEthereum, ClientError, ContractError};
+    use zksync_eth_client::{clients::MockEthereum, ClientError};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{ethabi, U256};
 
     use super::*;
-    use crate::genesis::{insert_genesis_batch, GenesisParams};
 
     #[tokio::test]
     async fn test_binary_search() {

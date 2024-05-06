@@ -19,7 +19,7 @@ use zksync_config::{
     GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core::{
-    genesis, genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
+    genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
     temp_config_store::{decode_yaml, decode_yaml_repr, Secrets, TempConfigStore},
     Component, Components,
 };
@@ -183,7 +183,7 @@ async fn main() -> anyhow::Result<()> {
             let eth_config = configs.eth.as_ref().context("eth config")?;
             let query_client =
                 QueryClient::new(eth_config.web3_url.clone()).context("Ethereum client")?;
-            genesis::save_set_chain_id_tx(
+            zksync_node_genesis::save_set_chain_id_tx(
                 &query_client,
                 contracts_config.diamond_proxy_addr,
                 ecosystem_contracts.state_transition_proxy_addr,

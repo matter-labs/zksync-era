@@ -2362,6 +2362,7 @@ dependencies = [
  "zksync_core",
  "zksync_dal",
  "zksync_env_config",
+ "zksync_node_genesis",
  "zksync_protobuf",
  "zksync_protobuf_config",
  "zksync_types",
@@ -8367,6 +8368,7 @@ dependencies = [
  "zksync_mempool",
  "zksync_merkle_tree",
  "zksync_mini_merkle_tree",
+ "zksync_node_genesis",
  "zksync_object_store",
  "zksync_proof_data_handler",
  "zksync_protobuf",
@@ -8565,6 +8567,7 @@ dependencies = [
  "zksync_eth_client",
  "zksync_health_check",
  "zksync_l1_contract_interface",
+ "zksync_node_genesis",
  "zksync_object_store",
  "zksync_protobuf_config",
  "zksync_shared_metrics",
@@ -8713,6 +8716,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_node_genesis"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "itertools 0.10.5",
+ "multivm",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_eth_client",
+ "zksync_merkle_tree",
+ "zksync_system_constants",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "zksync_object_store"
 version = "0.1.0"
 dependencies = [
@@ -8850,6 +8874,7 @@ dependencies = [
  "zksync_core",
  "zksync_env_config",
  "zksync_eth_client",
+ "zksync_node_genesis",
  "zksync_protobuf_config",
  "zksync_storage",
  "zksync_types",
