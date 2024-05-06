@@ -6,7 +6,7 @@ use zksync_eth_client::{BoundEthInterface, EthInterface, Options};
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
-    api::BlockNumber, tokens::ETHEREUM_ADDRESS, Address, Nonce,
+    api::BlockNumber, tokens::ETHEREUM_ADDRESS, web3::transports::Http, Address, Nonce,
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 
@@ -21,6 +21,7 @@ use crate::{
         ethereum::{PriorityOpHolder, DEFAULT_PRIORITY_FEE},
         utils::{
             get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
+            load_contract,
         },
         web3::types::TransactionReceipt,
         EthNamespaceClient, EthereumProvider, ZksNamespaceClient,
@@ -55,14 +56,27 @@ impl Executor {
         let pool = AccountPool::new(&config).await?;
 
         // derive L2 main token address
-        let l2_main_token = pool
+        let l2_shared_bridge = pool
             .master_wallet
-            .ethereum(&config.l1_rpc_address)
-            .await
-            .expect("Can't get Ethereum client")
-            .l2_token_address(config.main_token, None)
-            .await
+            .provider
+            .get_bridge_contracts()
+            .await?
+            .l2_shared_default_bridge
             .unwrap();
+        let l2_shared_bridge_abi = include_str!("sdk/abi/IL2SharedBridge.json");
+        let abi = load_contract(l2_shared_bridge_abi);
+        let web3 = zksync_types::web3::Web3::new(Http::new(&config.l2_rpc_address)?);
+        let contract =
+            zksync_types::web3::contract::Contract::new(web3.eth(), l2_shared_bridge, abi);
+        let l2_main_token = contract
+            .query(
+                "l2TokenAddress",
+                config.main_token,
+                None,
+                zksync_types::web3::contract::Options::default(),
+                None,
+            )
+            .await?;
 
         Ok(Self {
             config,
