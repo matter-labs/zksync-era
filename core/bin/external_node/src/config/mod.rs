@@ -24,7 +24,6 @@ use zksync_core::{
 };
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
-use zksync_eth_client::EthInterface;
 use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
 use zksync_types::{api::BridgeAddresses, url::SensitiveUrl, ETHEREUM_ADDRESS};
@@ -812,7 +811,6 @@ impl ExternalNodeConfig {
         required: RequiredENConfig,
         optional: OptionalENConfig,
         main_node_client: &BoxedL2Client,
-        eth_client: &dyn EthInterface,
     ) -> anyhow::Result<Self> {
         let experimental = envy::prefixed("EN_EXPERIMENTAL_")
             .from_env::<ExperimentalENConfig>()
@@ -828,12 +826,6 @@ impl ExternalNodeConfig {
         let remote = RemoteENConfig::fetch(main_node_client)
             .await
             .context("Unable to fetch required config values from the main node")?;
-        // We can query them from main node, but it's better to set them explicitly
-        // as well to avoid connecting to wrong environment variables unintentionally.
-        let eth_chain_id = eth_client
-            .fetch_chain_id()
-            .await
-            .context("Unable to check L1 chain ID through the configured L1 client")?;
 
         anyhow::ensure!(
             required.l2_chain_id == remote.l2_chain_id,
@@ -842,22 +834,6 @@ impl ExternalNodeConfig {
             Main node L2 chain id: {:?}. Local config value: {:?}",
             required.l2_chain_id,
             remote.l2_chain_id
-        );
-
-        anyhow::ensure!(
-            required.l1_chain_id == remote.l1_chain_id,
-            "Configured L1 chain id doesn't match the one from main node.
-            Make sure your configuration is correct and you are corrected to the right main node.
-            Main node L1 chain id: {}. Local config value: {}",
-            remote.l1_chain_id,
-            required.l1_chain_id
-        );
-        anyhow::ensure!(
-            required.l1_chain_id == eth_chain_id,
-            "Configured L1 chain id doesn't match the one from eth node.
-            Make sure your configuration is correct and you are corrected to the right eth node.
-            Eth node chain id: {eth_chain_id}. Local config value: {}",
-            required.l1_chain_id
         );
 
         let postgres = PostgresConfig::from_env()?;
