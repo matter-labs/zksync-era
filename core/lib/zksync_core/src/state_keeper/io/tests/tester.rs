@@ -29,7 +29,16 @@ use zksync_types::{
     L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, H256,
 };
 
-use crate::state_keeper::{MempoolGuard, MempoolIO};
+use crate::{
+    base_token_fetcher::NoOpConversionRateFetcher,
+    fee_model::MainNodeFeeInputProvider,
+    l1_gas_price::{GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing},
+    state_keeper::{MempoolGuard, MempoolIO},
+    utils::testonly::{
+        create_l1_batch, create_l2_block, create_l2_transaction, execute_l2_transaction,
+        DeploymentMode,
+    },
+};
 
 #[derive(Debug)]
 pub struct Tester {
@@ -73,10 +82,13 @@ impl Tester {
             max_blob_base_fee: None,
         };
 
+        let base_token_fetcher = Arc::new(NoOpConversionRateFetcher);
+
         GasAdjuster::new(
             Box::new(eth_client),
             gas_adjuster_config,
             PubdataSendingMode::Calldata,
+            base_token_fetcher,
             self.pubdata_pricing.clone(),
         )
         .await

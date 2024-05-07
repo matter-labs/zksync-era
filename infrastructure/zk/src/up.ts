@@ -9,6 +9,7 @@ export function createVolumes() {
 }
 
 export async function up(runObservability: boolean, composeFile?: string) {
+    createVolumes();
     if (composeFile) {
         await utils.spawn(`docker compose -f ${composeFile} up -d`);
     } else {
@@ -22,7 +23,6 @@ export async function up(runObservability: boolean, composeFile?: string) {
 export const command = new Command('up')
     .description('start development containers')
     .option('--docker-file <dockerFile>', 'path to a custom docker file')
-    .option('--run-observability', 'whether to run observability stack')
     .action(async (cmd) => {
-        await up(cmd.runObservability, cmd.dockerFile);
+        await up(cmd.dockerFile);
     });

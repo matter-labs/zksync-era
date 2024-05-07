@@ -94,6 +94,39 @@ template.
 Make sure you have environment variables set right, you can check it by running: `zk env`. You should see `* dev` in
 output.
 
+## Gas Price Oracle
+
+As prices in a custom base token setting need to be in the native currency of the chain. These prices are partially
+determined by l1 gas prices in L1, which are in ETH, so a conversion is required.
+
+### Conversion rate API
+
+To use a conversion rate oracle, you will need to add the component to the command:
+
+```
+zk server --components="api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator,base_token_fetcher"
+```
+
+In order to run the server with the conversion rate, you will need to configure the variables in the
+`etc/env/base/base_token_fetcher.toml` file, or you can export the variables in the environment:
+
+```
+export BASE_TOKEN_FETCHER_HOST=<Your host>
+# Poll interval is in seconds
+export BASE_TOKEN_FETCHER_POLL_INTERVAL=<Your poll interval>
+export BASE_TOKEN_FETCHER_TOKEN_ADDRESS=<Your token address>
+```
+
+Additionally, you can run the server with the `dev_conversion_rate_api` component to enable the development conversion
+rate API, this component is only meant for development purposes and should not be used in production and will provide a
+fixed conversion rate for all tokens:
+
+```
+zk server --components="api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator,base_token_fetcher,dev_conversion_rate_api"
+```
+
+This server will use the host setted in the environment variable previously mentioned.
+
 ## Running server using Google cloud storage object store instead of default In memory store
 
 Get the service_account.json file containing the GCP credentials from kubernetes secret for relevant environment(stage2/

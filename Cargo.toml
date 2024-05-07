@@ -236,6 +236,7 @@ zksync_block_reverter = { path = "core/node/block_reverter" }
 zksync_commitment_generator = { path = "core/node/commitment_generator" }
 zksync_house_keeper = { path = "core/node/house_keeper" }
 zksync_node_genesis = { path = "core/node/genesis" }
+zksync_base_token_fetcher = { path = "core/node/base_token_fetcher" }
 zksync_eth_sender = { path = "core/node/eth_sender" }
 zksync_node_db_pruner = { path = "core/node/db_pruner" }
 zksync_node_fee_model = { path = "core/node/fee_model" }

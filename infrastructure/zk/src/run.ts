@@ -28,6 +28,18 @@ export async function deployERC20AndWeth({
                 { "name": "DAI",  "symbol": "DAI",  "decimals": 18 },
                 { "name": "wBTC", "symbol": "wBTC", "decimals":  8, "implementation": "RevertTransferERC20" },
                 { "name": "BAT",  "symbol": "BAT",  "decimals": 18 },
+                { "name": "GNT",  "symbol": "GNT",  "decimals": 18 },
+                { "name": "MLTT", "symbol": "MLTT", "decimals": 18 },
+                { "name": "DAIK",  "symbol": "DAIK",  "decimals": 18 },
+                { "name": "wBTCK", "symbol": "wBTCK", "decimals":  8, "implementation": "RevertTransferERC20" },
+                { "name": "BATK",  "symbol": "BATS",  "decimals": 18 },
+                { "name": "GNTK",  "symbol": "GNTS",  "decimals": 18 },
+                { "name": "MLTTK", "symbol": "MLTTS", "decimals": 18 },
+                { "name": "DAIL",  "symbol": "DAIL",  "decimals": 18 },
+                { "name": "wBTCL", "symbol": "wBTCP", "decimals":  8, "implementation": "RevertTransferERC20" },
+                { "name": "BATL",  "symbol": "BATW",  "decimals": 18 },
+                { "name": "GNTL",  "symbol": "GNTW",  "decimals": 18 },
+                { "name": "MLTTL", "symbol": "MLTTW", "decimals": 18 },
                 { "name": "Wrapped Ether", "symbol": "WETH", "decimals": 18, "implementation": "WETH9"}
             ]' ${args.join(' ')} > ./etc/tokens/${destinationFile}.json`);
         const WETH = getTokens(destinationFile).find((token) => token.symbol === 'WETH')!;
@@ -56,11 +68,19 @@ export async function tokenInfo(address: string) {
 
 // installs all dependencies
 export async function yarn() {
-    await utils.spawn('yarn install --frozen-lockfile');
+    await utils.spawn('yarn');
+}
+
+export async function deployTestkit(genesisRoot: string) {
+    await utils.spawn(`yarn l1-contracts deploy-testkit --genesis-root ${genesisRoot}`);
 }
 
 export async function revertReason(txHash: string, web3url?: string) {
     await utils.spawn(`yarn l1-contracts ts-node scripts/revert-reason.ts ${txHash} ${web3url || ''}`);
+}
+
+export async function exitProof(...args: string[]) {
+    await utils.spawn(`cargo run --example generate_exit_proof --release -- ${args.join(' ')}`);
 }
 
 export async function catLogs(exitCode?: number) {
@@ -146,6 +166,14 @@ command
     });
 
 command
+    .command('deploy-testkit')
+    .description('deploy testkit contracts')
+    .requiredOption('--genesis-root <hash>')
+    .action(async (cmd: Command) => {
+        await deployTestkit(cmd.genesisRoot);
+    });
+
+command
     .command('revert-reason <tx_hash> [web3_url]')
     .description('get the revert reason for ethereum transaction')
     .action(revertReason);
@@ -178,3 +206,107 @@ command
     });
 
 command.command('snapshots-creator').action(snapshots_creator);
+
+command
+    .command('cross-en-checker')
+    .description('run the cross external nodes checker. See Checker Readme the default run mode and configuration.')
+    .option(
+        '--mode <mode>',
+        '`Rpc` to run only the RPC checker; `PubSub` to run only the PubSub checker; `All` to run both.'
+    )
+    .option(
+        '--env <env>',
+        `Provide the env the checker will test in to use the default urls for that env. 'Local', 'Stage, 'Testnet', or 'Mainnet'`
+    )
+    .option('--main_node_http_url <url>', 'Manually provide the HTTP URL of the main node')
+    .option('--instances_http_urls <urls>', 'Manually provide the HTTP URLs of the instances to check')
+    .option('--main_node_ws_url <url>', 'Manually provide the WS URL of the main node')
+    .option('--instances_ws_urls <urls>', 'Manually provide the WS URLs of the instances to check')
+    .option(
+        '--rpc_mode <rpc_mode>',
+        'The mode to run the RPC checker in. `Triggered` to run once; `Continuous` to run forever.'
+    )
+    .option(
+        '--start_miniblock <start_miniblock>',
+        'Check all miniblocks starting from this. If not set, then check from genesis. Inclusive.'
+    )
+    .option(
+        '--finish_miniblock <finish_miniblock>',
+        'For Triggered mode. If not set, then check all available miniblocks. Inclusive.'
+    )
+    .option(
+        '--max_transactions_to_check <max_transactions_to_check>',
+        'The maximum number of transactions to be checked at random in each miniblock.'
+    )
+    .option(
+        '--instance_poll_period <instance_poll_period>',
+        'For RPC mode. In seconds, how often to poll the instance node for new miniblocks.'
+    )
+    .option(
+        '--subscription_duration <subscription_duration>',
+        'For PubSub mode. Time in seconds for a subscription to be active. If not set, then the subscription will run forever.'
+    )
+    .action(async (cmd: Command) => {
+        interface Environment {
+            httpMain: string;
+            httpInstances: string;
+            wsMain: string;
+            wsInstances: string;
+        }
+
+        const nodeUrls: Record<string, Environment> = {
+            Local: {
+                httpMain: 'http://127.0.0.1:3050',
+                httpInstances: 'http://127.0.0.1:3060',
+                wsMain: 'ws://127.0.0.1:3051',
+                wsInstances: 'ws://127.0.0.1:3061'
+            },
+            Stage: {
+                httpMain: 'https://z2-dev-api.zksync.dev:443',
+                httpInstances: 'https://external-node-dev.zksync.dev:443',
+                wsMain: 'wss://z2-dev-api.zksync.dev:443/ws',
+                wsInstances: 'wss://external-node-dev.zksync.dev:443/ws'
+            },
+            Testnet: {
+                httpMain: 'https://zksync2-testnet.zksync.dev:443',
+                httpInstances: 'https://external-node-testnet.zksync.dev:443',
+                wsMain: 'wss://zksync2-testnet.zksync.dev:443/ws',
+                wsInstances: 'wss://external-node-testnet.zksync.dev:443/ws'
+            },
+            Mainnet: {
+                httpMain: 'https://zksync2-mainnet.zksync.io:443',
+                httpInstances: 'https://external-node-mainnet.zksync.dev:443',
+                wsMain: 'wss://zksync2-mainnet.zksync.io:443/ws',
+                wsInstances: 'wss://external-node-mainnet.zksync.dev:443/ws'
+            }
+        };
+
+        if (cmd.env && nodeUrls[cmd.env]) {
+            process.env.CHECKER_MAIN_NODE_HTTP_URL = nodeUrls[cmd.env].httpMain;
+            process.env.CHECKER_INSTANCES_HTTP_URLS = nodeUrls[cmd.env].httpInstances;
+            process.env.CHECKER_MAIN_NODE_WS_URL = nodeUrls[cmd.env].wsMain;
+            process.env.CHECKER_INSTANCES_WS_URLS = nodeUrls[cmd.env].wsInstances;
+        }
+
+        const envVarMap = {
+            mode: 'CHECKER_MODE',
+            rpc_mode: 'CHECKER_RPC_MODE',
+            main_node_http_url: 'CHECKER_MAIN_NODE_HTTP_URL',
+            instances_http_urls: 'CHECKER_INSTANCES_HTTP_URLS',
+            main_node_ws_url: 'CHECKER_MAIN_NODE_WS_URL',
+            instances_ws_urls: 'CHECKER_INSTANCES_WS_URLS',
+            start_miniblock: 'CHECKER_START_MINIBLOCK',
+            finish_miniblock: 'CHECKER_FINISH_MINIBLOCK',
+            max_transactions_to_check: 'CHECKER_MAX_TRANSACTIONS_TO_CHECK',
+            instance_poll_period: 'CHECKER_INSTANCE_POLL_PERIOD',
+            subscription_duration: 'CHECKER_SUBSCRIPTION_DURATION'
+        };
+
+        for (const [cmdOption, envVar] of Object.entries(envVarMap)) {
+            if (cmd[cmdOption]) {
+                process.env[envVar] = cmd[cmdOption];
+            }
+        }
+
+        await cross_en_checker();
+    });

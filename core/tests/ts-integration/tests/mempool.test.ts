@@ -100,8 +100,8 @@ describe('Tests for the mempool behavior', () => {
         const poorBob = testMaster.newEmptyAccount();
         const nonce = 0; // No transactions from this account were sent.
 
-        const gasLimit = await alice.estimateGas({ to: alice.address });
-        const gasPrice = await alice.provider.getGasPrice();
+        const gasLimit = await poorBob.estimateGas({ to: alice.address });
+        const gasPrice = await poorBob.provider.getGasPrice();
         const fund = gasLimit.mul(gasPrice).mul(13).div(10);
         await alice.sendTransaction({ to: poorBob.address, value: fund }).then((tx) => tx.wait());
 

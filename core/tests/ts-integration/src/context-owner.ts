@@ -226,6 +226,7 @@ export class TestContextOwner {
         this.reporter.message(`Operator address is ${this.mainEthersWallet.address}`);
 
         const requiredL2ETHAmount = this.requiredL2ETHPerAccount().mul(accountsAmount);
+        // kl todo, for non eth based chains, we need to check different
         const actualL2ETHAmount = await this.mainSyncWallet.getBalance();
         this.reporter.message(`Operator balance on L2 is ${ethers.utils.formatEther(actualL2ETHAmount)} ETH`);
 
