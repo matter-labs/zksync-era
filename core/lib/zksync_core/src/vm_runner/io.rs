@@ -1,5 +1,6 @@
-use async_trait::async_trait;
 use std::fmt::Debug;
+
+use async_trait::async_trait;
 use zksync_dal::Core;
 use zksync_db_connection::connection::Connection;
 use zksync_types::L1BatchNumber;

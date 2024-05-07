@@ -6,7 +6,6 @@ use std::{
     time::Duration,
 };
 
-use crate::vm_runner::VmRunnerIo;
 use anyhow::Context as _;
 use async_trait::async_trait;
 use multivm::{interface::L1BatchEnv, vm_1_4_2::SystemEnv};
@@ -20,6 +19,8 @@ use zksync_state::{
 };
 use zksync_storage::RocksDB;
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2ChainId};
+
+use crate::vm_runner::VmRunnerIo;
 
 /// Data needed to execute an L1 batch.
 #[derive(Debug, Clone)]
