@@ -57,7 +57,7 @@ impl ProtocolVersionId {
     }
 
     pub fn current_prover_version() -> Self {
-        Self::Version23
+        Self::Version24
     }
 
     pub fn next() -> Self {
