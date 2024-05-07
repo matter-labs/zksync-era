@@ -16,9 +16,7 @@ zksync_dal.workspace = true
 zksync_config.workspace = true
 zksync_contracts.workspace = true
 zksync_eth_client.workspace = true
-zksync_system_constants.workspace = true
 zksync_utils.workspace = true
-zksync_web3_decl.workspace = true
 zksync_l1_contract_interface.workspace = true
 zksync_object_store.workspace = true
 zksync_prover_interface.workspace = true
@@ -29,7 +27,6 @@ tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
-itertools.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 

@@ -14,17 +14,13 @@ vise.workspace = true
 zksync_types.workspace = true
 zksync_dal.workspace = true
 zksync_config.workspace = true
-zksync_contracts.workspace = true
 zksync_eth_client.workspace = true
-zksync_system_constants.workspace = true
 zksync_utils.workspace = true
 zksync_web3_decl.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
 async-trait.workspace = true
-itertools.workspace = true
-thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
