@@ -623,6 +623,13 @@ impl<S: ReadStorage> vm2::World for World<S> {
             .as_bytes()
             .into()
     }
+
+    fn is_write_initial(&mut self, contract: H160, key: U256) -> bool {
+        self.storage.borrow_mut().is_write_initial(&StorageKey::new(
+            AccountTreeId::new(contract),
+            u256_to_h256(key),
+        ))
+    }
 }
 
 fn bytecode_to_program(bytecode: &[u8]) -> Program {
