@@ -135,9 +135,9 @@ impl From<Vec<ProverJobFriInfo>> for TaskStatus {
             .iter()
             .all(|job| matches!(job.status, ProverJobStatus::InProgress(_)))
         {
-            TaskStatus::Successful
-        } else {
             TaskStatus::InProgress
+        } else {
+            TaskStatus::Successful
         }
     }
 }
@@ -175,9 +175,9 @@ impl From<Vec<WitnessJobStatus>> for TaskStatus {
             .iter()
             .all(|job| matches!(job, WitnessJobStatus::InProgress))
         {
-            TaskStatus::Successful
-        } else {
             TaskStatus::InProgress
+        } else {
+            TaskStatus::Successful
         }
     }
 }
