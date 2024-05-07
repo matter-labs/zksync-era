@@ -14,7 +14,7 @@ use zksync_types::L1BatchNumber;
 
 use crate::{
     state_keeper::{updates::UpdatesManager, StateKeeperOutputHandler},
-    vm_runner::VmRunnerStorageLoader,
+    vm_runner::VmRunnerIo,
 };
 
 #[async_trait]
@@ -25,44 +25,40 @@ pub trait OutputHandlerFactory: Debug + Send {
     ) -> anyhow::Result<Box<dyn StateKeeperOutputHandler>>;
 }
 
-pub struct ConcurrentOutputHandlerFactory<L: VmRunnerStorageLoader, F: OutputHandlerFactory> {
+pub struct ConcurrentOutputHandlerFactory<Io: VmRunnerIo, F: OutputHandlerFactory> {
     pool: ConnectionPool<Core>,
     state: Arc<DashMap<L1BatchNumber, oneshot::Receiver<BoxFuture<'static, anyhow::Result<()>>>>>,
-    loader: L,
+    io: Io,
     factory: F,
 }
 
-impl<L: VmRunnerStorageLoader, F: OutputHandlerFactory> Debug
-    for ConcurrentOutputHandlerFactory<L, F>
-{
+impl<Io: VmRunnerIo, F: OutputHandlerFactory> Debug for ConcurrentOutputHandlerFactory<Io, F> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ConcurrentOutputHandlerFactory")
             .field("pool", &self.pool)
-            .field("loader", &self.loader)
+            .field("io", &self.io)
             .field("factory", &self.factory)
             .finish()
     }
 }
 
-impl<L: VmRunnerStorageLoader + Clone, F: OutputHandlerFactory>
-    ConcurrentOutputHandlerFactory<L, F>
-{
+impl<Io: VmRunnerIo + Clone, F: OutputHandlerFactory> ConcurrentOutputHandlerFactory<Io, F> {
     pub fn new(
         pool: ConnectionPool<Core>,
-        loader: L,
+        io: Io,
         factory: F,
-    ) -> (Self, ConcurrentOutputHandlerFactoryTask<L>) {
+    ) -> (Self, ConcurrentOutputHandlerFactoryTask<Io>) {
         let state = Arc::new(DashMap::new());
         let task = ConcurrentOutputHandlerFactoryTask {
             pool: pool.clone(),
-            loader: loader.clone(),
+            io: io.clone(),
             state: state.clone(),
         };
         (
             Self {
                 pool,
                 state,
-                loader,
+                io,
                 factory,
             },
             task,
@@ -71,16 +67,16 @@ impl<L: VmRunnerStorageLoader + Clone, F: OutputHandlerFactory>
 }
 
 #[async_trait]
-impl<L: VmRunnerStorageLoader, F: OutputHandlerFactory> OutputHandlerFactory
-    for ConcurrentOutputHandlerFactory<L, F>
+impl<Io: VmRunnerIo, F: OutputHandlerFactory> OutputHandlerFactory
+    for ConcurrentOutputHandlerFactory<Io, F>
 {
     async fn create_handler(
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Box<dyn StateKeeperOutputHandler>> {
-        let mut conn = self.pool.connection_tagged(L::name()).await?;
-        let latest_processed_batch = self.loader.latest_processed_batch(&mut conn).await?;
-        let last_processable_batch = self.loader.last_ready_to_be_loaded_batch(&mut conn).await?;
+        let mut conn = self.pool.connection_tagged(Io::name()).await?;
+        let latest_processed_batch = self.io.latest_processed_batch(&mut conn).await?;
+        let last_processable_batch = self.io.last_ready_to_be_loaded_batch(&mut conn).await?;
         drop(conn);
         anyhow::ensure!(
             l1_batch_number > latest_processed_batch,
@@ -169,18 +165,18 @@ impl StateKeeperOutputHandler for AsyncOutputHandler {
     }
 }
 
-pub struct ConcurrentOutputHandlerFactoryTask<L: VmRunnerStorageLoader> {
+pub struct ConcurrentOutputHandlerFactoryTask<Io: VmRunnerIo> {
     pool: ConnectionPool<Core>,
-    loader: L,
+    io: Io,
     state: Arc<DashMap<L1BatchNumber, oneshot::Receiver<BoxFuture<'static, anyhow::Result<()>>>>>,
 }
 
-impl<L: VmRunnerStorageLoader> ConcurrentOutputHandlerFactoryTask<L> {
+impl<Io: VmRunnerIo> ConcurrentOutputHandlerFactoryTask<Io> {
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         const SLEEP_INTERVAL: Duration = Duration::from_millis(50);
 
-        let mut conn = self.pool.connection_tagged(L::name()).await?;
-        let mut latest_processed_batch = self.loader.latest_processed_batch(&mut conn).await?;
+        let mut conn = self.pool.connection_tagged(Io::name()).await?;
+        let mut latest_processed_batch = self.io.latest_processed_batch(&mut conn).await?;
         drop(conn);
         loop {
             if *stop_receiver.borrow() {
@@ -203,8 +199,8 @@ impl<L: VmRunnerStorageLoader> ConcurrentOutputHandlerFactoryTask<L> {
                     // computation has finished, and we can consider this batch to be completed
                     future.await?;
                     latest_processed_batch += 1;
-                    let mut conn = self.pool.connection_tagged(L::name()).await?;
-                    self.loader
+                    let mut conn = self.pool.connection_tagged(Io::name()).await?;
+                    self.io
                         .mark_l1_batch_as_completed(&mut conn, latest_processed_batch)
                         .await?;
                     drop(conn);
