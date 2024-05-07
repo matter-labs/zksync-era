@@ -253,7 +253,7 @@ async fn run_core(
         main_node_client.clone(),
         output_handler,
         stop_receiver.clone(),
-        config.remote.l2_chain_id,
+        config.required.l2_chain_id,
         task_handles,
     )
     .await?;
@@ -959,7 +959,7 @@ async fn run_node(
         connection_pool.clone(),
         main_node_client.clone(),
         &app_health,
-        config.remote.l2_chain_id,
+        config.required.l2_chain_id,
         config.optional.snapshots_recovery_enabled,
     )
     .await?;

@@ -31,7 +31,7 @@ use zksync_web3_decl::{
     client::BoxedL2Client,
     error::ClientRpcContext,
     jsonrpsee::{core::ClientError, types::error::ErrorCode},
-    namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
+    namespaces::{EnNamespaceClient, ZksNamespaceClient},
 };
 
 pub(crate) mod observability;
@@ -57,8 +57,6 @@ pub(crate) struct RemoteENConfig {
     pub l1_weth_bridge_addr: Option<Address>,
     pub l2_weth_bridge_addr: Option<Address>,
     pub l2_testnet_paymaster_addr: Option<Address>,
-    pub l2_chain_id: L2ChainId,
-    pub l1_chain_id: L1ChainId,
     pub base_token_addr: Address,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
     pub dummy_verifier: bool,
@@ -100,11 +98,6 @@ impl RemoteENConfig {
             }
             response => response.context("Failed to fetch base token address")?,
         };
-        let l2_chain_id = client.chain_id().rpc_context("chain_id").await?;
-        let l2_chain_id = L2ChainId::try_from(l2_chain_id.as_u64())
-            .map_err(|err| anyhow::anyhow!("invalid chain ID supplied by main node: {err}"))?;
-        let l1_chain_id = client.l1_chain_id().rpc_context("l1_chain_id").await?;
-        let l1_chain_id = L1ChainId(l1_chain_id.as_u64());
 
         // These two config variables should always have the same value.
         // TODO(EVM-578): double check and potentially forbid both of them being `None`.
@@ -139,8 +132,6 @@ impl RemoteENConfig {
             l2_shared_bridge_addr: l2_erc20_shared_bridge,
             l1_weth_bridge_addr: bridges.l1_weth_bridge,
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
-            l2_chain_id,
-            l1_chain_id,
             base_token_addr,
             l1_batch_commit_data_generator_mode: genesis
                 .as_ref()
@@ -164,8 +155,6 @@ impl RemoteENConfig {
             l2_erc20_bridge_addr: Some(Address::repeat_byte(3)),
             l2_weth_bridge_addr: None,
             l2_testnet_paymaster_addr: None,
-            l2_chain_id: L2ChainId::default(),
-            l1_chain_id: L1ChainId(9),
             base_token_addr: Address::repeat_byte(4),
             l1_shared_bridge_proxy_addr: Some(Address::repeat_byte(5)),
             l1_weth_bridge_addr: None,
@@ -827,15 +816,6 @@ impl ExternalNodeConfig {
             .await
             .context("Unable to fetch required config values from the main node")?;
 
-        anyhow::ensure!(
-            required.l2_chain_id == remote.l2_chain_id,
-            "Configured L2 chain id doesn't match the one from main node.
-            Make sure your configuration is correct and you are corrected to the right main node.
-            Main node L2 chain id: {:?}. Local config value: {:?}",
-            required.l2_chain_id,
-            remote.l2_chain_id
-        );
-
         let postgres = PostgresConfig::from_env()?;
         Ok(Self {
             remote,
@@ -869,8 +849,8 @@ impl ExternalNodeConfig {
 impl From<ExternalNodeConfig> for InternalApiConfig {
     fn from(config: ExternalNodeConfig) -> Self {
         Self {
-            l1_chain_id: config.remote.l1_chain_id,
-            l2_chain_id: config.remote.l2_chain_id,
+            l1_chain_id: config.required.l1_chain_id,
+            l2_chain_id: config.required.l2_chain_id,
             max_tx_size: config.optional.max_tx_size,
             estimate_gas_scale_factor: config.optional.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: config
@@ -914,7 +894,7 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
             // and they will be enforced by the main node anyway.
             max_allowed_l2_tx_gas_limit: u64::MAX,
             validation_computational_gas_limit: u32::MAX,
-            chain_id: config.remote.l2_chain_id,
+            chain_id: config.required.l2_chain_id,
             // Does not matter for EN.
             whitelisted_tokens_for_aa: Default::default(),
         }
