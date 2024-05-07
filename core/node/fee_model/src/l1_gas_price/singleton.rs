@@ -2,12 +2,13 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use tokio::{sync::watch, task::JoinHandle};
+use zksync_base_token_fetcher::ConversionRateFetcher;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::clients::QueryClient;
 use zksync_types::url::SensitiveUrl;
 
 use super::PubdataPricing;
-use crate::{l1_gas_price::GasAdjuster, ConversionRateFetcher};
+use crate::l1_gas_price::GasAdjuster;
 
 /// Special struct for creating a singleton of `GasAdjuster`.
 /// This is needed only for running the server.
