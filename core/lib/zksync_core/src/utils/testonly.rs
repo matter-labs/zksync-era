@@ -5,6 +5,7 @@ use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
+use zksync_node_genesis::GenesisParams;
 use zksync_system_constants::{get_intrinsic_constants, ZKPORTER_IS_AVAILABLE};
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
@@ -22,7 +23,7 @@ use zksync_types::{
     ProtocolVersionId, StorageLog, H256, U256,
 };
 
-use crate::{fee_model::BatchFeeModelInputProvider, genesis::GenesisParams};
+use crate::fee_model::BatchFeeModelInputProvider;
 
 /// Creates an L2 block header with the specified number and deterministic contents.
 pub(crate) fn create_l2_block(number: u32) -> L2BlockHeader {

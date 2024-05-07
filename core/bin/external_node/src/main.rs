@@ -9,7 +9,10 @@ use tokio::{
     task::{self, JoinHandle},
 };
 use zksync_block_reverter::{BlockReverter, NodeRole};
-use zksync_commitment_generator::CommitmentGenerator;
+use zksync_commitment_generator::{
+    input_generation::{InputGenerator, RollupInputGenerator, ValidiumInputGenerator},
+    CommitmentGenerator,
+};
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{
     api::MerkleTreeApiConfig, chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode,
@@ -344,14 +347,18 @@ async fn run_core(
     )
     .await?;
 
-    let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match config
-        .optional
-        .l1_batch_commit_data_generator_mode
-    {
-        L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
-        L1BatchCommitDataGeneratorMode::Validium => {
-            Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
-        }
+    let (l1_batch_commit_data_generator, input_generator): (
+        Arc<dyn L1BatchCommitDataGenerator>,
+        Box<dyn InputGenerator>,
+    ) = match config.optional.l1_batch_commit_data_generator_mode {
+        L1BatchCommitDataGeneratorMode::Rollup => (
+            Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+            Box::new(RollupInputGenerator),
+        ),
+        L1BatchCommitDataGeneratorMode::Validium => (
+            Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+            Box::new(ValidiumInputGenerator),
+        ),
     };
 
     let consistency_checker = ConsistencyChecker::new(
@@ -382,7 +389,7 @@ async fn run_core(
         .build()
         .await
         .context("failed to build a commitment_generator_pool")?;
-    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
+    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool, input_generator);
     app_health.insert_component(commitment_generator.health_check())?;
     let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
 
