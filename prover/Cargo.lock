@@ -4363,6 +4363,7 @@ dependencies = [
  "hex",
  "log",
  "prover_dal",
+ "strum",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -7719,7 +7720,6 @@ dependencies = [
  "serde",
  "zksync_basic_types",
  "zksync_config",
- "zksync_system_constants",
 ]
 
 [[package]]
