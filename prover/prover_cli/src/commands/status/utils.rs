@@ -138,11 +138,11 @@ impl From<Vec<ProverJobFriInfo>> for TaskStatus {
             TaskStatus::Queued
         } else if jobs_vector
             .iter()
-            .all(|job| matches!(job.status, ProverJobStatus::InProgress(_)))
+            .all(|job| matches!(job.status, ProverJobStatus::Successful(_)))
         {
-            TaskStatus::InProgress
-        } else {
             TaskStatus::Successful
+        } else {
+            TaskStatus::InProgress
         }
     }
 }
@@ -178,11 +178,11 @@ impl From<Vec<WitnessJobStatus>> for TaskStatus {
             TaskStatus::WaitingForProofs
         } else if status_vector
             .iter()
-            .all(|job| matches!(job, WitnessJobStatus::InProgress))
+            .all(|job| matches!(job, WitnessJobStatus::Successful(_)))
         {
-            TaskStatus::InProgress
-        } else {
             TaskStatus::Successful
+        } else {
+            TaskStatus::InProgress
         }
     }
 }
