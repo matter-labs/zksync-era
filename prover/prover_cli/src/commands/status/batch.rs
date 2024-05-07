@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::{ensure, Context as _};
 use clap::Args as ClapArgs;
 use colored::*;
@@ -5,8 +7,9 @@ use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_types::{
     basic_fri_types::AggregationRound,
     prover_dal::{
-        BasicWitnessGeneratorJobInfo, LeafWitnessGeneratorJobInfo, NodeWitnessGeneratorJobInfo,
-        ProofCompressionJobInfo, ProverJobFriInfo, SchedulerWitnessGeneratorJobInfo,
+        BasicWitnessGeneratorJobInfo, JobCountStatistics, LeafWitnessGeneratorJobInfo,
+        NodeWitnessGeneratorJobInfo, ProofCompressionJobInfo, ProverJobFriInfo, ProverJobStatus,
+        SchedulerWitnessGeneratorJobInfo,
     },
     L1BatchNumber,
 };
@@ -34,7 +37,7 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
         if !args.verbose {
             display_batch_status(batch_data);
         } else {
-            println!("WIP")
+            display_batch_info(batch_data);
         }
     }
 
@@ -189,15 +192,10 @@ fn display_batch_status(batch_data: BatchData) {
 }
 
 fn display_status_for_stage(stage_info: StageInfo) {
-    println!(
-        "-- {} --",
-        format!(
-            "Aggregation Round {}",
-            stage_info
-                .aggregation_round()
-                .expect("No aggregation round found") as u8
-        )
-        .bold()
+    display_aggregation_round(
+        stage_info
+            .aggregation_round()
+            .expect("No aggregation round found."),
     );
     match stage_info.witness_generator_jobs_status() {
         Status::Custom(msg) => {
@@ -224,4 +222,165 @@ fn display_status_for_stage(stage_info: StageInfo) {
             );
         }
     }
+}
+
+fn display_batch_info(batch_data: BatchData) {
+    println!(
+        "== {} == \n",
+        format!("Batch {} Status", batch_data.batch_number)
+    );
+    display_info_for_stage(batch_data.basic_witness_generator);
+    display_info_for_stage(batch_data.leaf_witness_generator);
+    display_info_for_stage(batch_data.node_witness_generator);
+    display_info_for_stage(batch_data.recursion_tip_witness_generator);
+    display_info_for_stage(batch_data.scheduler_witness_generator);
+}
+
+fn display_info_for_stage(stage_info: StageInfo) {
+    display_aggregation_round(
+        stage_info
+            .aggregation_round()
+            .expect("No aggregation round found."),
+    );
+    match stage_info.witness_generator_jobs_status() {
+        Status::Custom(msg) => {
+            println!("{}: {}", stage_info.to_string().bold(), msg);
+        }
+        Status::Queued | Status::WaitingForProofs | Status::Stuck | Status::JobsNotFound => {
+            println!(
+                "{}: {} \n",
+                stage_info.to_string().bold(),
+                stage_info.witness_generator_jobs_status()
+            )
+        }
+        Status::InProgress => {
+            println!(
+                "{}: {}",
+                stage_info.to_string().bold(),
+                stage_info.witness_generator_jobs_status()
+            );
+            match stage_info {
+                StageInfo::BasicWitnessGenerator {
+                    prover_jobs_info, ..
+                }
+                | StageInfo::RecursionTipWitnessGenerator {
+                    prover_jobs_info, ..
+                }
+                | StageInfo::SchedulerWitnessGenerator {
+                    prover_jobs_info, ..
+                } => {
+                    display_prover_jobs_info(prover_jobs_info);
+                }
+                StageInfo::LeafWitnessGenerator {
+                    witness_generator_jobs_info,
+                    prover_jobs_info,
+                } => {
+                    display_leaf_witness_generator_jobs_info(witness_generator_jobs_info);
+                    display_prover_jobs_info(prover_jobs_info);
+                }
+                StageInfo::NodeWitnessGenerator {
+                    witness_generator_jobs_info,
+                    prover_jobs_info,
+                } => {
+                    display_node_witness_generator_jobs_info(witness_generator_jobs_info);
+                    display_prover_jobs_info(prover_jobs_info);
+                }
+                StageInfo::Compressor(_) => todo!(),
+            }
+        }
+        Status::Successful => {
+            println!(
+                "{}: {}",
+                stage_info.to_string().bold(),
+                stage_info.witness_generator_jobs_status()
+            );
+            match stage_info {
+                StageInfo::BasicWitnessGenerator {
+                    prover_jobs_info, ..
+                }
+                | StageInfo::LeafWitnessGenerator {
+                    prover_jobs_info, ..
+                }
+                | StageInfo::NodeWitnessGenerator {
+                    prover_jobs_info, ..
+                }
+                | StageInfo::RecursionTipWitnessGenerator {
+                    prover_jobs_info, ..
+                }
+                | StageInfo::SchedulerWitnessGenerator {
+                    prover_jobs_info, ..
+                } => display_prover_jobs_info(prover_jobs_info),
+                StageInfo::Compressor(_) => todo!(),
+            }
+        }
+    }
+}
+
+fn display_leaf_witness_generator_jobs_info(
+    mut leaf_witness_generators_jobs_info: Vec<LeafWitnessGeneratorJobInfo>,
+) {
+    leaf_witness_generators_jobs_info.sort_by_key(|job| job.circuit_id);
+
+    leaf_witness_generators_jobs_info
+        .iter()
+        .for_each(|job| println!("Circuit id: {} - Status: {}", job.circuit_id, job.status));
+}
+
+fn display_node_witness_generator_jobs_info(
+    mut node_witness_generators_jobs_info: Vec<NodeWitnessGeneratorJobInfo>,
+) {
+    node_witness_generators_jobs_info.sort_by_key(|job| job.circuit_id);
+
+    node_witness_generators_jobs_info
+        .iter()
+        .for_each(|job| println!("Circuit id: {} - Status: {}", job.circuit_id, job.status));
+}
+
+fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>) {
+    let mut jobs_by_circuit_id: HashMap<u32, Vec<ProverJobFriInfo>> = HashMap::new();
+
+    prover_jobs_info.iter().for_each(|job| {
+        jobs_by_circuit_id
+            .entry(job.circuit_id)
+            .or_insert(Vec::new())
+            .push(job.clone())
+    });
+
+    for (circuit_id, prover_jobs_info) in jobs_by_circuit_id {
+        let status = Status::from(prover_jobs_info.clone());
+        match status {
+            Status::InProgress => {
+                println!("   > Circuit ID: {}, status: {}", circuit_id, status);
+                display_job_status_count(prover_jobs_info);
+            }
+            _ => println!("{}", status),
+        };
+    }
+}
+
+fn display_job_status_count(jobs: Vec<ProverJobFriInfo>) {
+    let mut jobs_counts = JobCountStatistics::default();
+
+    let total_jobs = jobs.len();
+
+    jobs.iter().for_each(|job| match job.status {
+        ProverJobStatus::Queued => jobs_counts.queued += 1,
+        ProverJobStatus::InProgress(_) => jobs_counts.in_progress += 1,
+        ProverJobStatus::Successful(_) => jobs_counts.successful += 1,
+        ProverJobStatus::Failed(_) => jobs_counts.failed += 1,
+        ProverJobStatus::Skipped | ProverJobStatus::Ignored => (),
+    });
+
+    println!("   - Total jobs: {}", total_jobs);
+    println!("   - Successful: {}", jobs_counts.successful);
+    println!("   - In Progress: {}", jobs_counts.in_progress);
+    println!("   - Queued: {}", jobs_counts.queued);
+    println!("   - Failed: {}", jobs_counts.failed);
+}
+
+fn display_aggregation_round(aggregation_round: AggregationRound) {
+    println!(
+        "-- {} --",
+        format!("Aggregation Round {}", aggregation_round as u8).bold()
+    );
 }
