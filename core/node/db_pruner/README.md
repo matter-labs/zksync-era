@@ -1,4 +1,4 @@
-# Db pruner
+# `zksync_node_db_pruner`
 
 Database pruner is a component that regularly removes the oldest l1 batches from the database together with
 corresponding L2 blocks, events, etc.
