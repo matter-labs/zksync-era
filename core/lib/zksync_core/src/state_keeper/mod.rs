@@ -6,6 +6,7 @@ use zksync_config::configs::{
     wallets,
 };
 use zksync_dal::{ConnectionPool, Core};
+use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::L2ChainId;
 
 pub use self::{
@@ -20,7 +21,6 @@ pub use self::{
     state_keeper_storage::AsyncRocksdbCache,
     types::MempoolGuard,
 };
-use crate::fee_model::BatchFeeModelInputProvider;
 
 mod batch_executor;
 pub(crate) mod io;
@@ -33,6 +33,7 @@ mod state_keeper_storage;
 pub(crate) mod tests;
 pub(crate) mod types;
 pub(crate) mod updates;
+pub(crate) mod utils;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn create_state_keeper(

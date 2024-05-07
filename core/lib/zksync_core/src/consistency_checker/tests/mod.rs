@@ -8,22 +8,20 @@ use tokio::sync::mpsc;
 use zksync_config::GenesisConfig;
 use zksync_dal::Connection;
 use zksync_eth_client::{clients::MockEthereum, Options};
+use zksync_eth_sender::l1_batch_commit_data_generator::{
+    RollupModeL1BatchCommitDataGenerator, ValidiumModeL1BatchCommitDataGenerator,
+};
+use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
+use zksync_node_test_utils::{
+    create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
+    DeploymentMode,
+};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, Log,
     ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use super::*;
-use crate::{
-    eth_sender::l1_batch_commit_data_generator::{
-        RollupModeL1BatchCommitDataGenerator, ValidiumModeL1BatchCommitDataGenerator,
-    },
-    genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams},
-    utils::testonly::{
-        create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
-        DeploymentMode,
-    },
-};
 
 /// **NB.** For tests to run correctly, the returned value must be deterministic (i.e., depend only on `number`).
 pub(crate) fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
@@ -99,7 +97,7 @@ pub(crate) fn create_mock_checker(
         diamond_proxy_addr: Some(DIAMOND_PROXY_ADDR),
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
-        l1_client: Arc::new(client),
+        l1_client: Box::new(client),
         event_handler: Box::new(health_updater),
         l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
         pool,

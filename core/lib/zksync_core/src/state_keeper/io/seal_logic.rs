@@ -24,7 +24,7 @@ use zksync_types::{
     utils::display_timestamp,
     zk_evm_types::LogQuery,
     AccountTreeId, Address, ExecuteTransactionCommon, L1BlockNumber, ProtocolVersionId, StorageKey,
-    StorageLog, StorageLogQuery, Transaction, VmEvent, H256,
+    StorageLog, Transaction, VmEvent, H256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -76,9 +76,6 @@ impl UpdatesManager {
         );
 
         let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.l1_batch.executed_transactions);
-        let (writes_count, reads_count) = storage_log_query_write_read_counts(
-            &finished_batch.final_execution_state.storage_log_queries,
-        );
         let (dedup_writes_count, dedup_reads_count) = log_query_write_read_counts(
             finished_batch
                 .final_execution_state
@@ -89,8 +86,8 @@ impl UpdatesManager {
         tracing::info!(
             "Sealing L1 batch {current_l1_batch_number} with timestamp {ts}, {total_tx_count} \
              ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {l2_to_l1_log_count} l2_l1_logs, \
-             {event_count} events, {reads_count} reads ({dedup_reads_count} deduped), \
-             {writes_count} writes ({dedup_writes_count} deduped)",
+             {event_count} events, {dedup_reads_count} deduped reads, \
+             {dedup_writes_count} deduped writes",
             ts = display_timestamp(self.batch_timestamp()),
             total_tx_count = l1_tx_count + l2_tx_count,
             l2_to_l1_log_count = finished_batch
@@ -175,35 +172,50 @@ impl UpdatesManager {
         }
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FilterWrittenSlots);
-        let deduplicated_writes_hashed_keys: Vec<_> = deduplicated_writes
-            .iter()
-            .map(|log| {
-                H256(StorageKey::raw_hashed_key(
-                    &log.address,
-                    &u256_to_h256(log.key),
-                ))
-            })
-            .collect();
-        let non_initial_writes = transaction
-            .storage_logs_dedup_dal()
-            .filter_written_slots(&deduplicated_writes_hashed_keys)
-            .await?;
+        let written_storage_keys: Vec<_> =
+            if let Some(initially_written_slots) = &finished_batch.initially_written_slots {
+                deduplicated_writes
+                    .iter()
+                    .filter_map(|log| {
+                        let key =
+                            StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
+                        initially_written_slots
+                            .contains(&key.hashed_key())
+                            .then_some(key)
+                    })
+                    .collect()
+            } else {
+                let deduplicated_writes_hashed_keys: Vec<_> = deduplicated_writes
+                    .iter()
+                    .map(|log| {
+                        H256(StorageKey::raw_hashed_key(
+                            &log.address,
+                            &u256_to_h256(log.key),
+                        ))
+                    })
+                    .collect();
+                let non_initial_writes = transaction
+                    .storage_logs_dedup_dal()
+                    .filter_written_slots(&deduplicated_writes_hashed_keys)
+                    .await?;
+
+                deduplicated_writes
+                    .iter()
+                    .filter_map(|log| {
+                        let key =
+                            StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
+                        (!non_initial_writes.contains(&key.hashed_key())).then_some(key)
+                    })
+                    .collect()
+            };
         progress.observe(deduplicated_writes.len());
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertInitialWrites);
-        let written_storage_keys: Vec<_> = deduplicated_writes
-            .iter()
-            .filter_map(|log| {
-                let key = StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
-                (!non_initial_writes.contains(&key.hashed_key())).then_some(key)
-            })
-            .collect();
-
         transaction
             .storage_logs_dedup_dal()
             .insert_initial_writes(self.l1_batch.number, &written_storage_keys)
             .await?;
-        progress.observe(deduplicated_writes.len());
+        progress.observe(written_storage_keys.len());
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::CommitL1Batch);
         transaction.commit().await?;
@@ -332,12 +344,9 @@ impl L2BlockSealCommand {
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2BlockHeader, is_fictive);
 
         let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.l2_block.executed_transactions);
-        let (writes_count, reads_count) =
-            storage_log_query_write_read_counts(&self.l2_block.storage_logs);
         tracing::info!(
             "Sealing L2 block {l2_block_number} with timestamp {ts} (L1 batch {l1_batch_number}) \
-             with {total_tx_count} ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {event_count} events, \
-             {reads_count} reads, {writes_count} writes",
+             with {total_tx_count} ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {event_count} events",
             ts = display_timestamp(self.l2_block.timestamp),
             total_tx_count = l1_tx_count + l2_tx_count,
             event_count = self.l2_block.events.len()
@@ -672,8 +681,4 @@ fn log_query_write_read_counts<'a>(logs: impl Iterator<Item = &'a LogQuery>) -> 
         }
     }
     (writes_count, reads_count)
-}
-
-fn storage_log_query_write_read_counts(logs: &[StorageLogQuery]) -> (usize, usize) {
-    log_query_write_read_counts(logs.iter().map(|log| &log.log_query))
 }

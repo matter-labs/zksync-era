@@ -6,6 +6,10 @@ use test_casing::test_casing;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_test_utils::{
+    create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot,
+};
 use zksync_types::{
     api,
     block::L2BlockHasher,
@@ -17,14 +21,12 @@ use zksync_types::{
 use super::{fetcher::FetchedTransaction, sync_action::SyncAction, *};
 use crate::{
     consensus::testonly::MockMainNodeClient,
-    genesis::{insert_genesis_batch, GenesisParams},
     state_keeper::{
         io::{L1BatchParams, L2BlockParams},
         seal_criteria::NoopSealer,
         tests::TestBatchExecutorBuilder,
         OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
     },
-    utils::testonly::{create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot},
 };
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
