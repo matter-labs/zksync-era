@@ -128,6 +128,11 @@ impl From<Vec<ProverJobFriInfo>> for TaskStatus {
             TaskStatus::JobsNotFound
         } else if jobs_vector
             .iter()
+            .all(|job| matches!(job.status, ProverJobStatus::InGPUProof))
+        {
+            TaskStatus::Custom("In GPU ⚡️".to_owned())
+        } else if jobs_vector
+            .iter()
             .all(|job| matches!(job.status, ProverJobStatus::Queued))
         {
             TaskStatus::Queued
