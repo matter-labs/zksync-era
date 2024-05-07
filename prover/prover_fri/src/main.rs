@@ -23,6 +23,7 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::CircuitIdRoundTuple,
     prover_dal::{GpuProverInstanceStatus, SocketAddress},
+    ProtocolVersionId,
 };
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
@@ -192,15 +193,13 @@ async fn get_prover_tasks(
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
     _init_notifier: Arc<Notify>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
-    use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
-
     use crate::prover_job_processor::{load_setup_data_cache, Prover};
 
-    let vk_commitments = get_cached_commitments();
+    let protocol_version = ProtocolVersionId::current_prover_version();
 
     tracing::info!(
-        "Starting CPU FRI proof generation for with vk_commitments: {:?}",
-        vk_commitments
+        "Starting CPU FRI proof generation for with protocol_version: {:?}",
+        protocol_version
     );
 
     let setup_load_mode =
@@ -212,7 +211,7 @@ async fn get_prover_tasks(
         pool,
         setup_load_mode,
         circuit_ids_for_round_to_be_proven,
-        vk_commitments,
+        protocol_version,
     );
     Ok(vec![tokio::spawn(prover.run(stop_receiver, None))])
 }
@@ -247,6 +246,9 @@ async fn get_prover_tasks(
         host: local_ip,
         port: prover_config.witness_vector_receiver_port,
     };
+
+    let protocol_version = ProtocolVersionId::current_prover_version();
+
     let prover = gpu_prover::Prover::new(
         store_factory.create_store().await,
         public_blob_store,
@@ -257,6 +259,7 @@ async fn get_prover_tasks(
         consumer,
         address.clone(),
         zone.clone(),
+        protocol_version,
     );
     let producer = shared_witness_vector_queue.clone();
 
@@ -271,6 +274,7 @@ async fn get_prover_tasks(
         pool.clone(),
         prover_config.specialized_group_id,
         zone.clone(),
+        protocol_version,
     );
 
     let mut tasks = vec![

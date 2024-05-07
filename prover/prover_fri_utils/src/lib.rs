@@ -15,7 +15,7 @@ use zksync_prover_fri_types::{
 };
 use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
-    protocol_version::L1VerifierConfig,
+    ProtocolVersionId,
 };
 
 use crate::metrics::{CircuitLabels, PROVER_FRI_UTILS_METRICS};
@@ -28,12 +28,8 @@ pub async fn fetch_next_circuit(
     storage: &mut Connection<'_, Prover>,
     blob_store: &dyn ObjectStore,
     circuit_ids_for_round_to_be_proven: &[CircuitIdRoundTuple],
-    vk_commitments: &L1VerifierConfig,
+    protocol_version: &ProtocolVersionId,
 ) -> Option<ProverJob> {
-    let protocol_versions = storage
-        .fri_protocol_versions_dal()
-        .protocol_version_for(vk_commitments)
-        .await;
     let pod_name = get_current_pod_name();
     let prover_job = match &circuit_ids_for_round_to_be_proven.is_empty() {
         false => {
@@ -42,7 +38,7 @@ pub async fn fetch_next_circuit(
                 .fri_prover_jobs_dal()
                 .get_next_job_for_circuit_id_round(
                     circuit_ids_for_round_to_be_proven,
-                    &protocol_versions,
+                    protocol_version,
                     &pod_name,
                 )
                 .await
@@ -51,7 +47,7 @@ pub async fn fetch_next_circuit(
             // Generalized prover: proving all circuits.
             storage
                 .fri_prover_jobs_dal()
-                .get_next_job(&protocol_versions, &pod_name)
+                .get_next_job(protocol_version, &pod_name)
                 .await
         }
     }?;
