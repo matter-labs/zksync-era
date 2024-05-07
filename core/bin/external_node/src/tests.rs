@@ -5,7 +5,7 @@ use test_casing::test_casing;
 use zksync_basic_types::protocol_version::ProtocolVersionId;
 use zksync_eth_client::clients::MockEthereum;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_types::{api, ethabi, fee_model::FeeParams, L1BatchNumber, L2BlockNumber, H256};
+use zksync_types::{api, ethabi, fee_model::FeeParams, L1BatchNumber, L2BlockNumber, H256, U64};
 use zksync_web3_decl::client::{BoxedL2Client, MockL2Client};
 
 use super::*;
@@ -134,6 +134,9 @@ async fn external_node_basics(components_str: &'static str) {
     let l2_client = MockL2Client::new(move |method, params| {
         tracing::info!("Called L2 client: {method}({params:?})");
         match method {
+            "eth_chainId" => Ok(serde_json::json!(U64::from(270))),
+            "zks_L1ChainId" => Ok(serde_json::json!(U64::from(9))),
+
             "zks_L1BatchNumber" => Ok(serde_json::json!("0x0")),
             "zks_getL1BatchDetails" => {
                 let (number,): (L1BatchNumber,) = serde_json::from_value(params)?;

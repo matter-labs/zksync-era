@@ -105,9 +105,9 @@ impl ValidateChainIdsTask {
                 Ok(chain_id) => {
                     anyhow::ensure!(
                         expected == chain_id,
-                        "Configured L1 chain id doesn't match the one from eth node.
-                        Make sure your configuration is correct and you are corrected to the right eth node.
-                        Eth node chain id: {chain_id}. Local config value: {expected}"
+                        "Configured L1 chain ID doesn't match the one from Ethereum node. \
+                        Make sure your configuration is correct and you are corrected to the right Ethereum node. \
+                        Eth node chain ID: {chain_id}. Local config value: {expected}"
                     );
                     tracing::info!(
                         "Checked that L1 chain ID {chain_id} is returned by Ethereum client"
@@ -136,9 +136,9 @@ impl ValidateChainIdsTask {
                     let chain_id = L1ChainId(chain_id.as_u64());
                     anyhow::ensure!(
                         expected == chain_id,
-                        "Configured L1 chain id doesn't match the one from main node.
-                        Make sure your configuration is correct and you are corrected to the right main node.
-                        Main node L1 chain id: {chain_id}. Local config value: {expected}"
+                        "Configured L1 chain ID doesn't match the one from main node. \
+                        Make sure your configuration is correct and you are corrected to the right main node. \
+                        Main node L1 chain ID: {chain_id}. Local config value: {expected}"
                     );
                     tracing::info!(
                         "Checked that L1 chain ID {chain_id} is returned by main node client"
@@ -172,9 +172,9 @@ impl ValidateChainIdsTask {
                     })?;
                     anyhow::ensure!(
                         expected == chain_id,
-                        "Configured L1 chain id doesn't match the one from main node.
-                        Make sure your configuration is correct and you are corrected to the right main node.
-                        Main node L1 chain id: {chain_id:?}. Local config value: {expected:?}"
+                        "Configured L2 chain ID doesn't match the one from main node. \
+                        Make sure your configuration is correct and you are corrected to the right main node. \
+                        Main node L2 chain ID: {chain_id:?}. Local config value: {expected:?}"
                     );
                     tracing::info!(
                         "Checked that L2 chain ID {chain_id:?} is returned by main node client"
@@ -213,5 +213,103 @@ impl ValidateChainIdsTask {
                 _ = stop_receiver.changed() => return Ok(()),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use zksync_eth_client::clients::MockEthereum;
+    use zksync_types::U64;
+    use zksync_web3_decl::client::MockL2Client;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn validating_chain_ids_errors() {
+        let main_node_client = MockL2Client::new(|method, _| match method {
+            "eth_chainId" => Ok(serde_json::json!(U64::from(270))),
+            "zks_L1ChainId" => Ok(serde_json::json!(U64::from(3))),
+            _ => panic!("unexpected L2 call: {method}"),
+        });
+
+        let validation_task = ValidateChainIdsTask::new(
+            L1ChainId(3), // << mismatch with the Ethereum client
+            L2ChainId::default(),
+            Box::<MockEthereum>::default(),
+            BoxedL2Client::new(main_node_client.clone()),
+        );
+        let (_stop_sender, stop_receiver) = watch::channel(false);
+        let err = validation_task
+            .run(stop_receiver.clone())
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("L1 chain ID") && err.contains("Ethereum node"),
+            "{err}"
+        );
+
+        let validation_task = ValidateChainIdsTask::new(
+            L1ChainId(9), // << mismatch with the main node client
+            L2ChainId::from(270),
+            Box::<MockEthereum>::default(),
+            BoxedL2Client::new(main_node_client.clone()),
+        );
+        let err = validation_task
+            .run(stop_receiver.clone())
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("L1 chain ID") && err.contains("main node"),
+            "{err}"
+        );
+
+        let main_node_client = MockL2Client::new(|method, _| match method {
+            "eth_chainId" => Ok(serde_json::json!(U64::from(270))),
+            "zks_L1ChainId" => Ok(serde_json::json!(U64::from(9))),
+            _ => panic!("unexpected L2 call: {method}"),
+        });
+
+        let validation_task = ValidateChainIdsTask::new(
+            L1ChainId(9),
+            L2ChainId::from(271), // << mismatch with the main node client
+            Box::<MockEthereum>::default(),
+            BoxedL2Client::new(main_node_client.clone()),
+        );
+        let err = validation_task
+            .run(stop_receiver)
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("L2 chain ID") && err.contains("main node"),
+            "{err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn validating_chain_ids_success() {
+        let main_node_client = MockL2Client::new(|method, _| match method {
+            "eth_chainId" => Ok(serde_json::json!(U64::from(270))),
+            "zks_L1ChainId" => Ok(serde_json::json!(U64::from(9))),
+            _ => panic!("unexpected L2 call: {method}"),
+        });
+
+        let validation_task = ValidateChainIdsTask::new(
+            L1ChainId(9),
+            L2ChainId::default(),
+            Box::<MockEthereum>::default(),
+            BoxedL2Client::new(main_node_client.clone()),
+        );
+        let (stop_sender, stop_receiver) = watch::channel(false);
+        let task = tokio::spawn(validation_task.run(stop_receiver));
+
+        // Wait a little and ensure that the task hasn't terminated.
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert!(!task.is_finished());
+
+        stop_sender.send_replace(true);
+        task.await.unwrap().unwrap();
     }
 }
