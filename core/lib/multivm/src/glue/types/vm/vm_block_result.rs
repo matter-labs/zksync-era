@@ -71,6 +71,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::Fi
             },
             final_bootloader_memory: None,
             pubdata_input: None,
+            initially_written_slots: None,
         }
     }
 }
@@ -130,6 +131,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::Fi
             },
             final_bootloader_memory: None,
             pubdata_input: None,
+            initially_written_slots: None,
         }
     }
 }
@@ -187,6 +189,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface:
             },
             final_bootloader_memory: None,
             pubdata_input: None,
+            initially_written_slots: None,
         }
     }
 }

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use zksync_core::fee_model::BatchFeeModelInputProvider;
+use zksync_node_fee_model::BatchFeeModelInputProvider;
 
 use crate::resource::Resource;
 

@@ -17,6 +17,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
+use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
@@ -40,7 +41,6 @@ use crate::{
         },
         tx_sender::result::ApiCallResult,
     },
-    fee_model::BatchFeeModelInputProvider,
     state_keeper::seal_criteria::{ConditionalSealer, NoopSealer, SealData},
     utils::pending_protocol_version,
 };
