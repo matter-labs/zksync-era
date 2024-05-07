@@ -8,7 +8,7 @@ use zksync_shared_metrics::{BlockL1Stage, BlockStage, APP_METRICS};
 use zksync_types::{aggregated_operations::AggregatedActionType, eth_sender::EthTx};
 use zksync_utils::time::seconds_since_epoch;
 
-use crate::eth_sender::eth_tx_manager::L1BlockNumbers;
+use crate::eth_tx_manager::L1BlockNumbers;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "kind", rename_all = "snake_case")]

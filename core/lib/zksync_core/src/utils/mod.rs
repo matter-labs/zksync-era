@@ -18,9 +18,6 @@ use zksync_types::{
     L1BatchNumber, ProtocolVersionId,
 };
 
-#[cfg(test)]
-pub(crate) mod testonly;
-
 /// Fallible and async predicate for binary search.
 #[async_trait]
 pub(crate) trait BinarySearchPredicate: Send {

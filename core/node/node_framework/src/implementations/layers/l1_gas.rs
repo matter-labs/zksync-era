@@ -8,9 +8,9 @@ use zksync_config::{
     },
     GasAdjusterConfig, GenesisConfig,
 };
-use zksync_core::{
-    fee_model::MainNodeFeeInputProvider,
+use zksync_node_fee_model::{
     l1_gas_price::{GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing},
+    MainNodeFeeInputProvider,
 };
 use zksync_types::fee_model::FeeModelConfig;
 

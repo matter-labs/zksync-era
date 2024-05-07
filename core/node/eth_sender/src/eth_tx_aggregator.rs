@@ -24,7 +24,7 @@ use zksync_types::{
 };
 
 use super::aggregated_operations::AggregatedOperation;
-use crate::eth_sender::{
+use crate::{
     l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
     metrics::{PubdataKind, METRICS},
     utils::agg_l1_batch_base_cost,

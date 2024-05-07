@@ -3,6 +3,7 @@ use std::{collections::VecDeque, sync::Arc};
 use test_casing::test_casing;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::clients::MockEthereum;
+use zksync_node_test_utils::DeploymentMode;
 
 use super::{GasAdjuster, GasStatisticsInner, PubdataPricing};
 use crate::{

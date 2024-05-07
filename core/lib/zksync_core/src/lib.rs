@@ -9,7 +9,6 @@ use std::{
 
 use anyhow::Context as _;
 use api_server::tx_sender::master_pool_sink::MasterPoolSink;
-use fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInputProvider};
 use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::Prover;
 use temp_config_store::Secrets;
@@ -51,6 +50,13 @@ use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},
     BoundEthInterface, EthInterface,
 };
+use zksync_eth_sender::{
+    l1_batch_commit_data_generator::{
+        L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
+        ValidiumModeL1BatchCommitDataGenerator,
+    },
+    Aggregator, EthTxAggregator, EthTxManager,
+};
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_house_keeper::{
@@ -64,6 +70,12 @@ use zksync_house_keeper::{
     fri_witness_generator_queue_monitor::FriWitnessGeneratorStatsReporter,
     periodic_job::PeriodicJob,
     waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
+};
+use zksync_node_fee_model::{
+    l1_gas_price::{
+        GasAdjusterSingleton, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
+    },
+    ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInputProvider,
 };
 use zksync_node_genesis::{ensure_genesis_state, GenesisParams};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -82,16 +94,6 @@ use crate::{
         web3::{self, mempool_cache::MempoolCache, state::InternalApiConfig, Namespace},
     },
     basic_witness_input_producer::BasicWitnessInputProducer,
-    eth_sender::{
-        l1_batch_commit_data_generator::{
-            L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
-            ValidiumModeL1BatchCommitDataGenerator,
-        },
-        Aggregator, EthTxAggregator, EthTxManager,
-    },
-    l1_gas_price::{
-        GasAdjusterSingleton, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
-    },
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     state_keeper::{
         create_state_keeper, AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler,
@@ -104,11 +106,6 @@ pub mod api_server;
 pub mod basic_witness_input_producer;
 pub mod consensus;
 pub mod consistency_checker;
-pub mod db_pruner;
-pub mod dev_api_conversion_rate;
-pub mod eth_sender;
-pub mod fee_model;
-pub mod l1_gas_price;
 pub mod metadata_calculator;
 pub mod proto;
 pub mod reorg_detector;
@@ -116,7 +113,6 @@ pub mod state_keeper;
 pub mod sync_layer;
 pub mod temp_config_store;
 pub mod utils;
-pub mod vm_runner;
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(

@@ -14,7 +14,6 @@ use zksync_types::{U256, U64};
 
 use self::metrics::METRICS;
 use super::{L1TxParamsProvider, PubdataPricing};
-use crate::state_keeper::metrics::KEEPER_METRICS;
 
 mod metrics;
 #[cfg(test)]
@@ -138,7 +137,6 @@ impl GasAdjuster {
                 "Effective gas price is too high: {gas_price}, using max allowed: {}",
                 max_l1_gas_price
             );
-            KEEPER_METRICS.gas_price_too_high.inc();
             return max_l1_gas_price;
         }
         gas_price

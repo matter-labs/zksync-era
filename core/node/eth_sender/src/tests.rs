@@ -10,6 +10,12 @@ use zksync_config::{
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{clients::MockEthereum, EthInterface};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
+use zksync_node_fee_model::l1_gas_price::{
+    GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
+};
+use zksync_node_test_utils::{
+    create_l1_batch, l1_batch_metadata_to_commitment_artifacts, DeploymentMode,
+};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
     block::L1BatchHeader,
