@@ -277,6 +277,8 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
     }
 
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        const SLEEP_INTERVAL: Duration = Duration::from_millis(50);
+
         self.catchup_task.run(stop_receiver.clone()).await?;
         let rocksdb = self.rocksdb_cell.get().ok_or_else(|| {
             anyhow::anyhow!("Expected RocksDB to be initialized by `AsyncCatchupTask`")
@@ -300,7 +302,7 @@ impl<L: VmRunnerStorageLoader> StorageSyncTask<L> {
                     // No need to do anything, killing time until last processed batch is updated.
                     drop(conn);
                     drop(state);
-                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    tokio::time::sleep(SLEEP_INTERVAL).await;
                     continue;
                 }
             }

@@ -81,6 +81,7 @@ impl<L: VmRunnerStorageLoader, F: OutputHandlerFactory> OutputHandlerFactory
         let mut conn = self.pool.connection_tagged(L::name()).await?;
         let latest_processed_batch = self.loader.latest_processed_batch(&mut conn).await?;
         let last_processable_batch = self.loader.last_ready_to_be_loaded_batch(&mut conn).await?;
+        drop(conn);
         anyhow::ensure!(
             l1_batch_number > latest_processed_batch,
             "Cannot handle an already processed batch #{} (latest is #{})",
@@ -176,6 +177,8 @@ pub struct ConcurrentOutputHandlerFactoryTask<L: VmRunnerStorageLoader> {
 
 impl<L: VmRunnerStorageLoader> ConcurrentOutputHandlerFactoryTask<L> {
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        const SLEEP_INTERVAL: Duration = Duration::from_millis(50);
+
         let mut conn = self.pool.connection_tagged(L::name()).await?;
         let mut latest_processed_batch = self.loader.latest_processed_batch(&mut conn).await?;
         drop(conn);
@@ -186,10 +189,18 @@ impl<L: VmRunnerStorageLoader> ConcurrentOutputHandlerFactoryTask<L> {
             }
             match self.state.remove(&(latest_processed_batch + 1)) {
                 None => {
-                    tokio::time::sleep(Duration::from_millis(50)).await;
+                    tracing::debug!(
+                        "Output handler for batch #{} has not been created yet",
+                        latest_processed_batch + 1
+                    );
+                    tokio::time::sleep(SLEEP_INTERVAL).await;
                 }
                 Some((_, receiver)) => {
+                    // Wait until the future is sent through the receiver, happens when
+                    // `handle_l1_batch` is called on the corresponding output handler
                     let future = receiver.await?;
+                    // Wait until the future is completed, meaning that the `handle_l1_batch`
+                    // computation has finished, and we can consider this batch to be completed
                     future.await?;
                     latest_processed_batch += 1;
                     let mut conn = self.pool.connection_tagged(L::name()).await?;
