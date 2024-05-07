@@ -361,6 +361,12 @@ pub async fn initialize_components(
     };
 
     let base_token_fetcher = if components.contains(&Component::BaseTokenFetcher) {
+        if components.contains(&Component::DevConversionRateApi) {
+            // If we are using the dev conversion rate API,
+            // we need to wait for it to start before initializing the base token fetcher.
+            // a more deterministic way should be used
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
         Arc::new(
             BaseTokenFetcher::new(
                 configs
