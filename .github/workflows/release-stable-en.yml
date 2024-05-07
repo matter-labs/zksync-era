@@ -1,0 +1,34 @@
+name: Workflow to push stable EN image
+
+on:
+  workflow_call:
+    inputs:
+      tag_name:
+        description: "Tag of an image"
+        type: string
+        required: true
+
+jobs:
+  release:
+    runs-on: [matterlabs-ci-runner]
+    steps:
+      - name: Login to Docker registries
+        run: docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Check if alpha image exists
+        run: |
+          set +e
+          docker manifest inspect matterlabs/external-node:${{ inputs.tag_name }}-alpha >/dev/null 2>&1
+          exitcode=$?
+          set -e
+          if [[ "$exitcode" -eq "1" ]]; then
+            echo "Image matterlabs/external-node:${{ inputs.tag_name }} doesn't exist"
+            exit 1
+          fi
+
+      - name: Push stable image
+        run: |
+          docker pull matterlabs/external-node:${{ inputs.tag_name }}-alpha
+          docker tag matterlabs/external-node:${{ inputs.tag_name }}-alpha \
+            matterlabs/external-node:${{ inputs.tag_name }}
+          docker push matterlabs/external-node:${{ inputs.tag_name }}
