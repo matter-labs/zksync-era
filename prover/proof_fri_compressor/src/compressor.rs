@@ -26,17 +26,11 @@ use zkevm_test_harness_1_3_3::{
     witness::oracle::VmWitnessOracle,
 };
 use zksync_object_store::ObjectStore;
-#[cfg(not(feature = "gpu"))]
-use zksync_prover_fri_types::circuit_definitions::{
-    circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuit,
-    snark_wrapper::franklin_crypto::bellman::plonk::better_better_cs::proof::Proof as SnarkProof,
-};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
         circuit_definitions::recursion_layer::{
             ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
-            ZkSyncRecursionLayerVerificationKey,
         },
         zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
     },
@@ -95,30 +89,9 @@ impl ProofCompressor {
         }
         Ok(())
     }
-
-    #[cfg(not(feature = "gpu"))]
-    fn get_wrapper_proof(
-        proof: ZkSyncRecursionLayerProof,
-        scheduler_vk: ZkSyncRecursionLayerVerificationKey,
-        compression_mode: u8,
-    ) -> SnarkProof<Bn256, ZkSyncSnarkWrapperCircuit> {
-        let config = WrapperConfig::new(compression_mode);
-
-        let (wrapper_proof, _) = wrap_proof(proof, scheduler_vk, config);
-        wrapper_proof.into_inner()
-    }
-
-    // #[cfg(feature = "gpu")]
-    // fn get_wrapper_proof(
-    //     proof: ZkSyncRecursionLayerProof,
-    //     scheduler_vk: ZkSyncRecursionLayerVerificationKey,
-    //     _compression_mode: u8,
-    // ) -> SnarkProof<Bn256, ZkSyncSnarkWrapperCircuit> {
-    // }
-
     pub fn compress_proof(
         proof: ZkSyncRecursionLayerProof,
-        compression_mode: u8,
+        _compression_mode: u8,
         verify_wrapper_proof: bool,
     ) -> anyhow::Result<FinalProof> {
         let keystore = Keystore::default();
@@ -142,7 +115,12 @@ impl ProofCompressor {
             prover.get_wrapper_proof().unwrap()
         };
         #[cfg(not(feature = "gpu"))]
-        let wrapper_proof = Self::get_wrapper_proof(proof, scheduler_vk, compression_mode);
+        let wrapper_proof = {
+            let config = WrapperConfig::new(_compression_mode);
+
+            let (wrapper_proof, _) = wrap_proof(proof, scheduler_vk, config);
+            wrapper_proof.into_inner()
+        };
 
         // (Re)serialization should always succeed.
         let serialized = bincode::serialize(&wrapper_proof)
