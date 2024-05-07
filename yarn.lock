@@ -10822,6 +10822,7 @@ synckit@^0.8.6:
     fast-glob "^3.3.2"
     hardhat "^2.18.3"
     preprocess "^3.2.0"
+    zksync-ethers "https://github.com/zksync-sdk/zksync-ethers#ethers-v5-feat/bridgehub"
 
 table-layout@^1.0.2:
   version "1.0.2"
@@ -11719,6 +11720,12 @@ zksync-ethers@5.8.0-beta.5:
   version "5.8.0-beta.5"
   resolved "https://registry.yarnpkg.com/zksync-ethers/-/zksync-ethers-5.8.0-beta.5.tgz#4f70193a86bd1e41b25b0aa5aa32f6d41d52f7c6"
   integrity sha512-saT/3OwLgifqzrBG7OujvUMapzXnshAaLzAZMycUtdV20eLSSVkyLIARVwh1M6hMQIUvX2htV0JN82QRMyM3Ig==
+  dependencies:
+    ethers "~5.7.0"
+
+"zksync-ethers@https://github.com/zksync-sdk/zksync-ethers#ethers-v5-feat/bridgehub":
+  version "5.8.0-beta.5"
+  resolved "https://github.com/zksync-sdk/zksync-ethers#40206030b71f31228f5a7f34be9dcdc16a31002b"
   dependencies:
     ethers "~5.7.0"
 
