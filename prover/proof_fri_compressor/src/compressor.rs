@@ -6,10 +6,7 @@ use circuit_sequencer_api::proof::FinalProof;
 use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tokio::task::JoinHandle;
 #[cfg(feature = "gpu")]
-use wrapper_prover::{
-    Bn256, GPUWrapperConfigs, Proof as SnarkProof, WrapperProver, ZkSyncSnarkWrapperCircuit,
-    DEFAULT_WRAPPER_CONFIG,
-};
+use wrapper_prover::{Bn256, GPUWrapperConfigs, WrapperProver, DEFAULT_WRAPPER_CONFIG};
 #[cfg(not(feature = "gpu"))]
 use zkevm_test_harness::proof_wrapper_utils::WrapperConfig;
 #[allow(unused_imports)]
