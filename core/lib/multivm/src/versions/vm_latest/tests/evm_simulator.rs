@@ -643,6 +643,58 @@ fn test_basic_exp_vectors() {
     );
 }
 
+fn perform_exp(base: U256, exponent: U256, result: U256) {
+    assert_eq!(
+        test_evm_vector(
+            vec![
+                // push32 base
+                hex::decode("7F").unwrap(),
+                u256_to_h256(exponent.into()).0.to_vec(),
+                // push32 exponent
+                hex::decode("7F").unwrap(),
+                u256_to_h256(base.into()).0.to_vec(),
+                // exp
+                hex::decode("0A").unwrap(),
+                // push32 0
+                hex::decode("7F").unwrap(),
+                H256::zero().0.to_vec(),
+                // sstore
+                hex::decode("55").unwrap(),
+            ]
+            .into_iter()
+            .concat()
+        ),
+        result.into()
+    );
+}
+#[test]
+fn test_multiple_exp_vectors() {
+    perform_exp(
+        U256::zero(),
+        U256::from_dec_str("433478394034343").unwrap(),
+        U256::zero(),
+    );
+    perform_exp(
+        U256::one(),
+        U256::from_dec_str("433478394034343").unwrap(),
+        U256::one(),
+    );
+    perform_exp(
+        U256::from_dec_str("21").unwrap(),
+        U256::from_dec_str("52").unwrap(),
+        U256::from_dec_str("569381465857367090636427305760163241950353347303833610101782245331441")
+            .unwrap(),
+    );
+    perform_exp(
+        U256::max_value(),
+        U256::from_dec_str("23784273472384723848213821342323233223").unwrap(),
+        U256::from_dec_str(
+            "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+        )
+        .unwrap(),
+    );
+}
+
 #[test]
 fn test_basic_signextend_vectors() {
     // Here we just try to test some small EVM contracts and ensure that they work.
