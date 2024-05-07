@@ -13,6 +13,7 @@ use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_node_genesis::create_genesis_l1_batch;
+use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_state::{ReadStorageFactory, RocksdbStorageOptions};
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
@@ -29,13 +30,10 @@ use super::{
     read_storage_factory::{PostgresFactory, RocksdbFactory},
     StorageType,
 };
-use crate::{
-    state_keeper::{
-        batch_executor::{BatchExecutorHandle, TxExecutionResult},
-        tests::{default_l1_batch_env, default_system_env, BASE_SYSTEM_CONTRACTS},
-        AsyncRocksdbCache, BatchExecutor, MainBatchExecutor,
-    },
-    utils::testonly::prepare_recovery_snapshot,
+use crate::state_keeper::{
+    batch_executor::{BatchExecutorHandle, TxExecutionResult},
+    tests::{default_l1_batch_env, default_system_env, BASE_SYSTEM_CONTRACTS},
+    AsyncRocksdbCache, BatchExecutor, MainBatchExecutor,
 };
 
 const DEFAULT_GAS_PER_PUBDATA: u32 = 10000;

@@ -5,7 +5,7 @@ use chrono::Utc;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::L1BatchNumber;
 
-use crate::db_pruner::PruneCondition;
+use crate::PruneCondition;
 
 #[derive(Debug)]
 pub(super) struct L1BatchOlderThanPruneCondition {

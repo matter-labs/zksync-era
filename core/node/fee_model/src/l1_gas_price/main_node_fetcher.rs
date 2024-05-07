@@ -9,7 +9,7 @@ use zksync_web3_decl::{
     client::BoxedL2Client, error::ClientRpcContext, namespaces::ZksNamespaceClient,
 };
 
-use crate::fee_model::BatchFeeModelInputProvider;
+use crate::BatchFeeModelInputProvider;
 
 const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 

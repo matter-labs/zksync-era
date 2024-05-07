@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 
 use assert_matches::assert_matches;
-use multivm::zk_evm_latest::ethereum_types::H256;
 use test_log::test;
 use zksync_dal::pruning_dal::PruningInfo;
 use zksync_db_connection::connection::Connection;
 use zksync_health_check::CheckHealth;
-use zksync_types::{block::L2BlockHeader, Address, L2BlockNumber, ProtocolVersion};
+use zksync_types::{block::L2BlockHeader, Address, L2BlockNumber, ProtocolVersion, H256};
 
 use super::*;
 
