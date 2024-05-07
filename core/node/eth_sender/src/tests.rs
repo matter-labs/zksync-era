@@ -3,6 +3,7 @@ use std::sync::Arc;
 use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
 use test_casing::{test_casing, Product};
+use zksync_base_token_fetcher::{ConversionRateFetcher, NoOpConversionRateFetcher};
 use zksync_config::{
     configs::eth_sender::{ProofSendingMode, PubdataSendingMode, SenderConfig},
     ContractsConfig, EthConfig, GasAdjusterConfig,
@@ -32,13 +33,8 @@ use super::l1_batch_commit_data_generator::{
     ValidiumModeL1BatchCommitDataGenerator,
 };
 use crate::{
-    base_token_fetcher::{ConversionRateFetcher, NoOpConversionRateFetcher},
-    eth_sender::{
-        aggregated_operations::AggregatedOperation, eth_tx_manager::L1BlockNumbers, Aggregator,
-        ETHSenderError, EthTxAggregator, EthTxManager,
-    },
-    l1_gas_price::{GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing},
-    utils::testonly::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts, DeploymentMode},
+    aggregated_operations::AggregatedOperation, eth_tx_manager::L1BlockNumbers, Aggregator,
+    ETHSenderError, EthTxAggregator, EthTxManager,
 };
 
 // Alias to conveniently call static methods of `ETHSender`.

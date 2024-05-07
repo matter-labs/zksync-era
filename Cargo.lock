@@ -8625,6 +8625,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
+ "zksync_base_token_fetcher",
  "zksync_config",
  "zksync_contracts",
  "zksync_dal",

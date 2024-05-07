@@ -3,6 +3,7 @@
 use std::{slice, sync::Arc, time::Duration};
 
 use multivm::vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT;
+use zksync_base_token_fetcher::NoOpConversionRateFetcher;
 use zksync_config::{
     configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode, wallets::Wallets},
     GasAdjusterConfig,
@@ -29,16 +30,7 @@ use zksync_types::{
     L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, H256,
 };
 
-use crate::{
-    base_token_fetcher::NoOpConversionRateFetcher,
-    fee_model::MainNodeFeeInputProvider,
-    l1_gas_price::{GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing},
-    state_keeper::{MempoolGuard, MempoolIO},
-    utils::testonly::{
-        create_l1_batch, create_l2_block, create_l2_transaction, execute_l2_transaction,
-        DeploymentMode,
-    },
-};
+use crate::state_keeper::{MempoolGuard, MempoolIO};
 
 #[derive(Debug)]
 pub struct Tester {

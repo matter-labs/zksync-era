@@ -120,7 +120,7 @@ pub enum TaskStatus {
     JobsNotFound,
 }
 
-// This implementation will change to From<Vec<ProverJobFriInfo>> for AggregationRoundInfo
+// This implementation will change to From<Vec<ProverJobFriInfo>> for the Aggregation Round Info struct
 // once the --verbose flag is implemented.
 impl From<Vec<ProverJobFriInfo>> for TaskStatus {
     fn from(jobs_vector: Vec<ProverJobFriInfo>) -> Self {
