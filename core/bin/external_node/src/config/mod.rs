@@ -1,7 +1,6 @@
 use std::{
-    env, fmt,
+    env,
     num::{NonZeroU32, NonZeroU64, NonZeroUsize},
-    str::FromStr,
     time::Duration,
 };
 
@@ -621,6 +620,13 @@ impl OptionalENConfig {
 /// This part of the external node config is required for its operation.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub(crate) struct RequiredENConfig {
+    /// L1 chain ID (e.g., 9 for Ethereum mainnet). This ID will be checked against the `eth_client_url` RPC provider on initialization
+    /// to ensure that there's no mismatch between the expected and actual L1 network.
+    pub l1_chain_id: L1ChainId,
+    /// L2 chain ID (e.g., 270 for zkSync Era mainnet). This ID will be checked against the `main_node_url` RPC provider on initialization
+    /// to ensure that there's no mismatch between the expected and actual L2 network.
+    pub l2_chain_id: L2ChainId,
+
     /// Port on which the HTTP RPC server is listening.
     pub http_port: u16,
     /// Port on which the WebSocket RPC server is listening.
@@ -647,6 +653,8 @@ impl RequiredENConfig {
     #[cfg(test)]
     fn mock(temp_dir: &tempfile::TempDir) -> Self {
         Self {
+            l1_chain_id: L1ChainId(9),
+            l2_chain_id: L2ChainId::default(),
             http_port: 0,
             ws_port: 0,
             healthcheck_port: 0,
@@ -827,28 +835,29 @@ impl ExternalNodeConfig {
             .await
             .context("Unable to check L1 chain ID through the configured L1 client")?;
 
-        let l2_chain_id: L2ChainId = env_var("EN_L2_CHAIN_ID")?;
         anyhow::ensure!(
-            l2_chain_id == remote.l2_chain_id,
+            required.l2_chain_id == remote.l2_chain_id,
             "Configured L2 chain id doesn't match the one from main node.
             Make sure your configuration is correct and you are corrected to the right main node.
-            Main node L2 chain id: {:?}. Local config value: {l2_chain_id:?}",
-            remote.l2_chain_id,
+            Main node L2 chain id: {:?}. Local config value: {:?}",
+            required.l2_chain_id,
+            remote.l2_chain_id
         );
 
-        let l1_chain_id: L1ChainId = env_var("EN_L1_CHAIN_ID")?;
         anyhow::ensure!(
-            l1_chain_id == remote.l1_chain_id,
+            required.l1_chain_id == remote.l1_chain_id,
             "Configured L1 chain id doesn't match the one from main node.
             Make sure your configuration is correct and you are corrected to the right main node.
-            Main node L1 chain id: {}. Local config value: {l1_chain_id}",
+            Main node L1 chain id: {}. Local config value: {}",
             remote.l1_chain_id,
+            required.l1_chain_id
         );
         anyhow::ensure!(
-            l1_chain_id == eth_chain_id,
+            required.l1_chain_id == eth_chain_id,
             "Configured L1 chain id doesn't match the one from eth node.
             Make sure your configuration is correct and you are corrected to the right eth node.
-            Eth node chain id: {eth_chain_id}. Local config value: {l1_chain_id}"
+            Eth node chain id: {eth_chain_id}. Local config value: {}",
+            required.l1_chain_id
         );
 
         let postgres = PostgresConfig::from_env()?;
@@ -879,17 +888,6 @@ impl ExternalNodeConfig {
             tree_component: TreeComponentConfig { api_port: None },
         }
     }
-}
-
-fn env_var<T>(name: &str) -> anyhow::Result<T>
-where
-    T: FromStr,
-    T::Err: fmt::Display,
-{
-    env::var(name)
-        .with_context(|| format!("`{name}` env variable is not set"))?
-        .parse()
-        .map_err(|err| anyhow::anyhow!("unable to parse `{name}` env variable: {err}"))
 }
 
 impl From<ExternalNodeConfig> for InternalApiConfig {
