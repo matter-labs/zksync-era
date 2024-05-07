@@ -353,7 +353,7 @@ fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>) {
                 println!("   > Circuit ID: {}, status: {}", circuit_id, status);
                 display_job_status_count(prover_jobs_info);
             }
-            _ => println!("{}", status),
+            _ => println!("   > Circuit ID: {}, status: {}", circuit_id, status),
         };
     }
 }
@@ -371,11 +371,11 @@ fn display_job_status_count(jobs: Vec<ProverJobFriInfo>) {
         ProverJobStatus::Skipped | ProverJobStatus::Ignored => (),
     });
 
-    println!("   - Total jobs: {}", total_jobs);
-    println!("   - Successful: {}", jobs_counts.successful);
-    println!("   - In Progress: {}", jobs_counts.in_progress);
-    println!("   - Queued: {}", jobs_counts.queued);
-    println!("   - Failed: {}", jobs_counts.failed);
+    println!("     - Total jobs: {}", total_jobs);
+    println!("     - Successful: {}", jobs_counts.successful);
+    println!("     - In Progress: {}", jobs_counts.in_progress);
+    println!("     - Queued: {}", jobs_counts.queued);
+    println!("     - Failed: {}", jobs_counts.failed);
 }
 
 fn display_aggregation_round(aggregation_round: AggregationRound) {
