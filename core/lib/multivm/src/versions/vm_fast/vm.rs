@@ -10,9 +10,13 @@ use zksync_types::{
     event::{extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages},
     l1::is_l1_tx_type,
     l2_to_l1_log::UserL2ToL1Log,
-    utils::storage_key_for_eth_balance,
-    writes::StateDiffRecord,
-    AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS, U256,
+    utils::key_for_eth_balance,
+    writes::{
+        compression::compress_with_best_strategy, StateDiffRecord, BYTES_PER_DERIVED_KEY,
+        BYTES_PER_ENUMERATION_INDEX,
+    },
+    AccountTreeId, StorageKey, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS,
+    L2_ETH_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
@@ -382,11 +386,6 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
                 default_aa_code_hash,
                 // this will change after 1.5
                 evm_interpreter_code_hash: default_aa_code_hash,
-                storage_key_for_eth_balance: storage_key_for_eth_balance(&BOOTLOADER_ADDRESS)
-                    .hashed_key()
-                    .as_bytes()
-                    .try_into()
-                    .unwrap(),
                 hook_address: VM_HOOK_POSITION * 32,
             },
         );
@@ -624,11 +623,44 @@ impl<S: ReadStorage> vm2::World for World<S> {
             .into()
     }
 
-    fn is_write_initial(&mut self, contract: H160, key: U256) -> bool {
-        self.storage.borrow_mut().is_write_initial(&StorageKey::new(
-            AccountTreeId::new(contract),
-            u256_to_h256(key),
-        ))
+    fn cost_of_writing_storage(&mut self, contract: H160, key: U256, new_value: U256) -> u32 {
+        let storage_key = StorageKey::new(AccountTreeId::new(contract), u256_to_h256(key));
+
+        let initial_value = h256_to_u256(self.storage.borrow_mut().read_value(&storage_key));
+
+        if initial_value == new_value {
+            return 0;
+        }
+
+        let is_initial = self.storage.borrow_mut().is_write_initial(&storage_key);
+
+        // Since we need to publish the state diffs onchain, for each of the updated storage slot
+        // we basically need to publish the following pair: `(<storage_key, compressed_new_value>)`.
+        // For key we use the following optimization:
+        //   - The first time we publish it, we use 32 bytes.
+        //         Then, we remember a 8-byte id for this slot and assign it to it. We call this initial write.
+        //   - The second time we publish it, we will use the 4/5 byte representation of this 8-byte instead of the 32
+        //     bytes of the entire key.
+        // For value compression, we use a metadata byte which holds the length of the value and the operation from the
+        // previous state to the new state, and the compressed value. The maximum for this is 33 bytes.
+        // Total bytes for initial writes then becomes 65 bytes and repeated writes becomes 38 bytes.
+        // TODO (SMA-1702): take into account the content of the log query, i.e. values that contain mostly zeroes
+        // should cost less.
+
+        let compressed_value_size =
+            compress_with_best_strategy(initial_value, new_value).len() as u32;
+
+        if is_initial {
+            (BYTES_PER_DERIVED_KEY as u32) + compressed_value_size
+        } else {
+            (BYTES_PER_ENUMERATION_INDEX as u32) + compressed_value_size
+        }
+    }
+
+    fn is_free_storage_slot(&self, contract: &H160, key: &U256) -> bool {
+        contract == &zksync_system_constants::SYSTEM_CONTEXT_ADDRESS
+            || contract == &L2_ETH_TOKEN_ADDRESS
+                && u256_to_h256(*key) == key_for_eth_balance(&BOOTLOADER_ADDRESS)
     }
 }
 

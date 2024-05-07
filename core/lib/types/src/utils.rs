@@ -50,7 +50,7 @@ pub fn nonces_to_full_nonce(tx_nonce: U256, deploy_nonce: U256) -> U256 {
     DEPLOYMENT_NONCE_INCREMENT * deploy_nonce + tx_nonce
 }
 
-fn key_for_eth_balance(address: &Address) -> H256 {
+pub fn key_for_eth_balance(address: &Address) -> H256 {
     let address_h256 = address_to_h256(address);
 
     let bytes = [address_h256.as_bytes(), &[0; 32]].concat();
