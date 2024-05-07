@@ -17,6 +17,7 @@ use once_cell::sync::Lazy;
 use tokio::sync::watch;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContracts;
+use zksync_node_test_utils::create_l2_transaction;
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
@@ -35,20 +36,17 @@ use self::tester::{
     successful_exec_with_metrics, TestIO, TestScenario,
 };
 pub(crate) use self::tester::{MockBatchExecutor, TestBatchExecutorBuilder};
-use crate::{
-    gas_tracker::l1_batch_base_cost,
-    state_keeper::{
-        batch_executor::TxExecutionResult,
-        keeper::POLL_WAIT_DURATION,
-        seal_criteria::{
-            criteria::{GasCriterion, SlotsCriterion},
-            SequencerSealer,
-        },
-        types::ExecutionMetricsForCriteria,
-        updates::UpdatesManager,
-        ZkSyncStateKeeper,
+use crate::state_keeper::{
+    batch_executor::TxExecutionResult,
+    keeper::POLL_WAIT_DURATION,
+    seal_criteria::{
+        criteria::{GasCriterion, SlotsCriterion},
+        SequencerSealer,
     },
-    utils::testonly::create_l2_transaction,
+    types::ExecutionMetricsForCriteria,
+    updates::UpdatesManager,
+    utils::l1_batch_base_cost,
+    ZkSyncStateKeeper,
 };
 
 pub(super) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
@@ -101,7 +99,6 @@ pub(super) fn default_vm_batch_result() -> FinishedL1Batch {
         },
         final_execution_state: CurrentExecutionState {
             events: vec![],
-            storage_log_queries: vec![],
             deduplicated_storage_log_queries: vec![],
             used_contract_hashes: vec![],
             user_l2_to_l1_logs: vec![],
@@ -114,6 +111,7 @@ pub(super) fn default_vm_batch_result() -> FinishedL1Batch {
         },
         final_bootloader_memory: Some(vec![]),
         pubdata_input: Some(vec![]),
+        initially_written_slots: Some(vec![]),
     }
 }
 

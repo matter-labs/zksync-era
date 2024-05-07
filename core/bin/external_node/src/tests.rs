@@ -3,8 +3,8 @@
 use assert_matches::assert_matches;
 use test_casing::test_casing;
 use zksync_basic_types::protocol_version::ProtocolVersionId;
-use zksync_core::genesis::{insert_genesis_batch, GenesisParams};
 use zksync_eth_client::clients::MockEthereum;
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{api, ethabi, fee_model::FeeParams, L1BatchNumber, L2BlockNumber, H256};
 use zksync_web3_decl::client::{BoxedL2Client, MockL2Client};
 
@@ -104,7 +104,7 @@ async fn external_node_basics(components_str: &'static str) {
     // Simplest case to mock: the EN already has a genesis L1 batch / L2 block, and it's the only L1 batch / L2 block
     // in the network.
     let connection_pool = ConnectionPool::test_pool().await;
-    let singleton_pool_builder = ConnectionPool::singleton(connection_pool.database_url());
+    let singleton_pool_builder = ConnectionPool::singleton(connection_pool.database_url().clone());
     let mut storage = connection_pool.connection().await.unwrap();
     let genesis_params = insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
@@ -176,7 +176,7 @@ async fn external_node_basics(components_str: &'static str) {
         }
         panic!("Unexpected L1 call: {call:?}");
     });
-    let eth_client = Arc::new(eth_client);
+    let eth_client = Box::new(eth_client);
 
     let (env, env_handles) = TestEnvironment::new();
     let node_handle = tokio::spawn(async move {

@@ -3,7 +3,7 @@ use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     event::extract_l2tol1logs_from_l1_messenger,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    Transaction, VmVersion,
+    Transaction, VmVersion, H256,
 };
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -142,10 +142,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
         CurrentExecutionState {
             events,
-            storage_log_queries: storage_log_queries
-                .into_iter()
-                .map(GlueInto::glue_into)
-                .collect(),
             deduplicated_storage_log_queries: deduped_storage_log_queries
                 .into_iter()
                 .map(GlueInto::glue_into)
@@ -212,6 +208,18 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                     .get_pubdata_information()
                     .clone()
                     .build_pubdata(false),
+            ),
+            initially_written_slots: Some(
+                self.bootloader_state
+                    .get_pubdata_information()
+                    .state_diffs
+                    .iter()
+                    .filter_map(|record| {
+                        record
+                            .is_write_initial()
+                            .then_some(H256(record.derived_key))
+                    })
+                    .collect(),
             ),
         }
     }

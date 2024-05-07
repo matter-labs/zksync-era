@@ -12,9 +12,17 @@ members = [
     "core/bin/genesis_generator",
     # Node services
     "core/node/node_framework",
+    "core/node/proof_data_handler",
     "core/node/block_reverter",
     "core/node/commitment_generator",
     "core/node/house_keeper",
+    "core/node/genesis",
+    "core/node/shared_metrics",
+    "core/node/db_pruner",
+    "core/node/fee_model",
+    "core/node/eth_sender",
+    "core/node/vm_runner",
+    "core/node/test_utils",
     # Libraries
     "core/lib/db_connection",
     "core/lib/zksync_core",
@@ -223,6 +231,13 @@ zksync_crypto_primitives = { path = "core/lib/crypto_primitives" }
 zksync_node_framework = { path = "core/node/node_framework" }
 zksync_eth_watch = { path = "core/node/eth_watch" }
 zksync_shared_metrics = { path = "core/node/shared_metrics" }
+zksync_proof_data_handler = { path = "core/node/proof_data_handler" }
 zksync_block_reverter = { path = "core/node/block_reverter" }
 zksync_commitment_generator = { path = "core/node/commitment_generator" }
 zksync_house_keeper = { path = "core/node/house_keeper" }
+zksync_node_genesis = { path = "core/node/genesis" }
+zksync_eth_sender = { path = "core/node/eth_sender" }
+zksync_node_db_pruner = { path = "core/node/db_pruner" }
+zksync_node_fee_model = { path = "core/node/fee_model" }
+zksync_vm_runner = { path = "core/node/vm_runner" }
+zksync_node_test_utils = { path = "core/node/test_utils" }

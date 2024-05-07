@@ -14,13 +14,13 @@ use zksync_config::configs::{
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
 use zksync_dal::{ConnectionPool, Core};
-use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
+use zksync_health_check::{CheckHealth, HealthUpdater, ReactiveHealthCheck};
 use zksync_object_store::ObjectStore;
 
-pub(crate) use self::helpers::{AsyncTreeReader, L1BatchWithLogs, MerkleTreeInfo};
+pub(crate) use self::helpers::{AsyncTreeReader, MerkleTreeInfo};
 pub use self::{helpers::LazyAsyncTreeReader, pruning::MerkleTreePruningTask};
 use self::{
-    helpers::{create_db, Delayer, GenericAsyncTree, MerkleTreeHealth},
+    helpers::{create_db, Delayer, GenericAsyncTree, MerkleTreeHealth, MerkleTreeHealthCheck},
     metrics::{ConfigLabels, METRICS},
     pruning::PruningHandles,
     updater::TreeUpdater,
@@ -148,8 +148,8 @@ impl MetadataCalculator {
     }
 
     /// Returns a health check for this calculator.
-    pub fn tree_health_check(&self) -> ReactiveHealthCheck {
-        self.health_updater.subscribe()
+    pub fn tree_health_check(&self) -> impl CheckHealth {
+        MerkleTreeHealthCheck::new(self.health_updater.subscribe(), self.tree_reader())
     }
 
     /// Returns a reference to the tree reader.
@@ -199,20 +199,20 @@ impl MetadataCalculator {
         let Some(mut tree) = tree else {
             return Ok(()); // recovery was aborted because a stop signal was received
         };
-        let tree_reader = tree.reader();
-        tracing::info!(
-            "Merkle tree is initialized and ready to process L1 batches: {:?}",
-            tree_reader.clone().info().await
-        );
 
+        let tree_reader = tree.reader();
+        let tree_info = tree_reader.clone().info().await;
         if !self.pruning_handles_sender.is_closed() {
             self.pruning_handles_sender.send(tree.pruner()).ok();
         }
         self.tree_reader.send_replace(Some(tree_reader));
+        tracing::info!("Merkle tree is initialized and ready to process L1 batches: {tree_info:?}");
+        self.health_updater
+            .update(MerkleTreeHealth::MainLoop(tree_info).into());
 
         let updater = TreeUpdater::new(tree, self.max_l1_batches_per_iter, self.object_store);
         updater
-            .loop_updating_tree(self.delayer, &self.pool, stop_receiver, self.health_updater)
+            .loop_updating_tree(self.delayer, &self.pool, stop_receiver)
             .await
     }
 }

@@ -215,7 +215,7 @@ async fn wrapping_mock_client() {
         })
     });
 
-    let mut client = L2ClientBuilder::new(client)
+    let mut client = L2ClientBuilder::new(client, "http://localhost".parse().unwrap())
         .with_allowed_requests_per_second(NonZeroUsize::new(100).unwrap())
         .build()
         .for_component("test");

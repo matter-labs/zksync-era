@@ -146,7 +146,7 @@ pub struct L1PeggedBatchFeeModelInput {
 }
 
 /// Pubdata price may be independent from L1 gas price.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PubdataIndependentBatchFeeModelInput {
     /// Fair L2 gas price to provide
     pub fair_l2_gas_price: u64,
