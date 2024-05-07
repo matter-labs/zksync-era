@@ -5,9 +5,9 @@ use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::validator;
 use zksync_dal::ConnectionPool;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_test_utils::{recover, snapshot, Snapshot};
 
 use super::Store;
-use crate::utils::testonly::{recover, snapshot, Snapshot};
 
 impl Store {
     /// Waits for the `number` L2 block to have a certificate.

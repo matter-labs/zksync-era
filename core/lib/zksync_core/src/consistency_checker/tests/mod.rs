@@ -8,22 +8,20 @@ use tokio::sync::mpsc;
 use zksync_config::GenesisConfig;
 use zksync_dal::Connection;
 use zksync_eth_client::{clients::MockEthereum, Options};
+use zksync_eth_sender::l1_batch_commit_data_generator::{
+    RollupModeL1BatchCommitDataGenerator, ValidiumModeL1BatchCommitDataGenerator,
+};
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
+use zksync_node_test_utils::{
+    create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
+    DeploymentMode,
+};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, web3::Log,
     ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use super::*;
-use crate::{
-    eth_sender::l1_batch_commit_data_generator::{
-        RollupModeL1BatchCommitDataGenerator, ValidiumModeL1BatchCommitDataGenerator,
-    },
-    utils::testonly::{
-        create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
-        DeploymentMode,
-    },
-};
 
 /// **NB.** For tests to run correctly, the returned value must be deterministic (i.e., depend only on `number`).
 pub(crate) fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {

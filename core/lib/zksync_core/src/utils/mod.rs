@@ -14,9 +14,6 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{CallFunctionArgs, ContractError, Error as EthClientError, EthInterface};
 use zksync_types::{Address, L1BatchNumber, ProtocolVersionId};
 
-#[cfg(test)]
-pub(crate) mod testonly;
-
 /// Fallible and async predicate for binary search.
 #[async_trait]
 pub(crate) trait BinarySearchPredicate: Send {
