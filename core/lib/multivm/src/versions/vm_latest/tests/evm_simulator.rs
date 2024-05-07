@@ -21,7 +21,9 @@ use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
     get_address_mapping_key, get_code_key, get_deployer_key, get_evm_code_hash_key,
     get_known_code_key,
-    utils::{deployed_address_evm_create, deployed_address_evm_create2},
+    utils::{
+        deployed_address_evm_create, deployed_address_evm_create2, storage_key_for_eth_balance,
+    },
     web3::signing::keccak256,
     AccountTreeId, Address, Execute, StorageKey, H256, U256,
 };
@@ -94,9 +96,109 @@ fn insert_evm_contract(storage: &mut InMemoryStorage, mut bytecode: Vec<u8>) -> 
     test_address
 }
 
+fn insert_evm_contract_with_value(
+    storage: &mut InMemoryStorage,
+    mut bytecode: Vec<u8>,
+    value: U256,
+) -> Address {
+    // To avoid problems with correct encoding for these tests, we just pad the bytecode to be divisible by 32.
+    while bytecode.len() % 32 != 0 {
+        bytecode.push(0);
+    }
+
+    let evm_hash = H256(keccak256(&bytecode));
+
+    let padded_bytecode = {
+        let mut padded_bytecode: Vec<u8> = vec![];
+
+        let encoded_length = encode(&[Token::Uint(U256::from(bytecode.len()))]);
+
+        padded_bytecode.extend(encoded_length);
+        padded_bytecode.extend(bytecode.clone());
+
+        while padded_bytecode.len() % 64 != 32 {
+            padded_bytecode.push(0);
+        }
+
+        padded_bytecode
+    };
+    let blob_hash: H256 = hash_evm_bytecode(&padded_bytecode);
+
+    assert!(BlobSha256Format::is_valid(&blob_hash.0));
+
+    // Just some address in user space
+    let test_address = Address::from_str(CONTRACT_ADDRESS).unwrap();
+
+    let evm_code_hash_key = get_evm_code_hash_key(&test_address);
+
+    storage.set_value(get_code_key(&test_address), blob_hash);
+    storage.set_value(get_known_code_key(&blob_hash), u256_to_h256(U256::one()));
+
+    storage.set_value(evm_code_hash_key, evm_hash);
+
+    storage.store_factory_dep(blob_hash, padded_bytecode);
+
+    let key = storage_key_for_eth_balance(&test_address);
+    storage.set_value(key, u256_to_h256(value));
+
+    // Marking bytecode as known
+
+    test_address
+}
+
 const TEST_RICH_PK: &str = "0x9e0eee403c6b5963458646fa1b7b3f3c4784138558f9036b0db3435501f2ec6d";
 const TEST_RICH_ADDRESS: &str = "0x2140b400689a5dd09c34815958d10affd467f66c";
 
+fn test_evm_vector_with_value(mut bytecode: Vec<u8>, initial_balance: U256, value: U256) -> U256 {
+    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+
+    let test_address =
+        insert_evm_contract_with_value(&mut storage, bytecode.clone(), initial_balance);
+
+    // private_key: 0x9e0eee403c6b5963458646fa1b7b3f3c4784138558f9036b0db3435501f2ec6d
+    // address: 0x2140b400689a5dd09c34815958d10affd467f66c
+    let rich_account: Account = Account::new(H256::from_str(TEST_RICH_PK).unwrap());
+
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_storage(storage)
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_rich_accounts(vec![rich_account.clone()])
+        .build();
+
+    let account = &mut vm.rich_accounts[0];
+
+    let tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(test_address),
+            calldata: vec![],
+            value: value,
+            factory_deps: None,
+        },
+        None,
+    );
+
+    vm.vm.push_transaction(tx);
+
+    let debug_tracer = EvmDebugTracer::new();
+    let tracer_ptr = debug_tracer.into_tracer_pointer();
+    let tx_result: crate::vm_latest::VmExecutionResultAndLogs =
+        vm.vm.inspect(tracer_ptr.into(), VmExecutionMode::OneTx);
+
+    assert!(
+        !tx_result.result.is_failed(),
+        "Transaction wasn't successful"
+    );
+
+    let batch_result = vm.vm.execute(VmExecutionMode::Batch);
+    assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
+
+    let saved_value = vm.vm.storage.borrow_mut().get_value(&StorageKey::new(
+        AccountTreeId::new(test_address),
+        H256::zero(),
+    ));
+
+    h256_to_u256(saved_value)
+}
 fn test_evm_vector(mut bytecode: Vec<u8>) -> U256 {
     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
 
@@ -1852,9 +1954,10 @@ fn test_basic_block_environment_vectors() {
         evm_output,
         U256::from_dec_str("9500000000000000000").unwrap()
     );
+}
 
-    // selfbalance
-    let evm_output = test_evm_vector(
+fn perform_selfbalance(initial_balance: U256, value: U256, result: U256) {
+    let evm_output = test_evm_vector_with_value(
         vec![
             // selfbalance
             hex::decode("47").unwrap(),
@@ -1865,10 +1968,46 @@ fn test_basic_block_environment_vectors() {
         ]
         .into_iter()
         .concat(),
+        initial_balance,
+        value,
     );
-    assert_eq!(evm_output, 0.into());
+    assert_eq!(evm_output, result.into());
 }
-
+#[test]
+fn test_selfbalance() {
+    perform_selfbalance(U256::zero(), U256::zero(), U256::zero());
+    perform_selfbalance(U256::one(), U256::zero(), U256::one());
+    perform_selfbalance(
+        U256::from_dec_str("433478394034343").unwrap(),
+        U256::zero(),
+        U256::from_dec_str("433478394034343").unwrap(),
+    );
+    perform_selfbalance(
+        U256::from_dec_str("340282366920938463463374607431768211455").unwrap(),
+        U256::zero(),
+        U256::from_dec_str("340282366920938463463374607431768211455").unwrap(),
+    );
+    perform_selfbalance(
+        U256::from_dec_str("340282366920938463463374607431768211456").unwrap(),
+        U256::zero(),
+        U256::from_dec_str("340282366920938463463374607431768211456").unwrap(),
+    );
+    perform_selfbalance(
+        U256::from_dec_str("340282366969323363277297521354758540687").unwrap(),
+        U256::zero(),
+        U256::from_dec_str("340282366969323363277297521354758540687").unwrap(),
+    );
+    perform_selfbalance(
+        U256::from_dec_str("340282366920938463463374607431768211455").unwrap(),
+        U256::one(),
+        U256::from_dec_str("340282366920938463463374607431768211456").unwrap(),
+    );
+    perform_selfbalance(
+        U256::from_dec_str("340282366920938463463374607431768211455").unwrap(),
+        U256::from_dec_str("48384899813922913922990329232").unwrap(),
+        U256::from_dec_str("340282366969323363277297521354758540687").unwrap(),
+    );
+}
 #[test]
 fn test_basic_pop_vectors() {
     // Here we just try to test some small EVM contracts and ensure that they work.

@@ -272,7 +272,7 @@ pub(crate) fn make_account_rich(storage: StoragePtr<InMemoryStorageView>, accoun
     storage
         .as_ref()
         .borrow_mut()
-        .set_value(key, u256_to_h256(U256::from(10u64.pow(19))));
+        .set_value(key, u256_to_h256(U256::max_value()));
 }
 
 pub(crate) fn get_empty_storage() -> InMemoryStorage {
