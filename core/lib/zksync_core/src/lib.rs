@@ -21,7 +21,10 @@ use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker,
     CircuitBreakerChecker, CircuitBreakers,
 };
-use zksync_commitment_generator::CommitmentGenerator;
+use zksync_commitment_generator::{
+    input_generation::{InputGenerator, RollupInputGenerator, ValidiumInputGenerator},
+    CommitmentGenerator,
+};
 use zksync_concurrency::{ctx, scope};
 use zksync_config::{
     configs::{
@@ -59,6 +62,7 @@ use zksync_house_keeper::{
     periodic_job::PeriodicJob,
     waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
 };
+use zksync_node_genesis::{ensure_genesis_state, GenesisParams};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_shared_metrics::{InitStage, APP_METRICS};
@@ -82,7 +86,6 @@ use crate::{
         },
         Aggregator, EthTxAggregator, EthTxManager,
     },
-    genesis::GenesisParams,
     l1_gas_price::{
         GasAdjusterSingleton, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
     },
@@ -102,7 +105,6 @@ pub mod consistency_checker;
 pub mod db_pruner;
 pub mod eth_sender;
 pub mod fee_model;
-pub mod genesis;
 pub mod l1_gas_price;
 pub mod metadata_calculator;
 pub mod proto;
@@ -126,7 +128,7 @@ pub async fn genesis_init(
     let mut storage = pool.connection().await.context("connection()")?;
 
     let params = GenesisParams::load_genesis_params(genesis_config)?;
-    genesis::ensure_genesis_state(&mut storage, &params).await?;
+    ensure_genesis_state(&mut storage, &params).await?;
 
     Ok(())
 }
@@ -305,7 +307,7 @@ pub async fn initialize_components(
     });
 
     let query_client = QueryClient::new(eth.web3_url.clone()).context("Ethereum client")?;
-    let query_client = Arc::new(query_client);
+    let query_client = Box::new(query_client);
     let gas_adjuster_config = eth.gas_adjuster.context("gas_adjuster")?;
     let sender = eth.sender.as_ref().context("sender")?;
     let pubdata_pricing: Arc<dyn PubdataPricing> =
@@ -616,6 +618,15 @@ pub async fn initialize_components(
         tracing::info!("initialized ETH-Watcher in {elapsed:?}");
     }
 
+    let input_generator: Box<dyn InputGenerator> = if genesis_config
+        .l1_batch_commit_data_generator_mode
+        == L1BatchCommitDataGeneratorMode::Validium
+    {
+        Box::new(ValidiumInputGenerator)
+    } else {
+        Box::new(RollupInputGenerator)
+    };
+
     if components.contains(&Component::EthTxAggregator) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-TxAggregator");
@@ -673,7 +684,7 @@ pub async fn initialize_components(
                 operator_blobs_address.is_some(),
                 l1_batch_commit_data_generator.clone(),
             ),
-            Arc::new(eth_client),
+            Box::new(eth_client),
             contracts_config.validator_timelock_addr,
             contracts_config.l1_multicall3_addr,
             diamond_proxy_addr,
@@ -718,13 +729,14 @@ pub async fn initialize_components(
 
         let eth_client_blobs = if let Some(blob_operator) = eth_sender_wallets.blob_operator {
             let operator_blob_private_key = blob_operator.private_key().clone();
-            Some(PKSigningClient::new_raw(
+            let client = Box::new(PKSigningClient::new_raw(
                 operator_blob_private_key,
                 diamond_proxy_addr,
                 default_priority_fee_per_gas,
                 l1_chain_id,
                 query_client,
-            ))
+            ));
+            Some(client as Box<dyn BoundEthInterface>)
         } else {
             None
         };
@@ -736,8 +748,8 @@ pub async fn initialize_components(
                 .get_or_init()
                 .await
                 .context("gas_adjuster.get_or_init()")?,
-            Arc::new(eth_client),
-            eth_client_blobs.map(|c| Arc::new(c) as Arc<dyn BoundEthInterface>),
+            Box::new(eth_client),
+            eth_client_blobs,
         );
         task_futures.extend([tokio::spawn(
             eth_tx_manager_actor.run(stop_receiver.clone()),
@@ -799,7 +811,8 @@ pub async fn initialize_components(
                 .build()
                 .await
                 .context("failed to build commitment_generator_pool")?;
-        let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
+        let commitment_generator =
+            CommitmentGenerator::new(commitment_generator_pool, input_generator);
         app_health.insert_component(commitment_generator.health_check())?;
         task_futures.push(tokio::spawn(
             commitment_generator.run(stop_receiver.clone()),
@@ -920,7 +933,7 @@ async fn add_state_keeper_to_task_futures(
 pub async fn start_eth_watch(
     config: EthWatchConfig,
     pool: ConnectionPool<Core>,
-    eth_gateway: Arc<dyn EthInterface>,
+    eth_gateway: Box<dyn EthInterface>,
     diamond_proxy_addr: Address,
     state_transition_manager_addr: Option<Address>,
     governance: (Contract, Address),

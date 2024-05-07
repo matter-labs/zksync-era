@@ -7,7 +7,10 @@ use crate::error::ContractVerifierError;
 #[derive(Debug)]
 pub enum ZkSolcInput {
     StandardJson(StandardJson),
-    YulSingleFile(String),
+    YulSingleFile {
+        source_code: String,
+        is_system: bool,
+    },
 }
 
 #[derive(Debug)]
@@ -102,12 +105,19 @@ impl ZkSolc {
     ) -> Result<ZkSolcOutput, ContractVerifierError> {
         use tokio::io::AsyncWriteExt;
         let mut command = tokio::process::Command::new(&self.zksolc_path);
-        if let ZkSolcInput::StandardJson(input) = &input {
-            if input.settings.is_system {
-                command.arg("--system-mode");
+        match &input {
+            ZkSolcInput::StandardJson(input) => {
+                if input.settings.is_system {
+                    command.arg("--system-mode");
+                }
+                if input.settings.force_evmla {
+                    command.arg("--force-evmla");
+                }
             }
-            if input.settings.force_evmla {
-                command.arg("--force-evmla");
+            ZkSolcInput::YulSingleFile { is_system, .. } => {
+                if *is_system {
+                    command.arg("--system-mode");
+                }
             }
         }
         command
@@ -149,14 +159,14 @@ impl ZkSolc {
                     ))
                 }
             }
-            ZkSolcInput::YulSingleFile(content) => {
+            ZkSolcInput::YulSingleFile { source_code, .. } => {
                 let mut file = tempfile::Builder::new()
                     .prefix("input")
                     .suffix(".yul")
                     .rand_bytes(0)
                     .tempfile()
                     .map_err(|_err| ContractVerifierError::InternalError)?;
-                file.write_all(content.as_bytes())
+                file.write_all(source_code.as_bytes())
                     .map_err(|_err| ContractVerifierError::InternalError)?;
                 let child = command
                     .arg(file.path().to_str().unwrap())

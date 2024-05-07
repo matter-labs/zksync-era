@@ -1,3 +1,5 @@
+__imports__ = [ "base", "l1-inits/.init.env", "l2-inits/dev_validium.init.env" ]
+
 [chain.state_keeper]
 compute_overhead_part=1.0
 pubdata_overhead_part=0.0

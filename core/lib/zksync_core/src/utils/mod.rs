@@ -172,7 +172,7 @@ async fn get_pubdata_pricing_mode(
 ) -> Result<Vec<ethabi::Token>, EthClientError> {
     let args = CallFunctionArgs::new("getPubdataPricingMode", ()).for_contract(
         diamond_proxy_address,
-        zksync_contracts::state_transition_manager_contract(),
+        zksync_contracts::hyperchain_contract(),
     );
     eth_client.call_contract_function(args).await
 }
@@ -217,10 +217,10 @@ mod tests {
     use std::{mem, sync::Mutex};
 
     use zksync_eth_client::clients::MockEthereum;
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::U256;
 
     use super::*;
-    use crate::genesis::{insert_genesis_batch, GenesisParams};
 
     #[tokio::test]
     async fn test_binary_search() {

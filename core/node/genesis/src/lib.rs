@@ -5,38 +5,35 @@
 use std::fmt::Formatter;
 
 use anyhow::Context as _;
-use itertools::Itertools;
-use multivm::{
-    circuit_sequencer_api_latest::sort_storage_access::sort_storage_access_queries,
-    utils::get_max_gas_per_pubdata_byte,
-    zk_evm_latest::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp},
-};
-use zksync_config::{configs::database::MerkleTreeMode, GenesisConfig, PostgresConfig};
+use multivm::utils::get_max_gas_per_pubdata_byte;
+use zksync_config::{GenesisConfig, PostgresConfig};
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
-use zksync_eth_client::EthInterface;
-use zksync_merkle_tree::domain::ZkSyncTree;
-use zksync_system_constants::{DEFAULT_ERA_CHAIN_ID, PRIORITY_EXPIRATION};
+use zksync_eth_client::{clients::QueryClient, EthInterface};
+use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
+use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
-    block::{
-        BlockGasCount, DeployedContract, L1BatchHeader, L1BatchTreeData, L2BlockHasher,
-        L2BlockHeader,
-    },
+    block::{BlockGasCount, DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader},
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
-    get_code_key, get_known_code_key, get_system_context_init_logs,
     protocol_upgrade::decode_set_chain_id_event,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
-    tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS},
     web3::types::{BlockNumber, FilterBuilder},
-    zk_evm_types::{LogQuery, Timestamp},
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
-    ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, H256,
+    ProtocolVersionId, StorageKey, H256,
 };
-use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
+use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
-use crate::metadata_calculator::L1BatchWithLogs;
+use crate::utils::{
+    add_eth_token, get_deduped_log_queries, get_storage_logs,
+    insert_base_system_contracts_to_factory_deps, insert_system_contracts,
+    save_genesis_l1_batch_metadata,
+};
+
+#[cfg(test)]
+mod tests;
+mod utils;
 
 #[derive(Debug, Clone)]
 pub struct BaseContractsHashError {
@@ -151,7 +148,13 @@ impl GenesisParams {
     }
 }
 
-pub(crate) fn mock_genesis_config() -> GenesisConfig {
+pub struct GenesisBatchParams {
+    pub root_hash: H256,
+    pub commitment: H256,
+    pub rollup_last_leaf_index: u64,
+}
+
+pub fn mock_genesis_config() -> GenesisConfig {
     use zksync_types::L1ChainId;
 
     let base_system_contracts_hashes = BaseSystemContracts::load_from_disk().hashes();
@@ -179,12 +182,6 @@ pub(crate) fn mock_genesis_config() -> GenesisConfig {
     }
 }
 
-pub struct GenesisBatchParams {
-    pub root_hash: H256,
-    pub commitment: H256,
-    pub rollup_last_leaf_index: u64,
-}
-
 // Insert genesis batch into the database
 pub async fn insert_genesis_batch(
     storage: &mut Connection<'_, Core>,
@@ -210,15 +207,25 @@ pub async fn insert_genesis_batch(
     .await?;
     tracing::info!("chain_schema_genesis is complete");
 
-    let storage_logs = L1BatchWithLogs::new(
-        &mut transaction,
-        L1BatchNumber(0),
-        MerkleTreeMode::Lightweight,
-    )
-    .await
-    .context("failed fetching tree input for genesis L1 batch")?
-    .context("genesis L1 batch disappeared from Postgres")?;
-    let storage_logs = storage_logs.storage_logs;
+    let deduped_log_queries =
+        get_deduped_log_queries(&get_storage_logs(genesis_params.system_contracts()));
+
+    let (deduplicated_writes, _): (Vec<_>, Vec<_>) = deduped_log_queries
+        .into_iter()
+        .partition(|log_query| log_query.rw_flag);
+
+    let storage_logs: Vec<TreeInstruction<StorageKey>> = deduplicated_writes
+        .iter()
+        .enumerate()
+        .map(|(index, log)| {
+            TreeInstruction::write(
+                StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key)),
+                (index + 1) as u64,
+                u256_to_h256(log.written_value),
+            )
+        })
+        .collect();
+
     let metadata = ZkSyncTree::process_genesis_batch(&storage_logs);
     let genesis_root_hash = metadata.root_hash;
     let rollup_last_leaf_index = metadata.leaf_count + 1;
@@ -314,155 +321,8 @@ pub async fn ensure_genesis_state(
     Ok(root_hash)
 }
 
-// Default account and bootloader are not a regular system contracts
-// they have never been actually deployed anywhere,
-// They are the initial code that is fed into the VM upon its start.
-// Both are rather parameters of a block and not system contracts.
-// The code of the bootloader should not be deployed anywhere anywhere in the kernel space (i.e. addresses below 2^16)
-// because in this case we will have to worry about protecting it.
-async fn insert_base_system_contracts_to_factory_deps(
-    storage: &mut Connection<'_, Core>,
-    contracts: &BaseSystemContracts,
-) -> Result<(), GenesisError> {
-    let factory_deps = [&contracts.bootloader, &contracts.default_aa]
-        .iter()
-        .map(|c| (c.hash, be_words_to_bytes(&c.code)))
-        .collect();
-
-    Ok(storage
-        .factory_deps_dal()
-        .insert_factory_deps(L2BlockNumber(0), &factory_deps)
-        .await?)
-}
-
-async fn insert_system_contracts(
-    storage: &mut Connection<'_, Core>,
-    contracts: &[DeployedContract],
-) -> Result<(), GenesisError> {
-    let system_context_init_logs = (
-        H256::default(),
-        // During the genesis all chains have the same id.
-        // TODO(EVM-579): make sure that the logic is compatible with Era.
-        get_system_context_init_logs(L2ChainId::from(DEFAULT_ERA_CHAIN_ID)),
-    );
-
-    let known_code_storage_logs: Vec<_> = contracts
-        .iter()
-        .map(|contract| {
-            let hash = hash_bytecode(&contract.bytecode);
-            let known_code_key = get_known_code_key(&hash);
-            let marked_known_value = H256::from_low_u64_be(1u64);
-            (
-                H256::default(),
-                vec![StorageLog::new_write_log(
-                    known_code_key,
-                    marked_known_value,
-                )],
-            )
-        })
-        .dedup_by(|a, b| a.1 == b.1)
-        .collect();
-
-    let storage_logs: Vec<_> = contracts
-        .iter()
-        .map(|contract| {
-            let hash = hash_bytecode(&contract.bytecode);
-            let code_key = get_code_key(contract.account_id.address());
-            (
-                H256::default(),
-                vec![StorageLog::new_write_log(code_key, hash)],
-            )
-        })
-        .chain(Some(system_context_init_logs))
-        .chain(known_code_storage_logs)
-        .collect();
-
-    let mut transaction = storage.start_transaction().await?;
-    transaction
-        .storage_logs_dal()
-        .insert_storage_logs(L2BlockNumber(0), &storage_logs)
-        .await?;
-
-    // we don't produce proof for the genesis block,
-    // but we still need to populate the table
-    // to have the correct initial state of the merkle tree
-    let log_queries: Vec<MultiVmLogQuery> = storage_logs
-        .iter()
-        .enumerate()
-        .flat_map(|(tx_index, (_, storage_logs))| {
-            storage_logs
-                .iter()
-                .enumerate()
-                .map(move |(log_index, storage_log)| {
-                    MultiVmLogQuery {
-                        // Monotonically increasing Timestamp. Normally it's generated by the VM, but we don't have a VM in the genesis block.
-                        timestamp: MultiVMTimestamp(((tx_index << 16) + log_index) as u32),
-                        tx_number_in_block: tx_index as u16,
-                        aux_byte: 0,
-                        shard_id: 0,
-                        address: *storage_log.key.address(),
-                        key: h256_to_u256(*storage_log.key.key()),
-                        read_value: h256_to_u256(H256::zero()),
-                        written_value: h256_to_u256(storage_log.value),
-                        rw_flag: storage_log.kind == StorageLogKind::Write,
-                        rollback: false,
-                        is_service: false,
-                    }
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect();
-
-    let deduped_log_queries: Vec<LogQuery> = sort_storage_access_queries(&log_queries)
-        .1
-        .into_iter()
-        .map(|log_query| LogQuery {
-            timestamp: Timestamp(log_query.timestamp.0),
-            tx_number_in_block: log_query.tx_number_in_block,
-            aux_byte: log_query.aux_byte,
-            shard_id: log_query.shard_id,
-            address: log_query.address,
-            key: log_query.key,
-            read_value: log_query.read_value,
-            written_value: log_query.written_value,
-            rw_flag: log_query.rw_flag,
-            rollback: log_query.rollback,
-            is_service: log_query.is_service,
-        })
-        .collect();
-
-    let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) = deduped_log_queries
-        .into_iter()
-        .partition(|log_query| log_query.rw_flag);
-    transaction
-        .storage_logs_dedup_dal()
-        .insert_protective_reads(L1BatchNumber(0), &protective_reads)
-        .await?;
-
-    let written_storage_keys: Vec<_> = deduplicated_writes
-        .iter()
-        .map(|log| StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key)))
-        .collect();
-    transaction
-        .storage_logs_dedup_dal()
-        .insert_initial_writes(L1BatchNumber(0), &written_storage_keys)
-        .await?;
-
-    let factory_deps = contracts
-        .iter()
-        .map(|c| (hash_bytecode(&c.bytecode), c.bytecode.clone()))
-        .collect();
-    transaction
-        .factory_deps_dal()
-        .insert_factory_deps(L2BlockNumber(0), &factory_deps)
-        .await?;
-
-    transaction.commit().await?;
-    Ok(())
-}
-
 #[allow(clippy::too_many_arguments)]
-pub(crate) async fn create_genesis_l1_batch(
+pub async fn create_genesis_l1_batch(
     storage: &mut Connection<'_, Core>,
     protocol_version: ProtocolVersionId,
     base_system_contracts: &BaseSystemContracts,
@@ -526,59 +386,16 @@ pub(crate) async fn create_genesis_l1_batch(
         .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
         .await?;
 
+    let storage_logs = get_storage_logs(system_contracts);
+
+    let factory_deps = system_contracts
+        .iter()
+        .map(|c| (hash_bytecode(&c.bytecode), c.bytecode.clone()))
+        .collect();
+
     insert_base_system_contracts_to_factory_deps(&mut transaction, base_system_contracts).await?;
-    insert_system_contracts(&mut transaction, system_contracts).await?;
+    insert_system_contracts(&mut transaction, factory_deps, &storage_logs).await?;
     add_eth_token(&mut transaction).await?;
-
-    transaction.commit().await?;
-    Ok(())
-}
-
-async fn add_eth_token(transaction: &mut Connection<'_, Core>) -> anyhow::Result<()> {
-    assert!(transaction.in_transaction()); // sanity check
-    let eth_token = TokenInfo {
-        l1_address: ETHEREUM_ADDRESS,
-        l2_address: ETHEREUM_ADDRESS,
-        metadata: TokenMetadata {
-            name: "Ether".to_string(),
-            symbol: "ETH".to_string(),
-            decimals: 18,
-        },
-    };
-
-    transaction.tokens_dal().add_tokens(&[eth_token]).await?;
-    transaction
-        .tokens_dal()
-        .mark_token_as_well_known(ETHEREUM_ADDRESS)
-        .await?;
-    Ok(())
-}
-
-async fn save_genesis_l1_batch_metadata(
-    storage: &mut Connection<'_, Core>,
-    commitment: L1BatchCommitment,
-    genesis_root_hash: H256,
-    rollup_last_leaf_index: u64,
-) -> Result<(), GenesisError> {
-    let mut transaction = storage.start_transaction().await?;
-
-    let tree_data = L1BatchTreeData {
-        hash: genesis_root_hash,
-        rollup_last_leaf_index,
-    };
-    transaction
-        .blocks_dal()
-        .save_l1_batch_tree_data(L1BatchNumber(0), &tree_data)
-        .await?;
-
-    let mut commitment_artifacts = commitment.artifacts();
-    // `l2_l1_merkle_root` for genesis batch is set to 0 on L1 contract, same must be here.
-    commitment_artifacts.l2_l1_merkle_root = H256::zero();
-
-    transaction
-        .blocks_dal()
-        .save_l1_batch_commitment_artifacts(L1BatchNumber(0), &commitment_artifacts)
-        .await?;
 
     transaction.commit().await?;
     Ok(())
@@ -587,7 +404,7 @@ async fn save_genesis_l1_batch_metadata(
 // Save chain id transaction into the database
 // We keep returning anyhow and will refactor it later
 pub async fn save_set_chain_id_tx(
-    query_client: &dyn EthInterface,
+    query_client: &QueryClient,
     diamond_proxy_address: Address,
     state_transition_manager_address: Address,
     postgres_config: &PostgresConfig,
@@ -596,10 +413,7 @@ pub async fn save_set_chain_id_tx(
     let pool = ConnectionPool::<Core>::singleton(db_url).build().await?;
     let mut storage = pool.connection().await?;
 
-    let to = query_client
-        .block_number("fetch_chain_id_tx")
-        .await?
-        .as_u64();
+    let to = query_client.block_number().await?.as_u64();
     let from = to.saturating_sub(PRIORITY_EXPIRATION);
     let filter = FilterBuilder::default()
         .address(vec![state_transition_manager_address])
@@ -612,7 +426,7 @@ pub async fn save_set_chain_id_tx(
         .from_block(from.into())
         .to_block(BlockNumber::Latest)
         .build();
-    let mut logs = query_client.logs(filter, "fetch_chain_id_tx").await?;
+    let mut logs = query_client.logs(filter).await?;
     anyhow::ensure!(
         logs.len() == 1,
         "Expected a single set_chain_id event, got these {}: {:?}",
@@ -628,71 +442,4 @@ pub async fn save_set_chain_id_tx(
         .save_genesis_upgrade_with_tx(version_id, &upgrade_tx)
         .await?;
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use zksync_config::GenesisConfig;
-    use zksync_dal::{ConnectionPool, Core, CoreDal};
-
-    use super::*;
-
-    #[tokio::test]
-    async fn running_genesis() {
-        let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.connection().await.unwrap();
-        conn.blocks_dal().delete_genesis().await.unwrap();
-
-        let params = GenesisParams::mock();
-
-        insert_genesis_batch(&mut conn, &params).await.unwrap();
-
-        assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
-        let metadata = conn
-            .blocks_dal()
-            .get_l1_batch_metadata(L1BatchNumber(0))
-            .await
-            .unwrap();
-        let root_hash = metadata.unwrap().metadata.root_hash;
-        assert_ne!(root_hash, H256::zero());
-
-        // Check that `genesis is not needed`
-        assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
-    }
-
-    #[tokio::test]
-    async fn running_genesis_with_big_chain_id() {
-        let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.connection().await.unwrap();
-        conn.blocks_dal().delete_genesis().await.unwrap();
-
-        let params = GenesisParams::load_genesis_params(GenesisConfig {
-            l2_chain_id: L2ChainId::max(),
-            ..mock_genesis_config()
-        })
-        .unwrap();
-        insert_genesis_batch(&mut conn, &params).await.unwrap();
-
-        assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
-        let metadata = conn
-            .blocks_dal()
-            .get_l1_batch_metadata(L1BatchNumber(0))
-            .await;
-        let root_hash = metadata.unwrap().unwrap().metadata.root_hash;
-        assert_ne!(root_hash, H256::zero());
-    }
-
-    #[tokio::test]
-    async fn running_genesis_with_non_latest_protocol_version() {
-        let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.connection().await.unwrap();
-        let params = GenesisParams::load_genesis_params(GenesisConfig {
-            protocol_version: Some(ProtocolVersionId::Version10 as u16),
-            ..mock_genesis_config()
-        })
-        .unwrap();
-
-        insert_genesis_batch(&mut conn, &params).await.unwrap();
-        assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
-    }
 }
