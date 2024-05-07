@@ -16,9 +16,9 @@ will pull jobs from the database and do their part of the pipeline, loading inte
 
 ```mermaid
 flowchart LR
-    A["Operator"] --> |Produces block| F[Prover Gateway]
-    F --> |Inserts into DB| B["Postgres DB"]
-    B --> |Retrieves proven block \nafter compression| F
+    A["Operator"] -->|Produces block| F[Prover Gateway]
+    F -->|Inserts into DB| B["Postgres DB"]
+    B -->|Retrieves proven block \nafter compression| F
     B --> C["Witness"]
     C --- C1["Basic Circuits"]
     C --- C2["Leaf Aggregation"]
@@ -27,9 +27,9 @@ flowchart LR
     C --- C5["Scheduler"]
     C --> B
     B --> D["Vector Generator/Prover"]
-    D --> |Proven Block| B
+    D -->|Proven Block| B
     B --> G["Compressor"]
-    G --> |Compressed block| B
+    G -->|Compressed block| B
 ```
 
 ## Prerequisites
@@ -166,6 +166,43 @@ Machine specs:
    ```console
    zk f cargo run --release --bin zksync_proof_fri_compressor
    ```
+
+## Running GPU compressors
+
+There is an option to run compressors with the GPU, which will significantly improve the performance.
+
+1. The hardware setup should be the same as for GPU prover
+2. Install and compile `era-bellman-cuda` library
+
+```shell
+git clone https://github.com/matter-labs/bellman-cuda.git --branch dev bellman-cuda; fi
+cmake -Bbellman-cuda/build -Sbellman-cuda/ -DCMAKE_BUILD_TYPE=Release
+cmake --build bellman-cuda/build/
+```
+
+3. Set path of library as environmental variable
+
+```shell
+export BELLMAN_CUDA_DIR=$PWD/bellman-cuda
+```
+
+4. GPU compressor uses `setup_2^24.key`. Download it by using:
+
+```shell
+wget https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^24.key
+```
+
+5. Set the env variable with it's path:
+
+```shell
+export CRS_FILE=$PWD/setup_2^24.key
+```
+
+6. Run the compressor using:
+
+```shell
+zk f cargo run ---features "gpu" --release --bin zksync_proof_fri_compressor
+```
 
 ## Checking the status of the prover
 
