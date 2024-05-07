@@ -129,13 +129,16 @@ This server will use the host setted in the environment variable previously ment
 
 #### Gas price variables
 
-Gas prices are determined by a few variables, one of which is set through the `minimal_l2_gas_price` config variable. This is, quote:
+Gas prices are determined by a few variables, one of which is set through the `minimal_l2_gas_price` config variable.
+This is, quote:
 
 ```
 The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well as potentially premium for congestion.
 ```
 
-This price is currently denominated in `eth`. For chains running with a custom base token, it has to be denominated in the custom token. Therefore, operators must update it with a value they deem suitable (probably multiplying the current value by the `eth` conversion rate of their token).
+This price is currently denominated in `eth`. For chains running with a custom base token, it has to be denominated in
+the custom token. Therefore, operators must update it with a value they deem suitable (probably multiplying the current
+value by the `eth` conversion rate of their token).
 
 ## Running server using Google cloud storage object store instead of default In memory store
 
