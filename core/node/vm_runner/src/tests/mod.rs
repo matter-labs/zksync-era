@@ -12,6 +12,10 @@ use tokio::{
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_test_utils::{
+    create_l1_batch_metadata, create_l2_block, create_l2_transaction, execute_l2_transaction,
+    l1_batch_metadata_to_commitment_artifacts,
+};
 use zksync_state::{PgOrRocksdbStorage, PostgresStorage, ReadStorage, ReadStorageFactory};
 use zksync_types::{
     block::{BlockGasCount, L1BatchHeader},
@@ -21,10 +25,6 @@ use zksync_types::{
 };
 
 use super::{BatchExecuteData, VmRunnerStorage, VmRunnerStorageLoader};
-use crate::utils::testonly::{
-    create_l1_batch_metadata, create_l2_block, create_l2_transaction, execute_l2_transaction,
-    l1_batch_metadata_to_commitment_artifacts,
-};
 
 #[derive(Debug, Default)]
 struct LoaderMock {

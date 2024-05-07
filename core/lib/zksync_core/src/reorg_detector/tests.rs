@@ -10,6 +10,7 @@ use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_dal::{Connection, CoreDal};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_types::{
     block::{L2BlockHasher, L2BlockHeader},
     ProtocolVersion,
@@ -17,7 +18,6 @@ use zksync_types::{
 use zksync_web3_decl::jsonrpsee::core::ClientError as RpcError;
 
 use super::*;
-use crate::utils::testonly::{create_l1_batch, create_l2_block};
 
 async fn store_l2_block(storage: &mut Connection<'_, Core>, number: u32, hash: H256) {
     let header = L2BlockHeader {
