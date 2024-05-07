@@ -75,10 +75,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn get_next_basic_circuit_witness_job(
         &mut self,
         last_l1_batch_to_process: u32,
-        protocol_versions: &[ProtocolVersionId],
+        protocol_version: ProtocolVersionId,
         picked_by: &str,
     ) -> Option<(L1BatchNumber, Eip4844Blobs)> {
-        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         sqlx::query!(
             r#"
             UPDATE witness_inputs_fri
@@ -97,7 +96,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     WHERE
                         l1_batch_number <= $1
                         AND status = 'queued'
-                        AND protocol_version = ANY ($2)
+                        AND protocol_version = $2
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
@@ -109,7 +108,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 witness_inputs_fri.*
             "#,
             i64::from(last_l1_batch_to_process),
-            &protocol_versions[..],
+            protocol_version as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -421,10 +420,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn get_next_leaf_aggregation_job(
         &mut self,
-        protocol_versions: &[ProtocolVersionId],
+        protocol_version: ProtocolVersionId,
         picked_by: &str,
     ) -> Option<LeafAggregationJobMetadata> {
-        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         let row = sqlx::query!(
             r#"
             UPDATE leaf_aggregation_witness_jobs_fri
@@ -442,7 +440,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         leaf_aggregation_witness_jobs_fri
                     WHERE
                         status = 'queued'
-                        AND protocol_version = ANY ($1)
+                        AND protocol_version = $1
                     ORDER BY
                         l1_batch_number ASC,
                         id ASC
@@ -454,7 +452,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 leaf_aggregation_witness_jobs_fri.*
             "#,
-            &protocol_versions[..],
+            protocol_version as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -608,10 +606,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn get_next_node_aggregation_job(
         &mut self,
-        protocol_versions: &[ProtocolVersionId],
+        protocol_version: ProtocolVersionId,
         picked_by: &str,
     ) -> Option<NodeAggregationJobMetadata> {
-        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         let row = sqlx::query!(
             r#"
             UPDATE node_aggregation_witness_jobs_fri
@@ -629,7 +626,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         node_aggregation_witness_jobs_fri
                     WHERE
                         status = 'queued'
-                        AND protocol_version = ANY ($1)
+                        AND protocol_version = $1
                     ORDER BY
                         l1_batch_number ASC,
                         depth ASC,
@@ -642,7 +639,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 node_aggregation_witness_jobs_fri.*
             "#,
-            &protocol_versions[..],
+            protocol_version as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -1059,10 +1056,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn get_next_recursion_tip_witness_job(
         &mut self,
-        protocol_versions: &[ProtocolVersionId],
+        protocol_version: ProtocolVersionId,
         picked_by: &str,
     ) -> Option<L1BatchNumber> {
-        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         sqlx::query!(
             r#"
             UPDATE recursion_tip_witness_jobs_fri
@@ -1080,7 +1076,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     recursion_tip_witness_jobs_fri
                     WHERE
                         status = 'queued'
-                        AND protocol_version = ANY ($1)
+                        AND protocol_version = $1
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
@@ -1091,7 +1087,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 recursion_tip_witness_jobs_fri.l1_batch_number
             "#,
-            &protocol_versions[..],
+            protocol_version as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -1163,10 +1159,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn get_next_scheduler_witness_job(
         &mut self,
-        protocol_versions: &[ProtocolVersionId],
+        protocol_version: ProtocolVersionId,
         picked_by: &str,
     ) -> Option<L1BatchNumber> {
-        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         sqlx::query!(
             r#"
             UPDATE scheduler_witness_jobs_fri
@@ -1184,7 +1179,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         scheduler_witness_jobs_fri
                     WHERE
                         status = 'queued'
-                        AND protocol_version = ANY ($1)
+                        AND protocol_version = $1
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
@@ -1195,7 +1190,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 scheduler_witness_jobs_fri.*
             "#,
-            &protocol_versions[..],
+            protocol_version as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
