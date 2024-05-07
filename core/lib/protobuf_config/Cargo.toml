@@ -20,7 +20,6 @@ zksync_protobuf.workspace = true
 zksync_types.workspace = true
 
 anyhow.workspace = true
-pretty_assertions.workspace = true
 prost.workspace = true
 rand.workspace = true
 hex = "0.4.3"
