@@ -99,16 +99,13 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run zk
-          ci_run zk init --local-legacy-bridge-testing
+          ci_run zk init
 
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
         run: |
           ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper,commitment_generator &>server.log &
           ci_run sleep 60
-
-      - name: Deploy legacy era contracts
-        run: ci_run zk contract setup-legacy-bridge-era
 
       - name: Perform loadtest
         run: ci_run zk run loadtest
