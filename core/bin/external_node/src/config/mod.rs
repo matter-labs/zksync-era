@@ -28,9 +28,7 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_eth_client::EthInterface;
 use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
-use zksync_types::{
-    api::BridgeAddresses, fee_model::FeeParams, url::SensitiveUrl, ETHEREUM_ADDRESS,
-};
+use zksync_types::{api::BridgeAddresses, url::SensitiveUrl, ETHEREUM_ADDRESS};
 use zksync_web3_decl::{
     client::BoxedL2Client,
     error::ClientRpcContext,
@@ -64,7 +62,6 @@ pub(crate) struct RemoteENConfig {
     pub l2_chain_id: L2ChainId,
     pub l1_chain_id: L1ChainId,
     pub base_token_addr: Address,
-    pub max_pubdata_per_batch: u64,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
     pub dummy_verifier: bool,
 }
@@ -111,19 +108,6 @@ impl RemoteENConfig {
         let l1_chain_id = client.l1_chain_id().rpc_context("l1_chain_id").await?;
         let l1_chain_id = L1ChainId(l1_chain_id.as_u64());
 
-        let fee_params = client
-            .get_fee_params()
-            .rpc_context("get_fee_params")
-            .await?;
-        let max_pubdata_per_batch = match fee_params {
-            FeeParams::V1(_) => {
-                const MAX_V1_PUBDATA_PER_BATCH: u64 = 100_000;
-
-                MAX_V1_PUBDATA_PER_BATCH
-            }
-            FeeParams::V2(params) => params.config.max_pubdata_per_batch,
-        };
-
         // These two config variables should always have the same value.
         // TODO(EVM-578): double check and potentially forbid both of them being `None`.
         let l2_erc20_default_bridge = bridges
@@ -160,7 +144,6 @@ impl RemoteENConfig {
             l2_chain_id,
             l1_chain_id,
             base_token_addr,
-            max_pubdata_per_batch,
             l1_batch_commit_data_generator_mode: genesis
                 .as_ref()
                 .map(|a| a.l1_batch_commit_data_generator_mode)
@@ -189,7 +172,6 @@ impl RemoteENConfig {
             l1_shared_bridge_proxy_addr: Some(Address::repeat_byte(5)),
             l1_weth_bridge_addr: None,
             l2_shared_bridge_addr: Some(Address::repeat_byte(6)),
-            max_pubdata_per_batch: 1 << 17,
             l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
             dummy_verifier: true,
         }
@@ -959,7 +941,6 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
             max_allowed_l2_tx_gas_limit: u64::MAX,
             validation_computational_gas_limit: u32::MAX,
             chain_id: config.remote.l2_chain_id,
-            max_pubdata_per_batch: config.remote.max_pubdata_per_batch,
             // Does not matter for EN.
             whitelisted_tokens_for_aa: Default::default(),
         }

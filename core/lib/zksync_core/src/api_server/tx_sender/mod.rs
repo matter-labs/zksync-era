@@ -239,7 +239,6 @@ pub struct TxSenderConfig {
     pub vm_execution_cache_misses_limit: Option<usize>,
     pub validation_computational_gas_limit: u32,
     pub chain_id: L2ChainId,
-    pub max_pubdata_per_batch: u64,
     pub whitelisted_tokens_for_aa: Vec<Address>,
 }
 
@@ -259,7 +258,6 @@ impl TxSenderConfig {
             validation_computational_gas_limit: state_keeper_config
                 .validation_computational_gas_limit,
             chain_id,
-            max_pubdata_per_batch: state_keeper_config.max_pubdata_per_batch,
             whitelisted_tokens_for_aa: web3_json_config.whitelisted_tokens_for_aa.clone(),
         }
     }
