@@ -8,6 +8,7 @@ use zksync_eth_client::{
     encode_blob_tx_with_sidecar, BoundEthInterface, Error, EthInterface, ExecutedTxStatus, Options,
     RawTransactionBytes, SignedCallResult,
 };
+use zksync_node_fee_model::l1_gas_price::L1TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
@@ -21,7 +22,6 @@ use zksync_types::{
 use zksync_utils::time::seconds_since_epoch;
 
 use super::{metrics::METRICS, ETHSenderError};
-use crate::l1_gas_price::L1TxParamsProvider;
 
 #[derive(Debug)]
 struct EthFee {
