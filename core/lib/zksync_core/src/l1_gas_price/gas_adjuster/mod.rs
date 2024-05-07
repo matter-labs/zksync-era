@@ -7,13 +7,14 @@ use std::{
 };
 
 use tokio::sync::watch;
+use zksync_base_token_fetcher::ConversionRateFetcher;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::{Error, EthInterface};
 use zksync_types::{U256, U64};
 
 use self::metrics::METRICS;
 use super::{L1TxParamsProvider, PubdataPricing};
-use crate::{base_token_fetcher::ConversionRateFetcher, state_keeper::metrics::KEEPER_METRICS};
+use crate::state_keeper::metrics::KEEPER_METRICS;
 
 mod metrics;
 #[cfg(test)]

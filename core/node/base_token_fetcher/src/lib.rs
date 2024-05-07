@@ -42,7 +42,7 @@ impl ConversionRateFetcher for NoOpConversionRateFetcher {
 /// Struct in charge of periodically querying and caching the native token's conversion rate
 /// to `eth`.
 #[derive(Debug)]
-pub(crate) struct BaseTokenFetcher {
+pub struct BaseTokenFetcher {
     pub config: BaseTokenFetcherConfig,
     pub latest_to_eth_conversion_rate: AtomicU64,
     http_client: reqwest::Client,
@@ -50,7 +50,7 @@ pub(crate) struct BaseTokenFetcher {
 }
 
 impl BaseTokenFetcher {
-    pub(crate) async fn new(config: BaseTokenFetcherConfig) -> anyhow::Result<Self> {
+    pub async fn new(config: BaseTokenFetcherConfig) -> anyhow::Result<Self> {
         let http_client = reqwest::Client::new();
 
         let conversion_rate = http_client

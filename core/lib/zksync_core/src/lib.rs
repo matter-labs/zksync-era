@@ -17,6 +17,9 @@ use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
 };
+use zksync_base_token_fetcher::{
+    BaseTokenFetcher, ConversionRateFetcher, NoOpConversionRateFetcher,
+};
 use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker,
     CircuitBreakerChecker, CircuitBreakers,
@@ -78,7 +81,6 @@ use crate::{
         tx_sender::{ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
         web3::{self, mempool_cache::MempoolCache, state::InternalApiConfig, Namespace},
     },
-    base_token_fetcher::{BaseTokenFetcher, ConversionRateFetcher, NoOpConversionRateFetcher},
     basic_witness_input_producer::BasicWitnessInputProducer,
     eth_sender::{
         l1_batch_commit_data_generator::{
@@ -99,7 +101,6 @@ use crate::{
 };
 
 pub mod api_server;
-pub mod base_token_fetcher;
 pub mod basic_witness_input_producer;
 pub mod consensus;
 pub mod consistency_checker;

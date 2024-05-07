@@ -8112,6 +8112,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_base_token_fetcher"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "hex",
+ "metrics",
+ "reqwest",
+ "tokio",
+ "tracing",
+ "vlog",
+ "zksync_config",
+]
+
+[[package]]
 name = "zksync_basic_types"
 version = "0.1.0"
 dependencies = [
@@ -8438,6 +8453,7 @@ dependencies = [
  "vise",
  "vlog",
  "vm_utils",
+ "zksync_base_token_fetcher",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",
  "zksync_concurrency",
@@ -8788,6 +8804,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vlog",
+ "zksync_base_token_fetcher",
  "zksync_block_reverter",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",
