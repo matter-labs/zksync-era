@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            UPDATE node_aggregation_witness_jobs_fri\n            SET\n                status = 'in_progress',\n                attempts = attempts + 1,\n                updated_at = NOW(),\n                processing_started_at = NOW(),\n                picked_by = $2\n            WHERE\n                id = (\n                    SELECT\n                        id\n                    FROM\n                        node_aggregation_witness_jobs_fri\n                    WHERE\n                        status = 'queued'\n                        AND protocol_version = ANY ($1)\n                    ORDER BY\n                        l1_batch_number ASC,\n                        depth ASC,\n                        id ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                        SKIP LOCKED\n                )\n            RETURNING\n                node_aggregation_witness_jobs_fri.*\n            ",
+  "query": "\n            UPDATE node_aggregation_witness_jobs_fri\n            SET\n                status = 'in_progress',\n                attempts = attempts + 1,\n                updated_at = NOW(),\n                processing_started_at = NOW(),\n                picked_by = $2\n            WHERE\n                id = (\n                    SELECT\n                        id\n                    FROM\n                        node_aggregation_witness_jobs_fri\n                    WHERE\n                        status = 'queued'\n                        AND protocol_version = $1\n                    ORDER BY\n                        l1_batch_number ASC,\n                        depth ASC,\n                        id ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                        SKIP LOCKED\n                )\n            RETURNING\n                node_aggregation_witness_jobs_fri.*\n            ",
   "describe": {
     "columns": [
       {
@@ -81,7 +81,7 @@
     ],
     "parameters": {
       "Left": [
-        "Int4Array",
+        "Int4",
         "Text"
       ]
     },
@@ -103,5 +103,5 @@
       true
     ]
   },
-  "hash": "01ac5343beb09ec5bd45b39d560e57a83f37da8999849377dfad60b44989be39"
+  "hash": "08dfe2267bf93d164c649e93f5355b403f1438679167ff218489e2c6d0c359a3"
 }

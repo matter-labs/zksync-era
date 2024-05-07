@@ -23,11 +23,16 @@ on:
         type: string
         required: false
         default: '[{ "zksolc": ["1.3.14", "1.3.16", "1.3.17", "1.3.1", "1.3.7", "1.3.18", "1.3.19", "1.3.21"] } , { "zkvyper": ["1.3.13"] }]'
+      en_alpha_release:
+        description: 'Flag that determins if EN release should be marked as alpha'
+        type: boolean
+        required: false
+        default: false
 jobs:
   build-images:
     name: Build and Push Docker Images
     env:
-      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.components == 'external-node') && '-alpha' || '' }}
     runs-on: ${{ fromJSON('["matterlabs-ci-runner", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
     strategy:
       matrix:
@@ -164,7 +169,7 @@ jobs:
           - name: snapshots-creator
             platform: linux/amd64
     env:
-      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.components == 'external-node') && '-alpha' || '' }}
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
 
