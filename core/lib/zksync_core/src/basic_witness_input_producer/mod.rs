@@ -51,7 +51,7 @@ impl BasicWitnessInputProducer {
             .block_on(connection_pool.connection())
             .context("failed to get connection for BasicWitnessInputProducer")?;
 
-        let miniblocks_execution_data = rt_handle.block_on(
+        let l2_blocks_execution_data = rt_handle.block_on(
             connection
                 .transactions_dal()
                 .get_l2_blocks_to_execute_for_l1_batch(l1_batch_number),
@@ -63,33 +63,30 @@ impl BasicWitnessInputProducer {
 
         tracing::info!("Started execution of l1_batch: {l1_batch_number:?}");
 
-        let next_miniblocks_data = miniblocks_execution_data
+        let next_l2_blocks_data = l2_blocks_execution_data
             .iter()
             .skip(1)
             .map(Some)
             .chain([None]);
-        let miniblocks_data = miniblocks_execution_data.iter().zip(next_miniblocks_data);
+        let l2_blocks_data = l2_blocks_execution_data.iter().zip(next_l2_blocks_data);
 
-        for (miniblock_data, next_miniblock_data) in miniblocks_data {
+        for (l2_block_data, next_l2_block_data) in l2_blocks_data {
             tracing::debug!(
-                "Started execution of miniblock: {:?}, executing {:?} transactions",
-                miniblock_data.number,
-                miniblock_data.txs.len(),
+                "Started execution of L2 block: {:?}, executing {:?} transactions",
+                l2_block_data.number,
+                l2_block_data.txs.len(),
             );
-            for tx in &miniblock_data.txs {
+            for tx in &l2_block_data.txs {
                 tracing::trace!("Started execution of tx: {tx:?}");
                 execute_tx(tx, &mut vm)
                     .context("failed to execute transaction in BasicWitnessInputProducer")?;
                 tracing::trace!("Finished execution of tx: {tx:?}");
             }
-            if let Some(next_miniblock_data) = next_miniblock_data {
-                vm.start_new_l2_block(L2BlockEnv::from_miniblock_data(next_miniblock_data));
+            if let Some(next_l2_block_data) = next_l2_block_data {
+                vm.start_new_l2_block(L2BlockEnv::from_l2_block_data(next_l2_block_data));
             }
 
-            tracing::debug!(
-                "Finished execution of miniblock: {:?}",
-                miniblock_data.number
-            );
+            tracing::debug!("Finished execution of L2 block: {:?}", l2_block_data.number);
         }
         vm.finish_batch();
         tracing::info!("Finished execution of l1_batch: {l1_batch_number:?}");

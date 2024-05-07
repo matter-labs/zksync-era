@@ -13,6 +13,7 @@ use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
+use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     protocol_upgrade::ProtocolUpgradeTx, utils::display_timestamp, Address, L1BatchNumber,
     L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
@@ -20,19 +21,16 @@ use zksync_types::{
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::time::millis_since_epoch;
 
-use crate::{
-    fee_model::BatchFeeModelInputProvider,
-    state_keeper::{
-        io::{
-            common::{load_pending_batch, poll_iters, IoCursor},
-            L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
-        },
-        mempool_actor::l2_tx_filter,
-        metrics::KEEPER_METRICS,
-        seal_criteria::{IoSealCriteria, L2BlockMaxPayloadSizeSealer, TimeoutSealer},
-        updates::UpdatesManager,
-        MempoolGuard,
+use crate::state_keeper::{
+    io::{
+        common::{load_pending_batch, poll_iters, IoCursor},
+        L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
     },
+    mempool_actor::l2_tx_filter,
+    metrics::KEEPER_METRICS,
+    seal_criteria::{IoSealCriteria, L2BlockMaxPayloadSizeSealer, TimeoutSealer},
+    updates::UpdatesManager,
+    MempoolGuard,
 };
 
 /// Mempool-based sequencer for the state keeper.
@@ -44,7 +42,7 @@ pub struct MempoolIO {
     mempool: MempoolGuard,
     pool: ConnectionPool<Core>,
     timeout_sealer: TimeoutSealer,
-    miniblock_max_payload_size_sealer: L2BlockMaxPayloadSizeSealer,
+    l2_block_max_payload_size_sealer: L2BlockMaxPayloadSizeSealer,
     filter: L2TxFilter,
     l1_batch_params_provider: L1BatchParamsProvider,
     fee_account: Address,
@@ -66,7 +64,7 @@ impl IoSealCriteria for MempoolIO {
         if self.timeout_sealer.should_seal_l2_block(manager) {
             return true;
         }
-        self.miniblock_max_payload_size_sealer
+        self.l2_block_max_payload_size_sealer
             .should_seal_l2_block(manager)
     }
 }
@@ -179,7 +177,9 @@ impl StateKeeperIO for MempoolIO {
                 self.batch_fee_input_provider.as_ref(),
                 protocol_version.into(),
             )
-            .await;
+            .await
+            .context("failed creating L2 transaction filter")?;
+
             if !self.mempool.has_next(&self.filter) {
                 tokio::time::sleep(self.delay_interval).await;
                 continue;
@@ -417,7 +417,7 @@ impl MempoolIO {
             mempool,
             pool,
             timeout_sealer: TimeoutSealer::new(config),
-            miniblock_max_payload_size_sealer: L2BlockMaxPayloadSizeSealer::new(config),
+            l2_block_max_payload_size_sealer: L2BlockMaxPayloadSizeSealer::new(config),
             filter: L2TxFilter::default(),
             // ^ Will be initialized properly on the first newly opened batch
             l1_batch_params_provider,

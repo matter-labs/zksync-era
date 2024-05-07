@@ -10,19 +10,17 @@ use vm_utils::storage::L1BatchParamsProvider;
 use zksync_config::GenesisConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core};
+use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
+use zksync_node_test_utils::{
+    create_l1_batch, create_l2_block, create_l2_transaction, execute_l2_transaction,
+    prepare_recovery_snapshot,
+};
 use zksync_types::{
     block::L2BlockHasher, fee::TransactionExecutionMetrics, L2ChainId, ProtocolVersion,
     ProtocolVersionId,
 };
 
 use super::*;
-use crate::{
-    genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams},
-    utils::testonly::{
-        create_l1_batch, create_l2_transaction, create_miniblock, execute_l2_transaction,
-        prepare_recovery_snapshot,
-    },
-};
 
 #[test]
 #[rustfmt::skip] // One-line formatting looks better here.
@@ -51,7 +49,7 @@ async fn creating_io_cursor_with_genesis() {
         L2BlockHasher::legacy_hash(L2BlockNumber(0))
     );
 
-    let l2_block = create_miniblock(1);
+    let l2_block = create_l2_block(1);
     storage
         .blocks_dal()
         .insert_l2_block(&l2_block)
@@ -82,7 +80,7 @@ async fn creating_io_cursor_with_snapshot_recovery() {
     assert_eq!(cursor.prev_l2_block_hash, snapshot_recovery.l2_block_hash);
 
     // Add an L2 block so that we have L2 blocks (but not an L1 batch) in the storage.
-    let l2_block = create_miniblock(snapshot_recovery.l2_block_number.0 + 1);
+    let l2_block = create_l2_block(snapshot_recovery.l2_block_number.0 + 1);
     storage
         .blocks_dal()
         .insert_l2_block(&l2_block)
@@ -200,13 +198,13 @@ async fn getting_first_l2_block_in_batch_with_genesis() {
     ]);
     assert_first_l2_block_numbers(&provider, &mut storage, &batches_and_l2_blocks).await;
 
-    let new_l2_block = create_miniblock(1);
+    let new_l2_block = create_l2_block(1);
     storage
         .blocks_dal()
         .insert_l2_block(&new_l2_block)
         .await
         .unwrap();
-    let new_l2_block = create_miniblock(2);
+    let new_l2_block = create_l2_block(2);
     storage
         .blocks_dal()
         .insert_l2_block(&new_l2_block)
@@ -275,7 +273,7 @@ async fn getting_first_l2_block_in_batch_after_snapshot_recovery() {
     ]);
     assert_first_l2_block_numbers(&provider, &mut storage, &batches_and_l2_blocks).await;
 
-    let new_l2_block = create_miniblock(snapshot_recovery.l2_block_number.0 + 1);
+    let new_l2_block = create_l2_block(snapshot_recovery.l2_block_number.0 + 1);
     storage
         .blocks_dal()
         .insert_l2_block(&new_l2_block)
@@ -362,7 +360,7 @@ async fn store_pending_l2_blocks(
             .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
-        let mut new_l2_block = create_miniblock(l2_block_number);
+        let mut new_l2_block = create_l2_block(l2_block_number);
         new_l2_block.base_system_contracts_hashes = contract_hashes;
         storage
             .blocks_dal()

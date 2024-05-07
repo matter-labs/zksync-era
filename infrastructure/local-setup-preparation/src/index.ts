@@ -1,15 +1,17 @@
 import { utils } from 'zksync-ethers';
 import { ethers } from 'ethers';
-import { getEthersProvider, getWalletKeys } from './utils';
+import { getEthersProvider, getWalletKeys, isOperator } from './utils';
 
 // 10**12 ether
 const AMOUNT_TO_DEPOSIT = ethers.utils.parseEther('1000000000000');
+const CALLDATA = '0x';
 
 async function depositWithRichAccounts() {
     const ethProvider = getEthersProvider();
 
     const chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
     const wallets = getWalletKeys().map((wk) => new ethers.Wallet(wk.privateKey, ethProvider));
+    const isEthBasedChain = process.env.CONTRACTS_BASE_TOKEN_ADDR === utils.ETH_ADDRESS_IN_CONTRACTS;
 
     const handles: Promise<any>[] = [];
 
@@ -31,34 +33,49 @@ async function depositWithRichAccounts() {
     );
 
     for (const wallet of wallets) {
-        const contract = new ethers.Contract(process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR, utils.BRIDGEHUB_ABI, wallet);
+        if (!(await isOperator(chainId, wallet.address))) {
+            const contract = new ethers.Contract(
+                process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR,
+                utils.BRIDGEHUB_ABI,
+                wallet
+            );
 
-        const overrides = {
-            // TODO(EVM-565): expected cost calculation seems to be off, understand why and then remove the second add.
-            value: AMOUNT_TO_DEPOSIT.add(expectedCost).add(expectedCost)
-        };
+            const overrides = {
+                value: AMOUNT_TO_DEPOSIT.add(expectedCost)
+            };
 
-        const balance = await wallet.getBalance();
-        console.log(`Wallet ${wallet.address} balance is ${ethers.utils.formatEther(balance)} ETH`);
+            if (!isEthBasedChain) {
+                const baseTokenContract = new ethers.Contract(
+                    process.env.CONTRACTS_BASE_TOKEN_ADDR,
+                    utils.IERC20,
+                    wallet
+                );
+                const sharedBridge = await contract.sharedBridge();
+                await (await baseTokenContract.approve(sharedBridge, ethers.constants.MaxUint256)).wait();
+                const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
+                const l1Erc20Contract = new ethers.Contract(baseTokenContract.address, l1Erc20ABI, wallet);
+                await (await l1Erc20Contract.mint(wallet.address, AMOUNT_TO_DEPOSIT.mul(2))).wait();
+            }
 
-        // TODO: Currently we're providing zero as an operator fee, which works right now,
-        // but will be changed in the future.
-        handles.push(
-            // We have to implement the deposit manually because we run this script before running the server,
-            // deposit method from wallet requires a running server
-            // TODO(EVM-566): this is broken - as BRIDGEHUB no longer exposes 'requestL2transaction'
-            contract.requestL2Transaction(
-                chainId,
-                wallet.address,
-                AMOUNT_TO_DEPOSIT,
-                '0x',
-                DEPOSIT_L2_GAS_LIMIT,
-                utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT,
-                [],
-                wallet.address,
-                overrides
-            )
-        );
+            handles.push(
+                // We have to implement the deposit manually because we run this script before running the server,
+                // deposit method from wallet requires a running server
+                contract.requestL2TransactionDirect(
+                    {
+                        chainId,
+                        mintValue: overrides.value,
+                        l2Contract: wallet.address,
+                        l2Value: AMOUNT_TO_DEPOSIT,
+                        l2Calldata: CALLDATA,
+                        l2GasLimit: DEPOSIT_L2_GAS_LIMIT,
+                        l2GasPerPubdataByteLimit: utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT,
+                        factoryDeps: [],
+                        refundRecipient: wallet.address
+                    },
+                    isEthBasedChain ? overrides : {}
+                )
+            );
+        }
     }
 
     const depositHandles = (await Promise.all(handles)).map((h) => h.wait());

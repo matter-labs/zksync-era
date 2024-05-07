@@ -189,6 +189,6 @@ impl TxCommand {
     }
 
     fn random_amount(rng: &mut LoadtestRng) -> U256 {
-        rng.gen_range(0u64..2u64.pow(18)).into()
+        rng.gen_range(1u64..2u64.pow(18)).into()
     }
 }

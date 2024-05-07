@@ -13,11 +13,13 @@ publish = false
 [dependencies]
 zksync_config.workspace = true
 zksync_env_config.workspace = true
+zksync_eth_client.workspace = true
 zksync_protobuf_config.workspace = true
 zksync_storage.workspace = true
 zksync_utils.workspace = true
 zksync_types.workspace = true
 zksync_core.workspace = true
+zksync_node_genesis.workspace = true
 
 # Consensus dependenices
 zksync_consensus_crypto.workspace = true

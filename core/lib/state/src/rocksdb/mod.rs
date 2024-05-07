@@ -22,6 +22,7 @@ use std::{
     collections::HashMap,
     convert::TryInto,
     mem,
+    num::NonZeroU32,
     path::{Path, PathBuf},
     time::Instant,
 };
@@ -30,7 +31,7 @@ use anyhow::Context as _;
 use itertools::{Either, Itertools};
 use tokio::sync::watch;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
-use zksync_storage::{db::NamedColumnFamily, RocksDB};
+use zksync_storage::{db::NamedColumnFamily, RocksDB, RocksDBOptions};
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
 
 #[cfg(test)]
@@ -121,6 +122,35 @@ enum RocksdbSyncError {
 impl From<anyhow::Error> for RocksdbSyncError {
     fn from(err: anyhow::Error) -> Self {
         Self::Internal(err)
+    }
+}
+
+/// Options for [`RocksdbStorage`].
+#[derive(Debug)]
+pub struct RocksdbStorageOptions {
+    /// Size of the RocksDB block cache in bytes. The default value is 128 MiB.
+    pub block_cache_capacity: usize,
+    /// Number of open files that can be simultaneously opened by RocksDB. Default is `None`, for no limit.
+    /// Can be used to restrict memory usage of RocksDB.
+    pub max_open_files: Option<NonZeroU32>,
+}
+
+impl Default for RocksdbStorageOptions {
+    fn default() -> Self {
+        Self {
+            block_cache_capacity: 128 << 20,
+            max_open_files: None,
+        }
+    }
+}
+
+impl RocksdbStorageOptions {
+    fn into_generic(self) -> RocksDBOptions {
+        RocksDBOptions {
+            block_cache_capacity: Some(self.block_cache_capacity),
+            max_open_files: self.max_open_files,
+            ..RocksDBOptions::default()
+        }
     }
 }
 
@@ -215,17 +245,17 @@ impl RocksdbStorageBuilder {
         }
     }
 
-    /// Rolls back the state to a previous L1 batch number.
+    /// Reverts the state to a previous L1 batch number.
     ///
     /// # Errors
     ///
     /// Propagates RocksDB and Postgres errors.
-    pub async fn rollback(
+    pub async fn roll_back(
         mut self,
         storage: &mut Connection<'_, Core>,
         last_l1_batch_to_keep: L1BatchNumber,
     ) -> anyhow::Result<()> {
-        self.0.rollback(storage, last_l1_batch_to_keep).await
+        self.0.revert(storage, last_l1_batch_to_keep).await
     }
 }
 
@@ -250,15 +280,29 @@ impl RocksdbStorage {
     ///
     /// Propagates RocksDB I/O errors.
     pub async fn builder(path: &Path) -> anyhow::Result<RocksdbStorageBuilder> {
-        Self::new(path.to_path_buf())
+        Self::builder_with_options(path, RocksdbStorageOptions::default()).await
+    }
+
+    /// Creates a new storage builder with the provided RocksDB `path` and custom options.
+    ///
+    /// # Errors
+    ///
+    /// Propagates RocksDB I/O errors.
+    pub async fn builder_with_options(
+        path: &Path,
+        options: RocksdbStorageOptions,
+    ) -> anyhow::Result<RocksdbStorageBuilder> {
+        Self::new(path.to_path_buf(), options)
             .await
             .map(RocksdbStorageBuilder)
     }
 
-    async fn new(path: PathBuf) -> anyhow::Result<Self> {
+    async fn new(path: PathBuf, options: RocksdbStorageOptions) -> anyhow::Result<Self> {
         tokio::task::spawn_blocking(move || {
+            let db = RocksDB::with_options(&path, options.into_generic())
+                .context("failed initializing state keeper RocksDB")?;
             Ok(Self {
-                db: RocksDB::new(&path).context("failed initializing state keeper RocksDB")?,
+                db,
                 pending_patch: InMemoryStorage::default(),
                 #[cfg(test)]
                 listener: RocksdbStorageEventListener::default(),
@@ -430,20 +474,20 @@ impl RocksdbStorage {
         self.pending_patch.factory_deps.insert(hash, bytecode);
     }
 
-    async fn rollback(
+    async fn revert(
         &mut self,
         connection: &mut Connection<'_, Core>,
         last_l1_batch_to_keep: L1BatchNumber,
     ) -> anyhow::Result<()> {
-        tracing::info!("Rolling back state keeper storage to L1 batch #{last_l1_batch_to_keep}...");
+        tracing::info!("Reverting state keeper storage to L1 batch #{last_l1_batch_to_keep}...");
 
-        tracing::info!("Getting logs that should be applied to rollback state...");
+        tracing::info!("Getting logs that should be applied to revert the state...");
         let stage_start = Instant::now();
         let logs = connection
             .storage_logs_dal()
             .get_storage_logs_for_revert(last_l1_batch_to_keep)
             .await
-            .context("failed getting logs for rollback")?;
+            .context("failed getting logs for revert")?;
         tracing::info!("Got {} logs, took {:?}", logs.len(), stage_start.elapsed());
 
         tracing::info!("Getting number of last L2 block for L1 batch #{last_l1_batch_to_keep}...");

@@ -13,18 +13,19 @@ use zksync_config::configs::{
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{CheckHealth, HealthStatus};
 use zksync_merkle_tree::domain::ZkSyncTree;
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
+use zksync_storage::RocksDB;
 use zksync_types::{
     block::L1BatchHeader, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, StorageKey,
     StorageLog, H256,
 };
 use zksync_utils::u32_to_h256;
 
-use super::{GenericAsyncTree, L1BatchWithLogs, MetadataCalculator, MetadataCalculatorConfig};
-use crate::{
-    genesis::{insert_genesis_batch, GenesisParams},
-    utils::testonly::{create_l1_batch, create_miniblock},
+use super::{
+    helpers::L1BatchWithLogs, GenericAsyncTree, MetadataCalculator, MetadataCalculatorConfig,
 };
 
 const RUN_TIMEOUT: Duration = Duration::from_secs(30);
@@ -115,6 +116,7 @@ async fn expected_tree_hash(pool: &ConnectionPool<Core>) -> H256 {
                 .await
                 .unwrap();
         let logs = logs.expect("no L1 batch").storage_logs;
+
         all_logs.extend(logs);
     }
     ZkSyncTree::process_genesis_batch(&all_logs).root_hash
@@ -166,6 +168,11 @@ async fn status_receiver_has_correct_states() {
         other_tree_health_check.check_health().await.status(),
         HealthStatus::ShutDown
     );
+
+    // Check that health checks don't prevent dropping RocksDB instances.
+    tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -459,7 +466,7 @@ pub(crate) async fn reset_db_state(pool: &ConnectionPool<Core>, num_batches: usi
     // Drops all L1 batches (except the L1 batch with number 0) and their storage logs.
     storage
         .storage_logs_dal()
-        .rollback_storage_logs(L2BlockNumber(0))
+        .roll_back_storage_logs(L2BlockNumber(0))
         .await
         .unwrap();
     storage
@@ -512,9 +519,9 @@ pub(super) async fn extend_db_state_from_l1_batch(
     for (idx, batch_logs) in (next_l1_batch.0..).zip(new_logs) {
         let header = create_l1_batch(idx);
         let batch_number = header.number;
-        // Assumes that L1 batch consists of only one miniblock.
-        let miniblock_header = create_miniblock(idx);
-        let miniblock_number = miniblock_header.number;
+        // Assumes that L1 batch consists of only one L2 block.
+        let l2_block_header = create_l2_block(idx);
+        let l2_block_number = l2_block_header.number;
 
         storage
             .blocks_dal()
@@ -523,12 +530,12 @@ pub(super) async fn extend_db_state_from_l1_batch(
             .unwrap();
         storage
             .blocks_dal()
-            .insert_l2_block(&miniblock_header)
+            .insert_l2_block(&l2_block_header)
             .await
             .unwrap();
         storage
             .storage_logs_dal()
-            .insert_storage_logs(miniblock_number, &[(H256::zero(), batch_logs)])
+            .insert_storage_logs(l2_block_number, &[(H256::zero(), batch_logs)])
             .await
             .unwrap();
         storage

@@ -1,6 +1,5 @@
 use std::{sync::Arc, time::Duration};
 
-use anyhow::Context;
 use async_trait::async_trait;
 use serde::Serialize;
 use tokio::sync::watch;
@@ -16,21 +15,21 @@ use crate::state_keeper::{io::IoCursor, updates::UpdatesManager, StateKeeperOutp
 /// `SyncState` is a structure that holds the state of the syncing process.
 /// The intended use case is to signalize to Web3 API whether the node is fully synced.
 /// Data inside is expected to be updated by both `MainNodeFetcher` (on last block available on the main node)
-/// and `ExternalIO` (on latest sealed miniblock).
+/// and `ExternalIO` (on latest sealed L2 block).
 ///
-/// This structure operates on miniblocks rather than L1 batches, since this is the default unit used in the web3 API.
+/// This structure operates on L2 blocks rather than L1 batches, since this is the default unit used in the web3 API.
 #[derive(Debug, Clone)]
-pub struct SyncState(Arc<sync::watch::Sender<SyncStateInner>>);
+pub struct SyncState(Arc<watch::Sender<SyncStateInner>>);
 
 impl Default for SyncState {
     fn default() -> Self {
-        Self(Arc::new(sync::watch::channel(SyncStateInner::default()).0))
+        Self(Arc::new(watch::channel(SyncStateInner::default()).0))
     }
 }
 
 /// A threshold constant intended to keep the sync status less flaky.
-/// This gives the external node some room to fetch new miniblocks without losing the sync status.
-const SYNC_MINIBLOCK_DELTA: u32 = 10;
+/// This gives the external node some room to fetch new L2 blocks without losing the sync status.
+const SYNC_L2_BLOCK_DELTA: u32 = 10;
 
 impl SyncState {
     pub(crate) fn get_main_node_block(&self) -> L2BlockNumber {
@@ -87,17 +86,12 @@ impl SyncState {
         while !*stop_receiver.borrow_and_update() {
             let local_block = connection_pool
                 .connection()
-                .await
-                .context("Failed to get a connection from the pool in sync state updater")?
+                .await?
                 .blocks_dal()
                 .get_sealed_l2_block_number()
-                .await
-                .context("Failed to get the miniblock number from DB")?;
+                .await?;
 
-            let main_node_block = main_node_client
-                .get_block_number()
-                .await
-                .context("Failed to request last miniblock number from main node")?;
+            let main_node_block = main_node_client.get_block_number().await?;
 
             if let Some(local_block) = local_block {
                 self.set_local_block(local_block);
@@ -183,7 +177,7 @@ impl SyncStateInner {
                 // We're ahead of the main node, this situation is handled by the re-org detector.
                 return (true, Some(0));
             };
-            (block_diff <= SYNC_MINIBLOCK_DELTA, Some(block_diff))
+            (block_diff <= SYNC_L2_BLOCK_DELTA, Some(block_diff))
         } else {
             (false, None)
         }
@@ -243,7 +237,7 @@ mod tests {
 
         // The gap is too big, still not synced.
         sync_state.set_local_block(L2BlockNumber(0));
-        sync_state.set_main_node_block(L2BlockNumber(SYNC_MINIBLOCK_DELTA + 1));
+        sync_state.set_main_node_block(L2BlockNumber(SYNC_L2_BLOCK_DELTA + 1));
         assert!(!sync_state.is_synced());
 
         let health = sync_state.check_health().await;
@@ -257,11 +251,11 @@ mod tests {
         assert_matches!(health.status(), HealthStatus::Ready);
 
         // Can reach the main node last block.
-        sync_state.set_local_block(L2BlockNumber(SYNC_MINIBLOCK_DELTA + 1));
+        sync_state.set_local_block(L2BlockNumber(SYNC_L2_BLOCK_DELTA + 1));
         assert!(sync_state.is_synced());
 
         // Main node can again move forward.
-        sync_state.set_main_node_block(L2BlockNumber(2 * SYNC_MINIBLOCK_DELTA + 2));
+        sync_state.set_main_node_block(L2BlockNumber(2 * SYNC_L2_BLOCK_DELTA + 2));
         assert!(!sync_state.is_synced());
     }
 
