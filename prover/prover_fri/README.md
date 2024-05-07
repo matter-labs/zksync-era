@@ -173,36 +173,31 @@ There is an option to run compressors with the GPU, which will significantly imp
 
 1. The hardware setup should be the same as for GPU prover
 2. Install and compile `era-bellman-cuda` library
-
-```shell
-git clone https://github.com/matter-labs/bellman-cuda.git --branch dev bellman-cuda; fi
-cmake -Bbellman-cuda/build -Sbellman-cuda/ -DCMAKE_BUILD_TYPE=Release
-cmake --build bellman-cuda/build/
-```
+   ```console
+   git clone https://github.com/matter-labs/bellman-cuda.git --branch dev bellman-cuda; fi
+   cmake -Bbellman-cuda/build -Sbellman-cuda/ -DCMAKE_BUILD_TYPE=Release
+   cmake --build bellman-cuda/build/
+   ```
 
 3. Set path of library as environmental variable
-
-```shell
-export BELLMAN_CUDA_DIR=$PWD/bellman-cuda
-```
+   ```console
+   export BELLMAN_CUDA_DIR=$PWD/bellman-cuda
+   ```
 
 4. GPU compressor uses `setup_2^24.key`. Download it by using:
-
-```shell
-wget https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^24.key
-```
+   ```console
+   wget https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^24.key
+   ```
 
 5. Set the env variable with it's path:
-
-```shell
-export CRS_FILE=$PWD/setup_2^24.key
-```
+   ```console
+   export CRS_FILE=$PWD/setup_2^24.key
+   ```
 
 6. Run the compressor using:
-
-```shell
-zk f cargo run ---features "gpu" --release --bin zksync_proof_fri_compressor
-```
+   ```console
+   zk f cargo run ---features "gpu" --release --bin zksync_proof_fri_compressor
+   ```
 
 ## Checking the status of the prover
 
