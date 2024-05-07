@@ -78,7 +78,7 @@ impl Default for BatchData {
             recursion_tip: Task::RecursionTip {
                 status: TaskStatus::default(),
                 aggregation_round_info: AggregationRoundInfo {
-                    round: AggregationRound::Scheduler,
+                    round: AggregationRound::RecursionTip,
                     prover_jobs_status: TaskStatus::default(),
                 },
             },
