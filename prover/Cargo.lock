@@ -2391,7 +2391,7 @@ dependencies = [
 [[package]]
 name = "gpu-ffi"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?rev=6f77bf0#6f77bf042e429935fb88ef31c17df5bb76bf22e0"
+source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?rev=3d33e06#3d33e069d9d263f3a9626d235ac6dc6c49179965"
 dependencies = [
  "bindgen 0.59.2",
  "crossbeam 0.7.3",
@@ -2404,7 +2404,7 @@ dependencies = [
 [[package]]
 name = "gpu-prover"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?rev=6f77bf0#6f77bf042e429935fb88ef31c17df5bb76bf22e0"
+source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?rev=3d33e06#3d33e069d9d263f3a9626d235ac6dc6c49179965"
 dependencies = [
  "bit-vec",
  "cfg-if 1.0.0",
@@ -7198,7 +7198,7 @@ dependencies = [
 [[package]]
 name = "wrapper-prover"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?rev=6f77bf0#6f77bf042e429935fb88ef31c17df5bb76bf22e0"
+source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?rev=3d33e06#3d33e069d9d263f3a9626d235ac6dc6c49179965"
 dependencies = [
  "circuit_definitions 0.1.0",
  "gpu-prover",
