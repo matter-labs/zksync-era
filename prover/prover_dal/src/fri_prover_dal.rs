@@ -324,7 +324,8 @@ impl FriProverDal<'_, '_> {
                 RETURNING
                     id,
                     status,
-                    attempts
+                    attempts,
+                    circuit_id
                 "#,
                 &processing_timeout,
                 max_attempts as i32,
@@ -337,6 +338,7 @@ impl FriProverDal<'_, '_> {
                 id: row.id as u64,
                 status: row.status,
                 attempts: row.attempts as u64,
+                circuit_id: Some(row.circuit_id as u32),
             })
             .collect()
         }
@@ -730,7 +732,8 @@ impl FriProverDal<'_, '_> {
                 RETURNING
                     id,
                     status,
-                    attempts
+                    attempts,
+                    circuit_id
                 "#,
                 i64::from(block_number.0),
                 max_attempts as i32,
@@ -743,6 +746,7 @@ impl FriProverDal<'_, '_> {
                 id: row.id as u64,
                 status: row.status,
                 attempts: row.attempts as u64,
+                circuit_id: Some(row.circuit_id as u32),
             })
             .collect()
         }

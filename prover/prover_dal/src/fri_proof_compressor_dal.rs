@@ -315,6 +315,7 @@ impl FriProofCompressorDal<'_, '_> {
                 id: row.l1_batch_number as u64,
                 status: row.status,
                 attempts: row.attempts as u64,
+                circuit_id: None,
             })
             .collect()
         }
@@ -387,6 +388,7 @@ impl FriProofCompressorDal<'_, '_> {
                 id: block_number.0 as u64,
                 status: row.status,
                 attempts: row.attempts as u64,
+                circuit_id: None,
             })
             .collect()
         }

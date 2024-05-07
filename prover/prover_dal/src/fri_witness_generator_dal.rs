@@ -296,6 +296,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             id: row.l1_batch_number as u64,
             status: row.status,
             attempts: row.attempts as u64,
+            circuit_id: None,
         })
         .collect()
     }
@@ -951,7 +952,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 id,
                 status,
-                attempts
+                attempts,
+                circuit_id
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -964,6 +966,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             id: row.id as u64,
             status: row.status,
             attempts: row.attempts as u64,
+            circuit_id: Some(row.circuit_id as u32),
         })
         .collect()
     }
@@ -994,7 +997,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 id,
                 status,
-                attempts
+                attempts,
+                circuit_id
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -1007,6 +1011,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             id: row.id as u64,
             status: row.status,
             attempts: row.attempts as u64,
+            circuit_id: Some(row.circuit_id as u32),
         })
         .collect()
     }
@@ -1050,6 +1055,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             id: row.l1_batch_number as u64,
             status: row.status,
             attempts: row.attempts as u64,
+            circuit_id: None,
         })
         .collect()
     }
@@ -1153,6 +1159,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             id: row.l1_batch_number as u64,
             status: row.status,
             attempts: row.attempts as u64,
+            circuit_id: None,
         })
         .collect()
     }
@@ -1633,7 +1640,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 {},
                 status,
-                attempts
+                attempts,
+                circuit_id
             "#,
             table_name,
             i64::from(block_number.0),
@@ -1649,6 +1657,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 id: row.get::<i64, &str>(job_id_table_name) as u64,
                 status: row.get("status"),
                 attempts: row.get::<i16, &str>("attempts") as u64,
+                circuit_id: Some(row.get::<i16, &str>("circuit_id") as u32),
             })
             .collect()
     }
