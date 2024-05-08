@@ -180,7 +180,7 @@ async fn get_proof_compression_job_info_for_batch<'a>(
 
 fn display_batch_status(batch_data: BatchData) {
     println!(
-        "== {} == \n",
+        "== {} ==",
         format!("Batch {} Status", batch_data.batch_number)
     );
     display_status_for_stage(batch_data.basic_witness_generator);
@@ -222,7 +222,7 @@ fn display_status_for_stage(stage_info: StageInfo) {
 
 fn display_batch_info(batch_data: BatchData) {
     println!(
-        "== {} == \n",
+        "== {} ==",
         format!("Batch {} Status", batch_data.batch_number)
     );
     display_info_for_stage(batch_data.basic_witness_generator);
@@ -384,6 +384,6 @@ fn display_aggregation_round(stage_info: &StageInfo) {
             format!("Aggregation Round {}", aggregation_round as u8).bold()
         );
     } else {
-        println!("-- {} --", format!("Compresion").bold());
+        println!("\n-- {} --", format!("Compresion").bold());
     };
 }
