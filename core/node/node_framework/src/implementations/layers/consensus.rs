@@ -129,7 +129,7 @@ impl Task for MainNodeConsensusTask {
         // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
         let root_ctx = ctx::root();
         scope::run!(&root_ctx, |ctx, s| async move {
-            s.spawn_bg(consensus::era::run_main_node(ctx, self.config, self.pool));
+            s.spawn_bg(consensus::era::run_main_node(ctx, self.config, self.secrets, self.pool, self.chain_id));
             let _ = stop_receiver.0.wait_for(|stop| *stop).await?;
             Ok(())
         })

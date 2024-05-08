@@ -2,8 +2,6 @@ use anyhow::Context as _;
 use test_casing::test_casing;
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, scope};
-use zksync_consensus_executor as executor;
-use zksync_consensus_network as network;
 use zksync_consensus_network::testonly::{new_configs, new_fullnode};
 use zksync_consensus_roles::validator::testonly::{Setup, SetupSpec};
 use zksync_types::{L1BatchNumber, L2BlockNumber};
@@ -62,7 +60,9 @@ async fn test_validator_block_store() {
     // Insert blocks one by one and check the storage state.
     for (i, block) in want.iter().enumerate() {
         scope::run!(ctx, |ctx, s| async {
-            let (block_store, runner) = pool.clone().into_block_store(ctx, None).await.unwrap();
+            let (store, runner) = Store::new(ctx, pool.clone(), None).await.unwrap();
+            s.spawn_bg(runner.run(ctx));
+            let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone())).await.unwrap();
             s.spawn_bg(runner.run(ctx));
             block_store.queue_block(ctx, block.clone()).await.unwrap();
             block_store
@@ -78,18 +78,6 @@ async fn test_validator_block_store() {
         })
         .await
         .unwrap();
-    }
-}
-
-fn executor_config(cfg: &network::Config) -> executor::Config {
-    executor::Config {
-        server_addr: *cfg.server_addr,
-        public_addr: cfg.public_addr.clone(),
-        max_payload_size: usize::MAX,
-        node_key: cfg.gossip.key.clone(),
-        gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
-        gossip_static_inbound: cfg.gossip.static_inbound.clone(),
-        gossip_static_outbound: cfg.gossip.static_outbound.clone(),
     }
 }
 
@@ -170,7 +158,7 @@ async fn test_nodes_from_various_snapshots() {
 
     scope::run!(ctx, |ctx, s| async {
         tracing::info!("spawn validator");
-        let validator_store = Store::from_genesis().await;
+        let validator_pool = ConnectionPool::from_genesis().await;
         let (mut validator, runner) =
             testonly::StateKeeper::new(ctx, validator_pool.clone()).await?;
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("validator")));
@@ -186,7 +174,7 @@ async fn test_nodes_from_various_snapshots() {
 
         tracing::info!("take snapshot and start a node from it");
         let snapshot = validator_pool.snapshot(ctx).await?;
-        let node_pool = Store::from_snapshot(snapshot).await;
+        let node_pool = ConnectionPool::from_snapshot(snapshot).await;
         let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("node1")));
         let conn = validator.connect(ctx).await?;
@@ -204,7 +192,7 @@ async fn test_nodes_from_various_snapshots() {
 
         tracing::info!("take another snapshot and start a node from it");
         let snapshot = validator_pool.snapshot(ctx).await?;
-        let node_pool2 = Store::from_snapshot(snapshot).await;
+        let node_pool2 = ConnectionPool::from_snapshot(snapshot).await;
         let (node, runner) = testonly::StateKeeper::new(ctx, node_pool2.clone()).await?;
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("node2")));
         let conn = validator.connect(ctx).await?; 
