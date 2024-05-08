@@ -40,7 +40,7 @@ pub async fn start() -> anyhow::Result<()> {
     match command {
         ProverCommand::FileInfo(args) => get_file_info::run(args).await?,
         ProverCommand::Delete(args) => delete::run(args).await?,
-        ProverCommand::Status(cmd) => cmd.run().await?,
+        ProverCommand::Status(cmd) => cmd.run(config).await?,
         ProverCommand::Restart(args) => restart::run(args).await?,
     };
 
