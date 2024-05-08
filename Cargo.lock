@@ -8378,7 +8378,6 @@ dependencies = [
  "zksync_protobuf_build",
  "zksync_protobuf_config",
  "zksync_prover_interface",
- "zksync_queued_job_processor",
  "zksync_shared_metrics",
  "zksync_state",
  "zksync_storage",
@@ -8567,7 +8566,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.0.0"
+version = "24.1.0"
 dependencies = [
  "anyhow",
  "assert_matches",

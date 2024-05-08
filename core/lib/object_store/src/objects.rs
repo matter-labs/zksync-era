@@ -10,7 +10,6 @@ use zksync_types::{
     snapshots::{
         SnapshotFactoryDependencies, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
     },
-    storage::witness_block_state::WitnessBlockState,
     L1BatchNumber,
 };
 
@@ -116,17 +115,6 @@ impl StoredObject for SnapshotStorageLogsChunk {
             .context("deserialization of Message to SnapshotStorageLogsChunk")
             .map_err(From::from)
     }
-}
-
-impl StoredObject for WitnessBlockState {
-    const BUCKET: Bucket = Bucket::WitnessInput;
-    type Key<'a> = L1BatchNumber;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!("witness_block_state_for_l1_batch_{key}.bin")
-    }
-
-    serialize_using_bincode!();
 }
 
 impl dyn ObjectStore + '_ {

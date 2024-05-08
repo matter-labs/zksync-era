@@ -66,7 +66,7 @@ use crate::{
         observability::observability_config_from_env, ExternalNodeConfig, OptionalENConfig,
         RequiredENConfig,
     },
-    helpers::MainNodeHealthCheck,
+    helpers::{EthClientHealthCheck, MainNodeHealthCheck, ValidateChainIdsTask},
     init::ensure_storage_initialized,
     metrics::RUST_METRICS,
 };
@@ -253,7 +253,7 @@ async fn run_core(
         main_node_client.clone(),
         output_handler,
         stop_receiver.clone(),
-        config.remote.l2_chain_id,
+        config.required.l2_chain_id,
         task_handles,
     )
     .await?;
@@ -821,27 +821,22 @@ async fn main() -> anyhow::Result<()> {
     // Build L1 and L2 clients.
     let main_node_url = &required_config.main_node_url;
     tracing::info!("Main node URL is: {main_node_url:?}");
-    // FIXME: merge
-    let main_node_client = Client::http(L2(0.into()), main_node_url.clone())
+    let main_node_client = Client::http(L2(required_config.l2_chain_id), main_node_url.clone())
         .context("Failed creating JSON-RPC client for main node")?
         .with_allowed_requests_per_second(optional_config.main_node_rate_limit_rps)
         .build();
     let main_node_client = Box::new(main_node_client) as Box<DynClient<L2>>;
 
     let eth_client_url = &required_config.eth_client_url;
-    let eth_client = Client::http(L1(0.into()), eth_client_url.clone())
+    let eth_client = Client::http(L1(required_config.l1_chain_id), eth_client_url.clone())
         .context("failed creating JSON-RPC client for Ethereum")?
         .build();
     let eth_client = Box::new(eth_client);
 
-    let mut config = ExternalNodeConfig::new(
-        required_config,
-        optional_config,
-        main_node_client.as_ref(),
-        eth_client.as_ref(),
-    )
-    .await
-    .context("Failed to load external node config")?;
+    let mut config =
+        ExternalNodeConfig::new(required_config, optional_config, main_node_client.as_ref())
+            .await
+            .context("Failed to load external node config")?;
     if !opt.enable_consensus {
         config.consensus = None;
     }
@@ -915,6 +910,7 @@ async fn run_node(
     app_health.insert_custom_component(Arc::new(MainNodeHealthCheck::from(
         main_node_client.clone(),
     )))?;
+    app_health.insert_custom_component(Arc::new(EthClientHealthCheck::from(eth_client.clone())))?;
     app_health.insert_custom_component(Arc::new(ConnectionPoolHealthCheck::new(
         connection_pool.clone(),
     )))?;
@@ -939,6 +935,14 @@ async fn run_node(
         Ok(())
     });
 
+    let validate_chain_ids_task = ValidateChainIdsTask::new(
+        config.required.l1_chain_id,
+        config.required.l2_chain_id,
+        eth_client.clone(),
+        main_node_client.clone(),
+    );
+    let validate_chain_ids_task = tokio::spawn(validate_chain_ids_task.run(stop_receiver.clone()));
+
     let version_sync_task_pool = connection_pool.clone();
     let version_sync_task_main_node_client = main_node_client.clone();
     let mut stop_receiver_for_version_sync = stop_receiver.clone();
@@ -952,14 +956,14 @@ async fn run_node(
         stop_receiver_for_version_sync.changed().await.ok();
         Ok(())
     });
-    let mut task_handles = vec![metrics_task, version_sync_task];
+    let mut task_handles = vec![metrics_task, validate_chain_ids_task, version_sync_task];
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(
         connection_pool.clone(),
         main_node_client.clone(),
         &app_health,
-        config.remote.l2_chain_id,
+        config.required.l2_chain_id,
         config.optional.snapshots_recovery_enabled,
     )
     .await?;
