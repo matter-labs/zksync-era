@@ -209,19 +209,21 @@ impl<Io: VmRunnerIo> ConcurrentOutputHandlerFactoryTask<Io> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ConcurrentOutputHandlerFactory, OutputHandlerFactory, VmRunnerIo};
+    use std::{collections::HashMap, sync::Arc, time::Duration};
+
     use async_trait::async_trait;
     use backon::{ConstantBuilder, Retryable};
     use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
-    use std::collections::HashMap;
-    use std::sync::Arc;
-    use std::time::Duration;
-    use tokio::sync::{watch, RwLock};
-    use tokio::task::JoinHandle;
+    use tokio::{
+        sync::{watch, RwLock},
+        task::JoinHandle,
+    };
     use zksync_contracts::{BaseSystemContracts, SystemContractCode};
     use zksync_core::state_keeper::{StateKeeperOutputHandler, UpdatesManager};
     use zksync_dal::{Connection, ConnectionPool, Core};
     use zksync_types::L1BatchNumber;
+
+    use crate::{ConcurrentOutputHandlerFactory, OutputHandlerFactory, VmRunnerIo};
 
     #[derive(Debug, Default)]
     struct IoMock {
