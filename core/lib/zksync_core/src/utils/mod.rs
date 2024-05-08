@@ -8,6 +8,7 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use futures::FutureExt;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{CallFunctionArgs, Error as EthClientError, EthInterface};
@@ -163,48 +164,102 @@ pub(crate) async fn pending_protocol_version(
     Ok(snapshot_recovery.protocol_version)
 }
 
-async fn get_pubdata_pricing_mode(
+/// Managed task that asynchronously validates that the commit mode (rollup or validium) from the node config
+/// matches the mode in the L1 diamond proxy contract.
+#[derive(Debug)]
+pub struct L1BatchCommitModeValidationTask {
     diamond_proxy_address: Address,
-    eth_client: &dyn EthInterface,
-) -> Result<Vec<ethabi::Token>, EthClientError> {
-    let args = CallFunctionArgs::new("getPubdataPricingMode", ()).for_contract(
-        diamond_proxy_address,
-        zksync_contracts::hyperchain_contract(),
-    );
-    eth_client.call_contract_function(args).await
+    expected_commit_mode: L1BatchCommitMode,
+    eth_client: Box<dyn EthInterface>,
 }
 
-pub async fn ensure_l1_batch_commit_data_generation_mode(
-    expected_commit_mode: L1BatchCommitMode,
-    diamond_proxy_address: Address,
-    eth_client: &dyn EthInterface,
-) -> anyhow::Result<()> {
-    match get_pubdata_pricing_mode(diamond_proxy_address, eth_client).await {
-        // Getters contract support getPubdataPricingMode method
-        Ok(l1_contract_pubdata_pricing_mode) => {
-            let l1_contract_batch_commitment_mode = L1BatchCommitMode::from_tokens(
-                l1_contract_pubdata_pricing_mode,
-            )
-            .context("Unable to parse L1BatchCommitDataGeneratorMode received from L1 contract")?;
+impl L1BatchCommitModeValidationTask {
+    const RETRY_INTERVAL: Duration = Duration::from_secs(5);
 
-            // contracts mode == server mode
-            anyhow::ensure!(
-                l1_contract_batch_commitment_mode == expected_commit_mode,
-                "The selected L1BatchCommitDataGeneratorMode ({:?}) does not match the commitment mode used on L1 contract ({:?})",
-                expected_commit_mode,
-                l1_contract_batch_commitment_mode
-            );
+    /// Creates
+    pub fn new(
+        diamond_proxy_address: Address,
+        expected_commit_mode: L1BatchCommitMode,
+        eth_client: Box<dyn EthInterface>,
+    ) -> Self {
+        Self {
+            diamond_proxy_address,
+            expected_commit_mode,
+            eth_client: eth_client.for_component("commit_mode_validation"),
+        }
+    }
 
-            Ok(())
+    async fn validate_commit_mode(self) -> anyhow::Result<()> {
+        let expected_mode = self.expected_commit_mode;
+        let diamond_proxy_address = self.diamond_proxy_address;
+        let eth_client = self.eth_client.as_ref();
+        loop {
+            let result = Self::get_pubdata_pricing_mode(diamond_proxy_address, eth_client).await;
+            match result {
+                Ok(mode_tokens) => {
+                    let mode = L1BatchCommitMode::from_tokens(mode_tokens).context(
+                        "Unable to parse L1BatchCommitDataGeneratorMode received from L1 contract",
+                    )?;
+                    anyhow::ensure!(
+                        mode == self.expected_commit_mode,
+                        "Configured L1 batch commit mode ({expected_mode:?}) does not match the commit mode \
+                         used on L1 contract {diamond_proxy_address:?} ({mode:?})"
+                    );
+                    tracing::info!(
+                        "Checked that the configured L1 batch commit mode ({expected_mode:?}) matches the commit mode \
+                         used on L1 contract {diamond_proxy_address:?}"
+                    );
+                    return Ok(());
+                }
+
+                // Getters contract does not support `getPubdataPricingMode` method.
+                // This case is accepted for backwards compatibility with older contracts, but emits a
+                // warning in case the wrong contract address was passed by the caller.
+                Err(EthClientError::Contract(_)) => {
+                    tracing::warn!(
+                        "L1 contract {diamond_proxy_address:?} does not support `getPubdataPricingMode` method; \
+                         assuming that the configured L1 batch commit mode ({expected_mode:?}) is correct"
+                    );
+                    return Ok(());
+                }
+
+                // FIXME: detect transient errors more precisely
+                Err(EthClientError::EthereumGateway(err)) => {
+                    tracing::warn!(
+                        "Transient error validating commit mode, will retry after {:?}: {err}",
+                        Self::RETRY_INTERVAL
+                    );
+                    tokio::time::sleep(Self::RETRY_INTERVAL).await;
+                }
+
+                Err(err) => {
+                    tracing::error!("Fatal error validating commit mode: {err}");
+                    return Err(err.into());
+                }
+            }
         }
-        // Getters contract does not support getPubdataPricingMode method.
-        // This case is accepted for backwards compatibility with older contracts, but emits a
-        // warning in case the wrong contract address was passed by the caller.
-        Err(EthClientError::Contract(_)) => {
-            tracing::warn!("Getters contract does not support getPubdataPricingMode method");
-            Ok(())
+    }
+
+    async fn get_pubdata_pricing_mode(
+        diamond_proxy_address: Address,
+        eth_client: &dyn EthInterface,
+    ) -> Result<Vec<ethabi::Token>, EthClientError> {
+        let args = CallFunctionArgs::new("getPubdataPricingMode", ()).for_contract(
+            diamond_proxy_address,
+            zksync_contracts::hyperchain_contract(),
+        );
+        eth_client.call_contract_function(args).await
+    }
+
+    /// Runs this task. The task will exit on error or when a stop signal is received.
+    pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let validation = self.validate_commit_mode();
+        loop {
+            tokio::select! {
+                Err(err) = validation.fuse() => return Err(err),
+                _ = stop_receiver.changed() => return Ok(()),
+            }
         }
-        Err(err) => anyhow::bail!(err),
     }
 }
 
@@ -296,79 +351,70 @@ mod tests {
 
     #[tokio::test]
     async fn ensure_l1_batch_commit_data_generation_mode_succeeds_when_both_match() {
-        let addr = Address::repeat_byte(0x01);
-        ensure_l1_batch_commit_data_generation_mode(
-            L1BatchCommitMode::Rollup,
-            addr,
-            &mock_ethereum_with_rollup_contract(),
-        )
-        .await
-        .unwrap();
+        let diamond_proxy_address = Address::repeat_byte(0x01);
+        let task = L1BatchCommitModeValidationTask {
+            diamond_proxy_address,
+            expected_commit_mode: L1BatchCommitMode::Rollup,
+            eth_client: Box::new(mock_ethereum_with_rollup_contract()),
+        };
+        task.validate_commit_mode().await.unwrap();
 
-        ensure_l1_batch_commit_data_generation_mode(
-            L1BatchCommitMode::Validium,
-            addr,
-            &mock_ethereum_with_validium_contract(),
-        )
-        .await
-        .unwrap();
+        let task = L1BatchCommitModeValidationTask {
+            diamond_proxy_address,
+            expected_commit_mode: L1BatchCommitMode::Validium,
+            eth_client: Box::new(mock_ethereum_with_validium_contract()),
+        };
+        task.validate_commit_mode().await.unwrap();
     }
 
     #[tokio::test]
     async fn ensure_l1_batch_commit_data_generation_mode_succeeds_on_legacy_contracts() {
-        let addr = Address::repeat_byte(0x01);
-        ensure_l1_batch_commit_data_generation_mode(
-            L1BatchCommitMode::Rollup,
-            addr,
-            &mock_ethereum_with_legacy_contract(),
-        )
-        .await
-        .unwrap();
+        let diamond_proxy_address = Address::repeat_byte(0x01);
+        let task = L1BatchCommitModeValidationTask {
+            diamond_proxy_address,
+            expected_commit_mode: L1BatchCommitMode::Rollup,
+            eth_client: Box::new(mock_ethereum_with_legacy_contract()),
+        };
+        task.validate_commit_mode().await.unwrap();
 
-        ensure_l1_batch_commit_data_generation_mode(
-            L1BatchCommitMode::Validium,
-            addr,
-            &mock_ethereum_with_legacy_contract(),
-        )
-        .await
-        .unwrap();
+        let task = L1BatchCommitModeValidationTask {
+            diamond_proxy_address,
+            expected_commit_mode: L1BatchCommitMode::Validium,
+            eth_client: Box::new(mock_ethereum_with_legacy_contract()),
+        };
+        task.validate_commit_mode().await.unwrap();
     }
 
     #[tokio::test]
     async fn ensure_l1_batch_commit_data_generation_mode_fails_on_mismatch() {
-        let addr = Address::repeat_byte(0x01);
-        let err = ensure_l1_batch_commit_data_generation_mode(
-            L1BatchCommitMode::Validium,
-            addr,
-            &mock_ethereum_with_rollup_contract(),
-        )
-        .await
-        .unwrap_err()
-        .to_string();
+        let diamond_proxy_address = Address::repeat_byte(0x01);
+        let task = L1BatchCommitModeValidationTask {
+            diamond_proxy_address,
+            expected_commit_mode: L1BatchCommitMode::Validium,
+            eth_client: Box::new(mock_ethereum_with_rollup_contract()),
+        };
+        let err = task.validate_commit_mode().await.unwrap_err().to_string();
         assert!(err.contains("commitment mode"), "{err}");
 
-        let err = ensure_l1_batch_commit_data_generation_mode(
-            L1BatchCommitMode::Rollup,
-            addr,
-            &mock_ethereum_with_validium_contract(),
-        )
-        .await
-        .unwrap_err()
-        .to_string();
+        let task = L1BatchCommitModeValidationTask {
+            diamond_proxy_address,
+            expected_commit_mode: L1BatchCommitMode::Rollup,
+            eth_client: Box::new(mock_ethereum_with_validium_contract()),
+        };
+        let err = task.validate_commit_mode().await.unwrap_err().to_string();
         assert!(err.contains("commitment mode"), "{err}");
     }
 
     #[tokio::test]
     async fn ensure_l1_batch_commit_data_generation_mode_fails_on_request_failure() {
-        let addr = Address::repeat_byte(0x01);
-        let err = ensure_l1_batch_commit_data_generation_mode(
-            L1BatchCommitMode::Rollup,
-            addr,
-            &mock_ethereum_with_tx_error(),
-        )
-        .await
-        .unwrap_err();
+        let diamond_proxy_address = Address::repeat_byte(0x01);
+        let task = L1BatchCommitModeValidationTask {
+            diamond_proxy_address,
+            expected_commit_mode: L1BatchCommitMode::Rollup,
+            eth_client: Box::new(mock_ethereum_with_tx_error()),
+        };
 
+        let err = task.validate_commit_mode().await.unwrap_err();
         assert!(
             err.chain()
                 .any(|cause| cause.is::<zksync_types::web3::Error>()),
@@ -378,17 +424,14 @@ mod tests {
 
     #[tokio::test]
     async fn ensure_l1_batch_commit_data_generation_mode_fails_on_parse_error() {
-        let addr = Address::repeat_byte(0x01);
+        let diamond_proxy_address = Address::repeat_byte(0x01);
+        let task = L1BatchCommitModeValidationTask {
+            diamond_proxy_address,
+            expected_commit_mode: L1BatchCommitMode::Rollup,
+            eth_client: Box::new(mock_ethereum(ethabi::Token::String("what".into()), None)),
+        };
 
-        let err = ensure_l1_batch_commit_data_generation_mode(
-            L1BatchCommitMode::Rollup,
-            addr,
-            &mock_ethereum(ethabi::Token::String("what".into()), None),
-        )
-        .await
-        .unwrap_err()
-        .to_string();
-
+        let err = task.validate_commit_mode().await.unwrap_err().to_string();
         assert!(
             err.contains("Unable to parse L1BatchCommitDataGeneratorMode"),
             "{err}",

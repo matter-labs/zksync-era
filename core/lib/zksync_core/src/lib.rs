@@ -82,7 +82,7 @@ use crate::{
         create_state_keeper, AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler,
         SequencerSealer, StateKeeperPersistence,
     },
-    utils::ensure_l1_batch_commit_data_generation_mode,
+    utils::L1BatchCommitModeValidationTask,
 };
 
 pub mod api_server;
@@ -623,11 +623,14 @@ pub async fn initialize_components(
 
         let l1_batch_commit_data_generator_mode =
             genesis_config.l1_batch_commit_data_generator_mode;
-        ensure_l1_batch_commit_data_generation_mode(
-            l1_batch_commit_data_generator_mode,
+        // Run the task synchronously: the main node is expected to have a stable Ethereum client connection,
+        // and the cost of detecting an incorrect mode with a delay is higher.
+        L1BatchCommitModeValidationTask::new(
             contracts_config.diamond_proxy_addr,
-            eth_client.as_ref(),
+            l1_batch_commit_data_generator_mode,
+            query_client.clone(),
         )
+        .run(stop_receiver.clone())
         .await?;
 
         let operator_blobs_address = eth_sender_wallets.blob_operator.map(|x| x.address());

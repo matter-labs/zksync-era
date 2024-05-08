@@ -32,7 +32,7 @@ use zksync_core::{
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue, SyncState,
     },
-    utils::ensure_l1_batch_commit_data_generation_mode,
+    utils::L1BatchCommitModeValidationTask,
 };
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::{
@@ -205,7 +205,7 @@ async fn run_core(
     connection_pool: ConnectionPool<Core>,
     main_node_client: BoxedL2Client,
     eth_client: Box<dyn EthInterface>,
-    task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
+    task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
     fee_params_fetcher: Arc<MainNodeFeeParamsFetcher>,
@@ -331,12 +331,14 @@ async fn run_core(
         remote_diamond_proxy_addr
     };
 
-    ensure_l1_batch_commit_data_generation_mode(
-        config.optional.l1_batch_commit_data_generator_mode,
+    // Run validation asynchronously: the node starting shouldn't depend on Ethereum client availability,
+    // and the impact of a failed async check is reasonably low (the commit mode is only used in consistency checker).
+    let validation_task = L1BatchCommitModeValidationTask::new(
         diamond_proxy_addr,
-        eth_client.as_ref(),
-    )
-    .await?;
+        config.optional.l1_batch_commit_data_generator_mode,
+        eth_client.clone(),
+    );
+    task_handles.push(tokio::spawn(validation_task.run(stop_receiver.clone())));
 
     let consistency_checker = ConsistencyChecker::new(
         eth_client,
