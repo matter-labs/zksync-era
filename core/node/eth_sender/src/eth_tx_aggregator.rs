@@ -8,7 +8,7 @@ use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_l1_contract_interface::{
     i_executor::commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
     multicall3::{Multicall3Call, Multicall3Result},
-    Detokenize, Tokenizable, Tokenize,
+    Tokenizable, Tokenize,
 };
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
@@ -19,7 +19,7 @@ use zksync_types::{
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, VerifierParams},
     pubdata_da::PubdataDA,
-    web3::{contract::Error as Web3ContractError, types::BlockNumber},
+    web3::{contract::Error as Web3ContractError, BlockNumber},
     Address, L2ChainId, ProtocolVersionId, H256, U256,
 };
 
@@ -141,13 +141,10 @@ impl EthTxAggregator {
         let calldata = self.generate_calldata_for_multicall();
         let args = CallFunctionArgs::new(&self.functions.aggregate3.name, calldata).for_contract(
             self.l1_multicall3_address,
-            self.functions.multicall_contract.clone(),
+            &self.functions.multicall_contract,
         );
-        let aggregate3_result = (*self.eth_client)
-            .as_ref()
-            .call_contract_function(args)
-            .await?;
-        self.parse_multicall_data(Token::from_tokens(aggregate3_result)?)
+        let aggregate3_result: Token = args.call((*self.eth_client).as_ref()).await?;
+        self.parse_multicall_data(aggregate3_result)
     }
 
     // Multicall's aggregate function accepts 1 argument - arrays of different contract calls.
@@ -336,13 +333,11 @@ impl EthTxAggregator {
         verifier_address: Address,
     ) -> Result<H256, ETHSenderError> {
         let get_vk_hash = &self.functions.verification_key_hash;
-        let args = CallFunctionArgs::new(&get_vk_hash.name, ())
-            .for_contract(verifier_address, self.functions.verifier_contract.clone());
-        let vk_hash = (*self.eth_client)
-            .as_ref()
-            .call_contract_function(args)
+        let vk_hash: H256 = CallFunctionArgs::new(&get_vk_hash.name, ())
+            .for_contract(verifier_address, &self.functions.verifier_contract)
+            .call((*self.eth_client).as_ref())
             .await?;
-        Ok(H256::from_tokens(vk_hash)?)
+        Ok(vk_hash)
     }
 
     #[tracing::instrument(skip(self, storage))]

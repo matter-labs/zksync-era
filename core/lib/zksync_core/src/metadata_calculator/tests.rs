@@ -484,11 +484,6 @@ pub(crate) async fn reset_db_state(pool: &ConnectionPool<Core>, num_batches: usi
         .delete_initial_writes(L1BatchNumber(0))
         .await
         .unwrap();
-    storage
-        .basic_witness_input_producer_dal()
-        .delete_all_jobs()
-        .await
-        .unwrap();
 
     let logs = gen_storage_logs(0..100, num_batches);
     extend_db_state(&mut storage, logs).await;
