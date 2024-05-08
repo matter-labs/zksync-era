@@ -5,9 +5,10 @@ use test_casing::test_casing;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
-use zksync_node_test_utils::{prepare_recovery_snapshot, DeploymentMode};
+use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_types::{
     block::{BlockGasCount, L2BlockHasher},
+    commitment::L1BatchCommitMode,
     fee::TransactionExecutionMetrics,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     tx::ExecutionMetrics,
@@ -28,11 +29,11 @@ use crate::state_keeper::{
 mod tester;
 
 /// Ensure that MempoolIO.filter is correctly initialized right after mempool initialization.
-#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
+#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
 #[tokio::test]
-async fn test_filter_initialization(deployment_mode: DeploymentMode) {
+async fn test_filter_initialization(commit_mode: L1BatchCommitMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let tester = Tester::new(deployment_mode);
+    let tester = Tester::new(commit_mode);
     // Genesis is needed for proper mempool initialization.
     tester.genesis(&connection_pool).await;
     let (mempool, _) = tester.create_test_mempool_io(connection_pool).await;
@@ -42,11 +43,11 @@ async fn test_filter_initialization(deployment_mode: DeploymentMode) {
 }
 
 /// Ensure that MempoolIO.filter is modified correctly if there is a pending batch upon mempool initialization.
-#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
+#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
 #[tokio::test]
-async fn test_filter_with_pending_batch(deployment_mode: DeploymentMode) {
+async fn test_filter_with_pending_batch(commit_mode: L1BatchCommitMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let mut tester = Tester::new(deployment_mode);
+    let mut tester = Tester::new(commit_mode);
     tester.genesis(&connection_pool).await;
 
     // Insert a sealed batch so there will be a `prev_l1_batch_state_root`.
@@ -88,11 +89,11 @@ async fn test_filter_with_pending_batch(deployment_mode: DeploymentMode) {
 }
 
 /// Ensure that `MempoolIO.filter` is modified correctly if there is no pending batch.
-#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
+#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
 #[tokio::test]
-async fn test_filter_with_no_pending_batch(deployment_mode: DeploymentMode) {
+async fn test_filter_with_no_pending_batch(commit_mode: L1BatchCommitMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let tester = Tester::new(deployment_mode);
+    let tester = Tester::new(commit_mode);
     tester.genesis(&connection_pool).await;
 
     // Insert a sealed batch so there will be a `prev_l1_batch_state_root`.
@@ -171,40 +172,38 @@ async fn test_timestamps_are_distinct(
     assert!(l1_batch_params.first_l2_block.timestamp > prev_l2_block_timestamp);
 }
 
-#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
+#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
 #[tokio::test]
-async fn l1_batch_timestamp_basics(deployment_mode: DeploymentMode) {
+async fn l1_batch_timestamp_basics(commit_mode: L1BatchCommitMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let tester = Tester::new(deployment_mode);
+    let tester = Tester::new(commit_mode);
     let current_timestamp = seconds_since_epoch();
     test_timestamps_are_distinct(connection_pool, current_timestamp, false, tester).await;
 }
 
-#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
+#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
 #[tokio::test]
-async fn l1_batch_timestamp_with_clock_skew(deployment_mode: DeploymentMode) {
+async fn l1_batch_timestamp_with_clock_skew(commit_mode: L1BatchCommitMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let tester = Tester::new(deployment_mode);
+    let tester = Tester::new(commit_mode);
     let current_timestamp = seconds_since_epoch();
     test_timestamps_are_distinct(connection_pool, current_timestamp + 2, false, tester).await;
 }
 
-#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
+#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
 #[tokio::test]
-async fn l1_batch_timestamp_respects_prev_l2_block(deployment_mode: DeploymentMode) {
+async fn l1_batch_timestamp_respects_prev_l2_block(commit_mode: L1BatchCommitMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let tester = Tester::new(deployment_mode);
+    let tester = Tester::new(commit_mode);
     let current_timestamp = seconds_since_epoch();
     test_timestamps_are_distinct(connection_pool, current_timestamp, true, tester).await;
 }
 
-#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
+#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
 #[tokio::test]
-async fn l1_batch_timestamp_respects_prev_l2_block_with_clock_skew(
-    deployment_mode: DeploymentMode,
-) {
+async fn l1_batch_timestamp_respects_prev_l2_block_with_clock_skew(commit_mode: L1BatchCommitMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let tester = Tester::new(deployment_mode);
+    let tester = Tester::new(commit_mode);
     let current_timestamp = seconds_since_epoch();
     test_timestamps_are_distinct(connection_pool, current_timestamp + 2, true, tester).await;
 }
@@ -381,11 +380,11 @@ async fn processing_events_when_sealing_l2_block() {
     }
 }
 
-#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
+#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
 #[tokio::test]
-async fn l2_block_processing_after_snapshot_recovery(deployment_mode: DeploymentMode) {
+async fn l2_block_processing_after_snapshot_recovery(commit_mode: L1BatchCommitMode) {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
-    let tester = Tester::new(deployment_mode);
+    let tester = Tester::new(commit_mode);
     let mut storage = connection_pool.connection().await.unwrap();
     let snapshot_recovery =
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
@@ -514,11 +513,11 @@ async fn l2_block_processing_after_snapshot_recovery(deployment_mode: Deployment
 }
 
 /// Ensure that subsequent L2 blocks that belong to the same L1 batch have different timestamps
-#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
+#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
 #[tokio::test]
-async fn different_timestamp_for_l2_blocks_in_same_batch(deployment_mode: DeploymentMode) {
+async fn different_timestamp_for_l2_blocks_in_same_batch(commit_mode: L1BatchCommitMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let tester = Tester::new(deployment_mode);
+    let tester = Tester::new(commit_mode);
 
     // Genesis is needed for proper mempool initialization.
     tester.genesis(&connection_pool).await;
