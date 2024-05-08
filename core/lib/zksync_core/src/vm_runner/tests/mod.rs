@@ -27,13 +27,13 @@ use crate::utils::testonly::{
 };
 
 #[derive(Debug, Default)]
-struct LoaderMock {
+struct IoMock {
     current: L1BatchNumber,
     max: L1BatchNumber,
 }
 
 #[async_trait]
-impl VmRunnerIo for Arc<RwLock<LoaderMock>> {
+impl VmRunnerIo for Arc<RwLock<IoMock>> {
     fn name() -> &'static str {
         "io_mock"
     }
@@ -79,8 +79,8 @@ impl VmRunnerTester {
 
     async fn create_storage(
         &mut self,
-        io_mock: Arc<RwLock<LoaderMock>>,
-    ) -> anyhow::Result<VmRunnerStorage<Arc<RwLock<LoaderMock>>>> {
+        io_mock: Arc<RwLock<IoMock>>,
+    ) -> anyhow::Result<VmRunnerStorage<Arc<RwLock<IoMock>>>> {
         let (vm_runner_storage, task) = VmRunnerStorage::new(
             self.pool.clone(),
             self.db_dir.path().to_str().unwrap().to_owned(),
@@ -268,7 +268,7 @@ async fn rerun_storage_on_existing_data() -> anyhow::Result<()> {
     .await?;
 
     let mut tester = VmRunnerTester::new(connection_pool.clone());
-    let io_mock = Arc::new(RwLock::new(LoaderMock {
+    let io_mock = Arc::new(RwLock::new(IoMock {
         current: 0.into(),
         max: 10.into(),
     }));
@@ -346,7 +346,7 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
     drop(conn);
 
     let mut tester = VmRunnerTester::new(connection_pool.clone());
-    let io_mock = Arc::new(RwLock::new(LoaderMock::default()));
+    let io_mock = Arc::new(RwLock::new(IoMock::default()));
     let storage = tester.create_storage(io_mock.clone()).await?;
     // No batches available yet
     assert!(storage.load_batch(L1BatchNumber(1)).await?.is_none());
@@ -433,7 +433,7 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
 
     let (_sender, receiver) = watch::channel(false);
     let mut tester = VmRunnerTester::new(connection_pool.clone());
-    let io_mock = Arc::new(RwLock::new(LoaderMock {
+    let io_mock = Arc::new(RwLock::new(IoMock {
         current: 0.into(),
         max: 10.into(),
     }));
