@@ -67,7 +67,7 @@ pub(super) struct NextL1BatchHasMetadataCondition {
 
 impl fmt::Display for NextL1BatchHasMetadataCondition {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "next L1 batch has state root and commitment")
+        write!(formatter, "next L1 batch has metadata")
     }
 }
 
@@ -76,12 +76,12 @@ impl PruneCondition for NextL1BatchHasMetadataCondition {
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
         let mut storage = self.conn.connection().await?;
         let next_l1_batch_number = L1BatchNumber(l1_batch_number.0 + 1);
-        let storage_l1_batch = storage
+        let l1_batch_metadata = storage
             .blocks_dal()
-            .get_storage_l1_batch(next_l1_batch_number)
+            .get_l1_batch_metadata(next_l1_batch_number)
             .await?;
 
-        Ok(storage_l1_batch.is_some())
+        Ok(l1_batch_metadata.is_some())
     }
 }
 
