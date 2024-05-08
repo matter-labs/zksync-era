@@ -121,7 +121,34 @@ Scheduler: In progress ⌛️
 
 #### `prover_cli status l1`
 
-TODO
+Retrieve information about the state of the batches sent to L1 and compare the contract hashes in L1 with those stored
+in the prover database.
+
+#### Example Output
+
+
+```
+zk f run --release -- status l1
+
+====== L1 Status ======
+State keeper: First batch: 0, recent batch: 10
+L1 state: block verified: 7, block committed: 9
+Eth sender is 1 behind. Last block committed: 9. Most recent sealed state keeper batch: 10.
+ -----------------------
+Verifier key hash matches: 0x063c9c1e9d39fc0b1633c78a49f1905s65ee0982ad96d97ef7fe3d4f1f1a72c7
+ -----------------------
+Verification node hash in DB differs from the one in contract.
+Contract hash: 0x1186ec268d49f1905f8d9c1e9d39fc33e98c74f91d91a21b8f7ef78bd09a8db8
+DB hash: 0x5a3ef282b21e12fe1f4438e5bb158fc5060b160559c5158c6389d62d9fe3d080
+ -----------------------
+Verification leaf hash in DB differs from the one in contract.
+Contract hash: 0x101e08b00193e529145ee09823378ef51a3bc8966504064f1f6ba3f1ba863210
+DB hash: 0x400a4b532c6f072c00d1806ef299300d4c104f4ac55bd8698ade78894fcadc0a
+ -----------------------
+Verification circuits hash in DB differs from the one in contract.
+Contract hash: 0x18c1639094f58177409186e8c48d9f577c9410901d2f1d486b3e7d6cf553ae4c
+DB hash: 0x0000000000000000000000000000000000000000000000000000000000000000
+```
 
 ### `prover_cli requeue`
 
