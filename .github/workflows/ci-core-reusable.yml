@@ -150,6 +150,15 @@ jobs:
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
           echo ZKSYNC_DEBUG_LOGS=true >> .env
 
+      - name: download cached compilers
+        run: |
+          ci_run zk docker build compilers
+          ci_run docker create --name compilers-temp-container docker.io/matterlabs/compilers:latest
+          ci_run mkdir -p ./.cache/hardhat-nodejs/compilers-v2
+          ci_run docker cp compilers-temp-container:./.cache/hardhat-nodejs/compilers-v2 ./.cache/hardhat-nodejs/compilers-v2
+          ci_run docker rm compilers-temp-container
+
+
       - name: Download zksolc/solc and zkvyper/vyper
         run: |
           sudo apt update && sudo apt install wget -y
