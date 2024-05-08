@@ -8515,6 +8515,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_da_dispatcher"
+version = "0.1.0"
+dependencies = [
+ "zksync_config",
+ "zksync_health_check",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_dal"
 version = "0.1.0"
 dependencies = [

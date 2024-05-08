@@ -15,6 +15,7 @@ members = [
     "core/node/block_reverter",
     "core/node/commitment_generator",
     "core/node/house_keeper",
+    "core/node/da_dispatcher",
     # Libraries
     "core/lib/db_connection",
     "core/lib/zksync_core",

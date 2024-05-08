@@ -99,7 +99,6 @@ pub mod api_server;
 pub mod basic_witness_input_producer;
 pub mod consensus;
 pub mod consistency_checker;
-pub mod da_sender;
 pub mod db_pruner;
 pub mod eth_sender;
 pub mod fee_model;

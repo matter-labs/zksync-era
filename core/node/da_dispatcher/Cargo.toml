@@ -12,3 +12,6 @@ categories.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+zksync_types.workspace = true
+zksync_health_check.workspace = true
+zksync_config.workspace = true

@@ -14,10 +14,7 @@ use zksync_db_connection::{
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::{
-        BlockGasCount, L1BatchDAData, L1BatchHeader, L1BatchTreeData, L2BlockHeader,
-        StorageOracleInfo,
-    },
+    block::{BlockGasCount, L1BatchHeader, L1BatchTreeData, L2BlockHeader, StorageOracleInfo},
     circuit::CircuitStatistic,
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
     Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256, U256,
