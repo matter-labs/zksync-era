@@ -99,6 +99,14 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run zk
+          
+          ci_run zk docker build compilers
+          ci_run docker create --name compilers-temp-container matterlabs/compilers:latest
+          ci_run mkdir -p /root/.cache/hardhat-nodejs/compilers-v2
+          ci_run docker cp compilers-temp-container:./.cache/hardhat-nodejs/compilers-v2/ /root/.cache/hardhat-nodejs/
+          ci_run chmod -R +x /root/.cache/hardhat-nodejs/
+          ci_run docker rm compilers-temp-container
+          
           ci_run zk init --local-legacy-bridge-testing
 
       # `sleep 60` because we need to wait until server added all the tokens
@@ -193,7 +201,7 @@ jobs:
           ci_run zk
 
           ci_run zk docker build compilers
-          ci_run docker create --name compilers-temp-container docker.io/matterlabs/compilers:latest
+          ci_run docker create --name compilers-temp-container matterlabs/compilers:latest
           ci_run mkdir -p /root/.cache/hardhat-nodejs/compilers-v2
           ci_run docker cp compilers-temp-container:./.cache/hardhat-nodejs/compilers-v2/ /root/.cache/hardhat-nodejs/
           ci_run chmod -R +x /root/.cache/hardhat-nodejs/
@@ -320,6 +328,14 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
+          
+          ci_run zk docker build compilers
+          ci_run docker create --name compilers-temp-container matterlabs/compilers:latest
+          ci_run mkdir -p /root/.cache/hardhat-nodejs/compilers-v2
+          ci_run docker cp compilers-temp-container:./.cache/hardhat-nodejs/compilers-v2/ /root/.cache/hardhat-nodejs/
+          ci_run chmod -R +x /root/.cache/hardhat-nodejs/
+          ci_run docker rm compilers-temp-container
+          
           if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
             ci_run zk config compile
           elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
