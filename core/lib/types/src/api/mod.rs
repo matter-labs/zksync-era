@@ -2,8 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use strum::Display;
 use zksync_basic_types::{
-    web3::types::{Bytes, H160, H256, H64, U256, U64},
-    L1BatchNumber,
+    web3::{AccessList, Bytes, Index},
+    L1BatchNumber, H160, H2048, H256, H64, U256, U64,
 };
 use zksync_contracts::BaseSystemContractsHashes;
 
@@ -13,7 +13,6 @@ pub use crate::transaction_request::{
 use crate::{
     protocol_version::L1VerifierConfig,
     vm_trace::{Call, CallType},
-    web3::types::{AccessList, Index, H2048},
     Address, L2BlockNumber, ProtocolVersionId,
 };
 

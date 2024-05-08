@@ -1,7 +1,6 @@
 use std::{
-    env, fmt,
+    env,
     num::{NonZeroU32, NonZeroU64, NonZeroUsize},
-    str::FromStr,
     time::Duration,
 };
 
@@ -25,17 +24,14 @@ use zksync_core::{
 };
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
-use zksync_eth_client::EthInterface;
 use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
-use zksync_types::{
-    api::BridgeAddresses, fee_model::FeeParams, url::SensitiveUrl, ETHEREUM_ADDRESS,
-};
+use zksync_types::{api::BridgeAddresses, url::SensitiveUrl, ETHEREUM_ADDRESS};
 use zksync_web3_decl::{
     client::BoxedL2Client,
     error::ClientRpcContext,
     jsonrpsee::{core::ClientError, types::error::ErrorCode},
-    namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
+    namespaces::{EnNamespaceClient, ZksNamespaceClient},
 };
 
 pub(crate) mod observability;
@@ -61,10 +57,7 @@ pub(crate) struct RemoteENConfig {
     pub l1_weth_bridge_addr: Option<Address>,
     pub l2_weth_bridge_addr: Option<Address>,
     pub l2_testnet_paymaster_addr: Option<Address>,
-    pub l2_chain_id: L2ChainId,
-    pub l1_chain_id: L1ChainId,
     pub base_token_addr: Address,
-    pub max_pubdata_per_batch: u64,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
     pub dummy_verifier: bool,
 }
@@ -105,24 +98,6 @@ impl RemoteENConfig {
             }
             response => response.context("Failed to fetch base token address")?,
         };
-        let l2_chain_id = client.chain_id().rpc_context("chain_id").await?;
-        let l2_chain_id = L2ChainId::try_from(l2_chain_id.as_u64())
-            .map_err(|err| anyhow::anyhow!("invalid chain ID supplied by main node: {err}"))?;
-        let l1_chain_id = client.l1_chain_id().rpc_context("l1_chain_id").await?;
-        let l1_chain_id = L1ChainId(l1_chain_id.as_u64());
-
-        let fee_params = client
-            .get_fee_params()
-            .rpc_context("get_fee_params")
-            .await?;
-        let max_pubdata_per_batch = match fee_params {
-            FeeParams::V1(_) => {
-                const MAX_V1_PUBDATA_PER_BATCH: u64 = 100_000;
-
-                MAX_V1_PUBDATA_PER_BATCH
-            }
-            FeeParams::V2(params) => params.config.max_pubdata_per_batch,
-        };
 
         // These two config variables should always have the same value.
         // TODO(EVM-578): double check and potentially forbid both of them being `None`.
@@ -157,10 +132,7 @@ impl RemoteENConfig {
             l2_shared_bridge_addr: l2_erc20_shared_bridge,
             l1_weth_bridge_addr: bridges.l1_weth_bridge,
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
-            l2_chain_id,
-            l1_chain_id,
             base_token_addr,
-            max_pubdata_per_batch,
             l1_batch_commit_data_generator_mode: genesis
                 .as_ref()
                 .map(|a| a.l1_batch_commit_data_generator_mode)
@@ -183,13 +155,10 @@ impl RemoteENConfig {
             l2_erc20_bridge_addr: Some(Address::repeat_byte(3)),
             l2_weth_bridge_addr: None,
             l2_testnet_paymaster_addr: None,
-            l2_chain_id: L2ChainId::default(),
-            l1_chain_id: L1ChainId(9),
             base_token_addr: Address::repeat_byte(4),
             l1_shared_bridge_proxy_addr: Some(Address::repeat_byte(5)),
             l1_weth_bridge_addr: None,
             l2_shared_bridge_addr: Some(Address::repeat_byte(6)),
-            max_pubdata_per_batch: 1 << 17,
             l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
             dummy_verifier: true,
         }
@@ -639,6 +608,13 @@ impl OptionalENConfig {
 /// This part of the external node config is required for its operation.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub(crate) struct RequiredENConfig {
+    /// L1 chain ID (e.g., 9 for Ethereum mainnet). This ID will be checked against the `eth_client_url` RPC provider on initialization
+    /// to ensure that there's no mismatch between the expected and actual L1 network.
+    pub l1_chain_id: L1ChainId,
+    /// L2 chain ID (e.g., 270 for zkSync Era mainnet). This ID will be checked against the `main_node_url` RPC provider on initialization
+    /// to ensure that there's no mismatch between the expected and actual L2 network.
+    pub l2_chain_id: L2ChainId,
+
     /// Port on which the HTTP RPC server is listening.
     pub http_port: u16,
     /// Port on which the WebSocket RPC server is listening.
@@ -665,6 +641,8 @@ impl RequiredENConfig {
     #[cfg(test)]
     fn mock(temp_dir: &tempfile::TempDir) -> Self {
         Self {
+            l1_chain_id: L1ChainId(9),
+            l2_chain_id: L2ChainId::default(),
             http_port: 0,
             ws_port: 0,
             healthcheck_port: 0,
@@ -822,7 +800,6 @@ impl ExternalNodeConfig {
         required: RequiredENConfig,
         optional: OptionalENConfig,
         main_node_client: &BoxedL2Client,
-        eth_client: &dyn EthInterface,
     ) -> anyhow::Result<Self> {
         let experimental = envy::prefixed("EN_EXPERIMENTAL_")
             .from_env::<ExperimentalENConfig>()
@@ -838,36 +815,6 @@ impl ExternalNodeConfig {
         let remote = RemoteENConfig::fetch(main_node_client)
             .await
             .context("Unable to fetch required config values from the main node")?;
-        // We can query them from main node, but it's better to set them explicitly
-        // as well to avoid connecting to wrong environment variables unintentionally.
-        let eth_chain_id = eth_client
-            .fetch_chain_id()
-            .await
-            .context("Unable to check L1 chain ID through the configured L1 client")?;
-
-        let l2_chain_id: L2ChainId = env_var("EN_L2_CHAIN_ID")?;
-        anyhow::ensure!(
-            l2_chain_id == remote.l2_chain_id,
-            "Configured L2 chain id doesn't match the one from main node.
-            Make sure your configuration is correct and you are corrected to the right main node.
-            Main node L2 chain id: {:?}. Local config value: {l2_chain_id:?}",
-            remote.l2_chain_id,
-        );
-
-        let l1_chain_id: L1ChainId = env_var("EN_L1_CHAIN_ID")?;
-        anyhow::ensure!(
-            l1_chain_id == remote.l1_chain_id,
-            "Configured L1 chain id doesn't match the one from main node.
-            Make sure your configuration is correct and you are corrected to the right main node.
-            Main node L1 chain id: {}. Local config value: {l1_chain_id}",
-            remote.l1_chain_id,
-        );
-        anyhow::ensure!(
-            l1_chain_id == eth_chain_id,
-            "Configured L1 chain id doesn't match the one from eth node.
-            Make sure your configuration is correct and you are corrected to the right eth node.
-            Eth node chain id: {eth_chain_id}. Local config value: {l1_chain_id}"
-        );
 
         let postgres = PostgresConfig::from_env()?;
         Ok(Self {
@@ -899,22 +846,11 @@ impl ExternalNodeConfig {
     }
 }
 
-fn env_var<T>(name: &str) -> anyhow::Result<T>
-where
-    T: FromStr,
-    T::Err: fmt::Display,
-{
-    env::var(name)
-        .with_context(|| format!("`{name}` env variable is not set"))?
-        .parse()
-        .map_err(|err| anyhow::anyhow!("unable to parse `{name}` env variable: {err}"))
-}
-
 impl From<ExternalNodeConfig> for InternalApiConfig {
     fn from(config: ExternalNodeConfig) -> Self {
         Self {
-            l1_chain_id: config.remote.l1_chain_id,
-            l2_chain_id: config.remote.l2_chain_id,
+            l1_chain_id: config.required.l1_chain_id,
+            l2_chain_id: config.required.l2_chain_id,
             max_tx_size: config.optional.max_tx_size,
             estimate_gas_scale_factor: config.optional.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: config
@@ -958,8 +894,7 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
             // and they will be enforced by the main node anyway.
             max_allowed_l2_tx_gas_limit: u64::MAX,
             validation_computational_gas_limit: u32::MAX,
-            chain_id: config.remote.l2_chain_id,
-            max_pubdata_per_batch: config.remote.max_pubdata_per_batch,
+            chain_id: config.required.l2_chain_id,
             // Does not matter for EN.
             whitelisted_tokens_for_aa: Default::default(),
         }

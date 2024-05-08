@@ -14,7 +14,7 @@ use zksync_prover_interface::api::{
     SubmitProofRequest, SubmitProofResponse,
 };
 use zksync_types::{
-    basic_fri_types::Eip4844Blobs, commitment::serialize_commitments, web3::signing::keccak256,
+    basic_fri_types::Eip4844Blobs, commitment::serialize_commitments, web3::keccak256,
     L1BatchNumber, H256,
 };
 

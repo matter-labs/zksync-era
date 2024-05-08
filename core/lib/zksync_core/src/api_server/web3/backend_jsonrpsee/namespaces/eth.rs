@@ -4,8 +4,8 @@ use zksync_types::{
         TransactionReceipt, TransactionVariant,
     },
     transaction_request::CallRequest,
-    web3::types::{FeeHistory, Index, SyncState},
-    Address, Bytes, H256, U256, U64,
+    web3::{Bytes, FeeHistory, Index, SyncState},
+    Address, H256, U256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
