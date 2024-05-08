@@ -207,6 +207,7 @@ mod tests {
     use zksync_eth_client::{clients::MockEthereum, ClientError};
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{ethabi, U256};
+    use zksync_web3_decl::error::EnrichedClientError;
 
     use super::*;
 
@@ -274,8 +275,8 @@ mod tests {
     }
 
     fn mock_ethereum_with_transport_error() -> MockEthereum {
-        let err =
-            EthClientError::EthereumGateway(ClientError::Transport(anyhow::anyhow!("unreachable")));
+        let err = ClientError::Transport(anyhow::anyhow!("unreachable"));
+        let err = EthClientError::EthereumGateway(EnrichedClientError::new(err, "call"));
         mock_ethereum(ethabi::Token::Uint(U256::zero()), Some(err))
     }
 

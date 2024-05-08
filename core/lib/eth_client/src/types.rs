@@ -8,6 +8,7 @@ use zksync_types::{
     },
     Address, EIP_4844_TX_TYPE, H256, U256,
 };
+use zksync_web3_decl::error::EnrichedClientError;
 
 use crate::EthInterface;
 
@@ -159,7 +160,7 @@ pub enum ContractError {
 pub enum Error {
     /// Problem on the Ethereum client side (e.g. bad RPC call, network issues).
     #[error("Request to ethereum gateway failed: {0}")]
-    EthereumGateway(#[from] jsonrpsee::core::ClientError),
+    EthereumGateway(#[from] EnrichedClientError),
     /// Problem with a contract call.
     #[error("Call to contract failed: {0}")]
     Contract(#[from] ContractError),

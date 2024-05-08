@@ -10,7 +10,7 @@ use zksync_types::{
     },
     Address, L1ChainId, H160, H256, U256, U64,
 };
-pub use zksync_web3_decl::jsonrpsee::core::ClientError;
+pub use zksync_web3_decl::{error::EnrichedClientError, jsonrpsee::core::ClientError};
 
 pub use crate::types::{
     encode_blob_tx_with_sidecar, CallFunctionArgs, ContractCall, ContractError, Error,

@@ -2,7 +2,7 @@ use std::fmt;
 
 use zksync_contracts::verifier_contract;
 pub(super) use zksync_eth_client::Error as EthClientError;
-use zksync_eth_client::{CallFunctionArgs, ClientError, EthInterface};
+use zksync_eth_client::{CallFunctionArgs, ClientError, EnrichedClientError, EthInterface};
 use zksync_types::{
     ethabi::Contract,
     web3::{BlockId, BlockNumber, FilterBuilder, Log},
@@ -115,8 +115,8 @@ impl EthClient for EthHttpQueryClient {
         // Note: we don't handle rate-limits here - assumption is that we're never going to hit them.
         if let Err(EthClientError::EthereumGateway(err)) = &result {
             tracing::warn!("Provider returned error message: {:?}", err);
-            let err_message = err.to_string();
-            let err_code = if let ClientError::Call(err) = err {
+            let err_message = err.as_ref().to_string();
+            let err_code = if let ClientError::Call(err) = err.as_ref() {
                 Some(err.code())
             } else {
                 None
@@ -188,11 +188,13 @@ impl EthClient for EthHttpQueryClient {
                 .block(BlockId::Number(BlockNumber::Finalized))
                 .await?
                 .ok_or_else(|| {
-                    ClientError::Custom("Finalized block must be present on L1".into())
+                    let err = ClientError::Custom("Finalized block must be present on L1".into());
+                    EnrichedClientError::new(err, "block")
                 })?;
-            let block_number = block
-                .number
-                .ok_or_else(|| ClientError::Custom("Finalized block must contain number".into()))?;
+            let block_number = block.number.ok_or_else(|| {
+                let err = ClientError::Custom("Finalized block must contain number".into());
+                EnrichedClientError::new(err, "block").with_arg("block", &block)
+            })?;
             Ok(block_number.as_u64())
         }
     }
