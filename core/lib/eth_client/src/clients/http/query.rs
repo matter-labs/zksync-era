@@ -69,10 +69,7 @@ impl EthInterface for QueryClient {
     ) -> Result<U256, Error> {
         COUNTERS.call[&(Method::NonceAtForAccount, self.component)].inc();
         let latency = LATENCIES.direct[&Method::NonceAtForAccount].start();
-        let nonce = self
-            .web3
-            .get_transaction_count(account, Some(block))
-            .await?;
+        let nonce = self.web3.get_transaction_count(account, block).await?;
         latency.observe();
         Ok(nonce)
     }
@@ -203,11 +200,10 @@ impl EthInterface for QueryClient {
                     access_list: None,
                 };
 
-                let err = self
-                    .web3
-                    .call(call_request, receipt.block_number.map(Into::into))
-                    .await
-                    .err();
+                let block_number = receipt
+                    .block_number
+                    .map_or_else(|| web3::BlockNumber::Latest.into(), Into::into);
+                let err = self.web3.call(call_request, block_number).await.err();
 
                 let failure_info = match err {
                     Some(ClientError::Call(call_err)) => {
@@ -246,6 +242,7 @@ impl EthInterface for QueryClient {
         block: Option<web3::BlockId>,
     ) -> Result<web3::Bytes, Error> {
         let latency = LATENCIES.direct[&Method::CallContractFunction].start();
+        let block = block.unwrap_or_else(|| web3::BlockNumber::Latest.into());
         let output_bytes = self.web3.call(request, block).await?;
         latency.observe();
         Ok(output_bytes)
@@ -262,7 +259,10 @@ impl EthInterface for QueryClient {
     async fn eth_balance(&self, address: Address) -> Result<U256, Error> {
         COUNTERS.call[&(Method::EthBalance, self.component)].inc();
         let latency = LATENCIES.direct[&Method::EthBalance].start();
-        let balance = self.web3.get_balance(address, None).await?;
+        let balance = self
+            .web3
+            .get_balance(address, web3::BlockNumber::Latest)
+            .await?;
         latency.observe();
         Ok(balance)
     }
