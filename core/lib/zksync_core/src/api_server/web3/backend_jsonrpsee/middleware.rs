@@ -249,10 +249,13 @@ where
             static CORRELATION_ID_RNG: RefCell<SmallRng> = RefCell::new(SmallRng::from_entropy());
         }
 
+        // Unlike `MetadataMiddleware`, we don't need to extend the method lifetime to `'static`;
+        // `tracing` span instantiation allocates a `String` for supplied `&str`s in any case.
+        let method = request.method_name();
         // Wrap a call into a span with unique correlation ID, so that events occurring in the span can be easily filtered.
         // This works as a cheap alternative to Open Telemetry tracing with its trace / span IDs.
         let correlation_id = CORRELATION_ID_RNG.with(|rng| rng.borrow_mut().next_u64());
-        let call_span = tracing::debug_span!("rpc_call", correlation_id);
+        let call_span = tracing::debug_span!("rpc_call", method, correlation_id);
         self.inner.call(request).instrument(call_span)
     }
 }

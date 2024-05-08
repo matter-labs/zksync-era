@@ -1,5 +1,5 @@
 use zksync_basic_types::{Address, H160, H256};
-use zksync_crypto_primitives::PackedEthSignature;
+use zksync_crypto_primitives::K256PrivateKey;
 
 #[derive(Debug, Clone)]
 pub struct AddressWallet {
@@ -19,16 +19,28 @@ impl AddressWallet {
 #[derive(Debug, Clone)]
 pub struct Wallet {
     address: Address,
-    private_key: H256,
+    private_key: K256PrivateKey,
 }
 
 impl Wallet {
-    pub fn from_private_key(private_key: H256, address: Option<Address>) -> anyhow::Result<Self> {
-        let calculated_address = PackedEthSignature::address_from_private_key(&private_key)?;
+    pub fn new(private_key: K256PrivateKey) -> Self {
+        Self {
+            address: private_key.address(),
+            private_key,
+        }
+    }
+
+    pub fn from_private_key_bytes(
+        private_key_bytes: H256,
+        address: Option<Address>,
+    ) -> anyhow::Result<Self> {
+        let private_key = K256PrivateKey::from_bytes(private_key_bytes)?;
+        let calculated_address = private_key.address();
         if let Some(address) = address {
-            if calculated_address != address {
-                anyhow::bail!("Malformed wallet, address doesn't correspond private_key")
-            }
+            anyhow::ensure!(
+                calculated_address == address,
+                "Malformed wallet, address doesn't correspond private_key"
+            );
         }
 
         Ok(Self {
@@ -40,8 +52,9 @@ impl Wallet {
     pub fn address(&self) -> Address {
         self.address
     }
-    pub fn private_key(&self) -> H256 {
-        self.private_key
+
+    pub fn private_key(&self) -> &K256PrivateKey {
+        &self.private_key
     }
 }
 
@@ -66,9 +79,9 @@ impl Wallets {
     pub fn for_tests() -> Wallets {
         Wallets {
             eth_sender: Some(EthSender {
-                operator: Wallet::from_private_key(H256::repeat_byte(0x1), None).unwrap(),
+                operator: Wallet::from_private_key_bytes(H256::repeat_byte(0x1), None).unwrap(),
                 blob_operator: Some(
-                    Wallet::from_private_key(H256::repeat_byte(0x2), None).unwrap(),
+                    Wallet::from_private_key_bytes(H256::repeat_byte(0x2), None).unwrap(),
                 ),
             }),
             state_keeper: Some(StateKeeper {

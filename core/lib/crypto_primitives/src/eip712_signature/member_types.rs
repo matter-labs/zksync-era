@@ -1,5 +1,4 @@
-use web3::signing::keccak256;
-use zksync_basic_types::{Address, H256, U256};
+use zksync_basic_types::{web3::keccak256, Address, H256, U256};
 
 use crate::eip712_signature::typed_structure::{EncodedStructureMember, StructMember};
 

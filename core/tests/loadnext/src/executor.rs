@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use futures::{channel::mpsc, future, SinkExt};
-use zksync_eth_client::{BoundEthInterface, EthInterface, Options};
+use zksync_eth_client::Options;
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
@@ -22,7 +22,7 @@ use crate::{
         utils::{
             get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
         },
-        web3::types::TransactionReceipt,
+        web3::TransactionReceipt,
         EthNamespaceClient, EthereumProvider, ZksNamespaceClient,
     },
     utils::format_eth,
@@ -151,7 +151,7 @@ impl Executor {
         let mint_tx_hash = match mint_tx_hash {
             Err(error) => {
                 let balance = ethereum.balance().await;
-                let gas_price = ethereum.client().get_gas_price("executor").await;
+                let gas_price = ethereum.query_client().get_gas_price().await;
 
                 anyhow::bail!(
                     "{:?}, Balance: {:?}, Gas Price: {:?}",
@@ -369,7 +369,7 @@ impl Executor {
 
         // 2 txs per account (1 ERC-20 & 1 ETH transfer).
         let mut eth_txs = Vec::with_capacity(txs_amount * 2);
-        let mut eth_nonce = ethereum.client().pending_nonce("loadnext").await?;
+        let mut eth_nonce = ethereum.client().pending_nonce().await?;
 
         for account in self.pool.accounts.iter().take(accounts_to_process) {
             let target_address = account.wallet.address();
@@ -381,11 +381,8 @@ impl Executor {
 
             // If we don't need to send l1 txs we don't need to distribute the funds
             if weight_of_l1_txs != 0.0 {
-                let balance = ethereum
-                    .client()
-                    .eth_balance(target_address, "loadnext")
-                    .await?;
-                let gas_price = ethereum.client().get_gas_price("loadnext").await?;
+                let balance = ethereum.query_client().eth_balance(target_address).await?;
+                let gas_price = ethereum.query_client().get_gas_price().await?;
 
                 if balance < eth_to_distribute {
                     let options = Options {
@@ -614,7 +611,7 @@ impl Executor {
             .expect("Can't get Ethereum client");
 
         // Assuming that gas prices on testnets are somewhat stable, we will consider it a constant.
-        let average_gas_price = ethereum.client().get_gas_price("executor").await?;
+        let average_gas_price = ethereum.query_client().get_gas_price().await?;
 
         let gas_price_with_priority = average_gas_price + U256::from(DEFAULT_PRIORITY_FEE);
 
@@ -655,7 +652,7 @@ impl Executor {
                 .await
                 .expect("Can't get Ethereum client");
             let failure_reason = ethereum
-                .client()
+                .query_client()
                 .failure_reason(receipt.transaction_hash)
                 .await
                 .expect("Can't connect to the Ethereum node");
@@ -674,11 +671,11 @@ async fn deposit_with_attempts(
     deposit_amount: U256,
     max_attempts: usize,
 ) -> anyhow::Result<TransactionReceipt> {
-    let nonce = ethereum.client().current_nonce("loadtest").await.unwrap();
+    let nonce = ethereum.client().current_nonce().await.unwrap();
     for attempt in 1..=max_attempts {
         let pending_block_base_fee_per_gas = ethereum
-            .client()
-            .get_pending_block_base_fee_per_gas("loadtest")
+            .query_client()
+            .get_pending_block_base_fee_per_gas()
             .await
             .unwrap();
 

@@ -28,7 +28,6 @@ zksync_eth_client.workspace = true
 zksync_eth_signer.workspace = true
 zksync_l1_contract_interface.workspace = true
 zksync_mempool.workspace = true
-zksync_queued_job_processor.workspace = true
 zksync_circuit_breaker.workspace = true
 zksync_storage.workspace = true
 zksync_merkle_tree.workspace = true
@@ -44,9 +43,12 @@ zksync_health_check.workspace = true
 vlog.workspace = true
 zksync_eth_watch.workspace = true
 zksync_shared_metrics.workspace = true
+zksync_proof_data_handler.workspace = true
 zksync_commitment_generator.workspace = true
 zksync_house_keeper.workspace = true
-
+zksync_node_genesis.workspace = true
+zksync_eth_sender.workspace = true
+zksync_node_fee_model.workspace = true
 multivm.workspace = true
 
 # Consensus dependenices
@@ -95,6 +97,7 @@ tracing.workspace = true
 
 [dev-dependencies]
 zksync_test_account.workspace = true
+zksync_node_test_utils.workspace = true
 
 assert_matches.workspace = true
 jsonrpsee.workspace = true

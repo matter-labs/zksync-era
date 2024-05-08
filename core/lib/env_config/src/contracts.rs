@@ -1,6 +1,18 @@
-use zksync_config::ContractsConfig;
+use zksync_config::{configs::EcosystemContracts, ContractsConfig};
 
 use crate::{envy_load, FromEnv};
+
+impl FromEnv for EcosystemContracts {
+    fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            bridgehub_proxy_addr: std::env::var("CONTRACTS_BRIDGEHUB_PROXY_ADDR")?.parse()?,
+            state_transition_proxy_addr: std::env::var("CONTRACTS_STATE_TRANSITION_PROXY_ADDR")?
+                .parse()?,
+            transparent_proxy_admin_addr: std::env::var("CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR")?
+                .parse()?,
+        })
+    }
+}
 
 impl FromEnv for ContractsConfig {
     fn from_env() -> anyhow::Result<Self> {
@@ -8,7 +20,6 @@ impl FromEnv for ContractsConfig {
         // Note: we are renaming the bridge, the address remains the same
         // These two config variables should always have the same value.
         // TODO(EVM-578): double check and potentially forbid both of them being `None`.
-
         contracts.l2_erc20_bridge_addr = contracts
             .l2_erc20_bridge_addr
             .or(contracts.l2_shared_bridge_addr);
@@ -24,13 +35,14 @@ impl FromEnv for ContractsConfig {
                 panic!("L2 erc20 bridge address and L2 shared bridge address are different.");
             }
         }
-
+        contracts.ecosystem_contracts = EcosystemContracts::from_env().ok();
         Ok(contracts)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use zksync_config::configs::EcosystemContracts;
     use zksync_system_constants::SHARED_BRIDGE_ETHER_TOKEN_ADDRESS;
 
     use super::*;
@@ -53,6 +65,11 @@ mod tests {
             l2_shared_bridge_addr: Some(addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
             l2_testnet_paymaster_addr: Some(addr("FC073319977e314F251EAE6ae6bE76B0B3BAeeCF")),
             l1_multicall3_addr: addr("0xcA11bde05977b3631167028862bE2a173976CA11"),
+            ecosystem_contracts: Some(EcosystemContracts {
+                bridgehub_proxy_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
+                state_transition_proxy_addr: addr("0xd90f1c081c6117241624e97cb6147257c3cb2097"),
+                transparent_proxy_admin_addr: addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"),
+            }),
             base_token_addr: Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS),
         }
     }
@@ -74,6 +91,9 @@ CONTRACTS_L2_TESTNET_PAYMASTER_ADDR="FC073319977e314F251EAE6ae6bE76B0B3BAeeCF"
 CONTRACTS_L1_MULTICALL3_ADDR="0xcA11bde05977b3631167028862bE2a173976CA11"
 CONTRACTS_L1_SHARED_BRIDGE_PROXY_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_L2_SHARED_BRIDGE_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
+CONTRACTS_BRIDGEHUB_PROXY_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
+CONTRACTS_STATE_TRANSITION_PROXY_ADDR="0xd90f1c081c6117241624e97cb6147257c3cb2097"
+CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"
 CONTRACTS_BASE_TOKEN_ADDR="0x0000000000000000000000000000000000000001"
         "#;
         lock.set_env(config);

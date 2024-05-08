@@ -1,9 +1,14 @@
 //! Types exposed by the prover DAL for general-purpose use.
 use std::{net::IpAddr, ops::Add, str::FromStr};
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration, NaiveDateTime, NaiveTime, Utc};
+use strum::{Display, EnumString};
 
-use crate::{basic_fri_types::AggregationRound, L1BatchNumber};
+use crate::{
+    basic_fri_types::{AggregationRound, Eip4844Blobs},
+    protocol_version::ProtocolVersionId,
+    L1BatchNumber,
+};
 
 // This currently lives in `zksync_prover_types` -- we don't want a dependency between prover types (`zkevm_test_harness`) and DAL.
 // This will be gone as part of 1.5.0, when EIP4844 becomes normal jobs, rather than special cased ones.
@@ -93,13 +98,13 @@ pub struct JobPosition {
     pub sequence_number: usize,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub struct ProverJobStatusFailed {
     pub started_at: DateTime<Utc>,
     pub error: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ProverJobStatusSuccessful {
     pub started_at: DateTime<Utc>,
     pub time_taken: Duration,
@@ -114,12 +119,12 @@ impl Default for ProverJobStatusSuccessful {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub struct ProverJobStatusInProgress {
     pub started_at: DateTime<Utc>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WitnessJobStatusSuccessful {
     pub started_at: DateTime<Utc>,
     pub time_taken: Duration,
@@ -134,13 +139,13 @@ impl Default for WitnessJobStatusSuccessful {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct WitnessJobStatusFailed {
     pub started_at: DateTime<Utc>,
     pub error: String,
 }
 
-#[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr)]
+#[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr, PartialEq)]
 pub enum ProverJobStatus {
     #[strum(serialize = "queued")]
     Queued,
@@ -156,7 +161,7 @@ pub enum ProverJobStatus {
     Ignored,
 }
 
-#[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr)]
+#[derive(Debug, Clone, strum::Display, strum::EnumString, strum::AsRefStr)]
 pub enum WitnessJobStatus {
     #[strum(serialize = "failed")]
     Failed(WitnessJobStatusFailed),
@@ -228,4 +233,122 @@ impl FromStr for GpuProverInstanceStatus {
             _ => Err(()),
         }
     }
+}
+
+pub struct ProverJobFriInfo {
+    pub id: u32,
+    pub l1_batch_number: L1BatchNumber,
+    pub circuit_id: u32,
+    pub circuit_blob_url: String,
+    pub aggregation_round: AggregationRound,
+    pub sequence_number: u32,
+    pub status: ProverJobStatus,
+    pub error: Option<String>,
+    pub attempts: u8,
+    pub processing_started_at: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub time_taken: Option<NaiveTime>,
+    pub is_blob_cleaned: Option<bool>,
+    pub depth: u32,
+    pub is_node_final_proof: bool,
+    pub proof_blob_url: Option<String>,
+    pub protocol_version: Option<ProtocolVersionId>,
+    pub picked_by: Option<String>,
+}
+
+pub struct BasicWitnessGeneratorJobInfo {
+    pub l1_batch_number: L1BatchNumber,
+    pub merkle_tree_paths_blob_url: Option<String>,
+    pub attempts: u32,
+    pub status: WitnessJobStatus,
+    pub error: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub processing_started_at: Option<NaiveDateTime>,
+    pub time_taken: Option<NaiveTime>,
+    pub is_blob_cleaned: Option<bool>,
+    pub protocol_version: Option<i32>,
+    pub picked_by: Option<String>,
+    pub eip_4844_blobs: Option<Eip4844Blobs>,
+}
+
+pub struct LeafWitnessGeneratorJobInfo {
+    pub id: u32,
+    pub l1_batch_number: L1BatchNumber,
+    pub circuit_id: u32,
+    pub closed_form_inputs_blob_url: Option<String>,
+    pub attempts: u32,
+    pub status: WitnessJobStatus,
+    pub error: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub processing_started_at: Option<NaiveDateTime>,
+    pub time_taken: Option<NaiveTime>,
+    pub is_blob_cleaned: Option<bool>,
+    pub number_of_basic_circuits: Option<i32>,
+    pub protocol_version: Option<i32>,
+    pub picked_by: Option<String>,
+}
+
+pub struct NodeWitnessGeneratorJobInfo {
+    pub id: u32,
+    pub l1_batch_number: L1BatchNumber,
+    pub circuit_id: u32,
+    pub depth: u32,
+    pub status: WitnessJobStatus,
+    pub attempts: u32,
+    pub aggregations_url: Option<String>,
+    pub processing_started_at: Option<NaiveDateTime>,
+    pub time_taken: Option<NaiveTime>,
+    pub error: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub number_of_dependent_jobs: Option<i32>,
+    pub protocol_version: Option<i32>,
+    pub picked_by: Option<String>,
+}
+
+pub struct SchedulerWitnessGeneratorJobInfo {
+    pub l1_batch_number: L1BatchNumber,
+    pub scheduler_partial_input_blob_url: String,
+    pub status: WitnessJobStatus,
+    pub processing_started_at: Option<NaiveDateTime>,
+    pub time_taken: Option<NaiveTime>,
+    pub error: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub attempts: u32,
+    pub protocol_version: Option<i32>,
+    pub picked_by: Option<String>,
+}
+
+#[derive(Debug, EnumString, Display)]
+pub enum ProofCompressionJobStatus {
+    #[strum(serialize = "queued")]
+    Queued,
+    #[strum(serialize = "in_progress")]
+    InProgress,
+    #[strum(serialize = "successful")]
+    Successful,
+    #[strum(serialize = "failed")]
+    Failed,
+    #[strum(serialize = "sent_to_server")]
+    SentToServer,
+    #[strum(serialize = "skipped")]
+    Skipped,
+}
+
+pub struct ProofCompressionJobInfo {
+    pub l1_batch_number: L1BatchNumber,
+    pub attempts: u32,
+    pub status: ProofCompressionJobStatus,
+    pub fri_proof_blob_url: Option<String>,
+    pub l1_proof_blob_url: Option<String>,
+    pub error: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub processing_started_at: Option<NaiveDateTime>,
+    pub time_taken: Option<NaiveTime>,
+    pub picked_by: Option<String>,
 }

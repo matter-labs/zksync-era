@@ -1,10 +1,12 @@
 #![doc = include_str!("../doc/FriProverDal.md")]
-use std::{collections::HashMap, convert::TryFrom, time::Duration};
+use std::{collections::HashMap, convert::TryFrom, str::FromStr, time::Duration};
 
 use zksync_basic_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     protocol_version::ProtocolVersionId,
-    prover_dal::{FriProverJobMetadata, JobCountStatistics, StuckJobs, EIP_4844_CIRCUIT_ID},
+    prover_dal::{
+        FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo, ProverJobStatus, StuckJobs,
+    },
     L1BatchNumber,
 };
 use zksync_db_connection::{
@@ -31,10 +33,6 @@ impl FriProverDal<'_, '_> {
         for (sequence_number, (circuit_id, circuit_blob_url)) in
             circuit_ids_and_urls.iter().enumerate()
         {
-            // EIP 4844 are special cased.
-            // There exist only 2 blobs that are calculated at basic layer and injected straight into scheduler proof (as of 1.4.2).
-            // As part of 1.5.0, these will be treated as regular circuits, having basic, leaf, node and finally being attached as regular node proofs to the scheduler.
-            let is_node_final_proof = *circuit_id == EIP_4844_CIRCUIT_ID;
             self.insert_prover_job(
                 l1_batch_number,
                 *circuit_id,
@@ -42,7 +40,7 @@ impl FriProverDal<'_, '_> {
                 sequence_number,
                 aggregation_round,
                 circuit_blob_url,
-                is_node_final_proof,
+                false,
                 protocol_version_id,
             )
             .await;
@@ -52,10 +50,9 @@ impl FriProverDal<'_, '_> {
 
     pub async fn get_next_job(
         &mut self,
-        protocol_versions: &[ProtocolVersionId],
+        protocol_version: &ProtocolVersionId,
         picked_by: &str,
     ) -> Option<FriProverJobMetadata> {
-        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         sqlx::query!(
             r#"
             UPDATE prover_jobs_fri
@@ -73,7 +70,7 @@ impl FriProverDal<'_, '_> {
                         prover_jobs_fri
                     WHERE
                         status = 'queued'
-                        AND protocol_version = ANY ($1)
+                        AND protocol_version = $1
                     ORDER BY
                         aggregation_round DESC,
                         l1_batch_number ASC,
@@ -92,7 +89,7 @@ impl FriProverDal<'_, '_> {
                 prover_jobs_fri.depth,
                 prover_jobs_fri.is_node_final_proof
             "#,
-            &protocol_versions[..],
+            *protocol_version as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -113,14 +110,13 @@ impl FriProverDal<'_, '_> {
     pub async fn get_next_job_for_circuit_id_round(
         &mut self,
         circuits_to_pick: &[CircuitIdRoundTuple],
-        protocol_versions: &[ProtocolVersionId],
+        protocol_version: &ProtocolVersionId,
         picked_by: &str,
     ) -> Option<FriProverJobMetadata> {
         let circuit_ids: Vec<_> = circuits_to_pick
             .iter()
             .map(|tuple| i16::from(tuple.circuit_id))
             .collect();
-        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         let aggregation_rounds: Vec<_> = circuits_to_pick
             .iter()
             .map(|tuple| i16::from(tuple.aggregation_round))
@@ -152,7 +148,7 @@ impl FriProverDal<'_, '_> {
                                 prover_jobs_fri AS pj
                             WHERE
                                 pj.status = 'queued'
-                                AND pj.protocol_version = ANY ($3)
+                                AND pj.protocol_version = $3
                                 AND pj.circuit_id = tuple.circuit_id
                                 AND pj.aggregation_round = tuple.round
                             ORDER BY
@@ -181,7 +177,7 @@ impl FriProverDal<'_, '_> {
             "#,
             &circuit_ids[..],
             &aggregation_rounds[..],
-            &protocol_versions[..],
+            *protocol_version as i32,
             picked_by,
         )
         .fetch_optional(self.storage.conn())
@@ -568,6 +564,30 @@ impl FriProverDal<'_, '_> {
         .map(|row| row.id as u32)
     }
 
+    pub async fn get_recursion_tip_proof_job_id(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Option<u32> {
+        sqlx::query!(
+            r#"
+            SELECT
+                id
+            FROM
+                prover_jobs_fri
+            WHERE
+                l1_batch_number = $1
+                AND status = 'successful'
+                AND aggregation_round = $2
+            "#,
+            l1_batch_number.0 as i64,
+            AggregationRound::RecursionTip as i16,
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .ok()?
+        .map(|row| row.id as u32)
+    }
+
     pub async fn archive_old_jobs(&mut self, archiving_interval_secs: u64) -> usize {
         let archiving_interval_secs =
             pg_interval_from_duration(Duration::from_secs(archiving_interval_secs));
@@ -593,5 +613,98 @@ impl FriProverDal<'_, '_> {
         .await
         .unwrap()
         .unwrap_or(0) as usize
+    }
+
+    pub async fn get_final_node_proof_job_ids_for(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Vec<(u8, u32)> {
+        sqlx::query!(
+            r#"
+            SELECT
+                circuit_id,
+                id
+            FROM
+                prover_jobs_fri
+            WHERE
+                l1_batch_number = $1
+                AND is_node_final_proof = true
+                AND status = 'successful'
+            ORDER BY
+                circuit_id ASC
+            "#,
+            l1_batch_number.0 as i64
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| (row.circuit_id as u8, row.id as u32))
+        .collect()
+    }
+
+    pub async fn get_prover_jobs_stats_for_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        aggregation_round: AggregationRound,
+    ) -> Vec<ProverJobFriInfo> {
+        sqlx::query!(
+            r#"
+            SELECT
+                *
+            FROM
+                prover_jobs_fri
+            WHERE
+                l1_batch_number = $1
+                AND aggregation_round = $2
+            "#,
+            i64::from(l1_batch_number.0),
+            aggregation_round as i16
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .iter()
+        .map(|row| ProverJobFriInfo {
+            id: row.id as u32,
+            l1_batch_number,
+            circuit_id: row.circuit_id as u32,
+            circuit_blob_url: row.circuit_blob_url.clone(),
+            aggregation_round,
+            sequence_number: row.sequence_number as u32,
+            status: ProverJobStatus::from_str(&row.status).unwrap(),
+            error: row.error.clone(),
+            attempts: row.attempts as u8,
+            processing_started_at: row.processing_started_at,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            time_taken: row.time_taken,
+            is_blob_cleaned: row.is_blob_cleaned,
+            depth: row.depth as u32,
+            is_node_final_proof: row.is_node_final_proof,
+            proof_blob_url: row.proof_blob_url.clone(),
+            protocol_version: row.protocol_version.map(|protocol_version| {
+                ProtocolVersionId::try_from(protocol_version as u16).unwrap()
+            }),
+            picked_by: row.picked_by.clone(),
+        })
+        .collect()
+    }
+
+    pub async fn protocol_version_for_job(&mut self, job_id: u32) -> ProtocolVersionId {
+        sqlx::query!(
+            r#"
+            SELECT protocol_version
+            FROM prover_jobs_fri
+            WHERE id = $1
+            "#,
+            job_id as i32
+        )
+        .fetch_one(self.storage.conn())
+        .await
+        .unwrap()
+        .protocol_version
+        .map(|id| ProtocolVersionId::try_from(id as u16).unwrap())
+        .unwrap()
     }
 }

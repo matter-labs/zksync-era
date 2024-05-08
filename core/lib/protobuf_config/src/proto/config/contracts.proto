@@ -2,6 +2,12 @@ syntax = "proto3";
 
 package zksync.config.contracts;
 
+message EcosystemContracts {
+  optional string bridgehub_proxy_addr = 1; // optional; h160
+  optional string state_transition_proxy_addr = 2; // optional; h160
+  optional string transparent_proxy_admin_addr = 3; // optional; h160
+}
+
 message L1 {
   optional string governance_addr = 1; // required; H160
   optional string verifier_addr = 2; // required; H160
@@ -31,4 +37,5 @@ message Contracts {
   optional L1 l1 = 1;
   optional L2 l2 = 2;
   optional Bridges bridges = 3;
+  optional EcosystemContracts ecosystem_contracts = 4;
 }
