@@ -5,15 +5,18 @@ use zksync_types::{
     transaction_request::CallRequest,
 };
 
-use crate::types::H256;
+use crate::{
+    client::{ForNetwork, L2},
+    types::H256,
+};
 
 #[cfg_attr(
     all(feature = "client", feature = "server"),
-    rpc(server, client, namespace = "debug")
+    rpc(server, client, namespace = "debug", client_bounds(Self: ForNetwork<Net = L2>))
 )]
 #[cfg_attr(
     all(feature = "client", not(feature = "server")),
-    rpc(client, namespace = "debug")
+    rpc(client, namespace = "debug", client_bounds(Self: ForNetwork<Net = L2>))
 )]
 #[cfg_attr(
     all(not(feature = "client"), feature = "server"),

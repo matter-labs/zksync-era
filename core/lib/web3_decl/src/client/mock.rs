@@ -1,17 +1,17 @@
 //! Mock L2 client implementation.
 
-use std::{fmt, future::Future, pin::Pin, sync::Arc};
+use std::{fmt, future::Future, marker::PhantomData, pin::Pin, sync::Arc};
 
 use async_trait::async_trait;
 use futures::future;
 use jsonrpsee::core::{
-    client::{BatchResponse, ClientT, Error, Subscription, SubscriptionClientT},
+    client::{BatchResponse, ClientT, Error},
     params::BatchRequestBuilder,
     traits::ToRpcParams,
 };
 use serde::de::DeserializeOwned;
 
-use super::TaggedClient;
+use super::{ForNetwork, Network, TaggedClient};
 
 type MockHandleResult<'a> =
     Pin<Box<dyn Future<Output = Result<serde_json::Value, Error>> + Send + 'a>>;
@@ -20,12 +20,13 @@ type RequestHandler = dyn Fn(&str, serde_json::Value) -> MockHandleResult<'_> + 
 /// Mock L2 client implementation. For now, it only mocks requests and batch requests; all other
 /// interactions with the client will panic.
 #[derive(Clone)]
-pub struct MockL2Client {
+pub struct MockClient<Net> {
     request_handler: Arc<RequestHandler>,
     component_name: &'static str,
+    _network: PhantomData<Net>,
 }
 
-impl fmt::Debug for MockL2Client {
+impl<Net> fmt::Debug for MockClient<Net> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("MockL2Client")
@@ -33,7 +34,7 @@ impl fmt::Debug for MockL2Client {
     }
 }
 
-impl MockL2Client {
+impl<Net: Network> MockClient<Net> {
     /// Creates an L2 client based on the provided request handler.
     pub fn new<F>(request_handler: F) -> Self
     where
@@ -44,6 +45,7 @@ impl MockL2Client {
                 Box::pin(future::ready(request_handler(method, params)))
             }),
             component_name: "",
+            _network: PhantomData,
         }
     }
 
@@ -55,11 +57,16 @@ impl MockL2Client {
         Self {
             request_handler: Arc::new(request_handler),
             component_name: "",
+            _network: PhantomData,
         }
     }
 }
 
-impl TaggedClient for MockL2Client {
+impl<Net: Network> ForNetwork for MockClient<Net> {
+    type Net = Net;
+}
+
+impl<Net: Network> TaggedClient for MockClient<Net> {
     fn for_component(mut self, component_name: &'static str) -> Self {
         self.component_name = component_name;
         self
@@ -67,7 +74,7 @@ impl TaggedClient for MockL2Client {
 }
 
 #[async_trait]
-impl ClientT for MockL2Client {
+impl<Net: Network> ClientT for MockClient<Net> {
     async fn notification<Params>(&self, _method: &str, _params: Params) -> Result<(), Error>
     where
         Params: ToRpcParams + Send,
@@ -122,31 +129,5 @@ impl ClientT for MockL2Client {
             responses,
             failed_calls,
         ))
-    }
-}
-
-#[async_trait]
-impl SubscriptionClientT for MockL2Client {
-    async fn subscribe<'a, Notif, Params>(
-        &self,
-        _subscribe_method: &'a str,
-        _params: Params,
-        _unsubscribe_method: &'a str,
-    ) -> Result<Subscription<Notif>, Error>
-    where
-        Params: ToRpcParams + Send,
-        Notif: DeserializeOwned,
-    {
-        unimplemented!("never used in the codebase")
-    }
-
-    async fn subscribe_to_method<'a, Notif>(
-        &self,
-        _method: &'a str,
-    ) -> Result<Subscription<Notif>, Error>
-    where
-        Notif: DeserializeOwned,
-    {
-        unimplemented!("never used in the codebase")
     }
 }

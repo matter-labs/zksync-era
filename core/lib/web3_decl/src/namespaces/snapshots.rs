@@ -4,13 +4,15 @@ use zksync_types::{
     L1BatchNumber,
 };
 
+use crate::client::{ForNetwork, L2};
+
 #[cfg_attr(
     all(feature = "client", feature = "server"),
-    rpc(server, client, namespace = "snapshots")
+    rpc(server, client, namespace = "snapshots", client_bounds(Self: ForNetwork<Net = L2>))
 )]
 #[cfg_attr(
     all(feature = "client", not(feature = "server")),
-    rpc(client, namespace = "snapshots")
+    rpc(client, namespace = "snapshots", client_bounds(Self: ForNetwork<Net = L2>))
 )]
 #[cfg_attr(
     all(not(feature = "client"), feature = "server"),

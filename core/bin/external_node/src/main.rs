@@ -56,7 +56,7 @@ use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_web3_decl::{
-    client::{BoxedL2Client, L2Client},
+    client::{Client, DynClient, L2},
     jsonrpsee,
     namespaces::EnNamespaceClient,
 };
@@ -87,7 +87,7 @@ async fn build_state_keeper(
     state_keeper_db_path: String,
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
@@ -212,7 +212,7 @@ async fn run_tree(
 async fn run_core(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     eth_client: Box<dyn EthInterface>,
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
@@ -415,7 +415,7 @@ async fn run_api(
     stop_receiver: watch::Receiver<bool>,
     sync_state: SyncState,
     tree_reader: Option<Arc<dyn TreeApiClient>>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     singleton_pool_builder: &ConnectionPoolBuilder<Core>,
     fee_params_fetcher: Arc<MainNodeFeeParamsFetcher>,
     components: &HashSet<Component>,
@@ -594,7 +594,7 @@ async fn init_tasks(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     eth_client: Box<dyn EthInterface>,
     task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
@@ -821,11 +821,11 @@ async fn main() -> anyhow::Result<()> {
     // Build L1 and L2 clients.
     let main_node_url = &required_config.main_node_url;
     tracing::info!("Main node URL is: {main_node_url:?}");
-    let main_node_client = L2Client::http(main_node_url.clone())
+    let main_node_client = Client::<L2>::http(main_node_url.clone())
         .context("Failed creating JSON-RPC client for main node")?
         .with_allowed_requests_per_second(optional_config.main_node_rate_limit_rps)
         .build();
-    let main_node_client = BoxedL2Client::new(main_node_client);
+    let main_node_client = Box::new(main_node_client) as Box<DynClient<L2>>;
 
     let eth_client_url = &required_config.eth_client_url;
     let eth_client = Box::new(QueryClient::new(eth_client_url.clone())?);
@@ -833,7 +833,7 @@ async fn main() -> anyhow::Result<()> {
     let mut config = ExternalNodeConfig::new(
         required_config,
         optional_config,
-        &main_node_client,
+        main_node_client.as_ref(),
         eth_client.as_ref(),
     )
     .await
@@ -897,7 +897,7 @@ async fn run_node(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     eth_client: Box<dyn EthInterface>,
 ) -> anyhow::Result<()> {
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");

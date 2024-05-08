@@ -193,7 +193,7 @@ async fn rate_limiting_with_rng_and_threads(rate_limit: usize) {
 async fn wrapping_mock_client() {
     tokio::time::pause();
 
-    let client = MockL2Client::new_async(|method, _| {
+    let client = MockClient::<L2>::new_async(|method, _| {
         Box::pin(async move {
             match method {
                 "ok" => Ok(serde_json::from_value(serde_json::json!("ok"))?),
@@ -215,7 +215,7 @@ async fn wrapping_mock_client() {
         })
     });
 
-    let mut client = L2ClientBuilder::new(client, "http://localhost".parse().unwrap())
+    let mut client = ClientBuilder::<L2, _>::new(client, "http://localhost".parse().unwrap())
         .with_allowed_requests_per_second(NonZeroUsize::new(100).unwrap())
         .build()
         .for_component("test");

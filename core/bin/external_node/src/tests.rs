@@ -6,7 +6,7 @@ use zksync_basic_types::protocol_version::ProtocolVersionId;
 use zksync_eth_client::clients::MockEthereum;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{api, ethabi, fee_model::FeeParams, L1BatchNumber, L2BlockNumber, H256};
-use zksync_web3_decl::client::{BoxedL2Client, MockL2Client};
+use zksync_web3_decl::client::MockClient;
 
 use super::*;
 
@@ -131,7 +131,7 @@ async fn external_node_basics(components_str: &'static str) {
 
     let diamond_proxy_addr = config.remote.diamond_proxy_addr;
 
-    let l2_client = MockL2Client::new(move |method, params| {
+    let l2_client = MockClient::<L2>::new(move |method, params| {
         tracing::info!("Called L2 client: {method}({params:?})");
         match method {
             "zks_L1BatchNumber" => Ok(serde_json::json!("0x0")),
@@ -161,7 +161,7 @@ async fn external_node_basics(components_str: &'static str) {
             _ => panic!("Unexpected call: {method}({params:?})"),
         }
     });
-    let l2_client = BoxedL2Client::new(l2_client);
+    let l2_client = Box::new(l2_client);
 
     let eth_client = MockEthereum::default().with_call_handler(move |call, _| {
         tracing::info!("L1 call: {call:?}");

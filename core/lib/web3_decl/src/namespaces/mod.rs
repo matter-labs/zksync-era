@@ -1,12 +1,3 @@
-pub mod debug;
-pub mod en;
-pub mod eth;
-pub mod eth_subscribe;
-pub mod net;
-pub mod snapshots;
-pub mod web3;
-pub mod zks;
-
 #[cfg(feature = "client")]
 pub use self::{
     debug::DebugNamespaceClient, en::EnNamespaceClient, eth::EthNamespaceClient,
@@ -19,3 +10,11 @@ pub use self::{
     eth::EthPubSubServer, net::NetNamespaceServer, snapshots::SnapshotsNamespaceClient,
     web3::Web3NamespaceServer, zks::ZksNamespaceServer,
 };
+
+pub mod debug;
+pub mod en;
+pub mod eth;
+pub mod net;
+pub mod snapshots;
+pub mod web3;
+pub mod zks;

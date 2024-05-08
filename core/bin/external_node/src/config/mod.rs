@@ -32,7 +32,7 @@ use zksync_types::{
     api::BridgeAddresses, fee_model::FeeParams, url::SensitiveUrl, ETHEREUM_ADDRESS,
 };
 use zksync_web3_decl::{
-    client::BoxedL2Client,
+    client::{DynClient, L2},
     error::ClientRpcContext,
     jsonrpsee::{core::ClientError, types::error::ErrorCode},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
@@ -70,7 +70,7 @@ pub(crate) struct RemoteENConfig {
 }
 
 impl RemoteENConfig {
-    pub async fn fetch(client: &BoxedL2Client) -> anyhow::Result<Self> {
+    pub async fn fetch(client: &DynClient<L2>) -> anyhow::Result<Self> {
         let bridges = client
             .get_bridge_contracts()
             .rpc_context("get_bridge_contracts")
@@ -821,7 +821,7 @@ impl ExternalNodeConfig {
     pub async fn new(
         required: RequiredENConfig,
         optional: OptionalENConfig,
-        main_node_client: &BoxedL2Client,
+        main_node_client: &DynClient<L2>,
         eth_client: &dyn EthInterface,
     ) -> anyhow::Result<Self> {
         let experimental = envy::prefixed("EN_EXPERIMENTAL_")

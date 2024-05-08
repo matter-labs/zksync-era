@@ -1,13 +1,15 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use zksync_types::U256;
 
+use crate::client::{ForNetwork, L2};
+
 #[cfg_attr(
     all(feature = "client", feature = "server"),
-    rpc(server, client, namespace = "net")
+    rpc(server, client, namespace = "net", client_bounds(Self: ForNetwork<Net = L2>))
 )]
 #[cfg_attr(
     all(feature = "client", not(feature = "server")),
-    rpc(client, namespace = "net")
+    rpc(client, namespace = "net", client_bounds(Self: ForNetwork<Net = L2>))
 )]
 #[cfg_attr(
     all(not(feature = "client"), feature = "server"),

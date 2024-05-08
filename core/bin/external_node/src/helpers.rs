@@ -1,14 +1,17 @@
 //! Miscellaneous helpers for the EN.
 
 use zksync_health_check::{async_trait, CheckHealth, Health, HealthStatus};
-use zksync_web3_decl::{client::BoxedL2Client, namespaces::EthNamespaceClient};
+use zksync_web3_decl::{
+    client::{DynClient, L2},
+    namespaces::EthNamespaceClient,
+};
 
 /// Main node health check.
 #[derive(Debug)]
-pub(crate) struct MainNodeHealthCheck(BoxedL2Client);
+pub(crate) struct MainNodeHealthCheck(Box<DynClient<L2>>);
 
-impl From<BoxedL2Client> for MainNodeHealthCheck {
-    fn from(client: BoxedL2Client) -> Self {
+impl From<Box<DynClient<L2>>> for MainNodeHealthCheck {
+    fn from(client: Box<DynClient<L2>>) -> Self {
         Self(client.for_component("main_node_health_check"))
     }
 }
