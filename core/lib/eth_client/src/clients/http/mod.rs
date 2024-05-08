@@ -9,6 +9,7 @@ pub use self::{
     signing::{PKSigningClient, SigningClient},
 };
 
+mod decl;
 mod query;
 mod signing;
 

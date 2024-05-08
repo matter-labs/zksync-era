@@ -31,9 +31,9 @@ use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
     Message as SecpMessage, PublicKey, SecretKey, SECP256K1,
 };
-use web3::{
-    signing::keccak256,
-    types::{Address, H256, H512, H520},
+use zksync_basic_types::{
+    web3::{self, keccak256},
+    Address, H256, H512, H520,
 };
 
 type Message = H256;
@@ -103,6 +103,39 @@ impl K256PrivateKey {
         let mut result = Address::zero();
         result.as_bytes_mut().copy_from_slice(&hash[12..]);
         result
+    }
+
+    pub fn sign_web3(&self, message: &H256, chain_id: Option<u64>) -> web3::Signature {
+        let message = secp256k1::Message::from_slice(message.as_bytes()).unwrap();
+        let (recovery_id, signature) = SECP256K1
+            .sign_ecdsa_recoverable(&message, &self.0)
+            .serialize_compact();
+
+        let standard_v = recovery_id.to_i32() as u64;
+        let v = if let Some(chain_id) = chain_id {
+            // When signing with a chain ID, add chain replay protection.
+            standard_v + 35 + chain_id * 2
+        } else {
+            // Otherwise, convert to 'Electrum' notation.
+            standard_v + 27
+        };
+        let r = H256::from_slice(&signature[..32]);
+        let s = H256::from_slice(&signature[32..]);
+
+        web3::Signature { r, s, v }
+    }
+
+    pub fn sign_web3_message(&self, message: &H256) -> web3::Signature {
+        let message = secp256k1::Message::from_slice(message.as_bytes()).unwrap();
+        let (recovery_id, signature) = SECP256K1
+            .sign_ecdsa_recoverable(&message, &self.0)
+            .serialize_compact();
+
+        let v = recovery_id.to_i32() as u64;
+        let r = H256::from_slice(&signature[..32]);
+        let s = H256::from_slice(&signature[32..]);
+
+        web3::Signature { v, r, s }
     }
 }
 
