@@ -383,7 +383,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
             // Note, that the diff may be negative, e.g. in case the new write returns to the original value.
             // The end result is that users pay as much pubdata in total as would have been required to set
             // the slots to their final values.
-            // The only case where users overpay is when some transaction ends up with a negative pubdata total.
+            // The only case where users may overpay is when a previous transaction ends up with a negative pubdata total.
             let diff = (current_price as i32) - (previous_price as i32);
 
             self.paid_changes.apply_historic_record(
