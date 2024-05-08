@@ -1,15 +1,13 @@
 use anyhow::Context;
 use prover_dal::{Prover, ProverDal};
 use zksync_basic_types::{
-    ethabi::{Contract, Token},
     protocol_version::{L1VerifierConfig, VerifierParams},
-    web3::contract::tokens::Detokenize,
-    Address, L1BatchNumber, H256, U256,
+    L1BatchNumber, H256, U256,
 };
 use zksync_config::{ContractsConfig, EthConfig, PostgresConfig};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
-use zksync_eth_client::{clients::QueryClient, CallFunctionArgs, EthInterface};
+use zksync_eth_client::{clients::QueryClient, CallFunctionArgs};
 
 pub(crate) async fn run() -> anyhow::Result<()> {
     println!(" ====== L1 Status ====== ");
@@ -18,31 +16,21 @@ pub(crate) async fn run() -> anyhow::Result<()> {
     let eth_config = EthConfig::from_env().context("EthConfig::from_env")?;
     let query_client = QueryClient::new(eth_config.web3_url)?;
 
-    let total_batches_committed_tokens = contract_call(
-        "getTotalBatchesCommitted",
-        contracts_config.diamond_proxy_addr,
-        zksync_contracts::hyperchain_contract(),
-        &query_client,
-    )
-    .await?;
+    let total_batches_committed: U256 = CallFunctionArgs::new("getTotalBatchesCommitted", ())
+        .for_contract(
+            contracts_config.diamond_proxy_addr,
+            &zksync_contracts::hyperchain_contract(),
+        )
+        .call(&query_client)
+        .await?;
 
-    let mut total_batches_committed: U256 = U256::zero();
-    if let Some(Token::Uint(value)) = total_batches_committed_tokens.first() {
-        total_batches_committed = value.into();
-    }
-
-    let total_batches_verified_tokens = contract_call(
-        "getTotalBatchesVerified",
-        contracts_config.diamond_proxy_addr,
-        zksync_contracts::hyperchain_contract(),
-        &query_client,
-    )
-    .await?;
-
-    let mut total_batches_verified: U256 = U256::zero();
-    if let Some(Token::Uint(value)) = total_batches_verified_tokens.first() {
-        total_batches_verified = value.into();
-    }
+    let total_batches_verified: U256 = CallFunctionArgs::new("getTotalBatchesVerified", ())
+        .for_contract(
+            contracts_config.diamond_proxy_addr,
+            &zksync_contracts::hyperchain_contract(),
+        )
+        .call(&query_client)
+        .await?;
 
     let connection_pool = ConnectionPool::<Core>::builder(
         postgres_config
@@ -77,25 +65,25 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         last_state_keeper_l1_batch,
     );
 
-    let node_verification_key_hash_tokens = contract_call(
-        "verificationKeyHash",
-        contracts_config.verifier_addr,
-        zksync_contracts::verifier_contract(),
-        &query_client,
-    )
-    .await?;
+    let node_verification_key_hash: H256 = CallFunctionArgs::new("verificationKeyHash", ())
+        .for_contract(
+            contracts_config.verifier_addr,
+            &zksync_contracts::verifier_contract(),
+        )
+        .call(&query_client)
+        .await?;
 
-    let node_verifier_params_tokens = contract_call(
-        "getVerifierParams",
-        contracts_config.diamond_proxy_addr,
-        zksync_contracts::hyperchain_contract(),
-        &query_client,
-    )
-    .await?;
+    let node_verifier_params: VerifierParams = CallFunctionArgs::new("getVerifierParams", ())
+        .for_contract(
+            contracts_config.diamond_proxy_addr,
+            &zksync_contracts::hyperchain_contract(),
+        )
+        .call(&query_client)
+        .await?;
 
     let node_l1_verifier_config = L1VerifierConfig {
-        params: VerifierParams::from_tokens(node_verifier_params_tokens)?,
-        recursion_scheduler_level_vk_hash: H256::from_tokens(node_verification_key_hash_tokens)?,
+        params: node_verifier_params,
+        recursion_scheduler_level_vk_hash: node_verification_key_hash,
     };
 
     let prover_connection_pool = ConnectionPool::<Prover>::builder(
@@ -186,17 +174,4 @@ fn pretty_print_l1_verifier_config(
             .recursion_circuits_set_vks_hash,
         db_l1_verifier_config.params.recursion_circuits_set_vks_hash,
     );
-}
-
-async fn contract_call(
-    method: &str,
-    address: Address,
-    contract: Contract,
-    query_client: &QueryClient,
-) -> Result<Vec<Token>, zksync_eth_client::Error> {
-    let args_for_total_batches_committed: zksync_eth_client::ContractCall =
-        CallFunctionArgs::new(method, ()).for_contract(address, contract);
-    query_client
-        .call_contract_function(args_for_total_batches_committed)
-        .await
 }
