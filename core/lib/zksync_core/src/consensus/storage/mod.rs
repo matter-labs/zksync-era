@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
+use zksync_concurrency::{ctx, error::Wrap as _, sync, time};
 use zksync_consensus_bft::PayloadManager;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage as storage;
@@ -30,10 +30,32 @@ impl ConnectionPool {
     /// Wrapper for `connection_tagged()`.
     pub(super) async fn connection<'a>(&'a self, ctx: &ctx::Ctx) -> ctx::Result<Connection<'a>> {
         Ok(Connection(
-            ctx.wait(self.pool.connection_tagged("consensus"))
+            ctx.wait(self.0.connection_tagged("consensus"))
                 .await?
                 .map_err(DalError::generalize)?,
         ))
+    }
+
+    /// Waits for the `number` L2 block.
+    pub async fn wait_for_payload(
+        &self,
+        ctx: &ctx::Ctx,
+        number: validator::BlockNumber,
+    ) -> ctx::Result<Payload> {
+        const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
+        loop {
+            if let Some(payload) = self
+                .connection(ctx)
+                .await
+                .wrap("connection()")?
+                .payload(ctx, number)
+                .await
+                .wrap("payload()")?
+            {
+                return Ok(payload);
+            }
+            ctx.sleep(POLL_INTERVAL).await?;
+        }
     }
 }
 
@@ -176,20 +198,18 @@ impl<'a> Connection<'a> {
     }
 
     /// Fetches and verifies consistency of certificates in storage.
-    async fn certificates_range(&self, ctx: &ctx::Ctx) -> ctx::Result<storage::BlockStoreState> {
-        let mut conn = self.connection(ctx).await.wrap("connection()")?;
-
+    async fn certificates_range(&mut self, ctx: &ctx::Ctx) -> ctx::Result<storage::BlockStoreState> {
         // Fetch the range of L2 blocks in storage.
-        let block_range = conn.block_range(ctx).await.context("block_range")?;
+        let block_range = self.block_range(ctx).await.context("block_range")?;
 
         // Fetch the range of certificates in storage.
-        let genesis = conn
+        let genesis = self
             .genesis(ctx)
             .await
             .wrap("genesis()")?
             .context("genesis missing")?;
         let first_expected_cert = genesis.first_block.max(block_range.start);
-        let last_cert = conn
+        let last_cert = self
             .last_certificate(ctx)
             .await
             .wrap("last_certificate()")?;
@@ -198,7 +218,7 @@ impl<'a> Connection<'a> {
             .map_or(first_expected_cert, |cert| cert.header().number.next());
 
         // Check that the first certificate in storage has the expected L2 block number.
-        if let Some(got) = conn
+        if let Some(got) = self
             .first_certificate(ctx)
             .await
             .wrap("first_certificate()")?
@@ -225,7 +245,7 @@ impl<'a> Connection<'a> {
     /// Initializes consensus genesis (with 1 validator) to start at the last L2 block in storage.
     /// No-op if db already contains a genesis.
     pub(super) async fn try_init_genesis(
-        &self,
+        &mut self,
         ctx: &ctx::Ctx,
         chain_id: validator::ChainId,
         validator_key: &validator::PublicKey,
@@ -274,7 +294,7 @@ impl<'a> Connection<'a> {
     }
 
     pub(super) async fn block(
-        &self,
+        &mut self,
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
     ) -> ctx::Result<Option<validator::FinalBlock>> {
@@ -365,16 +385,14 @@ pub struct StoreRunner {
     pool: ConnectionPool,
     persisted: sync::watch::Sender<storage::BlockStoreState>,
     certificates: ctx::channel::UnboundedReceiver<validator::CommitQC>,
-    inner: storage::BlockStoreRunner,
 }
 
 impl Store {
     pub(super) async fn new(
-        self,
         ctx: &ctx::Ctx,
         pool: ConnectionPool,
         payload_queue: Option<PayloadQueue>,
-    ) -> ctx::Result<(Arc<storage::BlockStore>, StoreRunner)> {
+    ) -> ctx::Result<(Store, StoreRunner)> {
         let persisted = pool
             .connection(ctx)
             .await
@@ -384,73 +402,29 @@ impl Store {
             .wrap("certificates_range()")?;
         let persisted = sync::watch::channel(persisted).0;
         let (certs_send, certs_recv) = ctx::channel::unbounded();
-        let (block_store, runner) = storage::BlockStore::new(
-            ctx,
-            Box::new(Store {
-                pool: pool.clone(),
-                certificates: certs_send,
-                payloads: Arc::new(sync::Mutex::new(payload_queue)),
-                persisted: persisted.subscribe(),
-            }),
-        )
-        .await?;
-        Ok((
-            block_store,
-            StoreRunner {
-                pool,
-                persisted,
-                certificates: certs_recv,
-                inner: runner,
-            },
-        ))
+        Ok((Store {
+            pool: pool.clone(),
+            certificates: certs_send,
+            payloads: Arc::new(sync::Mutex::new(payload_queue)),
+            persisted: persisted.subscribe(),
+        }, StoreRunner {
+            pool,
+            persisted,
+            certificates: certs_recv,
+        }))
     }
-
-    /// Waits for the `number` L2 block.
-    pub async fn wait_for_payload(
-        &self,
-        ctx: &ctx::Ctx,
-        number: validator::BlockNumber,
-    ) -> ctx::Result<Payload> {
-        const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
-        loop {
-            if let Some(payload) = self
-                .pool
-                .connection(ctx)
-                .await
-                .wrap("connection()")?
-                .payload(ctx, number)
-                .await
-                .wrap("payload()")?
-            {
-                return Ok(payload);
-            }
-            ctx.sleep(POLL_INTERVAL).await?;
-        }
-    }
-
-    pub(super) async fn genesis(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::Genesis> {
-        Ok(self
-            .connection(ctx)
-            .await
-            .wrap("connection()")?
-            .genesis(ctx)
-            .await
-            .wrap("genesis()")?
-            .context("genesis is missing")?)
-    } 
 }
 
 impl StoreRunner {
     pub async fn run(mut self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
-        let res = scope::run!(ctx, |ctx, s| async {
-            s.spawn(async { Ok(self.inner.run(ctx).await?) });
+        let res = async {
             loop {
                 let cert = self.certificates.recv(ctx).await?;
-                self.store
+                self.pool
                     .wait_for_payload(ctx, cert.header().number)
                     .await
                     .wrap("wait_for_payload()")?;
-                self.store
+                self.pool
                     .connection(ctx)
                     .await
                     .wrap("connection()")?
@@ -459,8 +433,7 @@ impl StoreRunner {
                     .wrap("insert_certificate()")?;
                 self.persisted.send_modify(|p| p.last = Some(cert));
             }
-        })
-        .await;
+        }.await;
         match res {
             Err(ctx::Error::Canceled(_)) | Ok(()) => Ok(()),
             Err(ctx::Error::Internal(err)) => Err(err),
@@ -471,7 +444,7 @@ impl StoreRunner {
 #[async_trait::async_trait]
 impl storage::PersistentBlockStore for Store {
     async fn genesis(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::Genesis> {
-        Store::genesis(self,ctx).await
+        Ok(self.pool.connection(ctx).await.wrap("connection")?.genesis(ctx).await?.context("not found")?)
     }
 
     fn persisted(&self) -> sync::watch::Receiver<storage::BlockStoreState> {
@@ -483,7 +456,7 @@ impl storage::PersistentBlockStore for Store {
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
     ) -> ctx::Result<validator::FinalBlock> {
-        Ok(Store::block(self, ctx, number).await?.context("not found")?)
+        Ok(self.pool.connection(ctx).await.wrap("connection")?.block(ctx, number).await?.context("not found")?)
     }
 
     /// If actions queue is set (and the block has not been stored yet),
@@ -499,8 +472,8 @@ impl storage::PersistentBlockStore for Store {
         ctx: &ctx::Ctx,
         block: validator::FinalBlock,
     ) -> ctx::Result<()> {
-        let payloads = sync::lock(ctx,&self.payloads).await?.into_async();
-        if let Some(payloads) = payloads {
+        let mut payloads = sync::lock(ctx,&self.payloads).await?.into_async();
+        if let Some(payloads) = &mut *payloads {
             payloads.send(to_fetched_block(block.number(),&block.payload).context("to_fetched_block")?)
                 .await.context("payload_queue.send()")?;
         }
@@ -512,7 +485,8 @@ impl storage::PersistentBlockStore for Store {
 #[async_trait::async_trait]
 impl storage::ReplicaStore for Store {
     async fn state(&self, ctx: &ctx::Ctx) -> ctx::Result<storage::ReplicaState> {
-        self.connection(ctx)
+        self.pool
+            .connection(ctx)
             .await
             .wrap("connection()")?
             .replica_state(ctx)
@@ -521,7 +495,8 @@ impl storage::ReplicaStore for Store {
     }
 
     async fn set_state(&self, ctx: &ctx::Ctx, state: &storage::ReplicaState) -> ctx::Result<()> {
-        self.connection(ctx)
+        self.pool
+            .connection(ctx)
             .await
             .wrap("connection()")?
             .set_replica_state(ctx, state)
@@ -539,7 +514,7 @@ impl PayloadManager for Store {
         block_number: validator::BlockNumber,
     ) -> ctx::Result<validator::Payload> {
         const LARGE_PAYLOAD_SIZE: usize = 1 << 20;
-        let payload = self.wait_for_payload(ctx, block_number).await?;
+        let payload = self.pool.wait_for_payload(ctx, block_number).await?;
         let encoded_payload = payload.encode();
         if encoded_payload.0.len() > LARGE_PAYLOAD_SIZE {
             tracing::warn!(
@@ -565,13 +540,14 @@ impl PayloadManager for Store {
         block_number: validator::BlockNumber,
         payload: &validator::Payload,
     ) -> ctx::Result<()> {
-        if let Some(payloads) = sync::lock(ctx,&self.payloads).await?.into_async() {
+        let mut payloads = sync::lock(ctx,&self.payloads).await?.into_async();
+        if let Some(payloads) = &mut *payloads {
             payloads.send(to_fetched_block(block_number,&payload).context("to_fetched_block")?)
                 .await.context("payload_queue.send()")?;
         }
         // TODO: this is too inefficient - instead wait for the block to get processed,
         // but not necessarily stored.
-        let want = self.wait_for_payload(ctx, block_number).await?;
+        let want = self.pool.wait_for_payload(ctx, block_number).await?;
         let got = Payload::decode(payload).context("Payload::decode(got)")?;
         if got != want {
             return Err(

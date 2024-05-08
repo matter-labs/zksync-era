@@ -9,6 +9,7 @@ use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_dal::{Core};
 use zksync_web3_decl::client::BoxedL2Client;
 use zksync_types::L2ChainId;
+use zksync_consensus_roles::validator;
 
 use super::{fetcher::Fetcher, storage::{ConnectionPool}};
 use crate::sync_layer::{sync_action::ActionQueueSender, SyncState};
@@ -24,7 +25,7 @@ pub async fn run_main_node(
     // Consensus is a new component.
     // For now in case of error we just log it and allow the server
     // to continue running.
-    if let Err(err) = super::run_main_node(ctx, cfg, secrets, pool, chain_id).await {
+    if let Err(err) = super::run_main_node(ctx, cfg, secrets, ConnectionPool(pool), validator::ChainId(chain_id.as_u64())).await {
         tracing::error!(%err, "Consensus actor failed");
     } else {
         tracing::info!("Consensus actor stopped");
@@ -43,7 +44,7 @@ pub async fn run_fetcher(
     actions: ActionQueueSender,
 ) -> anyhow::Result<()> {
     let fetcher = Fetcher {
-        store: ConnectionPool(pool),
+        pool: ConnectionPool(pool),
         sync_state: sync_state.clone(),
         client: main_node_client,
     };

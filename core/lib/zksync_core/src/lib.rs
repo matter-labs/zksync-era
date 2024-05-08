@@ -30,7 +30,7 @@ use zksync_config::{
             CircuitBreakerConfig, L1BatchCommitDataGeneratorMode, MempoolConfig,
             OperationsManagerConfig, StateKeeperConfig,
         },
-        consensus::{ConsensusSecrets,ConsensusConfig},
+        consensus::{ConsensusConfig},
         database::{MerkleTreeConfig, MerkleTreeMode},
         wallets,
         wallets::Wallets,

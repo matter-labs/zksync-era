@@ -1,12 +1,13 @@
 //! Utilities for testing the consensus module.
 
 use std::{collections::HashMap, sync::Arc};
-
-use super::{ConsensusConfig,ConsensusSecrets};
+use super::fetcher::Fetcher;
+use zksync_config::configs::consensus as config;
 use anyhow::Context as _;
 use rand::Rng;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync};
 use zksync_config::{configs, GenesisConfig};
+use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_roles::validator;
 use zksync_consensus_network as network;
 use zksync_contracts::BaseSystemContractsHashes;
@@ -22,7 +23,7 @@ use zksync_web3_decl::{
 
 use crate::{
     api_server::web3::{state::InternalApiConfig, tests::spawn_http_server},
-    consensus::{Fetcher, Store},
+    consensus::{ConnectionPool},
     genesis::{mock_genesis_config, GenesisParams},
     state_keeper::{
         io::{IoCursor, L1BatchParams, L2BlockParams},
@@ -161,35 +162,35 @@ pub(super) struct StateKeeper {
 
     actions_sender: ActionQueueSender,
     addr: sync::watch::Receiver<Option<std::net::SocketAddr>>,
-    store: Store,
+    pool: ConnectionPool,
 }
 
-pub(super) fn config(cfg: &network::Config) -> (ConsensusConfig,ConsensusSecrets) {
-    (ConsensusConfig {
+pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig,config::ConsensusSecrets) {
+    (config::ConsensusConfig {
         server_addr: *cfg.server_addr,
-        public_addr: cfg.public_addr.clone(),
+        public_addr: config::Host(cfg.public_addr.0.clone()),
         max_payload_size: usize::MAX,
         gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
-        gossip_static_inbound: cfg.gossip.static_inbound.iter().cloned().collect(),
-        gossip_static_outbound: cfg.gossip.static_outbound.iter().map(|(k,v)|(k.clone(),v.clone())).collect(),
-    }, ConsensusSecrets {
-        node_key: Some(cfg.gossip.key.clone()),
-        validator_key: cfg.validator_key.clone(),
+        gossip_static_inbound: cfg.gossip.static_inbound.iter().map(|k|config::NodePublicKey(k.encode())).collect(),
+        gossip_static_outbound: cfg.gossip.static_outbound.iter().map(|(k,v)|(config::NodePublicKey(k.encode()),config::Host(v.0.clone()))).collect(),
+    }, config::ConsensusSecrets {
+        node_key: Some(config::NodeSecretKey(cfg.gossip.key.encode())),
+        validator_key: cfg.validator_key.as_ref().map(|k|config::ValidatorSecretKey(k.encode())),
     })
 }
 
 /// Fake StateKeeper task to be executed in the background.
 pub(super) struct StateKeeperRunner {
     actions_queue: ActionQueue,
-    store: Store,
+    pool: ConnectionPool,
     addr: sync::watch::Sender<Option<std::net::SocketAddr>>,
 }
 
 impl StateKeeper {
     /// Constructs and initializes a new `StateKeeper`.
     /// Caller has to run `StateKeeperRunner.run()` task in the background.
-    pub async fn new(ctx: &ctx::Ctx, store: Store) -> ctx::Result<(Self, StateKeeperRunner)> {
-        let mut conn = store.access(ctx).await.wrap("access()")?;
+    pub async fn new(ctx: &ctx::Ctx, pool: ConnectionPool) -> ctx::Result<(Self, StateKeeperRunner)> {
+        let mut conn = pool.connection(ctx).await.wrap("connection()")?;
         let cursor = ctx
             .wait(IoCursor::for_fetcher(&mut conn.0))
             .await?
@@ -210,11 +211,11 @@ impl StateKeeper {
                 gas_per_pubdata: 100,
                 actions_sender,
                 addr: addr.subscribe(),
-                store: store.clone(),
+                pool: pool.clone(),
             },
             StateKeeperRunner {
                 actions_queue,
-                store: store.clone(),
+                pool: pool.clone(),
                 addr,
             },
         ))
@@ -311,7 +312,7 @@ impl StateKeeper {
         client: BoxedL2Client,
     ) -> anyhow::Result<()> {
         Fetcher {
-            store: self.store,
+            pool: self.pool,
             client,
             sync_state: SyncState::default(),
         }
@@ -328,17 +329,17 @@ impl StateKeeper {
     ) -> anyhow::Result<()> {
         let (cfg, secrets) = config(cfg);
         Fetcher {
-            store: self.store,
+            pool: self.pool,
             client,
             sync_state: SyncState::default(),
         }
-        .run_p2p(ctx, self.actions_sender, &cfg, &secrets)
+        .run_p2p(ctx, self.actions_sender, cfg, secrets)
         .await
     }
 }
 
-async fn calculate_mock_metadata(ctx: &ctx::Ctx, store: &Store) -> ctx::Result<()> {
-    let mut conn = store.access(ctx).await.wrap("access()")?;
+async fn calculate_mock_metadata(ctx: &ctx::Ctx, pool: &ConnectionPool) -> ctx::Result<()> {
+    let mut conn = pool.connection(ctx).await.wrap("connection()")?;
     let Some(last) = ctx
         .wait(conn.0.blocks_dal().get_sealed_l1_batch_number())
         .await?
@@ -378,10 +379,10 @@ impl StateKeeperRunner {
         let res = scope::run!(ctx, |ctx, s| async {
             let (stop_send, stop_recv) = sync::watch::channel(false);
             let (persistence, l2_block_sealer) =
-                StateKeeperPersistence::new(self.store.pool.clone(), Address::repeat_byte(11), 5);
+                StateKeeperPersistence::new(self.pool.0.clone(), Address::repeat_byte(11), 5);
 
             let io = ExternalIO::new(
-                self.store.pool.clone(),
+                self.pool.0.clone(),
                 self.actions_queue,
                 Box::<MockMainNodeClient>::default(),
                 L2ChainId::default(),
@@ -395,7 +396,7 @@ impl StateKeeperRunner {
             });
             s.spawn_bg::<()>(async {
                 loop {
-                    calculate_mock_metadata(ctx, &self.store).await?;
+                    calculate_mock_metadata(ctx, &self.pool).await?;
                     // Sleep real time.
                     ctx.wait(tokio::time::sleep(tokio::time::Duration::from_millis(100)))
                         .await?;
@@ -426,7 +427,7 @@ impl StateKeeperRunner {
                 );
                 let mut server = spawn_http_server(
                     cfg,
-                    self.store.pool.clone(),
+                    self.pool.0.clone(),
                     Default::default(),
                     Arc::default(),
                     stop_recv,

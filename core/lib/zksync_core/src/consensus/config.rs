@@ -8,17 +8,15 @@ use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::{node, validator};
 
-fn read_secret_text<T: TextFmt>(text: Option<&String>) -> anyhow::Result<T> {
-    Text::new(text.context("missing")?)
-        .decode()
-        .map_err(|_| anyhow::format_err!("invalid format"))
+fn read_secret_text<T: TextFmt>(text: Option<&String>) -> anyhow::Result<Option<T>> {
+    text.map(|text| Text::new(text).decode()).transpose().map_err(|_| anyhow::format_err!("invalid format"))
 }
 
-pub(super) fn validator_key(secrets: &ConsensusSecrets) -> anyhow::Result<validator::SecretKey> {
+pub(super) fn validator_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<validator::SecretKey>> {
     read_secret_text(secrets.validator_key.as_ref().map(|x| &x.0))
 }
 
-pub(super) fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<node::SecretKey> {
+pub(super) fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<node::SecretKey>> {
     read_secret_text(secrets.node_key.as_ref().map(|x| &x.0))
 }
 
@@ -40,7 +38,7 @@ pub(super) fn executor(cfg: &ConsensusConfig, secrets: &ConsensusSecrets) -> any
         server_addr: cfg.server_addr,
         public_addr: net::Host(cfg.public_addr.0.clone()),
         max_payload_size: cfg.max_payload_size,
-        node_key: node_key(secrets).context("node_key")?,
+        node_key: node_key(secrets).context("node_key")?.context("missing node_key")?,
         gossip_dynamic_inbound_limit: cfg.gossip_dynamic_inbound_limit,
         gossip_static_inbound: cfg
             .gossip_static_inbound

@@ -154,6 +154,7 @@ tracing-subscriber = "0.3"
 tracing-opentelemetry = "0.21.0"
 url = "2"
 web3 = "0.19.0"
+zeroize = { version = "1.7.0", features = ["zeroize_derive"] }
 
 # "Internal" dependencies
 circuit_sequencer_api_1_3_3 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3" }

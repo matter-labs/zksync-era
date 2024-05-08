@@ -4,20 +4,21 @@ use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::client::BoxedL2Client;
-use super::{ConsensusConfig,ConsensusSecrets};
+use zksync_consensus_storage::BlockStore;
+use super::{ConsensusConfig,ConsensusSecrets,ConnectionPool,config,storage::Store};
 
 use crate::{
-    consensus::{storage, Store},
+    consensus::{storage},
     sync_layer::{
         fetcher::FetchedBlock, sync_action::ActionQueueSender, MainNodeClient, SyncState,
     },
 };
 
 /// L2 block fetcher.
-pub struct Fetcher {
-    pub store: Store,
-    pub sync_state: SyncState,
-    pub client: BoxedL2Client,
+pub(super) struct Fetcher {
+    pub(super) pool: ConnectionPool,
+    pub(super) sync_state: SyncState,
+    pub(super) client: BoxedL2Client,
 }
 
 impl Fetcher {
@@ -36,7 +37,7 @@ impl Fetcher {
 
             // Initialize genesis.
             let genesis = self.fetch_genesis(ctx).await.wrap("fetch_genesis()")?;
-            let mut conn = self.store.access(ctx).await.wrap("access()")?;
+            let mut conn = self.pool.connection(ctx).await.wrap("connection()")?;
             conn.try_update_genesis(ctx, &genesis)
                 .await
                 .wrap("set_genesis()")?;
@@ -67,20 +68,17 @@ impl Fetcher {
             });
 
             // Run consensus component.
-            let (block_store, runner) = self
-                .store
-                .clone()
-                .into_block_store(ctx, Some(payload_queue))
-                .await
-                .wrap("into_block_store()")?;
+            let (store,runner) = Store::new(ctx,self.pool.clone(),Some(payload_queue)).await.wrap("Store::new()")?;
+            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
+            let (block_store, runner) = BlockStore::new(ctx,Box::new(store.clone())).await.wrap("BlockStore::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
             let executor = executor::Executor {
-                config: cfg.executor(secrets)?,
+                config: config::executor(&cfg,&secrets)?,
                 block_store,
-                validator: secrets.validator_key.as_ref().map(|key|executor::Validator {
-                    key: key.clone(),
-                    replica_store: Box::new(self.store.clone()),
-                    payload_manager: Box::new(self.store.clone()),
+                validator: config::validator_key(&secrets).context("validator_key")?.map(|key| executor::Validator{
+                    key,
+                    replica_store: Box::new(store.clone()),
+                    payload_manager: Box::new(store.clone()),
                 }),
             };
             executor.run(ctx).await?;
@@ -103,10 +101,10 @@ impl Fetcher {
             // Update sync state in the background.
             s.spawn_bg(self.fetch_state_loop(ctx));
             let mut payload_queue = self
-                .store
-                .access(ctx)
+                .pool
+                .connection(ctx)
                 .await
-                .wrap("access()")?
+                .wrap("connection()")?
                 .new_payload_queue(ctx, actions)
                 .await
                 .wrap("new_fetcher_cursor()")?;
@@ -197,7 +195,7 @@ impl Fetcher {
         .await?;
         // If fetched anything, wait for the last block to be stored persistently.
         if first < queue.next() {
-            self.store
+            self.pool
                 .wait_for_payload(ctx, queue.next().prev().unwrap())
                 .await?;
         }

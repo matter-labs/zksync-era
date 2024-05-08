@@ -18,3 +18,4 @@ anyhow.workspace = true
 rand.workspace = true
 serde = { workspace = true, features = ["derive"] }
 url.workspace = true
+zeroize.workspace = true

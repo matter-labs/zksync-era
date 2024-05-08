@@ -3,15 +3,14 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::validator;
-use zksync_dal::ConnectionPool;
 
-use super::Store;
+use super::{ConnectionPool};
 use crate::{
     genesis::{insert_genesis_batch, GenesisParams},
     utils::testonly::{recover, snapshot, Snapshot},
 };
 
-impl Store {
+impl ConnectionPool {
     /// Waits for the `number` L2 block to have a certificate.
     pub async fn wait_for_certificate(
         &self,
@@ -20,9 +19,9 @@ impl Store {
     ) -> ctx::Result<()> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
         while self
-            .access(ctx)
+            .connection(ctx)
             .await
-            .wrap("access()")?
+            .wrap("connection()")?
             .certificate(ctx, number)
             .await
             .wrap("certificate()")?
@@ -35,13 +34,13 @@ impl Store {
 
     /// Takes a storage snapshot at the last sealed L1 batch.
     pub(crate) async fn snapshot(&self, ctx: &ctx::Ctx) -> ctx::Result<Snapshot> {
-        let mut conn = self.access(ctx).await.wrap("access()")?;
+        let mut conn = self.connection(ctx).await.wrap("connection()")?;
         Ok(ctx.wait(snapshot(&mut conn.0)).await?)
     }
 
     /// Constructs a new db initialized with genesis state.
     pub(crate) async fn from_genesis() -> Self {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = zksync_dal::ConnectionPool::test_pool().await;
         {
             let mut storage = pool.connection().await.unwrap();
             insert_genesis_batch(&mut storage, &GenesisParams::mock())
@@ -53,7 +52,7 @@ impl Store {
 
     /// Recovers storage from a snapshot.
     pub(crate) async fn from_snapshot(snapshot: Snapshot) -> Self {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = zksync_dal::ConnectionPool::test_pool().await;
         {
             let mut storage = pool.connection().await.unwrap();
             recover(&mut storage, snapshot).await;
@@ -68,7 +67,7 @@ impl Store {
         want_last: validator::BlockNumber,
     ) -> ctx::Result<Vec<validator::FinalBlock>> {
         self.wait_for_certificate(ctx, want_last).await?;
-        let mut conn = self.access(ctx).await.wrap("access()")?;
+        let mut conn = self.connection(ctx).await.wrap("connection()")?;
         let last_cert = conn
             .last_certificate(ctx)
             .await
@@ -83,7 +82,7 @@ impl Store {
         let mut blocks: Vec<validator::FinalBlock> = vec![];
         for i in first_cert.header().number.0..=last_cert.header().number.0 {
             let i = validator::BlockNumber(i);
-            let block = self.block(ctx, i).await.context("block()")?.unwrap();
+            let block = conn.block(ctx, i).await.context("block()")?.unwrap();
             blocks.push(block);
         }
         Ok(blocks)
@@ -96,7 +95,14 @@ impl Store {
         want_last: validator::BlockNumber,
     ) -> ctx::Result<Vec<validator::FinalBlock>> {
         let blocks = self.wait_for_certificates(ctx, want_last).await?;
-        let genesis = self.genesis(ctx).await.wrap("genesis()")?;
+        let genesis = self
+            .connection(ctx)
+            .await
+            .wrap("connection()")?
+            .genesis(ctx)
+            .await
+            .wrap("genesis()")?
+            .context("genesis is missing")?;
         for block in &blocks {
             block.verify(&genesis).context(block.number())?;
         }
