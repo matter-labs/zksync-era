@@ -7,7 +7,7 @@ use zksync_system_constants::{
     L2_BASE_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_types::{
-    vm_trace::ViolatedValidationRule, web3::signing::keccak256, AccountTreeId, Address, StorageKey,
+    vm_trace::ViolatedValidationRule, web3::keccak256, AccountTreeId, Address, StorageKey,
     VmVersion, H256, U256,
 };
 use zksync_utils::{be_bytes_to_safe_address, u256_to_account_address, u256_to_h256};

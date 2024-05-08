@@ -1,4 +1,4 @@
-use jsonrpc_core::types::response::Output;
+use jsonrpc_core::types::response::Output; // FIXME: remove this dependency
 use serde_json::Value;
 use zksync_types::{Address, EIP712TypedStructure, Eip712Domain, PackedEthSignature, H256};
 
