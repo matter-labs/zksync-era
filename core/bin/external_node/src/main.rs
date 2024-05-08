@@ -821,14 +821,15 @@ async fn main() -> anyhow::Result<()> {
     // Build L1 and L2 clients.
     let main_node_url = &required_config.main_node_url;
     tracing::info!("Main node URL is: {main_node_url:?}");
-    let main_node_client = Client::<L2>::http(main_node_url.clone())
+    // FIXME: merge
+    let main_node_client = Client::http(L2(0.into()), main_node_url.clone())
         .context("Failed creating JSON-RPC client for main node")?
         .with_allowed_requests_per_second(optional_config.main_node_rate_limit_rps)
         .build();
     let main_node_client = Box::new(main_node_client) as Box<DynClient<L2>>;
 
     let eth_client_url = &required_config.eth_client_url;
-    let eth_client = Client::<L1>::http(eth_client_url.clone())
+    let eth_client = Client::http(L1(0.into()), eth_client_url.clone())
         .context("failed creating JSON-RPC client for Ethereum")?
         .build();
     let eth_client = Box::new(eth_client);

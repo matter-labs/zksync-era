@@ -15,7 +15,6 @@ use std::{
     any,
     collections::HashSet,
     fmt,
-    marker::PhantomData,
     num::NonZeroUsize,
     sync::{Arc, Mutex},
     time::Duration,
@@ -117,13 +116,13 @@ pub struct Client<Net, C = HttpClient> {
     rate_limit: SharedRateLimit,
     component_name: &'static str,
     metrics: &'static L2ClientMetrics,
-    _network: PhantomData<Net>,
+    network: Net,
 }
 
 /// Client using the WebSocket transport.
 pub type WsClient<Net> = Client<Net, Shared<ws_client::WsClient>>;
 
-impl<Net, C: 'static> fmt::Debug for Client<Net, C> {
+impl<Net: fmt::Debug, C: 'static> fmt::Debug for Client<Net, C> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("Client")
@@ -133,27 +132,29 @@ impl<Net, C: 'static> fmt::Debug for Client<Net, C> {
             .field("url", &self.url)
             .field("rate_limit", &self.rate_limit)
             .field("component_name", &self.component_name)
+            .field("network", &self.network)
             .finish_non_exhaustive()
     }
 }
 
 impl<Net: Network> Client<Net> {
     /// Creates an HTTP-backed client.
-    pub fn http(url: SensitiveUrl) -> anyhow::Result<ClientBuilder<Net>> {
+    pub fn http(network: Net, url: SensitiveUrl) -> anyhow::Result<ClientBuilder<Net>> {
         let client = HttpClientBuilder::default().build(url.expose_str())?;
-        Ok(ClientBuilder::new(client, url))
+        Ok(ClientBuilder::new(client, network, url))
     }
 }
 
 impl<Net: Network> WsClient<Net> {
     /// Creates a WS-backed client.
     pub async fn ws(
+        network: Net,
         url: SensitiveUrl,
     ) -> anyhow::Result<ClientBuilder<Net, Shared<ws_client::WsClient>>> {
         let client = ws_client::WsClientBuilder::default()
             .build(url.expose_str())
             .await?;
-        Ok(ClientBuilder::new(Shared::new(client), url))
+        Ok(ClientBuilder::new(Shared::new(client), network, url))
     }
 }
 
@@ -166,11 +167,17 @@ impl<Net: Network, C: ClientBase> Client<Net, C> {
             self.rate_limit.acquire(origin.request_count()),
         )
         .await;
+
+        let network_label = self.network.metric_label();
         let stats = match rate_limit_result {
             Err(_) => {
-                self.metrics
-                    .observe_rate_limit_timeout(self.component_name, origin);
+                self.metrics.observe_rate_limit_timeout(
+                    &network_label,
+                    self.component_name,
+                    origin,
+                );
                 tracing::warn!(
+                    network = network_label,
                     component = self.component_name,
                     %origin,
                     "Request to {origin} by component `{}` timed out during rate limiting using policy {} reqs/{:?}",
@@ -184,9 +191,14 @@ impl<Net: Network, C: ClientBase> Client<Net, C> {
             Ok(stats) => stats,
         };
 
-        self.metrics
-            .observe_rate_limit_latency(self.component_name, origin, &stats);
+        self.metrics.observe_rate_limit_latency(
+            &network_label,
+            self.component_name,
+            origin,
+            &stats,
+        );
         tracing::warn!(
+            network = network_label,
             component = self.component_name,
             %origin,
             "Request to {origin} by component `{}` was rate-limited using policy {} reqs/{:?}: {stats:?}",
@@ -203,7 +215,9 @@ impl<Net: Network, C: ClientBase> Client<Net, C> {
         call_result: Result<T, Error>,
     ) -> Result<T, Error> {
         if let Err(err) = &call_result {
-            self.metrics.observe_error(self.component_name, origin, err);
+            let network_label = self.network.metric_label();
+            self.metrics
+                .observe_error(&network_label, self.component_name, origin, err);
         }
         call_result
     }
@@ -297,28 +311,29 @@ pub struct ClientBuilder<Net, C = HttpClient> {
     client: C,
     url: SensitiveUrl,
     rate_limit: (usize, Duration),
-    _network: PhantomData<Net>,
+    network: Net,
 }
 
-impl<Net, C: 'static> fmt::Debug for ClientBuilder<Net, C> {
+impl<Net: fmt::Debug, C: 'static> fmt::Debug for ClientBuilder<Net, C> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("L2ClientBuilder")
             .field("client", &any::type_name::<C>())
             .field("url", &self.url)
             .field("rate_limit", &self.rate_limit)
+            .field("network", &self.network)
             .finish_non_exhaustive()
     }
 }
 
 impl<Net: Network, C: ClientBase> ClientBuilder<Net, C> {
     /// Wraps the provided client.
-    fn new(client: C, url: SensitiveUrl) -> Self {
+    fn new(client: C, network: Net, url: SensitiveUrl) -> Self {
         Self {
             client,
             url,
             rate_limit: (1, Duration::ZERO),
-            _network: PhantomData,
+            network,
         }
     }
 
@@ -341,12 +356,13 @@ impl<Net: Network, C: ClientBase> ClientBuilder<Net, C> {
     /// Builds the client.
     pub fn build(self) -> Client<Net, C> {
         tracing::info!(
-            "Creating JSON-RPC client with inner client: {:?} and rate limit: {:?}",
+            "Creating JSON-RPC client for network {:?} with inner client: {:?} and rate limit: {:?}",
+            self.network,
             self.client,
             self.rate_limit
         );
         let rate_limit = SharedRateLimit::new(self.rate_limit.0, self.rate_limit.1);
-        METRICS.observe_config(&rate_limit);
+        METRICS.observe_config(self.network.metric_label(), &rate_limit);
 
         Client {
             inner: self.client,
@@ -354,7 +370,7 @@ impl<Net: Network, C: ClientBase> ClientBuilder<Net, C> {
             rate_limit,
             component_name: "",
             metrics: &METRICS,
-            _network: PhantomData,
+            network: self.network,
         }
     }
 }

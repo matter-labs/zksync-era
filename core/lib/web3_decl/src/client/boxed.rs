@@ -174,12 +174,12 @@ impl<Net: Network> ClientT for Box<DynClient<Net>> {
 }
 
 impl<Net: Network> TaggedClient for Box<DynClient<Net>> {
-    fn component(&self) -> &'static str {
-        (**self).component()
-    }
-
     fn for_component(self, component_name: &'static str) -> Self {
         ObjectSafeClient::for_component(self, component_name)
+    }
+
+    fn component(&self) -> &'static str {
+        (**self).component()
     }
 }
 

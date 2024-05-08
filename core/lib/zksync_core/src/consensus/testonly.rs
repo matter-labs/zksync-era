@@ -282,9 +282,12 @@ impl StateKeeper {
         let addr = sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some)
             .await?
             .unwrap();
-        let client = Client::<L2>::http(format!("http://{addr}/").parse().context("url")?)
-            .context("json_rpc()")?
-            .build();
+        let client = Client::http(
+            L2::default(),
+            format!("http://{addr}/").parse().context("url")?,
+        )
+        .context("json_rpc()")?
+        .build();
         Ok(Box::new(client))
     }
 

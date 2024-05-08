@@ -114,7 +114,7 @@ impl EthClient for EthHttpQueryClient {
         // This code is compatible with both Infura and Alchemy API providers.
         // Note: we don't handle rate-limits here - assumption is that we're never going to hit them.
         if let Err(EthClientError::EthereumGateway(err)) = &result {
-            tracing::warn!("Provider returned error message: {:?}", err);
+            tracing::warn!("Provider returned error message: {err}");
             let err_message = err.as_ref().to_string();
             let err_code = if let ClientError::Call(err) = err.as_ref() {
                 Some(err.code())

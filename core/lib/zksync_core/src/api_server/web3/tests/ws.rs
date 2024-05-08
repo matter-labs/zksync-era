@@ -185,7 +185,7 @@ async fn test_ws_server(test: impl WsTest) {
     .await;
 
     let local_addr = server_handles.wait_until_ready().await;
-    let client = Client::ws(format!("ws://{local_addr}").parse().unwrap())
+    let client = Client::ws(L2::default(), format!("ws://{local_addr}").parse().unwrap())
         .await
         .unwrap()
         .build();

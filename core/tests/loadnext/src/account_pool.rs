@@ -94,7 +94,8 @@ impl AccountPool {
         let l2_chain_id = L2ChainId::try_from(config.l2_chain_id)
             .map_err(|err| anyhow::anyhow!("invalid L2 chain ID: {err}"))?;
         // Create a client for pinging the RPC.
-        let client = Client::<L2>::http(
+        let client = Client::http(
+            L2(l2_chain_id),
             config
                 .l2_rpc_address
                 .parse()

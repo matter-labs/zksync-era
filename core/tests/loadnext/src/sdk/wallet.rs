@@ -42,7 +42,7 @@ where
         let rpc_address = rpc_address
             .parse()
             .map_err(|err| ClientError::NetworkError(format!("error parsing RPC url: {err}")))?;
-        let client = Client::http(rpc_address)
+        let client = Client::http(L2(signer.chain_id), rpc_address)
             .map_err(|err| ClientError::NetworkError(err.to_string()))?
             .build();
 

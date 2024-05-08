@@ -300,7 +300,7 @@ pub async fn initialize_components(
         panic!("Circuit breaker triggered: {}", err);
     });
 
-    let query_client = Client::<L1>::http(eth.web3_url.clone())
+    let query_client = Client::http(L1(genesis_config.l1_chain_id), eth.web3_url.clone())
         .context("Ethereum client")?
         .build();
     let query_client = Box::new(query_client);
@@ -313,6 +313,7 @@ pub async fn initialize_components(
         };
 
     let mut gas_adjuster = GasAdjusterSingleton::new(
+        genesis_config.l1_chain_id,
         eth.web3_url.clone(),
         gas_adjuster_config,
         sender.pubdata_sending_mode,

@@ -13,6 +13,7 @@ use jsonrpsee::{
 };
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use test_casing::test_casing;
+use zksync_types::L2ChainId;
 
 use super::{
     metrics::{HttpErrorLabels, RequestLabels, RpcErrorLabels},
@@ -215,10 +216,14 @@ async fn wrapping_mock_client() {
         })
     });
 
-    let mut client = ClientBuilder::<L2, _>::new(client, "http://localhost".parse().unwrap())
-        .with_allowed_requests_per_second(NonZeroUsize::new(100).unwrap())
-        .build()
-        .for_component("test");
+    let mut client = ClientBuilder::new(
+        client,
+        L2(L2ChainId::default()),
+        "http://localhost".parse().unwrap(),
+    )
+    .with_allowed_requests_per_second(NonZeroUsize::new(100).unwrap())
+    .build()
+    .for_component("test");
     let metrics = &*Box::leak(Box::default());
     client.metrics = metrics;
     assert_eq!(
@@ -242,11 +247,13 @@ async fn wrapping_mock_client() {
 
     // Check that the batch hit the rate limit.
     let labels = RequestLabels {
+        network: "l2_270".to_string(),
         component: "test",
         method: "ok".to_string(),
     };
     assert!(metrics.rate_limit_latency.contains(&labels), "{metrics:?}");
     let labels = RequestLabels {
+        network: "l2_270".to_string(),
         component: "test",
         method: "slow".to_string(),
     };
@@ -259,6 +266,7 @@ async fn wrapping_mock_client() {
         .unwrap_err();
     assert_matches!(err, Error::Call(_));
     let labels = RpcErrorLabels {
+        network: "l2_270".to_string(),
         component: "test",
         method: "unknown".to_string(),
         code: ErrorCode::MethodNotFound.code(),
@@ -271,6 +279,7 @@ async fn wrapping_mock_client() {
         .unwrap_err();
     assert_matches!(err, Error::Transport(_));
     let labels = HttpErrorLabels {
+        network: "l2_270".to_string(),
         component: "test",
         method: "rate_limit".to_string(),
         status: Some(429),

@@ -129,7 +129,8 @@ async fn main() -> anyhow::Result<()> {
             json,
             operator_address,
         } => {
-            let eth_client = Client::<L1>::http(eth_sender.web3_url.clone())
+            // FIXME: doesn't work
+            let eth_client = Client::http(L1(0.into()), eth_sender.web3_url.clone())
                 .context("Ethereum client")?
                 .build();
 
@@ -147,7 +148,7 @@ async fn main() -> anyhow::Result<()> {
             priority_fee_per_gas,
             nonce,
         } => {
-            let eth_client = Client::<L1>::http(eth_sender.web3_url.clone())
+            let eth_client = Client::http(L1(0.into()), eth_sender.web3_url.clone())
                 .context("Ethereum client")?
                 .build();
             #[allow(deprecated)]

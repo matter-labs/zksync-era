@@ -181,7 +181,7 @@ async fn main() -> anyhow::Result<()> {
 
         if let Some(ecosystem_contracts) = &contracts_config.ecosystem_contracts {
             let eth_config = configs.eth.as_ref().context("eth config")?;
-            let query_client = Client::<L1>::http(eth_config.web3_url.clone())
+            let query_client = Client::http(L1(genesis.l1_chain_id), eth_config.web3_url.clone())
                 .context("Ethereum client")?
                 .build();
             zksync_node_genesis::save_set_chain_id_tx(
