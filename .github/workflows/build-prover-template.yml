@@ -41,7 +41,7 @@ jobs:
       RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
       ERA_BELLMAN_CUDA_RELEASE: ${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
       CUDA_ARCH: ${{ inputs.CUDA_ARCH }}
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner ]
     strategy:
       matrix:
         component:
@@ -51,6 +51,7 @@ jobs:
           - witness-vector-generator
           - prover-fri-gateway
           - proof-fri-compressor
+          - proof-gpu-fri-compressor
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
@@ -82,6 +83,7 @@ jobs:
       - name: download CRS
         if: matrix.component == 'proof-fri-compressor'
         run: |
+          ci_run curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
           ci_run curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
       - name: login to Docker registries
@@ -137,7 +139,7 @@ jobs:
         env:
           DOCKER_ACTION: ${{ inputs.action }}
           COMPONENT: ${{ matrix.component }}
-        run: |          
+        run: |
           PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE,CUDA_ARCH" \
           ci_run zk docker $DOCKER_ACTION $COMPONENT
 

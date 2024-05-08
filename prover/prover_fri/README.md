@@ -174,7 +174,7 @@ There is an option to run compressors with the GPU, which will significantly imp
 1. The hardware setup should be the same as for GPU prover
 2. Install and compile `era-bellman-cuda` library
    ```console
-   git clone https://github.com/matter-labs/bellman-cuda.git --branch dev bellman-cuda; fi
+   git clone https://github.com/matter-labs/bellman-cuda.git --branch dev bellman-cuda
    cmake -Bbellman-cuda/build -Sbellman-cuda/ -DCMAKE_BUILD_TYPE=Release
    cmake --build bellman-cuda/build/
    ```
