@@ -36,7 +36,7 @@ async fn get_batches_data(
     batches: Vec<L1BatchNumber>,
     db_url: SensitiveUrl,
 ) -> anyhow::Result<Vec<BatchData>> {
-    let prover_connection_pool = ConnectionPool::<Prover>::builder(db_url, 200)
+    let prover_connection_pool = ConnectionPool::<Prover>::singleton(db_url)
         .build()
         .await
         .context("failed to build a prover_connection_pool")?;
