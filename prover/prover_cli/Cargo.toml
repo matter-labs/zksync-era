@@ -12,10 +12,9 @@ categories.workspace = true
 [dependencies]
 dialoguer.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
-colored.workspace = true
 clap = { workspace = true, features = ["derive"] }
-tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
+tracing.workspace = true
 bincode.workspace = true
 hex.workspace = true
 anyhow.workspace = true
@@ -27,4 +26,9 @@ zksync_types.workspace = true
 zksync_prover_fri_types.workspace = true
 zksync_prover_interface.workspace = true
 prover_dal.workspace = true
+zksync_eth_client.workspace = true
+zksync_contracts.workspace = true
+zksync_dal.workspace = true
 strum.workspace = true
+colored.workspace = true
+sqlx.workspace = true
