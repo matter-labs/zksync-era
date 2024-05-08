@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use zksync_dal::{CoreDal, DalError};
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
@@ -12,7 +13,7 @@ use zksync_types::{
         self,
         types::{FeeHistory, SyncInfo, SyncState},
     },
-    AccountTreeId, Bytes, MiniblockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS, U256,
+    AccountTreeId, Bytes, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
@@ -41,23 +42,17 @@ impl EthNamespace {
         &self.state.current_method
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_block_number_impl(&self) -> Result<U64, Web3Error> {
-        let mut storage = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut storage = self.state.acquire_connection().await?;
         let block_number = storage
             .blocks_dal()
-            .get_sealed_miniblock_number()
+            .get_sealed_l2_block_number()
             .await
-            .context("get_sealed_miniblock_number")?
+            .map_err(DalError::generalize)?
             .ok_or(Web3Error::NoBlock)?;
         Ok(block_number.0.into())
     }
 
-    #[tracing::instrument(skip(self, request, block_id))]
     pub async fn call_impl(
         &self,
         request: CallRequest,
@@ -66,18 +61,14 @@ impl EthNamespace {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         self.current_method().set_block_id(block_id);
 
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut connection = self.state.acquire_connection().await?;
         let block_args = self
             .state
             .resolve_block_args(&mut connection, block_id)
             .await?;
         self.current_method().set_block_diff(
             self.state
-                .last_sealed_miniblock
+                .last_sealed_l2_block
                 .diff_with_block_args(&block_args),
         );
         drop(connection);
@@ -87,7 +78,6 @@ impl EthNamespace {
         Ok(call_result.into())
     }
 
-    #[tracing::instrument(skip(self, request, _block))]
     pub async fn estimate_gas_impl(
         &self,
         request: CallRequest,
@@ -133,18 +123,16 @@ impl EthNamespace {
         let fee = self
             .state
             .tx_sender
-            .get_txs_fee_in_wei(tx.into(), scale_factor, acceptable_overestimation)
+            .get_txs_fee_in_wei(tx.into(), scale_factor, acceptable_overestimation as u64)
             .await?;
         Ok(fee.gas_limit)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn gas_price_impl(&self) -> Result<U256, Web3Error> {
         let gas_price = self.state.tx_sender.gas_price().await?;
         Ok(gas_price.into())
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_balance_impl(
         &self,
         address: Address,
@@ -153,33 +141,28 @@ impl EthNamespace {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         self.current_method().set_block_id(block_id);
 
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut connection = self.state.acquire_connection().await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
 
         let balance = connection
             .storage_web3_dal()
             .standard_token_historical_balance(
-                AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
+                AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
                 AccountTreeId::new(address),
                 block_number,
             )
             .await
-            .context("standard_token_historical_balance")?;
+            .map_err(DalError::generalize)?;
         self.set_block_diff(block_number);
 
         Ok(balance)
     }
 
-    fn set_block_diff(&self, block_number: MiniblockNumber) {
-        let diff = self.state.last_sealed_miniblock.diff(block_number);
+    fn set_block_diff(&self, block_number: L2BlockNumber) {
+        let diff = self.state.last_sealed_l2_block.diff(block_number);
         self.current_method().set_block_diff(diff);
     }
 
-    #[tracing::instrument(skip(self, filter))]
     pub async fn get_logs_impl(&self, mut filter: Filter) -> Result<Vec<Log>, Web3Error> {
         self.state.resolve_filter_block_hash(&mut filter).await?;
         let (from_block, to_block) = self.state.resolve_filter_block_range(&filter).await?;
@@ -220,20 +203,19 @@ impl EthNamespace {
         Ok(logs)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_block_impl(
         &self,
         block_id: BlockId,
         full_transactions: bool,
     ) -> Result<Option<Block<TransactionVariant>>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        self.state.start_info.ensure_not_pruned(block_id)?;
+        let mut storage = self.state.acquire_connection().await?;
 
-        let mut storage = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
+        self.state
+            .start_info
+            .ensure_not_pruned(block_id, &mut storage)
             .await?;
+
         let Some(block_number) = self
             .state
             .resolve_block_unchecked(&mut storage, block_id)
@@ -245,7 +227,7 @@ impl EthNamespace {
             .blocks_web3_dal()
             .get_api_block(block_number)
             .await
-            .with_context(|| format!("get_api_block({block_number})"))?
+            .map_err(DalError::generalize)?
         else {
             return Ok(None);
         };
@@ -256,7 +238,7 @@ impl EthNamespace {
                 .transactions_web3_dal()
                 .get_transactions(&block.transactions, self.state.api_config.l2_chain_id)
                 .await
-                .context("get_transactions")?;
+                .map_err(DalError::generalize)?;
             if transactions.len() != block.transactions.len() {
                 let err = anyhow::anyhow!(
                     "storage inconsistency: get_api_block({block_number}) returned {} tx hashes, but get_transactions({:?}) \
@@ -287,19 +269,18 @@ impl EthNamespace {
         Ok(Some(block.with_transactions(transactions)))
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_block_transaction_count_impl(
         &self,
         block_id: BlockId,
     ) -> Result<Option<U256>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        self.state.start_info.ensure_not_pruned(block_id)?;
+        let mut storage = self.state.acquire_connection().await?;
 
-        let mut storage = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
+        self.state
+            .start_info
+            .ensure_not_pruned(block_id, &mut storage)
             .await?;
+
         let Some(block_number) = self
             .state
             .resolve_block_unchecked(&mut storage, block_id)
@@ -311,27 +292,26 @@ impl EthNamespace {
             .blocks_web3_dal()
             .get_block_tx_count(block_number)
             .await
-            .with_context(|| format!("get_block_tx_count({block_number})"))?;
+            .map_err(DalError::generalize)?;
 
         if tx_count.is_some() {
-            self.set_block_diff(block_number); // only report block diff for existing miniblocks
+            self.set_block_diff(block_number); // only report block diff for existing L2 blocks
         }
         Ok(tx_count.map(Into::into))
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_block_receipts_impl(
         &self,
         block_id: BlockId,
     ) -> Result<Option<Vec<TransactionReceipt>>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        self.state.start_info.ensure_not_pruned(block_id)?;
+        let mut storage = self.state.acquire_connection().await?;
 
-        let mut storage = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
+        self.state
+            .start_info
+            .ensure_not_pruned(block_id, &mut storage)
             .await?;
+
         let Some(block_number) = self
             .state
             .resolve_block_unchecked(&mut storage, block_id)
@@ -343,11 +323,11 @@ impl EthNamespace {
             .blocks_web3_dal()
             .get_api_block(block_number)
             .await
-            .with_context(|| format!("get_api_block({block_number})"))?
+            .map_err(DalError::generalize)?
         else {
             return Ok(None);
         };
-        self.set_block_diff(block_number); // only report block diff for existing miniblocks
+        self.set_block_diff(block_number); // only report block diff for existing L2 blocks
 
         let mut receipts = storage
             .transactions_web3_dal()
@@ -358,7 +338,6 @@ impl EthNamespace {
         Ok(Some(receipts))
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_code_impl(
         &self,
         address: Address,
@@ -367,11 +346,7 @@ impl EthNamespace {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         self.current_method().set_block_id(block_id);
 
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut connection = self.state.acquire_connection().await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         self.set_block_diff(block_number);
 
@@ -379,16 +354,14 @@ impl EthNamespace {
             .storage_web3_dal()
             .get_contract_code_unchecked(address, block_number)
             .await
-            .context("get_contract_code_unchecked")?;
+            .map_err(DalError::generalize)?;
         Ok(contract_code.unwrap_or_default().into())
     }
 
-    #[tracing::instrument(skip(self))]
     pub fn chain_id_impl(&self) -> U64 {
         self.state.api_config.l2_chain_id.as_u64().into()
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_storage_at_impl(
         &self,
         address: Address,
@@ -399,23 +372,18 @@ impl EthNamespace {
         self.current_method().set_block_id(block_id);
 
         let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(idx));
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut connection = self.state.acquire_connection().await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         self.set_block_diff(block_number);
         let value = connection
             .storage_web3_dal()
             .get_historical_value_unchecked(&storage_key, block_number)
             .await
-            .context("get_historical_value_unchecked")?;
+            .map_err(DalError::generalize)?;
         Ok(value)
     }
 
     /// Account nonce.
-    #[tracing::instrument(skip(self))]
     pub async fn get_transaction_count_impl(
         &self,
         address: Address,
@@ -424,11 +392,7 @@ impl EthNamespace {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         self.current_method().set_block_id(block_id);
 
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut connection = self.state.acquire_connection().await?;
 
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         self.set_block_diff(block_number);
@@ -436,7 +400,7 @@ impl EthNamespace {
             .storage_web3_dal()
             .get_address_historical_nonce(address, block_number)
             .await
-            .context("get_address_historical_nonce")?;
+            .map_err(DalError::generalize)?;
 
         // TODO (SMA-1612): currently account nonce is returning always, but later we will
         //  return account nonce for account abstraction and deployment nonce for non account abstraction.
@@ -459,29 +423,24 @@ impl EthNamespace {
                     .transactions_web3_dal()
                     .next_nonce_by_initiator_account(address, account_nonce_u64)
                     .await
-                    .context("next_nonce_by_initiator_account")?
+                    .map_err(DalError::generalize)?
             };
         }
         Ok(account_nonce)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_transaction_impl(
         &self,
         id: TransactionId,
     ) -> Result<Option<Transaction>, Web3Error> {
-        let mut storage = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut storage = self.state.acquire_connection().await?;
         let chain_id = self.state.api_config.l2_chain_id;
         let mut transaction = match id {
             TransactionId::Hash(hash) => storage
                 .transactions_web3_dal()
                 .get_transaction_by_hash(hash, chain_id)
                 .await
-                .with_context(|| format!("get_transaction_by_hash({hash:?})"))?,
+                .map_err(DalError::generalize)?,
 
             TransactionId::Block(block_id, idx) => {
                 let Ok(idx) = u32::try_from(idx) else {
@@ -499,9 +458,7 @@ impl EthNamespace {
                     .transactions_web3_dal()
                     .get_transaction_by_position(block_number, idx, chain_id)
                     .await
-                    .with_context(|| {
-                        format!("get_transaction_by_position({block_number}, {idx})")
-                    })?
+                    .map_err(DalError::generalize)?
             }
         };
 
@@ -511,16 +468,12 @@ impl EthNamespace {
         Ok(transaction)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_transaction_receipt_impl(
         &self,
         hash: H256,
     ) -> Result<Option<TransactionReceipt>, Web3Error> {
-        let receipts = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?
+        let mut storage = self.state.acquire_connection().await?;
+        let receipts = storage
             .transactions_web3_dal()
             .get_transaction_receipts(&[hash])
             .await
@@ -528,24 +481,19 @@ impl EthNamespace {
         Ok(receipts.into_iter().next())
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn new_block_filter_impl(&self) -> Result<U256, Web3Error> {
         let installed_filters = self
             .state
             .installed_filters
             .as_ref()
             .ok_or(Web3Error::NotImplemented)?;
-        let mut storage = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut storage = self.state.acquire_connection().await?;
         let last_block_number = storage
             .blocks_dal()
-            .get_sealed_miniblock_number()
+            .get_sealed_l2_block_number()
             .await
-            .context("get_sealed_miniblock_number")?
-            .context("no miniblocks in storage")?;
+            .map_err(DalError::generalize)?
+            .context("no L2 blocks in storage")?;
         let next_block_number = last_block_number + 1;
         drop(storage);
 
@@ -555,7 +503,6 @@ impl EthNamespace {
             .add(TypedFilter::Blocks(next_block_number)))
     }
 
-    #[tracing::instrument(skip(self, filter))]
     pub async fn new_filter_impl(&self, mut filter: Filter) -> Result<U256, Web3Error> {
         let installed_filters = self
             .state
@@ -576,7 +523,6 @@ impl EthNamespace {
             .add(TypedFilter::Events(filter, from_block)))
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn new_pending_transaction_filter_impl(&self) -> Result<U256, Web3Error> {
         let installed_filters = self
             .state
@@ -591,7 +537,6 @@ impl EthNamespace {
             )))
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn get_filter_changes_impl(&self, idx: U256) -> Result<FilterChanges, Web3Error> {
         let installed_filters = self
             .state
@@ -618,7 +563,6 @@ impl EthNamespace {
         }
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn uninstall_filter_impl(&self, idx: U256) -> Result<bool, Web3Error> {
         let installed_filters = self
             .state
@@ -628,13 +572,11 @@ impl EthNamespace {
         Ok(installed_filters.lock().await.remove(idx))
     }
 
-    #[tracing::instrument(skip(self))]
     pub fn protocol_version(&self) -> String {
         // TODO (SMA-838): Versioning of our protocol
         PROTOCOL_VERSION.to_string()
     }
 
-    #[tracing::instrument(skip(self, tx_bytes))]
     pub async fn send_raw_transaction_impl(&self, tx_bytes: Bytes) -> Result<H256, Web3Error> {
         let (mut tx, hash) = self.state.parse_transaction_bytes(&tx_bytes.0)?;
         tx.set_input(tx_bytes.0, hash);
@@ -647,12 +589,10 @@ impl EthNamespace {
         })
     }
 
-    #[tracing::instrument(skip(self))]
     pub fn accounts_impl(&self) -> Vec<Address> {
         Vec::new()
     }
 
-    #[tracing::instrument(skip(self))]
     pub fn syncing_impl(&self) -> SyncState {
         if let Some(state) = &self.state.sync_state {
             // Node supports syncing process (i.e. not the main node).
@@ -671,7 +611,6 @@ impl EthNamespace {
         }
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn fee_history_impl(
         &self,
         block_count: U64,
@@ -687,26 +626,22 @@ impl EthNamespace {
             .min(self.state.api_config.fee_history_limit)
             .max(1);
 
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
-        let newest_miniblock = self
+        let mut connection = self.state.acquire_connection().await?;
+        let newest_l2_block = self
             .state
             .resolve_block(&mut connection, BlockId::Number(newest_block))
             .await?;
-        self.set_block_diff(newest_miniblock);
+        self.set_block_diff(newest_l2_block);
 
         let mut base_fee_per_gas = connection
             .blocks_web3_dal()
-            .get_fee_history(newest_miniblock, block_count)
+            .get_fee_history(newest_l2_block, block_count)
             .await
-            .context("get_fee_history")?;
+            .map_err(DalError::generalize)?;
         // DAL method returns fees in DESC order while we need ASC.
         base_fee_per_gas.reverse();
 
-        let oldest_block = newest_miniblock.0 + 1 - base_fee_per_gas.len() as u32;
+        let oldest_block = newest_l2_block.0 + 1 - base_fee_per_gas.len() as u32;
         // We do not store gas used ratio for blocks, returns array of zeroes as a placeholder.
         let gas_used_ratio = vec![0.0; base_fee_per_gas.len()];
         // Effective priority gas price is currently 0.
@@ -715,7 +650,7 @@ impl EthNamespace {
             base_fee_per_gas.len()
         ]);
 
-        // `base_fee_per_gas` for next miniblock cannot be calculated, appending last fee as a placeholder.
+        // `base_fee_per_gas` for next L2 block cannot be calculated, appending last fee as a placeholder.
         base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
         Ok(FeeHistory {
             oldest_block: web3::types::BlockNumber::Number(oldest_block.into()),
@@ -725,23 +660,18 @@ impl EthNamespace {
         })
     }
 
-    #[tracing::instrument(skip(self, typed_filter))]
     async fn filter_changes(
         &self,
         typed_filter: &mut TypedFilter,
     ) -> Result<FilterChanges, Web3Error> {
         Ok(match typed_filter {
             TypedFilter::Blocks(from_block) => {
-                let mut conn = self
-                    .state
-                    .connection_pool
-                    .access_storage_tagged("api")
-                    .await?;
+                let mut conn = self.state.acquire_connection().await?;
                 let (block_hashes, last_block_number) = conn
                     .blocks_web3_dal()
                     .get_block_hashes_since(*from_block, self.state.api_config.req_entities_limit)
                     .await
-                    .context("get_block_hashes_since")?;
+                    .map_err(DalError::generalize)?;
 
                 *from_block = match last_block_number {
                     Some(last_block_number) => last_block_number + 1,
@@ -752,23 +682,36 @@ impl EthNamespace {
             }
 
             TypedFilter::PendingTransactions(from_timestamp_excluded) => {
-                let mut conn = self
-                    .state
-                    .connection_pool
-                    .access_storage_tagged("api")
-                    .await?;
-                let (tx_hashes, last_timestamp) = conn
-                    .transactions_web3_dal()
-                    .get_pending_txs_hashes_after(
-                        *from_timestamp_excluded,
-                        Some(self.state.api_config.req_entities_limit),
-                    )
-                    .await
-                    .context("get_pending_txs_hashes_after")?;
+                // Attempt to get pending transactions from cache.
 
-                *from_timestamp_excluded = last_timestamp.unwrap_or(*from_timestamp_excluded);
+                let tx_hashes_from_cache = if let Some(cache) = &self.state.mempool_cache {
+                    cache.get_tx_hashes_after(*from_timestamp_excluded).await
+                } else {
+                    None
+                };
+                let tx_hashes = if let Some(mut result) = tx_hashes_from_cache {
+                    result.truncate(self.state.api_config.req_entities_limit);
+                    result
+                } else {
+                    // On cache miss, query the database.
+                    let mut conn = self.state.acquire_connection().await?;
+                    conn.transactions_web3_dal()
+                        .get_pending_txs_hashes_after(
+                            *from_timestamp_excluded,
+                            Some(self.state.api_config.req_entities_limit),
+                        )
+                        .await
+                        .map_err(DalError::generalize)?
+                };
 
-                FilterChanges::Hashes(tx_hashes)
+                // It's possible the `tx_hashes` vector is empty,
+                // meaning there are no transactions in cache that are newer than `from_timestamp_excluded`.
+                // In this case we should return empty result and don't update `from_timestamp_excluded`.
+                if let Some((last_timestamp, _)) = tx_hashes.last() {
+                    *from_timestamp_excluded = *last_timestamp;
+                }
+
+                FilterChanges::Hashes(tx_hashes.into_iter().map(|(_, hash)| hash).collect())
             }
 
             TypedFilter::Events(filter, from_block) => {
@@ -809,28 +752,24 @@ impl EthNamespace {
                     topics,
                 };
 
-                let mut storage = self
-                    .state
-                    .connection_pool
-                    .access_storage_tagged("api")
-                    .await?;
+                let mut storage = self.state.acquire_connection().await?;
 
                 // Check if there is more than one block in range and there are more than `req_entities_limit` logs that satisfies filter.
                 // In this case we should return error and suggest requesting logs with smaller block range.
                 if *from_block != to_block {
-                    if let Some(miniblock_number) = storage
+                    if let Some(l2_block_number) = storage
                         .events_web3_dal()
                         .get_log_block_number(
                             &get_logs_filter,
                             self.state.api_config.req_entities_limit,
                         )
                         .await
-                        .context("get_log_block_number")?
+                        .map_err(DalError::generalize)?
                     {
                         return Err(Web3Error::LogsLimitExceeded(
                             self.state.api_config.req_entities_limit,
                             from_block.0,
-                            miniblock_number.0 - 1,
+                            l2_block_number.0 - 1,
                         ));
                     }
                 }
@@ -839,7 +778,7 @@ impl EthNamespace {
                     .events_web3_dal()
                     .get_logs(get_logs_filter, i32::MAX as usize)
                     .await
-                    .context("get_logs")?;
+                    .map_err(DalError::generalize)?;
                 *from_block = to_block + 1;
                 FilterChanges::Logs(logs)
             }

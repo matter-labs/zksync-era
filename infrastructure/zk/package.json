@@ -19,7 +19,8 @@
         "handlebars": "^4.7.8",
         "node-fetch": "^2.6.1",
         "pg": "^8.11.3",
-        "tabtab": "^3.0.2"
+        "tabtab": "^3.0.2",
+        "enquirer": "^2.4.1"
     },
     "devDependencies": {
         "@matterlabs/hardhat-zksync-solc": "^0.3.15",

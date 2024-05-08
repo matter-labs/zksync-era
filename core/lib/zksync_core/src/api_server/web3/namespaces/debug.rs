@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use multivm::{interface::ExecutionResult, vm_latest::constants::BLOCK_GAS_LIMIT};
+use multivm::{interface::ExecutionResult, vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT};
 use once_cell::sync::OnceCell;
+use zksync_dal::{CoreDal, DalError};
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
@@ -29,22 +30,23 @@ pub(crate) struct DebugNamespace {
 }
 
 impl DebugNamespace {
-    pub async fn new(state: RpcState) -> Self {
+    pub async fn new(state: RpcState) -> anyhow::Result<Self> {
         let api_contracts = ApiContracts::load_from_disk();
-        Self {
+        let fee_input_provider = &state.tx_sender.0.batch_fee_input_provider;
+        let batch_fee_input = fee_input_provider
+            .get_batch_fee_input_scaled(
+                state.api_config.estimate_gas_scale_factor,
+                state.api_config.estimate_gas_scale_factor,
+            )
+            .await
+            .context("cannot get batch fee input")?;
+
+        Ok(Self {
             // For now, the same scaling is used for both the L1 gas price and the pubdata price
-            batch_fee_input: state
-                .tx_sender
-                .0
-                .batch_fee_input_provider
-                .get_batch_fee_input_scaled(
-                    state.api_config.estimate_gas_scale_factor,
-                    state.api_config.estimate_gas_scale_factor,
-                )
-                .await,
+            batch_fee_input,
             state,
             api_contracts,
-        }
+        })
     }
 
     fn sender_config(&self) -> &TxSenderConfig {
@@ -55,7 +57,6 @@ impl DebugNamespace {
         &self.state.current_method
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn debug_trace_block_impl(
         &self,
         block_id: BlockId,
@@ -66,20 +67,16 @@ impl DebugNamespace {
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut connection = self.state.acquire_connection().await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         self.current_method()
-            .set_block_diff(self.state.last_sealed_miniblock.diff(block_number));
+            .set_block_diff(self.state.last_sealed_l2_block.diff(block_number));
 
         let call_traces = connection
             .blocks_web3_dal()
-            .get_traces_for_miniblock(block_number)
+            .get_traces_for_l2_block(block_number)
             .await
-            .context("get_traces_for_miniblock")?;
+            .map_err(DalError::generalize)?;
         let call_trace = call_traces
             .into_iter()
             .map(|call_trace| {
@@ -93,7 +90,6 @@ impl DebugNamespace {
         Ok(call_trace)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn debug_trace_block_flat_impl(
         &self,
         block_id: BlockId,
@@ -104,7 +100,6 @@ impl DebugNamespace {
         Ok(call_trace_flat)
     }
 
-    #[tracing::instrument(skip(self))]
     pub async fn debug_trace_transaction_impl(
         &self,
         tx_hash: H256,
@@ -113,16 +108,12 @@ impl DebugNamespace {
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut connection = self.state.acquire_connection().await?;
         let call_trace = connection
             .transactions_dal()
             .get_call_trace(tx_hash)
             .await
-            .context("get_call_trace")?;
+            .map_err(DalError::generalize)?;
         Ok(call_trace.map(|call_trace| {
             let mut result: DebugCall = call_trace.into();
             if only_top_call {
@@ -132,7 +123,6 @@ impl DebugNamespace {
         }))
     }
 
-    #[tracing::instrument(skip(self, request, block_id))]
     pub async fn debug_trace_call_impl(
         &self,
         request: CallRequest,
@@ -146,11 +136,7 @@ impl DebugNamespace {
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
 
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut connection = self.state.acquire_connection().await?;
         let block_args = self
             .state
             .resolve_block_args(&mut connection, block_id)
@@ -159,12 +145,12 @@ impl DebugNamespace {
 
         self.current_method().set_block_diff(
             self.state
-                .last_sealed_miniblock
+                .last_sealed_l2_block
                 .diff_with_block_args(&block_args),
         );
         let tx = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;
 
-        let shared_args = self.shared_args();
+        let shared_args = self.shared_args().await;
         let vm_permit = self
             .state
             .tx_sender
@@ -211,7 +197,7 @@ impl DebugNamespace {
             .take()
             .unwrap_or_default();
         let call = Call::new_high_level(
-            tx.common_data.fee.gas_limit.as_u32(),
+            tx.common_data.fee.gas_limit.as_u64(),
             result.statistics.gas_used,
             tx.execute.value,
             tx.execute.calldata,
@@ -222,15 +208,20 @@ impl DebugNamespace {
         Ok(call.into())
     }
 
-    fn shared_args(&self) -> TxSharedArgs {
+    async fn shared_args(&self) -> TxSharedArgs {
         let sender_config = self.sender_config();
         TxSharedArgs {
             operator_account: AccountTreeId::default(),
             fee_input: self.batch_fee_input,
             base_system_contracts: self.api_contracts.eth_call.clone(),
             caches: self.state.tx_sender.storage_caches().clone(),
-            validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+            validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             chain_id: sender_config.chain_id,
+            whitelisted_tokens_for_aa: self
+                .state
+                .tx_sender
+                .read_whitelisted_tokens_for_aa_cache()
+                .await,
         }
     }
 }

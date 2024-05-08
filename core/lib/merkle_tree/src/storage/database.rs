@@ -1,11 +1,11 @@
 //! `Database` trait and its implementations.
 
-use std::ops;
+use std::{any::Any, ops};
 
 use crate::{
     errors::DeserializeError,
     storage::patch::PatchSet,
-    types::{Manifest, Node, NodeKey, Root},
+    types::{Manifest, Node, NodeKey, ProfiledTreeOperation, Root},
 };
 
 /// Slice of node keys together with an indicator whether a node at the requested key is a leaf.
@@ -77,6 +77,9 @@ pub trait Database: Send + Sync {
             .unwrap_or_else(|err| panic!("{err}"))
     }
 
+    /// Starts profiling I/O operations and returns a thread-local guard to be dropped when profiling should be finished.
+    fn start_profiling(&self, operation: ProfiledTreeOperation) -> Box<dyn Any>;
+
     /// Applies changes in the `patch` to this database. This operation should be atomic.
     fn apply_patch(&mut self, patch: PatchSet);
 }
@@ -96,6 +99,14 @@ impl<DB: Database + ?Sized> Database for &mut DB {
         is_leaf: bool,
     ) -> Result<Option<Node>, DeserializeError> {
         (**self).try_tree_node(key, is_leaf)
+    }
+
+    fn tree_nodes(&self, keys: &NodeKeys) -> Vec<Option<Node>> {
+        (**self).tree_nodes(keys)
+    }
+
+    fn start_profiling(&self, operation: ProfiledTreeOperation) -> Box<dyn Any> {
+        (**self).start_profiling(operation)
     }
 
     fn apply_patch(&mut self, patch: PatchSet) {
@@ -133,6 +144,10 @@ impl Database for PatchSet {
             ty = if is_leaf { "leaf" } else { "internal node" }
         );
         Ok(Some(node))
+    }
+
+    fn start_profiling(&self, _operation: ProfiledTreeOperation) -> Box<dyn Any> {
+        Box::new(()) // no stats are collected
     }
 
     fn apply_patch(&mut self, mut other: PatchSet) {
@@ -322,6 +337,10 @@ impl<DB: Database> Database for Patched<DB> {
             }
         });
         values.collect()
+    }
+
+    fn start_profiling(&self, operation: ProfiledTreeOperation) -> Box<dyn Any> {
+        self.inner.start_profiling(operation)
     }
 
     fn apply_patch(&mut self, patch: PatchSet) {

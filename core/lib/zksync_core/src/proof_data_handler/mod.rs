@@ -3,49 +3,24 @@ use std::{net::SocketAddr, sync::Arc};
 use anyhow::Context as _;
 use axum::{extract::Path, routing::post, Json, Router};
 use tokio::sync::watch;
-use zksync_config::{
-    configs::{proof_data_handler::ProtocolVersionLoadingMode, ProofDataHandlerConfig},
-    ContractsConfig,
-};
-use zksync_dal::ConnectionPool;
+use zksync_config::configs::ProofDataHandlerConfig;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
-use zksync_types::{
-    protocol_version::{L1VerifierConfig, VerifierParams},
-    H256,
-};
 
 use crate::proof_data_handler::request_processor::RequestProcessor;
 
 mod request_processor;
 
-fn fri_l1_verifier_config(contracts_config: &ContractsConfig) -> L1VerifierConfig {
-    L1VerifierConfig {
-        params: VerifierParams {
-            recursion_node_level_vk_hash: contracts_config.fri_recursion_node_level_vk_hash,
-            recursion_leaf_level_vk_hash: contracts_config.fri_recursion_leaf_level_vk_hash,
-            // The base layer commitment is not used in the FRI prover verification.
-            recursion_circuits_set_vks_hash: H256::zero(),
-        },
-        recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
-    }
-}
-
 pub async fn run_server(
     config: ProofDataHandlerConfig,
-    contracts_config: ContractsConfig,
     blob_store: Arc<dyn ObjectStore>,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
     tracing::debug!("Starting proof data handler server on {bind_address}");
-    let l1_verifier_config: Option<L1VerifierConfig> = match config.protocol_version_loading_mode {
-        ProtocolVersionLoadingMode::FromDb => None,
-        ProtocolVersionLoadingMode::FromEnvVar => Some(fri_l1_verifier_config(&contracts_config)),
-    };
-    let get_proof_gen_processor =
-        RequestProcessor::new(blob_store, pool, config, l1_verifier_config);
+    let get_proof_gen_processor = RequestProcessor::new(blob_store, pool, config);
     let submit_proof_processor = get_proof_gen_processor.clone();
     let app = Router::new()
         .route(

@@ -79,7 +79,7 @@ where
         assert!(
             tree_depth_by_size(binary_tree_size) <= MAX_TREE_DEPTH,
             "Tree contains more than {} items; this is not supported",
-            1 << MAX_TREE_DEPTH
+            1 << (MAX_TREE_DEPTH - 1)
         );
 
         Self {

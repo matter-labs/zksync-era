@@ -137,38 +137,9 @@ jobs:
         env:
           DOCKER_ACTION: ${{ inputs.action }}
           COMPONENT: ${{ matrix.component }}
-          RUST_NIGHTLY_COMPONENTS: |
-            (
-              "witness-generator"
-              "prover-v2"
-              "circuit-synthesizer"
-              "prover-fri"
-              "prover-gpu-fri"
-              "witness-vector-generator"
-              "prover-fri-gateway"
-              "proof-fri-compressor"
-            )
-        run: |
-          nightly_components=${{ env.RUST_NIGHTLY_COMPONENTS }}
-
-          if [[ " ${nightly_components[*]} " =~ " ${COMPONENT} " ]]; then
-            underscored_name=$(echo "$COMPONENT" | tr '-' '_')
-            # Hack: prover-v2 codebase located in prover directory instead of prover_v2
-            if [ "$underscored_name" == "prover_v2" ]; then
-              underscored_name="prover"
-            fi
-            # prover-gpu-fri codebase located in prover_fri directory instead of prover_gpu_fri
-            if [ "$underscored_name" == "prover_gpu_fri" ]; then
-              underscored_name="prover_fri"
-            fi
-            ci_run echo [workspace] > Cargo.toml
-            ci_run echo members = [\"prover/${underscored_name}\"] >> Cargo.toml
-            ci_run cp prover/Cargo.lock Cargo.lock
-            PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE,CUDA_ARCH" \
-            ci_run zk docker $DOCKER_ACTION $COMPONENT
-          else
-            ci_run zk docker $DOCKER_ACTION $COMPONENT
-          fi
+        run: |          
+          PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE,CUDA_ARCH" \
+          ci_run zk docker $DOCKER_ACTION $COMPONENT
 
       - name: Show sccache stats
         if: always()

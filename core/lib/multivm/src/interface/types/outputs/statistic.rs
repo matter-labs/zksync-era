@@ -8,7 +8,7 @@ pub struct VmExecutionStatistics {
     /// Cycles used by the VM during the tx execution.
     pub cycles_used: u32,
     /// Gas used by the VM during the tx execution.
-    pub gas_used: u32,
+    pub gas_used: u64,
     /// Gas remaining after the tx execution.
     pub gas_remaining: u32,
     /// Computational gas used by the VM during the tx execution.

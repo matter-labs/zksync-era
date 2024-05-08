@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-use zk_evm_1_3_1::zkevm_opcode_defs::FarCallOpcode;
 use zk_evm_1_5_0::{
     tracing::{AfterDecodingData, BeforeExecutionData, VmLocalStateData},
     vm_state::{ErrorFlags, VmLocalState},
@@ -17,13 +16,14 @@ use crate::{
         VmExecutionMode, VmRevertReason,
     },
     vm_latest::{
-        constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT},
+        constants::{get_result_success_first_slot, BOOTLOADER_HEAP_PAGE},
         old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
         tracers::{
             traits::VmTracer,
             utils::{get_vm_hook_params, read_pointer, VmHook},
         },
         types::internals::ZkSyncVmState,
+        vm::MultiVMSubversion,
         BootloaderState, HistoryMode, SimpleMemory,
     },
 };
@@ -36,17 +36,13 @@ enum Result {
 }
 
 /// Responsible for tracing the far calls from the bootloader.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Default)]
+#[allow(clippy::enum_variant_names)]
 enum FarCallTracker {
+    #[default]
     NoFarCallObserved,
-    FarCallOserved(usize),
+    FarCallObserved(usize),
     ReturndataObserved(FatPointer),
-}
-
-impl Default for FarCallTracker {
-    fn default() -> Self {
-        FarCallTracker::NoFarCallObserved
-    }
 }
 
 impl FarCallTracker {
@@ -54,16 +50,16 @@ impl FarCallTracker {
     fn far_call_observed(&mut self, local_state: &VmLocalStateData<'_>) {
         match &self {
             FarCallTracker::NoFarCallObserved => {
-                *self = FarCallTracker::FarCallOserved(
+                *self = FarCallTracker::FarCallObserved(
                     local_state.vm_local_state.callstack.inner.len(),
                 );
             }
-            FarCallTracker::FarCallOserved(_) => {
+            FarCallTracker::FarCallObserved(_) => {
                 panic!("Two far calls from bootloader in a row is not possible")
             }
             FarCallTracker::ReturndataObserved(_) => {
                 // Now we forget about the load returndata
-                *self = FarCallTracker::FarCallOserved(
+                *self = FarCallTracker::FarCallObserved(
                     local_state.vm_local_state.callstack.inner.len(),
                 );
             }
@@ -72,7 +68,7 @@ impl FarCallTracker {
 
     // should be called after opcode is executed
     fn return_observed(&mut self, local_state: &VmLocalStateData<'_>) {
-        if let FarCallTracker::FarCallOserved(x) = &self {
+        if let FarCallTracker::FarCallObserved(x) = &self {
             if *x != local_state.vm_local_state.callstack.inner.len() {
                 return;
             }
@@ -87,8 +83,6 @@ impl FarCallTracker {
 
             *self =
                 FarCallTracker::ReturndataObserved(FatPointer::from_u256(returndata_pointer.value));
-        } else {
-            return;
         }
     }
 
@@ -108,17 +102,19 @@ pub(crate) struct ResultTracer<S> {
     execution_mode: VmExecutionMode,
 
     far_call_tracker: FarCallTracker,
+    subversion: MultiVMSubversion,
 
     _phantom: PhantomData<S>,
 }
 
 impl<S> ResultTracer<S> {
-    pub(crate) fn new(execution_mode: VmExecutionMode) -> Self {
+    pub(crate) fn new(execution_mode: VmExecutionMode, subversion: MultiVMSubversion) -> Self {
         Self {
             result: None,
             bootloader_out_of_gas: false,
             execution_mode,
             far_call_tracker: Default::default(),
+            subversion,
             _phantom: PhantomData,
         }
     }
@@ -155,9 +151,9 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer<S> {
         memory: &SimpleMemory<H>,
         _storage: StoragePtr<S>,
     ) {
-        let hook = VmHook::from_opcode_memory(&state, &data);
+        let hook = VmHook::from_opcode_memory(&state, &data, self.subversion);
         if let VmHook::ExecutionResult = hook {
-            let vm_hook_params = get_vm_hook_params(memory);
+            let vm_hook_params = get_vm_hook_params(memory, self.subversion);
             let success = vm_hook_params[0];
             let returndata = self
                 .far_call_tracker
@@ -299,7 +295,8 @@ impl<S: WriteStorage> ResultTracer<S> {
                 return;
             }
 
-            let has_failed = tx_has_failed(state, bootloader_state.current_tx() as u32);
+            let has_failed =
+                tx_has_failed(state, bootloader_state.current_tx() as u32, self.subversion);
             if has_failed {
                 self.result = Some(Result::Error {
                     error_reason: VmRevertReason::General {
@@ -336,8 +333,9 @@ impl<S: WriteStorage> ResultTracer<S> {
 pub(crate) fn tx_has_failed<S: WriteStorage, H: HistoryMode>(
     state: &ZkSyncVmState<S, H>,
     tx_id: u32,
+    subversion: MultiVMSubversion,
 ) -> bool {
-    let mem_slot = RESULT_SUCCESS_FIRST_SLOT + tx_id;
+    let mem_slot = get_result_success_first_slot(subversion) + tx_id;
     let mem_value = state
         .memory
         .read_slot(BOOTLOADER_HEAP_PAGE as usize, mem_slot as usize)

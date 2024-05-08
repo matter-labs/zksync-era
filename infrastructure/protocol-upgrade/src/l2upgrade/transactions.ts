@@ -56,12 +56,19 @@ export const command = new Command('l2-transaction').description('publish system
 command
     .command('force-deployment-calldata')
     .option('--environment <environment>')
+    .option('--system-contracts-with-constructor', 'Call constructor to the list of the provided system contracts')
     .action(async (cmd) => {
+        const systemContractsWithConstructor = cmd.systemContractsWithConstructor
+            ? (cmd.systemContractsWithConstructor.split(',') as string[])
+            : [];
         const l2upgradeFileName = getL2UpgradeFileName(cmd.environment);
         if (fs.existsSync(l2upgradeFileName)) {
             console.log(`Found l2 upgrade file ${l2upgradeFileName}`);
             let l2Upgrade = JSON.parse(fs.readFileSync(l2upgradeFileName).toString());
-            const forcedDeployments = systemContractsToForceDeployments(l2Upgrade.systemContracts);
+            const forcedDeployments = systemContractsToForceDeployments(
+                l2Upgrade.systemContracts,
+                systemContractsWithConstructor
+            );
             const calldata = forceDeploymentCalldataContractDeployer(forcedDeployments);
             l2Upgrade.forcedDeployments = forcedDeployments;
             l2Upgrade.forcedDeploymentCalldata = calldata;
@@ -72,8 +79,11 @@ command
         }
     });
 
-function systemContractsToForceDeployments(systemContracts): ForceDeployment[] {
-    return systemContracts.map((dependency) => {
+function systemContractsToForceDeployments(
+    systemContracts,
+    systemContractsWithConstructor: string[]
+): ForceDeployment[] {
+    const forcedDeployments: ForceDeployment[] = systemContracts.map((dependency) => {
         return {
             bytecodeHash: dependency.bytecodeHashes[0],
             newAddress: dependency.address,
@@ -82,6 +92,17 @@ function systemContractsToForceDeployments(systemContracts): ForceDeployment[] {
             callConstructor: false
         };
     });
+
+    for (const contractAddress of systemContractsWithConstructor) {
+        const deploymentInfo = forcedDeployments.find((contract) => contract.newAddress === contractAddress);
+        if (deploymentInfo) {
+            deploymentInfo.callConstructor = true;
+        } else {
+            throw new Error(`Contract ${contractAddress} not found in forced deployments`);
+        }
+    }
+
+    return forcedDeployments;
 }
 
 command
@@ -97,16 +118,26 @@ command
         'Use contract deployer address instead of complex upgrader address. ' +
             "Warning: this shouldn't be a default option, it's only for first upgrade purposes"
     )
+    .option(
+        '--system-contracts-with-constructor <systemContractsWithConstructor>',
+        'Call constructor to the list of the provided system contracts'
+    )
     .action(async (cmd) => {
         const l2upgradeFileName = getL2UpgradeFileName(cmd.environment);
         const l2UpgraderAddress = cmd.l2UpgraderAddress ?? process.env.CONTRACTS_L2_DEFAULT_UPGRADE_ADDR;
+        const systemContractsWithConstructor = cmd.systemContractsWithConstructor
+            ? (cmd.systemContractsWithConstructor.split(',') as string[])
+            : [];
         const commonData = JSON.parse(fs.readFileSync(getCommonDataFileName(), { encoding: 'utf-8' }));
         if (fs.existsSync(l2upgradeFileName)) {
             console.log(`Found l2 upgrade file ${l2upgradeFileName}`);
             let l2Upgrade = JSON.parse(fs.readFileSync(l2upgradeFileName).toString());
             let delegatedCalldata = l2Upgrade.delegatedCalldata;
             if (cmd.useForcedDeployments) {
-                l2Upgrade.forcedDeployments = systemContractsToForceDeployments(l2Upgrade.systemContracts);
+                l2Upgrade.forcedDeployments = systemContractsToForceDeployments(
+                    l2Upgrade.systemContracts,
+                    systemContractsWithConstructor
+                );
                 l2Upgrade.forcedDeploymentCalldata = forceDeploymentCalldataContractDeployer(
                     l2Upgrade.forcedDeployments
                 );

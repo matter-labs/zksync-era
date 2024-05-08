@@ -6,7 +6,8 @@ use std::{
 };
 
 use tokio::sync::{watch, RwLock};
-use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
+use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Core, CoreDal};
+use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_types::{
     api::{BlockId, Transaction, TransactionDetails, TransactionId},
     fee::TransactionExecutionMetrics,
@@ -14,13 +15,12 @@ use zksync_types::{
     Address, Nonce, H256,
 };
 use zksync_web3_decl::{
+    client::BoxedL2Client,
     error::{ClientRpcContext, EnrichedClientResult, Web3Error},
-    jsonrpsee::http_client::HttpClient,
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
 use super::{tx_sink::TxSink, SubmitTxError};
-use crate::metrics::{TxStage, APP_METRICS};
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct TxCache {
@@ -59,12 +59,12 @@ impl TxCache {
 
     async fn remove_tx(&self, tx_hash: H256) {
         self.inner.write().await.tx_cache.remove(&tx_hash);
-        // We intentionally don't change `nonces_by_account`; they should only be changed in response to new miniblocks
+        // We intentionally don't change `nonces_by_account`; they should only be changed in response to new L2 blocks
     }
 
     async fn run_updates(
         self,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         const UPDATE_INTERVAL: Duration = Duration::from_secs(1);
@@ -79,7 +79,7 @@ impl TxCache {
                 let inner = self.inner.read().await;
                 inner.nonces_by_account.keys().copied().collect()
             };
-            let mut storage = pool.access_storage_tagged("api").await?;
+            let mut storage = pool.connection_tagged("api").await?;
             let nonces_for_accounts = storage
                 .storage_web3_dal()
                 .get_nonces_for_addresses(&addresses)
@@ -109,13 +109,13 @@ impl TxCache {
 #[derive(Debug)]
 pub struct TxProxy {
     tx_cache: TxCache,
-    client: HttpClient,
+    client: BoxedL2Client,
 }
 
 impl TxProxy {
-    pub fn new(client: HttpClient) -> Self {
+    pub fn new(client: BoxedL2Client) -> Self {
         Self {
-            client,
+            client: client.for_component("tx_proxy"),
             tx_cache: TxCache::default(),
         }
     }
@@ -204,7 +204,7 @@ impl TxProxy {
 
     pub fn run_account_nonce_sweeper(
         &self,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
         stop_receiver: watch::Receiver<bool>,
     ) -> impl Future<Output = anyhow::Result<()>> {
         let tx_cache = self.tx_cache.clone();
@@ -216,14 +216,14 @@ impl TxProxy {
 impl TxSink for TxProxy {
     async fn submit_tx(
         &self,
-        tx: L2Tx,
+        tx: &L2Tx,
         _execution_metrics: TransactionExecutionMetrics,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         // We're running an external node: we have to proxy the transaction to the main node.
         // But before we do that, save the tx to cache in case someone will request it
         // Before it reaches the main node.
         self.save_tx(tx.clone()).await;
-        self.submit_tx_impl(&tx).await?;
+        self.submit_tx_impl(tx).await?;
         // Now, after we are sure that the tx is on the main node, remove it from cache
         // since we don't want to store txs that might have been replaced or otherwise removed
         // from the mempool.

@@ -4,7 +4,8 @@ use sqlx::types::chrono::NaiveDateTime;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,
-    protocol_version::{self, L1VerifierConfig, ProtocolUpgradeTx, VerifierParams},
+    protocol_upgrade::{self, ProtocolUpgradeTx},
+    protocol_version::{L1VerifierConfig, VerifierParams},
     H256,
 };
 
@@ -28,8 +29,8 @@ pub struct StorageProtocolVersion {
 pub(crate) fn protocol_version_from_storage(
     storage_version: StorageProtocolVersion,
     tx: Option<ProtocolUpgradeTx>,
-) -> protocol_version::ProtocolVersion {
-    protocol_version::ProtocolVersion {
+) -> protocol_upgrade::ProtocolVersion {
+    protocol_upgrade::ProtocolVersion {
         id: (storage_version.id as u16).try_into().unwrap(),
         timestamp: storage_version.timestamp as u64,
         l1_verifier_config: L1VerifierConfig {

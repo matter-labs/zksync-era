@@ -1,26 +1,11 @@
-use std::convert::TryInto;
-
-use zk_evm_1_4_1::k256::elliptic_curve::sec1::FromEncodedPoint;
 use zk_evm_1_5_0::zkevm_opcode_defs::p256;
-use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, P256VERIFY_PRECOMPILE_ADDRESS};
-use zksync_types::{
-    get_code_key, get_known_code_key, get_nonce_key,
-    system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT},
-    web3::signing::keccak256,
-    AccountTreeId, Execute, H256, U256,
-};
-use zksync_utils::{h256_to_u256, u256_to_h256};
+use zksync_system_constants::P256VERIFY_PRECOMPILE_ADDRESS;
+use zksync_types::{web3::signing::keccak256, Execute, H256, U256};
+use zksync_utils::h256_to_u256;
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
-        tests::{
-            tester::{DeployContractsTx, TxType, VmTesterBuilder},
-            utils::{get_balance, read_test_contract, verify_required_storage},
-        },
-        utils::fee::get_batch_base_fee,
-        ExecutionResult, HistoryEnabled,
-    },
+    vm_latest::{tests::tester::VmTesterBuilder, ExecutionResult, HistoryEnabled},
 };
 
 #[test]
@@ -36,7 +21,7 @@ fn test_sekp256r1() {
 
     let account = &mut vm.rich_accounts[0];
 
-    // The digest, secret key and public key were copied from the following test suit: https://github.com/hyperledger/besu/blob/b6a6402be90339367d5bcabcd1cfd60df4832465/crypto/algorithms/src/test/java/org/hyperledger/besu/crypto/SECP256R1Test.java#L36
+    // The digest, secret key and public key were copied from the following test suit: `https://github.com/hyperledger/besu/blob/b6a6402be90339367d5bcabcd1cfd60df4832465/crypto/algorithms/src/test/java/org/hyperledger/besu/crypto/SECP256R1Test.java#L36`
     let sk = p256::SecretKey::from_slice(
         &hex::decode("519b423d715f8b581f4fa8ee59f4771a5b44c8130b4e3eacca54a56dda72b464").unwrap(),
     )
@@ -64,7 +49,7 @@ fn test_sekp256r1() {
     let tx = account.get_l2_tx_for_execute(
         Execute {
             contract_address: Some(P256VERIFY_PRECOMPILE_ADDRESS),
-            calldata: vec![digest, encoded_r, encoded_s, x, y].concat(),
+            calldata: [digest, encoded_r, encoded_s, x, y].concat(),
             value: U256::zero(),
             factory_deps: None,
         },

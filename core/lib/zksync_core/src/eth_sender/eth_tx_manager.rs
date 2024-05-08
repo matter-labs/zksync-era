@@ -3,11 +3,12 @@ use std::{sync::Arc, time::Duration};
 use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     encode_blob_tx_with_sidecar, BoundEthInterface, Error, EthInterface, ExecutedTxStatus, Options,
     RawTransactionBytes, SignedCallResult,
 };
+use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::{EthTx, EthTxBlobSidecar},
@@ -20,7 +21,7 @@ use zksync_types::{
 use zksync_utils::time::seconds_since_epoch;
 
 use super::{metrics::METRICS, ETHSenderError};
-use crate::{l1_gas_price::L1TxParamsProvider, metrics::BlockL1Stage};
+use crate::l1_gas_price::L1TxParamsProvider;
 
 #[derive(Debug)]
 struct EthFee {
@@ -58,12 +59,12 @@ pub struct EthTxManager {
     ethereum_gateway_blobs: Option<Arc<dyn BoundEthInterface>>,
     config: SenderConfig,
     gas_adjuster: Arc<dyn L1TxParamsProvider>,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
 }
 
 impl EthTxManager {
     pub fn new(
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
         config: SenderConfig,
         gas_adjuster: Arc<dyn L1TxParamsProvider>,
         ethereum_gateway: Arc<dyn BoundEthInterface>,
@@ -90,7 +91,7 @@ impl EthTxManager {
 
     async fn check_all_sending_attempts(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         op: &EthTx,
     ) -> Option<ExecutedTxStatus> {
         // Checking history items, starting from most recently sent.
@@ -118,7 +119,7 @@ impl EthTxManager {
 
     async fn calculate_fee(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         tx: &EthTx,
         time_in_mempool: u32,
     ) -> Result<EthFee, ETHSenderError> {
@@ -193,7 +194,7 @@ impl EthTxManager {
 
     async fn increase_priority_fee(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         eth_tx_id: u32,
         base_fee_per_gas: u64,
     ) -> Result<u64, ETHSenderError> {
@@ -229,7 +230,7 @@ impl EthTxManager {
 
     pub(crate) async fn send_eth_tx(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         tx: &EthTx,
         time_in_mempool: u32,
         current_block: L1BlockNumber,
@@ -297,7 +298,7 @@ impl EthTxManager {
 
     async fn send_raw_transaction(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         tx_history_id: u32,
         raw_tx: RawTransactionBytes,
         current_block: L1BlockNumber,
@@ -416,7 +417,7 @@ impl EthTxManager {
     // returns the one that has to be resent (if there is one).
     pub(super) async fn monitor_inflight_transactions(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         l1_block_numbers: L1BlockNumbers,
     ) -> Result<Option<(EthTx, u32)>, ETHSenderError> {
         METRICS.track_block_numbers(&l1_block_numbers);
@@ -454,7 +455,7 @@ impl EthTxManager {
 
     async fn monitor_inflight_transactions_inner(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         l1_block_numbers: L1BlockNumbers,
         operator_nonce: OperatorNonce,
         operator_address: Option<Address>,
@@ -581,7 +582,7 @@ impl EthTxManager {
 
     async fn send_unsent_txs(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         l1_block_numbers: L1BlockNumbers,
     ) {
         for tx in storage.eth_sender_dal().get_unsent_txs().await.unwrap() {
@@ -623,7 +624,7 @@ impl EthTxManager {
 
     async fn apply_tx_status(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         tx: &EthTx,
         tx_status: ExecutedTxStatus,
         finalized_block: L1BlockNumber,
@@ -646,7 +647,7 @@ impl EthTxManager {
 
     pub async fn fail_tx(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         tx: &EthTx,
         tx_status: ExecutedTxStatus,
     ) {
@@ -674,7 +675,7 @@ impl EthTxManager {
 
     pub async fn confirm_tx(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         tx: &EthTx,
         tx_status: ExecutedTxStatus,
     ) {
@@ -730,7 +731,7 @@ impl EthTxManager {
                 .get_l1_block_numbers()
                 .await
                 .context("get_l1_block_numbers()")?;
-            let mut storage = pool.access_storage_tagged("eth_sender").await.unwrap();
+            let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
             self.send_unsent_txs(&mut storage, l1_block_numbers).await;
         }
 
@@ -738,7 +739,7 @@ impl EthTxManager {
         // will never check in-flight txs status
         let mut last_known_l1_block = L1BlockNumber(0);
         loop {
-            let mut storage = pool.access_storage_tagged("eth_sender").await.unwrap();
+            let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, eth_tx_manager is shutting down");
@@ -761,7 +762,7 @@ impl EthTxManager {
 
     async fn send_new_eth_txs(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         current_block: L1BlockNumber,
     ) {
         let number_inflight_txs = storage
@@ -792,7 +793,7 @@ impl EthTxManager {
     #[tracing::instrument(skip(self, storage))]
     async fn loop_iteration(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         previous_block: L1BlockNumber,
     ) -> Result<L1BlockNumber, ETHSenderError> {
         let l1_block_numbers = self.get_l1_block_numbers().await?;

@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { formatSqlxQueries } from './format_sql';
 import * as utils from './utils';
 
-const EXTENSIONS = ['ts', 'md', 'sol', 'js'];
+const EXTENSIONS = ['ts', 'md', 'js'];
 const CONFIG_PATH = 'etc/prettier-config';
 
 function prettierFlags(phaseName: string) {
@@ -16,6 +16,7 @@ export async function prettier(extension: string, check: boolean = false) {
 
     const command = check ? 'check' : 'write';
     const files = await utils.getUnignoredFiles(extension);
+    console.log(`Got ${files.length} files for ${extension}`);
 
     if (files.length === 0) {
         console.log(`No files of extension ${extension} to format`);
@@ -52,6 +53,7 @@ export async function rustfmt(check: boolean = false) {
 
 export async function runAllRustFormatters(check: boolean = false) {
     // we need to run those two steps one by one as they operate on the same set of files
+    await rustfmt(check);
     await formatSqlxQueries(check);
     await rustfmt(check);
 }

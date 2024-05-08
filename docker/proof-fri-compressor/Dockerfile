@@ -7,7 +7,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN cargo build --release --bin zksync_proof_fri_compressor
+RUN cd prover && cargo build --release --bin zksync_proof_fri_compressor
 
 FROM debian:bookworm-slim
 
@@ -19,6 +19,6 @@ COPY prover/vk_setup_data_generator_server_fri/data/ /prover/vk_setup_data_gener
 # copy universal setup key required for proof compression
 COPY setup_2\^26.key /setup_2\^26.key
 
-COPY --from=builder /usr/src/zksync/target/release/zksync_proof_fri_compressor /usr/bin/
+COPY --from=builder /usr/src/zksync/prover/target/release/zksync_proof_fri_compressor /usr/bin/
 
 ENTRYPOINT ["zksync_proof_fri_compressor"]

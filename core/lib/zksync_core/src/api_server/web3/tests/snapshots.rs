@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 
+use zksync_types::snapshots::SnapshotVersion;
 use zksync_web3_decl::namespaces::SnapshotsNamespaceClient;
 
 use super::*;
@@ -27,18 +28,23 @@ impl SnapshotBasicsTest {
 
 #[async_trait]
 impl HttpTest for SnapshotBasicsTest {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
-        let mut storage = pool.access_storage().await.unwrap();
-        store_miniblock(
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+        let mut storage = pool.connection().await.unwrap();
+        store_l2_block(
             &mut storage,
-            MiniblockNumber(1),
+            L2BlockNumber(1),
             &[execute_l2_transaction(create_l2_transaction(1, 2))],
         )
         .await?;
         seal_l1_batch(&mut storage, L1BatchNumber(1)).await?;
         storage
             .snapshots_dal()
-            .add_snapshot(L1BatchNumber(1), Self::CHUNK_COUNT, "file:///factory_deps")
+            .add_snapshot(
+                SnapshotVersion::Version0,
+                L1BatchNumber(1),
+                Self::CHUNK_COUNT,
+                "file:///factory_deps",
+            )
             .await?;
 
         for &chunk_id in &self.chunk_ids {
@@ -67,7 +73,7 @@ impl HttpTest for SnapshotBasicsTest {
         };
 
         assert_eq!(snapshot_header.l1_batch_number, L1BatchNumber(1));
-        assert_eq!(snapshot_header.miniblock_number, MiniblockNumber(1));
+        assert_eq!(snapshot_header.l2_block_number, L2BlockNumber(1));
         assert_eq!(
             snapshot_header.factory_deps_filepath,
             "file:///factory_deps"

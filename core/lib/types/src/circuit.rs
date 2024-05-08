@@ -16,7 +16,8 @@ pub struct CircuitCycleStatistic {
     pub keccak256_cycles: u32,
     pub ecrecover_cycles: u32,
     pub sha256_cycles: u32,
-    pub secp256k1_cycles: u32,
+    pub secp256k1_verify_cycles: u32,
+    pub transient_storage_checker_cycles: u32,
 }
 
 impl CircuitCycleStatistic {
@@ -39,6 +40,10 @@ pub struct CircuitStatistic {
     pub keccak256: f32,
     pub ecrecover: f32,
     pub sha256: f32,
+    #[serde(default)]
+    pub secp256k1_verify: f32,
+    #[serde(default)]
+    pub transient_storage_checker: f32,
 }
 
 impl CircuitStatistic {
@@ -55,6 +60,8 @@ impl CircuitStatistic {
             + self.keccak256.ceil() as usize
             + self.ecrecover.ceil() as usize
             + self.sha256.ceil() as usize
+            + self.secp256k1_verify.ceil() as usize
+            + self.transient_storage_checker.ceil() as usize
     }
 
     /// Adds numbers.
@@ -70,6 +77,8 @@ impl CircuitStatistic {
             + self.keccak256
             + self.ecrecover
             + self.sha256
+            + self.secp256k1_verify
+            + self.transient_storage_checker
     }
 }
 
@@ -89,6 +98,9 @@ impl Add for CircuitStatistic {
             keccak256: self.keccak256 + other.keccak256,
             ecrecover: self.ecrecover + other.ecrecover,
             sha256: self.sha256 + other.sha256,
+            secp256k1_verify: self.secp256k1_verify + other.secp256k1_verify,
+            transient_storage_checker: self.transient_storage_checker
+                + other.transient_storage_checker,
         }
     }
 }

@@ -2,6 +2,7 @@ import { exec as _exec, spawn as _spawn } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import readline from 'readline';
+import chalk from 'chalk';
 
 export type { ChildProcess } from 'child_process';
 
@@ -23,9 +24,11 @@ const IGNORED_DIRS = [
     'system-contracts',
     'artifacts-zk',
     'cache-zk',
-    'contracts/l1-contracts/lib'
+    // Ignore directories with OZ and forge submodules.
+    'contracts/l1-contracts/lib',
+    'contracts/l1-contracts-foundry/lib'
 ];
-const IGNORED_FILES = ['KeysWithPlonkVerifier.sol', 'TokenInit.sol', '.tslintrc.js'];
+const IGNORED_FILES = ['KeysWithPlonkVerifier.sol', 'TokenInit.sol', '.tslintrc.js', '.prettierrc.js'];
 
 // async executor of shell commands
 // spawns a new shell and can execute arbitrary commands, like "ls -la | grep .env"
@@ -139,7 +142,7 @@ export function web3Url() {
 
 export async function readZkSyncAbi() {
     const zksync = process.env.ZKSYNC_HOME;
-    const path = `${zksync}/contracts/artifacts/cache/solpp-generated-contracts/interfaces/IZkSync.sol/IZkSync.json`;
+    const path = `${zksync}/contracts/l1-contracts/artifacts/contracts/state-transition/chain-interfaces/IZkSyncHyperchain.sol/IZkSyncHyperchain.json`;
 
     const fileContent = (await fs.promises.readFile(path)).toString();
 
@@ -147,3 +150,25 @@ export async function readZkSyncAbi() {
 
     return abi;
 }
+
+const entry = chalk.bold.yellow;
+const announce = chalk.yellow;
+const success = chalk.green;
+const timestamp = chalk.grey;
+
+// Wrapper that writes an announcement and completion notes for each executed task.
+export const announced = async (fn: string, promise: Promise<void> | void) => {
+    const announceLine = `${entry('>')} ${announce(fn)}`;
+    const separator = '-'.repeat(fn.length + 2); // 2 is the length of "> ".
+    console.log(`\n` + separator); // So it's easier to see each individual step in the console.
+    console.log(announceLine);
+
+    const start = new Date().getTime();
+    // The actual execution part
+    await promise;
+
+    const time = new Date().getTime() - start;
+    const successLine = `${success('✔')} ${fn} done`;
+    const timestampLine = timestamp(`(${time}ms)`);
+    console.log(`${successLine} ${timestampLine}`);
+};

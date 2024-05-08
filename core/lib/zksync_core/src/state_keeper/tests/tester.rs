@@ -1,35 +1,34 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     convert::TryInto,
-    fmt,
-    sync::Arc,
+    fmt, mem,
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
 use async_trait::async_trait;
 use multivm::{
     interface::{
-        ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
-        VmExecutionResultAndLogs,
+        ExecutionResult, L1BatchEnv, SystemEnv, TxExecutionMode, VmExecutionResultAndLogs,
     },
-    vm_latest::constants::BLOCK_GAS_LIMIT,
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use tokio::sync::{mpsc, watch};
+use zksync_contracts::BaseSystemContracts;
 use zksync_types::{
-    block::MiniblockExecutionData, fee_model::BatchFeeInput, protocol_version::ProtocolUpgradeTx,
-    witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
-    ProtocolVersionId, Transaction, H256,
+    block::L2BlockExecutionData, fee_model::BatchFeeInput, protocol_upgrade::ProtocolUpgradeTx,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 
 use crate::{
     state_keeper::{
         batch_executor::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult},
-        io::{MiniblockParams, PendingBatchData, StateKeeperIO},
+        io::{IoCursor, L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO},
         seal_criteria::{IoSealCriteria, SequencerSealer},
-        tests::{default_l1_batch_env, default_vm_block_result, BASE_SYSTEM_CONTRACTS},
+        tests::{default_l1_batch_env, default_vm_batch_result, BASE_SYSTEM_CONTRACTS},
         types::ExecutionMetricsForCriteria,
         updates::UpdatesManager,
-        ZkSyncStateKeeper,
+        OutputHandler, StateKeeperOutputHandler, ZkSyncStateKeeper,
     },
     utils::testonly::create_l2_transaction,
 };
@@ -43,7 +42,7 @@ const FEE_ACCOUNT: Address = Address::repeat_byte(0x11);
 /// according to the scenario.
 ///
 /// Every action requires a description: since in most scenarios there will be a lot of similar actions (e.g. `next_tx`
-/// or `seal_miniblock`) it helps to see which action *exactly* caused a test failure. It's recommended to write
+/// or `seal_l2_block`) it helps to see which action *exactly* caused a test failure. It's recommended to write
 /// descriptions that are not only unique, but also will explain *why* we expected this action to happen. This way,
 /// it would be easier for developer to find the problem.
 ///
@@ -52,7 +51,7 @@ pub(crate) struct TestScenario {
     actions: VecDeque<ScenarioItem>,
     pending_batch: Option<PendingBatchData>,
     l1_batch_seal_fn: Box<SealFn>,
-    miniblock_seal_fn: Box<SealFn>,
+    l2_block_seal_fn: Box<SealFn>,
 }
 
 type SealFn = dyn FnMut(&UpdatesManager) -> bool + Send;
@@ -73,12 +72,12 @@ impl TestScenario {
             actions: VecDeque::new(),
             pending_batch: None,
             l1_batch_seal_fn: Box::new(|_| false),
-            miniblock_seal_fn: Box::new(|_| false),
+            l2_block_seal_fn: Box::new(|_| false),
         }
     }
 
     /// Adds a pending batch data that would be fed into the state keeper.
-    /// Note that during processing pending batch, state keeper do *not* call `seal_miniblock` method on the IO (since
+    /// Note that during processing pending batch, state keeper do *not* call `seal_l2_block` method on the IO (since
     /// it only recovers the temporary state).
     pub(crate) fn load_pending_batch(mut self, pending_batch: PendingBatchData) -> Self {
         self.pending_batch = Some(pending_batch);
@@ -134,23 +133,23 @@ impl TestScenario {
         self
     }
 
-    /// Expects the miniblock to be sealed.
-    pub(crate) fn miniblock_sealed(mut self, description: &'static str) -> Self {
+    /// Expects the L2 block to be sealed.
+    pub(crate) fn l2_block_sealed(mut self, description: &'static str) -> Self {
         self.actions
-            .push_back(ScenarioItem::MiniblockSeal(description, None));
+            .push_back(ScenarioItem::L2BlockSeal(description, None));
         self
     }
 
-    /// Expects the miniblock to be sealed.
-    /// Accepts a function that would be given access to the received miniblock seal params, which can implement
-    /// additional assertions on the sealed miniblock.
-    pub(crate) fn miniblock_sealed_with<F: FnOnce(&UpdatesManager) + Send + 'static>(
+    /// Expects the L2 block to be sealed.
+    /// Accepts a function that would be given access to the received L2 block seal params, which can implement
+    /// additional assertions on the sealed L2 block.
+    pub(crate) fn l2_block_sealed_with<F: FnOnce(&UpdatesManager) + Send + 'static>(
         mut self,
         description: &'static str,
         f: F,
     ) -> Self {
         self.actions
-            .push_back(ScenarioItem::MiniblockSeal(description, Some(Box::new(f))));
+            .push_back(ScenarioItem::L2BlockSeal(description, Some(Box::new(f))));
         self
     }
 
@@ -166,7 +165,7 @@ impl TestScenario {
     /// additional assertions on the sealed batch.
     pub(crate) fn batch_sealed_with<F>(mut self, description: &'static str, f: F) -> Self
     where
-        F: FnOnce(&VmExecutionResultAndLogs, &UpdatesManager, &L1BatchEnv) + Send + 'static,
+        F: FnOnce(&UpdatesManager) + Send + 'static,
     {
         self.actions
             .push_back(ScenarioItem::BatchSeal(description, Some(Box::new(f))));
@@ -181,11 +180,11 @@ impl TestScenario {
         self
     }
 
-    pub(crate) fn seal_miniblock_when<F>(mut self, seal_fn: F) -> Self
+    pub(crate) fn seal_l2_block_when<F>(mut self, seal_fn: F) -> Self
     where
         F: FnMut(&UpdatesManager) -> bool + Send + 'static,
     {
-        self.miniblock_seal_fn = Box::new(seal_fn);
+        self.l2_block_seal_fn = Box::new(seal_fn);
         self
     }
 
@@ -196,14 +195,15 @@ impl TestScenario {
 
         let batch_executor_base = TestBatchExecutorBuilder::new(&self);
         let (stop_sender, stop_receiver) = watch::channel(false);
-        let io = TestIO::new(stop_sender, self);
-        let sk = ZkSyncStateKeeper::new(
+        let (io, output_handler) = TestIO::new(stop_sender, self);
+        let state_keeper = ZkSyncStateKeeper::new(
             stop_receiver,
             Box::new(io),
             Box::new(batch_executor_base),
+            output_handler,
             Arc::new(sealer),
         );
-        let sk_thread = tokio::spawn(sk.run());
+        let sk_thread = tokio::spawn(state_keeper.run());
 
         // We must assume that *theoretically* state keeper may ignore the stop signal from IO once scenario is
         // completed, so we spawn it in a separate thread to not get test stuck.
@@ -259,16 +259,6 @@ pub(crate) fn successful_exec() -> TxExecutionResult {
             l1_gas: Default::default(),
             execution_metrics: Default::default(),
         }),
-        bootloader_dry_run_metrics: Box::new(ExecutionMetricsForCriteria {
-            l1_gas: Default::default(),
-            execution_metrics: Default::default(),
-        }),
-        bootloader_dry_run_result: Box::new(VmExecutionResultAndLogs {
-            result: ExecutionResult::Success { output: vec![] },
-            logs: Default::default(),
-            statistics: Default::default(),
-            refunds: Default::default(),
-        }),
         compressed_bytecodes: vec![],
         new_known_factory_deps: vec![],
         call_tracer_result: vec![],
@@ -288,16 +278,6 @@ pub(crate) fn successful_exec_with_metrics(
             refunds: Default::default(),
         }),
         tx_metrics: Box::new(tx_metrics),
-        bootloader_dry_run_metrics: Box::new(ExecutionMetricsForCriteria {
-            l1_gas: Default::default(),
-            execution_metrics: Default::default(),
-        }),
-        bootloader_dry_run_result: Box::new(VmExecutionResultAndLogs {
-            result: ExecutionResult::Success { output: vec![] },
-            logs: Default::default(),
-            statistics: Default::default(),
-            refunds: Default::default(),
-        }),
         compressed_bytecodes: vec![],
         new_known_factory_deps: vec![],
         call_tracer_result: vec![],
@@ -312,28 +292,20 @@ pub(crate) fn rejected_exec() -> TxExecutionResult {
     }
 }
 
-/// Creates a `TxExecutionResult` object denoting a transaction that was executed, but caused a bootloader tip out of
-/// gas error.
-pub(crate) fn bootloader_tip_out_of_gas() -> TxExecutionResult {
-    TxExecutionResult::BootloaderOutOfGasForBlockTip
-}
-
-/// Creates a mock `PendingBatchData` object containing the provided sequence of miniblocks.
-pub(crate) fn pending_batch_data(
-    pending_miniblocks: Vec<MiniblockExecutionData>,
-) -> PendingBatchData {
+/// Creates a mock `PendingBatchData` object containing the provided sequence of L2 blocks.
+pub(crate) fn pending_batch_data(pending_l2_blocks: Vec<L2BlockExecutionData>) -> PendingBatchData {
     PendingBatchData {
         l1_batch_env: default_l1_batch_env(1, 1, FEE_ACCOUNT),
         system_env: SystemEnv {
             zk_porter_available: false,
             version: ProtocolVersionId::latest(),
             base_system_smart_contracts: BASE_SYSTEM_CONTRACTS.clone(),
-            gas_limit: BLOCK_GAS_LIMIT,
+            bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             execution_mode: TxExecutionMode::VerifyExecute,
-            default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+            default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             chain_id: L2ChainId::from(270),
         },
-        pending_miniblocks,
+        pending_l2_blocks,
     }
 }
 
@@ -346,41 +318,48 @@ enum ScenarioItem {
     Tx(&'static str, Transaction, TxExecutionResult),
     Rollback(&'static str, Transaction),
     Reject(&'static str, Transaction, Option<String>),
-    MiniblockSeal(
+    L2BlockSeal(
         &'static str,
         Option<Box<dyn FnOnce(&UpdatesManager) + Send>>,
     ),
     BatchSeal(
         &'static str,
-        Option<Box<dyn FnOnce(&VmExecutionResultAndLogs, &UpdatesManager, &L1BatchEnv) + Send>>,
+        Option<Box<dyn FnOnce(&UpdatesManager) + Send>>,
     ),
 }
 
-impl std::fmt::Debug for ScenarioItem {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for ScenarioItem {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NoTxsUntilNextAction(descr) => {
-                f.debug_tuple("NoTxsUntilNextAction").field(descr).finish()
-            }
-            Self::IncrementProtocolVersion(descr) => f
+            Self::NoTxsUntilNextAction(descr) => formatter
+                .debug_tuple("NoTxsUntilNextAction")
+                .field(descr)
+                .finish(),
+            Self::IncrementProtocolVersion(descr) => formatter
                 .debug_tuple("IncrementProtocolVersion")
                 .field(descr)
                 .finish(),
-            Self::Tx(descr, tx, result) => f
+            Self::Tx(descr, tx, result) => formatter
                 .debug_tuple("Tx")
                 .field(descr)
                 .field(tx)
                 .field(result)
                 .finish(),
-            Self::Rollback(descr, tx) => f.debug_tuple("Rollback").field(descr).field(tx).finish(),
-            Self::Reject(descr, tx, err) => f
+            Self::Rollback(descr, tx) => formatter
+                .debug_tuple("Rollback")
+                .field(descr)
+                .field(tx)
+                .finish(),
+            Self::Reject(descr, tx, err) => formatter
                 .debug_tuple("Reject")
                 .field(descr)
                 .field(tx)
                 .field(err)
                 .finish(),
-            Self::MiniblockSeal(descr, _) => f.debug_tuple("MiniblockSeal").field(descr).finish(),
-            Self::BatchSeal(descr, _) => f.debug_tuple("BatchSeal").field(descr).finish(),
+            Self::L2BlockSeal(descr, _) => {
+                formatter.debug_tuple("L2BlockSeal").field(descr).finish()
+            }
+            Self::BatchSeal(descr, _) => formatter.debug_tuple("BatchSeal").field(descr).finish(),
         }
     }
 }
@@ -408,9 +387,9 @@ impl TestBatchExecutorBuilder {
         // All the txs from the pending batch must succeed.
         if let Some(pending_batch) = &scenario.pending_batch {
             for tx in pending_batch
-                .pending_miniblocks
+                .pending_l2_blocks
                 .iter()
-                .flat_map(|miniblock| &miniblock.txs)
+                .flat_map(|l2_block| &l2_block.txs)
             {
                 batch_txs.insert(tx.hash(), vec![successful_exec()].into());
             }
@@ -437,14 +416,14 @@ impl TestBatchExecutorBuilder {
                 ScenarioItem::Reject(_, tx, _) => {
                     rollback_set.insert(tx.hash());
                 }
-                ScenarioItem::BatchSeal(_, _) => txs.push_back(std::mem::take(&mut batch_txs)),
+                ScenarioItem::BatchSeal(_, _) => txs.push_back(mem::take(&mut batch_txs)),
                 _ => {}
             }
         }
 
         // Some batch seal may not be included into scenario, dump such txs if they exist.
         if !batch_txs.is_empty() {
-            txs.push_back(std::mem::take(&mut batch_txs));
+            txs.push_back(mem::take(&mut batch_txs));
         }
         // After sealing the batch, state keeper initialized a new one, so we need to create an empty set
         // for the initialization of the "next-to-last" batch.
@@ -528,7 +507,7 @@ impl TestBatchExecutor {
                     resp.send(result).unwrap();
                     self.last_tx = tx.hash();
                 }
-                Command::StartNextMiniblock(_, resp) => {
+                Command::StartNextL2Block(_, resp) => {
                     resp.send(()).unwrap();
                 }
                 Command::RollbackLastTx(resp) => {
@@ -548,7 +527,7 @@ impl TestBatchExecutor {
                 }
                 Command::FinishBatch(resp) => {
                     // Blanket result, it doesn't really matter.
-                    resp.send((default_vm_block_result(), None)).unwrap();
+                    resp.send(default_vm_batch_result()).unwrap();
                     return;
                 }
             }
@@ -557,14 +536,61 @@ impl TestBatchExecutor {
 }
 
 #[derive(Debug)]
+pub(super) struct TestPersistence {
+    actions: Arc<Mutex<VecDeque<ScenarioItem>>>,
+    stop_sender: Arc<watch::Sender<bool>>,
+}
+
+impl TestPersistence {
+    fn pop_next_item(&self, request: &str) -> ScenarioItem {
+        let mut actions = self.actions.lock().expect("scenario queue is poisoned");
+        let action = actions
+            .pop_front()
+            .unwrap_or_else(|| panic!("no action for request: {request}"));
+        // If that was a last action, tell the state keeper to stop after that.
+        if actions.is_empty() {
+            self.stop_sender.send_replace(true);
+        }
+        action
+    }
+}
+
+#[async_trait]
+impl StateKeeperOutputHandler for TestPersistence {
+    async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+        let action = self.pop_next_item("seal_l2_block");
+        let ScenarioItem::L2BlockSeal(_, check_fn) = action else {
+            anyhow::bail!("Unexpected action: {:?}", action);
+        };
+        if let Some(check_fn) = check_fn {
+            check_fn(updates_manager);
+        }
+        Ok(())
+    }
+
+    async fn handle_l1_batch(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+        let action = self.pop_next_item("seal_l1_batch");
+        let ScenarioItem::BatchSeal(_, check_fn) = action else {
+            anyhow::bail!("Unexpected action: {:?}", action);
+        };
+        if let Some(check_fn) = check_fn {
+            check_fn(updates_manager);
+        }
+        Ok(())
+    }
+}
+
 pub(super) struct TestIO {
-    stop_sender: watch::Sender<bool>,
+    stop_sender: Arc<watch::Sender<bool>>,
     batch_number: L1BatchNumber,
     timestamp: u64,
     fee_input: BatchFeeInput,
-    miniblock_number: MiniblockNumber,
+    l2_block_number: L2BlockNumber,
     fee_account: Address,
-    scenario: TestScenario,
+    pending_batch: Option<PendingBatchData>,
+    l1_batch_seal_fn: Box<SealFn>,
+    l2_block_seal_fn: Box<SealFn>,
+    actions: Arc<Mutex<VecDeque<ScenarioItem>>>,
     /// Internal flag that is being set if scenario was configured to return `None` to all the transaction
     /// requests until some other action happens.
     skipping_txs: bool,
@@ -573,21 +599,53 @@ pub(super) struct TestIO {
     protocol_upgrade_txs: HashMap<ProtocolVersionId, ProtocolUpgradeTx>,
 }
 
+impl fmt::Debug for TestIO {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.debug_struct("TestIO").finish_non_exhaustive()
+    }
+}
+
 impl TestIO {
-    pub(super) fn new(stop_sender: watch::Sender<bool>, scenario: TestScenario) -> Self {
-        Self {
+    pub(super) fn new(
+        stop_sender: watch::Sender<bool>,
+        scenario: TestScenario,
+    ) -> (Self, OutputHandler) {
+        let stop_sender = Arc::new(stop_sender);
+        let actions = Arc::new(Mutex::new(scenario.actions));
+        let persistence = TestPersistence {
+            stop_sender: stop_sender.clone(),
+            actions: actions.clone(),
+        };
+
+        let (l2_block_number, timestamp) = if let Some(pending_batch) = &scenario.pending_batch {
+            let last_pending_l2_block = pending_batch
+                .pending_l2_blocks
+                .last()
+                .expect("pending batch should have at least one L2 block");
+            (
+                last_pending_l2_block.number + 1,
+                last_pending_l2_block.timestamp + 1,
+            )
+        } else {
+            (L2BlockNumber(1), 1)
+        };
+        let this = Self {
             stop_sender,
             batch_number: L1BatchNumber(1),
-            timestamp: 1,
+            timestamp,
             fee_input: BatchFeeInput::default(),
-            miniblock_number: MiniblockNumber(1),
+            pending_batch: scenario.pending_batch,
+            l1_batch_seal_fn: scenario.l1_batch_seal_fn,
+            l2_block_seal_fn: scenario.l2_block_seal_fn,
+            actions,
+            l2_block_number,
             fee_account: FEE_ACCOUNT,
-            scenario,
             skipping_txs: false,
             protocol_version: ProtocolVersionId::latest(),
             previous_batch_protocol_version: ProtocolVersionId::latest(),
             protocol_upgrade_txs: HashMap::default(),
-        }
+        };
+        (this, OutputHandler::new(Box::new(persistence)))
     }
 
     pub(super) fn add_upgrade_tx(&mut self, version: ProtocolVersionId, tx: ProtocolUpgradeTx) {
@@ -595,104 +653,108 @@ impl TestIO {
     }
 
     fn pop_next_item(&mut self, request: &str) -> ScenarioItem {
-        if self.scenario.actions.is_empty() {
-            panic!(
-                "Test scenario is empty, but the following action was done by the state keeper: {}",
-                request
-            );
-        }
+        let mut actions = self.actions.lock().expect("scenario queue is poisoned");
+        loop {
+            let action = actions.pop_front().unwrap_or_else(|| {
+                panic!(
+                    "Test scenario is empty, but the following action was done by the state keeper: {request}"
+                );
+            });
+            // If that was a last action, tell the state keeper to stop after that.
+            if actions.is_empty() {
+                self.stop_sender.send_replace(true);
+            }
 
-        let action = self.scenario.actions.pop_front().unwrap();
-        if matches!(action, ScenarioItem::NoTxsUntilNextAction(_)) {
-            self.skipping_txs = true;
-            // This is a mock item, so pop an actual one for the IO to process.
-            return self.pop_next_item(request);
+            match &action {
+                ScenarioItem::NoTxsUntilNextAction(_) => {
+                    self.skipping_txs = true;
+                    // This is a mock item, so pop an actual one for the IO to process.
+                    continue;
+                }
+                ScenarioItem::IncrementProtocolVersion(_) => {
+                    self.protocol_version = (self.protocol_version as u16 + 1)
+                        .try_into()
+                        .expect("Cannot increment latest version");
+                    // This is a mock item, so pop an actual one for the IO to process.
+                    continue;
+                }
+                _ => break action,
+            }
         }
-
-        if matches!(action, ScenarioItem::IncrementProtocolVersion(_)) {
-            self.protocol_version = (self.protocol_version as u16 + 1)
-                .try_into()
-                .expect("Cannot increment latest version");
-            // This is a mock item, so pop an actual one for the IO to process.
-            return self.pop_next_item(request);
-        }
-
-        // If that was a last action, tell the state keeper to stop after that.
-        if self.scenario.actions.is_empty() {
-            self.stop_sender.send(true).unwrap();
-        }
-        action
     }
 }
 
 impl IoSealCriteria for TestIO {
     fn should_seal_l1_batch_unconditionally(&mut self, manager: &UpdatesManager) -> bool {
-        (self.scenario.l1_batch_seal_fn)(manager)
+        (self.l1_batch_seal_fn)(manager)
     }
 
-    fn should_seal_miniblock(&mut self, manager: &UpdatesManager) -> bool {
-        (self.scenario.miniblock_seal_fn)(manager)
+    fn should_seal_l2_block(&mut self, manager: &UpdatesManager) -> bool {
+        (self.l2_block_seal_fn)(manager)
     }
 }
 
 #[async_trait]
 impl StateKeeperIO for TestIO {
-    fn current_l1_batch_number(&self) -> L1BatchNumber {
-        self.batch_number
+    fn chain_id(&self) -> L2ChainId {
+        L2ChainId::default()
     }
 
-    fn current_miniblock_number(&self) -> MiniblockNumber {
-        self.miniblock_number
-    }
-
-    async fn load_pending_batch(&mut self) -> anyhow::Result<Option<PendingBatchData>> {
-        Ok(self.scenario.pending_batch.take())
+    async fn initialize(&mut self) -> anyhow::Result<(IoCursor, Option<PendingBatchData>)> {
+        let cursor = IoCursor {
+            next_l2_block: self.l2_block_number,
+            prev_l2_block_hash: H256::zero(),
+            prev_l2_block_timestamp: self.timestamp.saturating_sub(1),
+            l1_batch: self.batch_number,
+        };
+        let pending_batch = self.pending_batch.take();
+        Ok((cursor, pending_batch))
     }
 
     async fn wait_for_new_batch_params(
         &mut self,
+        cursor: &IoCursor,
         _max_wait: Duration,
-    ) -> anyhow::Result<Option<(SystemEnv, L1BatchEnv)>> {
-        let first_miniblock_info = L2BlockEnv {
-            number: self.miniblock_number.0,
-            timestamp: self.timestamp,
-            prev_block_hash: H256::zero(),
-            max_virtual_blocks_to_create: 1,
-        };
-        Ok(Some((
-            SystemEnv {
-                zk_porter_available: false,
-                version: self.protocol_version,
-                base_system_smart_contracts: BASE_SYSTEM_CONTRACTS.clone(),
-                gas_limit: BLOCK_GAS_LIMIT,
-                execution_mode: TxExecutionMode::VerifyExecute,
-                default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
-                chain_id: L2ChainId::from(270),
-            },
-            L1BatchEnv {
-                previous_batch_hash: Some(H256::zero()),
-                number: self.batch_number,
+    ) -> anyhow::Result<Option<L1BatchParams>> {
+        assert_eq!(cursor.next_l2_block, self.l2_block_number);
+        assert_eq!(cursor.l1_batch, self.batch_number);
+
+        let params = L1BatchParams {
+            protocol_version: self.protocol_version,
+            validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
+            operator_address: self.fee_account,
+            fee_input: self.fee_input,
+            first_l2_block: L2BlockParams {
                 timestamp: self.timestamp,
-                fee_input: self.fee_input,
-                fee_account: self.fee_account,
-                enforced_base_fee: None,
-                first_l2_block: first_miniblock_info,
+                virtual_blocks: 1,
             },
-        )))
+        };
+        self.l2_block_number += 1;
+        self.timestamp += 1;
+        self.batch_number += 1;
+        Ok(Some(params))
     }
 
-    async fn wait_for_new_miniblock_params(
+    async fn wait_for_new_l2_block_params(
         &mut self,
+        cursor: &IoCursor,
         _max_wait: Duration,
-    ) -> anyhow::Result<Option<MiniblockParams>> {
-        Ok(Some(MiniblockParams {
+    ) -> anyhow::Result<Option<L2BlockParams>> {
+        assert_eq!(cursor.next_l2_block, self.l2_block_number);
+        let params = L2BlockParams {
             timestamp: self.timestamp,
             // 1 is just a constant used for tests.
             virtual_blocks: 1,
-        }))
+        };
+        self.l2_block_number += 1;
+        self.timestamp += 1;
+        Ok(Some(params))
     }
 
-    async fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction> {
+    async fn wait_for_next_tx(
+        &mut self,
+        max_wait: Duration,
+    ) -> anyhow::Result<Option<Transaction>> {
         let action = self.pop_next_item("wait_for_next_tx");
 
         // Check whether we should ignore tx requests.
@@ -700,18 +762,18 @@ impl StateKeeperIO for TestIO {
             // As per expectation, we should provide a delay given by the state keeper.
             tokio::time::sleep(max_wait).await;
             // Return the action to the scenario as we don't use it.
-            self.scenario.actions.push_front(action);
-            return None;
+            self.actions.lock().unwrap().push_front(action);
+            return Ok(None);
         }
 
         // We shouldn't, process normally.
         let ScenarioItem::Tx(_, tx, _) = action else {
             panic!("Unexpected action: {:?}", action);
         };
-        Some(tx)
+        Ok(Some(tx))
     }
 
-    async fn rollback(&mut self, tx: Transaction) {
+    async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()> {
         let action = self.pop_next_item("rollback");
         let ScenarioItem::Rollback(_, expected_tx) = action else {
             panic!("Unexpected action: {:?}", action);
@@ -721,6 +783,7 @@ impl StateKeeperIO for TestIO {
             "Incorrect transaction has been rolled back"
         );
         self.skipping_txs = false;
+        Ok(())
     }
 
     async fn reject(&mut self, tx: &Transaction, error: &str) -> anyhow::Result<()> {
@@ -741,47 +804,18 @@ impl StateKeeperIO for TestIO {
         Ok(())
     }
 
-    async fn seal_miniblock(&mut self, updates_manager: &UpdatesManager) {
-        let action = self.pop_next_item("seal_miniblock");
-        let ScenarioItem::MiniblockSeal(_, check_fn) = action else {
-            panic!("Unexpected action: {:?}", action);
-        };
-        if let Some(check_fn) = check_fn {
-            check_fn(updates_manager);
-        }
-        self.miniblock_number += 1;
-        self.timestamp += 1;
-        self.skipping_txs = false;
-    }
-
-    async fn seal_l1_batch(
+    async fn load_base_system_contracts(
         &mut self,
-        _witness_block_state: Option<WitnessBlockState>,
-        updates_manager: UpdatesManager,
-        l1_batch_env: &L1BatchEnv,
-        finished_batch: FinishedL1Batch,
-    ) -> anyhow::Result<()> {
-        let action = self.pop_next_item("seal_l1_batch");
-        let ScenarioItem::BatchSeal(_, check_fn) = action else {
-            anyhow::bail!("Unexpected action: {:?}", action);
-        };
-        if let Some(check_fn) = check_fn {
-            check_fn(
-                &finished_batch.block_tip_execution_result,
-                &updates_manager,
-                l1_batch_env,
-            );
-        }
-
-        self.miniblock_number += 1; // Seal the fictive miniblock.
-        self.batch_number += 1;
-        self.previous_batch_protocol_version = self.protocol_version;
-        self.timestamp += 1;
-        self.skipping_txs = false;
-        Ok(())
+        _protocol_version: ProtocolVersionId,
+        _cursor: &IoCursor,
+    ) -> anyhow::Result<BaseSystemContracts> {
+        Ok(BASE_SYSTEM_CONTRACTS.clone())
     }
 
-    async fn load_previous_batch_version_id(&mut self) -> anyhow::Result<ProtocolVersionId> {
+    async fn load_batch_version_id(
+        &mut self,
+        _number: L1BatchNumber,
+    ) -> anyhow::Result<ProtocolVersionId> {
         Ok(self.previous_batch_protocol_version)
     }
 
@@ -790,6 +824,13 @@ impl StateKeeperIO for TestIO {
         version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
         Ok(self.protocol_upgrade_txs.get(&version_id).cloned())
+    }
+
+    async fn load_batch_state_hash(
+        &mut self,
+        _l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<H256> {
+        Ok(H256::zero())
     }
 }
 
@@ -812,11 +853,11 @@ impl BatchExecutor for MockBatchExecutor {
             while let Some(cmd) = recv.recv().await {
                 match cmd {
                     Command::ExecuteTx(_, resp) => resp.send(successful_exec()).unwrap(),
-                    Command::StartNextMiniblock(_, resp) => resp.send(()).unwrap(),
+                    Command::StartNextL2Block(_, resp) => resp.send(()).unwrap(),
                     Command::RollbackLastTx(_) => panic!("unexpected rollback"),
                     Command::FinishBatch(resp) => {
                         // Blanket result, it doesn't really matter.
-                        resp.send((default_vm_block_result(), None)).unwrap();
+                        resp.send(default_vm_batch_result()).unwrap();
                         return;
                     }
                 }

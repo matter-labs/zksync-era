@@ -23,6 +23,9 @@
         },
         {
             "pattern": "^https://github\\.com/matter-labs/zksync-era/commit/"
+        },
+        {
+            "pattern": "^https://github\\.com/matter-labs//era-compiler-llvm"
         }
     ],
     "aliveStatusCodes": [0, 200, 206, 304]

@@ -1,26 +1,18 @@
 use ethabi::Token;
 use zksync_contracts::{load_contract, read_bytecode};
-use zksync_system_constants::L2_ETH_TOKEN_ADDRESS;
-use zksync_test_account::Account;
-use zksync_types::{
-    get_code_key, get_known_code_key, get_nonce_key,
-    system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT},
-    utils::storage_key_for_eth_balance,
-    AccountTreeId, Address, Execute, StorageKey, H256, U256,
-};
-use zksync_utils::{h256_to_u256, u256_to_h256};
+use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
+use zksync_types::{utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, U256};
+use zksync_utils::u256_to_h256;
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     vm_latest::{
         tests::{
-            tester::{get_empty_storage, DeployContractsTx, TxType, VmTesterBuilder},
-            utils::{get_balance, read_test_contract, verify_required_storage},
+            tester::{get_empty_storage, VmTesterBuilder},
+            utils::get_balance,
         },
-        utils::fee::get_batch_base_fee,
         HistoryEnabled,
     },
-    vm_m5::storage::Storage,
 };
 
 enum TestOptions {
@@ -81,7 +73,7 @@ fn test_send_or_transfer(test_option: TestOptions) {
     let account = &mut vm.rich_accounts[0];
     let tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: Some(test_contract_address),
+            contract_address: test_contract_address,
             calldata,
             value: U256::zero(),
             factory_deps: None,
@@ -100,7 +92,7 @@ fn test_send_or_transfer(test_option: TestOptions) {
     assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
 
     let new_recipient_balance = get_balance(
-        AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
+        AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
         &recipient_address,
         vm.vm.state.storage.storage.get_ptr(),
     );
@@ -177,7 +169,7 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
     let account = &mut vm.rich_accounts[0];
     let tx1 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: Some(reentrant_recipeint_address),
+            contract_address: reentrant_recipeint_address,
             calldata: reentrant_recipient_abi
                 .function("setX")
                 .unwrap()
@@ -198,7 +190,7 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
 
     let tx2 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: Some(test_contract_address),
+            contract_address: test_contract_address,
             calldata,
             value,
             factory_deps: None,

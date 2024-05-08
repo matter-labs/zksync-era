@@ -4,7 +4,7 @@ use std::net::Ipv4Addr;
 
 use assert_matches::assert_matches;
 use tempfile::TempDir;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core};
 
 use super::*;
 use crate::metadata_calculator::tests::{
@@ -13,14 +13,14 @@ use crate::metadata_calculator::tests::{
 
 #[tokio::test]
 async fn merkle_tree_api() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
+    let (calculator, _) = setup_calculator(temp_dir.path(), pool.clone()).await;
     let api_addr = (Ipv4Addr::LOCALHOST, 0).into();
 
     reset_db_state(&pool, 5).await;
     let tree_reader = calculator.tree_reader();
-    let calculator_task = tokio::spawn(run_calculator(calculator, pool));
+    let calculator_task = tokio::spawn(run_calculator(calculator));
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let api_server = tree_reader
@@ -75,9 +75,9 @@ async fn merkle_tree_api() {
 
 #[tokio::test]
 async fn local_merkle_tree_client() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
+    let (calculator, _) = setup_calculator(temp_dir.path(), pool.clone()).await;
 
     reset_db_state(&pool, 5).await;
     let tree_reader = calculator.tree_reader();
@@ -86,7 +86,7 @@ async fn local_merkle_tree_client() {
     assert_matches!(err, TreeApiError::NotReady);
 
     // Wait until the calculator processes initial L1 batches.
-    run_calculator(calculator, pool).await;
+    run_calculator(calculator).await;
 
     let tree_info = tree_reader.get_info().await.unwrap();
     assert!(tree_info.leaf_count > 20);

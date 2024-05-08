@@ -3,18 +3,19 @@ use std::{convert::TryInto, sync::Arc};
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_l1_contract_interface::{
     i_executor::commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
     multicall3::{Multicall3Call, Multicall3Result},
     Detokenize, Tokenizable, Tokenize,
 };
+use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    commitment::SerializeCommitment,
+    commitment::{L1BatchWithMetadata, SerializeCommitment},
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
-    ethabi::Token,
+    ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, VerifierParams},
     pubdata_da::PubdataDA,
@@ -25,12 +26,12 @@ use zksync_types::{
 use super::aggregated_operations::AggregatedOperation;
 use crate::{
     eth_sender::{
+        l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
         metrics::{PubdataKind, METRICS},
         zksync_functions::ZkSyncFunctions,
         Aggregator, ETHSenderError,
     },
     gas_tracker::agg_l1_batch_base_cost,
-    metrics::BlockL1Stage,
 };
 
 /// Data queried from L1 using multicall contract.
@@ -52,7 +53,7 @@ pub struct EthTxAggregator {
     config: SenderConfig,
     timelock_contract_address: Address,
     l1_multicall3_address: Address,
-    pub(super) main_zksync_contract_address: Address,
+    pub(super) state_transition_chain_contract: Address,
     functions: ZkSyncFunctions,
     base_nonce: u64,
     base_nonce_custom_commit_sender: Option<u64>,
@@ -62,7 +63,8 @@ pub struct EthTxAggregator {
     /// transactions. The `Some` then contains the address of this custom operator
     /// address.
     custom_commit_sender_addr: Option<Address>,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
+    l1_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
 struct TxData {
@@ -73,15 +75,16 @@ struct TxData {
 impl EthTxAggregator {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
         config: SenderConfig,
         aggregator: Aggregator,
         eth_client: Arc<dyn BoundEthInterface>,
         timelock_contract_address: Address,
         l1_multicall3_address: Address,
-        main_zksync_contract_address: Address,
+        state_transition_chain_contract: Address,
         rollup_chain_id: L2ChainId,
         custom_commit_sender_addr: Option<Address>,
+        l1_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> Self {
         let functions = ZkSyncFunctions::default();
         let base_nonce = eth_client
@@ -106,20 +109,21 @@ impl EthTxAggregator {
             eth_client,
             timelock_contract_address,
             l1_multicall3_address,
-            main_zksync_contract_address,
+            state_transition_chain_contract,
             functions,
             base_nonce,
             base_nonce_custom_commit_sender,
             rollup_chain_id,
             custom_commit_sender_addr,
             pool,
+            l1_commit_data_generator,
         }
     }
 
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let pool = self.pool.clone();
         loop {
-            let mut storage = pool.access_storage_tagged("eth_sender").await.unwrap();
+            let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, eth_tx_aggregator is shutting down");
@@ -160,7 +164,7 @@ impl EthTxAggregator {
             .encode_input(&[])
             .unwrap();
         let get_bootloader_hash_call = Multicall3Call {
-            target: self.main_zksync_contract_address,
+            target: self.state_transition_chain_contract,
             allow_failure: ALLOW_FAILURE,
             calldata: get_l2_bootloader_hash_input,
         };
@@ -172,7 +176,7 @@ impl EthTxAggregator {
             .encode_input(&[])
             .unwrap();
         let get_default_aa_hash_call = Multicall3Call {
-            target: self.main_zksync_contract_address,
+            target: self.state_transition_chain_contract,
             allow_failure: ALLOW_FAILURE,
             calldata: get_l2_default_aa_hash_input,
         };
@@ -184,7 +188,7 @@ impl EthTxAggregator {
             .encode_input(&[])
             .unwrap();
         let get_verifier_params_call = Multicall3Call {
-            target: self.main_zksync_contract_address,
+            target: self.state_transition_chain_contract,
             allow_failure: ALLOW_FAILURE,
             calldata: get_verifier_params_input,
         };
@@ -192,7 +196,7 @@ impl EthTxAggregator {
         // Fourth zksync contract call
         let get_verifier_input = self.functions.get_verifier.encode_input(&[]).unwrap();
         let get_verifier_call = Multicall3Call {
-            target: self.main_zksync_contract_address,
+            target: self.state_transition_chain_contract,
             allow_failure: ALLOW_FAILURE,
             calldata: get_verifier_input,
         };
@@ -204,7 +208,7 @@ impl EthTxAggregator {
             .encode_input(&[])
             .unwrap();
         let get_protocol_version_call = Multicall3Call {
-            target: self.main_zksync_contract_address,
+            target: self.state_transition_chain_contract,
             allow_failure: ALLOW_FAILURE,
             calldata: get_protocol_version_input,
         };
@@ -343,7 +347,7 @@ impl EthTxAggregator {
     #[tracing::instrument(skip(self, storage))]
     async fn loop_iteration(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
     ) -> Result<(), ETHSenderError> {
         let MulticallData {
             base_system_contracts_hashes,
@@ -386,7 +390,7 @@ impl EthTxAggregator {
     }
 
     async fn report_eth_tx_saving(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         aggregated_op: AggregatedOperation,
         tx: &EthTx,
     ) {
@@ -397,8 +401,8 @@ impl EthTxAggregator {
             aggregated_op.get_action_caption()
         );
 
-        if let AggregatedOperation::Commit(commit_op) = &aggregated_op {
-            for batch in &commit_op.l1_batches {
+        if let AggregatedOperation::Commit(_, l1_batches, _) = &aggregated_op {
+            for batch in l1_batches {
                 METRICS.pubdata_size[&PubdataKind::StateDiffs]
                     .observe(batch.metadata.state_diffs_compressed.len());
                 METRICS.pubdata_size[&PubdataKind::UserL2ToL1Logs]
@@ -424,61 +428,41 @@ impl EthTxAggregator {
         contracts_are_pre_shared_bridge: bool,
     ) -> TxData {
         let operation_is_pre_shared_bridge = op.protocol_version().is_pre_shared_bridge();
-        assert_eq!(
-            contracts_are_pre_shared_bridge,
-            operation_is_pre_shared_bridge
-        );
+
+        // The post shared bridge contracts support pre-shared bridge operations, but vice versa is not true.
+        if contracts_are_pre_shared_bridge {
+            assert!(operation_is_pre_shared_bridge);
+        }
 
         let mut args = vec![Token::Uint(self.rollup_chain_id.as_u64().into())];
 
         let (calldata, sidecar) = match op.clone() {
-            AggregatedOperation::Commit(op) => {
-                if contracts_are_pre_shared_bridge {
-                    if let PubdataDA::Blobs = self.aggregator.pubdata_da() {
-                        let calldata = self
-                            .functions
-                            .pre_shared_bridge_commit
-                            .encode_input(&op.clone().into_tokens())
-                            .expect("Failed to encode commit transaction data");
-
-                        let side_car = op.l1_batches[0]
-                            .header
-                            .pubdata_input
-                            .clone()
-                            .unwrap()
-                            .chunks(ZK_SYNC_BYTES_PER_BLOB)
-                            .map(|blob| {
-                                let kzg_info = KzgInfo::new(blob);
-                                SidecarBlobV1 {
-                                    blob: kzg_info.blob.to_vec(),
-                                    commitment: kzg_info.kzg_commitment.to_vec(),
-                                    proof: kzg_info.blob_proof.to_vec(),
-                                    versioned_hash: kzg_info.versioned_hash.to_vec(),
-                                }
-                            })
-                            .collect::<Vec<SidecarBlobV1>>();
-
-                        let eth_tx_sidecar = EthTxBlobSidecarV1 { blobs: side_car };
-                        (calldata, Some(eth_tx_sidecar.into()))
-                    } else {
-                        let calldata = self
-                            .functions
-                            .pre_shared_bridge_commit
-                            .encode_input(&op.into_tokens())
-                            .expect("Failed to encode commit transaction data");
-                        (calldata, None)
-                    }
+            AggregatedOperation::Commit(last_committed_l1_batch, l1_batches, pubdata_da) => {
+                let commit_data_base = self.l1_commit_data_generator.l1_commit_batches(
+                    &last_committed_l1_batch,
+                    &l1_batches,
+                    &pubdata_da,
+                );
+                let (encoding_fn, commit_data) = if contracts_are_pre_shared_bridge {
+                    (&self.functions.pre_shared_bridge_commit, commit_data_base)
                 } else {
-                    args.extend(op.into_tokens());
-                    let calldata = self
-                        .functions
-                        .post_shared_bridge_commit
-                        .as_ref()
-                        .expect("Missing ABI for commitBatchesSharedBridge")
-                        .encode_input(&args)
-                        .expect("Failed to encode commit transaction data");
-                    (calldata, None)
-                }
+                    args.extend(commit_data_base);
+                    (
+                        self.functions
+                            .post_shared_bridge_commit
+                            .as_ref()
+                            .expect("Missing ABI for commitBatchesSharedBridge"),
+                        args,
+                    )
+                };
+
+                let l1_batch_for_sidecar = if PubdataDA::Blobs == self.aggregator.pubdata_da() {
+                    Some(l1_batches[0].clone())
+                } else {
+                    None
+                };
+
+                Self::encode_commit_data(encoding_fn, &commit_data, l1_batch_for_sidecar)
             }
             AggregatedOperation::PublishProofOnchain(op) => {
                 let calldata = if contracts_are_pre_shared_bridge {
@@ -518,9 +502,46 @@ impl EthTxAggregator {
         TxData { calldata, sidecar }
     }
 
+    fn encode_commit_data(
+        commit_fn: &Function,
+        commit_payload: &[Token],
+        l1_batch: Option<L1BatchWithMetadata>,
+    ) -> (Vec<u8>, Option<EthTxBlobSidecar>) {
+        let calldata = commit_fn
+            .encode_input(commit_payload)
+            .expect("Failed to encode commit transaction data");
+
+        let sidecar = match l1_batch {
+            None => None,
+            Some(l1_batch) => {
+                let sidecar = l1_batch
+                    .header
+                    .pubdata_input
+                    .clone()
+                    .unwrap()
+                    .chunks(ZK_SYNC_BYTES_PER_BLOB)
+                    .map(|blob| {
+                        let kzg_info = KzgInfo::new(blob);
+                        SidecarBlobV1 {
+                            blob: kzg_info.blob.to_vec(),
+                            commitment: kzg_info.kzg_commitment.to_vec(),
+                            proof: kzg_info.blob_proof.to_vec(),
+                            versioned_hash: kzg_info.versioned_hash.to_vec(),
+                        }
+                    })
+                    .collect::<Vec<SidecarBlobV1>>();
+
+                let eth_tx_blob_sidecar = EthTxBlobSidecarV1 { blobs: sidecar };
+                Some(eth_tx_blob_sidecar.into())
+            }
+        };
+
+        (calldata, sidecar)
+    }
+
     pub(super) async fn save_eth_tx(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         aggregated_op: &AggregatedOperation,
         contracts_are_pre_shared_bridge: bool,
     ) -> Result<EthTx, ETHSenderError> {
@@ -570,7 +591,7 @@ impl EthTxAggregator {
 
     async fn get_next_nonce(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         from_addr: Option<Address>,
     ) -> Result<u64, ETHSenderError> {
         let db_nonce = storage

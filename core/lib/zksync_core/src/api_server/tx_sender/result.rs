@@ -12,6 +12,8 @@ pub enum SubmitTxError {
     NonceIsTooHigh(u32, u32, u32),
     #[error("nonce too low. allowed nonce range: {0} - {1}, actual: {2}")]
     NonceIsTooLow(u32, u32, u32),
+    #[error("insertion of another transaction with the same nonce is in progress")]
+    InsertionInProgress,
     #[error("{0}")]
     IncorrectTx(#[from] TxCheckError),
     #[error("insufficient funds for gas + value. balance: {0}, fee: {1}, value: {2}")]
@@ -80,6 +82,7 @@ impl SubmitTxError {
         match self {
             Self::NonceIsTooHigh(_, _, _) => "nonce-is-too-high",
             Self::NonceIsTooLow(_, _, _) => "nonce-is-too-low",
+            Self::InsertionInProgress => "insertion-in-progress",
             Self::IncorrectTx(_) => "incorrect-tx",
             Self::NotEnoughBalanceForFeeValue(_, _, _) => "not-enough-balance-for-fee",
             Self::ExecutionReverted(_, _) => "execution-reverted",

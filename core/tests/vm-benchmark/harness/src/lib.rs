@@ -5,21 +5,21 @@ use multivm::{
         L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
     },
     utils::get_max_gas_per_pubdata_byte,
-    vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryEnabled, TracerDispatcher, Vm},
+    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryEnabled, TracerDispatcher, Vm},
 };
 use once_cell::sync::Lazy;
 use zksync_contracts::{deployer_contract, BaseSystemContracts};
 use zksync_state::{InMemoryStorage, StorageView};
 use zksync_types::{
-    block::MiniblockHasher,
+    block::L2BlockHasher,
     ethabi::{encode, Token},
     fee::Fee,
     fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms,
     l2::L2Tx,
     utils::storage_key_for_eth_balance,
-    Address, L1BatchNumber, L2ChainId, MiniblockNumber, Nonce, PackedEthSignature,
-    ProtocolVersionId, Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
+    Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId,
+    Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
 use zksync_utils::bytecode::hash_bytecode;
 
@@ -42,9 +42,8 @@ pub fn cut_to_allowed_bytecode_size(bytes: &[u8]) -> Option<&[u8]> {
 static STORAGE: Lazy<InMemoryStorage> = Lazy::new(|| {
     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
 
-    // give `PRIVATE_KEY` some money
-    let my_addr = PackedEthSignature::address_from_private_key(&PRIVATE_KEY).unwrap();
-    let key = storage_key_for_eth_balance(&my_addr);
+    // Give `PRIVATE_KEY` some money
+    let key = storage_key_for_eth_balance(&PRIVATE_KEY.address());
     storage.set_value(key, zksync_utils::u256_to_h256(U256([0, 0, 1, 0])));
 
     storage
@@ -58,7 +57,9 @@ static CREATE_FUNCTION_SIGNATURE: Lazy<[u8; 4]> = Lazy::new(|| {
         .unwrap()
         .short_signature()
 });
-const PRIVATE_KEY: H256 = H256([42; 32]);
+
+static PRIVATE_KEY: Lazy<K256PrivateKey> =
+    Lazy::new(|| K256PrivateKey::from_bytes(H256([42; 32])).expect("invalid key bytes"));
 
 pub struct BenchmarkingVm(Vm<StorageView<&'static InMemoryStorage>, HistoryEnabled>);
 
@@ -81,7 +82,7 @@ impl BenchmarkingVm {
                 first_l2_block: L2BlockEnv {
                     number: 1,
                     timestamp,
-                    prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+                    prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
                     max_virtual_blocks_to_create: 100,
                 },
             },
@@ -89,9 +90,9 @@ impl BenchmarkingVm {
                 zk_porter_available: false,
                 version: ProtocolVersionId::latest(),
                 base_system_smart_contracts: SYSTEM_CONTRACTS.clone(),
-                gas_limit: BLOCK_GAS_LIMIT,
+                bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
                 execution_mode: TxExecutionMode::VerifyExecute,
-                default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+                default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
                 chain_id: L2ChainId::from(270),
             },
             Rc::new(RefCell::new(StorageView::new(&*STORAGE))),

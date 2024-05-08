@@ -9,13 +9,16 @@ use tokio::{
     task::JoinHandle,
 };
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
-use zksync_dal::ConnectionPool;
+use zksync_config::configs::api::{MaxResponseSize, MaxResponseSizeOverrides};
+use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_types::MiniblockNumber;
+use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
     jsonrpsee::{
-        server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder},
-        RpcModule,
+        server::{
+            middleware::rpc::either::Either, BatchRequestConfig, RpcServiceBuilder, ServerBuilder,
+        },
+        MethodCallback, Methods, RpcModule,
     },
     namespaces::{
         DebugNamespaceServer, EnNamespaceServer, EthNamespaceServer, EthPubSubServer,
@@ -25,14 +28,18 @@ use zksync_web3_decl::{
 };
 
 use self::{
-    backend_jsonrpsee::{LimitMiddleware, MetadataMiddleware, MethodTracer},
+    backend_jsonrpsee::{
+        CorrelationMiddleware, LimitMiddleware, MetadataLayer, MethodTracer, ShutdownMiddleware,
+        TrafficTracker,
+    },
+    mempool_cache::MempoolCache,
     metrics::API_METRICS,
     namespaces::{
         DebugNamespace, EnNamespace, EthNamespace, NetNamespace, SnapshotsNamespace, Web3Namespace,
         ZksNamespace,
     },
     pubsub::{EthSubscribe, EthSubscriptionIdProvider, PubSubEvent},
-    state::{Filters, InternalApiConfig, RpcState, SealedMiniblockNumber},
+    state::{Filters, InternalApiConfig, RpcState, SealedL2BlockNumber},
 };
 use crate::{
     api_server::{
@@ -45,7 +52,8 @@ use crate::{
 };
 
 pub mod backend_jsonrpsee;
-mod metrics;
+pub mod mempool_cache;
+pub(super) mod metrics;
 pub mod namespaces;
 mod pubsub;
 pub mod state;
@@ -55,13 +63,21 @@ pub(crate) mod tests;
 /// Timeout for graceful shutdown logic within API servers.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// Interval to wait for the traffic to be stopped to the API server (e.g., by a load balancer) before
+/// the server will cease processing any further traffic. If this interval is exceeded, the server will start
+/// shutting down anyway.
+const NO_REQUESTS_WAIT_TIMEOUT: Duration = Duration::from_secs(30);
+/// Time interval with no requests sent to the API server to declare that traffic to the server is ceased,
+/// and start gracefully shutting down the server.
+const SHUTDOWN_INTERVAL_WITHOUT_REQUESTS: Duration = Duration::from_millis(500);
+
 /// Represents all kinds of `Filter`.
 #[derive(Debug, Clone)]
 pub(crate) enum TypedFilter {
     // Events from some block with additional filters
-    Events(Filter, MiniblockNumber),
+    Events(Filter, L2BlockNumber),
     // Blocks from some block
-    Blocks(MiniblockNumber),
+    Blocks(L2BlockNumber),
     // Pending transactions from some timestamp
     PendingTransactions(NaiveDateTime),
 }
@@ -113,9 +129,11 @@ struct OptionalApiParams {
     filters_limit: Option<usize>,
     subscriptions_limit: Option<usize>,
     batch_request_size_limit: Option<usize>,
-    response_body_size_limit: Option<usize>,
+    response_body_size_limit: Option<MaxResponseSize>,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
     tree_api: Option<Arc<dyn TreeApiClient>>,
+    mempool_cache: Option<MempoolCache>,
+    extended_tracing: bool,
     pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
 
@@ -123,8 +141,8 @@ struct OptionalApiParams {
 /// maintenance tasks.
 #[derive(Debug)]
 pub struct ApiServer {
-    pool: ConnectionPool,
-    updaters_pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
+    updaters_pool: ConnectionPool<Core>,
     health_updater: Arc<HealthUpdater>,
     config: InternalApiConfig,
     transport: ApiTransport,
@@ -137,8 +155,8 @@ pub struct ApiServer {
 
 #[derive(Debug)]
 pub struct ApiBuilder {
-    pool: ConnectionPool,
-    updaters_pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
+    updaters_pool: ConnectionPool<Core>,
     config: InternalApiConfig,
     polling_interval: Duration,
     // Mandatory params that must be set using builder methods.
@@ -154,7 +172,7 @@ pub struct ApiBuilder {
 impl ApiBuilder {
     const DEFAULT_POLLING_INTERVAL: Duration = Duration::from_millis(200);
 
-    pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ConnectionPool) -> Self {
+    pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ConnectionPool<Core>) -> Self {
         Self {
             updaters_pool: pool.clone(),
             pool,
@@ -182,7 +200,7 @@ impl ApiBuilder {
     /// such as last mined block number or account nonces. This pool is used to execute
     /// in a background task. If not called, the main pool will be used. If the API server is under high load,
     /// it may make sense to supply a single-connection pool to reduce pool contention with the API methods.
-    pub fn with_updaters_pool(mut self, pool: ConnectionPool) -> Self {
+    pub fn with_updaters_pool(mut self, pool: ConnectionPool<Core>) -> Self {
         self.updaters_pool = pool;
         self
     }
@@ -212,8 +230,8 @@ impl ApiBuilder {
         self
     }
 
-    pub fn with_response_body_size_limit(mut self, response_body_size_limit: usize) -> Self {
-        self.optional.response_body_size_limit = Some(response_body_size_limit);
+    pub fn with_response_body_size_limit(mut self, max_response_size: MaxResponseSize) -> Self {
+        self.optional.response_body_size_limit = Some(max_response_size);
         self
     }
 
@@ -244,6 +262,16 @@ impl ApiBuilder {
     pub fn with_tree_api(mut self, tree_api: Arc<dyn TreeApiClient>) -> Self {
         tracing::info!("Using tree API client: {tree_api:?}");
         self.optional.tree_api = Some(tree_api);
+        self
+    }
+
+    pub fn with_mempool_cache(mut self, cache: MempoolCache) -> Self {
+        self.optional.mempool_cache = Some(cache);
+        self
+    }
+
+    pub fn with_extended_tracing(mut self, extended_tracing: bool) -> Self {
+        self.optional.extended_tracing = extended_tracing;
         self
     }
 
@@ -296,19 +324,21 @@ impl ApiServer {
 
     async fn build_rpc_state(
         self,
-        last_sealed_miniblock: SealedMiniblockNumber,
+        last_sealed_l2_block: SealedL2BlockNumber,
     ) -> anyhow::Result<RpcState> {
-        let mut storage = self.updaters_pool.access_storage_tagged("api").await?;
+        let mut storage = self.updaters_pool.connection_tagged("api").await?;
         let start_info = BlockStartInfo::new(&mut storage).await?;
         drop(storage);
 
-        let installed_filters = if self.config.filters_disabled {
-            None
-        } else {
-            Some(Arc::new(Mutex::new(Filters::new(
-                self.optional.filters_limit,
-            ))))
-        };
+        // Disable filter API for HTTP endpoints, WS endpoints are unaffected by the `filters_disabled` flag
+        let installed_filters =
+            if matches!(self.transport, ApiTransport::Http(_)) && self.config.filters_disabled {
+                None
+            } else {
+                Some(Arc::new(Mutex::new(Filters::new(
+                    self.optional.filters_limit,
+                ))))
+            };
 
         Ok(RpcState {
             current_method: self.method_tracer,
@@ -318,7 +348,8 @@ impl ApiServer {
             sync_state: self.optional.sync_state,
             api_config: self.config,
             start_info,
-            last_sealed_miniblock,
+            mempool_cache: self.optional.mempool_cache,
+            last_sealed_l2_block,
             tree_api: self.optional.tree_api,
         })
     }
@@ -326,46 +357,46 @@ impl ApiServer {
     async fn build_rpc_module(
         self,
         pub_sub: Option<EthSubscribe>,
-        last_sealed_miniblock: SealedMiniblockNumber,
+        last_sealed_l2_block: SealedL2BlockNumber,
     ) -> anyhow::Result<RpcModule<()>> {
         let namespaces = self.namespaces.clone();
         let zksync_network_id = self.config.l2_chain_id;
-        let rpc_state = self.build_rpc_state(last_sealed_miniblock).await?;
+        let rpc_state = self.build_rpc_state(last_sealed_l2_block).await?;
 
         // Collect all the methods into a single RPC module.
         let mut rpc = RpcModule::new(());
         if let Some(pub_sub) = pub_sub {
             rpc.merge(pub_sub.into_rpc())
-                .expect("Can't merge eth pubsub namespace");
+                .context("cannot merge eth pubsub namespace")?;
         }
 
+        if namespaces.contains(&Namespace::Debug) {
+            rpc.merge(DebugNamespace::new(rpc_state.clone()).await?.into_rpc())
+                .context("cannot merge debug namespace")?;
+        }
         if namespaces.contains(&Namespace::Eth) {
             rpc.merge(EthNamespace::new(rpc_state.clone()).into_rpc())
-                .expect("Can't merge eth namespace");
+                .context("cannot merge eth namespace")?;
         }
         if namespaces.contains(&Namespace::Net) {
             rpc.merge(NetNamespace::new(zksync_network_id).into_rpc())
-                .expect("Can't merge net namespace");
+                .context("cannot merge net namespace")?;
         }
         if namespaces.contains(&Namespace::Web3) {
             rpc.merge(Web3Namespace.into_rpc())
-                .expect("Can't merge web3 namespace");
+                .context("cannot merge web3 namespace")?;
         }
         if namespaces.contains(&Namespace::Zks) {
             rpc.merge(ZksNamespace::new(rpc_state.clone()).into_rpc())
-                .expect("Can't merge zks namespace");
+                .context("cannot merge zks namespace")?;
         }
         if namespaces.contains(&Namespace::En) {
             rpc.merge(EnNamespace::new(rpc_state.clone()).into_rpc())
-                .expect("Can't merge en namespace");
-        }
-        if namespaces.contains(&Namespace::Debug) {
-            rpc.merge(DebugNamespace::new(rpc_state.clone()).await.into_rpc())
-                .expect("Can't merge debug namespace");
+                .context("cannot merge en namespace")?;
         }
         if namespaces.contains(&Namespace::Snapshots) {
             rpc.merge(SnapshotsNamespace::new(rpc_state).into_rpc())
-                .expect("Can't merge snapshots namespace");
+                .context("cannot merge snapshots namespace")?;
         }
         Ok(rpc)
     }
@@ -424,21 +455,21 @@ impl ApiServer {
         self,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<ApiServerHandles> {
-        // Chosen to be significantly smaller than the interval between miniblocks, but larger than
-        // the latency of getting the latest sealed miniblock number from Postgres. If the API server
-        // processes enough requests, information about the latest sealed miniblock will be updated
+        // Chosen to be significantly smaller than the interval between L2 blocks, but larger than
+        // the latency of getting the latest sealed L2 block number from Postgres. If the API server
+        // processes enough requests, information about the latest sealed L2 block will be updated
         // by reporting block difference metrics, so the actual update lag would be much smaller than this value.
-        const SEALED_MINIBLOCK_UPDATE_INTERVAL: Duration = Duration::from_millis(25);
+        const SEALED_L2_BLOCK_UPDATE_INTERVAL: Duration = Duration::from_millis(25);
 
         let transport = self.transport;
 
-        let (last_sealed_miniblock, update_task) = SealedMiniblockNumber::new(
+        let (last_sealed_l2_block, sealed_l2_block_update_task) = SealedL2BlockNumber::new(
             self.updaters_pool.clone(),
-            SEALED_MINIBLOCK_UPDATE_INTERVAL,
+            SEALED_L2_BLOCK_UPDATE_INTERVAL,
             stop_receiver.clone(),
         );
 
-        let mut tasks = vec![tokio::spawn(update_task)];
+        let mut tasks = vec![tokio::spawn(sealed_l2_block_update_task)];
         let pub_sub = if matches!(transport, ApiTransport::WebSocket(_))
             && self.namespaces.contains(&Namespace::Pubsub)
         {
@@ -464,7 +495,7 @@ impl ApiServer {
         let server_task = tokio::spawn(self.run_jsonrpsee_server(
             stop_receiver,
             pub_sub,
-            last_sealed_miniblock,
+            last_sealed_l2_block,
             local_addr_sender,
         ));
 
@@ -476,11 +507,66 @@ impl ApiServer {
         })
     }
 
+    /// Overrides max response sizes for specific RPC methods by additionally wrapping their callbacks
+    /// to which the max response size is passed as a param.
+    fn override_method_response_sizes(
+        rpc: RpcModule<()>,
+        response_size_overrides: &MaxResponseSizeOverrides,
+    ) -> anyhow::Result<Methods> {
+        let rpc = Methods::from(rpc);
+        let mut output_rpc = Methods::new();
+
+        for method_name in rpc.method_names() {
+            let method = rpc
+                .method(method_name)
+                .with_context(|| format!("method `{method_name}` disappeared from RPC module"))?;
+            let response_size_limit = response_size_overrides.get(method_name);
+
+            let method = match (method, response_size_limit) {
+                (MethodCallback::Sync(sync_method), Some(limit)) => {
+                    tracing::info!(
+                        "Overriding max response size to {limit}B for sync method `{method_name}`"
+                    );
+                    let sync_method = sync_method.clone();
+                    MethodCallback::Sync(Arc::new(move |id, params, _max_response_size| {
+                        sync_method(id, params, limit)
+                    }))
+                }
+                (MethodCallback::Async(async_method), Some(limit)) => {
+                    tracing::info!(
+                        "Overriding max response size to {limit}B for async method `{method_name}`"
+                    );
+                    let async_method = async_method.clone();
+                    MethodCallback::Async(Arc::new(
+                        move |id, params, connection_id, _max_response_size| {
+                            async_method(id, params, connection_id, limit)
+                        },
+                    ))
+                }
+                (MethodCallback::Unsubscription(unsub_method), Some(limit)) => {
+                    tracing::info!(
+                        "Overriding max response size to {limit}B for unsub method `{method_name}`"
+                    );
+                    let unsub_method = unsub_method.clone();
+                    MethodCallback::Unsubscription(Arc::new(
+                        move |id, params, connection_id, _max_response_size| {
+                            unsub_method(id, params, connection_id, limit)
+                        },
+                    ))
+                }
+                _ => method.clone(),
+            };
+            output_rpc.verify_and_insert(method_name, method)?;
+        }
+
+        Ok(output_rpc)
+    }
+
     async fn run_jsonrpsee_server(
         self,
         mut stop_receiver: watch::Receiver<bool>,
         pub_sub: Option<EthSubscribe>,
-        last_sealed_miniblock: SealedMiniblockNumber,
+        last_sealed_l2_block: SealedL2BlockNumber,
         local_addr_sender: oneshot::Sender<SocketAddr>,
     ) -> anyhow::Result<()> {
         let transport = self.transport;
@@ -489,6 +575,12 @@ impl ApiServer {
             ApiTransport::WebSocket(addr) => ("WS", false, addr),
         };
         let transport_label = (&transport).into();
+        API_METRICS.observe_config(
+            transport_label,
+            self.polling_interval,
+            &self.config,
+            &self.optional,
+        );
 
         tracing::info!(
             "Waiting for at least one L1 batch in Postgres to start {transport_str} API server"
@@ -513,24 +605,30 @@ impl ApiServer {
             .map_or(BatchRequestConfig::Unlimited, |limit| {
                 BatchRequestConfig::Limit(limit as u32)
             });
-        let response_body_size_limit = self
-            .optional
-            .response_body_size_limit
-            .map_or(u32::MAX, |limit| limit as u32);
+        let (response_body_size_limit, max_response_size_overrides) =
+            if let Some(limit) = &self.optional.response_body_size_limit {
+                (limit.global as u32, limit.overrides.clone())
+            } else {
+                (u32::MAX, MaxResponseSizeOverrides::empty())
+            };
         let websocket_requests_per_minute_limit = self.optional.websocket_requests_per_minute_limit;
         let subscriptions_limit = self.optional.subscriptions_limit;
         let vm_barrier = self.optional.vm_barrier.clone();
         let health_updater = self.health_updater.clone();
         let method_tracer = self.method_tracer.clone();
 
-        let rpc = self
-            .build_rpc_module(pub_sub, last_sealed_miniblock)
-            .await?;
+        let extended_tracing = self.optional.extended_tracing;
+        if extended_tracing {
+            tracing::info!("Enabled extended call tracing for {transport_str} API server; this might negatively affect performance");
+        }
+
+        let rpc = self.build_rpc_module(pub_sub, last_sealed_l2_block).await?;
         let registered_method_names = Arc::new(rpc.method_names().collect::<HashSet<_>>());
         tracing::debug!(
             "Built RPC module for {transport_str} server with {} methods: {registered_method_names:?}",
             registered_method_names.len()
         );
+        let rpc = Self::override_method_response_sizes(rpc, &max_response_size_overrides)?;
 
         // Setup CORS.
         let cors = is_http.then(|| {
@@ -560,11 +658,27 @@ impl ApiServer {
             .flatten()
             .unwrap_or(5_000);
 
-        #[allow(clippy::let_and_return)] // simplifies conditional compilation
+        let metadata_layer = MetadataLayer::new(registered_method_names, method_tracer);
+        let metadata_layer = if extended_tracing {
+            Either::Left(metadata_layer.with_param_tracing())
+        } else {
+            Either::Right(metadata_layer)
+        };
+        let traffic_tracker = TrafficTracker::default();
+        let traffic_tracker_for_middleware = traffic_tracker.clone();
+
+        // **Important.** The ordering of layers matters! Layers added first will receive the request earlier
+        // (i.e., are outermost in the call chain).
         let rpc_middleware = RpcServiceBuilder::new()
             .layer_fn(move |svc| {
-                MetadataMiddleware::new(svc, registered_method_names.clone(), method_tracer.clone())
+                ShutdownMiddleware::new(svc, traffic_tracker_for_middleware.clone())
             })
+            // We want to output method logs with a correlation ID; hence, `CorrelationMiddleware` must precede `metadata_layer`.
+            .option_layer(
+                extended_tracing.then(|| tower::layer::layer_fn(CorrelationMiddleware::new)),
+            )
+            .layer(metadata_layer)
+            // We want to capture limit middleware errors with `metadata_layer`; hence, `LimitMiddleware` is placed after it.
             .option_layer((!is_http).then(|| {
                 tower::layer::layer_fn(move |svc| {
                     LimitMiddleware::new(svc, websocket_requests_per_minute_limit)
@@ -623,6 +737,27 @@ impl ApiServer {
             tracing::info!(
                 "Stop signal received, {transport_str} JSON-RPC server is shutting down"
             );
+
+            // Wait some time until the traffic to the server stops. This may be necessary if the API server
+            // is behind a load balancer which is not immediately aware of API server termination. In this case,
+            // the load balancer will continue directing traffic to the server for some time until it reads
+            // the server health (which *is* changed to "shutting down" immediately). Starting graceful server shutdown immediately
+            // would lead to all this traffic to get dropped.
+            //
+            // If the load balancer *is* aware of the API server termination, we'll wait for `SHUTDOWN_INTERVAL_WITHOUT_REQUESTS`,
+            // which is fairly short.
+            let wait_result = tokio::time::timeout(
+                NO_REQUESTS_WAIT_TIMEOUT,
+                traffic_tracker.wait_for_no_requests(SHUTDOWN_INTERVAL_WITHOUT_REQUESTS),
+            )
+            .await;
+
+            if wait_result.is_err() {
+                tracing::warn!(
+                    "Timed out waiting {NO_REQUESTS_WAIT_TIMEOUT:?} for traffic to be stopped by load balancer"
+                );
+            }
+            tracing::info!("Stopping serving new {transport_str} traffic");
             if let Some(closing_vm_barrier) = closing_vm_barrier {
                 closing_vm_barrier.close();
             }

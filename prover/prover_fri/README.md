@@ -23,7 +23,8 @@ flowchart LR
     C --- C1["Basic Circuits"]
     C --- C2["Leaf Aggregation"]
     C --- C3["Node Aggregation"]
-    C --- C4["Scheduler"]
+    C --- C4["Recursion Tip"]
+    C --- C5["Scheduler"]
     C --> B
     B --> D["Vector Generator/Prover"]
     D --> |Proven Block| B
@@ -54,7 +55,7 @@ installation as a pre-requisite, alongside these machine specs:
 2. Run the server. In the root of the repository:
 
    ```console
-   zk server --components=api,eth,tree,state_keeper,housekeeper,proof_data_handler
+   zk server --components=api,eth,tree,state_keeper,housekeeper,commitment_generator,proof_data_handler
    ```
 
    Note that it will produce a first l1 batch that can be proven (should be batch 0).
@@ -79,7 +80,8 @@ installation as a pre-requisite, alongside these machine specs:
    API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --round=basic_circuits
    API_PROMETHEUS_LISTENER_PORT=3117 zk f cargo run --release --bin zksync_witness_generator -- --round=leaf_aggregation
    API_PROMETHEUS_LISTENER_PORT=3118 zk f cargo run --release --bin zksync_witness_generator -- --round=node_aggregation
-   API_PROMETHEUS_LISTENER_PORT=3119 zk f cargo run --release --bin zksync_witness_generator -- --round=scheduler
+   API_PROMETHEUS_LISTENER_PORT=3119 zk f cargo run --release --bin zksync_witness_generator -- --round=recursion_tip
+   API_PROMETHEUS_LISTENER_PORT=3120 zk f cargo run --release --bin zksync_witness_generator -- --round=scheduler
    ```
 
    or alternatively (recommended), start all of them with
@@ -139,7 +141,7 @@ Machine specs:
 4. Run the sequencer/operator. In the root of the repository:
 
    ```console
-   zk server --components=api,eth,tree,state_keeper,housekeeper,proof_data_handler
+   zk server --components=api,eth,tree,state_keeper,housekeeper,commitment_generator,proof_data_handler
    ```
 
    to produce blocks to be proven

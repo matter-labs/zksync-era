@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use anyhow::Context as _;
 use zksync_config::configs::{api, ApiConfig};
 use zksync_protobuf::{
@@ -5,15 +7,13 @@ use zksync_protobuf::{
     required,
 };
 
-use crate::{parse_h256, proto::api as proto};
+use crate::{parse_h160, parse_h256, proto::api as proto};
 
 impl ProtoRepr for proto::Api {
     type Type = ApiConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             web3_json_rpc: read_required_repr(&self.web3_json_rpc).context("web3_json_rpc")?,
-            contract_verification: read_required_repr(&self.contract_verification)
-                .context("contract_verification")?,
             prometheus: read_required_repr(&self.prometheus).context("prometheus")?,
             healthcheck: read_required_repr(&self.healthcheck).context("healthcheck")?,
             merkle_tree: read_required_repr(&self.merkle_tree).context("merkle_tree")?,
@@ -23,7 +23,6 @@ impl ProtoRepr for proto::Api {
     fn build(this: &Self::Type) -> Self {
         Self {
             web3_json_rpc: Some(ProtoRepr::build(&this.web3_json_rpc)),
-            contract_verification: Some(ProtoRepr::build(&this.contract_verification)),
             prometheus: Some(ProtoRepr::build(&this.prometheus)),
             healthcheck: Some(ProtoRepr::build(&this.healthcheck)),
             merkle_tree: Some(ProtoRepr::build(&this.merkle_tree)),
@@ -33,7 +32,44 @@ impl ProtoRepr for proto::Api {
 
 impl ProtoRepr for proto::Web3JsonRpc {
     type Type = api::Web3JsonRpcConfig;
+
     fn read(&self) -> anyhow::Result<Self::Type> {
+        let account_pks = self
+            .account_pks
+            .iter()
+            .enumerate()
+            .map(|(i, k)| parse_h256(k).context(i))
+            .collect::<Result<Vec<_>, _>>()
+            .context("account_pks")?;
+        let account_pks = if account_pks.is_empty() {
+            None
+        } else {
+            Some(account_pks)
+        };
+
+        let max_response_body_size_overrides_mb = self
+            .max_response_body_size_overrides
+            .iter()
+            .enumerate()
+            .map(|(i, entry)| {
+                let size_mb = if let Some(size_mb) = entry.size_mb {
+                    let size_mb =
+                        usize::try_from(size_mb).with_context(|| format!("[{i}].size_mb"))?;
+                    NonZeroUsize::new(size_mb).with_context(|| format!("[{i}].size_mb is zero"))?
+                } else {
+                    NonZeroUsize::MAX
+                };
+                Ok((
+                    entry
+                        .method
+                        .clone()
+                        .with_context(|| format!("[{i}].method"))?,
+                    size_mb,
+                ))
+            })
+            .collect::<anyhow::Result<_>>()
+            .context("max_response_body_size_overrides")?;
+
         Ok(Self::Type {
             http_port: required(&self.http_port)
                 .and_then(|p| Ok((*p).try_into()?))
@@ -52,29 +88,13 @@ impl ProtoRepr for proto::Web3JsonRpc {
             gas_price_scale_factor: *required(&self.gas_price_scale_factor)
                 .context("gas_price_scale_factor")?,
             request_timeout: self.request_timeout,
-            account_pks: self
-                .account_pks
-                .as_ref()
-                .map(|keys| {
-                    keys.keys
-                        .iter()
-                        .enumerate()
-                        .map(|(i, k)| parse_h256(k).context(i))
-                        .collect::<Result<_, _>>()
-                        .context("keys")
-                })
-                .transpose()
-                .context("account_pks")?,
+            account_pks,
             estimate_gas_scale_factor: *required(&self.estimate_gas_scale_factor)
                 .context("estimate_gas_scale_factor")?,
             estimate_gas_acceptable_overestimation: *required(
                 &self.estimate_gas_acceptable_overestimation,
             )
             .context("acceptable_overestimation")?,
-            l1_to_l2_transactions_compatibility_mode: *required(
-                &self.l1_to_l2_transactions_compatibility_mode,
-            )
-            .context("l1_to_l2_transactions_compatibility_mode")?,
             max_tx_size: required(&self.max_tx_size)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("max_tx_size")?,
@@ -102,26 +122,41 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .latest_values_cache_size_mb
                 .map(|x| x.try_into())
                 .transpose()
-                .context("latests_values_cache_size_mb")?,
+                .context("latest_values_cache_size_mb")?,
             fee_history_limit: self.fee_history_limit,
             max_batch_request_size: self
                 .max_batch_request_size
                 .map(|x| x.try_into())
                 .transpose()
-                .context("max_batch_requres_size")?,
+                .context("max_batch_request_size")?,
             max_response_body_size_mb: self
                 .max_response_body_size_mb
                 .map(|x| x.try_into())
                 .transpose()
                 .context("max_response_body_size_mb")?,
+            max_response_body_size_overrides_mb,
             websocket_requests_per_minute_limit: self
                 .websocket_requests_per_minute_limit
                 .map(|x| x.try_into())
                 .transpose()
                 .context("websocket_requests_per_minute_limit")?,
             tree_api_url: self.tree_api_url.clone(),
+            mempool_cache_update_interval: self.mempool_cache_update_interval,
+            mempool_cache_size: self
+                .mempool_cache_size
+                .map(|x| x.try_into())
+                .transpose()
+                .context("mempool_cache_size")?,
+            whitelisted_tokens_for_aa: self
+                .whitelisted_tokens_for_aa
+                .iter()
+                .enumerate()
+                .map(|(i, k)| parse_h160(k).context(i))
+                .collect::<Result<Vec<_>, _>>()
+                .context("account_pks")?,
         })
     }
+
     fn build(this: &Self::Type) -> Self {
         Self {
             http_port: Some(this.http_port.into()),
@@ -130,21 +165,22 @@ impl ProtoRepr for proto::Web3JsonRpc {
             ws_url: Some(this.ws_url.clone()),
             req_entities_limit: this.req_entities_limit,
             filters_disabled: Some(this.filters_disabled),
+            mempool_cache_update_interval: this.mempool_cache_update_interval,
+            mempool_cache_size: this.mempool_cache_size.map(|x| x.try_into().unwrap()),
             filters_limit: this.filters_limit,
             subscriptions_limit: this.subscriptions_limit,
             pubsub_polling_interval: this.pubsub_polling_interval,
             max_nonce_ahead: Some(this.max_nonce_ahead),
             gas_price_scale_factor: Some(this.gas_price_scale_factor),
             request_timeout: this.request_timeout,
-            account_pks: this.account_pks.as_ref().map(|keys| proto::PrivateKeys {
-                keys: keys.iter().map(|k| k.as_bytes().into()).collect(),
-            }),
+            account_pks: this
+                .account_pks
+                .as_ref()
+                .map(|keys| keys.iter().map(|k| format!("{:?}", k)).collect())
+                .unwrap_or_default(),
             estimate_gas_scale_factor: Some(this.estimate_gas_scale_factor),
             estimate_gas_acceptable_overestimation: Some(
                 this.estimate_gas_acceptable_overestimation,
-            ),
-            l1_to_l2_transactions_compatibility_mode: Some(
-                this.l1_to_l2_transactions_compatibility_mode,
             ),
             max_tx_size: Some(this.max_tx_size.try_into().unwrap()),
             vm_execution_cache_misses_limit: this
@@ -165,28 +201,27 @@ impl ProtoRepr for proto::Web3JsonRpc {
             max_response_body_size_mb: this
                 .max_response_body_size_mb
                 .map(|x| x.try_into().unwrap()),
+            max_response_body_size_overrides: this
+                .max_response_body_size_overrides_mb
+                .iter()
+                .map(|(method, size_mb)| proto::MaxResponseSizeOverride {
+                    method: Some(method.to_owned()),
+                    size_mb: if size_mb == usize::MAX {
+                        None
+                    } else {
+                        Some(size_mb.try_into().expect("failed converting usize to u64"))
+                    },
+                })
+                .collect(),
             websocket_requests_per_minute_limit: this
                 .websocket_requests_per_minute_limit
                 .map(|x| x.into()),
             tree_api_url: this.tree_api_url.clone(),
-        }
-    }
-}
-
-impl ProtoRepr for proto::ContractVerificationApi {
-    type Type = api::ContractVerificationApiConfig;
-    fn read(&self) -> anyhow::Result<Self::Type> {
-        Ok(Self::Type {
-            port: required(&self.port)
-                .and_then(|p| Ok((*p).try_into()?))
-                .context("port")?,
-            url: required(&self.url).context("url")?.clone(),
-        })
-    }
-    fn build(this: &Self::Type) -> Self {
-        Self {
-            port: Some(this.port.into()),
-            url: Some(this.url.clone()),
+            whitelisted_tokens_for_aa: this
+                .whitelisted_tokens_for_aa
+                .iter()
+                .map(|k| format!("{:?}", k))
+                .collect(),
         }
     }
 }

@@ -1,4 +1,4 @@
-use codegen::serialize_proof;
+use crypto_codegen::serialize_proof;
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{
     commitment::L1BatchWithMetadata, ethabi::Token, web3::contract::tokens::Tokenizable, U256,

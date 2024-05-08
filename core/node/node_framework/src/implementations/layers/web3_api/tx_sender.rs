@@ -62,7 +62,7 @@ impl WiringLayer for TxSenderLayer {
         let replica_pool = pool_resource.get().await?;
         let sealer = match context.get_resource::<ConditionalSealerResource>().await {
             Ok(sealer) => Some(sealer.0),
-            Err(WiringError::ResourceLacking(_)) => None,
+            Err(WiringError::ResourceLacking { .. }) => None,
             Err(other) => return Err(other),
         };
         let fee_input = context.get_resource::<FeeInputResource>().await?.0;

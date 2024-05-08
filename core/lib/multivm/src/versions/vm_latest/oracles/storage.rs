@@ -4,8 +4,9 @@ use zk_evm_1_5_0::{
     abstractions::{Storage as VmStorageOracle, StorageAccessRefund},
     aux_structures::{LogQuery, PubdataCost, Timestamp},
     zkevm_opcode_defs::system_params::{
-        INITIAL_STORAGE_WRITE_PUBDATA_BYTES, STORAGE_ACCESS_COLD_READ_COST,
-        STORAGE_ACCESS_COLD_WRITE_COST, STORAGE_AUX_BYTE, TRANSIENT_STORAGE_AUX_BYTE,
+        STORAGE_ACCESS_COLD_READ_COST, STORAGE_ACCESS_COLD_WRITE_COST,
+        STORAGE_ACCESS_WARM_READ_COST, STORAGE_ACCESS_WARM_WRITE_COST, STORAGE_AUX_BYTE,
+        TRANSIENT_STORAGE_AUX_BYTE,
     },
 };
 use zksync_state::{StoragePtr, WriteStorage};
@@ -34,24 +35,15 @@ use crate::{
     },
 };
 
-/// We employ the followinf rules for cold/warm storage rules:
+/// We employ the following rules for cold/warm storage rules:
 /// - We price a single "I/O" access as 2k ergs. This means that reading a single storage slot
 /// would cost 2k ergs, while writing to it would 4k ergs (since it involves both reading during execution and writing at the end of it).
-/// - Thereafter, "warm" reads cosst 30 ergs, while "warm" writes cost 60 ergs. Warm writes to account for the fact that they may be reverted
+/// - Thereafter, "warm" reads cost 30 ergs, while "warm" writes cost 60 ergs. Warm writes to account cost more for the fact that they may be reverted
 /// and so require more RAM to store them.
-///
-/// FIXME: in zkevm_opcode_defs, ensure that the explanation above fits the code.
-const WARM_READ_COST_ERGS: u32 = 30;
-const WARM_WRITE_COST_ERGS: u32 = 60;
 
-/// If a write is after a read, we do not take into account the cost for reading the initial value from storage.
-const COLD_WRITE_AFTER_WARM_READ_COST: u32 =
-    STORAGE_ACCESS_COLD_WRITE_COST - STORAGE_ACCESS_COLD_READ_COST;
-
-const WARM_READ_REFUND: u32 = STORAGE_ACCESS_COLD_READ_COST - WARM_READ_COST_ERGS;
-const WARM_WRITE_REFUND: u32 = STORAGE_ACCESS_COLD_WRITE_COST - WARM_WRITE_COST_ERGS;
-const COLD_WRITE_AFTER_WARM_READ_REFUND: u32 =
-    STORAGE_ACCESS_COLD_WRITE_COST - COLD_WRITE_AFTER_WARM_READ_COST;
+const WARM_READ_REFUND: u32 = STORAGE_ACCESS_COLD_READ_COST - STORAGE_ACCESS_WARM_READ_COST;
+const WARM_WRITE_REFUND: u32 = STORAGE_ACCESS_COLD_WRITE_COST - STORAGE_ACCESS_WARM_WRITE_COST;
+const COLD_WRITE_AFTER_WARM_READ_REFUND: u32 = STORAGE_ACCESS_COLD_READ_COST;
 
 // While the storage does not support different shards, it was decided to write the
 // code of the StorageOracle with the shard parameters in mind.
@@ -88,14 +80,18 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
     // for unused slots.
     pub(crate) initial_values: HistoryRecorder<HashMap<StorageKey, U256>, H>,
 
-    // Storage refunds that oracle has returned in `estimate_refunds_for_write`.
-    pub(crate) returned_refunds: HistoryRecorder<Vec<u32>, H>,
+    // Storage I/O refunds that oracle has returned in `get_access_refund`.
+    pub(crate) returned_io_refunds: HistoryRecorder<Vec<u32>, H>,
+
+    // The pubdata costs that oracle has returned in `execute_partial_query`.
+    // Note, that these can be negative, since the user may rollback some storage changes.
+    pub(crate) returned_pubdata_costs: HistoryRecorder<Vec<i32>, H>,
 
     // Keeps track of storage keys that were ever written to. This is needed for circuits tracer, this is why
-    // we dont roll this value back in case of a panicked frame.
+    // we don't roll this value back in case of a panicked frame.
     pub(crate) written_storage_keys: HistoryRecorder<HashMap<StorageKey, ()>, HistoryEnabled>,
     // Keeps track of storage keys that were ever read. This is needed for circuits tracer, this is why
-    // we dont roll this value back in case of a panicked frame.
+    // we don't roll this value back in case of a panicked frame.
     // Note, that it is a superset of `written_storage_keys`, since every written key was also read at some point.
     pub(crate) read_storage_keys: HistoryRecorder<HashMap<StorageKey, ()>, HistoryEnabled>,
 }
@@ -108,7 +104,8 @@ impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
             .rollback_to_timestamp(timestamp);
         self.paid_changes.rollback_to_timestamp(timestamp);
         self.initial_values.rollback_to_timestamp(timestamp);
-        self.returned_refunds.rollback_to_timestamp(timestamp);
+        self.returned_io_refunds.rollback_to_timestamp(timestamp);
+        self.returned_pubdata_costs.rollback_to_timestamp(timestamp);
         self.written_storage_keys.rollback_to_timestamp(timestamp);
         self.read_storage_keys.rollback_to_timestamp(timestamp);
     }
@@ -123,7 +120,8 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             transient_storage_frames_stack: Default::default(),
             paid_changes: Default::default(),
             initial_values: Default::default(),
-            returned_refunds: Default::default(),
+            returned_io_refunds: Default::default(),
+            returned_pubdata_costs: Default::default(),
             written_storage_keys: Default::default(),
             read_storage_keys: Default::default(),
         }
@@ -135,7 +133,8 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         self.storage_frames_stack.delete_history();
         self.paid_changes.delete_history();
         self.initial_values.delete_history();
-        self.returned_refunds.delete_history();
+        self.returned_io_refunds.delete_history();
+        self.returned_pubdata_costs.delete_history();
         self.written_storage_keys.delete_history();
         self.read_storage_keys.delete_history();
     }
@@ -156,7 +155,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
     }
 
     fn record_storage_read(&mut self, query: LogQuery) {
-        let mut storage_log_query = StorageLogQuery {
+        let storage_log_query = StorageLogQuery {
             log_query: query,
             log_type: StorageLogQueryType::Read,
         };
@@ -190,7 +189,6 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         storage_log_query.log_query.rollback = true;
         self.storage_frames_stack
             .push_rollback(Box::new(storage_log_query), query.timestamp);
-        storage_log_query.log_query.rollback = false;
     }
 
     fn record_transient_storage_read(&mut self, query: LogQuery) {
@@ -238,7 +236,12 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
     fn get_storage_access_refund(&self, query: &LogQuery) -> StorageAccessRefund {
         let key = storage_key_of_log(query);
         if query.rw_flag {
-            if self.written_storage_keys.inner().contains_key(&key) {
+            // It is a write
+
+            if self.written_storage_keys.inner().contains_key(&key)
+                || self.is_storage_key_free(&key)
+            {
+                // It is a warm write
                 StorageAccessRefund::Warm {
                     ergs: WARM_WRITE_REFUND,
                 }
@@ -249,16 +252,19 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
                     ergs: COLD_WRITE_AFTER_WARM_READ_REFUND,
                 }
             } else {
+                // It is a cold write
                 StorageAccessRefund::Cold
+            }
+        } else if self.read_storage_keys.inner().contains_key(&key)
+            || self.is_storage_key_free(&key)
+        {
+            // It is a warm read
+            StorageAccessRefund::Warm {
+                ergs: WARM_READ_REFUND,
             }
         } else {
-            if self.read_storage_keys.inner().contains_key(&key) {
-                StorageAccessRefund::Warm {
-                    ergs: WARM_READ_REFUND,
-                }
-            } else {
-                StorageAccessRefund::Cold
-            }
+            // It is a cold read
+            StorageAccessRefund::Cold
         }
     }
 
@@ -360,9 +366,9 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
                     .insert(storage_key, (), query.timestamp);
             }
 
-            self.set_initial_value(&storage_key, query.read_value, query.timestamp);
-
-            self.storage.read_from_storage(&storage_key)
+            let read_value = self.storage.read_from_storage(&storage_key);
+            self.set_initial_value(&storage_key, read_value, query.timestamp);
+            read_value
         } else {
             // Just in case
             unreachable!();
@@ -391,7 +397,6 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
             PubdataCost(0)
         };
 
-        // TODO: make it more beautiful and do not repeat this `if`
         if query.aux_byte == TRANSIENT_STORAGE_AUX_BYTE {
             if query.rw_flag {
                 self.write_transient_storage_value(query);
@@ -409,6 +414,9 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
             unreachable!();
         }
 
+        self.returned_pubdata_costs
+            .apply_historic_record(VectorHistoryEvent::Push(pubdata_cost.0), query.timestamp);
+
         (query, pubdata_cost)
     }
 
@@ -422,12 +430,13 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         let refund = if partial_query.aux_byte == TRANSIENT_STORAGE_AUX_BYTE {
             // Any transient access is warm. Also, no refund needs to be provided as it is already cheap
             StorageAccessRefund::Warm { ergs: 0 }
-        } else {
-            assert!(partial_query.aux_byte == STORAGE_AUX_BYTE);
+        } else if partial_query.aux_byte == STORAGE_AUX_BYTE {
             self.get_storage_access_refund(partial_query)
+        } else {
+            unreachable!()
         };
 
-        self.returned_refunds.apply_historic_record(
+        self.returned_io_refunds.apply_historic_record(
             VectorHistoryEvent::Push(refund.refund()),
             partial_query.timestamp,
         );

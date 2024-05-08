@@ -18,20 +18,27 @@ use zksync_types::{
 };
 
 mod cache;
+mod catchup;
 mod in_memory;
 mod postgres;
 mod rocksdb;
 mod shadow_storage;
+mod storage_factory;
 mod storage_view;
 #[cfg(test)]
 mod test_utils;
 mod witness;
 
 pub use self::{
-    in_memory::{InMemoryStorage, IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID},
+    cache::sequential_cache::SequentialCache,
+    catchup::AsyncCatchupTask,
+    in_memory::InMemoryStorage,
+    // Note, that `test_infra` of the bootloader tests relies on this value to be exposed
+    in_memory::IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID,
     postgres::{PostgresStorage, PostgresStorageCaches, PostgresStorageCachesTask},
-    rocksdb::{RocksbStorageBuilder, RocksdbStorage},
+    rocksdb::{RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily},
     shadow_storage::ShadowStorage,
+    storage_factory::{BatchDiff, PgOrRocksdbStorage, ReadStorageFactory, RocksdbWithMemory},
     storage_view::{StorageView, StorageViewMetrics},
     witness::WitnessStorage,
 };
@@ -64,6 +71,9 @@ pub trait ReadStorage: fmt::Debug {
 ///
 /// So far, this trait is implemented only for [`StorageView`].
 pub trait WriteStorage: ReadStorage {
+    /// Returns the map with the key–value pairs read by this batch.
+    fn read_storage_keys(&self) -> &HashMap<StorageKey, StorageValue>;
+
     /// Sets the new value under a given key and returns the previous value.
     fn set_value(&mut self, key: StorageKey, value: StorageValue) -> StorageValue;
 

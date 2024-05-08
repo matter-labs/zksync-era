@@ -171,7 +171,9 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
                 unreachable!("code should be through specialized query");
             }
             MemoryType::StaticMemory => {
-                todo!("Not supported")
+                // While `MemoryType::StaticMemory` is formally supported by `vm@1.5.0`, it is never
+                // used in the system contracts.
+                unreachable!()
             }
         }
 
@@ -286,7 +288,7 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
         let returndata_page = returndata_fat_pointer.memory_page;
 
         // This is code oracle and some preimage has been decommitted into its memory.
-        // This memory will be kept in its memory forever
+        // We must keep this memory page forever for future decommits.
         let is_returndata_page_static =
             last_callstack_this == CODE_ORACLE_ADDRESS && returndata_fat_pointer.length > 0;
 

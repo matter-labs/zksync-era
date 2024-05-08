@@ -5,13 +5,13 @@ use zk_evm_1_5_0::{
     aux_structures::{
         DecommittmentQuery, MemoryIndex, MemoryLocation, MemoryPage, MemoryQuery, Timestamp,
     },
-    zkevm_opcode_defs::{VersionedHashHeader, VersionedHashNormalizedPreimage},
+    zkevm_opcode_defs::{
+        ContractCodeSha256, VersionedHashDef, VersionedHashHeader, VersionedHashNormalizedPreimage,
+    },
 };
 use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{H256, U256};
-use zksync_utils::{
-    bytecode::bytecode_len_in_words, bytes_to_be_words, h256_to_u256, u256_to_h256,
-};
+use zksync_utils::{bytes_to_be_words, h256_to_u256, u256_to_h256};
 
 use super::OracleWithHistory;
 use crate::vm_latest::old_vm::history_recorder::{
@@ -203,15 +203,16 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
     for DecommitterOracle<B, S, H>
 {
     /// Prepares the decommitment query for the given bytecode hash.
-    /// The main purpose of this method is to tell the VM whether this bytecode is fresh (i.e. decommittedfor the first time)
+    /// The main purpose of this method is to tell the VM whether this bytecode is fresh (i.e. decommitted for the first time)
     /// or not.
     fn prepare_to_decommit(
         &mut self,
-        monotonic_cycle_counter: u32,
+        _monotonic_cycle_counter: u32,
         mut partial_query: DecommittmentQuery,
     ) -> anyhow::Result<DecommittmentQuery> {
+        let (stored_hash, length) = stored_hash_from_query(&partial_query);
         let versioned_hash = VersionedCodeHash::from_query(&partial_query);
-        let stored_hash = versioned_hash.to_stored_hash();
+        partial_query.decommitted_length = length;
 
         if let Some(memory_page) = self
             .decommitted_code_hashes
@@ -221,7 +222,6 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
         {
             partial_query.is_fresh = false;
             partial_query.memory_page = MemoryPage(memory_page);
-            partial_query.decommitted_length = versioned_hash.get_preimage_length() as u16;
 
             Ok(partial_query)
         } else {
@@ -243,8 +243,7 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
 
         self.decommitment_requests.push((), partial_query.timestamp);
 
-        let versioned_hash = VersionedCodeHash::from_query(&partial_query);
-        let stored_hash = versioned_hash.to_stored_hash();
+        let stored_hash = stored_hash_from_query(&partial_query).0;
 
         // We are fetching a fresh bytecode that we didn't read before.
         let values = self.get_bytecode(stored_hash, partial_query.timestamp);
@@ -286,4 +285,30 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
             Ok(None)
         }
     }
+}
+
+fn concat_header_and_preimage(
+    header: VersionedHashHeader,
+    normalized_preimage: VersionedHashNormalizedPreimage,
+) -> [u8; 32] {
+    let mut buffer = [0u8; 32];
+
+    buffer[0..4].copy_from_slice(&header.0);
+    buffer[4..32].copy_from_slice(&normalized_preimage.0);
+
+    buffer
+}
+
+/// For a given decommitment query, returns a pair of the stored hash as U256 and the length of the preimage in 32-byte words.
+fn stored_hash_from_query(partial_query: &DecommittmentQuery) -> (U256, u16) {
+    let full_hash =
+        concat_header_and_preimage(partial_query.header, partial_query.normalized_preimage);
+
+    let versioned_hash =
+        ContractCodeSha256::try_deserialize(full_hash).expect("Invalid ContractCodeSha256 hash");
+
+    let stored_hash = H256(ContractCodeSha256::serialize_to_stored(versioned_hash).unwrap());
+    let length = versioned_hash.code_length_in_words;
+
+    (h256_to_u256(stored_hash), length)
 }

@@ -9,7 +9,7 @@ use zksync_types::{
             Error as ContractError, Options,
         },
         ethabi,
-        types::{Address, BlockId, TransactionReceipt, H256, U256},
+        types::{Address, BlockId, BlockNumber, TransactionReceipt, H256, U256},
     },
     Bytes, EIP_4844_TX_TYPE, H160, H2048, U64,
 };
@@ -260,6 +260,22 @@ pub struct FailureInfo {
     pub gas_limit: U256,
 }
 
+/// The fee history type returned from RPC calls.
+/// We don't use `FeeHistory` from `web3` crate because it's not compatible
+/// with node implementations that skip empty `base_fee_per_gas`.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeeHistory {
+    /// Lowest number block of the returned range.
+    pub oldest_block: BlockNumber,
+    /// A vector of block base fees per gas. This includes the next block after the newest of the returned range, because this value can be derived from the newest block. Zeroes are returned for pre-EIP-1559 blocks.
+    pub base_fee_per_gas: Option<Vec<U256>>,
+    /// A vector of block gas used ratios. These are calculated as the ratio of gas used and gas limit.
+    pub gas_used_ratio: Option<Vec<f64>>,
+    /// A vector of effective priority fee per gas data points from a single block. All zeroes are returned if the block is empty. Returned only if requested.
+    pub reward: Option<Vec<Vec<U256>>>,
+}
+
 /// The block type returned from RPC calls.
 /// This is generic over a `TX` type.
 /// We can't use `Block` from `web3` crate because it doesn't support `excessBlobGas`.
@@ -350,7 +366,7 @@ mod tests {
     use zksync_types::{
         eth_sender::{EthTxBlobSidecarV1, SidecarBlobV1},
         web3::{self},
-        EIP_4844_TX_TYPE, H160, H256, U256, U64,
+        K256PrivateKey, EIP_4844_TX_TYPE, H160, H256, U256, U64,
     };
 
     use super::*;
@@ -373,9 +389,10 @@ mod tests {
     // network format defined by the `EIP`. That is, a signed transaction
     // itself and the sidecar containing the blobs.
     async fn test_generating_signed_raw_transaction_with_4844_sidecar() {
-        let private_key =
-            H256::from_str("27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be")
-                .unwrap();
+        let private_key: H256 = "27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be"
+            .parse()
+            .unwrap();
+        let private_key = K256PrivateKey::from_bytes(private_key).unwrap();
         let commitment = hex::decode(
             "b5022d2a994ebd05f42c2f8e9b227185bf5963fcd1d412e17e97a026698d9670c0139872a400740d25835b5eaade22ad"
         ).unwrap();
@@ -463,6 +480,7 @@ mod tests {
         let private_key =
             H256::from_str("27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be")
                 .unwrap();
+        let private_key = K256PrivateKey::from_bytes(private_key).unwrap();
 
         let commitment_1 = hex::decode(
 "b5022d2a994ebd05f42c2f8e9b227185bf5963fcd1d412e17e97a026698d9670c0139872a400740d25835b5eaade22ad"

@@ -9,12 +9,12 @@ Current schema is managed by `sqlx`. Schema changes are stored in the [`migratio
 
 _This overview skips prover-related and Ethereum sender-related tables, which are specific to the main node._
 
-### Miniblocks and L1 batches
+### L2 blocks and L1 batches
 
-- `miniblocks`. Stores miniblock headers.
+- `miniblocks`. Stores L2 block headers. The naming is due to historic reasons.
 
-- `miniblocks_consensus`. Stores miniblock data related to the consensus algorithm used by the decentralized sequencer.
-  Tied one-to-one to miniblocks (the consensus side of the relation is optional).
+- `miniblocks_consensus`. Stores L2 block data related to the consensus algorithm used by the decentralized sequencer.
+  Tied one-to-one to L2 blocks (the consensus side of the relation is optional).
 
 - `l1_batches`. Stores L1 batch headers.
 
@@ -24,7 +24,7 @@ _This overview skips prover-related and Ethereum sender-related tables, which ar
 ### Transactions
 
 - `transactions`. Stores all transactions received by the node, both L2 and L1 ones. Transactions in this table are not
-  necessarily included into a miniblock; i.e., the table is used as a persistent mempool as well.
+  necessarily included into an L2 block; i.e., the table is used as a persistent mempool as well.
 
 ### VM storage
 
@@ -75,14 +75,14 @@ In addition to foreign key constraints and other constraints manifested directly
 invariants are expected to be upheld:
 
 - If a header is present in the `miniblocks` table, it is expected that the DB contains all artifacts associated with
-  the miniblock execution, such as `events`, `l2_to_l1_logs`, `call_traces`, `tokens` etc. (See State keeper I/O logic
+  the L2 block execution, such as `events`, `l2_to_l1_logs`, `call_traces`, `tokens` etc. (See State keeper I/O logic
   for the exact definition of these artifacts.)
 - Likewise, if a header is present in the `l1_batches` table, all artifacts associated with the L1 batch execution are
   also expected in the DB, e.g. `initial_writes` and `protective_reads`. (See State keeper I/O logic for the exact
   definition of these artifacts.)
-- Miniblocks and L1 batches present in the DB form a continuous range of numbers. If a DB is recovered from a node
-  snapshot, the first miniblock / L1 batch is **the next one** after the snapshot miniblock / L1 batch mentioned in the
-  `snapshot_recovery` table. Otherwise, miniblocks / L1 batches must start from number 0 (aka genesis).
+- L2 blocks and L1 batches present in the DB form a continuous range of numbers. If a DB is recovered from a node
+  snapshot, the first L2 block / L1 batch is **the next one** after the snapshot L2 block / L1 batch mentioned in the
+  `snapshot_recovery` table. Otherwise, L2 blocks / L1 batches must start from number 0 (aka genesis).
 
 ## Contributing to DAL
 
@@ -90,8 +90,8 @@ Some tips and tricks to make contributing to DAL easier:
 
 - If you want to add a new DB query, search the DAL code or the [`.sqlx`](.sqlx) directory for the identical /
   equivalent queries. Reuse is almost always better than duplication.
-- It usually makes sense to instrument your queries using [`instrument`](src/instrument.rs) tooling. See the
-  `instrument` module docs for details.
+- It usually makes sense to instrument your queries using [`instrument`](../db_connection/src/instrument.rs) tooling.
+  See the `instrument` module docs for details.
 - It's best to cover added queries with unit tests to ensure they work and don't break in the future. `sqlx` has
   compile-time schema checking, but it's not a panacea.
 - If there are doubts as to the query performance, run a query with [`EXPLAIN`] / `EXPLAIN ANALYZE` prefixes against a

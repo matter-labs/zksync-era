@@ -1,19 +1,17 @@
 #[cfg(feature = "gpu")]
 pub mod gpu_socket_listener {
-    use std::{net::SocketAddr, time::Instant};
+    use std::{net::SocketAddr, sync::Arc, time::Instant};
 
     use anyhow::Context as _;
+    use prover_dal::{ConnectionPool, Prover, ProverDal};
     use tokio::{
         io::copy,
         net::{TcpListener, TcpStream},
-        sync::watch,
-    };
-    use zksync_dal::{
-        fri_prover_dal::types::{GpuProverInstanceStatus, SocketAddress},
-        ConnectionPool,
+        sync::{watch, Notify},
     };
     use zksync_object_store::bincode;
     use zksync_prover_fri_types::WitnessVectorArtifacts;
+    use zksync_types::prover_dal::{GpuProverInstanceStatus, SocketAddress};
 
     use crate::{
         metrics::METRICS,
@@ -23,7 +21,7 @@ pub mod gpu_socket_listener {
     pub(crate) struct SocketListener {
         address: SocketAddress,
         queue: SharedWitnessVectorQueue,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Prover>,
         specialized_prover_group_id: u8,
         zone: String,
     }
@@ -32,7 +30,7 @@ pub mod gpu_socket_listener {
         pub fn new(
             address: SocketAddress,
             queue: SharedWitnessVectorQueue,
-            pool: ConnectionPool,
+            pool: ConnectionPool<Prover>,
             specialized_prover_group_id: u8,
             zone: String,
         ) -> Self {
@@ -44,7 +42,7 @@ pub mod gpu_socket_listener {
                 zone,
             }
         }
-        async fn init(&self) -> anyhow::Result<TcpListener> {
+        async fn init(&self, init_notifier: Arc<Notify>) -> anyhow::Result<TcpListener> {
             let listening_address = SocketAddr::new(self.address.host, self.address.port);
             tracing::info!(
                 "Starting assembly receiver at host: {}, port: {}",
@@ -57,7 +55,7 @@ pub mod gpu_socket_listener {
 
             let _lock = self.queue.lock().await;
             self.pool
-                .access_storage()
+                .connection()
                 .await
                 .unwrap()
                 .fri_gpu_prover_queue_dal()
@@ -67,14 +65,16 @@ pub mod gpu_socket_listener {
                     self.zone.clone(),
                 )
                 .await;
+            init_notifier.notify_one();
             Ok(listener)
         }
 
         pub async fn listen_incoming_connections(
             self,
             stop_receiver: watch::Receiver<bool>,
+            init_notifier: Arc<Notify>,
         ) -> anyhow::Result<()> {
-            let listener = self.init().await.context("init()")?;
+            let listener = self.init(init_notifier).await.context("init()")?;
             let mut now = Instant::now();
             loop {
                 if *stop_receiver.borrow() {
@@ -143,7 +143,7 @@ pub mod gpu_socket_listener {
             };
 
             self.pool
-                .access_storage()
+                .connection()
                 .await
                 .unwrap()
                 .fri_gpu_prover_queue_dal()

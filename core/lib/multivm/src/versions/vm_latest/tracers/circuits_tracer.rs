@@ -60,10 +60,22 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
                 self.statistics.log_demuxer_cycles += STORAGE_READ_LOG_DEMUXER_CYCLES;
                 self.statistics.storage_sorter_cycles += STORAGE_READ_STORAGE_SORTER_CYCLES;
             }
-            Opcode::Log(LogOpcode::StorageWrite | LogOpcode::TransientStorageWrite) => {
+            Opcode::Log(LogOpcode::TransientStorageRead) => {
+                self.statistics.ram_permutation_cycles += TRANSIENT_STORAGE_READ_RAM_CYCLES;
+                self.statistics.log_demuxer_cycles += TRANSIENT_STORAGE_READ_LOG_DEMUXER_CYCLES;
+                self.statistics.transient_storage_checker_cycles +=
+                    TRANSIENT_STORAGE_READ_TRANSIENT_STORAGE_CHECKER_CYCLES;
+            }
+            Opcode::Log(LogOpcode::StorageWrite) => {
                 self.statistics.ram_permutation_cycles += STORAGE_WRITE_RAM_CYCLES;
                 self.statistics.log_demuxer_cycles += STORAGE_WRITE_LOG_DEMUXER_CYCLES;
                 self.statistics.storage_sorter_cycles += STORAGE_WRITE_STORAGE_SORTER_CYCLES;
+            }
+            Opcode::Log(LogOpcode::TransientStorageWrite) => {
+                self.statistics.ram_permutation_cycles += TRANSIENT_STORAGE_WRITE_RAM_CYCLES;
+                self.statistics.log_demuxer_cycles += TRANSIENT_STORAGE_WRITE_LOG_DEMUXER_CYCLES;
+                self.statistics.transient_storage_checker_cycles +=
+                    TRANSIENT_STORAGE_WRITE_TRANSIENT_STORAGE_CHECKER_CYCLES;
             }
             Opcode::Log(LogOpcode::ToL1Message) | Opcode::Log(LogOpcode::Event) => {
                 self.statistics.ram_permutation_cycles += EVENT_RAM_CYCLES;
@@ -77,11 +89,18 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
                 // FIXME: this is a reminder to add a tracer that would add cycles for decommitting proportional
                 // to the code that is being decommitted.
             }
+            Opcode::Log(LogOpcode::Decommit) => {
+                // Note, that for decommit the log demuxer circuit is not used.
+                self.statistics.ram_permutation_cycles += LOG_DECOMMIT_RAM_CYCLES;
+                self.statistics.code_decommitter_sorter_cycles +=
+                    LOG_DECOMMIT_DECOMMITTER_SORTER_CYCLES;
+            }
             Opcode::FarCall(_) => {
                 self.statistics.ram_permutation_cycles += FAR_CALL_RAM_CYCLES;
                 self.statistics.code_decommitter_sorter_cycles +=
                     FAR_CALL_CODE_DECOMMITTER_SORTER_CYCLES;
                 self.statistics.storage_sorter_cycles += FAR_CALL_STORAGE_SORTER_CYCLES;
+                self.statistics.log_demuxer_cycles += FAR_CALL_LOG_DEMUXER_CYCLES;
             }
             Opcode::UMA(
                 UMAOpcode::AuxHeapWrite | UMAOpcode::HeapWrite | UMAOpcode::StaticMemoryWrite,
@@ -236,7 +255,7 @@ impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
                     self.statistics.keccak256_cycles += *cycles as u32;
                 }
                 PrecompileAddress::Secp256r1Verify => {
-                    self.statistics.secp256k1_cycles += *cycles as u32;
+                    self.statistics.secp256k1_verify_cycles += *cycles as u32;
                 }
             };
         }

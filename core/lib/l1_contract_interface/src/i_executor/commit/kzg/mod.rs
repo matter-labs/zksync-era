@@ -267,13 +267,13 @@ impl KzgInfo {
     }
 }
 
-pub fn pubdata_to_blob_commitments(pubdata_input: &[u8]) -> [H256; 2] {
+pub fn pubdata_to_blob_commitments(num_blobs: usize, pubdata_input: &[u8]) -> Vec<H256> {
     assert!(
-        pubdata_input.len() <= 2 * ZK_SYNC_BYTES_PER_BLOB,
-        "Pubdata length exceeds size of 2 blobs"
+        pubdata_input.len() <= num_blobs * ZK_SYNC_BYTES_PER_BLOB,
+        "Pubdata length exceeds size of blobs"
     );
 
-    let blob_commitments = pubdata_input
+    let mut blob_commitments = pubdata_input
         .chunks(ZK_SYNC_BYTES_PER_BLOB)
         .map(|blob| {
             let kzg_info = KzgInfo::new(blob);
@@ -281,10 +281,8 @@ pub fn pubdata_to_blob_commitments(pubdata_input: &[u8]) -> [H256; 2] {
         })
         .collect::<Vec<_>>();
 
-    // If length of `pubdata_input` is less than or equal to `ZK_SYNC_BYTES_PER_BLOB` (126976)
-    // then only one blob will be used and 32 zero bytes will be used as a commitment for the second blob.
-    [
-        blob_commitments.get(0).copied().unwrap_or_default(),
-        blob_commitments.get(1).copied().unwrap_or_default(),
-    ]
+    // Depending on the length of `pubdata_input`, we will sending the ceiling of
+    // `pubdata_input / ZK_SYNC_BYTES_PER_BLOB (126976)` blobs. The rest of the blob commitments will be 32 zero bytes.
+    blob_commitments.resize(num_blobs, H256::zero());
+    blob_commitments
 }

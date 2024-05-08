@@ -55,6 +55,10 @@ struct Cli {
     /// Block cache capacity for RocksDB in bytes.
     #[arg(long = "block-cache", conflicts_with = "in_memory")]
     block_cache: Option<usize>,
+    /// If specified, RocksDB indices and Bloom filters will be managed by the block cache rather than
+    /// being loaded entirely into RAM.
+    #[arg(long = "cache-indices", conflicts_with = "in_memory")]
+    cache_indices: bool,
     /// Chunk size for RocksDB multi-get operations.
     #[arg(long = "chunk-size", conflicts_with = "in_memory")]
     chunk_size: Option<usize>,
@@ -92,6 +96,7 @@ impl Cli {
             );
             let db_options = RocksDBOptions {
                 block_cache_capacity: self.block_cache,
+                include_indices_and_filters_in_block_cache: self.cache_indices,
                 ..RocksDBOptions::default()
             };
             let db = RocksDB::with_options(dir.path(), db_options).unwrap();
@@ -102,7 +107,7 @@ impl Cli {
             }
 
             if self.prune {
-                let (mut pruner, pruner_handle) = MerkleTreePruner::new(rocksdb.clone(), 0);
+                let (mut pruner, pruner_handle) = MerkleTreePruner::new(rocksdb.clone());
                 pruner.set_poll_interval(Duration::from_secs(10));
                 let pruner_thread = thread::spawn(|| pruner.run());
                 pruner_handles = Some((pruner_handle, pruner_thread));
@@ -155,6 +160,16 @@ impl Cli {
                 let output = tree.extend(kvs.collect());
                 output.root_hash
             };
+
+            if let Some((pruner_handle, _)) = &pruner_handles {
+                if pruner_handle.set_target_retained_version(version).is_err() {
+                    tracing::error!("Pruner unexpectedly stopped");
+                    let (_, pruner_thread) = pruner_handles.unwrap();
+                    pruner_thread.join().expect("Pruner panicked");
+                    return; // unreachable
+                }
+            }
+
             let elapsed = start.elapsed();
             tracing::info!("Processed block #{version} in {elapsed:?}, root hash = {root_hash:?}");
         }
@@ -167,8 +182,8 @@ impl Cli {
         tracing::info!("Verified tree consistency in {elapsed:?}");
 
         if let Some((pruner_handle, pruner_thread)) = pruner_handles {
-            pruner_handle.abort();
-            pruner_thread.join().unwrap();
+            drop(pruner_handle);
+            pruner_thread.join().expect("Pruner panicked");
         }
     }
 

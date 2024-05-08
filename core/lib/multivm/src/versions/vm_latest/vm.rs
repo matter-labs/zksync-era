@@ -1,10 +1,9 @@
-use circuit_sequencer_api_1_4_2::sort_storage_access::sort_storage_access_queries;
-use zk_evm_1_4_1::aux_structures::LogQuery as LogQuery_1_4_1;
+use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     event::extract_l2tol1logs_from_l1_messenger,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    Transaction,
+    Transaction, VmVersion,
 };
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -24,35 +23,66 @@ use crate::{
     HistoryMode,
 };
 
+/// MultiVM-specific addition.
+///
+/// In the first version of the v1.5.0 release, the bootloader memory was too small, so a new
+/// version was released with increased bootloader memory. The version with the small bootloader memory
+/// is available only on internal staging environments.
+#[derive(Debug, Copy, Clone)]
+pub(crate) enum MultiVMSubversion {
+    /// The initial version of v1.5.0, available only on staging environments.
+    SmallBootloaderMemory,
+    /// The final correct version of v1.5.0
+    IncreasedBootloaderMemory,
+}
+
+impl MultiVMSubversion {
+    #[cfg(test)]
+    pub(crate) fn latest() -> Self {
+        Self::IncreasedBootloaderMemory
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct VmVersionIsNotVm150Error;
+impl TryFrom<VmVersion> for MultiVMSubversion {
+    type Error = VmVersionIsNotVm150Error;
+    fn try_from(value: VmVersion) -> Result<Self, Self::Error> {
+        match value {
+            VmVersion::Vm1_5_0SmallBootloaderMemory => Ok(Self::SmallBootloaderMemory),
+            VmVersion::Vm1_5_0IncreasedBootloaderMemory => Ok(Self::IncreasedBootloaderMemory),
+            _ => Err(VmVersionIsNotVm150Error),
+        }
+    }
+}
+
 /// Main entry point for Virtual Machine integration.
 /// The instance should process only one l1 batch
 #[derive(Debug)]
 pub struct Vm<S: WriteStorage, H: HistoryMode> {
     pub(crate) bootloader_state: BootloaderState,
     // Current state and oracles of virtual machine
-    pub(crate) state: ZkSyncVmState<S, H::Vm1_4_2>,
+    pub(crate) state: ZkSyncVmState<S, H::Vm1_5_0>,
     pub(crate) storage: StoragePtr<S>,
     pub(crate) system_env: SystemEnv,
     pub(crate) batch_env: L1BatchEnv,
     // Snapshots for the current run
     pub(crate) snapshots: Vec<VmSnapshot>,
+    pub(crate) subversion: MultiVMSubversion,
     _phantom: std::marker::PhantomData<H>,
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
-    type TracerDispatcher = TracerDispatcher<S, H::Vm1_4_2>;
+    type TracerDispatcher = TracerDispatcher<S, H::Vm1_5_0>;
 
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
-        let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
-        Self {
-            bootloader_state,
-            state,
-            storage,
-            system_env,
+        let vm_version: VmVersion = system_env.version.into();
+        Self::new_with_subversion(
             batch_env,
-            snapshots: vec![],
-            _phantom: Default::default(),
-        }
+            system_env,
+            storage,
+            vm_version.try_into().expect("Incorrect 1.5.0 VmVersion"),
+        )
     }
 
     /// Push tx into memory for the future execution
@@ -107,14 +137,8 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             + self.state.storage.get_final_log_queries().len();
 
         let storage_log_queries = self.state.storage.get_final_log_queries();
-
-        // FIXME once harness 1.5.0 is there
-        let converted_queries: Vec<LogQuery_1_4_1> = storage_log_queries
-            .iter()
-            .map(|log| log.log_query)
-            .map(GlueFrom::glue_from)
-            .collect();
-        let deduped_storage_log_queries = sort_storage_access_queries(&converted_queries).1;
+        let deduped_storage_log_queries =
+            sort_storage_access_queries(storage_log_queries.iter().map(|log| &log.log_query)).1;
 
         CurrentExecutionState {
             events,
@@ -138,7 +162,8 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                 .into_iter()
                 .map(GlueInto::glue_into)
                 .collect(),
-            storage_refunds: self.state.storage.returned_refunds.inner().clone(),
+            storage_refunds: self.state.storage.returned_io_refunds.inner().clone(),
+            pubdata_costs: self.state.storage.returned_pubdata_costs.inner().clone(),
         }
     }
 
@@ -188,6 +213,27 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                     .clone()
                     .build_pubdata(false),
             ),
+        }
+    }
+}
+
+impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
+    pub(crate) fn new_with_subversion(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: StoragePtr<S>,
+        subversion: MultiVMSubversion,
+    ) -> Self {
+        let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
+        Self {
+            bootloader_state,
+            state,
+            storage,
+            system_env,
+            batch_env,
+            subversion,
+            snapshots: vec![],
+            _phantom: Default::default(),
         }
     }
 }

@@ -4,17 +4,10 @@ use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics
 use zk_evm_1_5_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
-    vm_state::VmLocalState,
-    zkevm_opcode_defs::system_params::L1_MESSAGE_PUBDATA_BYTES,
 };
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_system_constants::{PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS};
-use zksync_types::{
-    event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
-    l2_to_l1_log::L2ToL1Log,
-    L1BatchNumber, H256, U256,
-};
-use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256};
+use zksync_types::{H256, U256};
+use zksync_utils::ceil_div_u256;
 
 use crate::{
     interface::{
@@ -24,20 +17,21 @@ use crate::{
     vm_latest::{
         bootloader_state::BootloaderState,
         constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},
-        old_vm::{events::merge_events, history_recorder::HistoryMode, memory::SimpleMemory},
+        old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::{
             traits::VmTracer,
             utils::{get_vm_hook_params, VmHook},
         },
         types::internals::ZkSyncVmState,
         utils::fee::get_batch_base_fee,
+        vm::MultiVMSubversion,
     },
 };
 
 #[derive(Debug, Clone, Copy)]
 struct RefundRequest {
-    refund: u32,
-    gas_spent_on_pubdata: u32,
+    refund: u64,
+    gas_spent_on_pubdata: u64,
     used_gas_per_pubdata_byte: u32,
 }
 
@@ -48,29 +42,31 @@ pub(crate) struct RefundsTracer<S> {
     // to provide the refund the user, where `x` is the refund proposed
     // by the bootloader itself.
     pending_refund_request: Option<RefundRequest>,
-    refund_gas: u32,
-    operator_refund: Option<u32>,
+    refund_gas: u64,
+    operator_refund: Option<u64>,
     timestamp_initial: Timestamp,
     timestamp_before_cycle: Timestamp,
-    gas_remaining_before: u32,
+    computational_gas_remaining_before: u32,
     spent_pubdata_counter_before: u32,
     l1_batch: L1BatchEnv,
     pubdata_published: u32,
+    subversion: MultiVMSubversion,
     _phantom: PhantomData<S>,
 }
 
 impl<S> RefundsTracer<S> {
-    pub(crate) fn new(l1_batch: L1BatchEnv) -> Self {
+    pub(crate) fn new(l1_batch: L1BatchEnv, subversion: MultiVMSubversion) -> Self {
         Self {
             pending_refund_request: None,
             refund_gas: 0,
             operator_refund: None,
             timestamp_initial: Timestamp(0),
             timestamp_before_cycle: Timestamp(0),
-            gas_remaining_before: 0,
+            computational_gas_remaining_before: 0,
             spent_pubdata_counter_before: 0,
             l1_batch,
             pubdata_published: 0,
+            subversion,
             _phantom: PhantomData,
         }
     }
@@ -85,7 +81,7 @@ impl<S> RefundsTracer<S> {
         self.pending_refund_request = None;
     }
 
-    fn block_overhead_refund(&mut self) -> u32 {
+    fn block_overhead_refund(&mut self) -> u64 {
         0
     }
 
@@ -98,13 +94,13 @@ impl<S> RefundsTracer<S> {
 
     pub(crate) fn tx_body_refund(
         &self,
-        bootloader_refund: u32,
-        gas_spent_on_pubdata: u32,
-        tx_gas_limit: u32,
+        bootloader_refund: u64,
+        gas_spent_on_pubdata: u64,
+        tx_gas_limit: u64,
         current_ergs_per_pubdata_byte: u32,
         pubdata_published: u32,
         tx_hash: H256,
-    ) -> u32 {
+    ) -> u64 {
         let total_gas_spent = tx_gas_limit - bootloader_refund;
 
         let gas_spent_on_computation = total_gas_spent
@@ -156,7 +152,7 @@ impl<S> RefundsTracer<S> {
         tracing::trace!("Gas spent on pubdata: {}", gas_spent_on_pubdata);
         tracing::trace!("Pubdata published: {}", pubdata_published);
 
-        ceil_div_u256(refund_eth, effective_gas_price.into()).as_u32()
+        ceil_div_u256(refund_eth, effective_gas_price.into()).as_u64()
     }
 
     pub(crate) fn pubdata_published(&self) -> u32 {
@@ -173,14 +169,17 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for RefundsTracer<S> {
         _storage: StoragePtr<S>,
     ) {
         self.timestamp_before_cycle = Timestamp(state.vm_local_state.timestamp);
-        let hook = VmHook::from_opcode_memory(&state, &data);
+        let hook = VmHook::from_opcode_memory(&state, &data, self.subversion);
         match hook {
-            VmHook::NotifyAboutRefund => self.refund_gas = get_vm_hook_params(memory)[0].as_u32(),
+            VmHook::NotifyAboutRefund => {
+                self.refund_gas = get_vm_hook_params(memory, self.subversion)[0].as_u64()
+            }
             VmHook::AskOperatorForRefund => {
                 self.pending_refund_request = Some(RefundRequest {
-                    refund: get_vm_hook_params(memory)[0].as_u32(),
-                    gas_spent_on_pubdata: get_vm_hook_params(memory)[1].as_u32(),
-                    used_gas_per_pubdata_byte: get_vm_hook_params(memory)[2].as_u32(),
+                    refund: get_vm_hook_params(memory, self.subversion)[0].as_u64(),
+                    gas_spent_on_pubdata: get_vm_hook_params(memory, self.subversion)[1].as_u64(),
+                    used_gas_per_pubdata_byte: get_vm_hook_params(memory, self.subversion)[2]
+                        .as_u32(),
                 })
             }
             _ => {}
@@ -191,8 +190,8 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for RefundsTracer<S> {
 impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
     fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         self.timestamp_initial = Timestamp(state.local_state.timestamp);
-        self.gas_remaining_before = state.local_state.callstack.current.ergs_remaining;
-        // TODO: maybe change the name of the field
+        self.computational_gas_remaining_before =
+            state.local_state.callstack.current.ergs_remaining;
         self.spent_pubdata_counter_before = state.local_state.pubdata_revert_counter.0 as u32;
     }
 
@@ -242,7 +241,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
                     tx_description_offset + TX_GAS_LIMIT_OFFSET,
                 )
                 .value
-                .as_u32();
+                .as_u64();
 
             assert!(
                 state.local_state.pubdata_revert_counter.0 >= 0,
@@ -313,49 +312,4 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
         }
         TracerExecutionStatus::Continue
     }
-}
-
-/// Returns the given transactions' gas limit - by reading it directly from the VM memory.
-pub(crate) fn pubdata_published<S: WriteStorage, H: HistoryMode>(
-    state: &ZkSyncVmState<S, H>,
-    storage_writes_pubdata_published: u32,
-    from_timestamp: Timestamp,
-    batch_number: L1BatchNumber,
-) -> u32 {
-    let (raw_events, l1_messages) = state
-        .event_sink
-        .get_events_and_l2_l1_logs_after_timestamp(from_timestamp);
-    let events: Vec<_> = merge_events(raw_events)
-        .into_iter()
-        .map(|e| e.into_vm_event(batch_number))
-        .collect();
-    // For the first transaction in L1 batch there may be (it depends on the execution mode) an L2->L1 log
-    // that is sent by `SystemContext` in `setNewBlock`. It's a part of the L1 batch pubdata overhead and not the transaction itself.
-    let l2_l1_logs_bytes = (l1_messages
-        .into_iter()
-        .map(|log| L2ToL1Log {
-            shard_id: log.shard_id,
-            is_service: log.is_first,
-            tx_number_in_block: log.tx_number_in_block,
-            sender: log.address,
-            key: u256_to_h256(log.key),
-            value: u256_to_h256(log.value),
-        })
-        .filter(|log| log.sender != SYSTEM_CONTEXT_ADDRESS)
-        .count() as u32)
-        * L1_MESSAGE_PUBDATA_BYTES;
-    let l2_l1_long_messages_bytes: u32 = extract_long_l2_to_l1_messages(&events)
-        .iter()
-        .map(|event| event.len() as u32)
-        .sum();
-
-    let published_bytecode_bytes: u32 = extract_published_bytecodes(&events)
-        .iter()
-        .map(|bytecodehash| bytecode_len_in_bytes(*bytecodehash) as u32 + PUBLISH_BYTECODE_OVERHEAD)
-        .sum();
-
-    storage_writes_pubdata_published
-        + l2_l1_logs_bytes
-        + l2_l1_long_messages_bytes
-        + published_bytecode_bytes
 }

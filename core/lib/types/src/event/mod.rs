@@ -155,7 +155,7 @@ static PUBLISHED_BYTECODE_SIGNATURE: Lazy<H256> = Lazy::new(|| {
 
 // moved from Runtime Context
 pub fn extract_added_tokens(
-    l2_erc20_bridge_addr: Address,
+    l2_shared_bridge_addr: Address,
     all_generated_events: &[VmEvent],
 ) -> Vec<TokenInfo> {
     let deployed_tokens = all_generated_events
@@ -165,7 +165,7 @@ pub fn extract_added_tokens(
             event.address == CONTRACT_DEPLOYER_ADDRESS
                 && event.indexed_topics.len() == 4
                 && event.indexed_topics[0] == *DEPLOY_EVENT_SIGNATURE
-                && h256_to_account_address(&event.indexed_topics[1]) == l2_erc20_bridge_addr
+                && h256_to_account_address(&event.indexed_topics[1]) == l2_shared_bridge_addr
         })
         .map(|event| h256_to_account_address(&event.indexed_topics[3]));
 

@@ -56,7 +56,8 @@ pub(crate) struct StorageOracleInnerState<H: HistoryMode> {
 
     pub(crate) paid_changes: HistoryRecorder<HashMap<StorageKey, u32>, H>,
     pub(crate) initial_values: HistoryRecorder<HashMap<StorageKey, U256>, H>,
-    pub(crate) returned_refunds: HistoryRecorder<Vec<u32>, H>,
+    pub(crate) returned_io_refunds: HistoryRecorder<Vec<u32>, H>,
+    pub(crate) returned_pubdata_costs: HistoryRecorder<Vec<i32>, H>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -78,7 +79,7 @@ pub(crate) struct VmInstanceInnerState<H: HistoryMode> {
 
 impl<S: WriteStorage, H: CommonHistoryMode> Vm<S, H> {
     // Dump inner state of the VM.
-    pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState<H::Vm1_4_2> {
+    pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState<H::Vm1_5_0> {
         let event_sink = self.state.event_sink.clone();
         let precompile_processor_state = PrecompileProcessorTestInnerState {
             timestamp_history: self.state.precompiles_processor.timestamp_history.clone(),
@@ -113,7 +114,8 @@ impl<S: WriteStorage, H: CommonHistoryMode> Vm<S, H> {
             frames_stack: self.state.storage.storage_frames_stack.clone(),
             paid_changes: self.state.storage.paid_changes.clone(),
             initial_values: self.state.storage.initial_values.clone(),
-            returned_refunds: self.state.storage.returned_refunds.clone(),
+            returned_io_refunds: self.state.storage.returned_io_refunds.clone(),
+            returned_pubdata_costs: self.state.storage.returned_pubdata_costs.clone(),
         };
         let local_state = self.state.local_state.clone();
 

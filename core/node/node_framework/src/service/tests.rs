@@ -24,12 +24,14 @@ fn test_new_with_nested_runtime() {
 }
 
 #[derive(Debug)]
-struct DefaultLayer;
+struct DefaultLayer {
+    name: &'static str,
+}
 
 #[async_trait::async_trait]
 impl WiringLayer for DefaultLayer {
     fn layer_name(&self) -> &'static str {
-        "default_layer"
+        self.name
     }
 
     async fn wire(self: Box<Self>, mut _node: ServiceContext<'_>) -> Result<(), WiringError> {
@@ -37,16 +39,38 @@ impl WiringLayer for DefaultLayer {
     }
 }
 
-// `ZkStack` Service's `add_layer()` method has to add multiple layers into `self.layers`.
+// `add_layer` should add multiple layers.
 #[test]
 fn test_add_layer() {
     let mut zk_stack_service = ZkStackServiceBuilder::new();
     zk_stack_service
-        .add_layer(DefaultLayer)
-        .add_layer(DefaultLayer);
+        .add_layer(DefaultLayer {
+            name: "first_layer",
+        })
+        .add_layer(DefaultLayer {
+            name: "second_layer",
+        });
     let actual_layers_len = zk_stack_service.layers.len();
     assert_eq!(
         2, actual_layers_len,
+        "Incorrect number of layers in the service"
+    );
+}
+
+// `add_layer` should ignore already added layers.
+#[test]
+fn test_layers_are_unique() {
+    let mut zk_stack_service = ZkStackServiceBuilder::new();
+    zk_stack_service
+        .add_layer(DefaultLayer {
+            name: "default_layer",
+        })
+        .add_layer(DefaultLayer {
+            name: "default_layer",
+        });
+    let actual_layers_len = zk_stack_service.layers.len();
+    assert_eq!(
+        1, actual_layers_len,
         "Incorrect number of layers in the service"
     );
 }
