@@ -199,19 +199,19 @@ fn display_status_for_stage(stage_info: StageInfo) {
         }
         Status::Queued | Status::WaitingForProofs | Status::Stuck | Status::JobsNotFound => {
             println!(
-                "{}: {} \n",
+                "{}: {}",
                 stage_info.to_string().bold(),
                 stage_info.witness_generator_jobs_status()
             )
         }
         Status::InProgress | Status::Successful => {
             println!(
-                "{}: {} \n",
+                "{}: {}",
                 stage_info.to_string().bold(),
                 stage_info.witness_generator_jobs_status()
             );
             println!(
-                "> Prover Jobs: {} \n",
+                "> Prover Jobs: {}",
                 stage_info
                     .prover_jobs_status()
                     .expect("Unable to check status")
@@ -237,18 +237,18 @@ fn display_info_for_stage(stage_info: StageInfo) {
     display_aggregation_round(&stage_info);
     match stage_info.witness_generator_jobs_status() {
         Status::Custom(msg) => {
-            println!("{}: {} \n", stage_info.to_string().bold(), msg);
+            println!("{}: {}", stage_info.to_string().bold(), msg);
         }
         Status::Queued | Status::WaitingForProofs | Status::Stuck | Status::JobsNotFound => {
             println!(
-                "{}: {} \n",
+                "{}: {}",
                 stage_info.to_string().bold(),
                 stage_info.witness_generator_jobs_status()
             )
         }
         Status::InProgress => {
             println!(
-                "{}: {} \n",
+                "{}: {}",
                 stage_info.to_string().bold(),
                 stage_info.witness_generator_jobs_status()
             );
@@ -279,7 +279,7 @@ fn display_info_for_stage(stage_info: StageInfo) {
         }
         Status::Successful => {
             println!(
-                "{}: {} \n",
+                "{}: {}",
                 stage_info.to_string().bold(),
                 stage_info.witness_generator_jobs_status()
             );
@@ -306,9 +306,12 @@ fn display_leaf_witness_generator_jobs_info(
 ) {
     leaf_witness_generators_jobs_info.sort_by_key(|job| job.circuit_id);
 
-    leaf_witness_generators_jobs_info
-        .iter()
-        .for_each(|job| println!("Circuit id: {} - Status: {}", job.circuit_id, job.status));
+    leaf_witness_generators_jobs_info.iter().for_each(|job| {
+        println!(
+            "   > Circuit id: {} - Status: {}",
+            job.circuit_id, job.status
+        )
+    });
 }
 
 fn display_node_witness_generator_jobs_info(
@@ -316,9 +319,12 @@ fn display_node_witness_generator_jobs_info(
 ) {
     node_witness_generators_jobs_info.sort_by_key(|job| job.circuit_id);
 
-    node_witness_generators_jobs_info
-        .iter()
-        .for_each(|job| println!("Circuit id: {} - Status: {}", job.circuit_id, job.status));
+    node_witness_generators_jobs_info.iter().for_each(|job| {
+        println!(
+            "   > Circuit id: {} - Status: {}",
+            job.circuit_id, job.status
+        )
+    });
 }
 
 fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>) {
@@ -374,7 +380,7 @@ fn display_job_status_count(jobs: Vec<ProverJobFriInfo>) {
 fn display_aggregation_round(stage_info: &StageInfo) {
     if let Some(aggregation_round) = stage_info.aggregation_round() {
         println!(
-            "-- {} --",
+            "\n-- {} --",
             format!("Aggregation Round {}", aggregation_round as u8).bold()
         );
     } else {
