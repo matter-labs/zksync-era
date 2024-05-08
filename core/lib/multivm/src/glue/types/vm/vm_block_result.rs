@@ -51,10 +51,6 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::Fi
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
-                storage_log_queries: storage_log_queries
-                    .into_iter()
-                    .map(GlueInto::glue_into)
-                    .collect(),
                 deduplicated_storage_log_queries: deduplicated_storage_log_queries
                     .into_iter()
                     .map(GlueInto::glue_into)
@@ -75,6 +71,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::Fi
             },
             final_bootloader_memory: None,
             pubdata_input: None,
+            initially_written_slots: None,
         }
     }
 }
@@ -114,10 +111,6 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::Fi
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
-                storage_log_queries: storage_log_queries
-                    .into_iter()
-                    .map(GlueInto::glue_into)
-                    .collect(),
                 deduplicated_storage_log_queries: deduplicated_storage_log_queries
                     .into_iter()
                     .map(GlueInto::glue_into)
@@ -138,6 +131,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::Fi
             },
             final_bootloader_memory: None,
             pubdata_input: None,
+            initially_written_slots: None,
         }
     }
 }
@@ -175,10 +169,6 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface:
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
-                storage_log_queries: storage_log_queries
-                    .into_iter()
-                    .map(GlueInto::glue_into)
-                    .collect(),
                 deduplicated_storage_log_queries: deduplicated_storage_log_queries
                     .into_iter()
                     .map(GlueInto::glue_into)
@@ -199,6 +189,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface:
             },
             final_bootloader_memory: None,
             pubdata_input: None,
+            initially_written_slots: None,
         }
     }
 }

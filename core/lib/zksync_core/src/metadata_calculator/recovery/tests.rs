@@ -13,26 +13,24 @@ use zksync_config::configs::{
 use zksync_dal::CoreDal;
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_types::{L1BatchNumber, ProtocolVersionId, StorageLog};
 
 use super::*;
-use crate::{
-    genesis::{insert_genesis_batch, GenesisParams},
-    metadata_calculator::{
-        helpers::create_db,
-        tests::{
-            extend_db_state, extend_db_state_from_l1_batch, gen_storage_logs, mock_config,
-            run_calculator, setup_calculator,
-        },
-        MetadataCalculator, MetadataCalculatorConfig,
+use crate::metadata_calculator::{
+    helpers::create_db,
+    tests::{
+        extend_db_state, extend_db_state_from_l1_batch, gen_storage_logs, mock_config,
+        run_calculator, setup_calculator,
     },
-    utils::testonly::prepare_recovery_snapshot,
+    MetadataCalculator, MetadataCalculatorConfig,
 };
 
 #[test]
 fn calculating_chunk_count() {
     let mut snapshot = SnapshotParameters {
-        miniblock: L2BlockNumber(1),
+        l2_block: L2BlockNumber(1),
         log_count: 160_000_000,
         expected_root_hash: H256::zero(),
     };

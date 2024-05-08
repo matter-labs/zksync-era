@@ -59,7 +59,7 @@ impl TxCache {
 
     async fn remove_tx(&self, tx_hash: H256) {
         self.inner.write().await.tx_cache.remove(&tx_hash);
-        // We intentionally don't change `nonces_by_account`; they should only be changed in response to new miniblocks
+        // We intentionally don't change `nonces_by_account`; they should only be changed in response to new L2 blocks
     }
 
     async fn run_updates(
@@ -122,7 +122,7 @@ impl TxProxy {
 
     async fn submit_tx_impl(&self, tx: &L2Tx) -> EnrichedClientResult<H256> {
         let input_data = tx.common_data.input_data().expect("raw tx is absent");
-        let raw_tx = zksync_types::Bytes(input_data.to_vec());
+        let raw_tx = zksync_types::web3::Bytes(input_data.to_vec());
         let tx_hash = tx.hash();
         tracing::info!("Proxying tx {tx_hash:?}");
         self.client

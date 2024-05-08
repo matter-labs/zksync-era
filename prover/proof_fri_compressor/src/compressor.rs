@@ -29,7 +29,7 @@ use zksync_prover_fri_types::{
 };
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::L1BatchNumber;
+use zksync_types::{L1BatchNumber, ProtocolVersionId};
 use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 use crate::metrics::METRICS;
@@ -40,6 +40,7 @@ pub struct ProofCompressor {
     compression_mode: u8,
     verify_wrapper_proof: bool,
     max_attempts: u32,
+    protocol_version: ProtocolVersionId,
 }
 
 impl ProofCompressor {
@@ -49,6 +50,7 @@ impl ProofCompressor {
         compression_mode: u8,
         verify_wrapper_proof: bool,
         max_attempts: u32,
+        protocol_version: ProtocolVersionId,
     ) -> Self {
         Self {
             blob_store,
@@ -56,6 +58,7 @@ impl ProofCompressor {
             compression_mode,
             verify_wrapper_proof,
             max_attempts,
+            protocol_version,
         }
     }
 
@@ -135,7 +138,7 @@ impl JobProcessor for ProofCompressor {
         let pod_name = get_current_pod_name();
         let Some(l1_batch_number) = conn
             .fri_proof_compressor_dal()
-            .get_next_proof_compression_job(&pod_name)
+            .get_next_proof_compression_job(&pod_name, &self.protocol_version)
             .await
         else {
             return Ok(None);
@@ -161,9 +164,6 @@ impl JobProcessor for ProofCompressor {
         let scheduler_proof = match fri_proof {
             FriProofWrapper::Base(_) => anyhow::bail!("Must be a scheduler proof not base layer"),
             FriProofWrapper::Recursive(proof) => proof,
-            FriProofWrapper::Eip4844(_) => {
-                anyhow::bail!("Must be a scheduler proof not 4844")
-            }
         };
         Ok(Some((l1_batch_number, scheduler_proof)))
     }

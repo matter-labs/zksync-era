@@ -14,12 +14,18 @@ zksync_types.workspace = true
 zksync_dal.workspace = true
 zksync_config.workspace = true
 zksync_contracts.workspace = true
+zksync_object_store.workspace = true
 zksync_storage.workspace = true
-zksync_eth_signer.workspace = true
+zksync_eth_client.workspace = true
 zksync_state.workspace = true
 zksync_merkle_tree.workspace = true
 
-tokio = { workspace = true, features = ["time"] }
-bitflags.workspace = true
+anyhow.workspace = true
+tokio = { workspace = true, features = ["time", "fs"] }
 serde.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+assert_matches.workspace = true
+tempfile.workspace = true
+test-casing.workspace = true

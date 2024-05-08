@@ -27,7 +27,6 @@ pub enum InitStage {
     EthTxAggregator,
     EthTxManager,
     Tree,
-    BasicWitnessInputProducer,
     Consensus,
 }
 
@@ -42,7 +41,6 @@ impl fmt::Display for InitStage {
             Self::EthTxAggregator => formatter.write_str("eth_tx_aggregator"),
             Self::EthTxManager => formatter.write_str("eth_tx_manager"),
             Self::Tree => formatter.write_str("tree"),
-            Self::BasicWitnessInputProducer => formatter.write_str("basic_witness_input_producer"),
             Self::Consensus => formatter.write_str("consensus"),
         }
     }
@@ -188,8 +186,8 @@ pub struct ExternalNodeMetrics {
     pub sync_lag: Gauge<u64>,
     /// Number of the last L1 batch checked by the re-org detector or consistency checker.
     pub last_correct_batch: Family<CheckerComponent, Gauge<u64>>,
-    /// Number of the last miniblock checked by the re-org detector or consistency checker.
-    pub last_correct_miniblock: Family<CheckerComponent, Gauge<u64>>,
+    /// Number of the last L2 block checked by the re-org detector.
+    pub last_correct_l2_block: Family<CheckerComponent, Gauge<u64>>,
 }
 
 #[vise::register]

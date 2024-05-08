@@ -8,8 +8,11 @@ use tokio::{
     sync::{oneshot, watch, RwLock},
     task::{self, JoinHandle},
 };
-use zksync_block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole};
-use zksync_commitment_generator::CommitmentGenerator;
+use zksync_block_reverter::{BlockReverter, NodeRole};
+use zksync_commitment_generator::{
+    input_generation::{InputGenerator, RollupInputGenerator, ValidiumInputGenerator},
+    CommitmentGenerator,
+};
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{
     api::MerkleTreeApiConfig, chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode,
@@ -24,12 +27,6 @@ use zksync_core::{
     },
     consensus,
     consistency_checker::ConsistencyChecker,
-    db_pruner::{DbPruner, DbPrunerConfig},
-    eth_sender::l1_batch_commit_data_generator::{
-        L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
-        ValidiumModeL1BatchCommitDataGenerator,
-    },
-    l1_gas_price::MainNodeFeeParamsFetcher,
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     reorg_detector::{self, ReorgDetector},
     setup_sigint_handler,
@@ -47,8 +44,14 @@ use zksync_db_connection::{
     connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,
 };
 use zksync_eth_client::{clients::QueryClient, EthInterface};
+use zksync_eth_sender::l1_batch_commit_data_generator::{
+    L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
+    ValidiumModeL1BatchCommitDataGenerator,
+};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
-use zksync_state::PostgresStorageCaches;
+use zksync_node_db_pruner::{DbPruner, DbPrunerConfig};
+use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
+use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
@@ -59,8 +62,11 @@ use zksync_web3_decl::{
 };
 
 use crate::{
-    config::{observability::observability_config_from_env, ExternalNodeConfig},
-    helpers::MainNodeHealthCheck,
+    config::{
+        observability::observability_config_from_env, ExternalNodeConfig, OptionalENConfig,
+        RequiredENConfig,
+    },
+    helpers::{EthClientHealthCheck, MainNodeHealthCheck, ValidateChainIdsTask},
     init::ensure_storage_initialized,
     metrics::RUST_METRICS,
 };
@@ -85,15 +91,19 @@ async fn build_state_keeper(
     output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
-    task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
+    task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
 ) -> anyhow::Result<ZkSyncStateKeeper> {
     // We only need call traces on the external node if the `debug_` namespace is enabled.
     let save_call_traces = config.optional.api_namespaces().contains(&Namespace::Debug);
 
+    let cache_options = RocksdbStorageOptions {
+        block_cache_capacity: config.experimental.state_keeper_db_block_cache_capacity(),
+        max_open_files: config.experimental.state_keeper_db_max_open_files,
+    };
     let (storage_factory, task) =
-        AsyncRocksdbCache::new(connection_pool.clone(), state_keeper_db_path);
+        AsyncRocksdbCache::new(connection_pool.clone(), state_keeper_db_path, cache_options);
     let mut stop_receiver_clone = stop_receiver.clone();
-    task_handles.push(tokio::task::spawn(async move {
+    task_handles.push(tokio::spawn(async move {
         let result = task.run(stop_receiver_clone.clone()).await;
         stop_receiver_clone.changed().await?;
         result
@@ -153,20 +163,31 @@ async fn run_tree(
         format!("snapshot recovery max concurrency ({max_concurrency}) is too large")
     })?;
     let recovery_pool = ConnectionPool::builder(
-        tree_pool.database_url(),
+        tree_pool.database_url().clone(),
         max_concurrency.min(config.postgres.max_connections),
     )
     .build()
     .await
     .context("failed creating DB pool for Merkle tree recovery")?;
 
-    let metadata_calculator = MetadataCalculator::new(metadata_calculator_config, None, tree_pool)
-        .await
-        .context("failed initializing metadata calculator")?
-        .with_recovery_pool(recovery_pool);
+    let mut metadata_calculator =
+        MetadataCalculator::new(metadata_calculator_config, None, tree_pool)
+            .await
+            .context("failed initializing metadata calculator")?
+            .with_recovery_pool(recovery_pool);
 
     let tree_reader = Arc::new(metadata_calculator.tree_reader());
-    app_health.insert_component(metadata_calculator.tree_health_check());
+    app_health.insert_custom_component(Arc::new(metadata_calculator.tree_health_check()))?;
+
+    if config.optional.pruning_enabled {
+        tracing::warn!("Proceeding with node state pruning for the Merkle tree. This is an experimental feature; use at your own risk");
+
+        let pruning_task =
+            metadata_calculator.pruning_task(config.optional.pruning_removal_delay() / 2);
+        app_health.insert_component(pruning_task.health_check())?;
+        let pruning_task_handle = tokio::spawn(pruning_task.run(stop_receiver.clone()));
+        task_futures.push(pruning_task_handle);
+    }
 
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
@@ -192,7 +213,7 @@ async fn run_core(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool<Core>,
     main_node_client: BoxedL2Client,
-    eth_client: Arc<dyn EthInterface>,
+    eth_client: Box<dyn EthInterface>,
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
@@ -201,7 +222,7 @@ async fn run_core(
 ) -> anyhow::Result<SyncState> {
     // Create components.
     let sync_state = SyncState::default();
-    app_health.insert_custom_component(Arc::new(sync_state.clone()));
+    app_health.insert_custom_component(Arc::new(sync_state.clone()))?;
     let (action_queue_sender, action_queue) = ActionQueue::new();
 
     let (persistence, miniblock_sealer) = StateKeeperPersistence::new(
@@ -232,7 +253,7 @@ async fn run_core(
         main_node_client.clone(),
         output_handler,
         stop_receiver.clone(),
-        config.remote.l2_chain_id,
+        config.required.l2_chain_id,
         task_handles,
     )
     .await?;
@@ -281,35 +302,24 @@ async fn run_core(
         }
     }));
 
-    if let Some(data_retention_hours) = config.optional.pruning_data_retention_hours {
-        let minimum_l1_batch_age = Duration::from_secs(3600 * data_retention_hours);
+    if config.optional.pruning_enabled {
+        tracing::warn!("Proceeding with node state pruning for Postgres. This is an experimental feature; use at your own risk");
+
+        let minimum_l1_batch_age = config.optional.pruning_data_retention();
         tracing::info!(
             "Configured pruning of batches after they become {minimum_l1_batch_age:?} old"
         );
         let db_pruner = DbPruner::new(
             DbPrunerConfig {
-                // don't change this value without adjusting API server pruning info cache max age
-                soft_and_hard_pruning_time_delta: Duration::from_secs(60),
-                next_iterations_delay: Duration::from_secs(30),
+                removal_delay: config.optional.pruning_removal_delay(),
                 pruned_batch_chunk_size: config.optional.pruning_chunk_size,
                 minimum_l1_batch_age,
             },
             connection_pool.clone(),
         );
+        app_health.insert_component(db_pruner.health_check())?;
         task_handles.push(tokio::spawn(db_pruner.run(stop_receiver.clone())));
     }
-
-    let reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
-    app_health.insert_component(reorg_detector.health_check().clone());
-    task_handles.push(tokio::spawn({
-        let stop = stop_receiver.clone();
-        async move {
-            reorg_detector
-                .run(stop)
-                .await
-                .context("reorg_detector.run()")
-        }
-    }));
 
     let sk_handle = task::spawn(state_keeper.run());
     let fee_params_fetcher_handle =
@@ -337,14 +347,18 @@ async fn run_core(
     )
     .await?;
 
-    let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match config
-        .optional
-        .l1_batch_commit_data_generator_mode
-    {
-        L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
-        L1BatchCommitDataGeneratorMode::Validium => {
-            Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
-        }
+    let (l1_batch_commit_data_generator, input_generator): (
+        Arc<dyn L1BatchCommitDataGenerator>,
+        Box<dyn InputGenerator>,
+    ) = match config.optional.l1_batch_commit_data_generator_mode {
+        L1BatchCommitDataGeneratorMode::Rollup => (
+            Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+            Box::new(RollupInputGenerator),
+        ),
+        L1BatchCommitDataGeneratorMode::Validium => (
+            Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+            Box::new(ValidiumInputGenerator),
+        ),
     };
 
     let consistency_checker = ConsistencyChecker::new(
@@ -359,7 +373,7 @@ async fn run_core(
     .context("cannot initialize consistency checker")?
     .with_diamond_proxy_addr(diamond_proxy_addr);
 
-    app_health.insert_component(consistency_checker.health_check().clone());
+    app_health.insert_component(consistency_checker.health_check().clone())?;
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
 
     let batch_status_updater = BatchStatusUpdater::new(
@@ -369,14 +383,14 @@ async fn run_core(
             .await
             .context("failed to build a connection pool for BatchStatusUpdater")?,
     );
-    app_health.insert_component(batch_status_updater.health_check());
+    app_health.insert_component(batch_status_updater.health_check())?;
 
     let commitment_generator_pool = singleton_pool_builder
         .build()
         .await
         .context("failed to build a commitment_generator_pool")?;
-    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
-    app_health.insert_component(commitment_generator.health_check());
+    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool, input_generator);
+    app_health.insert_component(commitment_generator.health_check())?;
     let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
 
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
@@ -408,7 +422,7 @@ async fn run_api(
 ) -> anyhow::Result<()> {
     let tree_reader = match tree_reader {
         Some(tree_reader) => {
-            if let Some(url) = &config.api_component.tree_api_url {
+            if let Some(url) = &config.api_component.tree_api_remote_url {
                 tracing::warn!(
                     "Tree component is run locally; the specified tree API URL {url} is ignored"
                 );
@@ -417,7 +431,7 @@ async fn run_api(
         }
         None => config
             .api_component
-            .tree_api_url
+            .tree_api_remote_url
             .as_ref()
             .map(|url| Arc::new(TreeApiHttpClient::new(url)) as Arc<dyn TreeApiClient>),
     };
@@ -510,6 +524,10 @@ async fn run_api(
         mempool_cache_update_task.run(stop_receiver.clone()),
     ));
 
+    // The refresh interval should be several times lower than the pruning removal delay, so that
+    // soft-pruning will timely propagate to the API server.
+    let pruning_info_refresh_interval = config.optional.pruning_removal_delay() / 5;
+
     if components.contains(&Component::HttpApi) {
         let mut builder =
             ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
@@ -517,10 +535,12 @@ async fn run_api(
                 .with_filter_limit(config.optional.filters_limit)
                 .with_batch_request_size_limit(config.optional.max_batch_request_size)
                 .with_response_body_size_limit(config.optional.max_response_body_size())
+                .with_pruning_info_refresh_interval(pruning_info_refresh_interval)
                 .with_tx_sender(tx_sender.clone())
                 .with_vm_barrier(vm_barrier.clone())
                 .with_sync_state(sync_state.clone())
                 .with_mempool_cache(mempool_cache.clone())
+                .with_extended_tracing(config.optional.extended_rpc_tracing)
                 .enable_api_namespaces(config.optional.api_namespaces());
         if let Some(tree_reader) = &tree_reader {
             builder = builder.with_tree_api(tree_reader.clone());
@@ -532,7 +552,7 @@ async fn run_api(
             .run(stop_receiver.clone())
             .await
             .context("Failed initializing HTTP JSON-RPC server")?;
-        app_health.insert_component(http_server_handles.health_check);
+        app_health.insert_component(http_server_handles.health_check)?;
         task_handles.extend(http_server_handles.tasks);
     }
 
@@ -545,10 +565,12 @@ async fn run_api(
                 .with_batch_request_size_limit(config.optional.max_batch_request_size)
                 .with_response_body_size_limit(config.optional.max_response_body_size())
                 .with_polling_interval(config.optional.polling_interval())
+                .with_pruning_info_refresh_interval(pruning_info_refresh_interval)
                 .with_tx_sender(tx_sender)
                 .with_vm_barrier(vm_barrier)
                 .with_sync_state(sync_state)
                 .with_mempool_cache(mempool_cache)
+                .with_extended_tracing(config.optional.extended_rpc_tracing)
                 .enable_api_namespaces(config.optional.api_namespaces());
         if let Some(tree_reader) = tree_reader {
             builder = builder.with_tree_api(tree_reader);
@@ -560,7 +582,7 @@ async fn run_api(
             .run(stop_receiver.clone())
             .await
             .context("Failed initializing WS JSON-RPC server")?;
-        app_health.insert_component(ws_server_handles.health_check);
+        app_health.insert_component(ws_server_handles.health_check)?;
         task_handles.extend(ws_server_handles.tasks);
     }
 
@@ -573,7 +595,7 @@ async fn init_tasks(
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
     main_node_client: BoxedL2Client,
-    eth_client: Arc<dyn EthInterface>,
+    eth_client: Box<dyn EthInterface>,
     task_handles: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
@@ -672,7 +694,7 @@ async fn init_tasks(
     if let Some(port) = config.optional.prometheus_port {
         let (prometheus_health_check, prometheus_health_updater) =
             ReactiveHealthCheck::new("prometheus_exporter");
-        app_health.insert_component(prometheus_health_check);
+        app_health.insert_component(prometheus_health_check)?;
         task_handles.push(tokio::spawn(async move {
             prometheus_health_updater.update(HealthStatus::Ready.into());
             let result = PrometheusExporterConfig::pull(port)
@@ -793,7 +815,22 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("No sentry URL was provided");
     }
 
-    let mut config = ExternalNodeConfig::collect()
+    let required_config = RequiredENConfig::from_env()?;
+    let optional_config = OptionalENConfig::from_env()?;
+
+    // Build L1 and L2 clients.
+    let main_node_url = &required_config.main_node_url;
+    tracing::info!("Main node URL is: {main_node_url:?}");
+    let main_node_client = L2Client::http(main_node_url.clone())
+        .context("Failed creating JSON-RPC client for main node")?
+        .with_allowed_requests_per_second(optional_config.main_node_rate_limit_rps)
+        .build();
+    let main_node_client = BoxedL2Client::new(main_node_client);
+
+    let eth_client_url = &required_config.eth_client_url;
+    let eth_client = Box::new(QueryClient::new(eth_client_url.clone())?);
+
+    let mut config = ExternalNodeConfig::new(required_config, optional_config, &main_node_client)
         .await
         .context("Failed to load external node config")?;
     if !opt.enable_consensus {
@@ -809,31 +846,14 @@ async fn main() -> anyhow::Result<()> {
     RUST_METRICS.initialize();
     EN_METRICS.observe_config(&config);
 
-    let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
+    let singleton_pool_builder = ConnectionPool::singleton(config.postgres.database_url());
     let connection_pool = ConnectionPool::<Core>::builder(
-        &config.postgres.database_url,
+        config.postgres.database_url(),
         config.postgres.max_connections,
     )
     .build()
     .await
     .context("failed to build a connection_pool")?;
-
-    let main_node_url = config
-        .required
-        .main_node_url()
-        .expect("Main node URL is incorrect");
-    tracing::info!("Main node URL is: {main_node_url}");
-    let main_node_client = L2Client::http(&main_node_url)
-        .context("Failed creating JSON-RPC client for main node")?
-        .with_allowed_requests_per_second(config.optional.main_node_rate_limit_rps)
-        .build();
-    let main_node_client = BoxedL2Client::new(main_node_client);
-
-    let eth_client_url = config
-        .required
-        .eth_client_url()
-        .context("L1 client URL is incorrect")?;
-    let eth_client = Arc::new(QueryClient::new(&eth_client_url)?);
 
     run_node(
         (),
@@ -873,7 +893,7 @@ async fn run_node(
     connection_pool: ConnectionPool<Core>,
     singleton_pool_builder: ConnectionPoolBuilder<Core>,
     main_node_client: BoxedL2Client,
-    eth_client: Arc<dyn EthInterface>,
+    eth_client: Box<dyn EthInterface>,
 ) -> anyhow::Result<()> {
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");
@@ -885,10 +905,11 @@ async fn run_node(
     ));
     app_health.insert_custom_component(Arc::new(MainNodeHealthCheck::from(
         main_node_client.clone(),
-    )));
+    )))?;
+    app_health.insert_custom_component(Arc::new(EthClientHealthCheck::from(eth_client.clone())))?;
     app_health.insert_custom_component(Arc::new(ConnectionPoolHealthCheck::new(
         connection_pool.clone(),
-    )));
+    )))?;
 
     // Start the health check server early into the node lifecycle so that its health can be monitored from the very start.
     let healthcheck_handle = HealthCheckHandle::spawn_server(
@@ -910,6 +931,14 @@ async fn run_node(
         Ok(())
     });
 
+    let validate_chain_ids_task = ValidateChainIdsTask::new(
+        config.required.l1_chain_id,
+        config.required.l2_chain_id,
+        eth_client.clone(),
+        main_node_client.clone(),
+    );
+    let validate_chain_ids_task = tokio::spawn(validate_chain_ids_task.run(stop_receiver.clone()));
+
     let version_sync_task_pool = connection_pool.clone();
     let version_sync_task_main_node_client = main_node_client.clone();
     let mut stop_receiver_for_version_sync = stop_receiver.clone();
@@ -923,28 +952,27 @@ async fn run_node(
         stop_receiver_for_version_sync.changed().await.ok();
         Ok(())
     });
-    let mut task_handles = vec![metrics_task, version_sync_task];
+    let mut task_handles = vec![metrics_task, validate_chain_ids_task, version_sync_task];
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(
         connection_pool.clone(),
         main_node_client.clone(),
         &app_health,
-        config.remote.l2_chain_id,
+        config.required.l2_chain_id,
         config.optional.snapshots_recovery_enabled,
     )
     .await?;
     let sigint_receiver = env.setup_sigint_handler();
 
     // Revert the storage if needed.
-    let reverter = BlockReverter::new(
-        NodeRole::External,
-        config.required.state_cache_path.clone(),
-        config.required.merkle_tree_path.clone(),
-        None,
-        connection_pool.clone(),
-        L1ExecutedBatchesRevert::Allowed,
-    );
+    let mut reverter = BlockReverter::new(NodeRole::External, connection_pool.clone());
+    // Reverting executed batches is more-or-less safe for external nodes.
+    let reverter = reverter
+        .allow_rolling_back_executed_batches()
+        .enable_rolling_back_postgres()
+        .enable_rolling_back_merkle_tree(config.required.merkle_tree_path.clone())
+        .enable_rolling_back_state_keeper_cache(config.required.state_cache_path.clone());
 
     let mut reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
     // We're checking for the reorg in the beginning because we expect that if reorg is detected during
@@ -954,34 +982,28 @@ async fn run_node(
     match reorg_detector.check_consistency().await {
         Ok(()) => {}
         Err(reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {
-            tracing::info!("Rolling back to l1 batch number {last_correct_l1_batch}");
-            reverter
-                .rollback_db(last_correct_l1_batch, BlockReverterFlags::all())
-                .await;
-            tracing::info!("Rollback successfully completed");
+            tracing::info!("Reverting to l1 batch number {last_correct_l1_batch}");
+            reverter.roll_back(last_correct_l1_batch).await?;
+            tracing::info!("Revert successfully completed");
         }
         Err(err) => return Err(err).context("reorg_detector.check_consistency()"),
     }
     if opt.revert_pending_l1_batch {
-        tracing::info!("Rolling pending L1 batch back..");
+        tracing::info!("Reverting pending L1 batch");
         let mut connection = connection_pool.connection().await?;
         let sealed_l1_batch_number = connection
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await?
-            .context(
-                "Cannot roll back pending L1 batch since there are no L1 batches in Postgres",
-            )?;
+            .context("Cannot revert pending L1 batch since there are no L1 batches in Postgres")?;
         drop(connection);
 
-        tracing::info!("Rolling back to l1 batch number {sealed_l1_batch_number}");
-        reverter
-            .rollback_db(sealed_l1_batch_number, BlockReverterFlags::all())
-            .await;
-        tracing::info!("Rollback successfully completed");
+        tracing::info!("Reverting to l1 batch number {sealed_l1_batch_number}");
+        reverter.roll_back(sealed_l1_batch_number).await?;
+        tracing::info!("Revert successfully completed");
     }
 
-    app_health.insert_component(reorg_detector.health_check().clone());
+    app_health.insert_component(reorg_detector.health_check().clone())?;
     task_handles.push(tokio::spawn({
         let stop = stop_receiver.clone();
         async move {

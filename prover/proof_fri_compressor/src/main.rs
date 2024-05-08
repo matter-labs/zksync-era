@@ -9,6 +9,7 @@ use zksync_config::configs::{FriProofCompressorConfig, ObservabilityConfig, Post
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;
+use zksync_types::ProtocolVersionId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
 use crate::{
@@ -69,12 +70,16 @@ async fn main() -> anyhow::Result<()> {
     let blob_store = ObjectStoreFactory::new(object_store_config.0)
         .create_store()
         .await;
+
+    let protocol_version = ProtocolVersionId::current_prover_version();
+
     let proof_compressor = ProofCompressor::new(
         blob_store,
         pool,
         config.compression_mode,
         config.verify_wrapper_proof,
         config.max_attempts,
+        protocol_version,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);

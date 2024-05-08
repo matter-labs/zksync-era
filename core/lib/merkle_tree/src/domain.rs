@@ -330,10 +330,10 @@ impl ZkSyncTree {
         kvs.collect()
     }
 
-    /// Reverts the tree to a previous state.
+    /// Rolls back this tree to a previous state.
     ///
     /// This method will overwrite all unsaved changes in the tree.
-    pub fn revert_logs(&mut self, last_l1_batch_to_keep: L1BatchNumber) {
+    pub fn roll_back_logs(&mut self, last_l1_batch_to_keep: L1BatchNumber) {
         self.tree.db.reset();
         let retained_version_count = u64::from(last_l1_batch_to_keep.0 + 1);
         self.tree.truncate_recent_versions(retained_version_count);
@@ -365,6 +365,16 @@ impl Clone for ZkSyncTreeReader {
 }
 
 impl ZkSyncTreeReader {
+    /// Creates a tree reader based on the provided database.
+    pub fn new(db: RocksDBWrapper) -> Self {
+        Self(MerkleTree::new(db))
+    }
+
+    /// Returns a reference to the database this.
+    pub fn db(&self) -> &RocksDBWrapper {
+        &self.0.db
+    }
+
     /// Returns the current root hash of this tree.
     pub fn root_hash(&self) -> ValueHash {
         self.0.latest_root_hash()

@@ -15,7 +15,9 @@ use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
     jsonrpsee::{
-        server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder},
+        server::{
+            middleware::rpc::either::Either, BatchRequestConfig, RpcServiceBuilder, ServerBuilder,
+        },
         MethodCallback, Methods, RpcModule,
     },
     namespaces::{
@@ -27,7 +29,8 @@ use zksync_web3_decl::{
 
 use self::{
     backend_jsonrpsee::{
-        LimitMiddleware, MetadataMiddleware, MethodTracer, ShutdownMiddleware, TrafficTracker,
+        CorrelationMiddleware, LimitMiddleware, MetadataLayer, MethodTracer, ShutdownMiddleware,
+        TrafficTracker,
     },
     mempool_cache::MempoolCache,
     metrics::API_METRICS,
@@ -36,7 +39,7 @@ use self::{
         ZksNamespace,
     },
     pubsub::{EthSubscribe, EthSubscriptionIdProvider, PubSubEvent},
-    state::{Filters, InternalApiConfig, RpcState, SealedMiniblockNumber},
+    state::{Filters, InternalApiConfig, RpcState, SealedL2BlockNumber},
 };
 use crate::{
     api_server::{
@@ -130,6 +133,7 @@ struct OptionalApiParams {
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
     tree_api: Option<Arc<dyn TreeApiClient>>,
     mempool_cache: Option<MempoolCache>,
+    extended_tracing: bool,
     pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
 
@@ -144,6 +148,7 @@ pub struct ApiServer {
     transport: ApiTransport,
     tx_sender: TxSender,
     polling_interval: Duration,
+    pruning_info_refresh_interval: Duration,
     namespaces: Vec<Namespace>,
     method_tracer: Arc<MethodTracer>,
     optional: OptionalApiParams,
@@ -155,6 +160,7 @@ pub struct ApiBuilder {
     updaters_pool: ConnectionPool<Core>,
     config: InternalApiConfig,
     polling_interval: Duration,
+    pruning_info_refresh_interval: Duration,
     // Mandatory params that must be set using builder methods.
     transport: Option<ApiTransport>,
     tx_sender: Option<TxSender>,
@@ -167,6 +173,7 @@ pub struct ApiBuilder {
 
 impl ApiBuilder {
     const DEFAULT_POLLING_INTERVAL: Duration = Duration::from_millis(200);
+    const DEFAULT_PRUNING_INFO_REFRESH_INTERVAL: Duration = Duration::from_secs(10);
 
     pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ConnectionPool<Core>) -> Self {
         Self {
@@ -174,6 +181,7 @@ impl ApiBuilder {
             pool,
             config,
             polling_interval: Self::DEFAULT_POLLING_INTERVAL,
+            pruning_info_refresh_interval: Self::DEFAULT_PRUNING_INFO_REFRESH_INTERVAL,
             transport: None,
             tx_sender: None,
             namespaces: None,
@@ -250,6 +258,11 @@ impl ApiBuilder {
         self
     }
 
+    pub fn with_pruning_info_refresh_interval(mut self, interval: Duration) -> Self {
+        self.pruning_info_refresh_interval = interval;
+        self
+    }
+
     pub fn enable_api_namespaces(mut self, namespaces: Vec<Namespace>) -> Self {
         self.namespaces = Some(namespaces);
         self
@@ -263,6 +276,11 @@ impl ApiBuilder {
 
     pub fn with_mempool_cache(mut self, cache: MempoolCache) -> Self {
         self.optional.mempool_cache = Some(cache);
+        self
+    }
+
+    pub fn with_extended_tracing(mut self, extended_tracing: bool) -> Self {
+        self.optional.extended_tracing = extended_tracing;
         self
     }
 
@@ -296,6 +314,7 @@ impl ApiBuilder {
             transport,
             tx_sender: self.tx_sender.context("Transaction sender not set")?,
             polling_interval: self.polling_interval,
+            pruning_info_refresh_interval: self.pruning_info_refresh_interval,
             namespaces: self.namespaces.unwrap_or_else(|| {
                 tracing::warn!(
                     "debug_ and snapshots_ API namespace will be disabled by default in ApiBuilder"
@@ -315,10 +334,11 @@ impl ApiServer {
 
     async fn build_rpc_state(
         self,
-        last_sealed_miniblock: SealedMiniblockNumber,
+        last_sealed_l2_block: SealedL2BlockNumber,
     ) -> anyhow::Result<RpcState> {
         let mut storage = self.updaters_pool.connection_tagged("api").await?;
-        let start_info = BlockStartInfo::new(&mut storage).await?;
+        let start_info =
+            BlockStartInfo::new(&mut storage, self.pruning_info_refresh_interval).await?;
         drop(storage);
 
         // Disable filter API for HTTP endpoints, WS endpoints are unaffected by the `filters_disabled` flag
@@ -340,7 +360,7 @@ impl ApiServer {
             api_config: self.config,
             start_info,
             mempool_cache: self.optional.mempool_cache,
-            last_sealed_miniblock,
+            last_sealed_l2_block,
             tree_api: self.optional.tree_api,
         })
     }
@@ -348,46 +368,46 @@ impl ApiServer {
     async fn build_rpc_module(
         self,
         pub_sub: Option<EthSubscribe>,
-        last_sealed_miniblock: SealedMiniblockNumber,
+        last_sealed_l2_block: SealedL2BlockNumber,
     ) -> anyhow::Result<RpcModule<()>> {
         let namespaces = self.namespaces.clone();
         let zksync_network_id = self.config.l2_chain_id;
-        let rpc_state = self.build_rpc_state(last_sealed_miniblock).await?;
+        let rpc_state = self.build_rpc_state(last_sealed_l2_block).await?;
 
         // Collect all the methods into a single RPC module.
         let mut rpc = RpcModule::new(());
         if let Some(pub_sub) = pub_sub {
             rpc.merge(pub_sub.into_rpc())
-                .expect("Can't merge eth pubsub namespace");
+                .context("cannot merge eth pubsub namespace")?;
         }
 
+        if namespaces.contains(&Namespace::Debug) {
+            rpc.merge(DebugNamespace::new(rpc_state.clone()).await?.into_rpc())
+                .context("cannot merge debug namespace")?;
+        }
         if namespaces.contains(&Namespace::Eth) {
             rpc.merge(EthNamespace::new(rpc_state.clone()).into_rpc())
-                .expect("Can't merge eth namespace");
+                .context("cannot merge eth namespace")?;
         }
         if namespaces.contains(&Namespace::Net) {
             rpc.merge(NetNamespace::new(zksync_network_id).into_rpc())
-                .expect("Can't merge net namespace");
+                .context("cannot merge net namespace")?;
         }
         if namespaces.contains(&Namespace::Web3) {
             rpc.merge(Web3Namespace.into_rpc())
-                .expect("Can't merge web3 namespace");
+                .context("cannot merge web3 namespace")?;
         }
         if namespaces.contains(&Namespace::Zks) {
             rpc.merge(ZksNamespace::new(rpc_state.clone()).into_rpc())
-                .expect("Can't merge zks namespace");
+                .context("cannot merge zks namespace")?;
         }
         if namespaces.contains(&Namespace::En) {
             rpc.merge(EnNamespace::new(rpc_state.clone()).into_rpc())
-                .expect("Can't merge en namespace");
-        }
-        if namespaces.contains(&Namespace::Debug) {
-            rpc.merge(DebugNamespace::new(rpc_state.clone()).await.into_rpc())
-                .expect("Can't merge debug namespace");
+                .context("cannot merge en namespace")?;
         }
         if namespaces.contains(&Namespace::Snapshots) {
             rpc.merge(SnapshotsNamespace::new(rpc_state).into_rpc())
-                .expect("Can't merge snapshots namespace");
+                .context("cannot merge snapshots namespace")?;
         }
         Ok(rpc)
     }
@@ -446,21 +466,21 @@ impl ApiServer {
         self,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<ApiServerHandles> {
-        // Chosen to be significantly smaller than the interval between miniblocks, but larger than
-        // the latency of getting the latest sealed miniblock number from Postgres. If the API server
-        // processes enough requests, information about the latest sealed miniblock will be updated
+        // Chosen to be significantly smaller than the interval between L2 blocks, but larger than
+        // the latency of getting the latest sealed L2 block number from Postgres. If the API server
+        // processes enough requests, information about the latest sealed L2 block will be updated
         // by reporting block difference metrics, so the actual update lag would be much smaller than this value.
-        const SEALED_MINIBLOCK_UPDATE_INTERVAL: Duration = Duration::from_millis(25);
+        const SEALED_L2_BLOCK_UPDATE_INTERVAL: Duration = Duration::from_millis(25);
 
         let transport = self.transport;
 
-        let (last_sealed_miniblock, sealed_miniblock_update_task) = SealedMiniblockNumber::new(
+        let (last_sealed_l2_block, sealed_l2_block_update_task) = SealedL2BlockNumber::new(
             self.updaters_pool.clone(),
-            SEALED_MINIBLOCK_UPDATE_INTERVAL,
+            SEALED_L2_BLOCK_UPDATE_INTERVAL,
             stop_receiver.clone(),
         );
 
-        let mut tasks = vec![tokio::spawn(sealed_miniblock_update_task)];
+        let mut tasks = vec![tokio::spawn(sealed_l2_block_update_task)];
         let pub_sub = if matches!(transport, ApiTransport::WebSocket(_))
             && self.namespaces.contains(&Namespace::Pubsub)
         {
@@ -486,7 +506,7 @@ impl ApiServer {
         let server_task = tokio::spawn(self.run_jsonrpsee_server(
             stop_receiver,
             pub_sub,
-            last_sealed_miniblock,
+            last_sealed_l2_block,
             local_addr_sender,
         ));
 
@@ -557,7 +577,7 @@ impl ApiServer {
         self,
         mut stop_receiver: watch::Receiver<bool>,
         pub_sub: Option<EthSubscribe>,
-        last_sealed_miniblock: SealedMiniblockNumber,
+        last_sealed_l2_block: SealedL2BlockNumber,
         local_addr_sender: oneshot::Sender<SocketAddr>,
     ) -> anyhow::Result<()> {
         let transport = self.transport;
@@ -608,9 +628,12 @@ impl ApiServer {
         let health_updater = self.health_updater.clone();
         let method_tracer = self.method_tracer.clone();
 
-        let rpc = self
-            .build_rpc_module(pub_sub, last_sealed_miniblock)
-            .await?;
+        let extended_tracing = self.optional.extended_tracing;
+        if extended_tracing {
+            tracing::info!("Enabled extended call tracing for {transport_str} API server; this might negatively affect performance");
+        }
+
+        let rpc = self.build_rpc_module(pub_sub, last_sealed_l2_block).await?;
         let registered_method_names = Arc::new(rpc.method_names().collect::<HashSet<_>>());
         tracing::debug!(
             "Built RPC module for {transport_str} server with {} methods: {registered_method_names:?}",
@@ -646,15 +669,27 @@ impl ApiServer {
             .flatten()
             .unwrap_or(5_000);
 
+        let metadata_layer = MetadataLayer::new(registered_method_names, method_tracer);
+        let metadata_layer = if extended_tracing {
+            Either::Left(metadata_layer.with_param_tracing())
+        } else {
+            Either::Right(metadata_layer)
+        };
         let traffic_tracker = TrafficTracker::default();
         let traffic_tracker_for_middleware = traffic_tracker.clone();
+
+        // **Important.** The ordering of layers matters! Layers added first will receive the request earlier
+        // (i.e., are outermost in the call chain).
         let rpc_middleware = RpcServiceBuilder::new()
             .layer_fn(move |svc| {
                 ShutdownMiddleware::new(svc, traffic_tracker_for_middleware.clone())
             })
-            .layer_fn(move |svc| {
-                MetadataMiddleware::new(svc, registered_method_names.clone(), method_tracer.clone())
-            })
+            // We want to output method logs with a correlation ID; hence, `CorrelationMiddleware` must precede `metadata_layer`.
+            .option_layer(
+                extended_tracing.then(|| tower::layer::layer_fn(CorrelationMiddleware::new)),
+            )
+            .layer(metadata_layer)
+            // We want to capture limit middleware errors with `metadata_layer`; hence, `LimitMiddleware` is placed after it.
             .option_layer((!is_http).then(|| {
                 tower::layer::layer_fn(move |svc| {
                     LimitMiddleware::new(svc, websocket_requests_per_minute_limit)

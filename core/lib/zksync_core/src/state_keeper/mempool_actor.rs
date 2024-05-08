@@ -8,12 +8,13 @@ use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
+use zksync_node_fee_model::BatchFeeModelInputProvider;
 #[cfg(test)]
 use zksync_types::H256;
 use zksync_types::{get_nonce_key, Address, Nonce, Transaction, VmVersion};
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
-use crate::{fee_model::BatchFeeModelInputProvider, utils::pending_protocol_version};
+use crate::utils::pending_protocol_version;
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses
@@ -21,15 +22,14 @@ use crate::{fee_model::BatchFeeModelInputProvider, utils::pending_protocol_versi
 pub async fn l2_tx_filter(
     batch_fee_input_provider: &dyn BatchFeeModelInputProvider,
     vm_version: VmVersion,
-) -> L2TxFilter {
-    let fee_input = batch_fee_input_provider.get_batch_fee_input().await;
-
+) -> anyhow::Result<L2TxFilter> {
+    let fee_input = batch_fee_input_provider.get_batch_fee_input().await?;
     let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(fee_input, vm_version);
-    L2TxFilter {
+    Ok(L2TxFilter {
         fee_input,
         fee_per_gas: base_fee,
         gas_per_pubdata: gas_per_pubdata as u32,
-    }
+    })
 }
 
 #[derive(Debug)]
@@ -92,7 +92,8 @@ impl MempoolFetcher {
                 self.batch_fee_input_provider.as_ref(),
                 protocol_version.into(),
             )
-            .await;
+            .await
+            .context("failed creating L2 transaction filter")?;
 
             let transactions = storage
                 .transactions_dal()
@@ -156,6 +157,9 @@ async fn get_transaction_nonces(
 
 #[cfg(test)]
 mod tests {
+    use zksync_node_fee_model::MockBatchFeeParamsProvider;
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_test_utils::create_l2_transaction;
     use zksync_types::{
         fee::TransactionExecutionMetrics, L2BlockNumber, PriorityOpId, ProtocolVersionId,
         StorageLog, H256,
@@ -163,10 +167,6 @@ mod tests {
     use zksync_utils::u256_to_h256;
 
     use super::*;
-    use crate::{
-        genesis::{insert_genesis_batch, GenesisParams},
-        utils::testonly::{create_l2_transaction, MockBatchFeeParamsProvider},
-    };
 
     const TEST_MEMPOOL_CONFIG: MempoolConfig = MempoolConfig {
         sync_interval_ms: 10,
@@ -221,8 +221,9 @@ mod tests {
         drop(storage);
 
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
-        let fee_params_provider = Arc::new(MockBatchFeeParamsProvider::default());
-        let fee_input = fee_params_provider.get_batch_fee_input().await;
+        let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
+            Arc::new(MockBatchFeeParamsProvider::default());
+        let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
         let (base_fee, gas_per_pubdata) =
             derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
 
@@ -279,8 +280,9 @@ mod tests {
         drop(storage);
 
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
-        let fee_params_provider = Arc::new(MockBatchFeeParamsProvider::default());
-        let fee_input = fee_params_provider.get_batch_fee_input().await;
+        let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
+            Arc::new(MockBatchFeeParamsProvider::default());
+        let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
         let (base_fee, gas_per_pubdata) =
             derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
 
@@ -320,8 +322,9 @@ mod tests {
         drop(storage);
 
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
-        let fee_params_provider = Arc::new(MockBatchFeeParamsProvider::default());
-        let fee_input = fee_params_provider.get_batch_fee_input().await;
+        let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
+            Arc::new(MockBatchFeeParamsProvider::default());
+        let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
         let (base_fee, gas_per_pubdata) =
             derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
 

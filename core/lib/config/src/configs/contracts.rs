@@ -1,7 +1,24 @@
 // External uses
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 // Workspace uses
 use zksync_basic_types::Address;
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct EcosystemContracts {
+    pub bridgehub_proxy_addr: Address,
+    pub state_transition_proxy_addr: Address,
+    pub transparent_proxy_admin_addr: Address,
+}
+
+impl EcosystemContracts {
+    fn for_tests() -> Self {
+        Self {
+            bridgehub_proxy_addr: Address::repeat_byte(0x14),
+            state_transition_proxy_addr: Address::repeat_byte(0x15),
+            transparent_proxy_admin_addr: Address::repeat_byte(0x15),
+        }
+    }
+}
 
 /// Data about deployed contracts.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -19,6 +36,7 @@ pub struct ContractsConfig {
     pub l2_weth_bridge_addr: Option<Address>,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l1_multicall3_addr: Address,
+    pub ecosystem_contracts: Option<EcosystemContracts>,
     pub base_token_addr: Option<Address>,
 }
 
@@ -39,6 +57,7 @@ impl ContractsConfig {
             l1_multicall3_addr: Address::repeat_byte(0x12),
             governance_addr: Address::repeat_byte(0x13),
             base_token_addr: Some(Address::repeat_byte(0x14)),
+            ecosystem_contracts: Some(EcosystemContracts::for_tests()),
         }
     }
 }
