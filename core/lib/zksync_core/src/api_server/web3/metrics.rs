@@ -524,7 +524,7 @@ mod tests {
         assert_matches!(rpc_params, ObservedRpcParams::Owned { .. });
         assert_eq!(rpc_params.to_string(), r#" with params ["0x1"]"#);
 
-        let raw_params = [zksync_types::Bytes(vec![0xff; 512])];
+        let raw_params = [zksync_types::web3::Bytes(vec![0xff; 512])];
         let raw_params = serde_json::value::to_raw_value(&raw_params).unwrap();
         assert_eq!(raw_params.get().len(), 1_030); // 1024 'f' chars + '0x' + '[]' + '""'
         let rpc_params = ObservedRpcParams::new(Some(&Cow::Borrowed(&raw_params)));

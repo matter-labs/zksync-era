@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use web3::signing::keccak256;
-use zksync_basic_types::{L2ChainId, H256, U256};
+use zksync_basic_types::{web3::keccak256, L2ChainId, H256, U256};
 
 use crate::eip712_signature::struct_builder::{EncodeBuilder, StructBuilder, TypeBuilder};
 

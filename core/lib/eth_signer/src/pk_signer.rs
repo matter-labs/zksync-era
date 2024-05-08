@@ -63,7 +63,7 @@ impl EthereumSigner for PrivateKeySigner {
             blob_versioned_hashes: raw_tx.blob_versioned_hashes,
         };
 
-        let signed = tx.sign(self.private_key.expose_secret(), raw_tx.chain_id);
+        let signed = tx.sign(&self.private_key, raw_tx.chain_id);
         Ok(signed.raw_transaction.0)
     }
 }
