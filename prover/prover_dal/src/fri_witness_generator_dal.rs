@@ -1519,7 +1519,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn get_scheduler_witness_generator_jobs_for_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> Vec<SchedulerWitnessGeneratorJobInfo> {
+    ) -> Option<SchedulerWitnessGeneratorJobInfo> {
         sqlx::query!(
             r#"
             SELECT
@@ -1531,10 +1531,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-        .fetch_all(self.storage.conn())
+        .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .iter()
         .map(|row| SchedulerWitnessGeneratorJobInfo {
             l1_batch_number,
             scheduler_partial_input_blob_url: row.scheduler_partial_input_blob_url.clone(),
@@ -1548,6 +1547,5 @@ impl FriWitnessGeneratorDal<'_, '_> {
             protocol_version: row.protocol_version,
             picked_by: row.picked_by.clone(),
         })
-        .collect()
     }
 }
