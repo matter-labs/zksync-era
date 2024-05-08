@@ -308,7 +308,7 @@ fn display_leaf_witness_generator_jobs_info(
 
     leaf_witness_generators_jobs_info.iter().for_each(|job| {
         println!(
-            "   > Circuit id: {} - Status: {}",
+            "   > Circuit id: {:>2} - Status: {}",
             job.circuit_id, job.status
         )
     });
@@ -321,7 +321,7 @@ fn display_node_witness_generator_jobs_info(
 
     node_witness_generators_jobs_info.iter().for_each(|job| {
         println!(
-            "   > Circuit id: {} - Status: {}",
+            "   > Circuit id: {:>2} - Status: {}",
             job.circuit_id, job.status
         )
     });
@@ -349,10 +349,10 @@ fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>) {
         let status = Status::from(prover_jobs_info.clone());
         match status {
             Status::InProgress => {
-                println!("   > Circuit ID: {}, status: {}", circuit_id, status);
+                println!("   > Circuit ID: {:>2}, status: {}", circuit_id, status);
                 display_job_status_count(prover_jobs_info);
             }
-            _ => println!("   > Circuit ID: {}, status: {}", circuit_id, status),
+            _ => println!("   > Circuit ID: {:>2}, status: {}", circuit_id, status),
         };
     }
 }
