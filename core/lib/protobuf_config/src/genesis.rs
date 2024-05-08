@@ -1,24 +1,22 @@
 use anyhow::Context as _;
-use zksync_basic_types::{L1ChainId, L2ChainId};
+use zksync_basic_types::{commitment::L1BatchCommitMode, L1ChainId, L2ChainId};
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
 use crate::{parse_h160, parse_h256, proto::genesis as proto};
 
 impl proto::L1BatchCommitDataGeneratorMode {
-    fn new(n: &configs::chain::L1BatchCommitDataGeneratorMode) -> Self {
-        use configs::chain::L1BatchCommitDataGeneratorMode as From;
+    fn new(n: &L1BatchCommitMode) -> Self {
         match n {
-            From::Rollup => Self::Rollup,
-            From::Validium => Self::Validium,
+            L1BatchCommitMode::Rollup => Self::Rollup,
+            L1BatchCommitMode::Validium => Self::Validium,
         }
     }
 
-    fn parse(&self) -> configs::chain::L1BatchCommitDataGeneratorMode {
-        use configs::chain::L1BatchCommitDataGeneratorMode as To;
+    fn parse(&self) -> L1BatchCommitMode {
         match self {
-            Self::Rollup => To::Rollup,
-            Self::Validium => To::Validium,
+            Self::Rollup => L1BatchCommitMode::Rollup,
+            Self::Validium => L1BatchCommitMode::Validium,
         }
     }
 }

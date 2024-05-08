@@ -4,9 +4,8 @@ use anyhow::Context as _;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::clients::QueryClient;
-use zksync_types::url::SensitiveUrl;
+use zksync_types::{commitment::L1BatchCommitMode, url::SensitiveUrl};
 
-use super::PubdataPricing;
 use crate::l1_gas_price::GasAdjuster;
 
 /// Special struct for creating a singleton of `GasAdjuster`.
@@ -17,7 +16,7 @@ pub struct GasAdjusterSingleton {
     gas_adjuster_config: GasAdjusterConfig,
     pubdata_sending_mode: PubdataSendingMode,
     singleton: Option<Arc<GasAdjuster>>,
-    pubdata_pricing: Arc<dyn PubdataPricing>,
+    commit_mode: L1BatchCommitMode,
 }
 
 impl GasAdjusterSingleton {
@@ -25,14 +24,14 @@ impl GasAdjusterSingleton {
         web3_url: SensitiveUrl,
         gas_adjuster_config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
-        pubdata_pricing: Arc<dyn PubdataPricing>,
+        commit_mode: L1BatchCommitMode,
     ) -> Self {
         Self {
             web3_url,
             gas_adjuster_config,
             pubdata_sending_mode,
             singleton: None,
-            pubdata_pricing,
+            commit_mode,
         }
     }
 
@@ -46,7 +45,7 @@ impl GasAdjusterSingleton {
                 Box::new(query_client),
                 self.gas_adjuster_config,
                 self.pubdata_sending_mode,
-                self.pubdata_pricing.clone(),
+                self.commit_mode,
             )
             .await
             .context("GasAdjuster::new()")?;

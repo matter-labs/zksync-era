@@ -7,14 +7,16 @@ use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBat
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
-    helpers::unix_timestamp_ms, protocol_version::L1VerifierConfig, pubdata_da::PubdataDA,
+    aggregated_operations::AggregatedActionType,
+    commitment::{L1BatchCommitMode, L1BatchWithMetadata},
+    helpers::unix_timestamp_ms,
+    protocol_version::L1VerifierConfig,
+    pubdata_da::PubdataDA,
     L1BatchNumber, ProtocolVersionId,
 };
 
 use super::{
     aggregated_operations::AggregatedOperation,
-    l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
     publish_criterion::{
         DataSizeCriterion, GasCriterion, L1BatchPublishCriterion, NumberCriterion,
         TimestampDeadlineCriterion,
@@ -35,6 +37,7 @@ pub struct Aggregator {
     /// transactions.
     operate_4844_mode: bool,
     pubdata_da: PubdataDA,
+    commit_mode: L1BatchCommitMode,
 }
 
 impl Aggregator {
@@ -42,7 +45,7 @@ impl Aggregator {
         config: SenderConfig,
         blob_store: Arc<dyn ObjectStore>,
         operate_4844_mode: bool,
-        l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+        commit_mode: L1BatchCommitMode,
     ) -> Self {
         let pubdata_da = config.pubdata_sending_mode.into();
 
@@ -60,7 +63,7 @@ impl Aggregator {
                     op: AggregatedActionType::Commit,
                     data_limit: config.max_eth_tx_data_size,
                     pubdata_da,
-                    l1_batch_commit_data_generator,
+                    commit_mode,
                 }),
                 Box::from(TimestampDeadlineCriterion {
                     op: AggregatedActionType::Commit,
@@ -105,6 +108,7 @@ impl Aggregator {
             blob_store,
             operate_4844_mode,
             pubdata_da,
+            commit_mode,
         }
     }
 
@@ -468,6 +472,10 @@ impl Aggregator {
 
     pub fn pubdata_da(&self) -> PubdataDA {
         self.pubdata_da
+    }
+
+    pub fn mode(&self) -> L1BatchCommitMode {
+        self.commit_mode
     }
 }
 

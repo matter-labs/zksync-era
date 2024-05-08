@@ -1,8 +1,5 @@
-use zksync_commitment_generator::{
-    input_generation::{InputGenerator, RollupInputGenerator, ValidiumInputGenerator},
-    CommitmentGenerator,
-};
-use zksync_config::configs::chain::L1BatchCommitDataGeneratorMode;
+use zksync_commitment_generator::CommitmentGenerator;
+use zksync_types::commitment::L1BatchCommitMode;
 
 use crate::{
     implementations::resources::{
@@ -14,20 +11,14 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+#[derive(Debug)]
 pub struct CommitmentGeneratorLayer {
-    input_generator: Box<dyn InputGenerator>,
+    mode: L1BatchCommitMode,
 }
 
 impl CommitmentGeneratorLayer {
-    pub fn new(commit_data_generator_mode: L1BatchCommitDataGeneratorMode) -> Self {
-        let input_generator: Box<dyn InputGenerator> =
-            if commit_data_generator_mode == L1BatchCommitDataGeneratorMode::Validium {
-                Box::new(ValidiumInputGenerator)
-            } else {
-                Box::new(RollupInputGenerator)
-            };
-
-        Self { input_generator }
+    pub fn new(mode: L1BatchCommitMode) -> Self {
+        Self { mode }
     }
 }
 
@@ -39,9 +30,9 @@ impl WiringLayer for CommitmentGeneratorLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
-        let main_pool = pool_resource.get().await.unwrap();
+        let main_pool = pool_resource.get().await?;
 
-        let commitment_generator = CommitmentGenerator::new(main_pool, self.input_generator);
+        let commitment_generator = CommitmentGenerator::new(main_pool, self.mode);
 
         let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
         app_health

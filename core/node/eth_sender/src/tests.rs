@@ -10,9 +10,7 @@ use zksync_config::{
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{clients::MockEthereum, EthInterface};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
-use zksync_node_fee_model::l1_gas_price::{
-    GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
-};
+use zksync_node_fee_model::l1_gas_price::GasAdjuster;
 use zksync_node_test_utils::{
     create_l1_batch, l1_batch_metadata_to_commitment_artifacts, DeploymentMode,
 };
@@ -27,10 +25,6 @@ use zksync_types::{
     Address, L1BatchNumber, L1BlockNumber, ProtocolVersion, ProtocolVersionId, H256,
 };
 
-use super::l1_batch_commit_data_generator::{
-    L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
-    ValidiumModeL1BatchCommitDataGenerator,
-};
 use crate::{
     aggregated_operations::AggregatedOperation, eth_tx_manager::L1BlockNumbers, Aggregator,
     ETHSenderError, EthTxAggregator, EthTxManager,
@@ -84,7 +78,7 @@ impl EthSenderTester {
         history: Vec<u64>,
         non_ordering_confirmations: bool,
         aggregator_operate_4844_mode: bool,
-        deployment_mode: &DeploymentMode,
+        deployment_mode: DeploymentMode,
     ) -> Self {
         let eth_sender_config = EthConfig::for_tests();
         let contracts_config = ContractsConfig::for_tests();
@@ -108,11 +102,6 @@ impl EthSenderTester {
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
         let gateway = Box::new(gateway);
 
-        let pubdata_pricing: Arc<dyn PubdataPricing> = match deployment_mode {
-            DeploymentMode::Validium => Arc::new(ValidiumPubdataPricing {}),
-            DeploymentMode::Rollup => Arc::new(RollupPubdataPricing {}),
-        };
-
         let gas_adjuster = Arc::new(
             GasAdjuster::new(
                 gateway.clone(),
@@ -123,18 +112,12 @@ impl EthSenderTester {
                     ..eth_sender_config.gas_adjuster.unwrap()
                 },
                 PubdataSendingMode::Calldata,
-                pubdata_pricing,
+                deployment_mode.into(),
             )
             .await
             .unwrap(),
         );
         let store_factory = ObjectStoreFactory::mock();
-
-        let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> =
-            match deployment_mode {
-                DeploymentMode::Validium => Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
-                DeploymentMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
-            };
 
         let eth_sender = eth_sender_config.sender.clone().unwrap();
         let aggregator = EthTxAggregator::new(
@@ -149,7 +132,7 @@ impl EthSenderTester {
                 aggregator_config.clone(),
                 store_factory.create_store().await,
                 aggregator_operate_4844_mode,
-                l1_batch_commit_data_generator.clone(),
+                deployment_mode.into(),
             ),
             gateway.clone(),
             // zkSync contract address
@@ -158,7 +141,6 @@ impl EthSenderTester {
             Address::random(),
             Default::default(),
             None,
-            l1_batch_commit_data_generator,
         )
         .await;
 
@@ -237,7 +219,7 @@ async fn confirm_many(
         vec![10; 100],
         false,
         aggregator_operate_4844_mode,
-        &deployment_mode,
+        deployment_mode,
     )
     .await;
 
@@ -320,7 +302,7 @@ async fn resend_each_block(deployment_mode: DeploymentMode) -> anyhow::Result<()
         vec![7, 6, 5, 5, 5, 2, 1],
         false,
         false,
-        &deployment_mode,
+        deployment_mode,
     )
     .await;
 
@@ -430,7 +412,7 @@ async fn dont_resend_already_mined(deployment_mode: DeploymentMode) -> anyhow::R
         vec![100; 100],
         false,
         false,
-        &deployment_mode,
+        deployment_mode,
     )
     .await;
 
@@ -509,7 +491,7 @@ async fn three_scenarios(deployment_mode: DeploymentMode) -> anyhow::Result<()> 
         vec![100; 100],
         false,
         false,
-        &deployment_mode,
+        deployment_mode,
     )
     .await;
 
@@ -589,7 +571,7 @@ async fn failed_eth_tx(deployment_mode: DeploymentMode) {
         vec![100; 100],
         false,
         false,
-        &deployment_mode,
+        deployment_mode,
     )
     .await;
 
@@ -636,7 +618,7 @@ async fn correct_order_for_confirmations(deployment_mode: DeploymentMode) -> any
         vec![100; 100],
         true,
         false,
-        &deployment_mode,
+        deployment_mode,
     )
     .await;
 
@@ -705,7 +687,7 @@ async fn skipped_l1_batch_at_the_start(deployment_mode: DeploymentMode) -> anyho
         vec![100; 100],
         true,
         false,
-        &deployment_mode,
+        deployment_mode,
     )
     .await;
 
@@ -806,7 +788,7 @@ async fn skipped_l1_batch_in_the_middle(deployment_mode: DeploymentMode) -> anyh
         vec![100; 100],
         true,
         false,
-        &deployment_mode,
+        deployment_mode,
     )
     .await;
 
@@ -901,7 +883,7 @@ async fn test_parse_multicall_data(deployment_mode: DeploymentMode) {
         vec![100; 100],
         false,
         false,
-        &deployment_mode,
+        deployment_mode,
     )
     .await;
 
@@ -973,7 +955,7 @@ async fn get_multicall_data(deployment_mode: DeploymentMode) {
         vec![100; 100],
         false,
         false,
-        &deployment_mode,
+        deployment_mode,
     )
     .await;
     let multicall_data = tester.aggregator.get_multicall_data().await;

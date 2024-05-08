@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashSet, fmt, sync::Arc, time::Duration};
+use std::{borrow::Cow, collections::HashSet, fmt, time::Duration};
 
 use anyhow::Context as _;
 use serde::Serialize;
@@ -6,12 +6,14 @@ use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{CallFunctionArgs, Error as L1ClientError, EthInterface};
-use zksync_eth_sender::l1_batch_commit_data_generator::L1BatchCommitDataGenerator;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_l1_contract_interface::i_executor::commit::kzg::ZK_SYNC_BYTES_PER_BLOB;
+use zksync_l1_contract_interface::{
+    i_executor::{commit::kzg::ZK_SYNC_BYTES_PER_BLOB, structures::CommitBatchInfo},
+    Tokenizable,
+};
 use zksync_shared_metrics::{CheckerComponent, EN_METRICS};
 use zksync_types::{
-    commitment::L1BatchWithMetadata,
+    commitment::{L1BatchCommitMode, L1BatchWithMetadata},
     ethabi::Token,
     pubdata_da::PubdataDA,
     web3::{self, contract::Error as Web3ContractError, ethabi},
@@ -138,7 +140,7 @@ enum L1DataMismatchBehavior {
 struct LocalL1BatchCommitData {
     l1_batch: L1BatchWithMetadata,
     commit_tx_hash: H256,
-    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+    commit_mode: L1BatchCommitMode,
 }
 
 impl LocalL1BatchCommitData {
@@ -147,7 +149,7 @@ impl LocalL1BatchCommitData {
     async fn new(
         storage: &mut Connection<'_, Core>,
         batch_number: L1BatchNumber,
-        l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+        commit_mode: L1BatchCommitMode,
     ) -> anyhow::Result<Option<Self>> {
         let Some(storage_l1_batch) = storage
             .blocks_dal()
@@ -179,7 +181,7 @@ impl LocalL1BatchCommitData {
         let this = Self {
             l1_batch,
             commit_tx_hash,
-            l1_batch_commit_data_generator,
+            commit_mode,
         };
         let metadata = &this.l1_batch.metadata;
 
@@ -236,9 +238,7 @@ impl LocalL1BatchCommitData {
             );
         }
 
-        let local_token = self
-            .l1_batch_commit_data_generator
-            .l1_commit_batch(&self.l1_batch, &da);
+        let local_token = CommitBatchInfo::new(self.commit_mode, &self.l1_batch, da).into_token();
         anyhow::ensure!(
             local_token == *reference,
             "Locally reproduced commitment differs from the reference obtained from L1; \
@@ -313,7 +313,7 @@ pub struct ConsistencyChecker {
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool<Core>,
     health_check: ReactiveHealthCheck,
-    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+    commit_mode: L1BatchCommitMode,
 }
 
 impl ConsistencyChecker {
@@ -323,7 +323,7 @@ impl ConsistencyChecker {
         l1_client: Box<dyn EthInterface>,
         max_batches_to_recheck: u32,
         pool: ConnectionPool<Core>,
-        l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+        commit_mode: L1BatchCommitMode,
     ) -> anyhow::Result<Self> {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         Ok(Self {
@@ -336,7 +336,7 @@ impl ConsistencyChecker {
             l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
             health_check,
-            l1_batch_commit_data_generator,
+            commit_mode,
         })
     }
 
@@ -600,13 +600,9 @@ impl ConsistencyChecker {
             // The batch might be already committed but not yet processed by the external node's tree
             // OR the batch might be processed by the external node's tree but not yet committed.
             // We need both.
-            let Some(local) = LocalL1BatchCommitData::new(
-                &mut storage,
-                batch_number,
-                self.l1_batch_commit_data_generator.clone(),
-            )
-            .await?
-            else {
+            let local =
+                LocalL1BatchCommitData::new(&mut storage, batch_number, self.commit_mode).await?;
+            let Some(local) = local else {
                 if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
                     .await
                     .is_ok()

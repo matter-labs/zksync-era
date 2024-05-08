@@ -2,7 +2,8 @@ use std::num::NonZeroUsize;
 
 use rand::{distributions::Distribution, Rng};
 use zksync_basic_types::{
-    basic_fri_types::CircuitIdRoundTuple, network::Network, L1ChainId, L2ChainId,
+    basic_fri_types::CircuitIdRoundTuple, commitment::L1BatchCommitMode, network::Network,
+    L1ChainId, L2ChainId,
 };
 use zksync_consensus_utils::EncodeDist;
 
@@ -140,19 +141,6 @@ impl Distribution<configs::chain::NetworkConfig> for EncodeDist {
             network: Sample::sample(rng),
             zksync_network: self.sample(rng),
             zksync_network_id: L2ChainId::max(),
-        }
-    }
-}
-
-impl Distribution<configs::chain::L1BatchCommitDataGeneratorMode> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(
-        &self,
-        rng: &mut R,
-    ) -> configs::chain::L1BatchCommitDataGeneratorMode {
-        type T = configs::chain::L1BatchCommitDataGeneratorMode;
-        match rng.gen_range(0..2) {
-            0 => T::Rollup,
-            _ => T::Validium,
         }
     }
 }
@@ -691,7 +679,10 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             recursion_scheduler_level_vk_hash: rng.gen(),
             recursion_circuits_set_vks_hash: rng.gen(),
             dummy_verifier: rng.gen(),
-            l1_batch_commit_data_generator_mode: self.sample(rng),
+            l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
+                0 => L1BatchCommitMode::Rollup,
+                _ => L1BatchCommitMode::Validium,
+            },
         }
     }
 }

@@ -34,7 +34,7 @@ fn parsing_optional_config_from_empty_env() {
     );
     assert_eq!(
         config.l1_batch_commit_data_generator_mode,
-        L1BatchCommitDataGeneratorMode::Rollup
+        L1BatchCommitMode::Rollup
     );
 }
 
@@ -104,7 +104,7 @@ fn parsing_optional_config_from_env() {
     );
     assert_eq!(
         config.l1_batch_commit_data_generator_mode,
-        L1BatchCommitDataGeneratorMode::Validium
+        L1BatchCommitMode::Validium
     );
 }
 

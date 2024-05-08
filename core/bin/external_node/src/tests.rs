@@ -2,10 +2,11 @@
 
 use assert_matches::assert_matches;
 use test_casing::test_casing;
-use zksync_basic_types::protocol_version::ProtocolVersionId;
 use zksync_eth_client::clients::MockEthereum;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_types::{api, ethabi, fee_model::FeeParams, L1BatchNumber, L2BlockNumber, H256};
+use zksync_types::{
+    api, ethabi, fee_model::FeeParams, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
+};
 use zksync_web3_decl::client::{BoxedL2Client, MockL2Client};
 
 use super::*;

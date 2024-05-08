@@ -9,6 +9,7 @@
 use std::{collections::HashMap, convert::TryFrom};
 
 use serde::{Deserialize, Serialize};
+pub use zksync_basic_types::commitment::L1BatchCommitMode;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::{

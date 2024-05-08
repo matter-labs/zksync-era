@@ -15,7 +15,7 @@ pub struct ProveBatches {
     pub should_verify: bool,
 }
 
-impl Tokenize for ProveBatches {
+impl Tokenize for &ProveBatches {
     fn into_tokens(self) -> Vec<Token> {
         let prev_l1_batch = StoredBatchInfo(&self.prev_l1_batch).into_token();
         let batches_arg = self

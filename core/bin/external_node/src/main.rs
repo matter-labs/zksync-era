@@ -9,14 +9,9 @@ use tokio::{
     task::{self, JoinHandle},
 };
 use zksync_block_reverter::{BlockReverter, NodeRole};
-use zksync_commitment_generator::{
-    input_generation::{InputGenerator, RollupInputGenerator, ValidiumInputGenerator},
-    CommitmentGenerator,
-};
+use zksync_commitment_generator::CommitmentGenerator;
 use zksync_concurrency::{ctx, scope};
-use zksync_config::configs::{
-    api::MerkleTreeApiConfig, chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode,
-};
+use zksync_config::configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode};
 use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
@@ -44,10 +39,6 @@ use zksync_db_connection::{
     connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,
 };
 use zksync_eth_client::{clients::QueryClient, EthInterface};
-use zksync_eth_sender::l1_batch_commit_data_generator::{
-    L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
-    ValidiumModeL1BatchCommitDataGenerator,
-};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_node_db_pruner::{DbPruner, DbPrunerConfig};
 use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
@@ -347,20 +338,6 @@ async fn run_core(
     )
     .await?;
 
-    let (l1_batch_commit_data_generator, input_generator): (
-        Arc<dyn L1BatchCommitDataGenerator>,
-        Box<dyn InputGenerator>,
-    ) = match config.optional.l1_batch_commit_data_generator_mode {
-        L1BatchCommitDataGeneratorMode::Rollup => (
-            Arc::new(RollupModeL1BatchCommitDataGenerator {}),
-            Box::new(RollupInputGenerator),
-        ),
-        L1BatchCommitDataGeneratorMode::Validium => (
-            Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
-            Box::new(ValidiumInputGenerator),
-        ),
-    };
-
     let consistency_checker = ConsistencyChecker::new(
         eth_client,
         10, // TODO (BFT-97): Make it a part of a proper EN config
@@ -368,7 +345,7 @@ async fn run_core(
             .build()
             .await
             .context("failed to build connection pool for ConsistencyChecker")?,
-        l1_batch_commit_data_generator,
+        config.optional.l1_batch_commit_data_generator_mode,
     )
     .context("cannot initialize consistency checker")?
     .with_diamond_proxy_addr(diamond_proxy_addr);
@@ -389,7 +366,10 @@ async fn run_core(
         .build()
         .await
         .context("failed to build a commitment_generator_pool")?;
-    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool, input_generator);
+    let commitment_generator = CommitmentGenerator::new(
+        commitment_generator_pool,
+        config.optional.l1_batch_commit_data_generator_mode,
+    );
     app_health.insert_component(commitment_generator.health_check())?;
     let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
 

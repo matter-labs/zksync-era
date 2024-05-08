@@ -10,8 +10,8 @@ use zksync_system_constants::{get_intrinsic_constants, ZKPORTER_IS_AVAILABLE};
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
     commitment::{
-        AuxCommitments, L1BatchCommitmentArtifacts, L1BatchCommitmentHash, L1BatchMetaParameters,
-        L1BatchMetadata,
+        AuxCommitments, L1BatchCommitMode, L1BatchCommitmentArtifacts, L1BatchCommitmentHash,
+        L1BatchMetaParameters, L1BatchMetadata,
     },
     fee::Fee,
     fee_model::BatchFeeInput,
@@ -346,8 +346,18 @@ pub async fn recover(
     snapshot_recovery
 }
 
-#[derive(Debug, Clone)]
+// FIXME: remove in favor of `L1BatchCommitDataGeneratorMode`?
+#[derive(Debug, Clone, Copy)]
 pub enum DeploymentMode {
     Validium,
     Rollup,
+}
+
+impl From<DeploymentMode> for L1BatchCommitMode {
+    fn from(mode: DeploymentMode) -> Self {
+        match mode {
+            DeploymentMode::Validium => Self::Validium,
+            DeploymentMode::Rollup => Self::Rollup,
+        }
+    }
 }

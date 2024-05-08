@@ -9,11 +9,11 @@ use std::{
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::watch;
-use zksync_config::configs::chain::L1BatchCommitDataGeneratorMode;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{CallFunctionArgs, Error as EthClientError, EthInterface};
 use zksync_l1_contract_interface::Detokenize;
 use zksync_types::{
+    commitment::L1BatchCommitMode,
     ethabi::{self, Address},
     L1BatchNumber, ProtocolVersionId,
 };
@@ -175,24 +175,23 @@ async fn get_pubdata_pricing_mode(
 }
 
 pub async fn ensure_l1_batch_commit_data_generation_mode(
-    selected_l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    expected_commit_mode: L1BatchCommitMode,
     diamond_proxy_address: Address,
     eth_client: &dyn EthInterface,
 ) -> anyhow::Result<()> {
     match get_pubdata_pricing_mode(diamond_proxy_address, eth_client).await {
         // Getters contract support getPubdataPricingMode method
         Ok(l1_contract_pubdata_pricing_mode) => {
-            let l1_contract_batch_commitment_mode =
-                L1BatchCommitDataGeneratorMode::from_tokens(l1_contract_pubdata_pricing_mode)
-                    .context(
-                        "Unable to parse L1BatchCommitDataGeneratorMode received from L1 contract",
-                    )?;
+            let l1_contract_batch_commitment_mode = L1BatchCommitMode::from_tokens(
+                l1_contract_pubdata_pricing_mode,
+            )
+            .context("Unable to parse L1BatchCommitDataGeneratorMode received from L1 contract")?;
 
             // contracts mode == server mode
             anyhow::ensure!(
-                l1_contract_batch_commitment_mode == selected_l1_batch_commit_data_generator_mode,
+                l1_contract_batch_commitment_mode == expected_commit_mode,
                 "The selected L1BatchCommitDataGeneratorMode ({:?}) does not match the commitment mode used on L1 contract ({:?})",
-                selected_l1_batch_commit_data_generator_mode,
+                expected_commit_mode,
                 l1_contract_batch_commitment_mode
             );
 
@@ -299,7 +298,7 @@ mod tests {
     async fn ensure_l1_batch_commit_data_generation_mode_succeeds_when_both_match() {
         let addr = Address::repeat_byte(0x01);
         ensure_l1_batch_commit_data_generation_mode(
-            L1BatchCommitDataGeneratorMode::Rollup,
+            L1BatchCommitMode::Rollup,
             addr,
             &mock_ethereum_with_rollup_contract(),
         )
@@ -307,7 +306,7 @@ mod tests {
         .unwrap();
 
         ensure_l1_batch_commit_data_generation_mode(
-            L1BatchCommitDataGeneratorMode::Validium,
+            L1BatchCommitMode::Validium,
             addr,
             &mock_ethereum_with_validium_contract(),
         )
@@ -319,7 +318,7 @@ mod tests {
     async fn ensure_l1_batch_commit_data_generation_mode_succeeds_on_legacy_contracts() {
         let addr = Address::repeat_byte(0x01);
         ensure_l1_batch_commit_data_generation_mode(
-            L1BatchCommitDataGeneratorMode::Rollup,
+            L1BatchCommitMode::Rollup,
             addr,
             &mock_ethereum_with_legacy_contract(),
         )
@@ -327,7 +326,7 @@ mod tests {
         .unwrap();
 
         ensure_l1_batch_commit_data_generation_mode(
-            L1BatchCommitDataGeneratorMode::Validium,
+            L1BatchCommitMode::Validium,
             addr,
             &mock_ethereum_with_legacy_contract(),
         )
@@ -339,7 +338,7 @@ mod tests {
     async fn ensure_l1_batch_commit_data_generation_mode_fails_on_mismatch() {
         let addr = Address::repeat_byte(0x01);
         let err = ensure_l1_batch_commit_data_generation_mode(
-            L1BatchCommitDataGeneratorMode::Validium,
+            L1BatchCommitMode::Validium,
             addr,
             &mock_ethereum_with_rollup_contract(),
         )
@@ -349,7 +348,7 @@ mod tests {
         assert!(err.contains("commitment mode"), "{err}");
 
         let err = ensure_l1_batch_commit_data_generation_mode(
-            L1BatchCommitDataGeneratorMode::Rollup,
+            L1BatchCommitMode::Rollup,
             addr,
             &mock_ethereum_with_validium_contract(),
         )
@@ -363,7 +362,7 @@ mod tests {
     async fn ensure_l1_batch_commit_data_generation_mode_fails_on_request_failure() {
         let addr = Address::repeat_byte(0x01);
         let err = ensure_l1_batch_commit_data_generation_mode(
-            L1BatchCommitDataGeneratorMode::Rollup,
+            L1BatchCommitMode::Rollup,
             addr,
             &mock_ethereum_with_tx_error(),
         )
@@ -382,7 +381,7 @@ mod tests {
         let addr = Address::repeat_byte(0x01);
 
         let err = ensure_l1_batch_commit_data_generation_mode(
-            L1BatchCommitDataGeneratorMode::Rollup,
+            L1BatchCommitMode::Rollup,
             addr,
             &mock_ethereum(ethabi::Token::String("what".into()), None),
         )

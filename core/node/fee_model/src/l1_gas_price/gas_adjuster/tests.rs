@@ -1,12 +1,11 @@
-use std::{collections::VecDeque, sync::Arc};
+use std::collections::VecDeque;
 
 use test_casing::test_casing;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::clients::MockEthereum;
 use zksync_node_test_utils::DeploymentMode;
 
-use super::{GasAdjuster, GasStatisticsInner, PubdataPricing};
-use crate::l1_gas_price::{RollupPubdataPricing, ValidiumPubdataPricing};
+use super::{GasAdjuster, GasStatisticsInner};
 
 /// Check that we compute the median correctly
 #[test]
@@ -49,11 +48,6 @@ async fn kept_updated(deployment_mode: DeploymentMode) {
     );
     eth_client.advance_block_number(5);
 
-    let pubdata_pricing: Arc<dyn PubdataPricing> = match deployment_mode {
-        DeploymentMode::Validium => Arc::new(ValidiumPubdataPricing {}),
-        DeploymentMode::Rollup => Arc::new(RollupPubdataPricing {}),
-    };
-
     let adjuster = GasAdjuster::new(
         eth_client.clone(),
         GasAdjusterConfig {
@@ -71,7 +65,7 @@ async fn kept_updated(deployment_mode: DeploymentMode) {
             max_blob_base_fee: None,
         },
         PubdataSendingMode::Calldata,
-        pubdata_pricing,
+        deployment_mode.into(),
     )
     .await
     .unwrap();

@@ -9,7 +9,10 @@ use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthChe
 use zksync_l1_contract_interface::i_executor::commit::kzg::pubdata_to_blob_commitments;
 use zksync_types::{
     blob::num_blobs_required,
-    commitment::{AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchCommitment},
+    commitment::{
+        AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchCommitMode,
+        L1BatchCommitment,
+    },
     event::convert_vm_events_to_log_queries,
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
     L1BatchNumber, ProtocolVersionId, StorageKey, H256,
@@ -17,12 +20,10 @@ use zksync_types::{
 use zksync_utils::h256_to_u256;
 
 use crate::{
-    input_generation::InputGenerator,
     metrics::{CommitmentStage, METRICS},
     utils::{bootloader_initial_content_commitment, events_queue_commitment},
 };
 
-pub mod input_generation;
 mod metrics;
 mod utils;
 
@@ -32,18 +33,15 @@ const SLEEP_INTERVAL: Duration = Duration::from_millis(100);
 pub struct CommitmentGenerator {
     connection_pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
-    input_generator: Box<dyn InputGenerator>,
+    commit_mode: L1BatchCommitMode,
 }
 
 impl CommitmentGenerator {
-    pub fn new(
-        connection_pool: ConnectionPool<Core>,
-        input_generator: Box<dyn InputGenerator>,
-    ) -> Self {
+    pub fn new(connection_pool: ConnectionPool<Core>, commit_mode: L1BatchCommitMode) -> Self {
         Self {
             connection_pool,
             health_updater: ReactiveHealthCheck::new("commitment_generator").1,
-            input_generator,
+            commit_mode,
         }
     }
 
@@ -169,7 +167,7 @@ impl CommitmentGenerator {
             .await?;
         drop(connection);
 
-        let input = if protocol_version.is_pre_boojum() {
+        let mut input = if protocol_version.is_pre_boojum() {
             let mut initial_writes = Vec::new();
             let mut repeated_writes = Vec::new();
             for (key, value) in touched_slots.into_iter().sorted_by_key(|(key, _)| *key) {
@@ -256,8 +254,7 @@ impl CommitmentGenerator {
             }
         };
 
-        let input = self.input_generator.compute_input(input);
-
+        self.tweak_input(&mut input);
         Ok(input)
     }
 
@@ -296,6 +293,24 @@ impl CommitmentGenerator {
         self.health_updater
             .update(Health::from(HealthStatus::Ready).with_details(health_details));
         Ok(())
+    }
+
+    fn tweak_input(&self, input: &mut CommitmentInput) {
+        match (self.commit_mode, input) {
+            (L1BatchCommitMode::Rollup, _) => {
+                // Do nothing
+            }
+
+            (
+                L1BatchCommitMode::Validium,
+                CommitmentInput::PostBoojum {
+                    blob_commitments, ..
+                },
+            ) => {
+                blob_commitments.fill(H256::zero());
+            }
+            (L1BatchCommitMode::Validium, _) => { /* Do nothing */ }
+        }
     }
 
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {

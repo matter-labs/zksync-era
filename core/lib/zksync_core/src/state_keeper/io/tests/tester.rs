@@ -10,10 +10,7 @@ use zksync_config::{
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::clients::MockEthereum;
-use zksync_node_fee_model::{
-    l1_gas_price::{GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing},
-    MainNodeFeeInputProvider,
-};
+use zksync_node_fee_model::{l1_gas_price::GasAdjuster, MainNodeFeeInputProvider};
 use zksync_node_genesis::create_genesis_l1_batch;
 use zksync_node_test_utils::{
     create_l1_batch, create_l2_block, create_l2_transaction, execute_l2_transaction, DeploymentMode,
@@ -35,22 +32,16 @@ use crate::state_keeper::{MempoolGuard, MempoolIO};
 pub struct Tester {
     base_system_contracts: BaseSystemContracts,
     current_timestamp: u64,
-    pubdata_pricing: Arc<dyn PubdataPricing>,
+    deployment_mode: DeploymentMode,
 }
 
 impl Tester {
-    pub(super) fn new(deployment_mode: &DeploymentMode) -> Self {
+    pub(super) fn new(deployment_mode: DeploymentMode) -> Self {
         let base_system_contracts = BaseSystemContracts::load_from_disk();
-
-        let pubdata_pricing: Arc<dyn PubdataPricing> = match deployment_mode {
-            DeploymentMode::Validium => Arc::new(ValidiumPubdataPricing {}),
-            DeploymentMode::Rollup => Arc::new(RollupPubdataPricing {}),
-        };
-
         Self {
             base_system_contracts,
             current_timestamp: 0,
-            pubdata_pricing,
+            deployment_mode,
         }
     }
 
@@ -77,7 +68,7 @@ impl Tester {
             Box::new(eth_client),
             gas_adjuster_config,
             PubdataSendingMode::Calldata,
-            self.pubdata_pricing.clone(),
+            self.deployment_mode.into(),
         )
         .await
         .unwrap()

@@ -7,11 +7,9 @@ use std::{
 
 use anyhow::Context;
 use serde::Deserialize;
-use zksync_basic_types::{Address, L1ChainId, L2ChainId};
 use zksync_config::{
     configs::{
         api::{MaxResponseSize, MaxResponseSizeOverrides},
-        chain::L1BatchCommitDataGeneratorMode,
         consensus::{ConsensusConfig, ConsensusSecrets},
     },
     ObjectStoreConfig,
@@ -29,7 +27,8 @@ use zksync_eth_client::EthInterface;
 use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
 use zksync_types::{
-    api::BridgeAddresses, fee_model::FeeParams, url::SensitiveUrl, ETHEREUM_ADDRESS,
+    api::BridgeAddresses, commitment::L1BatchCommitMode, fee_model::FeeParams, url::SensitiveUrl,
+    Address, L1ChainId, L2ChainId, ETHEREUM_ADDRESS,
 };
 use zksync_web3_decl::{
     client::BoxedL2Client,
@@ -65,7 +64,7 @@ pub(crate) struct RemoteENConfig {
     pub l1_chain_id: L1ChainId,
     pub base_token_addr: Address,
     pub max_pubdata_per_batch: u64,
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitMode,
     pub dummy_verifier: bool,
 }
 
@@ -190,7 +189,7 @@ impl RemoteENConfig {
             l1_weth_bridge_addr: None,
             l2_shared_bridge_addr: Some(Address::repeat_byte(6)),
             max_pubdata_per_batch: 1 << 17,
-            l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
+            l1_batch_commit_data_generator_mode: L1BatchCommitMode::Rollup,
             dummy_verifier: true,
         }
     }
@@ -368,8 +367,8 @@ pub(crate) struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_main_node_rate_limit_rps")]
     pub main_node_rate_limit_rps: NonZeroUsize,
 
-    #[serde(default = "OptionalENConfig::default_l1_batch_commit_data_generator_mode")]
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    #[serde(default)]
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitMode,
     /// Enables application-level snapshot recovery. Required to start a node that was recovered from a snapshot,
     /// or to initialize a node from a snapshot. Has no effect if a node that was initialized from a Postgres dump
     /// or was synced from genesis.
@@ -517,10 +516,6 @@ impl OptionalENConfig {
 
     fn default_main_node_rate_limit_rps() -> NonZeroUsize {
         NonZeroUsize::new(100).unwrap()
-    }
-
-    const fn default_l1_batch_commit_data_generator_mode() -> L1BatchCommitDataGeneratorMode {
-        L1BatchCommitDataGeneratorMode::Rollup
     }
 
     fn default_snapshots_recovery_postgres_max_concurrency() -> NonZeroUsize {
