@@ -101,7 +101,6 @@ jobs:
 
           ci_run zk
           ci_run zk compiler prepare-compilers-cache
-          
           ci_run zk init --local-legacy-bridge-testing
 
       # `sleep 60` because we need to wait until server added all the tokens
@@ -194,7 +193,6 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
           ci_run zk compiler prepare-compilers-cache
-          
           if [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
             ci_run zk env dev_validium_docker
             ci_run zk config compile dev_validium_docker
@@ -316,7 +314,6 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
           ci_run zk compiler prepare-compilers-cache
-          
           if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
             ci_run zk config compile
           elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
