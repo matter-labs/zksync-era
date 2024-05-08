@@ -1,5 +1,7 @@
 use clap::Subcommand;
 
+use crate::cli::ProverCLIConfig;
+
 pub(crate) mod batch;
 mod utils;
 
@@ -9,9 +11,9 @@ pub enum StatusCommand {
 }
 
 impl StatusCommand {
-    pub(crate) async fn run(self) -> anyhow::Result<()> {
+    pub(crate) async fn run(self, config: ProverCLIConfig) -> anyhow::Result<()> {
         match self {
-            StatusCommand::Batch(args) => batch::run(args).await,
+            StatusCommand::Batch(args) => batch::run(args, config).await,
         }
     }
 }
