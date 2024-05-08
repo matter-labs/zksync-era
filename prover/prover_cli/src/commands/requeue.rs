@@ -18,13 +18,10 @@ pub struct Args {
 
 pub async fn run(args: Args) -> anyhow::Result<()> {
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ConnectionPool::<Prover>::builder(
-        postgres_config.prover_url()?,
-        postgres_config.max_connections()?,
-    )
-    .build()
-    .await
-    .context("failed to build a prover_connection_pool")?;
+    let pool = ConnectionPool::<Prover>::singleton(postgres_config.prover_url()?)
+        .build()
+        .await
+        .context("failed to build a prover_connection_pool")?;
 
     let mut conn = pool
         .connection()
