@@ -139,22 +139,21 @@ impl<Net: fmt::Debug, C: 'static> fmt::Debug for Client<Net, C> {
 
 impl<Net: Network> Client<Net> {
     /// Creates an HTTP-backed client.
-    pub fn http(network: Net, url: SensitiveUrl) -> anyhow::Result<ClientBuilder<Net>> {
+    pub fn http(url: SensitiveUrl) -> anyhow::Result<ClientBuilder<Net>> {
         let client = HttpClientBuilder::default().build(url.expose_str())?;
-        Ok(ClientBuilder::new(client, network, url))
+        Ok(ClientBuilder::new(client, url))
     }
 }
 
 impl<Net: Network> WsClient<Net> {
     /// Creates a WS-backed client.
     pub async fn ws(
-        network: Net,
         url: SensitiveUrl,
     ) -> anyhow::Result<ClientBuilder<Net, Shared<ws_client::WsClient>>> {
         let client = ws_client::WsClientBuilder::default()
             .build(url.expose_str())
             .await?;
-        Ok(ClientBuilder::new(Shared::new(client), network, url))
+        Ok(ClientBuilder::new(Shared::new(client), url))
     }
 }
 
@@ -328,13 +327,19 @@ impl<Net: fmt::Debug, C: 'static> fmt::Debug for ClientBuilder<Net, C> {
 
 impl<Net: Network, C: ClientBase> ClientBuilder<Net, C> {
     /// Wraps the provided client.
-    fn new(client: C, network: Net, url: SensitiveUrl) -> Self {
+    fn new(client: C, url: SensitiveUrl) -> Self {
         Self {
             client,
             url,
             rate_limit: (1, Duration::ZERO),
-            network,
+            network: Net::default(),
         }
+    }
+
+    /// Specifies the network to be used by the client. The network is logged and is used as a metrics label.
+    pub fn for_network(mut self, network: Net) -> Self {
+        self.network = network;
+        self
     }
 
     /// Sets the rate limit for the client. The rate limit is applied across all client instances,

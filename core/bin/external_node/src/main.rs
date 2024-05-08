@@ -56,7 +56,7 @@ use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_web3_decl::{
-    client::{Client, DynClient, L1, L2},
+    client::{Client, DynClient, L2},
     jsonrpsee,
     namespaces::EnNamespaceClient,
 };
@@ -821,15 +821,17 @@ async fn main() -> anyhow::Result<()> {
     // Build L1 and L2 clients.
     let main_node_url = &required_config.main_node_url;
     tracing::info!("Main node URL is: {main_node_url:?}");
-    let main_node_client = Client::http(L2(required_config.l2_chain_id), main_node_url.clone())
+    let main_node_client = Client::http(main_node_url.clone())
         .context("Failed creating JSON-RPC client for main node")?
+        .for_network(required_config.l2_chain_id.into())
         .with_allowed_requests_per_second(optional_config.main_node_rate_limit_rps)
         .build();
     let main_node_client = Box::new(main_node_client) as Box<DynClient<L2>>;
 
     let eth_client_url = &required_config.eth_client_url;
-    let eth_client = Client::http(L1(required_config.l1_chain_id), eth_client_url.clone())
+    let eth_client = Client::http(eth_client_url.clone())
         .context("failed creating JSON-RPC client for Ethereum")?
+        .for_network(required_config.l1_chain_id.into())
         .build();
     let eth_client = Box::new(eth_client);
 

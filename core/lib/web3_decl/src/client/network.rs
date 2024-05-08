@@ -6,28 +6,49 @@ use zksync_types::{L1ChainId, L2ChainId};
 
 /// Marker trait for networks. Two standard network kinds are [`L1`] and [`L2`].
 ///
-/// The `Display` implementation will be used in logging.
-pub trait Network: 'static + Copy + Sync + Send + fmt::Debug {
+/// The `Default` value should belong to a "generic" / "unknown" network, rather than to a specific network like the mainnet.
+pub trait Network: 'static + Copy + Default + Sync + Send + fmt::Debug {
+    /// String representation of a network used as a metric label and in log messages.
     fn metric_label(&self) -> String;
 }
 
 /// L1 (i.e., Ethereum) network.
-#[derive(Debug, Clone, Copy)]
-pub struct L1(pub L1ChainId);
+#[derive(Debug, Clone, Copy, Default)]
+pub struct L1(Option<L1ChainId>);
 
 impl Network for L1 {
     fn metric_label(&self) -> String {
-        format!("ethereum_{}", self.0)
+        if let Some(chain_id) = self.0 {
+            format!("ethereum_{chain_id}")
+        } else {
+            "ethereum".to_owned()
+        }
     }
 }
 
-/// L2 (i.e., zkSync Era) network.
+impl From<L1ChainId> for L1 {
+    fn from(chain_id: L1ChainId) -> Self {
+        Self(Some(chain_id))
+    }
+}
+
+/// L2 network.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct L2(pub L2ChainId);
+pub struct L2(Option<L2ChainId>);
 
 impl Network for L2 {
     fn metric_label(&self) -> String {
-        format!("l2_{}", self.0.as_u64())
+        if let Some(chain_id) = self.0 {
+            format!("l2_{}", chain_id.as_u64())
+        } else {
+            "l2".to_owned()
+        }
+    }
+}
+
+impl From<L2ChainId> for L2 {
+    fn from(chain_id: L2ChainId) -> Self {
+        Self(Some(chain_id))
     }
 }
 

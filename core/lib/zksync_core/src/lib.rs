@@ -76,7 +76,7 @@ use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_shared_metrics::{InitStage, APP_METRICS};
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
-use zksync_web3_decl::client::{Client, L1};
+use zksync_web3_decl::client::Client;
 
 use crate::{
     api_server::{
@@ -291,8 +291,9 @@ pub async fn initialize_components(
         panic!("Circuit breaker triggered: {}", err);
     });
 
-    let query_client = Client::http(L1(genesis_config.l1_chain_id), eth.web3_url.clone())
+    let query_client = Client::http(eth.web3_url.clone())
         .context("Ethereum client")?
+        .for_network(genesis_config.l1_chain_id.into())
         .build();
     let query_client = Box::new(query_client);
     let gas_adjuster_config = eth.gas_adjuster.context("gas_adjuster")?;

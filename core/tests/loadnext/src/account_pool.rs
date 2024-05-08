@@ -95,12 +95,12 @@ impl AccountPool {
             .map_err(|err| anyhow::anyhow!("invalid L2 chain ID: {err}"))?;
         // Create a client for pinging the RPC.
         let client = Client::http(
-            L2(l2_chain_id),
             config
                 .l2_rpc_address
                 .parse()
                 .context("invalid L2 RPC URL")?,
         )?
+        .for_network(l2_chain_id.into())
         .build();
         // Perform a health check: check whether zkSync server is alive.
         let mut server_alive = false;

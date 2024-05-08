@@ -362,12 +362,9 @@ async fn test_http_server(test: impl HttpTest) {
     .await;
 
     let local_addr = server_handles.wait_until_ready().await;
-    let client = Client::http(
-        L2::default(),
-        format!("http://{local_addr}/").parse().unwrap(),
-    )
-    .unwrap()
-    .build();
+    let client = Client::http(format!("http://{local_addr}/").parse().unwrap())
+        .unwrap()
+        .build();
     test.test(&client, &pool).await.unwrap();
 
     stop_sender.send_replace(true);

@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
 use zksync_block_reverter::{
     eth_client::{
-        clients::{Client, PKSigningClient, L1},
+        clients::{Client, PKSigningClient},
         EthInterface,
     },
     BlockReverter, BlockReverterEthConfig, NodeRole,
@@ -129,8 +129,7 @@ async fn main() -> anyhow::Result<()> {
             json,
             operator_address,
         } => {
-            // FIXME: doesn't work
-            let eth_client = Client::http(L1(0.into()), eth_sender.web3_url.clone())
+            let eth_client = Client::http(eth_sender.web3_url.clone())
                 .context("Ethereum client")?
                 .build();
 
@@ -148,7 +147,7 @@ async fn main() -> anyhow::Result<()> {
             priority_fee_per_gas,
             nonce,
         } => {
-            let eth_client = Client::http(L1(0.into()), eth_sender.web3_url.clone())
+            let eth_client = Client::http(eth_sender.web3_url.clone())
                 .context("Ethereum client")?
                 .build();
             #[allow(deprecated)]
