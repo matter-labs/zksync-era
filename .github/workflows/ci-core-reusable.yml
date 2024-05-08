@@ -55,7 +55,6 @@ jobs:
           ci_run zk
           ci_run zk run yarn
           ci_run zk db setup
-          ci_run zk docker build compilers
           ci_run zk compiler prepare-compilers-cache
           ci_run zk compiler all
           ci_run zk contract build
@@ -101,8 +100,6 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run zk
-          
-          ci_run zk docker build compilers
           ci_run zk compiler prepare-compilers-cache
           
           ci_run zk init --local-legacy-bridge-testing
@@ -196,7 +193,6 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
-          ci_run zk docker build compilers
           ci_run zk compiler prepare-compilers-cache
           
           if [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
@@ -319,8 +315,6 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
-          
-          ci_run zk docker build compilers
           ci_run zk compiler prepare-compilers-cache
           
           if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then

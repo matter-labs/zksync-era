@@ -14,11 +14,13 @@ export async function compileSystemContracts() {
 }
 
 export async function prepareCompilersCache() {
-    await utils.spawn("docker create --name compilers-temp-container matterlabs/compilers:latest")
-    await utils.spawn("mkdir -p /root/.cache/hardhat-nodejs/compilers-v2")
-    await utils.spawn("docker cp compilers-temp-container:./.cache/hardhat-nodejs/compilers-v2/ /root/.cache/hardhat-nodejs/")
-    await utils.spawn("chmod -R +x /root/.cache/hardhat-nodejs/")
-    await utils.spawn("docker rm compilers-temp-container")
+    // TODO(tomek) remove line below as soon as there is at least one pushed docker image
+    await utils.spawn('zk zk docker build compilers')
+    await utils.spawn('docker create --name temp matterlabs/compilers:latest');
+    await utils.spawn('mkdir -p /root/.cache/hardhat-nodejs/compilers-v2');
+    await utils.spawn('docker cp temp:./.cache/hardhat-nodejs/compilers-v2/ /root/.cache/hardhat-nodejs/');
+    await utils.spawn('chmod -R +x /root/.cache/hardhat-nodejs/');
+    await utils.spawn('docker rm temp');
 }
 
 export async function compileAll() {
