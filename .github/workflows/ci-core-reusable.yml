@@ -194,8 +194,8 @@ jobs:
 
           ci_run zk docker build compilers
           ci_run docker create --name compilers-temp-container docker.io/matterlabs/compilers:latest
-          ci_run mkdir -p ./.cache/hardhat-nodejs/compilers-v2
-          ci_run docker cp compilers-temp-container:./.cache/hardhat-nodejs/compilers-v2 ./.cache/hardhat-nodejs/compilers-v2
+          ci_run mkdir -p /root/.cache/hardhat-nodejs/compilers-v2
+          ci_run docker cp compilers-temp-container:./.cache/hardhat-nodejs/compilers-v2 /root/.cache/hardhat-nodejs/compilers-v2
           ci_run docker rm compilers-temp-container
           
           if [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
