@@ -157,7 +157,6 @@ jobs:
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
-          echo ZKSYNC_DEBUG_LOGS=true >> .env
 
       - name: Download zksolc/solc and zkvyper/vyper
         run: |
@@ -314,7 +313,6 @@ jobs:
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
-          echo ZKSYNC_DEBUG_LOGS=true >> .env
 
       - name: Start services
         run: |
