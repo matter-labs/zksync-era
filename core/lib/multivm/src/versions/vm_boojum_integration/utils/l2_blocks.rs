@@ -5,8 +5,7 @@ use zksync_system_constants::{
     SYSTEM_CONTEXT_STORED_L2_BLOCK_HASHES,
 };
 use zksync_types::{
-    block::unpack_block_info, web3::signing::keccak256, AccountTreeId, L2BlockNumber, StorageKey,
-    H256, U256,
+    block::unpack_block_info, web3::keccak256, AccountTreeId, L2BlockNumber, StorageKey, H256, U256,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 

@@ -3,9 +3,9 @@ use zksync_types::{
     fee::Fee,
     l1::{OpProcessingType, PriorityQueueType},
     l2::TransactionType,
-    Address, Bytes, Execute, ExecuteTransactionCommon, Transaction, EIP_1559_TX_TYPE,
-    EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160, H256, PRIORITY_OPERATION_L2_TX_TYPE,
-    PROTOCOL_UPGRADE_TX_TYPE, U256,
+    web3::Bytes,
+    Address, Execute, ExecuteTransactionCommon, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE,
+    EIP_712_TX_TYPE, H160, H256, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_utils::bigdecimal_to_u256;
 

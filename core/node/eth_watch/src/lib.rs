@@ -9,7 +9,7 @@ use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
-    ethabi::Contract, web3::types::BlockNumber as Web3BlockNumber, Address, PriorityOpId,
+    ethabi::Contract, web3::BlockNumber as Web3BlockNumber, Address, PriorityOpId,
     ProtocolVersionId,
 };
 

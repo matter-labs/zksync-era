@@ -178,7 +178,8 @@ impl dyn ObjectStore + '_ {
 mod tests {
     use zksync_types::{
         snapshots::{SnapshotFactoryDependency, SnapshotStorageLog},
-        AccountTreeId, Bytes, StorageKey, H160, H256,
+        web3::Bytes,
+        AccountTreeId, StorageKey, H160, H256,
     };
 
     use super::*;

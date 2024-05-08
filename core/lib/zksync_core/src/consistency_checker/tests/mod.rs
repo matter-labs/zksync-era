@@ -17,7 +17,7 @@ use zksync_node_test_utils::{
     DeploymentMode,
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, Log,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, web3::Log,
     ProtocolVersion, ProtocolVersionId, H256,
 };
 
@@ -107,10 +107,15 @@ pub(crate) fn create_mock_checker(
 }
 
 fn create_mock_ethereum() -> MockEthereum {
-    MockEthereum::default().with_call_handler(|call| {
-        assert_eq!(call.contract_address(), DIAMOND_PROXY_ADDR);
-        assert_eq!(call.function_name(), "getProtocolVersion");
-        assert_eq!(call.args(), []);
+    MockEthereum::default().with_call_handler(|call, _block_id| {
+        assert_eq!(call.to, Some(DIAMOND_PROXY_ADDR));
+        let contract = zksync_contracts::hyperchain_contract();
+        let expected_input = contract
+            .function("getProtocolVersion")
+            .unwrap()
+            .encode_input(&[])
+            .unwrap();
+        assert_eq!(call.data, Some(expected_input.into()));
         ethabi::Token::Uint((ProtocolVersionId::latest() as u16).into())
     })
 }

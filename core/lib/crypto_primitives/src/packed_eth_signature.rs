@@ -1,7 +1,6 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
-use web3::signing::keccak256;
-use zksync_basic_types::{Address, H256};
+use zksync_basic_types::{web3::keccak256, Address, H256};
 use zksync_utils::ZeroPrefixHexSerde;
 
 use crate::{

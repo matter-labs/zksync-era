@@ -4,7 +4,7 @@ use anyhow::Context;
 use zksync_contracts::hyperchain_contract;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_shared_metrics::{TxStage, APP_METRICS};
-use zksync_types::{l1::L1Tx, web3::types::Log, PriorityOpId, H256};
+use zksync_types::{l1::L1Tx, web3::Log, PriorityOpId, H256};
 
 use crate::{
     client::EthClient,

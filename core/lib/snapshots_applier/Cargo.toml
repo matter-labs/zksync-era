@@ -22,6 +22,7 @@ vise.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true
+futures.workspace = true
 tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
 thiserror.workspace = true
