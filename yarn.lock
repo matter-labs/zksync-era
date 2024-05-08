@@ -11725,7 +11725,7 @@ zksync-ethers@5.8.0-beta.5:
 
 "zksync-ethers@https://github.com/zksync-sdk/zksync-ethers#ethers-v5-feat/bridgehub":
   version "5.8.0-beta.5"
-  resolved "https://github.com/zksync-sdk/zksync-ethers#40206030b71f31228f5a7f34be9dcdc16a31002b"
+  resolved "https://github.com/zksync-sdk/zksync-ethers#28ccbe7d67b170c202b17475e06a82002e6e3acc"
   dependencies:
     ethers "~5.7.0"
 
