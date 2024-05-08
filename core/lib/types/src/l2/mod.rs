@@ -14,11 +14,11 @@ use crate::{
     helpers::unix_timestamp_ms,
     transaction_request::PaymasterParams,
     tx::Execute,
-    web3::types::U64,
-    Address, Bytes, EIP712TypedStructure, Eip712Domain, ExecuteTransactionCommon, InputData,
-    L2ChainId, Nonce, PackedEthSignature, StructBuilder, Transaction, EIP_1559_TX_TYPE,
-    EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H256, LEGACY_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE,
-    PROTOCOL_UPGRADE_TX_TYPE, U256,
+    web3::Bytes,
+    Address, EIP712TypedStructure, Eip712Domain, ExecuteTransactionCommon, InputData, L2ChainId,
+    Nonce, PackedEthSignature, StructBuilder, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE,
+    EIP_712_TX_TYPE, H256, LEGACY_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE,
+    U256, U64,
 };
 
 pub mod error;

@@ -3,7 +3,7 @@
 use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context as _};
-use futures::{channel::mpsc, executor::block_on, SinkExt};
+use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
 use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::{ConnectionPool, Prover, ProverDal};
 use structopt::StructOpt;
@@ -15,9 +15,7 @@ use zksync_config::{
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{
-    basic_fri_types::AggregationRound, web3::futures::StreamExt, ProtocolVersionId,
-};
+use zksync_types::{basic_fri_types::AggregationRound, ProtocolVersionId};
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
