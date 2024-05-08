@@ -57,7 +57,7 @@ pub struct SchedulerWitnessGenerator {
     config: FriWitnessGeneratorConfig,
     object_store: Arc<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool<Prover>,
-    protocol_versions: Vec<ProtocolVersionId>,
+    protocol_version: ProtocolVersionId,
 }
 
 impl SchedulerWitnessGenerator {
@@ -65,13 +65,13 @@ impl SchedulerWitnessGenerator {
         config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         prover_connection_pool: ConnectionPool<Prover>,
-        protocol_versions: Vec<ProtocolVersionId>,
+        protocol_version: ProtocolVersionId,
     ) -> Self {
         Self {
             config,
             object_store: store_factory.create_store().await,
             prover_connection_pool,
-            protocol_versions,
+            protocol_version,
         }
     }
 
@@ -128,7 +128,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
         let pod_name = get_current_pod_name();
         let Some(l1_batch_number) = prover_connection
             .fri_witness_generator_dal()
-            .get_next_scheduler_witness_job(&self.protocol_versions, &pod_name)
+            .get_next_scheduler_witness_job(self.protocol_version, &pod_name)
             .await
         else {
             return Ok(None);

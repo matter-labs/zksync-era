@@ -9,7 +9,10 @@ use tokio::{
     task::{self, JoinHandle},
 };
 use zksync_block_reverter::{BlockReverter, NodeRole};
-use zksync_commitment_generator::CommitmentGenerator;
+use zksync_commitment_generator::{
+    input_generation::{InputGenerator, RollupInputGenerator, ValidiumInputGenerator},
+    CommitmentGenerator,
+};
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::{
     api::MerkleTreeApiConfig, chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode,
@@ -24,12 +27,6 @@ use zksync_core::{
     },
     consensus,
     consistency_checker::ConsistencyChecker,
-    db_pruner::{DbPruner, DbPrunerConfig},
-    eth_sender::l1_batch_commit_data_generator::{
-        L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
-        ValidiumModeL1BatchCommitDataGenerator,
-    },
-    l1_gas_price::MainNodeFeeParamsFetcher,
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     reorg_detector::{self, ReorgDetector},
     setup_sigint_handler,
@@ -47,7 +44,13 @@ use zksync_db_connection::{
     connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,
 };
 use zksync_eth_client::{clients::QueryClient, EthInterface};
+use zksync_eth_sender::l1_batch_commit_data_generator::{
+    L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
+    ValidiumModeL1BatchCommitDataGenerator,
+};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
+use zksync_node_db_pruner::{DbPruner, DbPrunerConfig};
+use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
@@ -63,7 +66,7 @@ use crate::{
         observability::observability_config_from_env, ExternalNodeConfig, OptionalENConfig,
         RequiredENConfig,
     },
-    helpers::MainNodeHealthCheck,
+    helpers::{EthClientHealthCheck, MainNodeHealthCheck, ValidateChainIdsTask},
     init::ensure_storage_initialized,
     metrics::RUST_METRICS,
 };
@@ -250,7 +253,7 @@ async fn run_core(
         main_node_client.clone(),
         output_handler,
         stop_receiver.clone(),
-        config.remote.l2_chain_id,
+        config.required.l2_chain_id,
         task_handles,
     )
     .await?;
@@ -344,14 +347,18 @@ async fn run_core(
     )
     .await?;
 
-    let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match config
-        .optional
-        .l1_batch_commit_data_generator_mode
-    {
-        L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
-        L1BatchCommitDataGeneratorMode::Validium => {
-            Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
-        }
+    let (l1_batch_commit_data_generator, input_generator): (
+        Arc<dyn L1BatchCommitDataGenerator>,
+        Box<dyn InputGenerator>,
+    ) = match config.optional.l1_batch_commit_data_generator_mode {
+        L1BatchCommitDataGeneratorMode::Rollup => (
+            Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+            Box::new(RollupInputGenerator),
+        ),
+        L1BatchCommitDataGeneratorMode::Validium => (
+            Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+            Box::new(ValidiumInputGenerator),
+        ),
     };
 
     let consistency_checker = ConsistencyChecker::new(
@@ -382,7 +389,7 @@ async fn run_core(
         .build()
         .await
         .context("failed to build a commitment_generator_pool")?;
-    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
+    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool, input_generator);
     app_health.insert_component(commitment_generator.health_check())?;
     let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
 
@@ -823,14 +830,9 @@ async fn main() -> anyhow::Result<()> {
     let eth_client_url = &required_config.eth_client_url;
     let eth_client = Box::new(QueryClient::new(eth_client_url.clone())?);
 
-    let mut config = ExternalNodeConfig::new(
-        required_config,
-        optional_config,
-        &main_node_client,
-        eth_client.as_ref(),
-    )
-    .await
-    .context("Failed to load external node config")?;
+    let mut config = ExternalNodeConfig::new(required_config, optional_config, &main_node_client)
+        .await
+        .context("Failed to load external node config")?;
     if !opt.enable_consensus {
         config.consensus = None;
     }
@@ -904,6 +906,7 @@ async fn run_node(
     app_health.insert_custom_component(Arc::new(MainNodeHealthCheck::from(
         main_node_client.clone(),
     )))?;
+    app_health.insert_custom_component(Arc::new(EthClientHealthCheck::from(eth_client.clone())))?;
     app_health.insert_custom_component(Arc::new(ConnectionPoolHealthCheck::new(
         connection_pool.clone(),
     )))?;
@@ -928,6 +931,14 @@ async fn run_node(
         Ok(())
     });
 
+    let validate_chain_ids_task = ValidateChainIdsTask::new(
+        config.required.l1_chain_id,
+        config.required.l2_chain_id,
+        eth_client.clone(),
+        main_node_client.clone(),
+    );
+    let validate_chain_ids_task = tokio::spawn(validate_chain_ids_task.run(stop_receiver.clone()));
+
     let version_sync_task_pool = connection_pool.clone();
     let version_sync_task_main_node_client = main_node_client.clone();
     let mut stop_receiver_for_version_sync = stop_receiver.clone();
@@ -941,14 +952,14 @@ async fn run_node(
         stop_receiver_for_version_sync.changed().await.ok();
         Ok(())
     });
-    let mut task_handles = vec![metrics_task, version_sync_task];
+    let mut task_handles = vec![metrics_task, validate_chain_ids_task, version_sync_task];
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(
         connection_pool.clone(),
         main_node_client.clone(),
         &app_health,
-        config.remote.l2_chain_id,
+        config.required.l2_chain_id,
         config.optional.snapshots_recovery_enabled,
     )
     .await?;

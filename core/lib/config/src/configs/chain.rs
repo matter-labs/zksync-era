@@ -2,11 +2,9 @@ use std::{str::FromStr, time::Duration};
 
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{
+    ethabi,
     network::Network,
-    web3::{
-        contract::{tokens::Detokenize, Error as Web3ContractError},
-        ethabi, Error as Web3ApiError,
-    },
+    web3::contract::{Detokenize, Error as Web3ContractError},
     Address, L2ChainId, H256, U256,
 };
 
@@ -67,9 +65,8 @@ pub enum L1BatchCommitDataGeneratorMode {
 impl Detokenize for L1BatchCommitDataGeneratorMode {
     fn from_tokens(tokens: Vec<ethabi::Token>) -> Result<Self, Web3ContractError> {
         fn error(tokens: &[ethabi::Token]) -> Web3ContractError {
-            Web3ContractError::Api(Web3ApiError::Decoder(format!(
-                "L1BatchCommitDataGeneratorMode::from_tokens: {tokens:?}"
-            )))
+            let message = format!("L1BatchCommitDataGeneratorMode::from_tokens: {tokens:?}");
+            Web3ContractError::InvalidOutputType(message)
         }
 
         match tokens.as_slice() {

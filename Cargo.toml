@@ -16,6 +16,13 @@ members = [
     "core/node/block_reverter",
     "core/node/commitment_generator",
     "core/node/house_keeper",
+    "core/node/genesis",
+    "core/node/shared_metrics",
+    "core/node/db_pruner",
+    "core/node/fee_model",
+    "core/node/eth_sender",
+    "core/node/vm_runner",
+    "core/node/test_utils",
     # Libraries
     "core/lib/db_connection",
     "core/lib/zksync_core",
@@ -130,7 +137,6 @@ secp256k1 = { version = "0.27.0", features = ["recovery", "global-context"] }
 semver = "1"
 sentry = "0.31"
 serde = "1"
-serde_derive = "1.0.90"
 serde_json = "1"
 serde_with = "1"
 serde_yaml = "0.9"
@@ -146,6 +152,7 @@ test-log = "0.2.15"
 thiserror = "1"
 thread_local = "1.1"
 tikv-jemallocator = "0.5"
+tiny-keccak = "2"
 tokio = "1"
 tower = "0.4.13"
 tower-http = "0.4.1"
@@ -228,3 +235,9 @@ zksync_proof_data_handler = { path = "core/node/proof_data_handler" }
 zksync_block_reverter = { path = "core/node/block_reverter" }
 zksync_commitment_generator = { path = "core/node/commitment_generator" }
 zksync_house_keeper = { path = "core/node/house_keeper" }
+zksync_node_genesis = { path = "core/node/genesis" }
+zksync_eth_sender = { path = "core/node/eth_sender" }
+zksync_node_db_pruner = { path = "core/node/db_pruner" }
+zksync_node_fee_model = { path = "core/node/fee_model" }
+zksync_vm_runner = { path = "core/node/vm_runner" }
+zksync_node_test_utils = { path = "core/node/test_utils" }

@@ -1,8 +1,5 @@
 use zksync_types::{
-    commitment::L1BatchWithMetadata,
-    ethabi::Token,
-    web3::{contract::Error as Web3ContractError, error::Error as Web3ApiError},
-    U256,
+    commitment::L1BatchWithMetadata, ethabi::Token, web3::contract::Error as ContractError, U256,
 };
 
 use crate::Tokenizable;
@@ -12,16 +9,11 @@ use crate::Tokenizable;
 pub struct StoredBatchInfo<'a>(pub &'a L1BatchWithMetadata);
 
 impl<'a> Tokenizable for StoredBatchInfo<'a> {
-    fn from_token(_token: Token) -> Result<Self, zksync_types::web3::contract::Error>
-    where
-        Self: Sized,
-    {
+    fn from_token(_token: Token) -> Result<Self, ContractError> {
         // Currently there is no need to decode this struct.
         // We still want to implement `Tokenizable` trait for it, so that *once* it's needed
         // the implementation is provided here and not in some other inconsistent way.
-        Err(Web3ContractError::Api(Web3ApiError::Decoder(
-            "Not implemented".to_string(),
-        )))
+        Err(ContractError::Other("Not implemented".into()))
     }
 
     fn into_token(self) -> Token {

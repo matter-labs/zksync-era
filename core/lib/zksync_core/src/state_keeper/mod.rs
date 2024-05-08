@@ -6,6 +6,7 @@ use zksync_config::configs::{
     wallets,
 };
 use zksync_dal::{ConnectionPool, Core};
+use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::L2ChainId;
 
 pub use self::{
@@ -20,7 +21,6 @@ pub use self::{
     state_keeper_storage::AsyncRocksdbCache,
     types::MempoolGuard,
 };
-use crate::fee_model::BatchFeeModelInputProvider;
 
 mod batch_executor;
 pub(crate) mod io;

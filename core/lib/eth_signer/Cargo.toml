@@ -10,19 +10,13 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_types = { path = "../types" }
-
-serde.workspace = true
-serde_derive.workspace = true
+zksync_types.workspace = true
+serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 hex.workspace = true
-secp256k1.workspace = true
-
 rlp.workspace = true
-
 reqwest = { workspace = true, features = ["json", "blocking"] }
 thiserror.workspace = true
-
 jsonrpc-core.workspace = true
 async-trait.workspace = true
 
