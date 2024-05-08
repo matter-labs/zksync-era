@@ -1,6 +1,6 @@
 ### Run with YUL
 
-In the root of `zksync-era`  run
+In the root of `zksync-era` run
 
 ```jsx
 export ZKSYNC_HOME=$(pwd)
@@ -17,17 +17,18 @@ cargo run --release --bin erc20_example
 
 ### Run with Solidity
 
-Since the zk server does not currently support passing an environment variable, you would need to change the following files on `zksync-era`:
+Since the zk server does not currently support passing an environment variable, you would need to change the following
+files on `zksync-era`:
 
-`zksync-era/core/lib/contracts/src/lib.rs` , line 305 
+`zksync-era/core/lib/contracts/src/lib.rs` , line 305
 
 `zksync-era/core/lib/types/src/system_contracts.rs`, line 179
 
 `zksync-era/core/lib/zksync_core/src/genesis.rs` , line 190
 
-On all files, change `"yul".to_string()`  to `"solidity".to_string()` 
+On all files, change `"yul".to_string()` to `"solidity".to_string()`
 
-Then on the root of `zksync-era`  either run the previous commands again, or to save execution time you can use:
+Then on the root of `zksync-era` either run the previous commands again, or to save execution time you can use:
 
 ```jsx
 ./reload_interpreter.sh
@@ -36,7 +37,7 @@ zk server --components "api,tree,eth,state_keeper,housekeeper"
 
 to restart the server.
 
-For `reload_interpreter` you may need to install `postgresql` 
+For `reload_interpreter` you may need to install `postgresql`
 
 After that, in another terminal
 
@@ -46,15 +47,15 @@ cargo run --release --bin erc20_example
 
 ### Run natively
 
-There is no need to restart the server, just change the following in `zksync-era` 
+There is no need to restart the server, just change the following in `zksync-era`
 
-`zksync-era/erc20_example/src/scenario.rs`  , line 272
+`zksync-era/erc20_example/src/scenario.rs` , line 272
 
-Change `deploy_erc20_evm_compatible`  for `deploy_erc20` 
+Change `deploy_erc20_evm_compatible` for `deploy_erc20`
 
 Then rename `ERC20.bin` to `ERC20_evm.bin`, and `ERC20_zk.bin` to `ERC20.bin`
 
-Then run 
+Then run
 
 ```jsx
 cargo clean

@@ -84,7 +84,7 @@ pub async fn deploy_erc20_evm_compatible(
 ) -> TransactionReceipt {
     // Read both files from disk:
     let abi = Abi::load(constants::ERC20_ABI.as_bytes()).unwrap();
-    let contract_bin = hex::decode(constants::ERC20_BIN).unwrap().to_vec();
+    let contract_bin = hex::decode(constants::ERC20_BIN_EVM).unwrap().to_vec();
 
     let factory = ContractFactory::new(
         abi,
@@ -128,7 +128,7 @@ pub async fn deploy_erc20(
 ) -> TransactionReceipt {
     // Read both files from disk:
     let abi = Abi::load(constants::ERC20_ABI.as_bytes()).unwrap();
-    let contract_bin = hex::decode(constants::ERC20_BIN).unwrap().to_vec();
+    let contract_bin = hex::decode(constants::ERC20_BIN_NATIVE).unwrap().to_vec();
 
     // DeployRequest sets the parameters for the constructor call and the deployment transaction.
     let request = DeployRequest::with(

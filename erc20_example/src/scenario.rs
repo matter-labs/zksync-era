@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, env, sync::Arc};
 
 use colored::Colorize;
 use ethers::{
@@ -269,7 +269,13 @@ pub async fn basic() {
     let account =
         helpers::create_funded_account(&l1_provider, &l2_provider, main_wallet.clone()).await;
 
-    let deploy_receipt = helpers::deploy_erc20_evm_compatible(account.clone()).await;
+    let deploy_receipt;
+    let vm_version = env::var("VM_VERSION").unwrap_or_else(|_| "evm".to_string());
+    if vm_version.to_lowercase() == "evm" {
+        deploy_receipt = helpers::deploy_erc20_evm_compatible(account.clone()).await;
+    } else {
+        deploy_receipt = helpers::deploy_erc20(account.clone()).await;
+    }
     let erc20_address = deploy_receipt.contract_address.unwrap();
     let mint_receipt = helpers::mint_erc20(account.clone(), erc20_address).await;
     let transfer_receipt = helpers::transfer_erc20(account.clone(), erc20_address).await;
