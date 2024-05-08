@@ -8378,7 +8378,6 @@ dependencies = [
  "zksync_protobuf_build",
  "zksync_protobuf_config",
  "zksync_prover_interface",
- "zksync_queued_job_processor",
  "zksync_shared_metrics",
  "zksync_state",
  "zksync_storage",
