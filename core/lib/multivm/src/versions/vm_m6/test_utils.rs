@@ -13,7 +13,7 @@ use zk_evm_1_3_1::{aux_structures::Timestamp, vm_state::VmLocalState};
 use zksync_contracts::deployer_contract;
 use zksync_types::{
     ethabi::{Address, Token},
-    web3::signing::keccak256,
+    web3::keccak256,
     Execute, Nonce, StorageKey, StorageValue, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
 use zksync_utils::{

@@ -13,11 +13,11 @@ use std::{
     str::FromStr,
 };
 
-use serde::{de, Deserialize, Deserializer, Serialize};
-pub use web3::{
-    self, ethabi,
-    types::{Address, Bytes, Log, TransactionRequest, H128, H160, H2048, H256, U128, U256, U64},
+pub use ethabi::{
+    self,
+    ethereum_types::{Address, Bloom as H2048, H128, H160, H256, H512, H520, H64, U128, U256, U64},
 };
+use serde::{de, Deserialize, Deserializer, Serialize};
 
 #[macro_use]
 mod macros;
@@ -27,6 +27,7 @@ pub mod protocol_version;
 pub mod prover_dal;
 pub mod url;
 pub mod vm_version;
+pub mod web3;
 
 /// Account place in the global state tree is uniquely identified by its address.
 /// Binary this type is represented by 160 bit big-endian representation of account address.
