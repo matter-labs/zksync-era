@@ -76,7 +76,7 @@ pub struct LeafAggregationWitnessGenerator {
     config: FriWitnessGeneratorConfig,
     object_store: Arc<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool<Prover>,
-    protocol_versions: Vec<ProtocolVersionId>,
+    protocol_version: ProtocolVersionId,
 }
 
 impl LeafAggregationWitnessGenerator {
@@ -84,13 +84,13 @@ impl LeafAggregationWitnessGenerator {
         config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         prover_connection_pool: ConnectionPool<Prover>,
-        protocol_versions: Vec<ProtocolVersionId>,
+        protocol_version: ProtocolVersionId,
     ) -> Self {
         Self {
             config,
             object_store: store_factory.create_store().await,
             prover_connection_pool,
-            protocol_versions,
+            protocol_version,
         }
     }
 
@@ -121,7 +121,7 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
         let pod_name = get_current_pod_name();
         let Some(metadata) = prover_connection
             .fri_witness_generator_dal()
-            .get_next_leaf_aggregation_job(&self.protocol_versions, &pod_name)
+            .get_next_leaf_aggregation_job(self.protocol_version, &pod_name)
             .await
         else {
             return Ok(None);

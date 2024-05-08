@@ -10,10 +10,12 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_system_constants.workspace = true
 zksync_basic_types.workspace = true
 zksync_config.workspace = true
 
 anyhow.workspace = true
 serde.workspace = true
 envy.workspace = true
+
+[dev-dependencies]
+zksync_system_constants.workspace = true
