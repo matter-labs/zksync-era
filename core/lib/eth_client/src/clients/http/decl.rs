@@ -30,25 +30,17 @@ pub(super) trait L1EthNamespace {
     async fn get_transaction_count(
         &self,
         address: Address,
-        block: Option<web3::BlockNumber>,
+        block: web3::BlockNumber,
     ) -> RpcResult<U256>;
 
     #[method(name = "gasPrice")]
     async fn gas_price(&self) -> RpcResult<U256>;
 
     #[method(name = "call")]
-    async fn call(
-        &self,
-        req: web3::CallRequest,
-        block: Option<web3::BlockId>,
-    ) -> RpcResult<web3::Bytes>;
+    async fn call(&self, req: web3::CallRequest, block: web3::BlockId) -> RpcResult<web3::Bytes>;
 
     #[method(name = "getBalance")]
-    async fn get_balance(
-        &self,
-        address: Address,
-        block: Option<web3::BlockNumber>,
-    ) -> RpcResult<U256>;
+    async fn get_balance(&self, address: Address, block: web3::BlockNumber) -> RpcResult<U256>;
 
     #[method(name = "getLogs")]
     async fn get_logs(&self, filter: web3::Filter) -> RpcResult<Vec<web3::Log>>;
