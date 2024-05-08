@@ -357,7 +357,9 @@ fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>) {
     }
 }
 
-fn display_job_status_count(jobs: Vec<ProverJobFriInfo>) {
+fn display_job_status_count(mut jobs: Vec<ProverJobFriInfo>) {
+    jobs.sort_by_key(|job| job.circuit_id.clone());
+
     let mut jobs_counts = JobCountStatistics::default();
 
     let total_jobs = jobs.len();
