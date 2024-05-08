@@ -8,7 +8,7 @@
 //! while `Tokenize` trait represents items that are encoded via array of `Token`s
 //! (for example, transaction input).
 
-pub use zksync_types::web3::contract::tokens::{Detokenize, Tokenizable, Tokenize};
+pub use zksync_types::web3::contract::{Detokenize, Tokenizable, Tokenize};
 
 /// Rust interface for (subset of) `IExector.sol`.
 pub mod i_executor;
