@@ -7,7 +7,7 @@ use zksync_basic_types::{AccountTreeId, L1BatchNumber, L2BlockNumber, H256};
 use zksync_protobuf::{required, ProtoFmt};
 use zksync_utils::u256_to_h256;
 
-use crate::{utils, Bytes, ProtocolVersionId, StorageKey, StorageValue, U256};
+use crate::{utils, web3::Bytes, ProtocolVersionId, StorageKey, StorageValue, U256};
 
 /// Information about all snapshots persisted by the node.
 #[derive(Debug, Clone, Serialize, Deserialize)]
