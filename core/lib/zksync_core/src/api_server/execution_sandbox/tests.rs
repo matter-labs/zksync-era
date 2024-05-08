@@ -2,13 +2,11 @@
 
 use assert_matches::assert_matches;
 use zksync_dal::ConnectionPool;
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_test_utils::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot};
 
 use super::*;
-use crate::{
-    api_server::{execution_sandbox::apply::apply_vm_in_sandbox, tx_sender::ApiContracts},
-    genesis::{insert_genesis_batch, GenesisParams},
-    utils::testonly::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot},
-};
+use crate::api_server::{execution_sandbox::apply::apply_vm_in_sandbox, tx_sender::ApiContracts};
 
 #[tokio::test]
 async fn creating_block_args() {
@@ -32,7 +30,9 @@ async fn creating_block_args() {
     assert_eq!(pending_block_args.resolved_block_number, L2BlockNumber(2));
     assert_eq!(pending_block_args.l1_batch_timestamp_s, None);
 
-    let start_info = BlockStartInfo::new(&mut storage).await.unwrap();
+    let start_info = BlockStartInfo::new(&mut storage, Duration::MAX)
+        .await
+        .unwrap();
     assert_eq!(
         start_info.first_l2_block(&mut storage).await.unwrap(),
         L2BlockNumber(0)
@@ -86,7 +86,9 @@ async fn creating_block_args_after_snapshot_recovery() {
     );
     assert_eq!(pending_block_args.l1_batch_timestamp_s, None);
 
-    let start_info = BlockStartInfo::new(&mut storage).await.unwrap();
+    let start_info = BlockStartInfo::new(&mut storage, Duration::MAX)
+        .await
+        .unwrap();
     assert_eq!(
         start_info.first_l2_block(&mut storage).await.unwrap(),
         snapshot_recovery.l2_block_number + 1
@@ -170,7 +172,9 @@ async fn instantiating_vm() {
 
     let block_args = BlockArgs::pending(&mut storage).await.unwrap();
     test_instantiating_vm(pool.clone(), block_args).await;
-    let start_info = BlockStartInfo::new(&mut storage).await.unwrap();
+    let start_info = BlockStartInfo::new(&mut storage, Duration::MAX)
+        .await
+        .unwrap();
     let block_args = BlockArgs::new(&mut storage, api::BlockId::Number(0.into()), &start_info)
         .await
         .unwrap();

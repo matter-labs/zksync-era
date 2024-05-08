@@ -76,7 +76,7 @@ pub struct NodeAggregationWitnessGenerator {
     config: FriWitnessGeneratorConfig,
     object_store: Arc<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool<Prover>,
-    protocol_versions: Vec<ProtocolVersionId>,
+    protocol_version: ProtocolVersionId,
 }
 
 impl NodeAggregationWitnessGenerator {
@@ -84,13 +84,13 @@ impl NodeAggregationWitnessGenerator {
         config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         prover_connection_pool: ConnectionPool<Prover>,
-        protocol_versions: Vec<ProtocolVersionId>,
+        protocol_version: ProtocolVersionId,
     ) -> Self {
         Self {
             config,
             object_store: store_factory.create_store().await,
             prover_connection_pool,
-            protocol_versions,
+            protocol_version,
         }
     }
 
@@ -148,11 +148,11 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
     const SERVICE_NAME: &'static str = "fri_node_aggregation_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.connection().await.unwrap();
+        let mut prover_connection = self.prover_connection_pool.connection().await?;
         let pod_name = get_current_pod_name();
         let Some(metadata) = prover_connection
             .fri_witness_generator_dal()
-            .get_next_node_aggregation_job(&self.protocol_versions, &pod_name)
+            .get_next_node_aggregation_job(self.protocol_version, &pod_name)
             .await
         else {
             return Ok(None);
@@ -266,7 +266,6 @@ pub async fn prepare_job(
                 );
             }
             FriProofWrapper::Recursive(recursive_proof) => recursive_proofs.push(recursive_proof),
-            FriProofWrapper::Eip4844(_) => anyhow::bail!("EIP 4844 should not be run as a node."),
         }
     }
 

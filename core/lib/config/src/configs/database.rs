@@ -2,6 +2,9 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
+use zksync_basic_types::url::SensitiveUrl;
+
+use crate::configs::ExperimentalDBConfig;
 
 /// Mode of operation for the Merkle tree.
 ///
@@ -110,8 +113,11 @@ pub struct DBConfig {
     /// Merkle tree configuration.
     #[serde(skip)]
     // ^ Filled in separately in `Self::from_env()`. We cannot use `serde(flatten)` because it
-    // doesn't work with 'envy`.
+    // doesn't work with `envy`.
     pub merkle_tree: MerkleTreeConfig,
+    /// Experimental parts of the config.
+    #[serde(skip)] // same reasoning as for `merkle_tree`
+    pub experimental: ExperimentalDBConfig,
 }
 
 impl DBConfig {
@@ -126,11 +132,11 @@ impl DBConfig {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PostgresConfig {
     /// URL for the main (sequencer) database.
-    pub master_url: Option<String>,
+    pub master_url: Option<SensitiveUrl>,
     /// URL for the replica database.
-    pub replica_url: Option<String>,
+    pub replica_url: Option<SensitiveUrl>,
     /// URL for the prover database.
-    pub prover_url: Option<String>,
+    pub prover_url: Option<SensitiveUrl>,
     /// Maximum size of the connection pool.
     pub max_connections: Option<u32>,
     /// Maximum size of the connection pool to master DB.
@@ -152,24 +158,18 @@ pub struct PostgresConfig {
 
 impl PostgresConfig {
     /// Returns a copy of the master database URL as a `Result` to simplify error propagation.
-    pub fn master_url(&self) -> anyhow::Result<&str> {
-        self.master_url
-            .as_deref()
-            .context("Master DB URL is absent")
+    pub fn master_url(&self) -> anyhow::Result<SensitiveUrl> {
+        self.master_url.clone().context("Master DB URL is absent")
     }
 
     /// Returns a copy of the replica database URL as a `Result` to simplify error propagation.
-    pub fn replica_url(&self) -> anyhow::Result<&str> {
-        self.replica_url
-            .as_deref()
-            .context("Replica DB URL is absent")
+    pub fn replica_url(&self) -> anyhow::Result<SensitiveUrl> {
+        self.replica_url.clone().context("Replica DB URL is absent")
     }
 
     /// Returns a copy of the prover database URL as a `Result` to simplify error propagation.
-    pub fn prover_url(&self) -> anyhow::Result<&str> {
-        self.prover_url
-            .as_deref()
-            .context("Prover DB URL is absent")
+    pub fn prover_url(&self) -> anyhow::Result<SensitiveUrl> {
+        self.prover_url.clone().context("Prover DB URL is absent")
     }
 
     /// Returns the maximum size of the connection pool as a `Result` to simplify error propagation.

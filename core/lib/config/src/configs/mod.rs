@@ -2,18 +2,19 @@
 pub use self::{
     api::ApiConfig,
     contract_verifier::ContractVerifierConfig,
-    contracts::ContractsConfig,
+    contracts::{ContractsConfig, EcosystemContracts},
     da_dispatcher::DADispatcherConfig,
     database::{DBConfig, PostgresConfig},
     eth_sender::{EthConfig, GasAdjusterConfig},
     eth_watch::EthWatchConfig,
+    experimental::ExperimentalDBConfig,
     fri_proof_compressor::FriProofCompressorConfig,
     fri_prover::FriProverConfig,
     fri_prover_gateway::FriProverGatewayConfig,
     fri_witness_generator::FriWitnessGeneratorConfig,
     fri_witness_vector_generator::FriWitnessVectorGeneratorConfig,
     general::GeneralConfig,
-    genesis::{GenesisConfig, SharedBridge},
+    genesis::GenesisConfig,
     object_store::ObjectStoreConfig,
     observability::{ObservabilityConfig, OpentelemetryConfig},
     proof_data_handler::ProofDataHandlerConfig,
@@ -30,6 +31,7 @@ pub mod da_dispatcher;
 pub mod database;
 pub mod eth_sender;
 pub mod eth_watch;
+mod experimental;
 pub mod fri_proof_compressor;
 pub mod fri_prover;
 pub mod fri_prover_gateway;

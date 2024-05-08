@@ -249,7 +249,7 @@ impl Store {
             .await
             .wrap("genesis()")?
             .context("genesis missing")?;
-        let first_expected_cert = genesis.fork.first_block.max(block_range.start);
+        let first_expected_cert = genesis.first_block.max(block_range.start);
         let last_cert = conn
             .last_certificate(ctx)
             .await
@@ -308,6 +308,7 @@ impl Store {
     pub(super) async fn try_init_genesis(
         &self,
         ctx: &ctx::Ctx,
+        chain_id: validator::ChainId,
         validator_key: &validator::PublicKey,
     ) -> ctx::Result<()> {
         let mut conn = self.access(ctx).await.wrap("access()")?;
@@ -316,17 +317,37 @@ impl Store {
             .start_transaction(ctx)
             .await
             .wrap("start_transaction()")?;
-        if txn.genesis(ctx).await.wrap("genesis()")?.is_some() {
+        // `Committee::new()` with a single validator should never fail.
+        let committee = validator::Committee::new([validator::WeightedValidator {
+            key: validator_key.clone(),
+            weight: 1,
+        }])
+        .unwrap();
+        let leader_selection = validator::LeaderSelectionMode::Sticky(validator_key.clone());
+        let old = txn.genesis(ctx).await.wrap("genesis()")?;
+        // Check if the current config of the main node is compatible with the stored genesis.
+        if old.as_ref().map_or(false, |old| {
+            old.chain_id == chain_id
+                && old.protocol_version == validator::ProtocolVersion::CURRENT
+                && old.committee == committee
+                && old.leader_selection == leader_selection
+        }) {
             return Ok(());
         }
-        let genesis = validator::Genesis {
-            // `ValidatorSet::new()` with a single validator should never fail.
-            validators: validator::ValidatorSet::new([validator_key.clone()]).unwrap(),
-            fork: validator::Fork {
-                number: validator::ForkNumber(0),
-                first_block: block_range.end,
-            },
-        };
+        // If not, perform a hard fork.
+        tracing::info!("Performing a hard fork of consensus.");
+        let genesis = validator::GenesisRaw {
+            chain_id,
+            fork_number: old
+                .as_ref()
+                .map_or(validator::ForkNumber(0), |old| old.fork_number.next()),
+            first_block: block_range.end,
+
+            protocol_version: validator::ProtocolVersion::CURRENT,
+            committee,
+            leader_selection,
+        }
+        .with_hash();
         txn.try_update_genesis(ctx, &genesis)
             .await
             .wrap("try_update_genesis()")?;

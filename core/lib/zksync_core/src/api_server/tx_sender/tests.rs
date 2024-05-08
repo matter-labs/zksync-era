@@ -3,17 +3,15 @@
 use assert_matches::assert_matches;
 use multivm::interface::ExecutionResult;
 use zksync_config::configs::wallets::Wallets;
+use zksync_node_fee_model::MockBatchFeeParamsProvider;
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_test_utils::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot};
 use zksync_types::{get_nonce_key, L1BatchNumber, L2BlockNumber, StorageLog};
 use zksync_utils::u256_to_h256;
 
 use super::*;
-use crate::{
-    api_server::execution_sandbox::{testonly::MockTransactionExecutor, VmConcurrencyBarrier},
-    genesis::{insert_genesis_batch, GenesisParams},
-    utils::testonly::{
-        create_l2_block, create_l2_transaction, prepare_recovery_snapshot,
-        MockBatchFeeParamsProvider,
-    },
+use crate::api_server::execution_sandbox::{
+    testonly::MockTransactionExecutor, VmConcurrencyBarrier,
 };
 
 pub(crate) async fn create_test_tx_sender(
@@ -183,7 +181,7 @@ async fn submitting_tx_requires_one_connection() {
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
 
     let submission_result = tx_sender.submit_tx(tx).await.unwrap();
-    assert_matches!(submission_result, L2TxSubmissionResult::Added);
+    assert_matches!(submission_result.0, L2TxSubmissionResult::Added);
 
     let mut storage = pool.connection().await.unwrap();
     storage

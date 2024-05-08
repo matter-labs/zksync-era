@@ -46,7 +46,7 @@ max_single_tx_gas = 6000000
 # Max acceptable fee for sending tx to L1
 max_acceptable_priority_fee_in_gwei = 100000000000
 
-proof_loading_mode = "OldProofFromDb"
+proof_loading_mode="FriProofFromGcs"
 
 pubdata_sending_mode = "Blobs"
 
