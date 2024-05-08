@@ -2,13 +2,13 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
+use zksync_consensus_storage::BlockStore;
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::client::BoxedL2Client;
-use zksync_consensus_storage::BlockStore;
-use super::{ConsensusConfig,ConsensusSecrets,ConnectionPool,config,storage::Store};
 
+use super::{config, storage::Store, ConnectionPool, ConsensusConfig, ConsensusSecrets};
 use crate::{
-    consensus::{storage},
+    consensus::storage,
     sync_layer::{
         fetcher::FetchedBlock, sync_action::ActionQueueSender, MainNodeClient, SyncState,
     },
@@ -68,18 +68,24 @@ impl Fetcher {
             });
 
             // Run consensus component.
-            let (store,runner) = Store::new(ctx,self.pool.clone(),Some(payload_queue)).await.wrap("Store::new()")?;
+            let (store, runner) = Store::new(ctx, self.pool.clone(), Some(payload_queue))
+                .await
+                .wrap("Store::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
-            let (block_store, runner) = BlockStore::new(ctx,Box::new(store.clone())).await.wrap("BlockStore::new()")?;
+            let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone()))
+                .await
+                .wrap("BlockStore::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
             let executor = executor::Executor {
-                config: config::executor(&cfg,&secrets)?,
+                config: config::executor(&cfg, &secrets)?,
                 block_store,
-                validator: config::validator_key(&secrets).context("validator_key")?.map(|key| executor::Validator{
-                    key,
-                    replica_store: Box::new(store.clone()),
-                    payload_manager: Box::new(store.clone()),
-                }),
+                validator: config::validator_key(&secrets)
+                    .context("validator_key")?
+                    .map(|key| executor::Validator {
+                        key,
+                        replica_store: Box::new(store.clone()),
+                        payload_manager: Box::new(store.clone()),
+                    }),
             };
             executor.run(ctx).await?;
             Ok(())

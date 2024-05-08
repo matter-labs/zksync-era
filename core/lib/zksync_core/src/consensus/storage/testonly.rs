@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::validator;
 
-use super::{ConnectionPool};
+use super::ConnectionPool;
 use crate::{
     genesis::{insert_genesis_batch, GenesisParams},
     utils::testonly::{recover, snapshot, Snapshot},

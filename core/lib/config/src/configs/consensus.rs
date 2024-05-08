@@ -2,6 +2,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
 };
+
 use zeroize::ZeroizeOnDrop;
 
 /// Public key of the validator (consensus participant) of the form "validator:public:<signature scheme>:<hex encoded key material>"

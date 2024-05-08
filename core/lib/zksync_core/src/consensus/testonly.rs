@@ -1,15 +1,14 @@
 //! Utilities for testing the consensus module.
 
 use std::{collections::HashMap, sync::Arc};
-use super::fetcher::Fetcher;
-use zksync_config::configs::consensus as config;
+
 use anyhow::Context as _;
 use rand::Rng;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync};
-use zksync_config::{configs, GenesisConfig};
+use zksync_config::{configs, configs::consensus as config, GenesisConfig};
 use zksync_consensus_crypto::TextFmt as _;
-use zksync_consensus_roles::validator;
 use zksync_consensus_network as network;
+use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
@@ -21,9 +20,10 @@ use zksync_web3_decl::{
     error::{EnrichedClientError, EnrichedClientResult},
 };
 
+use super::fetcher::Fetcher;
 use crate::{
     api_server::web3::{state::InternalApiConfig, tests::spawn_http_server},
-    consensus::{ConnectionPool},
+    consensus::ConnectionPool,
     genesis::{mock_genesis_config, GenesisParams},
     state_keeper::{
         io::{IoCursor, L1BatchParams, L2BlockParams},
@@ -165,18 +165,34 @@ pub(super) struct StateKeeper {
     pool: ConnectionPool,
 }
 
-pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig,config::ConsensusSecrets) {
-    (config::ConsensusConfig {
-        server_addr: *cfg.server_addr,
-        public_addr: config::Host(cfg.public_addr.0.clone()),
-        max_payload_size: usize::MAX,
-        gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
-        gossip_static_inbound: cfg.gossip.static_inbound.iter().map(|k|config::NodePublicKey(k.encode())).collect(),
-        gossip_static_outbound: cfg.gossip.static_outbound.iter().map(|(k,v)|(config::NodePublicKey(k.encode()),config::Host(v.0.clone()))).collect(),
-    }, config::ConsensusSecrets {
-        node_key: Some(config::NodeSecretKey(cfg.gossip.key.encode())),
-        validator_key: cfg.validator_key.as_ref().map(|k|config::ValidatorSecretKey(k.encode())),
-    })
+pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config::ConsensusSecrets) {
+    (
+        config::ConsensusConfig {
+            server_addr: *cfg.server_addr,
+            public_addr: config::Host(cfg.public_addr.0.clone()),
+            max_payload_size: usize::MAX,
+            gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
+            gossip_static_inbound: cfg
+                .gossip
+                .static_inbound
+                .iter()
+                .map(|k| config::NodePublicKey(k.encode()))
+                .collect(),
+            gossip_static_outbound: cfg
+                .gossip
+                .static_outbound
+                .iter()
+                .map(|(k, v)| (config::NodePublicKey(k.encode()), config::Host(v.0.clone())))
+                .collect(),
+        },
+        config::ConsensusSecrets {
+            node_key: Some(config::NodeSecretKey(cfg.gossip.key.encode())),
+            validator_key: cfg
+                .validator_key
+                .as_ref()
+                .map(|k| config::ValidatorSecretKey(k.encode())),
+        },
+    )
 }
 
 /// Fake StateKeeper task to be executed in the background.
@@ -189,7 +205,10 @@ pub(super) struct StateKeeperRunner {
 impl StateKeeper {
     /// Constructs and initializes a new `StateKeeper`.
     /// Caller has to run `StateKeeperRunner.run()` task in the background.
-    pub async fn new(ctx: &ctx::Ctx, pool: ConnectionPool) -> ctx::Result<(Self, StateKeeperRunner)> {
+    pub async fn new(
+        ctx: &ctx::Ctx,
+        pool: ConnectionPool,
+    ) -> ctx::Result<(Self, StateKeeperRunner)> {
         let mut conn = pool.connection(ctx).await.wrap("connection()")?;
         let cursor = ctx
             .wait(IoCursor::for_fetcher(&mut conn.0))
