@@ -184,15 +184,6 @@ jobs:
           ci_localnet_up
           ci_run sccache --start-server
 
-      - name: download cached compilers
-        run: |
-          ci_run zk
-          ci_run zk docker build compilers
-          ci_run docker create --name compilers-temp-container docker.io/matterlabs/compilers:latest
-          ci_run mkdir -p ./.cache/hardhat-nodejs/compilers-v2
-          ci_run docker cp compilers-temp-container:./.cache/hardhat-nodejs/compilers-v2 ./.cache/hardhat-nodejs/compilers-v2
-          ci_run docker rm compilers-temp-container
-
       - name: Init
         run: |
           ci_run git config --global --add safe.directory /usr/src/zksync
@@ -200,6 +191,13 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
+
+          ci_run zk docker build compilers
+          ci_run docker create --name compilers-temp-container docker.io/matterlabs/compilers:latest
+          ci_run mkdir -p ./.cache/hardhat-nodejs/compilers-v2
+          ci_run docker cp compilers-temp-container:./.cache/hardhat-nodejs/compilers-v2 ./.cache/hardhat-nodejs/compilers-v2
+          ci_run docker rm compilers-temp-container
+          
           if [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
             ci_run zk env dev_validium_docker
             ci_run zk config compile dev_validium_docker
