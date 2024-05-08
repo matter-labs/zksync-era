@@ -52,6 +52,11 @@ jobs:
 
       - name: Init
         run: |
+          ci_run git config --global --add safe.directory /usr/src/zksync
+          ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
+
           ci_run zk
           ci_run zk run yarn
           ci_run zk db setup
