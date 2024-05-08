@@ -1,4 +1,4 @@
-name: Workflow to push stable EN image
+name: Release stable EN image
 
 on:
   workflow_dispatch:
