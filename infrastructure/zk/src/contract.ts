@@ -97,8 +97,7 @@ export async function deployL2ThroughL1({
     }
 
     await utils.spawn(
-        `yarn l2-contracts deploy-shared-bridge-on-l2-through-l1 ${args.join(' ')} ${
-            localLegacyBridgeTesting ? '--local-legacy-bridge-testing' : ''
+        `yarn l2-contracts deploy-shared-bridge-on-l2-through-l1 ${args.join(' ')} ${localLegacyBridgeTesting ? '--local-legacy-bridge-testing' : ''
         } | tee deployL2.log`
     );
 
@@ -312,9 +311,9 @@ command
 command
     .command('register-hyperchain')
     .description('register hyperchain')
-    .action(() => {
-        registerHyperchain({});
-    });
+    .option('--base-token-name <base-token-name>', 'base token name')
+    .option('--deployment_mode <deployment-mode>', 'deploy contracts in Validium mode')
+    .action(registerHyperchain);
 command
     .command('deploy-l2-through-l1')
     .description('deploy l2 through l1')
