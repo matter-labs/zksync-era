@@ -195,15 +195,9 @@ pub enum StageInfo {
         prover_jobs_info: Vec<ProverJobFriInfo>,
     },
     #[strum(to_string = "Recursion Tip")]
-    RecursionTipWitnessGenerator {
-        witness_generator_jobs_info: Vec<RecursionTipWitnessGeneratorJobInfo>,
-        prover_jobs_info: Vec<ProverJobFriInfo>,
-    },
+    RecursionTipWitnessGenerator(Option<RecursionTipWitnessGeneratorJobInfo>),
     #[strum(to_string = "Scheduler")]
-    SchedulerWitnessGenerator {
-        witness_generator_jobs_info: Vec<SchedulerWitnessGeneratorJobInfo>,
-        prover_jobs_info: Vec<ProverJobFriInfo>,
-    },
+    SchedulerWitnessGenerator(Option<SchedulerWitnessGeneratorJobInfo>),
     #[strum(to_string = "Compressor")]
     Compressor(Option<ProofCompressionJobInfo>),
 }
@@ -220,7 +214,7 @@ impl StageInfo {
         }
     }
 
-    pub fn witness_generator_jobs_status(&self) -> Status {
+    pub fn prover_jobs_status(&self) -> Option<Status> {
         match self.clone() {
             StageInfo::BasicWitnessGenerator {
                 prover_jobs_info, ..
@@ -230,42 +224,38 @@ impl StageInfo {
             }
             | StageInfo::NodeWitnessGenerator {
                 prover_jobs_info, ..
-            }
-            | StageInfo::RecursionTipWitnessGenerator {
-                prover_jobs_info, ..
-            }
-            | StageInfo::SchedulerWitnessGenerator {
-                prover_jobs_info, ..
-            } => Status::from(prover_jobs_info),
-            StageInfo::Compressor(compressoion_job_info) => {
-                Status::from(compressoion_job_info.unwrap().status)
-            }
+            } => Some(Status::from(prover_jobs_info)),
+            StageInfo::RecursionTipWitnessGenerator(_)
+            | StageInfo::SchedulerWitnessGenerator(_)
+            | StageInfo::Compressor(_) => None,
         }
     }
 
-    pub fn prover_jobs_status(&self) -> Option<Status> {
+    pub fn witness_generator_jobs_status(&self) -> Status {
         match self.clone() {
             StageInfo::BasicWitnessGenerator {
                 witness_generator_job_info,
                 ..
-            } => witness_generator_job_info.map(|job| Status::from(job.status)),
+            } => witness_generator_job_info
+                .map(|witness_generator_job_info| Status::from(witness_generator_job_info.status))
+                .unwrap_or_default(),
             StageInfo::LeafWitnessGenerator {
                 witness_generator_jobs_info,
                 ..
-            } => Some(Status::from(witness_generator_jobs_info)),
+            } => Status::from(witness_generator_jobs_info),
             StageInfo::NodeWitnessGenerator {
                 witness_generator_jobs_info,
                 ..
-            } => Some(Status::from(witness_generator_jobs_info)),
-            StageInfo::RecursionTipWitnessGenerator {
-                witness_generator_jobs_info,
-                ..
-            } => Some(Status::from(witness_generator_jobs_info)),
-            StageInfo::SchedulerWitnessGenerator {
-                witness_generator_jobs_info,
-                ..
-            } => Some(Status::from(witness_generator_jobs_info)),
-            StageInfo::Compressor(_) => None,
+            } => Status::from(witness_generator_jobs_info),
+            StageInfo::RecursionTipWitnessGenerator(status) => status
+                .map(|job| Status::from(job.status))
+                .unwrap_or_default(),
+            StageInfo::SchedulerWitnessGenerator(status) => status
+                .map(|job| Status::from(job.status))
+                .unwrap_or_default(),
+            StageInfo::Compressor(status) => status
+                .map(|job| Status::from(job.status))
+                .unwrap_or_default(),
         }
     }
 }

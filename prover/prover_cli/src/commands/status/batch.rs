@@ -9,7 +9,7 @@ use zksync_types::{
     prover_dal::{
         BasicWitnessGeneratorJobInfo, JobCountStatistics, LeafWitnessGeneratorJobInfo,
         NodeWitnessGeneratorJobInfo, ProofCompressionJobInfo, ProverJobFriInfo, ProverJobStatus,
-        SchedulerWitnessGeneratorJobInfo,
+        RecursionTipWitnessGeneratorJobInfo, SchedulerWitnessGeneratorJobInfo, WitnessJobStatus,
     },
     L1BatchNumber,
 };
@@ -98,22 +98,12 @@ async fn get_batches_data(batches: Vec<L1BatchNumber>) -> anyhow::Result<Vec<Bat
                 )
                 .await,
             },
-            recursion_tip_witness_generator: StageInfo::RecursionTipWitnessGenerator {
-                witness_generator_jobs_info: Vec::new(),
-                prover_jobs_info: Vec::new(),
-            },
-            scheduler_witness_generator: StageInfo::SchedulerWitnessGenerator {
-                witness_generator_jobs_info: get_proof_scheduler_witness_generator_info_for_batch(
-                    batch, &mut conn,
-                )
-                .await,
-                prover_jobs_info: get_prover_jobs_info_for_batch(
-                    batch,
-                    AggregationRound::Scheduler,
-                    &mut conn,
-                )
-                .await,
-            },
+            recursion_tip_witness_generator: StageInfo::RecursionTipWitnessGenerator(
+                get_proof_recursion_tip_witness_generator_info_for_batch(batch, &mut conn).await,
+            ),
+            scheduler_witness_generator: StageInfo::SchedulerWitnessGenerator(
+                get_proof_scheduler_witness_generator_info_for_batch(batch, &mut conn).await,
+            ),
             compressor: StageInfo::Compressor(
                 get_proof_compression_job_info_for_batch(batch, &mut conn).await,
             ),
@@ -161,10 +151,19 @@ async fn get_proof_node_witness_generator_info_for_batch<'a>(
         .await
 }
 
+async fn get_proof_recursion_tip_witness_generator_info_for_batch<'a>(
+    _batch_number: L1BatchNumber,
+    _conn: &mut Connection<'a, Prover>,
+) -> Option<RecursionTipWitnessGeneratorJobInfo> {
+    Some(RecursionTipWitnessGeneratorJobInfo {
+        status: WitnessJobStatus::Skipped,
+    })
+}
+
 async fn get_proof_scheduler_witness_generator_info_for_batch<'a>(
     batch_number: L1BatchNumber,
     conn: &mut Connection<'a, Prover>,
-) -> Vec<SchedulerWitnessGeneratorJobInfo> {
+) -> Option<SchedulerWitnessGeneratorJobInfo> {
     conn.fri_witness_generator_dal()
         .get_scheduler_witness_generator_jobs_for_batch(batch_number)
         .await
@@ -189,17 +188,14 @@ fn display_batch_status(batch_data: BatchData) {
     display_status_for_stage(batch_data.node_witness_generator);
     display_status_for_stage(batch_data.recursion_tip_witness_generator);
     display_status_for_stage(batch_data.scheduler_witness_generator);
+    display_status_for_stage(batch_data.compressor);
 }
 
 fn display_status_for_stage(stage_info: StageInfo) {
-    display_aggregation_round(
-        stage_info
-            .aggregation_round()
-            .expect("No aggregation round found."),
-    );
+    display_aggregation_round(&stage_info);
     match stage_info.witness_generator_jobs_status() {
         Status::Custom(msg) => {
-            println!("{}: {}", stage_info.to_string().bold(), msg);
+            println!("{}: {} \n", stage_info.to_string().bold(), msg);
         }
         Status::Queued | Status::WaitingForProofs | Status::Stuck | Status::JobsNotFound => {
             println!(
@@ -210,7 +206,7 @@ fn display_status_for_stage(stage_info: StageInfo) {
         }
         Status::InProgress | Status::Successful => {
             println!(
-                "{}: {}",
+                "{}: {} \n",
                 stage_info.to_string().bold(),
                 stage_info.witness_generator_jobs_status()
             );
@@ -234,17 +230,14 @@ fn display_batch_info(batch_data: BatchData) {
     display_info_for_stage(batch_data.node_witness_generator);
     display_info_for_stage(batch_data.recursion_tip_witness_generator);
     display_info_for_stage(batch_data.scheduler_witness_generator);
+    display_info_for_stage(batch_data.compressor);
 }
 
 fn display_info_for_stage(stage_info: StageInfo) {
-    display_aggregation_round(
-        stage_info
-            .aggregation_round()
-            .expect("No aggregation round found."),
-    );
+    display_aggregation_round(&stage_info);
     match stage_info.witness_generator_jobs_status() {
         Status::Custom(msg) => {
-            println!("{}: {}", stage_info.to_string().bold(), msg);
+            println!("{}: {} \n", stage_info.to_string().bold(), msg);
         }
         Status::Queued | Status::WaitingForProofs | Status::Stuck | Status::JobsNotFound => {
             println!(
@@ -255,18 +248,12 @@ fn display_info_for_stage(stage_info: StageInfo) {
         }
         Status::InProgress => {
             println!(
-                "{}: {}",
+                "{}: {} \n",
                 stage_info.to_string().bold(),
                 stage_info.witness_generator_jobs_status()
             );
             match stage_info {
                 StageInfo::BasicWitnessGenerator {
-                    prover_jobs_info, ..
-                }
-                | StageInfo::RecursionTipWitnessGenerator {
-                    prover_jobs_info, ..
-                }
-                | StageInfo::SchedulerWitnessGenerator {
                     prover_jobs_info, ..
                 } => {
                     display_prover_jobs_info(prover_jobs_info);
@@ -285,12 +272,14 @@ fn display_info_for_stage(stage_info: StageInfo) {
                     display_node_witness_generator_jobs_info(witness_generator_jobs_info);
                     display_prover_jobs_info(prover_jobs_info);
                 }
-                StageInfo::Compressor(_) => todo!(),
+                StageInfo::RecursionTipWitnessGenerator(_)
+                | StageInfo::SchedulerWitnessGenerator(_)
+                | StageInfo::Compressor(_) => (),
             }
         }
         Status::Successful => {
             println!(
-                "{}: {}",
+                "{}: {} \n",
                 stage_info.to_string().bold(),
                 stage_info.witness_generator_jobs_status()
             );
@@ -303,14 +292,10 @@ fn display_info_for_stage(stage_info: StageInfo) {
                 }
                 | StageInfo::NodeWitnessGenerator {
                     prover_jobs_info, ..
-                }
-                | StageInfo::RecursionTipWitnessGenerator {
-                    prover_jobs_info, ..
-                }
-                | StageInfo::SchedulerWitnessGenerator {
-                    prover_jobs_info, ..
                 } => display_prover_jobs_info(prover_jobs_info),
-                StageInfo::Compressor(_) => todo!(),
+                StageInfo::RecursionTipWitnessGenerator(_)
+                | StageInfo::SchedulerWitnessGenerator(_)
+                | StageInfo::Compressor(_) => (),
             }
         }
     }
@@ -386,9 +371,13 @@ fn display_job_status_count(jobs: Vec<ProverJobFriInfo>) {
     println!("     - Failed: {}", jobs_counts.failed);
 }
 
-fn display_aggregation_round(aggregation_round: AggregationRound) {
-    println!(
-        "-- {} --",
-        format!("Aggregation Round {}", aggregation_round as u8).bold()
-    );
+fn display_aggregation_round(stage_info: &StageInfo) {
+    if let Some(aggregation_round) = stage_info.aggregation_round() {
+        println!(
+            "-- {} --",
+            format!("Aggregation Round {}", aggregation_round as u8).bold()
+        );
+    } else {
+        println!("-- {} --", format!("Compresion").bold());
+    };
 }
