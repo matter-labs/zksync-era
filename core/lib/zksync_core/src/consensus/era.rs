@@ -6,22 +6,25 @@
 
 use zksync_concurrency::ctx;
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
-use zksync_dal::{ConnectionPool, Core};
+use zksync_dal::{Core};
 use zksync_web3_decl::client::BoxedL2Client;
+use zksync_types::L2ChainId;
 
-use super::{config, fetcher::Fetcher, storage::Store};
+use super::{fetcher::Fetcher, storage::{ConnectionPool}};
 use crate::sync_layer::{sync_action::ActionQueueSender, SyncState};
 
 /// Runs the consensus task in the main node mode.
 pub async fn run_main_node(
     ctx: &ctx::Ctx,
-    cfg: super::MainNodeConfig,
-    pool: ConnectionPool<Core>,
+    cfg: ConsensusConfig,
+    secrets: ConsensusSecrets,
+    pool: zksync_dal::ConnectionPool<Core>,
+    chain_id: L2ChainId,
 ) -> anyhow::Result<()> {
     // Consensus is a new component.
     // For now in case of error we just log it and allow the server
     // to continue running.
-    if let Err(err) = cfg.run(ctx, Store(pool)).await {
+    if let Err(err) = super::run_main_node(ctx, cfg, secrets, pool, chain_id).await {
         tracing::error!(%err, "Consensus actor failed");
     } else {
         tracing::info!("Consensus actor stopped");
@@ -34,20 +37,20 @@ pub async fn run_main_node(
 pub async fn run_fetcher(
     ctx: &ctx::Ctx,
     cfg: Option<(ConsensusConfig, ConsensusSecrets)>,
-    pool: ConnectionPool<Core>,
+    pool: zksync_dal::ConnectionPool<Core>,
     sync_state: SyncState,
     main_node_client: BoxedL2Client,
     actions: ActionQueueSender,
 ) -> anyhow::Result<()> {
     let fetcher = Fetcher {
-        store: Store(pool),
+        store: ConnectionPool(pool),
         sync_state: sync_state.clone(),
         client: main_node_client,
     };
     let res = match cfg {
         Some((cfg, secrets)) => {
             fetcher
-                .run_p2p(ctx, actions, config::p2p(&cfg, &secrets)?)
+                .run_p2p(ctx, actions, cfg, secrets)
                 .await
         }
         None => fetcher.run_centralized(ctx, actions).await,

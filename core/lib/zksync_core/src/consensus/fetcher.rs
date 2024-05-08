@@ -4,6 +4,7 @@ use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::client::BoxedL2Client;
+use super::{ConsensusConfig,ConsensusSecrets};
 
 use crate::{
     consensus::{storage, Store},
@@ -11,8 +12,6 @@ use crate::{
         fetcher::FetchedBlock, sync_action::ActionQueueSender, MainNodeClient, SyncState,
     },
 };
-
-pub type P2PConfig = executor::Config;
 
 /// L2 block fetcher.
 pub struct Fetcher {
@@ -28,7 +27,8 @@ impl Fetcher {
         self,
         ctx: &ctx::Ctx,
         actions: ActionQueueSender,
-        p2p: P2PConfig,
+        cfg: ConsensusConfig,
+        secrets: ConsensusSecrets,
     ) -> anyhow::Result<()> {
         let res: ctx::Result<()> = scope::run!(ctx, |ctx, s| async {
             // Update sync state in the background.
@@ -75,9 +75,13 @@ impl Fetcher {
                 .wrap("into_block_store()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
             let executor = executor::Executor {
-                config: p2p.clone(),
+                config: cfg.executor(secrets)?,
                 block_store,
-                validator: None,
+                validator: secrets.validator_key.as_ref().map(|key|executor::Validator {
+                    key: key.clone(),
+                    replica_store: Box::new(self.store.clone()),
+                    payload_manager: Box::new(self.store.clone()),
+                }),
             };
             executor.run(ctx).await?;
             Ok(())

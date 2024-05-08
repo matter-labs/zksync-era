@@ -124,12 +124,8 @@ async fn test_validator(from_snapshot: bool) {
             scope::run!(ctx, |ctx, s| async {
                 tracing::info!("Start consensus actor");
                 // In the first iteration it will initialize genesis.
-                let cfg = MainNodeConfig {
-                    executor: executor_config(&cfgs[0]),
-                    validator_key: setup.keys[0].clone(),
-                    chain_id: CHAIN_ID,
-                };
-                s.spawn_bg(cfg.run(ctx, store.clone()));
+                let (cfg,secrets) = testonly::config(&cfgs[0]);
+                s.spawn_bg(run_main_node(ctx, cfg, secrets, store.clone(), CHAIN_ID));
 
                 tracing::info!("Generate couple more blocks and wait for consensus to catch up.");
                 sk.push_random_blocks(rng, 3).await;
@@ -178,12 +174,8 @@ async fn test_nodes_from_various_snapshots() {
         let (mut validator, runner) =
             testonly::StateKeeper::new(ctx, validator_store.clone()).await?;
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("validator")));
-        let cfg = MainNodeConfig {
-            executor: executor_config(&validator_cfg),
-            validator_key: setup.keys[0].clone(),
-            chain_id: CHAIN_ID,
-        };
-        s.spawn_bg(cfg.run(ctx, validator_store.clone()));
+        let (cfg,secrets) = testonly::config(&validator_cfg);
+        s.spawn_bg(run_main_node(ctx, cfg, secrets, validator_store.clone(), CHAIN_ID));
 
         tracing::info!("produce some batches");
         validator.push_random_blocks(rng, 5).await;
@@ -197,8 +189,11 @@ async fn test_nodes_from_various_snapshots() {
         let node_store = Store::from_snapshot(snapshot).await;
         let (node, runner) = testonly::StateKeeper::new(ctx, node_store.clone()).await?;
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("node1")));
-        let node_cfg = executor_config(&new_fullnode(rng, &validator_cfg));
-        s.spawn_bg(node.run_p2p_fetcher(ctx, validator.connect(ctx).await?, node_cfg));
+        let conn = validator.connect(ctx).await?;
+        s.spawn_bg(async {
+            let cfg = new_fullnode(&mut ctx.rng(), &validator_cfg);
+            node.run_p2p_fetcher(ctx, conn, &cfg).await
+        });
 
         tracing::info!("produce more batches");
         validator.push_random_blocks(rng, 5).await;
@@ -212,8 +207,11 @@ async fn test_nodes_from_various_snapshots() {
         let node_store2 = Store::from_snapshot(snapshot).await;
         let (node, runner) = testonly::StateKeeper::new(ctx, node_store2.clone()).await?;
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("node2")));
-        let node_cfg = executor_config(&new_fullnode(rng, &validator_cfg));
-        s.spawn_bg(node.run_p2p_fetcher(ctx, validator.connect(ctx).await?, node_cfg));
+        let conn = validator.connect(ctx).await?; 
+        s.spawn_bg(async {
+            let cfg = new_fullnode(&mut ctx.rng(), &validator_cfg);
+            node.run_p2p_fetcher(ctx, conn, &cfg).await
+        });
 
         tracing::info!("produce more blocks and compare storages");
         validator.push_random_blocks(rng, 5).await;
@@ -283,12 +281,8 @@ async fn test_full_nodes(from_snapshot: bool) {
             .unwrap();
 
         tracing::info!("Run validator.");
-        let cfg = MainNodeConfig {
-            executor: executor_config(&validator_cfgs[0]),
-            validator_key: setup.keys[0].clone(),
-            chain_id: CHAIN_ID,
-        };
-        s.spawn_bg(cfg.run(ctx, validator_store.clone()));
+        let (cfg,secrets) = testonly::config(&validator_cfgs[0]);
+        s.spawn_bg(run_main_node(ctx, cfg, secrets, validator_store.clone(), CHAIN_ID));
 
         tracing::info!("Run nodes.");
         let mut node_stores = vec![];
@@ -308,7 +302,7 @@ async fn test_full_nodes(from_snapshot: bool) {
             s.spawn_bg(node.run_p2p_fetcher(
                 ctx,
                 validator.connect(ctx).await?,
-                executor_config(cfg),
+                cfg,
             ));
         }
 
@@ -342,7 +336,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
     let rng = &mut ctx.rng();
     let setup = Setup::new(rng, 1);
     let validator_cfg = new_configs(rng, &setup, 0)[0].clone();
-    let node_cfg = executor_config(&new_fullnode(rng, &validator_cfg));
+    let node_cfg = new_fullnode(rng, &validator_cfg);
 
     scope::run!(ctx, |ctx, s| async {
         tracing::info!("Spawn validator.");
@@ -350,14 +344,8 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
         let (mut validator, runner) =
             testonly::StateKeeper::new(ctx, validator_store.clone()).await?;
         s.spawn_bg(runner.run(ctx));
-        s.spawn_bg(
-            MainNodeConfig {
-                executor: executor_config(&validator_cfg),
-                validator_key: setup.keys[0].clone(),
-                chain_id: CHAIN_ID,
-            }
-            .run(ctx, validator_store.clone()),
-        );
+        let (cfg,secrets) = testonly::config(&validator_cfg);
+        s.spawn_bg(run_main_node(ctx, cfg, secrets, validator_store.clone(), CHAIN_ID));
         // API server needs at least 1 L1 batch to start.
         validator.seal_batch().await;
         let client = validator.connect(ctx).await?;
@@ -368,7 +356,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
         scope::run!(ctx, |ctx, s| async {
             let (node, runner) = testonly::StateKeeper::new(ctx, node_store.clone()).await?;
             s.spawn_bg(runner.run(ctx));
-            s.spawn_bg(node.run_p2p_fetcher(ctx, client.clone(), node_cfg.clone()));
+            s.spawn_bg(node.run_p2p_fetcher(ctx, client.clone(), &node_cfg));
             validator.push_random_blocks(rng, 3).await;
             node_store
                 .wait_for_certificate(ctx, validator.last_block())
@@ -396,7 +384,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
         scope::run!(ctx, |ctx, s| async {
             let (node, runner) = testonly::StateKeeper::new(ctx, node_store.clone()).await?;
             s.spawn_bg(runner.run(ctx));
-            s.spawn_bg(node.run_p2p_fetcher(ctx, client.clone(), node_cfg.clone()));
+            s.spawn_bg(node.run_p2p_fetcher(ctx, client.clone(), &node_cfg));
             validator.push_random_blocks(rng, 3).await;
             let want = validator_store
                 .wait_for_certificates_and_verify(ctx, validator.last_block())

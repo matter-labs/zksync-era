@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_core::{
-    consensus::{self, MainNodeConfig},
+    consensus,
     sync_layer::{ActionQueueSender, SyncState},
 };
 use zksync_dal::{ConnectionPool, Core};
@@ -56,13 +56,11 @@ impl WiringLayer for ConsensusLayer {
                 let secrets = self.secrets.ok_or_else(|| {
                     WiringError::Configuration("Missing private consensus config".to_string())
                 })?;
-
-                let main_node_config =
-                    consensus::config::main_node(&config, &secrets, self.chain_id)?;
-
                 let task = MainNodeConsensusTask {
-                    config: main_node_config,
+                    config,
+                    secrets,
                     pool,
+                    chain_id: self.chain_id,
                 };
                 context.add_task(Box::new(task));
             }
@@ -110,7 +108,9 @@ impl WiringLayer for ConsensusLayer {
 
 #[derive(Debug)]
 pub struct MainNodeConsensusTask {
-    config: MainNodeConfig,
+    config: ConsensusConfig,
+    secrets: ConsensusSecrets,
+    chain_id: L2ChainId,
     pool: ConnectionPool<Core>,
 }
 
