@@ -43,7 +43,7 @@ use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::{
     connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,
 };
-use zksync_eth_client::{clients::QueryClient, EthInterface};
+use zksync_eth_client::EthInterface;
 use zksync_eth_sender::l1_batch_commit_data_generator::{
     L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
     ValidiumModeL1BatchCommitDataGenerator,
@@ -56,7 +56,7 @@ use zksync_storage::RocksDB;
 use zksync_types::L2ChainId;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_web3_decl::{
-    client::{Client, DynClient, L2},
+    client::{Client, DynClient, L1, L2},
     jsonrpsee,
     namespaces::EnNamespaceClient,
 };
@@ -828,7 +828,10 @@ async fn main() -> anyhow::Result<()> {
     let main_node_client = Box::new(main_node_client) as Box<DynClient<L2>>;
 
     let eth_client_url = &required_config.eth_client_url;
-    let eth_client = Box::new(QueryClient::new(eth_client_url.clone())?);
+    let eth_client = Client::<L1>::http(eth_client_url.clone())
+        .context("failed creating JSON-RPC client for Ethereum")?
+        .build();
+    let eth_client = Box::new(eth_client);
 
     let mut config = ExternalNodeConfig::new(
         required_config,

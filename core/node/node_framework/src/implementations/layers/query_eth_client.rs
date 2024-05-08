@@ -1,6 +1,6 @@
 use anyhow::Context;
-use zksync_eth_client::clients::QueryClient;
 use zksync_types::url::SensitiveUrl;
+use zksync_web3_decl::client::{Client, L1};
 
 use crate::{
     implementations::resources::eth_interface::EthInterfaceResource,
@@ -26,7 +26,9 @@ impl WiringLayer for QueryEthClientLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let query_client = QueryClient::new(self.web3_url.clone()).context("QueryClient::new()")?;
+        let query_client = Client::<L1>::http(self.web3_url.clone())
+            .context("Client::new()")?
+            .build();
         context.insert_resource(EthInterfaceResource(Box::new(query_client)))?;
         Ok(())
     }

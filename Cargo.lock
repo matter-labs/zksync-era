@@ -8498,6 +8498,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_eth_signer",
  "zksync_types",
+ "zksync_web3_decl",
 ]
 
 [[package]]

@@ -3,8 +3,8 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
-use zksync_eth_client::clients::QueryClient;
 use zksync_types::url::SensitiveUrl;
+use zksync_web3_decl::client::{Client, L1};
 
 use super::PubdataPricing;
 use crate::l1_gas_price::GasAdjuster;
@@ -40,8 +40,9 @@ impl GasAdjusterSingleton {
         if let Some(adjuster) = &self.singleton {
             Ok(adjuster.clone())
         } else {
-            let query_client =
-                QueryClient::new(self.web3_url.clone()).context("QueryClient::new()")?;
+            let query_client = Client::<L1>::http(self.web3_url.clone())
+                .context("QueryClient::new()")?
+                .build();
             let adjuster = GasAdjuster::new(
                 Box::new(query_client),
                 self.gas_adjuster_config,

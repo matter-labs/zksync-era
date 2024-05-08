@@ -43,10 +43,7 @@ use zksync_config::{
 use zksync_contracts::governance_contract;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
-use zksync_eth_client::{
-    clients::{PKSigningClient, QueryClient},
-    BoundEthInterface, EthInterface,
-};
+use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface, EthInterface};
 use zksync_eth_sender::{
     l1_batch_commit_data_generator::{
         L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
@@ -80,6 +77,7 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_shared_metrics::{InitStage, APP_METRICS};
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_types::{ethabi::Contract, fee_model::FeeModelConfig, Address, L2ChainId};
+use zksync_web3_decl::client::{Client, L1};
 
 use crate::{
     api_server::{
@@ -302,7 +300,9 @@ pub async fn initialize_components(
         panic!("Circuit breaker triggered: {}", err);
     });
 
-    let query_client = QueryClient::new(eth.web3_url.clone()).context("Ethereum client")?;
+    let query_client = Client::<L1>::http(eth.web3_url.clone())
+        .context("Ethereum client")?
+        .build();
     let query_client = Box::new(query_client);
     let gas_adjuster_config = eth.gas_adjuster.context("gas_adjuster")?;
     let sender = eth.sender.as_ref().context("sender")?;

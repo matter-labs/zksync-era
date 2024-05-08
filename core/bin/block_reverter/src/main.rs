@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
 use zksync_block_reverter::{
     eth_client::{
-        clients::{PKSigningClient, QueryClient},
+        clients::{Client, PKSigningClient, L1},
         EthInterface,
     },
     BlockReverter, BlockReverterEthConfig, NodeRole,
@@ -129,8 +129,9 @@ async fn main() -> anyhow::Result<()> {
             json,
             operator_address,
         } => {
-            let eth_client =
-                QueryClient::new(eth_sender.web3_url.clone()).context("Ethereum client")?;
+            let eth_client = Client::<L1>::http(eth_sender.web3_url.clone())
+                .context("Ethereum client")?
+                .build();
 
             let suggested_values = block_reverter
                 .suggested_values(&eth_client, &config, operator_address)
@@ -146,8 +147,9 @@ async fn main() -> anyhow::Result<()> {
             priority_fee_per_gas,
             nonce,
         } => {
-            let eth_client =
-                QueryClient::new(eth_sender.web3_url.clone()).context("Ethereum client")?;
+            let eth_client = Client::<L1>::http(eth_sender.web3_url.clone())
+                .context("Ethereum client")?
+                .build();
             #[allow(deprecated)]
             let reverter_private_key = eth_sender
                 .sender

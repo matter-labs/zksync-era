@@ -71,6 +71,10 @@ impl<Net: Network> TaggedClient for MockClient<Net> {
         self.component_name = component_name;
         self
     }
+
+    fn component(&self) -> &'static str {
+        self.component_name
+    }
 }
 
 #[async_trait]

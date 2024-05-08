@@ -9,12 +9,7 @@ use jsonrpsee::core::{
 };
 use serde::de::DeserializeOwned;
 
-use super::{ForNetwork, Network};
-
-pub trait TaggedClient: ForNetwork {
-    /// Sets the component operating this client. This is used in logging etc.
-    fn for_component(self, component_name: &'static str) -> Self;
-}
+use super::{ForNetwork, Network, TaggedClient};
 
 #[derive(Debug)]
 pub struct RawParams(Option<Box<JsonRawValue>>);
@@ -44,6 +39,8 @@ pub trait ObjectSafeClient: 'static + Send + Sync + fmt::Debug + ForNetwork {
         component_name: &'static str,
     ) -> Box<dyn ObjectSafeClient<Net = Self::Net>>;
 
+    fn component(&self) -> &'static str;
+
     async fn notification(&self, method: &str, params: RawParams) -> Result<(), Error>;
 
     async fn request(&self, method: &str, params: RawParams) -> Result<serde_json::Value, Error>;
@@ -68,6 +65,10 @@ where
         component_name: &'static str,
     ) -> Box<dyn ObjectSafeClient<Net = <C as ForNetwork>::Net>> {
         Box::new(TaggedClient::for_component(*self, component_name))
+    }
+
+    fn component(&self) -> &'static str {
+        TaggedClient::component(self)
     }
 
     async fn notification(&self, method: &str, params: RawParams) -> Result<(), Error> {
@@ -169,6 +170,16 @@ impl<Net: Network> ClientT for Box<DynClient<Net>> {
         R: DeserializeOwned + fmt::Debug + 'a,
     {
         ClientT::batch_request(&self.as_ref(), batch).await
+    }
+}
+
+impl<Net: Network> TaggedClient for Box<DynClient<Net>> {
+    fn component(&self) -> &'static str {
+        (**self).component()
+    }
+
+    fn for_component(self, component_name: &'static str) -> Self {
+        ObjectSafeClient::for_component(self, component_name)
     }
 }
 

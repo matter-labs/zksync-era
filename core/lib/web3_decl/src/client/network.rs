@@ -28,3 +28,10 @@ impl<T: ?Sized + ForNetwork> ForNetwork for &T {
 impl<T: ?Sized + ForNetwork> ForNetwork for Box<T> {
     type Net = T::Net;
 }
+
+pub trait TaggedClient: ForNetwork {
+    /// Sets the component operating this client. This is used in logging etc.
+    fn for_component(self, component_name: &'static str) -> Self;
+
+    fn component(&self) -> &'static str;
+}
