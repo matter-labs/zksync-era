@@ -55,6 +55,8 @@ jobs:
           ci_run zk
           ci_run zk run yarn
           ci_run zk db setup
+          ci_run zk docker build compilers
+          ci_run zk compiler prepare-compilers-cache
           ci_run zk compiler all
           ci_run zk contract build
 
@@ -101,11 +103,7 @@ jobs:
           ci_run zk
           
           ci_run zk docker build compilers
-          ci_run docker create --name compilers-temp-container matterlabs/compilers:latest
-          ci_run mkdir -p /root/.cache/hardhat-nodejs/compilers-v2
-          ci_run docker cp compilers-temp-container:./.cache/hardhat-nodejs/compilers-v2/ /root/.cache/hardhat-nodejs/
-          ci_run chmod -R +x /root/.cache/hardhat-nodejs/
-          ci_run docker rm compilers-temp-container
+          ci_run zk compiler prepare-compilers-cache
           
           ci_run zk init --local-legacy-bridge-testing
 
@@ -198,13 +196,8 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
-
           ci_run zk docker build compilers
-          ci_run docker create --name compilers-temp-container matterlabs/compilers:latest
-          ci_run mkdir -p /root/.cache/hardhat-nodejs/compilers-v2
-          ci_run docker cp compilers-temp-container:./.cache/hardhat-nodejs/compilers-v2/ /root/.cache/hardhat-nodejs/
-          ci_run chmod -R +x /root/.cache/hardhat-nodejs/
-          ci_run docker rm compilers-temp-container
+          ci_run zk compiler prepare-compilers-cache
           
           if [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
             ci_run zk env dev_validium_docker
@@ -328,11 +321,7 @@ jobs:
           ci_run zk
           
           ci_run zk docker build compilers
-          ci_run docker create --name compilers-temp-container matterlabs/compilers:latest
-          ci_run mkdir -p /root/.cache/hardhat-nodejs/compilers-v2
-          ci_run docker cp compilers-temp-container:./.cache/hardhat-nodejs/compilers-v2/ /root/.cache/hardhat-nodejs/
-          ci_run chmod -R +x /root/.cache/hardhat-nodejs/
-          ci_run docker rm compilers-temp-container
+          ci_run zk compiler prepare-compilers-cache
           
           if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
             ci_run zk config compile
