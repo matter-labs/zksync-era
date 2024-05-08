@@ -73,10 +73,10 @@ const initSetup = async ({
 };
 
 // Sets up the database, deploys the verifier (if set) and runs server genesis
-type InitDatabaseOptions = { skipVerifierDeployment: boolean };
-const initDatabase = async ({ skipVerifierDeployment }: InitDatabaseOptions): Promise<void> => {
-    await announced('Drop postgres db', db.drop({ core: true, prover: true }));
-    await announced('Setup postgres db', db.setup({ core: true, prover: true }));
+type InitDatabaseOptions = { skipVerifierDeployment: boolean; core: boolean; prover: boolean };
+const initDatabase = async ({ skipVerifierDeployment, core, prover }: InitDatabaseOptions): Promise<void> => {
+    await announced('Drop postgres db', db.drop({ core: core, prover: prover }));
+    await announced('Setup postgres db', db.setup({ core: core, prover: prover }));
     await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
     await announced('Clean backups', clean(`backups/${process.env.ZKSYNC_ENV!}`));
 
@@ -156,12 +156,13 @@ export const initDevCmdAction = async ({
     }
     let deploymentMode = validiumMode !== undefined ? contract.DeploymentMode.Validium : contract.DeploymentMode.Rollup;
     await initSetup({ skipEnvSetup, skipSubmodulesCheckout, runObservability, deploymentMode });
-    await initDatabase({ skipVerifierDeployment: false });
+    await initDatabase({ skipVerifierDeployment: false, core: true, prover: true });
     if (!skipTestTokenDeployment) {
         await deployTestTokens(testTokenOptions);
     }
     await initBridgehubStateTransition();
-    await initDatabase({ skipVerifierDeployment: true });
+    //Reinitialize core db
+    await initDatabase({ skipVerifierDeployment: true, core: true, prover: false });
     await initHyperchain({ includePaymaster: true, baseTokenName, localLegacyBridgeTesting, deploymentMode });
 };
 
@@ -180,7 +181,7 @@ const lightweightInitCmdAction = async (): Promise<void> => {
 type InitSharedBridgeCmdActionOptions = InitSetupOptions;
 const initSharedBridgeCmdAction = async (options: InitSharedBridgeCmdActionOptions): Promise<void> => {
     await initSetup(options);
-    await initDatabase({ skipVerifierDeployment: false });
+    await initDatabase({ skipVerifierDeployment: false, core: true, prover: true });
     await initBridgehubStateTransition();
 };
 
@@ -204,7 +205,7 @@ export const initHyperCmdAction = async ({
     if (!skipSetupCompletely) {
         await initSetup({ skipEnvSetup: false, skipSubmodulesCheckout: false, runObservability, deploymentMode });
     }
-    await initDatabase({ skipVerifierDeployment: true });
+    await initDatabase({ skipVerifierDeployment: true, core: true, prover: true });
     await initHyperchain({ includePaymaster: true, baseTokenName, deploymentMode });
 };
 
