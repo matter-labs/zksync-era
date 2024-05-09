@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::clients::QueryClient;
-use zksync_types::{commitment::L1BatchCommitMode, url::SensitiveUrl};
+use zksync_types::{commitment::L1BatchCommitmentMode, url::SensitiveUrl};
 
 use crate::l1_gas_price::GasAdjuster;
 
@@ -16,7 +16,7 @@ pub struct GasAdjusterSingleton {
     gas_adjuster_config: GasAdjusterConfig,
     pubdata_sending_mode: PubdataSendingMode,
     singleton: Option<Arc<GasAdjuster>>,
-    commit_mode: L1BatchCommitMode,
+    commitment_mode: L1BatchCommitmentMode,
 }
 
 impl GasAdjusterSingleton {
@@ -24,14 +24,14 @@ impl GasAdjusterSingleton {
         web3_url: SensitiveUrl,
         gas_adjuster_config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
-        commit_mode: L1BatchCommitMode,
+        commitment_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
             web3_url,
             gas_adjuster_config,
             pubdata_sending_mode,
             singleton: None,
-            commit_mode,
+            commitment_mode,
         }
     }
 
@@ -45,7 +45,7 @@ impl GasAdjusterSingleton {
                 Box::new(query_client),
                 self.gas_adjuster_config,
                 self.pubdata_sending_mode,
-                self.commit_mode,
+                self.commitment_mode,
             )
             .await
             .context("GasAdjuster::new()")?;

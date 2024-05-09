@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{commitment::L1BatchCommitMode, Address, L1ChainId, L2ChainId, H256};
+use zksync_basic_types::{commitment::L1BatchCommitmentMode, Address, L1ChainId, L2ChainId, H256};
 
 /// This config represents the genesis state of the chain.
 /// Each chain has this config immutable and we update it only during the protocol upgrade
@@ -21,7 +21,7 @@ pub struct GenesisConfig {
     pub recursion_scheduler_level_vk_hash: H256,
     pub fee_account: Address,
     pub dummy_verifier: bool,
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitMode,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
 }
 
 impl GenesisConfig {
@@ -41,7 +41,7 @@ impl GenesisConfig {
             protocol_version: Some(22),
             l2_chain_id: L2ChainId::default(),
             dummy_verifier: false,
-            l1_batch_commit_data_generator_mode: L1BatchCommitMode::Rollup,
+            l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
         }
     }
 }

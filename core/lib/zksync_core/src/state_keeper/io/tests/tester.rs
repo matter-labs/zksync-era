@@ -17,7 +17,7 @@ use zksync_node_test_utils::{
 };
 use zksync_types::{
     block::L2BlockHeader,
-    commitment::L1BatchCommitMode,
+    commitment::L1BatchCommitmentMode,
     fee::TransactionExecutionMetrics,
     fee_model::{BatchFeeInput, FeeModelConfig, FeeModelConfigV1},
     l2::L2Tx,
@@ -33,16 +33,16 @@ use crate::state_keeper::{MempoolGuard, MempoolIO};
 pub struct Tester {
     base_system_contracts: BaseSystemContracts,
     current_timestamp: u64,
-    commit_mode: L1BatchCommitMode,
+    commitment_mode: L1BatchCommitmentMode,
 }
 
 impl Tester {
-    pub(super) fn new(commit_mode: L1BatchCommitMode) -> Self {
+    pub(super) fn new(commitment_mode: L1BatchCommitmentMode) -> Self {
         let base_system_contracts = BaseSystemContracts::load_from_disk();
         Self {
             base_system_contracts,
             current_timestamp: 0,
-            commit_mode,
+            commitment_mode,
         }
     }
 
@@ -69,7 +69,7 @@ impl Tester {
             Box::new(eth_client),
             gas_adjuster_config,
             PubdataSendingMode::Calldata,
-            self.commit_mode,
+            self.commitment_mode,
         )
         .await
         .unwrap()

@@ -8,7 +8,7 @@ use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    commitment::{L1BatchCommitMode, L1BatchWithMetadata},
+    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
     helpers::unix_timestamp_ms,
     protocol_version::L1VerifierConfig,
     pubdata_da::PubdataDA,
@@ -37,7 +37,7 @@ pub struct Aggregator {
     /// transactions.
     operate_4844_mode: bool,
     pubdata_da: PubdataDA,
-    commit_mode: L1BatchCommitMode,
+    commitment_mode: L1BatchCommitmentMode,
 }
 
 impl Aggregator {
@@ -45,7 +45,7 @@ impl Aggregator {
         config: SenderConfig,
         blob_store: Arc<dyn ObjectStore>,
         operate_4844_mode: bool,
-        commit_mode: L1BatchCommitMode,
+        commitment_mode: L1BatchCommitmentMode,
     ) -> Self {
         let pubdata_da = config.pubdata_sending_mode.into();
 
@@ -63,7 +63,7 @@ impl Aggregator {
                     op: AggregatedActionType::Commit,
                     data_limit: config.max_eth_tx_data_size,
                     pubdata_da,
-                    commit_mode,
+                    commitment_mode,
                 }),
                 Box::from(TimestampDeadlineCriterion {
                     op: AggregatedActionType::Commit,
@@ -108,7 +108,7 @@ impl Aggregator {
             blob_store,
             operate_4844_mode,
             pubdata_da,
-            commit_mode,
+            commitment_mode,
         }
     }
 
@@ -474,8 +474,8 @@ impl Aggregator {
         self.pubdata_da
     }
 
-    pub fn mode(&self) -> L1BatchCommitMode {
-        self.commit_mode
+    pub fn mode(&self) -> L1BatchCommitmentMode {
+        self.commitment_mode
     }
 }
 

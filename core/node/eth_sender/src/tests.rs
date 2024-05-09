@@ -15,7 +15,9 @@ use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_ar
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
     block::L1BatchHeader,
-    commitment::{L1BatchCommitMode, L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata},
+    commitment::{
+        L1BatchCommitmentMode, L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata,
+    },
     ethabi::Token,
     helpers::unix_timestamp_ms,
     pubdata_da::PubdataDA,
@@ -40,6 +42,11 @@ static DUMMY_OPERATION: Lazy<AggregatedOperation> = Lazy::new(|| {
         }],
     })
 });
+
+const COMMITMENT_MODES: [L1BatchCommitmentMode; 2] = [
+    L1BatchCommitmentMode::Rollup,
+    L1BatchCommitmentMode::Validium,
+];
 
 fn mock_multicall_response() -> Token {
     Token::Array(vec![
@@ -76,7 +83,7 @@ impl EthSenderTester {
         history: Vec<u64>,
         non_ordering_confirmations: bool,
         aggregator_operate_4844_mode: bool,
-        commit_mode: L1BatchCommitMode,
+        commitment_mode: L1BatchCommitmentMode,
     ) -> Self {
         let eth_sender_config = EthConfig::for_tests();
         let contracts_config = ContractsConfig::for_tests();
@@ -110,7 +117,7 @@ impl EthSenderTester {
                     ..eth_sender_config.gas_adjuster.unwrap()
                 },
                 PubdataSendingMode::Calldata,
-                commit_mode,
+                commitment_mode,
             )
             .await
             .unwrap(),
@@ -130,7 +137,7 @@ impl EthSenderTester {
                 aggregator_config.clone(),
                 store_factory.create_store().await,
                 aggregator_operate_4844_mode,
-                commit_mode,
+                commitment_mode,
             ),
             gateway.clone(),
             // zkSync contract address
@@ -205,11 +212,11 @@ fn default_l1_batch_metadata() -> L1BatchMetadata {
 }
 
 // Tests that we send multiple transactions and confirm them all in one iteration.
-#[test_casing(4, Product(([false, true], [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])))]
+#[test_casing(4, Product(([false, true], COMMITMENT_MODES)))]
 #[tokio::test]
 async fn confirm_many(
     aggregator_operate_4844_mode: bool,
-    commit_mode: L1BatchCommitMode,
+    commitment_mode: L1BatchCommitmentMode,
 ) -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     let mut tester = EthSenderTester::new(
@@ -217,7 +224,7 @@ async fn confirm_many(
         vec![10; 100],
         false,
         aggregator_operate_4844_mode,
-        commit_mode,
+        commitment_mode,
     )
     .await;
 
@@ -292,15 +299,15 @@ async fn confirm_many(
 }
 
 // Tests that we resend first un-mined transaction every block with an increased gas price.
-#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
+#[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
-async fn resend_each_block(commit_mode: L1BatchCommitMode) -> anyhow::Result<()> {
+async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Result<()> {
     let mut tester = EthSenderTester::new(
         ConnectionPool::<Core>::test_pool().await,
         vec![7, 6, 5, 5, 5, 2, 1],
         false,
         false,
-        commit_mode,
+        commitment_mode,
     )
     .await;
 
@@ -402,15 +409,15 @@ async fn resend_each_block(commit_mode: L1BatchCommitMode) -> anyhow::Result<()>
 
 // Tests that if transaction was mined, but not enough blocks has been mined since,
 // we won't mark it as confirmed but also won't resend it.
-#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
+#[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
-async fn dont_resend_already_mined(commit_mode: L1BatchCommitMode) -> anyhow::Result<()> {
+async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> anyhow::Result<()> {
     let mut tester = EthSenderTester::new(
         ConnectionPool::<Core>::test_pool().await,
         vec![100; 100],
         false,
         false,
-        commit_mode,
+        commitment_mode,
     )
     .await;
 
@@ -481,15 +488,15 @@ async fn dont_resend_already_mined(commit_mode: L1BatchCommitMode) -> anyhow::Re
     Ok(())
 }
 
-#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
+#[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
-async fn three_scenarios(commit_mode: L1BatchCommitMode) -> anyhow::Result<()> {
+async fn three_scenarios(commitment_mode: L1BatchCommitmentMode) -> anyhow::Result<()> {
     let mut tester = EthSenderTester::new(
         ConnectionPool::<Core>::test_pool().await,
         vec![100; 100],
         false,
         false,
-        commit_mode,
+        commitment_mode,
     )
     .await;
 
@@ -561,15 +568,15 @@ async fn three_scenarios(commit_mode: L1BatchCommitMode) -> anyhow::Result<()> {
 }
 
 #[should_panic(expected = "We can't operate after tx fail")]
-#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
+#[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
-async fn failed_eth_tx(commit_mode: L1BatchCommitMode) {
+async fn failed_eth_tx(commitment_mode: L1BatchCommitmentMode) {
     let mut tester = EthSenderTester::new(
         ConnectionPool::<Core>::test_pool().await,
         vec![100; 100],
         false,
         false,
-        commit_mode,
+        commitment_mode,
     )
     .await;
 
@@ -608,15 +615,17 @@ async fn failed_eth_tx(commit_mode: L1BatchCommitMode) {
         .unwrap();
 }
 
-#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
+#[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
-async fn correct_order_for_confirmations(commit_mode: L1BatchCommitMode) -> anyhow::Result<()> {
+async fn correct_order_for_confirmations(
+    commitment_mode: L1BatchCommitmentMode,
+) -> anyhow::Result<()> {
     let mut tester = EthSenderTester::new(
         ConnectionPool::<Core>::test_pool().await,
         vec![100; 100],
         true,
         false,
-        commit_mode,
+        commitment_mode,
     )
     .await;
 
@@ -677,15 +686,17 @@ async fn correct_order_for_confirmations(commit_mode: L1BatchCommitMode) -> anyh
     Ok(())
 }
 
-#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
+#[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
-async fn skipped_l1_batch_at_the_start(commit_mode: L1BatchCommitMode) -> anyhow::Result<()> {
+async fn skipped_l1_batch_at_the_start(
+    commitment_mode: L1BatchCommitmentMode,
+) -> anyhow::Result<()> {
     let mut tester = EthSenderTester::new(
         ConnectionPool::<Core>::test_pool().await,
         vec![100; 100],
         true,
         false,
-        commit_mode,
+        commitment_mode,
     )
     .await;
 
@@ -778,15 +789,17 @@ async fn skipped_l1_batch_at_the_start(commit_mode: L1BatchCommitMode) -> anyhow
     Ok(())
 }
 
-#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
+#[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
-async fn skipped_l1_batch_in_the_middle(commit_mode: L1BatchCommitMode) -> anyhow::Result<()> {
+async fn skipped_l1_batch_in_the_middle(
+    commitment_mode: L1BatchCommitmentMode,
+) -> anyhow::Result<()> {
     let mut tester = EthSenderTester::new(
         ConnectionPool::<Core>::test_pool().await,
         vec![100; 100],
         true,
         false,
-        commit_mode,
+        commitment_mode,
     )
     .await;
 
@@ -873,15 +886,15 @@ async fn skipped_l1_batch_in_the_middle(commit_mode: L1BatchCommitMode) -> anyho
     Ok(())
 }
 
-#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
+#[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
-async fn test_parse_multicall_data(commit_mode: L1BatchCommitMode) {
+async fn test_parse_multicall_data(commitment_mode: L1BatchCommitmentMode) {
     let tester = EthSenderTester::new(
         ConnectionPool::<Core>::test_pool().await,
         vec![100; 100],
         false,
         false,
-        commit_mode,
+        commitment_mode,
     )
     .await;
 
@@ -945,15 +958,15 @@ async fn test_parse_multicall_data(commit_mode: L1BatchCommitMode) {
     }
 }
 
-#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
+#[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
-async fn get_multicall_data(commit_mode: L1BatchCommitMode) {
+async fn get_multicall_data(commitment_mode: L1BatchCommitmentMode) {
     let mut tester = EthSenderTester::new(
         ConnectionPool::<Core>::test_pool().await,
         vec![100; 100],
         false,
         false,
-        commit_mode,
+        commitment_mode,
     )
     .await;
     let multicall_data = tester.aggregator.get_multicall_data().await;

@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use test_casing::test_casing;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::clients::MockEthereum;
-use zksync_types::commitment::L1BatchCommitMode;
+use zksync_types::commitment::L1BatchCommitmentMode;
 
 use super::{GasAdjuster, GasStatisticsInner};
 
@@ -29,9 +29,9 @@ fn samples_queue() {
 }
 
 /// Check that we properly fetch base fees as block are mined
-#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
+#[test_casing(2, [L1BatchCommitmentMode::Rollup, L1BatchCommitmentMode::Validium])]
 #[tokio::test]
-async fn kept_updated(commit_mode: L1BatchCommitMode) {
+async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
     let eth_client = Box::new(
         MockEthereum::default()
             .with_fee_history(vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9])
@@ -65,7 +65,7 @@ async fn kept_updated(commit_mode: L1BatchCommitMode) {
             max_blob_base_fee: None,
         },
         PubdataSendingMode::Calldata,
-        commit_mode,
+        commitment_mode,
     )
     .await
     .unwrap();

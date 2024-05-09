@@ -2,7 +2,7 @@ use std::{str::FromStr, time::Duration};
 
 use serde::Deserialize;
 use zksync_basic_types::{
-    commitment::L1BatchCommitMode, network::Network, Address, L2ChainId, H256,
+    commitment::L1BatchCommitmentMode, network::Network, Address, L2ChainId, H256,
 };
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -128,7 +128,7 @@ pub struct StateKeeperConfig {
     pub default_aa_hash: Option<H256>,
     #[deprecated(note = "Use GenesisConfig::l1_batch_commit_data_generator_mode instead")]
     #[serde(default)]
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitMode,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
 }
 
 impl StateKeeperConfig {
@@ -165,7 +165,7 @@ impl StateKeeperConfig {
             max_circuits_per_batch: 24100,
             bootloader_hash: None,
             default_aa_hash: None,
-            l1_batch_commit_data_generator_mode: L1BatchCommitMode::Rollup,
+            l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
         }
     }
 }

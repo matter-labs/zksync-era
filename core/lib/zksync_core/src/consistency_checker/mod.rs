@@ -13,7 +13,7 @@ use zksync_l1_contract_interface::{
 };
 use zksync_shared_metrics::{CheckerComponent, EN_METRICS};
 use zksync_types::{
-    commitment::{L1BatchCommitMode, L1BatchWithMetadata},
+    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
     ethabi,
     ethabi::Token,
     pubdata_da::PubdataDA,
@@ -140,7 +140,7 @@ enum L1DataMismatchBehavior {
 struct LocalL1BatchCommitData {
     l1_batch: L1BatchWithMetadata,
     commit_tx_hash: H256,
-    commit_mode: L1BatchCommitMode,
+    commitment_mode: L1BatchCommitmentMode,
 }
 
 impl LocalL1BatchCommitData {
@@ -149,7 +149,7 @@ impl LocalL1BatchCommitData {
     async fn new(
         storage: &mut Connection<'_, Core>,
         batch_number: L1BatchNumber,
-        commit_mode: L1BatchCommitMode,
+        commitment_mode: L1BatchCommitmentMode,
     ) -> anyhow::Result<Option<Self>> {
         let Some(storage_l1_batch) = storage
             .blocks_dal()
@@ -181,7 +181,7 @@ impl LocalL1BatchCommitData {
         let this = Self {
             l1_batch,
             commit_tx_hash,
-            commit_mode,
+            commitment_mode,
         };
         let metadata = &this.l1_batch.metadata;
 
@@ -238,7 +238,8 @@ impl LocalL1BatchCommitData {
             );
         }
 
-        let local_token = CommitBatchInfo::new(self.commit_mode, &self.l1_batch, da).into_token();
+        let local_token =
+            CommitBatchInfo::new(self.commitment_mode, &self.l1_batch, da).into_token();
         anyhow::ensure!(
             local_token == *reference,
             "Locally reproduced commitment differs from the reference obtained from L1; \
@@ -313,7 +314,7 @@ pub struct ConsistencyChecker {
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool<Core>,
     health_check: ReactiveHealthCheck,
-    commit_mode: L1BatchCommitMode,
+    commitment_mode: L1BatchCommitmentMode,
 }
 
 impl ConsistencyChecker {
@@ -323,7 +324,7 @@ impl ConsistencyChecker {
         l1_client: Box<dyn EthInterface>,
         max_batches_to_recheck: u32,
         pool: ConnectionPool<Core>,
-        commit_mode: L1BatchCommitMode,
+        commitment_mode: L1BatchCommitmentMode,
     ) -> anyhow::Result<Self> {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         Ok(Self {
@@ -336,7 +337,7 @@ impl ConsistencyChecker {
             l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
             health_check,
-            commit_mode,
+            commitment_mode,
         })
     }
 
@@ -591,7 +592,8 @@ impl ConsistencyChecker {
             // OR the batch might be processed by the external node's tree but not yet committed.
             // We need both.
             let local =
-                LocalL1BatchCommitData::new(&mut storage, batch_number, self.commit_mode).await?;
+                LocalL1BatchCommitData::new(&mut storage, batch_number, self.commitment_mode)
+                    .await?;
             let Some(local) = local else {
                 if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
                     .await

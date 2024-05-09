@@ -32,7 +32,7 @@ use zksync_core::{
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue, SyncState,
     },
-    utils::L1BatchCommitModeValidationTask,
+    utils::L1BatchCommitmentModeValidationTask,
 };
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::{
@@ -332,8 +332,8 @@ async fn run_core(
     };
 
     // Run validation asynchronously: the node starting shouldn't depend on Ethereum client availability,
-    // and the impact of a failed async check is reasonably low (the commit mode is only used in consistency checker).
-    let validation_task = L1BatchCommitModeValidationTask::new(
+    // and the impact of a failed async check is reasonably low (the commitment mode is only used in consistency checker).
+    let validation_task = L1BatchCommitmentModeValidationTask::new(
         diamond_proxy_addr,
         config.optional.l1_batch_commit_data_generator_mode,
         eth_client.clone(),

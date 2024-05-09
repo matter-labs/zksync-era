@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use rand::{distributions::Distribution, Rng};
 use zksync_basic_types::{
-    basic_fri_types::CircuitIdRoundTuple, commitment::L1BatchCommitMode, network::Network,
+    basic_fri_types::CircuitIdRoundTuple, commitment::L1BatchCommitmentMode, network::Network,
     L1ChainId, L2ChainId,
 };
 use zksync_consensus_utils::EncodeDist;
@@ -680,8 +680,8 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             recursion_circuits_set_vks_hash: rng.gen(),
             dummy_verifier: rng.gen(),
             l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
-                0 => L1BatchCommitMode::Rollup,
-                _ => L1BatchCommitMode::Validium,
+                0 => L1BatchCommitmentMode::Rollup,
+                _ => L1BatchCommitmentMode::Validium,
             },
         }
     }

@@ -36,7 +36,7 @@ impl FromEnv for MempoolConfig {
 
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::{commitment::L1BatchCommitMode, L2ChainId};
+    use zksync_basic_types::{commitment::L1BatchCommitmentMode, L2ChainId};
     use zksync_config::configs::chain::FeeModelVersion;
 
     use super::*;
@@ -70,7 +70,7 @@ mod tests {
 
     #[allow(deprecated)]
     fn expected_state_keeper_config(
-        l1_batch_commit_data_generator_mode: L1BatchCommitMode,
+        l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     ) -> StateKeeperConfig {
         StateKeeperConfig {
             transaction_slots: 50,
@@ -152,11 +152,11 @@ mod tests {
     fn state_keeper_from_env() {
         _state_keeper_from_env(
             &state_keeper_config(ROLLUP_L1_BATCH_COMMIT_DATA_GENERATOR_MODE),
-            expected_state_keeper_config(L1BatchCommitMode::Rollup),
+            expected_state_keeper_config(L1BatchCommitmentMode::Rollup),
         );
         _state_keeper_from_env(
             &state_keeper_config(VALIDIUM_L1_BATCH_COMMIT_DATA_GENERATOR_MODE),
-            expected_state_keeper_config(L1BatchCommitMode::Validium),
+            expected_state_keeper_config(L1BatchCommitmentMode::Validium),
         );
     }
 
@@ -217,7 +217,7 @@ mod tests {
     fn default_state_keeper_mode() {
         assert_eq!(
             StateKeeperConfig::default().l1_batch_commit_data_generator_mode,
-            L1BatchCommitMode::Rollup
+            L1BatchCommitmentMode::Rollup
         );
     }
 }

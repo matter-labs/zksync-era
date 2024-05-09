@@ -33,6 +33,10 @@ const PRE_BOOJUM_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Versio
 const DIAMOND_PROXY_ADDR: Address = Address::repeat_byte(1);
 const VALIDATOR_TIMELOCK_ADDR: Address = Address::repeat_byte(23);
 const CHAIN_ID: u32 = 270;
+const COMMITMENT_MODES: [L1BatchCommitmentMode; 2] = [
+    L1BatchCommitmentMode::Rollup,
+    L1BatchCommitmentMode::Validium,
+];
 
 pub(crate) fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
     let mut l1_batch = L1BatchWithMetadata {
@@ -48,7 +52,7 @@ pub(crate) fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWi
 
 pub(crate) fn build_commit_tx_input_data(
     batches: &[L1BatchWithMetadata],
-    mode: L1BatchCommitMode,
+    mode: L1BatchCommitmentMode,
 ) -> Vec<u8> {
     let protocol_version = batches[0].header.protocol_version.unwrap();
     let contract = zksync_contracts::hyperchain_contract();
@@ -89,7 +93,7 @@ pub(crate) fn build_commit_tx_input_data(
 pub(crate) fn create_mock_checker(
     client: MockEthereum,
     pool: ConnectionPool<Core>,
-    commit_mode: L1BatchCommitMode,
+    commitment_mode: L1BatchCommitmentMode,
 ) -> ConsistencyChecker {
     let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
     ConsistencyChecker {
@@ -101,7 +105,7 @@ pub(crate) fn create_mock_checker(
         event_handler: Box::new(health_updater),
         l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
         pool,
-        commit_mode,
+        commitment_mode,
         health_check,
     }
 }
@@ -138,9 +142,9 @@ impl HandleConsistencyCheckerEvent for mpsc::UnboundedSender<L1BatchNumber> {
     }
 }
 
-#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
+#[test_casing(2, COMMITMENT_MODES)]
 #[test]
-fn build_commit_tx_input_data_is_correct(commit_mode: L1BatchCommitMode) {
+fn build_commit_tx_input_data_is_correct(commitment_mode: L1BatchCommitmentMode) {
     let contract = zksync_contracts::hyperchain_contract();
     let commit_function = contract.function("commitBatchesSharedBridge").unwrap();
     let batches = vec![
@@ -148,7 +152,7 @@ fn build_commit_tx_input_data_is_correct(commit_mode: L1BatchCommitMode) {
         create_l1_batch_with_metadata(2),
     ];
 
-    let commit_tx_input_data = build_commit_tx_input_data(&batches, commit_mode);
+    let commit_tx_input_data = build_commit_tx_input_data(&batches, commitment_mode);
 
     for batch in &batches {
         let commit_data = ConsistencyChecker::extract_commit_data(
@@ -159,7 +163,7 @@ fn build_commit_tx_input_data_is_correct(commit_mode: L1BatchCommitMode) {
         .unwrap();
         assert_eq!(
             commit_data,
-            CommitBatchInfo::new(commit_mode, batch, PubdataDA::Calldata).into_token(),
+            CommitBatchInfo::new(commitment_mode, batch, PubdataDA::Calldata).into_token(),
         );
     }
 }
@@ -378,12 +382,12 @@ fn l1_batch_commit_log(l1_batch: &L1BatchWithMetadata) -> Log {
     }
 }
 
-#[test_casing(24, Product(([10, 3, 1], SAVE_ACTION_MAPPERS, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])))]
+#[test_casing(24, Product(([10, 3, 1], SAVE_ACTION_MAPPERS, COMMITMENT_MODES)))]
 #[tokio::test]
 async fn normal_checker_function(
     batches_per_transaction: usize,
     (mapper_name, save_actions_mapper): (&'static str, SaveActionMapper),
-    commit_mode: L1BatchCommitMode,
+    commitment_mode: L1BatchCommitmentMode,
 ) {
     println!("Using save_actions_mapper={mapper_name}");
 
@@ -398,7 +402,7 @@ async fn normal_checker_function(
     let client = create_mock_ethereum();
 
     for (i, l1_batches) in l1_batches.chunks(batches_per_transaction).enumerate() {
-        let input_data = build_commit_tx_input_data(l1_batches, commit_mode);
+        let input_data = build_commit_tx_input_data(l1_batches, commitment_mode);
         let signed_tx = client.sign_prepared_tx(
             input_data.clone(),
             VALIDATOR_TIMELOCK_ADDR,
@@ -423,7 +427,7 @@ async fn normal_checker_function(
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         event_handler: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone(), commit_mode)
+        ..create_mock_checker(client, pool.clone(), commitment_mode)
     };
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -450,11 +454,11 @@ async fn normal_checker_function(
     checker_task.await.unwrap().unwrap();
 }
 
-#[test_casing(8, Product((SAVE_ACTION_MAPPERS, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])))]
+#[test_casing(8, Product((SAVE_ACTION_MAPPERS, COMMITMENT_MODES)))]
 #[tokio::test]
 async fn checker_processes_pre_boojum_batches(
     (mapper_name, save_actions_mapper): (&'static str, SaveActionMapper),
-    commit_mode: L1BatchCommitMode,
+    commitment_mode: L1BatchCommitmentMode,
 ) {
     println!("Using save_actions_mapper={mapper_name}");
 
@@ -482,7 +486,7 @@ async fn checker_processes_pre_boojum_batches(
     let client = create_mock_ethereum();
 
     for (i, l1_batch) in l1_batches.iter().enumerate() {
-        let input_data = build_commit_tx_input_data(slice::from_ref(l1_batch), commit_mode);
+        let input_data = build_commit_tx_input_data(slice::from_ref(l1_batch), commitment_mode);
         let signed_tx = client.sign_prepared_tx(
             input_data.clone(),
             VALIDATOR_TIMELOCK_ADDR,
@@ -503,7 +507,7 @@ async fn checker_processes_pre_boojum_batches(
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         event_handler: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone(), commit_mode)
+        ..create_mock_checker(client, pool.clone(), commitment_mode)
     };
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -530,11 +534,11 @@ async fn checker_processes_pre_boojum_batches(
     checker_task.await.unwrap().unwrap();
 }
 
-#[test_casing(4, Product(([false, true], [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])))]
+#[test_casing(4, Product(([false, true], COMMITMENT_MODES)))]
 #[tokio::test]
 async fn checker_functions_after_snapshot_recovery(
     delay_batch_insertion: bool,
-    commit_mode: L1BatchCommitMode,
+    commitment_mode: L1BatchCommitmentMode,
 ) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
@@ -546,7 +550,8 @@ async fn checker_functions_after_snapshot_recovery(
 
     let l1_batch = create_l1_batch_with_metadata(99);
 
-    let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch), commit_mode);
+    let commit_tx_input_data =
+        build_commit_tx_input_data(slice::from_ref(&l1_batch), commitment_mode);
     let client = create_mock_ethereum();
     let signed_tx = client.sign_prepared_tx(
         commit_tx_input_data.clone(),
@@ -581,7 +586,7 @@ async fn checker_functions_after_snapshot_recovery(
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         event_handler: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone(), commit_mode)
+        ..create_mock_checker(client, pool.clone(), commitment_mode)
     };
     let (stop_sender, stop_receiver) = watch::channel(false);
     let checker_task = tokio::spawn(checker.run(stop_receiver));
@@ -639,7 +644,7 @@ impl IncorrectDataKind {
         self,
         client: &MockEthereum,
         l1_batch: &L1BatchWithMetadata,
-        commit_mode: L1BatchCommitMode,
+        commitment_mode: L1BatchCommitmentMode,
     ) -> H256 {
         let mut log_origin = Some(DIAMOND_PROXY_ADDR);
         let (commit_tx_input_data, successful_status) = match self {
@@ -648,30 +653,30 @@ impl IncorrectDataKind {
             }
             Self::MismatchedStatus => {
                 let commit_tx_input_data =
-                    build_commit_tx_input_data(slice::from_ref(l1_batch), commit_mode);
+                    build_commit_tx_input_data(slice::from_ref(l1_batch), commitment_mode);
                 (commit_tx_input_data, false)
             }
             Self::NoCommitLog => {
                 log_origin = None;
                 let commit_tx_input_data =
-                    build_commit_tx_input_data(slice::from_ref(l1_batch), commit_mode);
+                    build_commit_tx_input_data(slice::from_ref(l1_batch), commitment_mode);
                 (commit_tx_input_data, true)
             }
             Self::BogusCommitLogOrigin => {
                 log_origin = Some(VALIDATOR_TIMELOCK_ADDR);
                 let commit_tx_input_data =
-                    build_commit_tx_input_data(slice::from_ref(l1_batch), commit_mode);
+                    build_commit_tx_input_data(slice::from_ref(l1_batch), commitment_mode);
                 (commit_tx_input_data, true)
             }
             Self::BogusSoliditySelector => {
                 let mut commit_tx_input_data =
-                    build_commit_tx_input_data(slice::from_ref(l1_batch), commit_mode);
+                    build_commit_tx_input_data(slice::from_ref(l1_batch), commitment_mode);
                 commit_tx_input_data[..4].copy_from_slice(b"test");
                 (commit_tx_input_data, true)
             }
             Self::BogusCommitDataFormat => {
                 let commit_tx_input_data =
-                    build_commit_tx_input_data(slice::from_ref(l1_batch), commit_mode);
+                    build_commit_tx_input_data(slice::from_ref(l1_batch), commitment_mode);
                 let mut bogus_tx_input_data = commit_tx_input_data[..4].to_vec(); // Preserve the function selector
                 bogus_tx_input_data
                     .extend_from_slice(&ethabi::encode(&[ethabi::Token::Bool(true)]));
@@ -681,20 +686,20 @@ impl IncorrectDataKind {
                 let mut l1_batch = create_l1_batch_with_metadata(1);
                 l1_batch.header.timestamp += 1;
                 let bogus_tx_input_data =
-                    build_commit_tx_input_data(slice::from_ref(&l1_batch), commit_mode);
+                    build_commit_tx_input_data(slice::from_ref(&l1_batch), commitment_mode);
                 (bogus_tx_input_data, true)
             }
             Self::CommitDataForAnotherBatch => {
                 let l1_batch = create_l1_batch_with_metadata(100);
                 let bogus_tx_input_data =
-                    build_commit_tx_input_data(slice::from_ref(&l1_batch), commit_mode);
+                    build_commit_tx_input_data(slice::from_ref(&l1_batch), commitment_mode);
                 (bogus_tx_input_data, true)
             }
             Self::CommitDataForPreBoojum => {
                 let mut l1_batch = create_l1_batch_with_metadata(1);
                 l1_batch.header.protocol_version = Some(ProtocolVersionId::Version0);
                 let bogus_tx_input_data =
-                    build_commit_tx_input_data(slice::from_ref(&l1_batch), commit_mode);
+                    build_commit_tx_input_data(slice::from_ref(&l1_batch), commitment_mode);
                 (bogus_tx_input_data, true)
             }
         };
@@ -724,13 +729,13 @@ impl IncorrectDataKind {
     }
 }
 
-#[test_casing(18, Product((IncorrectDataKind::ALL, [false], [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])))]
+#[test_casing(18, Product((IncorrectDataKind::ALL, [false], COMMITMENT_MODES)))]
 // ^ `snapshot_recovery = true` is tested below; we don't want to run it with all incorrect data kinds
 #[tokio::test]
 async fn checker_detects_incorrect_tx_data(
     kind: IncorrectDataKind,
     snapshot_recovery: bool,
-    commit_mode: L1BatchCommitMode,
+    commitment_mode: L1BatchCommitmentMode,
 ) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
@@ -748,7 +753,7 @@ async fn checker_detects_incorrect_tx_data(
 
     let l1_batch = create_l1_batch_with_metadata(if snapshot_recovery { 99 } else { 1 });
     let client = create_mock_ethereum();
-    let commit_tx_hash = kind.apply(&client, &l1_batch, commit_mode).await;
+    let commit_tx_hash = kind.apply(&client, &l1_batch, commitment_mode).await;
     let commit_tx_hash_by_l1_batch = HashMap::from([(l1_batch.header.number, commit_tx_hash)]);
 
     let save_actions = [
@@ -763,7 +768,7 @@ async fn checker_detects_incorrect_tx_data(
     }
     drop(storage);
 
-    let checker = create_mock_checker(client, pool, commit_mode);
+    let checker = create_mock_checker(client, pool, commitment_mode);
     let (_stop_sender, stop_receiver) = watch::channel(false);
     // The checker must stop with an error.
     tokio::time::timeout(Duration::from_secs(30), checker.run(stop_receiver))
@@ -772,13 +777,15 @@ async fn checker_detects_incorrect_tx_data(
         .unwrap_err();
 }
 
-#[test_casing(2, [L1BatchCommitMode::Rollup, L1BatchCommitMode::Validium])]
+#[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
-async fn checker_detects_incorrect_tx_data_after_snapshot_recovery(commit_mode: L1BatchCommitMode) {
+async fn checker_detects_incorrect_tx_data_after_snapshot_recovery(
+    commitment_mode: L1BatchCommitmentMode,
+) {
     checker_detects_incorrect_tx_data(
         IncorrectDataKind::CommitDataForAnotherBatch,
         true,
-        commit_mode,
+        commitment_mode,
     )
     .await;
 }

@@ -6,7 +6,7 @@ use zksync_dal::{Connection, Core, CoreDal};
 use zksync_l1_contract_interface::{i_executor::structures::CommitBatchInfo, Tokenizable};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    commitment::{L1BatchCommitMode, L1BatchWithMetadata},
+    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
     ethabi,
     pubdata_da::PubdataDA,
     L1BatchNumber,
@@ -202,7 +202,7 @@ pub struct DataSizeCriterion {
     pub op: AggregatedActionType,
     pub data_limit: usize,
     pub pubdata_da: PubdataDA,
-    pub commit_mode: L1BatchCommitMode,
+    pub commitment_mode: L1BatchCommitmentMode,
 }
 
 #[async_trait]
@@ -223,7 +223,7 @@ impl L1BatchPublishCriterion for DataSizeCriterion {
         for (index, l1_batch) in consecutive_l1_batches.iter().enumerate() {
             // TODO (PLA-771): Make sure that this estimation is correct.
             let commit_token =
-                CommitBatchInfo::new(self.commit_mode, l1_batch, self.pubdata_da).into_token();
+                CommitBatchInfo::new(self.commitment_mode, l1_batch, self.pubdata_da).into_token();
             let l1_commit_data_size = ethabi::encode(&[commit_token]).len();
 
             if data_size_left < l1_commit_data_size {

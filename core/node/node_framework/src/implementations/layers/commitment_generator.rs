@@ -1,5 +1,5 @@
 use zksync_commitment_generator::CommitmentGenerator;
-use zksync_types::commitment::L1BatchCommitMode;
+use zksync_types::commitment::L1BatchCommitmentMode;
 
 use crate::{
     implementations::resources::{
@@ -13,11 +13,11 @@ use crate::{
 
 #[derive(Debug)]
 pub struct CommitmentGeneratorLayer {
-    mode: L1BatchCommitMode,
+    mode: L1BatchCommitmentMode,
 }
 
 impl CommitmentGeneratorLayer {
-    pub fn new(mode: L1BatchCommitMode) -> Self {
+    pub fn new(mode: L1BatchCommitmentMode) -> Self {
         Self { mode }
     }
 }

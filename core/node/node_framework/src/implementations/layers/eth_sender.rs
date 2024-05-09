@@ -3,7 +3,7 @@ use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::{chain::NetworkConfig, eth_sender::EthConfig, ContractsConfig};
 use zksync_eth_client::BoundEthInterface;
 use zksync_eth_sender::{Aggregator, EthTxAggregator, EthTxManager};
-use zksync_types::commitment::L1BatchCommitMode;
+use zksync_types::commitment::L1BatchCommitmentMode;
 
 use crate::{
     implementations::resources::{
@@ -23,7 +23,7 @@ pub struct EthSenderLayer {
     eth_sender_config: EthConfig,
     contracts_config: ContractsConfig,
     network_config: NetworkConfig,
-    l1_batch_commit_data_generator_mode: L1BatchCommitMode,
+    l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
 }
 
 impl EthSenderLayer {
@@ -31,7 +31,7 @@ impl EthSenderLayer {
         eth_sender_config: EthConfig,
         contracts_config: ContractsConfig,
         network_config: NetworkConfig,
-        l1_batch_commit_data_generator_mode: L1BatchCommitMode,
+        l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
             eth_sender_config,

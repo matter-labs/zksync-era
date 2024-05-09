@@ -10,8 +10,8 @@ use zksync_l1_contract_interface::i_executor::commit::kzg::pubdata_to_blob_commi
 use zksync_types::{
     blob::num_blobs_required,
     commitment::{
-        AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchCommitMode,
-        L1BatchCommitment,
+        AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchCommitment,
+        L1BatchCommitmentMode,
     },
     event::convert_vm_events_to_log_queries,
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
@@ -33,15 +33,18 @@ const SLEEP_INTERVAL: Duration = Duration::from_millis(100);
 pub struct CommitmentGenerator {
     connection_pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
-    commit_mode: L1BatchCommitMode,
+    commitment_mode: L1BatchCommitmentMode,
 }
 
 impl CommitmentGenerator {
-    pub fn new(connection_pool: ConnectionPool<Core>, commit_mode: L1BatchCommitMode) -> Self {
+    pub fn new(
+        connection_pool: ConnectionPool<Core>,
+        commitment_mode: L1BatchCommitmentMode,
+    ) -> Self {
         Self {
             connection_pool,
             health_updater: ReactiveHealthCheck::new("commitment_generator").1,
-            commit_mode,
+            commitment_mode,
         }
     }
 
@@ -296,20 +299,20 @@ impl CommitmentGenerator {
     }
 
     fn tweak_input(&self, input: &mut CommitmentInput) {
-        match (self.commit_mode, input) {
-            (L1BatchCommitMode::Rollup, _) => {
+        match (self.commitment_mode, input) {
+            (L1BatchCommitmentMode::Rollup, _) => {
                 // Do nothing
             }
 
             (
-                L1BatchCommitMode::Validium,
+                L1BatchCommitmentMode::Validium,
                 CommitmentInput::PostBoojum {
                     blob_commitments, ..
                 },
             ) => {
                 blob_commitments.fill(H256::zero());
             }
-            (L1BatchCommitMode::Validium, _) => { /* Do nothing */ }
+            (L1BatchCommitmentMode::Validium, _) => { /* Do nothing */ }
         }
     }
 
