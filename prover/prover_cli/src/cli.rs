@@ -14,14 +14,13 @@ struct ProverCLI {
     config: ProverCLIConfig,
 }
 
-// Note: This is a temporary solution for the configuration of the CLI. In the
-// future, we should have an `config` command to set the configuration in a
-// `.config` file.
+// Note: this is set via the `config` command. Values are taken from the file pointed
+// by the env var `PLI__CONFIG` or from `$ZKSYNC_HOME/etc/pliconfig` if unset.
 #[derive(Args)]
 pub struct ProverCLIConfig {
     #[clap(
-        long,
-        default_value = "postgres://postgres:notsecurepassword@localhost/prover_local"
+        default_value = "postgres://postgres:notsecurepassword@localhost/prover_local",
+        env("PLI__DB_URL")
     )]
     pub db_url: SensitiveUrl,
 }
