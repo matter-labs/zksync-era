@@ -187,6 +187,10 @@ impl L1BatchCommitmentModeValidationTask {
     }
 
     async fn validate_commitment_mode(self) -> anyhow::Result<()> {
+        fn is_transient_err(err: &ClientError) -> bool {
+            matches!(err, ClientError::Transport(_) | ClientError::RequestTimeout)
+        }
+
         let expected_mode = self.expected_mode;
         let diamond_proxy_address = self.diamond_proxy_address;
         let eth_client = self.eth_client.as_ref();
@@ -214,8 +218,7 @@ impl L1BatchCommitmentModeValidationTask {
                     return Ok(());
                 }
 
-                // FIXME: detect transient errors more precisely
-                Err(EthClientError::EthereumGateway(err)) => {
+                Err(EthClientError::EthereumGateway(err)) if is_transient_err(&err) => {
                     tracing::warn!(
                         "Transient error validating commitment mode, will retry after {:?}: {err}",
                         self.retry_interval
