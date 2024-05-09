@@ -18,7 +18,7 @@ if [ -z "$ETH_CLIENT_WEB3_URL" ]; then
 fi
 
 if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
-  echo "LEGACY_BRIDGE_TESTING is set to $LEGACY_BRIDGE_TESTING"
+  echo "LEGACY_BRIDGE_TESTING is set."
 fi
 
 # Updates the value in the .toml config or .env file.
@@ -113,7 +113,7 @@ else
     update_config "/etc/env/base/database.toml" "state_keeper_db_path" "/var/lib/zksync/data/state_keeper"
     update_config "/etc/env/base/database.toml" "backup_path" "/var/lib/zksync/data/backups"
 
-    if [ "$LEGACY_BRIDGE_TESTING" = "true" ]; then
+    if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
       # making era chain id same as current chain id for legacy bridge testing
       CHAIN_ETH_ZKSYNC_NETWORK_ID=$(read_value_from_config "/etc/env/base/chain.toml" "zksync_network_id")
       update_config "/etc/env/base/contracts.toml" "ERA_CHAIN_ID" "$CHAIN_ETH_ZKSYNC_NETWORK_ID"
@@ -147,14 +147,14 @@ else
 
 
     DEPLOY_L2_PARAMS=""
-    if [ "$LEGACY_BRIDGE_TESTING" = "true" ]; then
+    if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
       # setting the flag for legacy bridge testing
       DEPLOY_L2_PARAMS="--local-legacy-bridge-testing"
     fi
 
     zk contract deploy-l2-through-l1 $DEPLOY_L2_PARAMS
 
-    if [ "$LEGACY_BRIDGE_TESTING" = "true" ]; then
+    if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
       # making era address same as current address for legacy bridge testing
       CONTRACTS_DIAMOND_PROXY_ADDR=$(read_value_from_config "/etc/env/target/dev.env" "CONTRACTS_DIAMOND_PROXY_ADDR")
       update_config "/etc/env/target/dev.env" "CONTRACTS_ERA_DIAMOND_PROXY_ADDR" "$CONTRACTS_DIAMOND_PROXY_ADDR"
@@ -169,7 +169,7 @@ else
 
 fi
 
-if [ "$LEGACY_BRIDGE_TESTING" = "true" ]; then
+if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
   # setup-legacy-bridge-era waits for the server to be ready, so starting it in the background
   zk contract setup-legacy-bridge-era &
 fi
