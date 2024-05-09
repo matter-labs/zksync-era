@@ -20,7 +20,7 @@
     "@types/node": "^18.19.15",
     "@types/node-fetch": "^2.5.7",
     "@types/tabtab": "^3.0.1",
-    "hardhat": "=2.16.0",
+    "hardhat": "=2.22.2",
     "typescript": "^4.3.5",
     "l1-contracts": "link:../../contracts/l1-contracts",
     "l2-contracts": "link:../../contracts/l2-contracts",

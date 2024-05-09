@@ -48,7 +48,7 @@ where
         COUNTERS.call[&(Method::NonceAtForAccount, self.component())].inc();
         let latency = LATENCIES.direct[&Method::NonceAtForAccount].start();
         let nonce = self
-            .get_transaction_count(account, Some(block))
+            .get_transaction_count(account, block)
             .rpc_context("get_transaction_count")
             .with_arg("account", &account)
             .with_arg("block", &block)
@@ -203,7 +203,9 @@ where
                     access_list: None,
                 };
 
-                let block_number = receipt.block_number.map(Into::into);
+                let block_number = receipt
+                    .block_number
+                    .map_or_else(|| web3::BlockNumber::Latest.into(), Into::into);
                 let result = self
                     .call(call_request.clone(), block_number)
                     .rpc_context("failure_reason#call")
@@ -255,6 +257,7 @@ where
         block: Option<web3::BlockId>,
     ) -> Result<web3::Bytes, Error> {
         let latency = LATENCIES.direct[&Method::CallContractFunction].start();
+        let block = block.unwrap_or_else(|| web3::BlockNumber::Latest.into());
         let output_bytes = self
             .call(request.clone(), block)
             .rpc_context("call")
@@ -281,7 +284,7 @@ where
         COUNTERS.call[&(Method::EthBalance, self.component())].inc();
         let latency = LATENCIES.direct[&Method::EthBalance].start();
         let balance = self
-            .get_balance(address, None)
+            .get_balance(address, web3::BlockNumber::Latest)
             .rpc_context("get_balance")
             .with_arg("address", &address)
             .await?;
