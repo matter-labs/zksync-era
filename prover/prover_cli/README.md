@@ -126,7 +126,6 @@ in the prover database.
 
 #### Example Output
 
-
 ```
 zk f run --release -- status l1
 
