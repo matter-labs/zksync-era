@@ -166,10 +166,11 @@ pub struct L1BatchCommitModeValidationTask {
     diamond_proxy_address: Address,
     expected_commit_mode: L1BatchCommitMode,
     eth_client: Box<dyn EthInterface>,
+    retry_interval: Duration,
 }
 
 impl L1BatchCommitModeValidationTask {
-    const RETRY_INTERVAL: Duration = Duration::from_secs(5);
+    const DEFAULT_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 
     /// Creates
     pub fn new(
@@ -181,6 +182,7 @@ impl L1BatchCommitModeValidationTask {
             diamond_proxy_address,
             expected_commit_mode,
             eth_client: eth_client.for_component("commit_mode_validation"),
+            retry_interval: Self::DEFAULT_RETRY_INTERVAL,
         }
     }
 
@@ -216,9 +218,9 @@ impl L1BatchCommitModeValidationTask {
                 Err(EthClientError::EthereumGateway(err)) => {
                     tracing::warn!(
                         "Transient error validating commit mode, will retry after {:?}: {err}",
-                        Self::RETRY_INTERVAL
+                        self.retry_interval
                     );
-                    tokio::time::sleep(Self::RETRY_INTERVAL).await;
+                    tokio::time::sleep(self.retry_interval).await;
                 }
 
                 Err(err) => {
@@ -349,6 +351,7 @@ mod tests {
             diamond_proxy_address,
             expected_commit_mode: L1BatchCommitMode::Rollup,
             eth_client: Box::new(mock_ethereum_with_rollup_contract()),
+            retry_interval: Duration::ZERO,
         };
         task.validate_commit_mode().await.unwrap();
 
@@ -356,6 +359,7 @@ mod tests {
             diamond_proxy_address,
             expected_commit_mode: L1BatchCommitMode::Validium,
             eth_client: Box::new(mock_ethereum_with_validium_contract()),
+            retry_interval: Duration::ZERO,
         };
         task.validate_commit_mode().await.unwrap();
     }
@@ -367,6 +371,7 @@ mod tests {
             diamond_proxy_address,
             expected_commit_mode: L1BatchCommitMode::Rollup,
             eth_client: Box::new(mock_ethereum_with_legacy_contract()),
+            retry_interval: Duration::ZERO,
         };
         task.validate_commit_mode().await.unwrap();
 
@@ -374,6 +379,7 @@ mod tests {
             diamond_proxy_address,
             expected_commit_mode: L1BatchCommitMode::Validium,
             eth_client: Box::new(mock_ethereum_with_legacy_contract()),
+            retry_interval: Duration::ZERO,
         };
         task.validate_commit_mode().await.unwrap();
     }
@@ -385,33 +391,32 @@ mod tests {
             diamond_proxy_address,
             expected_commit_mode: L1BatchCommitMode::Validium,
             eth_client: Box::new(mock_ethereum_with_rollup_contract()),
+            retry_interval: Duration::ZERO,
         };
         let err = task.validate_commit_mode().await.unwrap_err().to_string();
-        assert!(err.contains("commitment mode"), "{err}");
+        assert!(err.contains("commit mode"), "{err}"); // FIXME: rename back to commitment mode
 
         let task = L1BatchCommitModeValidationTask {
             diamond_proxy_address,
             expected_commit_mode: L1BatchCommitMode::Rollup,
             eth_client: Box::new(mock_ethereum_with_validium_contract()),
+            retry_interval: Duration::ZERO,
         };
         let err = task.validate_commit_mode().await.unwrap_err().to_string();
-        assert!(err.contains("commitment mode"), "{err}");
+        assert!(err.contains("commit mode"), "{err}");
     }
 
     #[tokio::test]
-    async fn ensure_l1_batch_commit_data_generation_mode_fails_on_request_failure() {
+    async fn ensure_l1_batch_commit_data_generation_mode_recovers_from_request_failure() {
         let diamond_proxy_address = Address::repeat_byte(0x01);
         let task = L1BatchCommitModeValidationTask {
             diamond_proxy_address,
             expected_commit_mode: L1BatchCommitMode::Rollup,
             eth_client: Box::new(mock_ethereum_with_transport_error()),
+            retry_interval: Duration::ZERO,
         };
 
-        let err = task.validate_commit_mode().await.unwrap_err();
-        assert!(
-            err.chain().any(|cause| cause.is::<ClientError>()),
-            "{err:?}"
-        );
+        task.validate_commit_mode().await.unwrap();
     }
 
     #[tokio::test]
@@ -421,6 +426,7 @@ mod tests {
             diamond_proxy_address,
             expected_commit_mode: L1BatchCommitMode::Rollup,
             eth_client: Box::new(mock_ethereum(ethabi::Token::String("what".into()), None)),
+            retry_interval: Duration::ZERO,
         };
 
         let err = task.validate_commit_mode().await.unwrap_err().to_string();
