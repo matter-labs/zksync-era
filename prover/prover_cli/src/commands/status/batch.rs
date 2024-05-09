@@ -9,7 +9,7 @@ use zksync_types::{
     prover_dal::{
         BasicWitnessGeneratorJobInfo, JobCountStatistics, LeafWitnessGeneratorJobInfo,
         NodeWitnessGeneratorJobInfo, ProofCompressionJobInfo, ProverJobFriInfo, ProverJobStatus,
-        RecursionTipWitnessGeneratorJobInfo, SchedulerWitnessGeneratorJobInfo, WitnessJobStatus,
+        RecursionTipWitnessGeneratorJobInfo, SchedulerWitnessGeneratorJobInfo,
     },
     url::SensitiveUrl,
     L1BatchNumber,
@@ -153,12 +153,12 @@ async fn get_proof_node_witness_generator_info_for_batch<'a>(
 }
 
 async fn get_proof_recursion_tip_witness_generator_info_for_batch<'a>(
-    _batch_number: L1BatchNumber,
-    _conn: &mut Connection<'a, Prover>,
+    batch_number: L1BatchNumber,
+    conn: &mut Connection<'a, Prover>,
 ) -> Option<RecursionTipWitnessGeneratorJobInfo> {
-    Some(RecursionTipWitnessGeneratorJobInfo {
-        status: WitnessJobStatus::Skipped,
-    })
+    conn.fri_witness_generator_dal()
+        .get_recursion_tip_witness_generator_jobs_for_batch(batch_number)
+        .await
 }
 
 async fn get_proof_scheduler_witness_generator_info_for_batch<'a>(
