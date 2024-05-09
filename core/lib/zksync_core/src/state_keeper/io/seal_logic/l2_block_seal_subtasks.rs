@@ -361,6 +361,7 @@ mod tests {
     };
     use zksync_dal::Core;
     use zksync_db_connection::connection_pool::ConnectionPool;
+    use zksync_node_test_utils::create_l2_transaction;
     use zksync_types::{
         block::L2BlockHeader,
         l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
@@ -373,7 +374,6 @@ mod tests {
 
     use super::*;
     use crate::state_keeper::{io::common::clear_pending_l2_block, updates::L2BlockUpdates};
-    use zksync_node_test_utils::create_l2_transaction;
 
     #[tokio::test]
     async fn rollback_pending_l2_block() {
