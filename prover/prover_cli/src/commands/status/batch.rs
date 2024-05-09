@@ -330,7 +330,7 @@ fn display_node_witness_generator_jobs_info(
     });
 }
 
-fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>) {
+fn display_prover_jobs_info(mut prover_jobs_info: Vec<ProverJobFriInfo>) {
     let prover_jobs_status = Status::from(prover_jobs_info.clone());
 
     println!("v Prover Jobs: {prover_jobs_status}");
@@ -341,6 +341,7 @@ fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>) {
 
     let mut jobs_by_circuit_id: HashMap<u32, Vec<ProverJobFriInfo>> = HashMap::new();
 
+    prover_jobs_info.sort_by_key(|job| job.circuit_id.clone());
     prover_jobs_info.iter().for_each(|job| {
         jobs_by_circuit_id
             .entry(job.circuit_id)
@@ -363,7 +364,6 @@ fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>) {
 fn display_job_status_count(mut jobs: Vec<ProverJobFriInfo>) {
     let mut jobs_counts = JobCountStatistics::default();
     let total_jobs = jobs.len();
-    jobs.sort_by_key(|job| job.circuit_id.clone());
     jobs.iter().for_each(|job| match job.status {
         ProverJobStatus::Queued => jobs_counts.queued += 1,
         ProverJobStatus::InProgress(_) => jobs_counts.in_progress += 1,
