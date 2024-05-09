@@ -199,6 +199,7 @@ There is an option to run compressors with the GPU, which will significantly imp
    ```
 
 6. Run the compressor using:
+
    ```console
    zk f cargo run ---features "gpu" --release --bin zksync_proof_fri_compressor
    ```

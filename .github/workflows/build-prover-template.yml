@@ -51,7 +51,6 @@ jobs:
           - witness-vector-generator
           - prover-fri-gateway
           - proof-fri-compressor
-          - proof-gpu-fri-compressor
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
