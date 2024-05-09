@@ -31,7 +31,7 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
         "At least one batch number should be provided"
     );
 
-    let batches_data = get_batches_data(args.batches).await?;
+    let batches_data = get_batches_data(args.batches, config.db_url).await?;
 
     for batch_data in batches_data {
         if !args.verbose {
@@ -44,14 +44,14 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn get_batches_data(batches: Vec<L1BatchNumber>) -> anyhow::Result<Vec<BatchData>> {
-    let config = postgres_config()?;
-
-    let prover_connection_pool =
-        ConnectionPool::<Prover>::builder(config.prover_url()?, config.max_connections()?)
-            .build()
-            .await
-            .context("failed to build a prover_connection_pool")?;
+async fn get_batches_data(
+    batches: Vec<L1BatchNumber>,
+    db_url: SensitiveUrl,
+) -> anyhow::Result<Vec<BatchData>> {
+    let prover_connection_pool = ConnectionPool::<Prover>::singleton(db_url)
+        .build()
+        .await
+        .context("failed to build a prover_connection_pool")?;
 
     let mut conn = prover_connection_pool
         .connection()

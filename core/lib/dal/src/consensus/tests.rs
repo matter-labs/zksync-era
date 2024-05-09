@@ -4,7 +4,7 @@ use zksync_protobuf::{
     repr::{decode, encode},
     ProtoRepr,
 };
-use zksync_types::{Bytes, Execute, ExecuteTransactionCommon, Transaction};
+use zksync_types::{web3::Bytes, Execute, ExecuteTransactionCommon, Transaction};
 
 use crate::tests::{mock_l1_execute, mock_l2_transaction, mock_protocol_upgrade_transaction};
 

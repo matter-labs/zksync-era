@@ -9,6 +9,8 @@ use zksync_config::{configs, GenesisConfig};
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{CoreDal, DalError};
+use zksync_node_genesis::{mock_genesis_config, GenesisParams};
+use zksync_node_test_utils::{create_l1_batch_metadata, create_l2_transaction};
 use zksync_types::{
     api, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersionId, H256,
@@ -21,7 +23,6 @@ use zksync_web3_decl::{
 use crate::{
     api_server::web3::{state::InternalApiConfig, tests::spawn_http_server},
     consensus::{fetcher::P2PConfig, Fetcher, Store},
-    genesis::{mock_genesis_config, GenesisParams},
     state_keeper::{
         io::{IoCursor, L1BatchParams, L2BlockParams},
         seal_criteria::NoopSealer,
@@ -33,7 +34,6 @@ use crate::{
         sync_action::{ActionQueue, ActionQueueSender, SyncAction},
         ExternalIO, MainNodeClient, SyncState,
     },
-    utils::testonly::{create_l1_batch_metadata, create_l2_transaction},
 };
 
 #[derive(Debug, Default)]
@@ -282,7 +282,7 @@ impl StateKeeper {
         let addr = sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some)
             .await?
             .unwrap();
-        let client = L2Client::http(&format!("http://{addr}/"))
+        let client = L2Client::http(format!("http://{addr}/").parse().context("url")?)
             .context("json_rpc()")?
             .build();
         Ok(BoxedL2Client::new(client))

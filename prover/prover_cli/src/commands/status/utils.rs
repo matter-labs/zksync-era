@@ -13,10 +13,6 @@ use zksync_types::{
     L1BatchNumber,
 };
 
-pub fn postgres_config() -> anyhow::Result<PostgresConfig> {
-    PostgresConfig::from_env()
-}
-
 /// Represents the proving data of a batch.
 pub struct BatchData {
     /// The number of the batch.

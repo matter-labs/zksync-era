@@ -1,4 +1,4 @@
-use zksync_basic_types::{web3::signing::keccak256, H256};
+use zksync_basic_types::{web3::keccak256, H256};
 
 use crate::hasher::Hasher;
 
