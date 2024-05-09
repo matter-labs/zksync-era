@@ -442,7 +442,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                     l2_value,
                     calldata,
                     gas_limit,
-                    L1_TO_L2_GAS_PER_PUBDATA,
+                    U256::from(L1_TO_L2_GAS_PER_PUBDATA),
                     factory_deps,
                     refund_recipient,
                 )
@@ -467,7 +467,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                 .expect("failed to get function");
 
             let params = (
-                self.l2_chain_id,
+                U256::from(self.l2_chain_id),
                 value,
                 contract_address,
                 l2_value,

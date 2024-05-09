@@ -2,14 +2,12 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use futures::{channel::mpsc, future, SinkExt};
-use zksync_eth_client::Options;
+use zksync_eth_client::{clients::QueryClient, CallFunctionArgs, Options};
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
-    api::BlockNumber,
-    tokens::ETHEREUM_ADDRESS,
-    web3::{contract, transports::Http, Web3},
-    Address, Nonce, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+    api::BlockNumber, tokens::ETHEREUM_ADDRESS, Address, Nonce,
+    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 
 use crate::{
@@ -49,6 +47,8 @@ pub struct Executor {
     pool: AccountPool,
 }
 
+const L2_SHARED_BRIDGE_ABI: &str = include_str!("sdk/abi/IL2SharedBridge.json");
+
 impl Executor {
     /// Creates a new Executor entity.
     pub async fn new(
@@ -65,18 +65,11 @@ impl Executor {
             .await?
             .l2_shared_default_bridge
             .unwrap();
-        let l2_shared_bridge_abi = include_str!("sdk/abi/IL2SharedBridge.json");
-        let abi = load_contract(l2_shared_bridge_abi);
-        let web3 = Web3::new(Http::new(&config.l2_rpc_address)?);
-        let contract = contract::Contract::new(web3.eth(), l2_shared_bridge, abi);
-        let l2_main_token = contract
-            .query(
-                "l2TokenAddress",
-                config.main_token,
-                None,
-                contract::Options::default(),
-                None,
-            )
+        let abi = load_contract(L2_SHARED_BRIDGE_ABI);
+        let query_client = QueryClient::new(config.l2_rpc_address.parse()?)?;
+        let l2_main_token = CallFunctionArgs::new("l2TokenAddress", (config.main_token,))
+            .for_contract(l2_shared_bridge, &abi)
+            .call(&query_client)
             .await?;
 
         Ok(Self {
