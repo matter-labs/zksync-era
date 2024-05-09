@@ -13,6 +13,7 @@
     "@types/node": "^18.19.15"
   },
   "scripts": {
-    "start": "ts-node ./src/index.ts"
+    "start": "ts-node ./src/index.ts",
+    "join": "ts-node ./src/join_hyperchain.ts"
   }
 }

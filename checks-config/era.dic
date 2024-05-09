@@ -673,6 +673,7 @@ crypto
 callee
 Subcalls
 Vec
+vec
 vecs
 L1Messenger
 SystemL2ToL1Log

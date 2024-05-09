@@ -2,11 +2,12 @@ use anyhow::{ensure, Context as _};
 use clap::Args as ClapArgs;
 use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_types::{
-    basic_fri_types::AggregationRound, prover_dal::WitnessJobStatus, L1BatchNumber,
+    basic_fri_types::AggregationRound, prover_dal::WitnessJobStatus, url::SensitiveUrl,
+    L1BatchNumber,
 };
 
 use super::utils::{AggregationRoundInfo, BatchData, Task, TaskStatus};
-use crate::commands::status::utils::postgres_config;
+use crate::cli::ProverCLIConfig;
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -16,13 +17,13 @@ pub struct Args {
     verbose: bool,
 }
 
-pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
+pub(crate) async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
     ensure!(
         !args.batches.is_empty(),
         "At least one batch number should be provided"
     );
 
-    let batches_data = get_batches_data(args.batches).await?;
+    let batches_data = get_batches_data(args.batches, config.db_url).await?;
 
     for batch_data in batches_data {
         println!("{batch_data:?}");
@@ -31,14 +32,14 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn get_batches_data(batches: Vec<L1BatchNumber>) -> anyhow::Result<Vec<BatchData>> {
-    let config = postgres_config()?;
-
-    let prover_connection_pool =
-        ConnectionPool::<Prover>::builder(config.prover_url()?, config.max_connections()?)
-            .build()
-            .await
-            .context("failed to build a prover_connection_pool")?;
+async fn get_batches_data(
+    batches: Vec<L1BatchNumber>,
+    db_url: SensitiveUrl,
+) -> anyhow::Result<Vec<BatchData>> {
+    let prover_connection_pool = ConnectionPool::<Prover>::singleton(db_url)
+        .build()
+        .await
+        .context("failed to build a prover_connection_pool")?;
 
     let mut conn = prover_connection_pool
         .connection()
