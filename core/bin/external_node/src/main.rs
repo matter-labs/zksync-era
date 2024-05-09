@@ -451,11 +451,8 @@ async fn run_api(
         stop_receiver.clone(),
     )));
 
-    let tx_sender_builder = TxSenderBuilder::new(
-        config.clone().into(),
-        connection_pool.clone(),
-        Arc::new(tx_proxy),
-    );
+    let tx_sender_builder =
+        TxSenderBuilder::new(config.into(), connection_pool.clone(), Arc::new(tx_proxy));
 
     if config.optional.transactions_per_sec_limit.is_some() {
         tracing::warn!("`transactions_per_sec_limit` option is deprecated and ignored");
@@ -528,19 +525,18 @@ async fn run_api(
     let pruning_info_refresh_interval = config.optional.pruning_removal_delay() / 5;
 
     if components.contains(&Component::HttpApi) {
-        let mut builder =
-            ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
-                .http(config.required.http_port)
-                .with_filter_limit(config.optional.filters_limit)
-                .with_batch_request_size_limit(config.optional.max_batch_request_size)
-                .with_response_body_size_limit(config.optional.max_response_body_size())
-                .with_pruning_info_refresh_interval(pruning_info_refresh_interval)
-                .with_tx_sender(tx_sender.clone())
-                .with_vm_barrier(vm_barrier.clone())
-                .with_sync_state(sync_state.clone())
-                .with_mempool_cache(mempool_cache.clone())
-                .with_extended_tracing(config.optional.extended_rpc_tracing)
-                .enable_api_namespaces(config.optional.api_namespaces());
+        let mut builder = ApiBuilder::jsonrpsee_backend(config.into(), connection_pool.clone())
+            .http(config.required.http_port)
+            .with_filter_limit(config.optional.filters_limit)
+            .with_batch_request_size_limit(config.optional.max_batch_request_size)
+            .with_response_body_size_limit(config.optional.max_response_body_size())
+            .with_pruning_info_refresh_interval(pruning_info_refresh_interval)
+            .with_tx_sender(tx_sender.clone())
+            .with_vm_barrier(vm_barrier.clone())
+            .with_sync_state(sync_state.clone())
+            .with_mempool_cache(mempool_cache.clone())
+            .with_extended_tracing(config.optional.extended_rpc_tracing)
+            .enable_api_namespaces(config.optional.api_namespaces());
         if let Some(tree_reader) = &tree_reader {
             builder = builder.with_tree_api(tree_reader.clone());
         }
@@ -556,21 +552,20 @@ async fn run_api(
     }
 
     if components.contains(&Component::WsApi) {
-        let mut builder =
-            ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
-                .ws(config.required.ws_port)
-                .with_filter_limit(config.optional.filters_limit)
-                .with_subscriptions_limit(config.optional.subscriptions_limit)
-                .with_batch_request_size_limit(config.optional.max_batch_request_size)
-                .with_response_body_size_limit(config.optional.max_response_body_size())
-                .with_polling_interval(config.optional.polling_interval())
-                .with_pruning_info_refresh_interval(pruning_info_refresh_interval)
-                .with_tx_sender(tx_sender)
-                .with_vm_barrier(vm_barrier)
-                .with_sync_state(sync_state)
-                .with_mempool_cache(mempool_cache)
-                .with_extended_tracing(config.optional.extended_rpc_tracing)
-                .enable_api_namespaces(config.optional.api_namespaces());
+        let mut builder = ApiBuilder::jsonrpsee_backend(config.into(), connection_pool.clone())
+            .ws(config.required.ws_port)
+            .with_filter_limit(config.optional.filters_limit)
+            .with_subscriptions_limit(config.optional.subscriptions_limit)
+            .with_batch_request_size_limit(config.optional.max_batch_request_size)
+            .with_response_body_size_limit(config.optional.max_response_body_size())
+            .with_polling_interval(config.optional.polling_interval())
+            .with_pruning_info_refresh_interval(pruning_info_refresh_interval)
+            .with_tx_sender(tx_sender)
+            .with_vm_barrier(vm_barrier)
+            .with_sync_state(sync_state)
+            .with_mempool_cache(mempool_cache)
+            .with_extended_tracing(config.optional.extended_rpc_tracing)
+            .enable_api_namespaces(config.optional.api_namespaces());
         if let Some(tree_reader) = tree_reader {
             builder = builder.with_tree_api(tree_reader);
         }

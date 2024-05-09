@@ -68,7 +68,7 @@ impl ConfigurationSource for Environment {
 }
 
 /// This part of the external node config is fetched directly from the main node.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize)]
 pub(crate) struct RemoteENConfig {
     pub bridgehub_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Option<Address>,
@@ -192,7 +192,7 @@ impl RemoteENConfig {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize)]
 pub(crate) enum BlockFetcher {
     ServerAPI,
     Consensus,
@@ -201,7 +201,7 @@ pub(crate) enum BlockFetcher {
 /// This part of the external node config is completely optional to provide.
 /// It can tweak limits of the API, delay intervals of certain components, etc.
 /// If any of the fields are not provided, the default values will be used.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub(crate) struct OptionalENConfig {
     // User-facing API limits
     /// Max possible limit of filters to be in the API state at once.
@@ -631,7 +631,7 @@ impl OptionalENConfig {
 }
 
 /// This part of the external node config is required for its operation.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize)]
 pub(crate) struct RequiredENConfig {
     /// L1 chain ID (e.g., 9 for Ethereum mainnet). This ID will be checked against the `eth_client_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual L1 network.
@@ -689,7 +689,7 @@ impl RequiredENConfig {
 /// While also mandatory, it historically used different naming scheme for corresponding
 /// environment variables.
 /// Thus it is kept separately for backward compatibility and ease of deserialization.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize)]
 pub(crate) struct PostgresConfig {
     database_url: SensitiveUrl,
     pub max_connections: u32,
@@ -724,7 +724,7 @@ impl PostgresConfig {
 
 /// Experimental part of the external node config. All parameters in this group can change or disappear without notice.
 /// Eventually, parameters from this group generally end up in the optional group.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub(crate) struct ExperimentalENConfig {
     // State keeper cache config
     /// Block cache capacity of the state keeper RocksDB cache. The default value is 128 MB.
@@ -792,7 +792,7 @@ impl SnapshotsRecoveryConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct ApiComponentConfig {
     /// Address of the tree API used by this EN in case it does not have a
     /// local tree component running and in this case needs to send requests
@@ -800,14 +800,14 @@ pub struct ApiComponentConfig {
     pub tree_api_remote_url: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct TreeComponentConfig {
     pub api_port: Option<u16>,
 }
 
 /// External Node Config contains all the configuration required for the EN operation.
 /// It is split into three parts: required, optional and remote for easier navigation.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct ExternalNodeConfig {
     pub required: RequiredENConfig,
     pub postgres: PostgresConfig,
@@ -875,8 +875,8 @@ impl ExternalNodeConfig {
     }
 }
 
-impl From<ExternalNodeConfig> for InternalApiConfig {
-    fn from(config: ExternalNodeConfig) -> Self {
+impl From<&ExternalNodeConfig> for InternalApiConfig {
+    fn from(config: &ExternalNodeConfig) -> Self {
         Self {
             l1_chain_id: config.required.l1_chain_id,
             l2_chain_id: config.required.l2_chain_id,
@@ -908,8 +908,8 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
     }
 }
 
-impl From<ExternalNodeConfig> for TxSenderConfig {
-    fn from(config: ExternalNodeConfig) -> Self {
+impl From<&ExternalNodeConfig> for TxSenderConfig {
+    fn from(config: &ExternalNodeConfig) -> Self {
         Self {
             // Fee account address does not matter for the EN operation, since
             // actual fee distribution is handled my the main node.

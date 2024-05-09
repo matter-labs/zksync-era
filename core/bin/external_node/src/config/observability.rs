@@ -8,7 +8,7 @@ use vlog::LogFormat;
 use super::{ConfigurationSource, Environment};
 
 /// Observability part of the node configuration.
-#[derive(Debug, Clone, Default, Deserialize)] // FIXME: remove `Clone`
+#[derive(Debug, Default, Deserialize)]
 pub(crate) struct ObservabilityENConfig {
     /// Port to bind the Prometheus exporter server to. If not specified, the server will not be launched.
     /// If the push gateway URL is specified, it will prevail.
