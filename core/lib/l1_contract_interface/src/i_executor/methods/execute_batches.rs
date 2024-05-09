@@ -1,8 +1,6 @@
-use zksync_types::{
-    commitment::L1BatchWithMetadata, ethabi::Token, web3::contract::tokens::Tokenizable,
-};
+use zksync_types::{commitment::L1BatchWithMetadata, ethabi::Token};
 
-use crate::{i_executor::structures::StoredBatchInfo, Tokenize};
+use crate::{i_executor::structures::StoredBatchInfo, Tokenizable, Tokenize};
 
 /// Input required to encode `executeBatches` call.
 #[derive(Debug, Clone)]

@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
-use web3::contract::{tokens::Detokenize, Error as Web3ContractError};
 
-use crate::{ethabi, U256};
+use crate::{
+    ethabi,
+    web3::contract::{Detokenize, Error as ContractError},
+    U256,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum L1BatchCommitMode {
@@ -16,11 +19,11 @@ pub enum L1BatchCommitMode {
 // 1 corresponds to Validium case,
 // Other values are incorrect.
 impl Detokenize for L1BatchCommitMode {
-    fn from_tokens(tokens: Vec<ethabi::Token>) -> Result<Self, Web3ContractError> {
-        fn error(tokens: &[ethabi::Token]) -> Web3ContractError {
-            Web3ContractError::Api(web3::Error::Decoder(format!(
+    fn from_tokens(tokens: Vec<ethabi::Token>) -> Result<Self, ContractError> {
+        fn error(tokens: &[ethabi::Token]) -> ContractError {
+            ContractError::InvalidOutputType(format!(
                 "L1BatchCommitDataGeneratorMode::from_tokens: {tokens:?}"
-            )))
+            ))
         }
 
         match tokens.as_slice() {

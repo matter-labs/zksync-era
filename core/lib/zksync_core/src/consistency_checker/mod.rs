@@ -5,7 +5,7 @@ use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{CallFunctionArgs, Error as L1ClientError, EthInterface};
+use zksync_eth_client::{CallFunctionArgs, ClientError, Error as L1ClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::{commit::kzg::ZK_SYNC_BYTES_PER_BLOB, structures::CommitBatchInfo},
@@ -14,9 +14,9 @@ use zksync_l1_contract_interface::{
 use zksync_shared_metrics::{CheckerComponent, EN_METRICS};
 use zksync_types::{
     commitment::{L1BatchCommitMode, L1BatchWithMetadata},
+    ethabi,
     ethabi::Token,
     pubdata_da::PubdataDA,
-    web3::{self, contract::Error as Web3ContractError, ethabi},
     Address, L1BatchNumber, ProtocolVersionId, H256, U256,
 };
 
@@ -42,7 +42,7 @@ impl CheckError {
         matches!(
             self,
             Self::Web3(L1ClientError::EthereumGateway(
-                web3::Error::Unreachable | web3::Error::Transport(_) | web3::Error::Io(_)
+                ClientError::Transport(_) | ClientError::RequestTimeout
             ))
         )
     }
@@ -257,13 +257,13 @@ impl LocalL1BatchCommitData {
 pub fn detect_da(
     protocol_version: ProtocolVersionId,
     reference: &Token,
-) -> Result<PubdataDA, Web3ContractError> {
+) -> Result<PubdataDA, ethabi::Error> {
     /// These are used by the L1 Contracts to indicate what DA layer is used for pubdata
     const PUBDATA_SOURCE_CALLDATA: u8 = 0;
     const PUBDATA_SOURCE_BLOBS: u8 = 1;
 
-    fn parse_error(message: impl Into<Cow<'static, str>>) -> Web3ContractError {
-        Web3ContractError::Abi(ethabi::Error::Other(message.into()))
+    fn parse_error(message: impl Into<Cow<'static, str>>) -> ethabi::Error {
+        ethabi::Error::Other(message.into())
     }
 
     if protocol_version.is_pre_1_4_2() {
@@ -513,22 +513,12 @@ impl ConsistencyChecker {
         };
         tracing::debug!("Performing sanity checks for diamond proxy contract {address:?}");
 
-        let call = CallFunctionArgs::new("getProtocolVersion", ())
-            .for_contract(address, self.contract.clone());
-        let response = self.l1_client.call_contract_function(call).await?;
-        // Response should be a single token with the contract name.
-        match response.as_slice() {
-            [ethabi::Token::Uint(version)] => {
-                tracing::info!("Checked diamond proxy {address:?} (protocol version: {version})");
-                Ok(())
-            }
-            _ => {
-                let err = anyhow::anyhow!(
-                    "unexpected `getProtocolVersion` response from contract {address:?}: {response:?}"
-                );
-                Err(CheckError::Internal(err))
-            }
-        }
+        let version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
+            .for_contract(address, &self.contract)
+            .call(self.l1_client.as_ref())
+            .await?;
+        tracing::info!("Checked diamond proxy {address:?} (protocol version: {version})");
+        Ok(())
     }
 
     pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {

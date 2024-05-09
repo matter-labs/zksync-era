@@ -5,7 +5,7 @@ use zksync_types::{
     },
     ethabi::Token,
     pubdata_da::PubdataDA,
-    web3::{contract::Error as Web3ContractError, error::Error as Web3ApiError},
+    web3::contract::Error as ContractError,
     ProtocolVersionId, U256,
 };
 
@@ -171,17 +171,12 @@ impl<'a> CommitBatchInfo<'a> {
     }
 }
 
-impl<'a> Tokenizable for CommitBatchInfo<'a> {
-    fn from_token(_token: Token) -> Result<Self, Web3ContractError>
-    where
-        Self: Sized,
-    {
+impl Tokenizable for CommitBatchInfo<'_> {
+    fn from_token(_token: Token) -> Result<Self, ContractError> {
         // Currently there is no need to decode this struct.
         // We still want to implement `Tokenizable` trait for it, so that *once* it's needed
         // the implementation is provided here and not in some other inconsistent way.
-        Err(Web3ContractError::Api(Web3ApiError::Decoder(
-            "Not implemented".to_string(),
-        )))
+        Err(ContractError::Other("Not implemented".into()))
     }
 
     fn into_token(self) -> Token {

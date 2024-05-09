@@ -11,7 +11,6 @@ categories.workspace = true
 
 
 [dependencies]
-web3.workspace = true
 secp256k1 = { workspace = true, features = ["global-context"] }
 zksync_utils.workspace = true
 zksync_basic_types.workspace = true

@@ -5,7 +5,7 @@ use test_casing::test_casing;
 use zksync_eth_client::clients::MockEthereum;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{
-    api, ethabi, fee_model::FeeParams, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
+    api, ethabi, fee_model::FeeParams, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256, U64,
 };
 use zksync_web3_decl::client::{BoxedL2Client, MockL2Client};
 
@@ -135,6 +135,9 @@ async fn external_node_basics(components_str: &'static str) {
     let l2_client = MockL2Client::new(move |method, params| {
         tracing::info!("Called L2 client: {method}({params:?})");
         match method {
+            "eth_chainId" => Ok(serde_json::json!(U64::from(270))),
+            "zks_L1ChainId" => Ok(serde_json::json!(U64::from(9))),
+
             "zks_L1BatchNumber" => Ok(serde_json::json!("0x0")),
             "zks_getL1BatchDetails" => {
                 let (number,): (L1BatchNumber,) = serde_json::from_value(params)?;
@@ -164,12 +167,24 @@ async fn external_node_basics(components_str: &'static str) {
     });
     let l2_client = BoxedL2Client::new(l2_client);
 
-    let eth_client = MockEthereum::default().with_call_handler(move |call| {
+    let eth_client = MockEthereum::default().with_call_handler(move |call, _| {
         tracing::info!("L1 call: {call:?}");
-        if call.contract_address() == diamond_proxy_addr {
-            match call.function_name() {
-                "getPubdataPricingMode" => return ethabi::Token::Uint(0.into()), // "rollup" mode encoding
-                "getProtocolVersion" => {
+        if call.to == Some(diamond_proxy_addr) {
+            let call_signature = &call.data.as_ref().unwrap().0[..4];
+            let contract = zksync_contracts::hyperchain_contract();
+            let pricing_mode_sig = contract
+                .function("getPubdataPricingMode")
+                .unwrap()
+                .short_signature();
+            let protocol_version_sig = contract
+                .function("getProtocolVersion")
+                .unwrap()
+                .short_signature();
+            match call_signature {
+                sig if sig == pricing_mode_sig => {
+                    return ethabi::Token::Uint(0.into()); // "rollup" mode encoding
+                }
+                sig if sig == protocol_version_sig => {
                     return ethabi::Token::Uint((ProtocolVersionId::latest() as u16).into())
                 }
                 _ => { /* unknown call; panic below */ }
