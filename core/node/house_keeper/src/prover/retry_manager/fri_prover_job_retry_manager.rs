@@ -6,7 +6,7 @@ use zksync_dal::ConnectionPool;
 
 use crate::periodic_job::PeriodicJob;
 
-/// FriProverJobRetryManager is a task that periodically queues stuck prover jobs.
+/// `FriProverJobRetryManager` is a task that periodically queues stuck prover jobs.
 #[derive(Debug)]
 pub struct FriProverJobRetryManager {
     pool: ConnectionPool<Prover>,

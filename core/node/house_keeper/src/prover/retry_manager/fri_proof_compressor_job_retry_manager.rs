@@ -6,7 +6,7 @@ use zksync_dal::ConnectionPool;
 
 use crate::periodic_job::PeriodicJob;
 
-/// FriProofCompressorJobRetryManager is a task that periodically queues stuck compressor jobs.
+/// `FriProofCompressorJobRetryManager` is a task that periodically queues stuck compressor jobs.
 #[derive(Debug)]
 pub struct FriProofCompressorJobRetryManager {
     pool: ConnectionPool<Prover>,

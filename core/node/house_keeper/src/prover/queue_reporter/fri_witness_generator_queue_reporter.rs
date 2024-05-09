@@ -11,7 +11,7 @@ use crate::periodic_job::PeriodicJob;
 
 const FRI_WITNESS_GENERATOR_SERVICE_NAME: &str = "fri_witness_generator";
 
-/// FriWitnessGeneratorQueueReporter is a task that periodically reports witness generator jobs status.
+/// `FriWitnessGeneratorQueueReporter` is a task that periodically reports witness generator jobs status.
 /// Note: these values will be used for auto-scaling witness generators (Basic, Leaf, Node, Recursion Tip and Scheduler).
 #[derive(Debug)]
 pub struct FriWitnessGeneratorQueueReporter {

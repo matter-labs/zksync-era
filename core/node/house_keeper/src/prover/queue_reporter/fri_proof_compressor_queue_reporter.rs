@@ -7,7 +7,7 @@ use crate::periodic_job::PeriodicJob;
 
 const PROOF_COMPRESSOR_SERVICE_NAME: &str = "proof_compressor";
 
-/// FriProofCompressorQueueReporter is a task that periodically reports compression jobs status.
+/// `FriProofCompressorQueueReporter` is a task that periodically reports compression jobs status.
 /// Note: these values will be used for auto-scaling proof compressor
 #[derive(Debug)]
 pub struct FriProofCompressorQueueReporter {

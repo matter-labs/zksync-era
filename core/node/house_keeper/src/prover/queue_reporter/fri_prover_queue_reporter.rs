@@ -6,7 +6,7 @@ use zksync_types::ProtocolVersionId;
 
 use crate::periodic_job::PeriodicJob;
 
-/// FriProverQueueReporter is a task that periodically reports prover jobs status.
+/// `FriProverQueueReporter` is a task that periodically reports prover jobs status.
 /// Note: these values will be used for auto-scaling provers and Witness Vector Generators.
 #[derive(Debug)]
 pub struct FriProverQueueReporter {

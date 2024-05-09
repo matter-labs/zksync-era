@@ -3,9 +3,9 @@ use zksync_dal::ConnectionPool;
 
 use crate::{periodic_job::PeriodicJob, prover::metrics::HOUSE_KEEPER_METRICS};
 
-/// FriProverJobsArchiver is a task that periodically archives old finalized prover job.
+/// `FriProverJobsArchiver` is a task that periodically archives old finalized prover job.
 /// The task will archive the `successful` prover jobs that have been done for a certain amount of time.
-/// Note: These components speed up provers, in their absence, queries would become suboptimal.
+/// Note: These components speed up provers, in their absence, queries would become sub optimal.
 #[derive(Debug)]
 pub struct FriProverJobsArchiver {
     pool: ConnectionPool<Prover>,
