@@ -120,8 +120,8 @@ else
 
   if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
     # making era chain id same as current chain id for legacy bridge testing
-    CHAIN_ETH_ZKSYNC_NETWORK_ID=$(read_value_from_config "/etc/env/base/chain.toml" "zksync_network_id")
-    update_config "/etc/env/base/contracts.toml" "ERA_CHAIN_ID" "$CHAIN_ETH_ZKSYNC_NETWORK_ID"
+    chain_eth_zksync_network_id=$(read_value_from_config "/etc/env/base/chain.toml" "zksync_network_id")
+    update_config "/etc/env/base/contracts.toml" "ERA_CHAIN_ID" "$chain_eth_zksync_network_id"
   fi
 
   if [ -z "$MASTER_URL" ]; then
@@ -150,13 +150,13 @@ else
   zk contract register-hyperchain
   zk f zksync_server --genesis
 
-  DEPLOY_L2_PARAMS=""
+  deploy_l2_args=""
   if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
     # setting the flag for legacy bridge testing
-    DEPLOY_L2_PARAMS="--local-legacy-bridge-testing"
+    deploy_l2_args="--local-legacy-bridge-testing"
   fi
 
-  zk contract deploy-l2-through-l1 $DEPLOY_L2_PARAMS
+  zk contract deploy-l2-through-l1 $deploy_l2_args
 
   if [ -z "$MASTER_URL" ]; then
     zk f yarn --cwd /infrastructure/local-setup-preparation start
@@ -164,8 +164,8 @@ else
 
   if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
     # making era address same as current address for legacy bridge testing
-    CONTRACTS_DIAMOND_PROXY_ADDR=$(read_value_from_config "/etc/env/target/dev.env" "CONTRACTS_DIAMOND_PROXY_ADDR")
-    update_config "/etc/env/target/dev.env" "CONTRACTS_ERA_DIAMOND_PROXY_ADDR" "$CONTRACTS_DIAMOND_PROXY_ADDR"
+    contracts_diamond_proxy_addr=$(read_value_from_config "/etc/env/target/dev.env" "CONTRACTS_DIAMOND_PROXY_ADDR")
+    update_config "/etc/env/target/dev.env" "CONTRACTS_ERA_DIAMOND_PROXY_ADDR" "$contracts_diamond_proxy_addr"
 
     # setup-legacy-bridge-era waits for the server to be ready, so starting it in the background
     zk contract setup-legacy-bridge-era &
