@@ -4,7 +4,8 @@ use zksync_types::{
     l2::L2Tx,
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
-    Address, Bytes, Eip712Domain, U256,
+    web3::Bytes,
+    Address, Eip712Domain, U256,
 };
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
@@ -16,7 +17,7 @@ use crate::sdk::{
     ethereum::{ierc20_contract, EthereumProvider},
     operations::*,
     signer::Signer,
-    web3::contract::tokens::Tokenizable,
+    web3::contract::Tokenizable,
 };
 
 #[derive(Debug)]

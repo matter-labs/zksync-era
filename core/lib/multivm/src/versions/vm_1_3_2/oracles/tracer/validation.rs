@@ -12,9 +12,7 @@ use zksync_system_constants::{
     KECCAK256_PRECOMPILE_ADDRESS, L2_BASE_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS,
     SYSTEM_CONTEXT_ADDRESS,
 };
-use zksync_types::{
-    get_code_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey, H256, U256,
-};
+use zksync_types::{get_code_key, web3::keccak256, AccountTreeId, Address, StorageKey, H256, U256};
 use zksync_utils::{
     be_bytes_to_safe_address, h256_to_account_address, u256_to_account_address, u256_to_h256,
 };

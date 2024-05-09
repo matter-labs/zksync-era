@@ -6,7 +6,9 @@ use tokio::fs;
 use zksync_config::{configs::chain::NetworkConfig, ContractsConfig, EthConfig};
 use zksync_contracts::hyperchain_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
+// Public re-export to simplify the API use.
+pub use zksync_eth_client as eth_client;
+use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, EthInterface, Options};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_state::RocksdbStorage;
@@ -18,14 +20,8 @@ use zksync_types::{
         SnapshotFactoryDependencies, SnapshotMetadata, SnapshotStorageLogsChunk,
         SnapshotStorageLogsStorageKey,
     },
-    url::SensitiveUrl,
-    web3::{
-        contract::{Contract, Options},
-        transports::Http,
-        types::{BlockId, BlockNumber},
-        Web3,
-    },
-    Address, K256PrivateKey, L1BatchNumber, L2ChainId, H160, H256, U256,
+    web3::BlockNumber,
+    Address, L1BatchNumber, L2ChainId, H160, H256, U256,
 };
 
 #[cfg(test)]
@@ -33,8 +29,6 @@ mod tests;
 
 #[derive(Debug)]
 pub struct BlockReverterEthConfig {
-    eth_client_url: SensitiveUrl,
-    reverter_private_key: Option<K256PrivateKey>,
     diamond_proxy_addr: H160,
     validator_timelock_addr: H160,
     default_priority_fee_per_gas: u64,
@@ -44,26 +38,17 @@ pub struct BlockReverterEthConfig {
 
 impl BlockReverterEthConfig {
     pub fn new(
-        eth_config: EthConfig,
+        eth_config: &EthConfig,
         contract: &ContractsConfig,
         network_config: &NetworkConfig,
         era_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
-        #[allow(deprecated)]
-        // `BlockReverter` doesn't support non env configs yet
-        let reverter_private_key = eth_config
-            .sender
-            .context("eth_sender_config")?
-            .private_key()
-            .context("eth_sender_config.private_key")?;
-
         Ok(Self {
-            eth_client_url: eth_config.web3_url,
-            reverter_private_key,
             diamond_proxy_addr: contract.diamond_proxy_addr,
             validator_timelock_addr: contract.validator_timelock_addr,
             default_priority_fee_per_gas: eth_config
                 .gas_adjuster
+                .as_ref()
                 .context("gas adjuster")?
                 .default_priority_fee_per_gas,
             hyperchain_id: network_config.zksync_network_id,
@@ -452,32 +437,17 @@ impl BlockReverter {
     /// Sends a revert transaction to L1.
     pub async fn send_ethereum_revert_transaction(
         &self,
+        eth_client: &dyn BoundEthInterface,
         eth_config: &BlockReverterEthConfig,
         last_l1_batch_to_keep: L1BatchNumber,
-        priority_fee_per_gas: U256,
         nonce: u64,
     ) -> anyhow::Result<()> {
         tracing::info!(
             "Sending Ethereum revert transaction for L1 batch #{last_l1_batch_to_keep} with config {eth_config:?}, \
-             priority fee: {priority_fee_per_gas}, nonce: {nonce}"
+             nonce: {nonce}"
         );
 
-        let transport =
-            Http::new(eth_config.eth_client_url.expose_str()).context("cannot create L1 client")?;
-        let web3 = Web3::new(transport);
         let contract = hyperchain_contract();
-        let signer = PrivateKeySigner::new(
-            eth_config
-                .reverter_private_key
-                .clone()
-                .context("private key is required to send revert transaction")?,
-        );
-        let chain_id = web3
-            .eth()
-            .chain_id()
-            .await
-            .context("failed getting L1 chain ID")?
-            .as_u64();
 
         // It is expected that for all new chains `revertBatchesSharedBridge` can be used.
         // For Era, we are using `revertBatches` function for backwards compatibility in case the migration
@@ -501,56 +471,27 @@ impl BlockReverter {
                 .context("failed encoding `revertBatchesSharedBridge` input")?
         };
 
-        let base_fee = web3
-            .eth()
-            .block(BlockId::Number(BlockNumber::Pending))
-            .await
-            .context("failed getting pending L1 block")?
-            .map(|block| {
-                block
-                    .base_fee_per_gas
-                    .context("no base_fee_per_gas in pending block")
-            })
-            .transpose()?;
-        let base_fee = if let Some(base_fee) = base_fee {
-            base_fee
-        } else {
-            // Pending block doesn't exist, use the latest one.
-            web3.eth()
-                .block(BlockId::Number(BlockNumber::Latest))
-                .await
-                .context("failed geting latest L1 block")?
-                .context("no latest L1 block")?
-                .base_fee_per_gas
-                .context("no base_fee_per_gas in latest block")?
-        };
-
-        let tx = TransactionParameters {
-            to: eth_config.validator_timelock_addr.into(),
-            data,
-            chain_id,
-            nonce: nonce.into(),
-            max_priority_fee_per_gas: priority_fee_per_gas,
-            max_fee_per_gas: base_fee + priority_fee_per_gas,
-            gas: 5_000_000.into(),
+        let options = Options {
+            nonce: Some(nonce.into()),
+            gas: Some(5_000_000.into()),
             ..Default::default()
         };
 
-        let signed_tx = signer
-            .sign_transaction(tx)
+        let signed_tx = eth_client
+            .sign_prepared_tx_for_addr(data, eth_config.validator_timelock_addr, options)
             .await
             .context("cannot sign revert transaction")?;
-        let hash = web3
-            .eth()
-            .send_raw_transaction(signed_tx.into())
+        let hash = eth_client
+            .as_ref()
+            .send_raw_tx(signed_tx.raw_tx)
             .await
             .context("failed sending revert transaction")?;
         tracing::info!("Sent revert transaction to L1 with hash {hash:?}");
 
         loop {
-            let maybe_receipt = web3
-                .eth()
-                .transaction_receipt(hash)
+            let maybe_receipt = eth_client
+                .as_ref()
+                .tx_receipt(hash)
                 .await
                 .context("failed getting receipt for revert transaction")?;
             if let Some(receipt) = maybe_receipt {
@@ -568,9 +509,10 @@ impl BlockReverter {
         }
     }
 
-    #[tracing::instrument(skip(contract), err, fields(contract.address = ?contract.address()))]
+    #[tracing::instrument(err)]
     async fn get_l1_batch_number_from_contract(
-        contract: &Contract<Http>,
+        eth_client: &dyn EthInterface,
+        contract_address: Address,
         op: AggregatedActionType,
     ) -> anyhow::Result<L1BatchNumber> {
         let function_name = match op {
@@ -578,14 +520,12 @@ impl BlockReverter {
             AggregatedActionType::PublishProofOnchain => "getTotalBatchesVerified",
             AggregatedActionType::Execute => "getTotalBatchesExecuted",
         };
-        let block_number: U256 = contract
-            .query(function_name, (), None, Options::default(), None)
+        let block_number: U256 = CallFunctionArgs::new(function_name, ())
+            .for_contract(contract_address, &hyperchain_contract())
+            .call(eth_client)
             .await
             .with_context(|| {
-                format!(
-                    "failed calling `{function_name}` for contract {:?}",
-                    contract.address()
-                )
+                format!("failed calling `{function_name}` for contract {contract_address:?}")
             })?;
         Ok(L1BatchNumber(block_number.as_u32()))
     }
@@ -593,28 +533,32 @@ impl BlockReverter {
     /// Returns suggested values for a reversion.
     pub async fn suggested_values(
         &self,
+        eth_client: &dyn EthInterface,
         eth_config: &BlockReverterEthConfig,
         reverter_address: Address,
     ) -> anyhow::Result<SuggestedRevertValues> {
         tracing::info!("Computing suggested revert values for config {eth_config:?}");
 
-        let transport =
-            Http::new(eth_config.eth_client_url.expose_str()).context("cannot create L1 client")?;
-        let web3 = Web3::new(transport);
         let contract_address = eth_config.diamond_proxy_addr;
-        let contract = Contract::new(web3.eth(), contract_address, hyperchain_contract());
 
-        let last_committed_l1_batch_number =
-            Self::get_l1_batch_number_from_contract(&contract, AggregatedActionType::Commit)
-                .await?;
+        let last_committed_l1_batch_number = Self::get_l1_batch_number_from_contract(
+            eth_client,
+            contract_address,
+            AggregatedActionType::Commit,
+        )
+        .await?;
         let last_verified_l1_batch_number = Self::get_l1_batch_number_from_contract(
-            &contract,
+            eth_client,
+            contract_address,
             AggregatedActionType::PublishProofOnchain,
         )
         .await?;
-        let last_executed_l1_batch_number =
-            Self::get_l1_batch_number_from_contract(&contract, AggregatedActionType::Execute)
-                .await?;
+        let last_executed_l1_batch_number = Self::get_l1_batch_number_from_contract(
+            eth_client,
+            contract_address,
+            AggregatedActionType::Execute,
+        )
+        .await?;
 
         tracing::info!(
             "Last L1 batch numbers on contract: committed {last_committed_l1_batch_number}, \
@@ -622,9 +566,8 @@ impl BlockReverter {
         );
 
         let priority_fee = eth_config.default_priority_fee_per_gas;
-        let nonce = web3
-            .eth()
-            .transaction_count(reverter_address, Some(BlockNumber::Pending))
+        let nonce = eth_client
+            .nonce_at_for_account(reverter_address, BlockNumber::Pending)
             .await
             .with_context(|| format!("failed getting transaction count for {reverter_address:?}"))?
             .as_u64();

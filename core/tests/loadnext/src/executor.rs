@@ -25,7 +25,7 @@ use crate::{
             get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
             load_contract,
         },
-        web3::types::TransactionReceipt,
+        web3::TransactionReceipt,
         EthNamespaceClient, EthereumProvider, ZksNamespaceClient,
     },
     utils::format_eth,

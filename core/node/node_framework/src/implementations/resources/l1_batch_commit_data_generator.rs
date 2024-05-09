@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use zksync_core::eth_sender::l1_batch_commit_data_generator::L1BatchCommitDataGenerator;
+use zksync_eth_sender::l1_batch_commit_data_generator::L1BatchCommitDataGenerator;
 
 use crate::resource::Resource;
 

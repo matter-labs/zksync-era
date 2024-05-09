@@ -1,6 +1,6 @@
 [package]
 name = "zksync_external_node"
-version = "24.0.0" # x-release-please-version
+version = "24.1.0" # x-release-please-version
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -33,6 +33,9 @@ zksync_types.workspace = true
 zksync_block_reverter.workspace = true
 zksync_shared_metrics.workspace = true
 zksync_node_genesis.workspace = true
+zksync_node_fee_model.workspace = true
+zksync_node_db_pruner.workspace = true
+zksync_eth_sender.workspace = true
 vlog.workspace = true
 
 zksync_concurrency.workspace = true
