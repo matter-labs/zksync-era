@@ -17,7 +17,7 @@ pub(crate) async fn run() -> anyhow::Result<()> {
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env")?;
     let contracts_config = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
     let eth_config = EthConfig::from_env().context("EthConfig::from_env")?;
-    let query_client = Client::<L1, _>::http(eth_config.web3_url)?.build();
+    let query_client = Client::<L1>::http(eth_config.web3_url)?.build();
 
     let total_batches_committed: U256 = CallFunctionArgs::new("getTotalBatchesCommitted", ())
         .for_contract(

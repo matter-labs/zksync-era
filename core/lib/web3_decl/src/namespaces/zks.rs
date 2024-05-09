@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+#[cfg_attr(not(feature = "server"), allow(unused_imports))]
+use jsonrpsee::core::RpcResult;
+use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{
         BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
@@ -12,10 +14,9 @@ use zksync_types::{
     Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
 
-use crate::{
-    client::{ForNetwork, L2},
-    types::{Bytes, Token},
-};
+#[cfg(feature = "client")]
+use crate::client::{ForNetwork, L2};
+use crate::types::{Bytes, Token};
 
 #[cfg_attr(
     all(feature = "client", feature = "server"),

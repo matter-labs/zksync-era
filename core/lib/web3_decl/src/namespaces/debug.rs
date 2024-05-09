@@ -1,14 +1,15 @@
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+#[cfg_attr(not(feature = "server"), allow(unused_imports))]
+use jsonrpsee::core::RpcResult;
+use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
     debug_flat_call::DebugCallFlat,
     transaction_request::CallRequest,
 };
 
-use crate::{
-    client::{ForNetwork, L2},
-    types::H256,
-};
+#[cfg(feature = "client")]
+use crate::client::{ForNetwork, L2};
+use crate::types::H256;
 
 #[cfg_attr(
     all(feature = "client", feature = "server"),
@@ -29,18 +30,21 @@ pub trait DebugNamespace {
         block: BlockNumber,
         options: Option<TracerConfig>,
     ) -> RpcResult<Vec<ResultDebugCall>>;
+
     #[method(name = "traceBlockByNumber.callFlatTracer")]
     async fn trace_block_by_number_flat(
         &self,
         block: BlockNumber,
         options: Option<TracerConfig>,
     ) -> RpcResult<Vec<DebugCallFlat>>;
+
     #[method(name = "traceBlockByHash")]
     async fn trace_block_by_hash(
         &self,
         hash: H256,
         options: Option<TracerConfig>,
     ) -> RpcResult<Vec<ResultDebugCall>>;
+
     #[method(name = "traceCall")]
     async fn trace_call(
         &self,
@@ -48,6 +52,7 @@ pub trait DebugNamespace {
         block: Option<BlockId>,
         options: Option<TracerConfig>,
     ) -> RpcResult<DebugCall>;
+
     #[method(name = "traceTransaction")]
     async fn trace_transaction(
         &self,

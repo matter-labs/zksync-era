@@ -1,6 +1,9 @@
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+#[cfg_attr(not(feature = "server"), allow(unused_imports))]
+use jsonrpsee::core::RpcResult;
+use jsonrpsee::proc_macros::rpc;
 use zksync_types::U256;
 
+#[cfg(feature = "client")]
 use crate::client::{ForNetwork, L2};
 
 #[cfg_attr(

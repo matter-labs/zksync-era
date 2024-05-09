@@ -16,6 +16,7 @@ rlp.workspace = true
 thiserror.workspace = true
 jsonrpsee = { workspace = true, features = [
     "macros",
+    "client-core",
 ] }
 pin-project-lite.workspace = true
 zksync_types.workspace = true
