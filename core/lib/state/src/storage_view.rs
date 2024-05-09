@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use zksync_types::{witness_block_state::WitnessBlockState, StorageKey, StorageValue, H256};
+use zksync_types::{StorageKey, StorageValue, H256};
 
 use crate::{ReadStorage, WriteStorage};
 
@@ -53,14 +53,6 @@ pub struct StorageView<S> {
 }
 
 impl<S> StorageView<S> {
-    /// Returns the block's start state using StorageView's in-memory cache for the run
-    pub fn witness_block_state(&self) -> WitnessBlockState {
-        WitnessBlockState {
-            read_storage_key: self.read_storage_keys.clone(),
-            is_write_initial: self.initial_writes_cache.clone(),
-        }
-    }
-
     /// Returns the modified storage keys
     pub fn modified_storage_keys(&self) -> &HashMap<StorageKey, StorageValue> {
         &self.modified_storage_keys
