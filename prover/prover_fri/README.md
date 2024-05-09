@@ -173,6 +173,7 @@ There is an option to run compressors with the GPU, which will significantly imp
 
 1. The hardware setup should be the same as for GPU prover
 2. Install and compile `era-bellman-cuda` library
+
    ```console
    git clone https://github.com/matter-labs/bellman-cuda.git --branch dev bellman-cuda
    cmake -Bbellman-cuda/build -Sbellman-cuda/ -DCMAKE_BUILD_TYPE=Release
@@ -180,16 +181,19 @@ There is an option to run compressors with the GPU, which will significantly imp
    ```
 
 3. Set path of library as environmental variable
+
    ```console
    export BELLMAN_CUDA_DIR=$PWD/bellman-cuda
    ```
 
 4. GPU compressor uses `setup_2^24.key`. Download it by using:
+
    ```console
    wget https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^24.key
    ```
 
 5. Set the env variable with it's path:
+
    ```console
    export CRS_FILE=$PWD/setup_2^24.key
    ```
