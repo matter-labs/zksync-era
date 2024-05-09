@@ -108,7 +108,6 @@ http = "0.2.9"
 iai = "0.1"
 insta = "1.29.0"
 itertools = "0.10"
-jsonrpc-core = "18"
 jsonrpsee = { version = "0.21.0", default-features = false }
 lazy_static = "1.4"
 leb128 = "0.2.5"
