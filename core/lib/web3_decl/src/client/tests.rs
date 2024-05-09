@@ -13,6 +13,7 @@ use jsonrpsee::{
 };
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use test_casing::test_casing;
+use zksync_types::L2ChainId;
 
 use super::{
     metrics::{HttpErrorLabels, RequestLabels, RpcErrorLabels},
@@ -216,6 +217,7 @@ async fn wrapping_mock_client() {
     });
 
     let mut client = ClientBuilder::<L2, _>::new(client, "http://localhost".parse().unwrap())
+        .for_network(L2ChainId::default().into())
         .with_allowed_requests_per_second(NonZeroUsize::new(100).unwrap())
         .build()
         .for_component("test");

@@ -30,6 +30,8 @@ impl ToRpcParams for RawParams {
 ///
 /// The implementation is fairly straightforward: [`RawParams`] is used as a catch-all params type,
 /// and `serde_json::Value` is used as a catch-all response type.
+#[doc(hidden)]
+// ^ The internals of this trait are considered implementation details; it's only exposed via `DynClient` type alias
 #[async_trait]
 pub trait ObjectSafeClient: 'static + Send + Sync + fmt::Debug + ForNetwork {
     fn clone_boxed(&self) -> Box<dyn ObjectSafeClient<Net = Self::Net>>;
@@ -57,7 +59,7 @@ where
     C: 'static + Send + Sync + Clone + fmt::Debug + ClientT + TaggedClient,
 {
     fn clone_boxed(&self) -> Box<dyn ObjectSafeClient<Net = <C as ForNetwork>::Net>> {
-        Box::new(self.clone())
+        Box::new(<C as Clone>::clone(self))
     }
 
     fn for_component(
@@ -87,11 +89,12 @@ where
     }
 }
 
+/// Dynamically typed RPC client for a certain [`Network`].
 pub type DynClient<Net> = dyn ObjectSafeClient<Net = Net>;
 
-impl<Net: Network> Clone for Box<dyn ObjectSafeClient<Net = Net>> {
+impl<Net: Network> Clone for Box<DynClient<Net>> {
     fn clone(&self) -> Self {
-        self.clone_boxed()
+        self.as_ref().clone_boxed()
     }
 }
 
@@ -203,6 +206,25 @@ mod tests {
         let block_number = client.get_block_number().await.unwrap();
         assert_eq!(block_number, 0x42.into());
         let block_number = client.as_ref().get_block_number().await.unwrap();
+        assert_eq!(block_number, 0x42.into());
+    }
+
+    #[tokio::test]
+    async fn client_can_be_cloned() {
+        let client = MockClient::new(|method, params| {
+            assert_eq!(method, "eth_blockNumber");
+            assert_eq!(params, serde_json::Value::Null);
+            Ok(serde_json::json!("0x42"))
+        });
+        let client = Box::new(client) as Box<DynClient<L2>>;
+
+        let cloned_client = client.clone();
+        let block_number = cloned_client.get_block_number().await.unwrap();
+        assert_eq!(block_number, 0x42.into());
+
+        let client_with_label = client.for_component("test");
+        assert_eq!(TaggedClient::component(&client_with_label), "test");
+        let block_number = client_with_label.get_block_number().await.unwrap();
         assert_eq!(block_number, 0x42.into());
     }
 }

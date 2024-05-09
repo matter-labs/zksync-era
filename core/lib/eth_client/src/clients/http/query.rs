@@ -327,3 +327,19 @@ where
         Ok(block)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use zksync_web3_decl::client::Client;
+
+    use super::*;
+
+    #[test]
+    fn client_can_be_cloned() {
+        let client = Client::<L1>::http("http://localhost".parse().unwrap())
+            .unwrap()
+            .build();
+        let client: Box<dyn EthInterface> = Box::new(client);
+        let _ = client.clone();
+    }
+}
