@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 
 use ethabi::Token;
-use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner};
+use zksync_eth_signer::{EthereumSigner, TransactionParameters};
 use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
 use zksync_types::{
     fee::Fee, l2::L2Tx, transaction_request::TransactionRequest,
