@@ -60,6 +60,13 @@ fn parsing_observability_config() {
 }
 
 #[test]
+fn using_unset_sentry_url() {
+    let env_vars = MockEnvironment::new(&[("MISC_SENTRY_URL", "unset")]);
+    let config = ObservabilityENConfig::new(&env_vars).unwrap();
+    config.build_observability().unwrap();
+}
+
+#[test]
 fn parsing_optional_config_from_empty_env() {
     let config: OptionalENConfig = envy::prefixed("EN_").from_iter([]).unwrap();
     assert_eq!(config.filters_limit, 10_000);

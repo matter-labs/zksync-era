@@ -23,7 +23,7 @@ pub(crate) struct ObservabilityENConfig {
     pub sentry_url: Option<String>,
     /// Environment to use when sending data to Sentry.
     pub sentry_environment: Option<String>,
-    /// Log format to use: either 'plain' (default) or 'json'.
+    /// Log format to use: either `plain` (default) or `json`.
     #[serde(default)]
     pub log_format: LogFormat,
 }
@@ -80,7 +80,9 @@ impl ObservabilityENConfig {
 
     pub fn build_observability(&self) -> anyhow::Result<vlog::ObservabilityGuard> {
         let mut builder = vlog::ObservabilityBuilder::new().with_log_format(self.log_format);
-        if let Some(sentry_url) = &self.sentry_url {
+        // Some legacy deployments use `unset` as an equivalent of `None`.
+        let sentry_url = self.sentry_url.as_deref().filter(|&url| url != "unset");
+        if let Some(sentry_url) = sentry_url {
             builder = builder
                 .with_sentry_url(sentry_url)
                 .context("Invalid Sentry URL")?
@@ -89,7 +91,7 @@ impl ObservabilityENConfig {
         let guard = builder.build();
 
         // Report whether sentry is running after the logging subsystem was initialized.
-        if let Some(sentry_url) = &self.sentry_url {
+        if let Some(sentry_url) = sentry_url {
             tracing::info!("Sentry configured with URL: {sentry_url}");
         } else {
             tracing::info!("No sentry URL was provided");
