@@ -73,6 +73,7 @@ pub struct EthereumProvider<S: EthereumSigner> {
     polling_interval: Duration,
     l2_chain_id: u64,
     use_legacy: bool,
+    base_token: Option<Address>,
 }
 
 // TODO (SMA-1623): create a way to pass `Options` (e.g. `nonce`, `gas_limit`, `priority_fee_per_gas`)
@@ -100,6 +101,15 @@ impl<S: EthereumSigner> EthereumProvider<S> {
 
         let l2_chain_id = provider.chain_id().await?.as_u64();
         let contract_address = provider.get_main_contract().await?;
+        let base_token = {
+            let token = provider.get_base_token_l1_address().await?;
+            if token == Address::from_low_u64_be(1) {
+                None // ETH
+            } else {
+                Some(token)
+            }
+        };
+
         let default_bridges = provider
             .get_bridge_contracts()
             .await
@@ -138,6 +148,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             confirmation_timeout: Duration::from_secs(10),
             polling_interval: Duration::from_secs(1),
             use_legacy,
+            base_token,
         })
     }
 
@@ -479,7 +490,10 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                     bridgehub_address,
                     Options::with(|f| {
                         f.gas = Some(U256::from(300000));
-                        f.value = Some(value);
+                        f.value = match self.base_token {
+                            Some(_) => Some(0.into()),
+                            None => Some(value),
+                        };
                         f.gas_price = Some(gas_price)
                     }),
                 )
@@ -510,10 +524,13 @@ impl<S: EthereumSigner> EthereumProvider<S> {
     ) -> Result<H256, ClientError> {
         let operator_tip = operator_tip.unwrap_or_default();
 
-        let is_eth_deposit = l1_token_address == Address::zero();
+        let is_base_token_deposit = match self.base_token {
+            None => l1_token_address == Address::zero(),
+            Some(base_token) => l1_token_address == base_token,
+        };
 
         // Calculate the gas limit for transaction: it may vary for different tokens.
-        let gas_limit = if is_eth_deposit {
+        let gas_limit = if is_base_token_deposit {
             400_000u64
         } else {
             let gas_limits: Map<String, Value> = serde_json::from_str(RAW_ERC20_DEPOSIT_GAS_LIMIT)
@@ -564,7 +581,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .map_err(|e| ClientError::NetworkError(e.to_string()))?;
 
         // Calculate the amount of ether to be sent in the transaction.
-        let total_value = if is_eth_deposit {
+        let total_value = if is_base_token_deposit {
             // Both fee component and the deposit amount are represented as `msg.value`.
             base_cost + operator_tip + amount
         } else {
@@ -575,7 +592,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         options.value = Some(total_value);
         options.gas = Some(gas_limit.into());
 
-        let transaction_hash = if is_eth_deposit {
+        let transaction_hash = if is_base_token_deposit {
             self.request_execute(
                 to,
                 amount,
@@ -637,6 +654,10 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                 let data = contract_function
                     .encode_input(&[ethabi::Token::Tuple(params.into_tokens())])
                     .expect("failed to encode parameters");
+
+                if self.base_token.is_some() {
+                    options.value = Some(0.into());
+                }
 
                 self.client()
                     .sign_prepared_tx_for_addr(data, bridgehub_address, options)
