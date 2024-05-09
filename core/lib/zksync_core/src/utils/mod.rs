@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_config::configs::chain::L1BatchCommitDataGeneratorMode;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{CallFunctionArgs, ContractError, Error as EthClientError, EthInterface};
+use zksync_eth_client::{CallFunctionArgs, ClientError, Error as EthClientError, EthInterface};
 use zksync_types::{Address, L1BatchNumber, ProtocolVersionId};
 
 /// Fallible and async predicate for binary search.
@@ -192,8 +192,8 @@ pub async fn ensure_l1_batch_commit_data_generation_mode(
         // Getters contract does not support getPubdataPricingMode method.
         // This case is accepted for backwards compatibility with older contracts, but emits a
         // warning in case the wrong contract address was passed by the caller.
-        Err(EthClientError::Contract(ContractError::Function(_))) => {
-            tracing::warn!("Getters contract does not support getPubdataPricingMode method");
+        Err(err @ EthClientError::EthereumGateway(ClientError::Call(_))) => {
+            tracing::warn!("Getters contract does not support getPubdataPricingMode method: {err}");
             Ok(())
         }
         Err(err) => anyhow::bail!(err),
@@ -204,6 +204,7 @@ pub async fn ensure_l1_batch_commit_data_generation_mode(
 mod tests {
     use std::{mem, sync::Mutex};
 
+    use jsonrpsee::types::ErrorObject;
     use zksync_eth_client::{clients::MockEthereum, ClientError};
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{ethabi, U256};
@@ -268,8 +269,8 @@ mod tests {
     }
 
     fn mock_ethereum_with_legacy_contract() -> MockEthereum {
-        let abi_err = ethabi::Error::InvalidName("getPubdataPricingMode".into());
-        let err = EthClientError::Contract(ContractError::Function(abi_err));
+        let call_err = ErrorObject::owned(3, "execution reverted: F", None::<()>);
+        let err = EthClientError::EthereumGateway(ClientError::Call(call_err));
         mock_ethereum(ethabi::Token::Uint(U256::zero()), Some(err))
     }
 
