@@ -34,6 +34,6 @@ test-casing.workspace = true
 tokio = { workspace = true, features = ["rt", "test-util"] }
 
 [features]
-default = ["server", "client"]
+default = []
 server = ["jsonrpsee/server"]
 client = ["jsonrpsee/client"]
