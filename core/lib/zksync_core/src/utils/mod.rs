@@ -8,7 +8,6 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use futures::FutureExt;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{CallFunctionArgs, ClientError, Error as EthClientError, EthInterface};
@@ -167,6 +166,7 @@ pub struct L1BatchCommitmentModeValidationTask {
     expected_mode: L1BatchCommitmentMode,
     eth_client: Box<dyn EthInterface>,
     retry_interval: Duration,
+    exit_on_success: bool,
 }
 
 impl L1BatchCommitmentModeValidationTask {
@@ -183,7 +183,15 @@ impl L1BatchCommitmentModeValidationTask {
             expected_mode,
             eth_client: eth_client.for_component("commitment_mode_validation"),
             retry_interval: Self::DEFAULT_RETRY_INTERVAL,
+            exit_on_success: false,
         }
+    }
+
+    /// Makes the task exit after the commitment mode was successfully verified. By default, the task
+    /// will only exit on error or after getting a stop signal.
+    pub fn exit_on_success(mut self) -> Self {
+        self.exit_on_success = true;
+        self
     }
 
     async fn validate_commitment_mode(self) -> anyhow::Result<()> {
@@ -247,14 +255,20 @@ impl L1BatchCommitmentModeValidationTask {
             .await
     }
 
-    /// Runs this task. The task will exit on error or when a stop signal is received.
+    /// Runs this task. The task will exit on error (and on success if `exit_on_success` is set),
+    /// or when a stop signal is received.
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let exit_on_success = self.exit_on_success;
         let validation = self.validate_commitment_mode();
-        loop {
-            tokio::select! {
-                Err(err) = validation.fuse() => return Err(err),
-                _ = stop_receiver.changed() => return Ok(()),
-            }
+        tokio::select! {
+            result = validation => {
+                if exit_on_success || result.is_err() {
+                    return result;
+                }
+                stop_receiver.changed().await.ok();
+                Ok(())
+            },
+            _ = stop_receiver.changed() => Ok(()),
         }
     }
 }
@@ -347,55 +361,56 @@ mod tests {
         mock_ethereum(ethabi::Token::Uint(U256::one()), None)
     }
 
+    fn commitment_task(
+        expected_mode: L1BatchCommitmentMode,
+        eth_client: MockEthereum,
+    ) -> L1BatchCommitmentModeValidationTask {
+        let diamond_proxy_address = Address::repeat_byte(0x01);
+        L1BatchCommitmentModeValidationTask {
+            diamond_proxy_address,
+            expected_mode,
+            eth_client: Box::new(eth_client),
+            exit_on_success: true,
+            retry_interval: Duration::ZERO,
+        }
+    }
+
     #[tokio::test]
     async fn ensure_l1_batch_commit_data_generation_mode_succeeds_when_both_match() {
-        let diamond_proxy_address = Address::repeat_byte(0x01);
-        let task = L1BatchCommitmentModeValidationTask {
-            diamond_proxy_address,
-            expected_mode: L1BatchCommitmentMode::Rollup,
-            eth_client: Box::new(mock_ethereum_with_rollup_contract()),
-            retry_interval: Duration::ZERO,
-        };
+        let task = commitment_task(
+            L1BatchCommitmentMode::Rollup,
+            mock_ethereum_with_rollup_contract(),
+        );
         task.validate_commitment_mode().await.unwrap();
 
-        let task = L1BatchCommitmentModeValidationTask {
-            diamond_proxy_address,
-            expected_mode: L1BatchCommitmentMode::Validium,
-            eth_client: Box::new(mock_ethereum_with_validium_contract()),
-            retry_interval: Duration::ZERO,
-        };
+        let task = commitment_task(
+            L1BatchCommitmentMode::Validium,
+            mock_ethereum_with_validium_contract(),
+        );
         task.validate_commitment_mode().await.unwrap();
     }
 
     #[tokio::test]
     async fn ensure_l1_batch_commit_data_generation_mode_succeeds_on_legacy_contracts() {
-        let diamond_proxy_address = Address::repeat_byte(0x01);
-        let task = L1BatchCommitmentModeValidationTask {
-            diamond_proxy_address,
-            expected_mode: L1BatchCommitmentMode::Rollup,
-            eth_client: Box::new(mock_ethereum_with_legacy_contract()),
-            retry_interval: Duration::ZERO,
-        };
+        let task = commitment_task(
+            L1BatchCommitmentMode::Rollup,
+            mock_ethereum_with_legacy_contract(),
+        );
         task.validate_commitment_mode().await.unwrap();
 
-        let task = L1BatchCommitmentModeValidationTask {
-            diamond_proxy_address,
-            expected_mode: L1BatchCommitmentMode::Validium,
-            eth_client: Box::new(mock_ethereum_with_legacy_contract()),
-            retry_interval: Duration::ZERO,
-        };
+        let task = commitment_task(
+            L1BatchCommitmentMode::Validium,
+            mock_ethereum_with_legacy_contract(),
+        );
         task.validate_commitment_mode().await.unwrap();
     }
 
     #[tokio::test]
     async fn ensure_l1_batch_commit_data_generation_mode_fails_on_mismatch() {
-        let diamond_proxy_address = Address::repeat_byte(0x01);
-        let task = L1BatchCommitmentModeValidationTask {
-            diamond_proxy_address,
-            expected_mode: L1BatchCommitmentMode::Validium,
-            eth_client: Box::new(mock_ethereum_with_rollup_contract()),
-            retry_interval: Duration::ZERO,
-        };
+        let task = commitment_task(
+            L1BatchCommitmentMode::Validium,
+            mock_ethereum_with_rollup_contract(),
+        );
         let err = task
             .validate_commitment_mode()
             .await
@@ -403,12 +418,10 @@ mod tests {
             .to_string();
         assert!(err.contains("commitment mode"), "{err}");
 
-        let task = L1BatchCommitmentModeValidationTask {
-            diamond_proxy_address,
-            expected_mode: L1BatchCommitmentMode::Rollup,
-            eth_client: Box::new(mock_ethereum_with_validium_contract()),
-            retry_interval: Duration::ZERO,
-        };
+        let task = commitment_task(
+            L1BatchCommitmentMode::Rollup,
+            mock_ethereum_with_validium_contract(),
+        );
         let err = task
             .validate_commitment_mode()
             .await
@@ -419,27 +432,19 @@ mod tests {
 
     #[tokio::test]
     async fn ensure_l1_batch_commit_data_generation_mode_recovers_from_request_failure() {
-        let diamond_proxy_address = Address::repeat_byte(0x01);
-        let task = L1BatchCommitmentModeValidationTask {
-            diamond_proxy_address,
-            expected_mode: L1BatchCommitmentMode::Rollup,
-            eth_client: Box::new(mock_ethereum_with_transport_error()),
-            retry_interval: Duration::ZERO,
-        };
-
+        let task = commitment_task(
+            L1BatchCommitmentMode::Rollup,
+            mock_ethereum_with_transport_error(),
+        );
         task.validate_commitment_mode().await.unwrap();
     }
 
     #[tokio::test]
     async fn ensure_l1_batch_commit_data_generation_mode_fails_on_parse_error() {
-        let diamond_proxy_address = Address::repeat_byte(0x01);
-        let task = L1BatchCommitmentModeValidationTask {
-            diamond_proxy_address,
-            expected_mode: L1BatchCommitmentMode::Rollup,
-            eth_client: Box::new(mock_ethereum(ethabi::Token::String("what".into()), None)),
-            retry_interval: Duration::ZERO,
-        };
-
+        let task = commitment_task(
+            L1BatchCommitmentMode::Rollup,
+            mock_ethereum(ethabi::Token::String("what".into()), None),
+        );
         let err = task
             .validate_commitment_mode()
             .await

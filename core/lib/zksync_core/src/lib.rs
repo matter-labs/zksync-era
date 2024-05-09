@@ -621,6 +621,7 @@ pub async fn initialize_components(
             l1_batch_commit_data_generator_mode,
             query_client.clone(),
         )
+        .exit_on_success()
         .run(stop_receiver.clone())
         .await?;
 
