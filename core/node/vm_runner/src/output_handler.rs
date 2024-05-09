@@ -14,14 +14,36 @@ use zksync_types::L1BatchNumber;
 
 use crate::VmRunnerIo;
 
+/// Functionality to produce a [`StateKeeperOutputHandler`] implementation for a specific L1 batch.
+///
+/// The idea behind this trait is that often handling output data is independent of the order of the
+/// batch that data belongs to. In other words, one could be handling output of batch #100 and #1000
+/// simultaneously. Implementing this trait signifies that this property is held for the data the
+/// implementation is responsible for.
 #[async_trait]
 pub trait OutputHandlerFactory: Debug + Send {
+    /// Creates a [`StateKeeperOutputHandler`] implementation for the provided L1 batch. Only
+    /// supposed to be used for the L1 batch data it was created against. Using it for anything else
+    /// is undefined behavior.
+    ///
+    /// # Errors
+    ///
+    /// Propagates DB errors.
     async fn create_handler(
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Box<dyn StateKeeperOutputHandler>>;
 }
 
+/// A delegator factory that requires an underlying factory `F` that does the actual work, however
+/// this struct is orchestrated such that any output handler it produces has a non-blocking
+/// `handle_l1_batch` implementation (where the heaviest work is expected to happen).
+///
+/// Once the asynchronous work done in `handle_l1_batch` finishes it is also guaranteed to mark the
+/// batch is processed by `Io`. It is guaranteed, however, that for any processed batch all batches
+/// preceding it are also processed. No guarantees about subsequent batches. For example, if
+/// batches #1, #2, #3, #5, #9, #100 are processed then only batches #{1-3} will be marked as
+/// processed and #3 would be the latest processed batch as defined in [`VmRunnerIo`].
 pub struct ConcurrentOutputHandlerFactory<Io: VmRunnerIo, F: OutputHandlerFactory> {
     pool: ConnectionPool<Core>,
     state: Arc<DashMap<L1BatchNumber, oneshot::Receiver<BoxFuture<'static, anyhow::Result<()>>>>>,
@@ -40,6 +62,10 @@ impl<Io: VmRunnerIo, F: OutputHandlerFactory> Debug for ConcurrentOutputHandlerF
 }
 
 impl<Io: VmRunnerIo + Clone, F: OutputHandlerFactory> ConcurrentOutputHandlerFactory<Io, F> {
+    /// Creates a new concurrent delegator factory using provided Postgres pool, VM runner IO
+    /// and underlying output handler factory.
+    ///
+    /// Returns a [`ConcurrentOutputHandlerFactoryTask`] which is supposed to be run by the caller.
     pub fn new(
         pool: ConnectionPool<Core>,
         io: Io,
@@ -162,13 +188,29 @@ impl StateKeeperOutputHandler for AsyncOutputHandler {
     }
 }
 
+/// A runnable task that continually awaits for the very next unprocessed batch to be processed and
+/// marks it as so using `Io`.
 pub struct ConcurrentOutputHandlerFactoryTask<Io: VmRunnerIo> {
     pool: ConnectionPool<Core>,
     io: Io,
     state: Arc<DashMap<L1BatchNumber, oneshot::Receiver<BoxFuture<'static, anyhow::Result<()>>>>>,
 }
 
+impl<Io: VmRunnerIo> Debug for ConcurrentOutputHandlerFactoryTask<Io> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ConcurrentOutputHandlerFactoryTask")
+            .field("pool", &self.pool)
+            .field("io", &self.io)
+            .finish()
+    }
+}
+
 impl<Io: VmRunnerIo> ConcurrentOutputHandlerFactoryTask<Io> {
+    /// Starts running the task which is supposed to last until the end of the node's lifetime.
+    ///
+    /// # Errors
+    ///
+    /// Propagates DB errors.
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         const SLEEP_INTERVAL: Duration = Duration::from_millis(50);
 
