@@ -6,6 +6,7 @@ use zksync_types::prover_dal::StuckJobs;
 
 use crate::periodic_job::PeriodicJob;
 
+/// FriWitnessGeneratorJobRetryManager is a task that periodically queues stuck prover jobs.
 #[derive(Debug)]
 pub struct FriWitnessGeneratorJobRetryManager {
     pool: ConnectionPool<Prover>,
@@ -109,7 +110,6 @@ impl FriWitnessGeneratorJobRetryManager {
     }
 }
 
-/// Invoked periodically to re-queue stuck fri witness generator jobs.
 #[async_trait]
 impl PeriodicJob for FriWitnessGeneratorJobRetryManager {
     const SERVICE_NAME: &'static str = "FriWitnessGeneratorJobRetryManager";

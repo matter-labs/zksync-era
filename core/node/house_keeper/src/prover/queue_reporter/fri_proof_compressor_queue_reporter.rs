@@ -1,19 +1,21 @@
 use async_trait::async_trait;
 use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
-use zksync_types::prover_dal::JobCountStatistics;
+use zksync_types::{prover_dal::JobCountStatistics, ProtocolVersionId};
 
 use crate::periodic_job::PeriodicJob;
 
 const PROOF_COMPRESSOR_SERVICE_NAME: &str = "proof_compressor";
 
+/// FriProofCompressorQueueReporter is a task that periodically reports compression jobs status.
+/// Note: these values will be used for auto-scaling proof compressor
 #[derive(Debug)]
-pub struct FriProofCompressorStatsReporter {
+pub struct FriProofCompressorQueueReporter {
     reporting_interval_ms: u64,
     pool: ConnectionPool<Prover>,
 }
 
-impl FriProofCompressorStatsReporter {
+impl FriProofCompressorQueueReporter {
     pub fn new(reporting_interval_ms: u64, pool: ConnectionPool<Prover>) -> Self {
         Self {
             reporting_interval_ms,
@@ -31,11 +33,9 @@ impl FriProofCompressorStatsReporter {
     }
 }
 
-/// Invoked periodically to push job statistics to Prometheus
-/// Note: these values will be used for auto-scaling proof compressor
 #[async_trait]
-impl PeriodicJob for FriProofCompressorStatsReporter {
-    const SERVICE_NAME: &'static str = "ProofCompressorStatsReporter";
+impl PeriodicJob for FriProofCompressorQueueReporter {
+    const SERVICE_NAME: &'static str = "FriProofCompressorQueueReporter";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let stats = Self::get_job_statistics(&self.pool).await;
@@ -51,13 +51,15 @@ impl PeriodicJob for FriProofCompressorStatsReporter {
         metrics::gauge!(
             format!("prover_fri.{}.jobs", PROOF_COMPRESSOR_SERVICE_NAME),
             stats.queued as f64,
-            "type" => "queued"
+            "type" => "queued",
+            "protocol_version" => ProtocolVersionId::current_prover_version().to_string(),
         );
 
         metrics::gauge!(
             format!("prover_fri.{}.jobs", PROOF_COMPRESSOR_SERVICE_NAME),
             stats.in_progress as f64,
-            "type" => "in_progress"
+            "type" => "in_progress",
+            "protocol_version" => ProtocolVersionId::current_prover_version().to_string(),
         );
 
         let oldest_not_compressed_batch = self

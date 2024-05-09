@@ -3,19 +3,23 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
-use zksync_types::{basic_fri_types::AggregationRound, prover_dal::JobCountStatistics};
+use zksync_types::{
+    basic_fri_types::AggregationRound, prover_dal::JobCountStatistics, ProtocolVersionId,
+};
 
 use crate::periodic_job::PeriodicJob;
 
 const FRI_WITNESS_GENERATOR_SERVICE_NAME: &str = "fri_witness_generator";
 
+/// FriWitnessGeneratorQueueReporter is a task that periodically reports witness generator jobs status.
+/// Note: these values will be used for auto-scaling witness generators (Basic, Leaf, Node, Recursion Tip and Scheduler).
 #[derive(Debug)]
-pub struct FriWitnessGeneratorStatsReporter {
+pub struct FriWitnessGeneratorQueueReporter {
     reporting_interval_ms: u64,
     pool: ConnectionPool<Prover>,
 }
 
-impl FriWitnessGeneratorStatsReporter {
+impl FriWitnessGeneratorQueueReporter {
     pub fn new(pool: ConnectionPool<Prover>, reporting_interval_ms: u64) -> Self {
         Self {
             reporting_interval_ms,
@@ -85,11 +89,9 @@ fn emit_metrics_for_round(round: AggregationRound, stats: JobCountStatistics) {
     );
 }
 
-/// Invoked periodically to push job statistics to Prometheus
-/// Note: these values will be used for auto-scaling job processors
 #[async_trait]
-impl PeriodicJob for FriWitnessGeneratorStatsReporter {
-    const SERVICE_NAME: &'static str = "WitnessGeneratorStatsReporter";
+impl PeriodicJob for FriWitnessGeneratorQueueReporter {
+    const SERVICE_NAME: &'static str = "FriWitnessGeneratorQueueReporter";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let stats_for_all_rounds = self.get_job_statistics().await;
@@ -110,13 +112,15 @@ impl PeriodicJob for FriWitnessGeneratorStatsReporter {
         metrics::gauge!(
             format!("server.{}.jobs", FRI_WITNESS_GENERATOR_SERVICE_NAME),
             aggregated.queued as f64,
-            "type" => "queued"
+            "type" => "queued",
+            "protocol_version" => ProtocolVersionId::current_prover_version().to_string(),
         );
 
         metrics::gauge!(
             format!("server.{}.jobs", FRI_WITNESS_GENERATOR_SERVICE_NAME),
             aggregated.in_progress as f64,
-            "type" => "in_progress"
+            "type" => "in_progress",
+            "protocol_version" => ProtocolVersionId::current_prover_version().to_string(),
         );
         Ok(())
     }

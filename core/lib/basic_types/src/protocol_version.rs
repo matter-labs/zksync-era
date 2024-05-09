@@ -1,4 +1,7 @@
-use std::convert::{TryFrom, TryInto};
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt,
+};
 
 use num_enum::TryFromPrimitive;
 use serde::{Deserialize, Serialize};
@@ -151,6 +154,12 @@ impl ProtocolVersionId {
 impl Default for ProtocolVersionId {
     fn default() -> Self {
         Self::latest()
+    }
+}
+
+impl fmt::Display for ProtocolVersionId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", *self as u16)
     }
 }
 
