@@ -20,10 +20,9 @@ use zksync_web3_decl::{
     error::{EnrichedClientError, EnrichedClientResult},
 };
 
-use super::fetcher::Fetcher;
 use crate::{
     api_server::web3::{state::InternalApiConfig, tests::spawn_http_server},
-    consensus::ConnectionPool,
+    consensus::{en, ConnectionPool},
     genesis::{mock_genesis_config, GenesisParams},
     state_keeper::{
         io::{IoCursor, L1BatchParams, L2BlockParams},
@@ -325,34 +324,30 @@ impl StateKeeper {
     }
 
     /// Runs the centralized fetcher.
-    pub async fn run_centralized_fetcher(
-        self,
-        ctx: &ctx::Ctx,
-        client: BoxedL2Client,
-    ) -> anyhow::Result<()> {
-        Fetcher {
+    pub async fn run_fetcher(self, ctx: &ctx::Ctx, client: BoxedL2Client) -> anyhow::Result<()> {
+        en::EN {
             pool: self.pool,
             client,
             sync_state: SyncState::default(),
         }
-        .run_centralized(ctx, self.actions_sender)
+        .run_fetcher(ctx, self.actions_sender)
         .await
     }
 
-    /// Runs the p2p fetcher.
-    pub async fn run_p2p_fetcher(
+    /// Runs consensus node for the external node.
+    pub async fn run_consensus(
         self,
         ctx: &ctx::Ctx,
         client: BoxedL2Client,
         cfg: &network::Config,
     ) -> anyhow::Result<()> {
         let (cfg, secrets) = config(cfg);
-        Fetcher {
+        en::EN {
             pool: self.pool,
             client,
             sync_state: SyncState::default(),
         }
-        .run_p2p(ctx, self.actions_sender, cfg, secrets)
+        .run(ctx, self.actions_sender, cfg, secrets)
         .await
     }
 }

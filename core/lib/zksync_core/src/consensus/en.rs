@@ -14,17 +14,20 @@ use crate::{
     },
 };
 
-/// L2 block fetcher.
-pub(super) struct Fetcher {
+/// External node.
+pub(super) struct EN {
     pub(super) pool: ConnectionPool,
     pub(super) sync_state: SyncState,
     pub(super) client: BoxedL2Client,
 }
 
-impl Fetcher {
-    /// Task fetching L2 blocks using peer-to-peer gossip network.
-    /// NOTE: it still uses main node json RPC in some cases for now.
-    pub async fn run_p2p(
+impl EN {
+    /// Task running a consensus node for the external node.
+    /// It may be a validator, but it cannot be a leader (cannot propose blocks).
+    ///
+    /// NOTE: Before starting the consensus node if fetches all the blocks
+    /// older than consensus genesis from the main node using json RPC.
+    pub async fn run(
         self,
         ctx: &ctx::Ctx,
         actions: ActionQueueSender,
@@ -98,7 +101,7 @@ impl Fetcher {
     }
 
     /// Task fetching L2 blocks using JSON-RPC endpoint of the main node.
-    pub async fn run_centralized(
+    pub async fn run_fetcher(
         self,
         ctx: &ctx::Ctx,
         actions: ActionQueueSender,

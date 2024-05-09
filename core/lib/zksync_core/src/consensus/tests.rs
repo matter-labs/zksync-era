@@ -188,7 +188,7 @@ async fn test_nodes_from_various_snapshots() {
         let conn = validator.connect(ctx).await?;
         s.spawn_bg(async {
             let cfg = new_fullnode(&mut ctx.rng(), &validator_cfg);
-            node.run_p2p_fetcher(ctx, conn, &cfg).await
+            node.run_consensus(ctx, conn, &cfg).await
         });
 
         tracing::info!("produce more batches");
@@ -206,7 +206,7 @@ async fn test_nodes_from_various_snapshots() {
         let conn = validator.connect(ctx).await?;
         s.spawn_bg(async {
             let cfg = new_fullnode(&mut ctx.rng(), &validator_cfg);
-            node.run_p2p_fetcher(ctx, conn, &cfg).await
+            node.run_consensus(ctx, conn, &cfg).await
         });
 
         tracing::info!("produce more blocks and compare storages");
@@ -301,7 +301,7 @@ async fn test_full_nodes(from_snapshot: bool) {
                     .await
                     .with_context(|| format!("node{}", *i))
             });
-            s.spawn_bg(node.run_p2p_fetcher(ctx, validator.connect(ctx).await?, cfg));
+            s.spawn_bg(node.run_consensus(ctx, validator.connect(ctx).await?, cfg));
         }
 
         tracing::info!("Make validator produce blocks and wait for fetchers to get them.");
@@ -359,7 +359,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
         scope::run!(ctx, |ctx, s| async {
             let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
             s.spawn_bg(runner.run(ctx));
-            s.spawn_bg(node.run_p2p_fetcher(ctx, client.clone(), &node_cfg));
+            s.spawn_bg(node.run_consensus(ctx, client.clone(), &node_cfg));
             validator.push_random_blocks(rng, 3).await;
             node_pool
                 .wait_for_certificate(ctx, validator.last_block())
@@ -373,7 +373,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
         scope::run!(ctx, |ctx, s| async {
             let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
             s.spawn_bg(runner.run(ctx));
-            s.spawn_bg(node.run_centralized_fetcher(ctx, client.clone()));
+            s.spawn_bg(node.run_fetcher(ctx, client.clone()));
             validator.push_random_blocks(rng, 3).await;
             node_pool
                 .wait_for_payload(ctx, validator.last_block())
@@ -387,7 +387,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
         scope::run!(ctx, |ctx, s| async {
             let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
             s.spawn_bg(runner.run(ctx));
-            s.spawn_bg(node.run_p2p_fetcher(ctx, client.clone(), &node_cfg));
+            s.spawn_bg(node.run_consensus(ctx, client.clone(), &node_cfg));
             validator.push_random_blocks(rng, 3).await;
             let want = validator_pool
                 .wait_for_certificates_and_verify(ctx, validator.last_block())
@@ -428,7 +428,7 @@ async fn test_centralized_fetcher(from_snapshot: bool) {
         let node_pool = new_pool(from_snapshot).await;
         let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("fetcher")));
-        s.spawn_bg(node.run_centralized_fetcher(ctx, validator.connect(ctx).await?));
+        s.spawn_bg(node.run_fetcher(ctx, validator.connect(ctx).await?));
 
         tracing::info!("Produce some blocks and wait for node to fetch them");
         validator.push_random_blocks(rng, 10).await;

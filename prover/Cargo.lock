@@ -7546,6 +7546,7 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "url",
+ "zeroize",
  "zksync_basic_types",
  "zksync_consensus_utils",
  "zksync_crypto_primitives",
