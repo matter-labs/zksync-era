@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{ensure, Context as _};
+use circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
 use clap::Args as ClapArgs;
 use colored::*;
 use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
@@ -212,7 +213,8 @@ fn display_status_for_stage(stage_info: StageInfo) {
                 stage_info.witness_generator_jobs_status()
             );
             println!(
-                "> Prover Jobs: {}",
+                "> {}: {}",
+                "Prover Jobs".to_owned().bold(),
                 stage_info
                     .prover_jobs_status()
                     .expect("Unable to check status")
@@ -224,7 +226,7 @@ fn display_status_for_stage(stage_info: StageInfo) {
 fn display_batch_info(batch_data: BatchData) {
     println!(
         "== {} ==",
-        format!("Batch {} Status", batch_data.batch_number)
+        format!("Batch {} Status", batch_data.batch_number).bold()
     );
     display_info_for_stage(batch_data.basic_witness_generator);
     display_info_for_stage(batch_data.leaf_witness_generator);
@@ -242,14 +244,14 @@ fn display_info_for_stage(stage_info: StageInfo) {
         }
         Status::Queued | Status::WaitingForProofs | Status::Stuck | Status::JobsNotFound => {
             println!(
-                "{}: {}",
+                " > {}: {}",
                 stage_info.to_string().bold(),
                 stage_info.witness_generator_jobs_status()
             )
         }
         Status::InProgress => {
             println!(
-                "{}: {}",
+                "v {}: {}",
                 stage_info.to_string().bold(),
                 stage_info.witness_generator_jobs_status()
             );
@@ -280,7 +282,7 @@ fn display_info_for_stage(stage_info: StageInfo) {
         }
         Status::Successful => {
             println!(
-                "{}: {}",
+                "> {}: {}",
                 stage_info.to_string().bold(),
                 stage_info.witness_generator_jobs_status()
             );
@@ -309,8 +311,12 @@ fn display_leaf_witness_generator_jobs_info(
 
     leaf_witness_generators_jobs_info.iter().for_each(|job| {
         println!(
-            "   > Circuit ID: {:>3} - Status: {}",
-            job.circuit_id,
+            "   > {}: {}",
+            format!(
+                "{:?}",
+                BaseLayerCircuitType::from_numeric_value(job.circuit_id as u8)
+            )
+            .bold(),
             Status::from(job.status.clone())
         )
     });
@@ -323,8 +329,12 @@ fn display_node_witness_generator_jobs_info(
 
     node_witness_generators_jobs_info.iter().for_each(|job| {
         println!(
-            "   > Circuit ID: {:>3} - Status: {}",
-            job.circuit_id,
+            "   > {}: {}",
+            format!(
+                "{:?}",
+                BaseLayerCircuitType::from_numeric_value(job.circuit_id as u8)
+            )
+            .bold(),
             Status::from(job.status.clone())
         )
     });
@@ -333,11 +343,18 @@ fn display_node_witness_generator_jobs_info(
 fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>) {
     let prover_jobs_status = Status::from(prover_jobs_info.clone());
 
-    println!("v Prover Jobs: {prover_jobs_status}");
-
     if matches!(prover_jobs_status, Status::Successful) {
+        println!(
+            "> {}: {prover_jobs_status}",
+            "Prover Jobs".to_owned().bold()
+        );
         return;
     }
+
+    println!(
+        "v {}: {prover_jobs_status}",
+        "Prover Jobs".to_owned().bold()
+    );
 
     let mut jobs_by_circuit_id: HashMap<u32, Vec<ProverJobFriInfo>> = HashMap::new();
 
@@ -359,10 +376,26 @@ fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>) {
         let status = Status::from(prover_jobs_info.clone());
         match status {
             Status::InProgress => {
-                println!("   > Circuit ID: {:>3} - Status: {}", circuit_id, status);
+                println!(
+                    "   > {}: {}",
+                    format!(
+                        "{:?}",
+                        BaseLayerCircuitType::from_numeric_value(circuit_id as u8)
+                    )
+                    .bold(),
+                    status
+                );
                 display_job_status_count(prover_jobs_info);
             }
-            _ => println!("   > Circuit ID: {:>3} - Status: {}", circuit_id, status),
+            _ => println!(
+                "   > {}: {}",
+                format!(
+                    "{:?}",
+                    BaseLayerCircuitType::from_numeric_value(circuit_id as u8)
+                )
+                .bold(),
+                status
+            ),
         };
     }
 }
@@ -392,6 +425,6 @@ fn display_aggregation_round(stage_info: &StageInfo) {
             format!("Aggregation Round {}", aggregation_round as u8).bold()
         );
     } else {
-        println!("\n-- {} --", format!("Compresion").bold());
+        println!("\n-- {} --", format!("Compression").bold());
     };
 }
